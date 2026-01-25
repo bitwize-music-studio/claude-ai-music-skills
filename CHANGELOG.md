@@ -13,6 +13,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - `/import-track` skill - Moves track .md files to correct album location with numbering
 - `/import-art` skill - Places album art in both audio and content folders
 - `/new-album` skill - Creates album directory structure with all templates
+- `/about` skill - About bitwize and links to bitwizemusic.com
 - `/configure` skill for interactive setup
 - `/test` skill for automated plugin validation (13 test categories)
 - GitHub issue templates (bug reports, feature requests)
