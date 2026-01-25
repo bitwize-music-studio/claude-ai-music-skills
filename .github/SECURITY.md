@@ -17,7 +17,7 @@ We will respond within 48 hours and work with you to address the issue.
 **Workflow files execute code in CI/CD and require strict security review.**
 
 Requirements for workflow changes:
-- ✅ Must be reviewed and approved by @bitwize-music-studio
+- ✅ Must be reviewed and approved by @bitwize-music
 - ✅ Manual security audit required (no automated approval)
 - ✅ Changes must be explained in PR description
 - ❌ Do not include executable code in PR descriptions or comments

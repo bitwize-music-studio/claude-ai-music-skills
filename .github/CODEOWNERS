@@ -5,11 +5,11 @@
 
 # Workflow files require manual security review
 # These files execute code in CI/CD and must be carefully reviewed
-.github/workflows/* @bitwize-music-studio
+.github/workflows/* @bitwize-music
 
 # Plugin manifest files (version changes trigger releases)
-.claude-plugin/plugin.json @bitwize-music-studio
-.claude-plugin/marketplace.json @bitwize-music-studio
+.claude-plugin/plugin.json @bitwize-music
+.claude-plugin/marketplace.json @bitwize-music
 
 # Core documentation that defines workflow behavior
-CLAUDE.md @bitwize-music-studio
+CLAUDE.md @bitwize-music
