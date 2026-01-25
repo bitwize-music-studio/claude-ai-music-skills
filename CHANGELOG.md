@@ -11,6 +11,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ### Changed
 
 ### Fixed
+- Auto-release workflow now continues successfully even when branch protection prevents CHANGELOG commit
 
 ## [0.5.1] - 2026-01-25
 
