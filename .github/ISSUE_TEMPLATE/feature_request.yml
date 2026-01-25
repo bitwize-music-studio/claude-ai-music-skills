@@ -1,0 +1,101 @@
+name: Feature Request
+description: Suggest a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement! This helps make the plugin better for everyone.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What type of enhancement is this?
+      options:
+        - New Skill - Add a new slash command
+        - Skill Enhancement - Improve an existing skill
+        - New Template - Add a new template type
+        - Template Enhancement - Improve existing templates
+        - Workflow Improvement - Better checkpoints, phases, or process
+        - Tool Enhancement - Improve mastering or analysis scripts
+        - Platform Support - Add support for Udio, new distributors, etc.
+        - Reference Documentation - Add to Suno docs, pronunciation guide, etc.
+        - Configuration - New config options or path handling
+    validations:
+      required: true
+
+  - type: dropdown
+    id: skill
+    attributes:
+      label: Which skill? (if enhancing existing)
+      description: If this enhances a specific skill, which one?
+      options:
+        - /lyric-writer
+        - /suno-engineer
+        - /album-conceptualizer
+        - /album-art-director
+        - /researcher
+        - /researchers:* (specify in description)
+        - /pronunciation-specialist
+        - /lyric-reviewer
+        - /explicit-checker
+        - /mastering-engineer
+        - /release-director
+        - /configure
+        - /tutorial
+        - N/A - This is for a new skill
+    validations:
+      required: false
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem does this solve? Why do you need it?
+      placeholder: |
+        When working on documentary albums about historical events, I need to cite academic sources.
+        The current researchers don't handle academic databases well...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work?
+      placeholder: |
+        Add a /researchers:academic skill that:
+        - Searches JSTOR, Google Scholar, archive.org
+        - Formats citations in Chicago style
+        - Extracts key quotes with page numbers
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried other approaches? Why don't they work?
+      placeholder: I tried using /researchers:journalism but it doesn't handle academic paper formats...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be willing to help implement this?
+      options:
+        - label: I'd be willing to submit a PR for this feature
+        - label: I can help test if someone else implements it
+        - label: I can provide more detailed requirements if needed
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Examples, mockups, related issues, or anything else
+    validations:
+      required: false

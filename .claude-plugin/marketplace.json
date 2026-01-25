@@ -1,0 +1,14 @@
+{
+  "name": "bitwize-music-skills",
+  "owner": {
+    "name": "bitwize-music-studio"
+  },
+  "plugins": [
+    {
+      "name": "bitwize-music",
+      "description": "AI music generation workflow for Suno - album concepts, lyrics, prompts, mastering, release",
+      "version": "0.2.0",
+      "source": "./"
+    }
+  ]
+}

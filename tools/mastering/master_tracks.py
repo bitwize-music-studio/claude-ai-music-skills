@@ -1,0 +1,422 @@
+#!/usr/bin/env python3
+"""
+Automated Mastering Script for Album
+- Normalizes to target LUFS (streaming: -14 LUFS)
+- Optional high-mid EQ cut for tinniness
+- True peak limiting to prevent clipping
+- Preserves dynamics while ensuring consistency
+"""
+
+import os
+import sys
+import numpy as np
+import soundfile as sf
+import pyloudnorm as pyln
+from scipy import signal
+from pathlib import Path
+import argparse
+
+# Genre presets: (target_lufs, cut_highmid, cut_highs)
+# - target_lufs: Loudness target (streaming standard is -14, dynamic genres use -16 to -18)
+# - cut_highmid: EQ cut at 3.5kHz to tame harshness (negative values = cut)
+# - cut_highs: High shelf cut at 8kHz for overly bright mixes
+GENRE_PRESETS = {
+    # === Pop / Mainstream ===
+    'pop':              (-14.0, -1.0, 0),
+    'k-pop':            (-14.0, -1.0, 0),
+    'hyperpop':         (-14.0, -1.5, 0),
+
+    # === Hip-Hop / Rap ===
+    'hip-hop':          (-14.0, -1.0, 0),
+    'hiphop':           (-14.0, -1.0, 0),
+    'rap':              (-14.0, -1.0, 0),
+    'trap':             (-14.0, -1.0, 0),
+    'drill':            (-14.0, -1.0, 0),
+    'phonk':            (-14.0, -1.5, 0),
+    'grime':            (-14.0, -1.5, 0),
+    'nerdcore':         (-14.0, -1.0, 0),
+
+    # === R&B / Soul / Funk ===
+    'r&b':              (-14.0, -1.5, 0),
+    'rnb':              (-14.0, -1.5, 0),
+    'soul':             (-14.0, -1.5, 0),
+    'funk':             (-14.0, -1.5, 0),
+    'disco':            (-14.0, -1.0, 0),
+    'gospel':           (-14.0, -1.5, 0),
+
+    # === Rock ===
+    'rock':             (-14.0, -2.5, 0),
+    'indie-rock':       (-14.0, -2.0, 0),
+    'alternative':      (-14.0, -2.0, 0),
+    'grunge':           (-14.0, -2.5, 0),
+    'garage-rock':      (-14.0, -2.0, 0),
+    'surf-rock':        (-14.0, -1.5, 0),
+    'psychedelic-rock': (-16.0, -1.5, 0),
+    'progressive-rock': (-16.0, -1.5, 0),
+    'post-rock':        (-16.0, -1.5, 0),
+
+    # === Punk ===
+    'punk':             (-14.0, -2.0, 0),
+    'hardcore-punk':    (-14.0, -2.5, 0),
+    'ska-punk':         (-14.0, -2.0, 0),
+    'celtic-punk':      (-14.0, -2.0, 0),
+    'emo':              (-14.0, -2.0, 0),
+
+    # === Metal ===
+    'metal':            (-14.0, -3.0, 0),
+    'thrash-metal':     (-14.0, -3.0, 0),
+    'black-metal':      (-14.0, -3.0, -1.0),
+    'doom-metal':       (-14.0, -2.5, 0),
+    'metalcore':        (-14.0, -3.0, 0),
+    'industrial':       (-14.0, -2.5, 0),
+
+    # === Electronic / Dance ===
+    'electronic':       (-14.0, -1.0, 0),
+    'edm':              (-14.0, -1.0, 0),
+    'house':            (-14.0, -1.0, 0),
+    'techno':           (-14.0, -1.0, 0),
+    'trance':           (-14.0, -1.0, 0),
+    'drum-and-bass':    (-14.0, -1.5, 0),
+    'dubstep':          (-14.0, -1.5, 0),
+    'synthwave':        (-14.0, -1.5, 0),
+    'new-wave':         (-14.0, -1.5, 0),
+    'dancehall':        (-14.0, -1.0, 0),
+
+    # === Ambient / Chill / Atmospheric ===
+    'ambient':          (-16.0, -1.0, 0),
+    'lo-fi':            (-14.0, -1.0, 0),
+    'lofi':             (-14.0, -1.0, 0),
+    'chillwave':        (-16.0, -1.0, 0),
+    'trip-hop':         (-14.0, -1.5, 0),
+    'vaporwave':        (-16.0, -1.0, 0),
+    'shoegaze':         (-16.0, -1.5, 0),
+
+    # === Folk / Country / Americana ===
+    'folk':             (-14.0, -2.0, 0),
+    'country':          (-14.0, -2.0, 0),
+    'americana':        (-14.0, -2.0, 0),
+    'bluegrass':        (-14.0, -1.5, 0),
+    'indie-folk':       (-14.0, -2.0, 0),
+
+    # === Jazz / Blues ===
+    'jazz':             (-16.0, 0, 0),
+    'blues':            (-14.0, -1.5, 0),
+    'swing':            (-14.0, -1.0, 0),
+    'bossa-nova':       (-16.0, 0, 0),
+
+    # === Classical / Cinematic ===
+    'classical':        (-18.0, 0, 0),
+    'opera':            (-18.0, 0, 0),
+    'cinematic':        (-16.0, 0, 0),
+
+    # === Latin / World ===
+    'latin':            (-14.0, -1.0, 0),
+    'afrobeats':        (-14.0, -1.0, 0),
+    'reggae':           (-14.0, -1.5, 0),
+
+    # === Legacy aliases ===
+    'indie':            (-14.0, -2.0, 0),
+}
+
+def apply_eq(data, rate, freq, gain_db, q=1.0):
+    """Apply parametric EQ to audio data.
+
+    Args:
+        data: Audio data (samples x channels)
+        rate: Sample rate
+        freq: Center frequency in Hz
+        gain_db: Gain in dB (negative for cut)
+        q: Q factor (higher = narrower)
+    """
+    # Convert to filter parameters
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * freq / rate
+    alpha = np.sin(w0) / (2 * q)
+
+    # Peaking EQ coefficients
+    b0 = 1 + alpha * A
+    b1 = -2 * np.cos(w0)
+    b2 = 1 - alpha * A
+    a0 = 1 + alpha / A
+    a1 = -2 * np.cos(w0)
+    a2 = 1 - alpha / A
+
+    # Normalize
+    b = np.array([b0/a0, b1/a0, b2/a0])
+    a = np.array([1, a1/a0, a2/a0])
+
+    # Apply filter to each channel
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+def apply_high_shelf(data, rate, freq, gain_db):
+    """Apply high shelf EQ."""
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * freq / rate
+    alpha = np.sin(w0) / 2 * np.sqrt(2)
+
+    cos_w0 = np.cos(w0)
+    sqrt_A = np.sqrt(A)
+
+    b0 = A * ((A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
+    b1 = -2 * A * ((A - 1) + (A + 1) * cos_w0)
+    b2 = A * ((A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
+    a0 = (A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha
+    a1 = 2 * ((A - 1) - (A + 1) * cos_w0)
+    a2 = (A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+
+    b = np.array([b0/a0, b1/a0, b2/a0])
+    a = np.array([1, a1/a0, a2/a0])
+
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+def soft_clip(data, threshold=0.95):
+    """Soft clipping limiter to prevent harsh digital clipping."""
+    # Soft knee limiter using tanh
+    above_thresh = np.abs(data) > threshold
+    if not np.any(above_thresh):
+        return data
+
+    result = data.copy()
+    # Apply soft saturation above threshold
+    mask = np.abs(data) > threshold
+    result[mask] = np.sign(data[mask]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[mask]) - threshold) / (1 - threshold)))
+    return result
+
+def limit_peaks(data, ceiling_db=-1.0):
+    """Simple peak limiter to prevent clipping.
+
+    Args:
+        data: Audio data
+        ceiling_db: Maximum peak level in dB (e.g., -1.0 for -1 dBTP)
+    """
+    ceiling_linear = 10 ** (ceiling_db / 20)
+    peak = np.max(np.abs(data))
+
+    if peak > ceiling_linear:
+        # Calculate required gain reduction
+        gain = ceiling_linear / peak
+        data = data * gain
+
+    return soft_clip(data, ceiling_linear)
+
+def master_track(input_path, output_path, target_lufs=-14.0,
+                 eq_settings=None, ceiling_db=-1.0):
+    """Master a single track.
+
+    Args:
+        input_path: Path to input wav file
+        output_path: Path for output wav file
+        target_lufs: Target integrated loudness
+        eq_settings: List of (freq, gain_db, q) tuples for EQ
+        ceiling_db: True peak ceiling in dB
+    """
+    # Read audio
+    data, rate = sf.read(input_path)
+
+    # Handle mono
+    was_mono = len(data.shape) == 1
+    if was_mono:
+        data = np.column_stack([data, data])
+
+    # Apply EQ if specified
+    if eq_settings:
+        for freq, gain_db, q in eq_settings:
+            data = apply_eq(data, rate, freq, gain_db, q)
+
+    # Measure current loudness
+    meter = pyln.Meter(rate)
+    current_lufs = meter.integrated_loudness(data)
+
+    # Calculate required gain
+    gain_db = target_lufs - current_lufs
+    gain_linear = 10 ** (gain_db / 20)
+
+    # Apply gain
+    data = data * gain_linear
+
+    # Apply limiter
+    data = limit_peaks(data, ceiling_db)
+
+    # Verify final loudness
+    final_lufs = meter.integrated_loudness(data)
+    final_peak = 20 * np.log10(np.max(np.abs(data)))
+
+    # Convert back to mono if input was mono
+    if was_mono:
+        data = data[:, 0]
+
+    # Write output (same format as input)
+    sf.write(output_path, data, rate, subtype='PCM_16')
+
+    return {
+        'original_lufs': current_lufs,
+        'final_lufs': final_lufs,
+        'gain_applied': gain_db,
+        'final_peak': final_peak,
+    }
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Master audio tracks for streaming',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""
+Genre presets available: {', '.join(sorted(GENRE_PRESETS.keys()))}
+
+Examples:
+  python master_tracks.py ~/music/album/ --genre country
+  python master_tracks.py . --cut-highmid -2
+  python master_tracks.py /path/to/tracks --dry-run --genre rock
+        """
+    )
+    parser.add_argument('path', nargs='?', default='.',
+                       help='Path to directory containing WAV files (default: current directory)')
+    parser.add_argument('--genre', '-g', type=str,
+                       help=f'Apply genre preset ({", ".join(sorted(set(GENRE_PRESETS.keys())))})')
+    parser.add_argument('--target-lufs', type=float, default=None,
+                       help='Target loudness in LUFS (default: -14 for streaming)')
+    parser.add_argument('--ceiling', type=float, default=-1.0,
+                       help='True peak ceiling in dB (default: -1.0)')
+    parser.add_argument('--cut-highmid', type=float, default=None,
+                       help='High-mid cut in dB at 3.5kHz (e.g., -2 for 2dB cut)')
+    parser.add_argument('--cut-highs', type=float, default=None,
+                       help='High shelf cut in dB at 8kHz')
+    parser.add_argument('--output-dir', type=str, default='mastered',
+                       help='Output directory (default: mastered)')
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Analyze only, do not write files')
+
+    args = parser.parse_args()
+
+    # Apply genre preset if specified
+    if args.genre:
+        genre_key = args.genre.lower()
+        if genre_key not in GENRE_PRESETS:
+            print(f"Unknown genre: {args.genre}")
+            print(f"Available: {', '.join(sorted(GENRE_PRESETS.keys()))}")
+            return
+        preset_lufs, preset_highmid, preset_highs = GENRE_PRESETS[genre_key]
+        # Genre preset provides defaults, but explicit args override
+        if args.target_lufs is None:
+            args.target_lufs = preset_lufs
+        if args.cut_highmid is None:
+            args.cut_highmid = preset_highmid
+        if args.cut_highs is None:
+            args.cut_highs = preset_highs
+
+    # Apply defaults if no genre and no explicit value
+    if args.target_lufs is None:
+        args.target_lufs = -14.0
+    if args.cut_highmid is None:
+        args.cut_highmid = 0
+    if args.cut_highs is None:
+        args.cut_highs = 0
+
+    # Setup
+    input_dir = Path(args.path).expanduser().resolve()
+    if not input_dir.exists():
+        print(f"Error: Directory not found: {input_dir}")
+        sys.exit(1)
+
+    output_dir = input_dir / args.output_dir
+
+    if not args.dry_run:
+        output_dir.mkdir(exist_ok=True)
+
+    # Find wav files
+    wav_files = sorted([f for f in input_dir.glob('*.wav')
+                       if 'mastering-env' not in str(f)])
+
+    # Build EQ settings
+    eq_settings = []
+    if args.cut_highmid != 0:
+        eq_settings.append((3500, args.cut_highmid, 1.5))  # 3.5kHz with moderate Q
+    if args.cut_highs != 0:
+        # For high shelf, we'd need different handling - simplified here
+        eq_settings.append((8000, args.cut_highs, 0.7))
+
+    print("=" * 70)
+    print("MASTERING SESSION")
+    print("=" * 70)
+    if args.genre:
+        print(f"Genre preset: {args.genre}")
+    print(f"Target LUFS: {args.target_lufs}")
+    print(f"Peak ceiling: {args.ceiling} dBTP")
+    if args.cut_highmid != 0:
+        print(f"EQ: High-mid cut: {args.cut_highmid}dB at 3.5kHz")
+    if args.cut_highs != 0:
+        print(f"EQ: High shelf cut: {args.cut_highs}dB at 8kHz")
+    print(f"Output: {output_dir}/")
+    print("=" * 70)
+    print()
+
+    if args.dry_run:
+        print("DRY RUN - No files will be written")
+        print()
+
+    print(f"{'Track':<35} {'Before':>8} {'After':>8} {'Gain':>8} {'Peak':>8}")
+    print("-" * 70)
+
+    results = []
+    for wav_file in wav_files:
+        output_path = output_dir / wav_file.name
+
+        if args.dry_run:
+            # Just analyze
+            data, rate = sf.read(str(wav_file))
+            if len(data.shape) == 1:
+                data = np.column_stack([data, data])
+            meter = pyln.Meter(rate)
+            current_lufs = meter.integrated_loudness(data)
+            gain = args.target_lufs - current_lufs
+            result = {
+                'original_lufs': current_lufs,
+                'final_lufs': args.target_lufs,
+                'gain_applied': gain,
+                'final_peak': -1.0,  # Estimated
+            }
+        else:
+            result = master_track(
+                str(wav_file),
+                str(output_path),
+                target_lufs=args.target_lufs,
+                eq_settings=eq_settings if eq_settings else None,
+                ceiling_db=args.ceiling
+            )
+
+        results.append(result)
+
+        name = wav_file.name[:34]
+        print(f"{name:<35} {result['original_lufs']:>7.1f} {result['final_lufs']:>7.1f} "
+              f"{result['gain_applied']:>+7.1f} {result['final_peak']:>7.1f}")
+
+    print("-" * 70)
+
+    # Summary
+    gains = [r['gain_applied'] for r in results]
+    finals = [r['final_lufs'] for r in results]
+
+    print()
+    print("SUMMARY:")
+    print(f"  Gain range applied: {min(gains):+.1f} to {max(gains):+.1f} dB")
+    print(f"  Final LUFS range: {max(finals) - min(finals):.2f} dB (target: < 0.5 dB)")
+    print()
+
+    if not args.dry_run:
+        print(f"Mastered files written to: {output_dir.absolute()}/")
+    else:
+        print("Run without --dry-run to process files")
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,60 @@
+# bitwize-music Plugin Configuration
+# Copy this file to: ~/.bitwize-music/config.yaml
+#
+# Setup:
+#   mkdir -p ~/.bitwize-music
+#   cp config/config.example.yaml ~/.bitwize-music/config.yaml
+#   # Then edit ~/.bitwize-music/config.yaml with your settings
+
+# =============================================================================
+# ARTIST
+# =============================================================================
+artist:
+  # Your artist/project name
+  name: "your-artist-name"
+
+  # Primary genres (used for default album categorization)
+  genres:
+    - "electronic"
+    - "hip-hop"
+
+  # Brief description of your style (optional, helps Claude understand your vibe)
+  # style: "dark industrial electronic with aggressive vocals"
+
+# =============================================================================
+# PATHS
+# =============================================================================
+# All paths support ~ for home directory
+
+paths:
+  # Where albums, artists, and research files live
+  # Structure: {content_root}/artists/[artist]/albums/[genre]/[album]/
+  content_root: "~/music-projects"
+
+  # Where mastered audio and album art go
+  # Structure: {audio_root}/[artist]/[album]/
+  audio_root: "~/music-projects/audio"
+
+  # Where PDFs and primary source documents go (not committed to git)
+  # Structure: {documents_root}/[artist]/[album]/
+  documents_root: "~/music-projects/documents"
+
+  # tools_root is always ~/.bitwize-music (where this config lives)
+  # Contains: mastering-env/, cache/, etc.
+
+# =============================================================================
+# PLATFORM URLS
+# =============================================================================
+urls:
+  soundcloud: "https://soundcloud.com/your-artist"
+  # spotify: "https://open.spotify.com/artist/..."
+  # bandcamp: "https://your-artist.bandcamp.com"
+  # youtube: "https://youtube.com/@your-artist"
+
+# =============================================================================
+# GENERATION SERVICE
+# =============================================================================
+generation:
+  # Music generation service: suno (only supported option for now)
+  service: suno
+  # Future: udio, soundraw, etc.

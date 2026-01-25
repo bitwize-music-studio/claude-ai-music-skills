@@ -1,0 +1,133 @@
+name: Bug Report
+description: Report something that isn't working correctly
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please fill out the sections below.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: What part of the plugin is affected?
+      options:
+        - Skill (slash command)
+        - Template (artist/album/track)
+        - Tool (mastering scripts)
+        - Workflow (checkpoints, phases, status)
+        - Configuration (paths, config.yaml)
+        - Reference Documentation
+        - CLAUDE.md Instructions
+    validations:
+      required: true
+
+  - type: dropdown
+    id: skill
+    attributes:
+      label: Which skill? (if applicable)
+      description: If this involves a specific skill, which one?
+      options:
+        - /lyric-writer
+        - /suno-engineer
+        - /album-conceptualizer
+        - /album-art-director
+        - /researcher
+        - /researchers:legal
+        - /researchers:gov
+        - /researchers:journalism
+        - /researchers:verifier
+        - /pronunciation-specialist
+        - /lyric-reviewer
+        - /explicit-checker
+        - /mastering-engineer
+        - /release-director
+        - /configure
+        - /tutorial
+        - Other (specify in description)
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the issue
+      placeholder: Claude didn't follow the verification workflow and proceeded to generate lyrics before I confirmed sources...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+      placeholder: Claude should have stopped and waited for my explicit "sources verified" confirmation before writing lyrics.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Create a new true-story album
+        2. Add sources to track 01
+        3. Say "let's write lyrics for track 01"
+        4. Observe that Claude skips verification
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue type
+      description: What kind of problem is this?
+      options:
+        - Claude ignored instructions in CLAUDE.md
+        - Skill instructions are unclear/wrong
+        - Template is missing fields or structured incorrectly
+        - Tool script crashes or produces wrong output
+        - Documentation is incorrect or outdated
+        - Configuration doesn't load or resolve paths
+        - Suno guidance no longer works (Suno changed)
+    validations:
+      required: true
+
+  - type: input
+    id: claude-model
+    attributes:
+      label: Claude model
+      description: Which Claude model were you using?
+      placeholder: claude-sonnet-4-5-20250929
+    validations:
+      required: false
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Git commit hash or tag (run `git rev-parse --short HEAD`)
+      placeholder: abc1234
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or conversation excerpts
+      description: Paste any error messages or relevant Claude conversation
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any other context, screenshots, or files that might help
+    validations:
+      required: false

@@ -1,0 +1,36 @@
+# User content (private)
+artists/
+research/
+IDEAS.md
+
+# User configuration lives at ~/.bitwize-music/config.yaml (outside repo)
+
+# Generated files
+*.pyc
+__pycache__/
+.venv/
+mastering-env/
+mastered/
+*.wav
+*.mp3
+
+# Primary source documents - too large for Git
+*.pdf
+primary-sources/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+TESTING.md
