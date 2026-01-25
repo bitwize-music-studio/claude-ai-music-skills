@@ -1,7 +1,7 @@
 ---
 name: test
 description: Run automated tests to validate plugin integrity
-argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | release | consistency | terminology | behavior | quality]
+argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality]
 model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
@@ -174,7 +174,7 @@ Read skills/configure/SKILL.md and verify these are documented:
 - `reset`
 
 ### TEST: /test skill covers all categories
-This skill should document tests for: config, skills, templates, workflow, suno, research, mastering, release, consistency, terminology, behavior, quality
+This skill should document tests for: config, skills, templates, workflow, suno, research, mastering, sheet-music, release, consistency, terminology, behavior, quality
 
 ---
 
@@ -494,7 +494,126 @@ Verify it specifies:
 
 ---
 
-## 8. RELEASE TESTS (`/test release`)
+## 8. SHEET MUSIC TESTS (`/test sheet-music`)
+
+Tests for sheet music generation workflow.
+
+### TEST: /sheet-music-publisher skill exists
+```
+Glob: skills/sheet-music-publisher/SKILL.md
+```
+
+### TEST: Sheet music tools exist
+These scripts must exist:
+- `tools/sheet-music/transcribe.py`
+- `tools/sheet-music/fix_titles.py`
+- `tools/sheet-music/create_songbook.py`
+
+### TEST: Sheet music scripts are executable
+```bash
+test -x tools/sheet-music/transcribe.py
+test -x tools/sheet-music/fix_titles.py
+test -x tools/sheet-music/create_songbook.py
+```
+
+### TEST: Sheet music reference documentation exists
+These files must exist:
+- `skills/sheet-music-publisher/REQUIREMENTS.md`
+- `skills/sheet-music-publisher/anthemscore-reference.md`
+- `skills/sheet-music-publisher/musescore-reference.md`
+- `skills/sheet-music-publisher/publishing-guide.md`
+- `tools/sheet-music/README.md`
+- `reference/sheet-music/workflow.md`
+
+### TEST: Sheet music requirements documented in skill frontmatter
+Read skills/sheet-music-publisher/SKILL.md frontmatter.
+Verify it has `requirements:` section with:
+- `external:` listing AnthemScore and MuseScore
+- `python:` listing pypdf, reportlab, pyyaml
+
+### TEST: Sheet music requirements documented in CLAUDE.md
+Read CLAUDE.md "Sheet Music Generation (Optional)" section.
+Verify it documents:
+- AnthemScore requirement ($42 Professional)
+- MuseScore requirement (Free)
+- Python dependencies
+- Links to software downloads
+
+### TEST: Sheet music scripts have config integration
+Read tools/sheet-music/transcribe.py.
+Verify it includes:
+1. `read_config()` function
+2. `resolve_album_path()` function
+3. Reads `~/.bitwize-music/config.yaml`
+4. Extracts `paths.audio_root` and `artist.name`
+
+Read tools/sheet-music/create_songbook.py.
+Verify it includes:
+1. `read_config()` function
+2. Auto-detects artist from config
+3. Auto-detects cover art
+4. Auto-detects website from config
+
+### TEST: Sheet music scripts have OS detection
+Read tools/sheet-music/transcribe.py.
+Verify it includes:
+1. `find_anthemscore()` function with platform detection
+2. Paths for macOS, Linux, Windows
+3. `show_install_instructions()` function
+
+Read tools/sheet-music/fix_titles.py.
+Verify it includes:
+1. `find_musescore()` function with platform detection
+2. Paths for macOS, Linux, Windows
+3. `show_install_instructions()` function
+
+### TEST: Sheet music output path includes artist folder
+Read tools/sheet-music/transcribe.py.
+Verify output directory is constructed as:
+`{audio_root}/{artist}/{album}/sheet-music/`
+
+Verify it INCLUDES artist folder (not `{audio_root}/{album}/sheet-music/`)
+
+### TEST: Sheet music documented in CLAUDE.md workflow
+Read CLAUDE.md.
+Verify "Sheet Music Generation (Optional)" section exists.
+Verify it shows workflow position: "Generate → Master → [Sheet Music] → Release"
+
+### TEST: Sheet music in Album Completion Checklist
+Read CLAUDE.md "Album Completion Checklist" section.
+Verify it includes:
+`- [ ] Sheet music generated (optional)`
+
+### TEST: Sheet music skill in skills table
+Read CLAUDE.md skills table.
+Verify `/bitwize-music:sheet-music-publisher` is listed.
+
+### TEST: Config has sheet_music section
+Read config/config.example.yaml.
+Verify `sheet_music:` section exists with:
+- `page_size:` (letter, 9x12, or 6x9)
+- `section_headers:` (boolean)
+
+### TEST: No hardcoded AnthemScore/MuseScore paths
+Search tools/sheet-music/*.py for hardcoded paths outside of the OS detection arrays.
+Should NOT find paths like `/Applications/` or `C:\Program Files\` except in the detection functions.
+
+### TEST: Sheet music scripts handle missing software gracefully
+Read tools/sheet-music/transcribe.py.
+Verify that if `find_anthemscore()` returns None:
+1. Shows install instructions
+2. Exits with non-zero status
+3. Does not proceed with transcription
+
+Read tools/sheet-music/fix_titles.py.
+Verify that if `find_musescore()` returns None:
+1. Shows install instructions
+2. Offers `--xml-only` option
+3. Exits with non-zero status (if not --xml-only)
+
+---
+
+## 9. RELEASE TESTS (`/test release`)
 
 Tests for release workflow.
 
@@ -831,6 +950,7 @@ Verify it includes:
 | `/test suno` | Suno integration tests |
 | `/test research` | Research workflow tests |
 | `/test mastering` | Mastering workflow tests |
+| `/test sheet-music` | Sheet music generation tests |
 | `/test release` | Release workflow tests |
 | `/test consistency` | Cross-reference checks |
 | `/test terminology` | Consistent language tests |

@@ -7,6 +7,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- `/sheet-music-publisher` skill - Convert audio to sheet music, create KDP-ready songbooks
+  - AnthemScore CLI integration for automated transcription
+  - MuseScore integration for polishing and PDF export
+  - Cross-platform OS detection (macOS, Linux, Windows)
+  - Config-aware path resolution
+  - Automatic cover art detection for songbooks
+  - Tools: transcribe.py, fix_titles.py, create_songbook.py
+  - Comprehensive documentation (REQUIREMENTS.md, reference guides, publishing guide)
 - `/validate-album` skill - Validates album structure, file locations, catches path issues
 - `/test e2e` - End-to-end integration test that creates test album and exercises full workflow
 - `/import-audio` skill - Moves audio files to correct `{audio_root}/{artist}/{album}/` location

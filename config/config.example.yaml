@@ -58,3 +58,13 @@ generation:
   # Music generation service: suno (only supported option for now)
   service: suno
   # Future: udio, soundraw, etc.
+
+# =============================================================================
+# SHEET MUSIC (Optional)
+# =============================================================================
+sheet_music:
+  # Page size for songbooks: letter (8.5x11), 9x12, 6x9
+  page_size: "letter"
+
+  # Include section headers in songbooks
+  section_headers: false

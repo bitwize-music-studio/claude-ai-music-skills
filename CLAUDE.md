@@ -266,6 +266,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
 | `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
 | `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
+| `/bitwize-music:sheet-music-publisher` | Convert audio to sheet music, create songbooks |
 | `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
 | `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |
 | `/bitwize-music:import-art` | Place album art in both audio and content locations (always reads config) |
@@ -897,6 +898,7 @@ When you find a keeper: Set Status to `Generated`, add Suno Link.
 - [ ] Album art prompt created (see Album Art Generation below)
 - [ ] Album art generated and saved
 - [ ] Audio mastered (-14 LUFS, -1.0 dBTP)
+- [ ] Sheet music generated (optional)
 - [ ] Streaming Lyrics filled in each track (if using distributor)
 - [ ] SoundCloud metadata filled in
 - [ ] For source-based albums:
@@ -1240,6 +1242,52 @@ See `/reference/mastering/mastering-workflow.md` for complete guide including:
 - Troubleshooting
 - Platform-specific targets
 - Reference-based mastering with `matchering`
+
+---
+
+## Sheet Music Generation (Optional)
+
+After mastering, optionally create professional sheet music and songbooks.
+
+**External software required:**
+- **AnthemScore** ($42 Professional edition) - [lunaverus.com](https://www.lunaverus.com/)
+  - Free trial: 30 seconds per song, 100 total transcriptions
+- **MuseScore** (Free) - [musescore.org](https://musescore.org/)
+
+**Python dependencies (songbook only):**
+```bash
+pip install pypdf reportlab pyyaml
+```
+
+Use `/bitwize-music:sheet-music-publisher` skill:
+
+```bash
+/bitwize-music:sheet-music-publisher shell-no
+```
+
+**Guides through:**
+1. Setup verification (AnthemScore, MuseScore)
+2. Track selection
+3. Transcription (automated, ~30-60 sec/track)
+4. Polish (optional MuseScore editing)
+5. Title cleanup
+6. Songbook creation (optional KDP-ready PDF)
+
+**Output:**
+```
+{audio_root}/{artist}/{album}/sheet-music/
+├── 01-track.pdf
+├── 01-track.xml (MusicXML source)
+├── 02-track.pdf
+└── Album_Songbook.pdf (combined)
+```
+
+**Good candidates:** Melodic tracks, singer-songwriter, folk, acoustic
+**Challenging:** Dense electronic, heavy distortion
+
+**Workflow position:** Generate → Master → **[Sheet Music]** → Release (optional enhancement)
+
+**See also:** `/reference/sheet-music/workflow.md` for complete documentation
 
 ---
 
