@@ -12,6 +12,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.6.1] - 2026-01-25
+
+### Added
+
+### Changed
+
+### Fixed
+- Auto-release workflow now extracts release notes from versioned section instead of [Unreleased]
+
 ## [0.6.0] - 2026-01-25
 
 ### Added

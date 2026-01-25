@@ -42,24 +42,26 @@ jobs:
       id: changelog
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        # Extract everything between [Unreleased] and the next ## heading
-        NOTES=$(awk '/## \[Unreleased\]/,/^## \[/ {
-          if (/^## \[Unreleased\]/) next
-          if (/^## \[/) exit
-          print
-        }' CHANGELOG.md | head -c 65000)
+        VERSION="${{ steps.version.outputs.version }}"
+
+        # Extract everything between [VERSION] and the next ## heading
+        NOTES=$(awk -v ver="$VERSION" '
+          $0 ~ "## \\[" ver "\\]" { found=1; next }
+          found && /^## \[/ { exit }
+          found { print }
+        ' CHANGELOG.md | head -c 65000)
 
         # Trim leading/trailing whitespace
         NOTES=$(echo "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
         # If empty or only whitespace, use default message
         if [ -z "$NOTES" ]; then
-          NOTES="Release ${{ steps.version.outputs.version }}"
+          NOTES="Release $VERSION"
         fi
 
         # Save to file to preserve formatting
         echo "$NOTES" > /tmp/release_notes.md
-        echo "Release notes extracted"
+        echo "Release notes extracted from [$VERSION] section"
 
     - name: Create GitHub Release
       if: steps.check_tag.outputs.exists == 'false'
