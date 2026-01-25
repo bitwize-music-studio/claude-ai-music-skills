@@ -7,6 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- Automated release workflow - GitHub Actions automatically creates tags and releases when version files are updated on main
 - `/sheet-music-publisher` skill - Convert audio to sheet music, create KDP-ready songbooks
   - AnthemScore CLI integration for automated transcription
   - MuseScore integration for polishing and PDF export

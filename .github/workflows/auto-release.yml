@@ -1,0 +1,117 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.claude-plugin/plugin.json'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for tagging
+
+    - name: Extract version
+      id: version
+      run: |
+        VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+        echo "Detected version: $VERSION"
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Tag v${{ steps.version.outputs.version }} already exists, skipping release"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Tag v${{ steps.version.outputs.version }} does not exist, proceeding with release"
+        fi
+
+    - name: Extract release notes from CHANGELOG
+      id: changelog
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        # Extract everything between [Unreleased] and the next ## heading
+        NOTES=$(awk '/## \[Unreleased\]/,/^## \[/ {
+          if (/^## \[Unreleased\]/) next
+          if (/^## \[/) exit
+          print
+        }' CHANGELOG.md | sed '/^$/d' | head -c 65000)
+
+        # If empty, use default message
+        if [ -z "$NOTES" ]; then
+          NOTES="Release ${{ steps.version.outputs.version }}"
+        fi
+
+        # Save to file to preserve formatting
+        echo "$NOTES" > /tmp/release_notes.md
+        echo "Release notes extracted"
+
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.exists == 'false'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Determine if pre-release (0.x.x versions)
+        if [[ "${{ steps.version.outputs.version }}" =~ ^0\. ]]; then
+          PRERELEASE="--prerelease"
+        else
+          PRERELEASE=""
+        fi
+
+        gh release create \
+          "${{ steps.version.outputs.tag }}" \
+          --title "${{ steps.version.outputs.version }}" \
+          --notes-file /tmp/release_notes.md \
+          $PRERELEASE
+
+    - name: Update CHANGELOG
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        DATE=$(date +%Y-%m-%d)
+
+        python3 << 'PYTHON_SCRIPT'
+        import os
+        import re
+        from datetime import date
+
+        version = os.environ['VERSION']
+        release_date = os.environ['DATE']
+
+        with open('CHANGELOG.md', 'r') as f:
+            content = f.read()
+
+        # Replace [Unreleased] with [X.Y.Z] - DATE
+        content = content.replace('## [Unreleased]', f'## [{version}] - {release_date}')
+
+        # Add new [Unreleased] section
+        new_section = "## [Unreleased]\n\n### Added\n\n### Changed\n\n### Fixed\n\n"
+        # Insert new section before the versioned release
+        content = content.replace(f'## [{version}] - {release_date}', new_section + f'## [{version}] - {release_date}')
+
+        with open('CHANGELOG.md', 'w') as f:
+            f.write(content)
+
+        print("CHANGELOG.md updated")
+        PYTHON_SCRIPT
+
+    - name: Commit CHANGELOG update
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CHANGELOG.md
+        git commit -m "chore: update CHANGELOG for ${{ steps.version.outputs.version }} release [skip ci]"
+        git push
