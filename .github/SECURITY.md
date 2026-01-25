@@ -1,15 +1,5 @@
 # Security Policy
 
-## Reporting Security Issues
-
-If you discover a security vulnerability in this project, please report it by:
-
-1. **DO NOT** open a public GitHub issue
-2. Email the maintainer directly (contact info in [package.json](../.claude-plugin/plugin.json) or repository settings)
-3. Include detailed steps to reproduce the vulnerability
-
-We will respond within 48 hours and work with you to address the issue.
-
 ## Code Review Requirements
 
 ### Workflow Files (.github/workflows/*)
