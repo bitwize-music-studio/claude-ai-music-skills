@@ -79,53 +79,19 @@ jobs:
           --notes-file /tmp/release_notes.md \
           $PRERELEASE
 
-    - name: Update CHANGELOG
+    - name: Verify CHANGELOG was updated
       if: steps.check_tag.outputs.exists == 'false'
-      env:
-        RELEASE_VERSION: ${{ steps.version.outputs.version }}
       run: |
-        export RELEASE_DATE=$(date +%Y-%m-%d)
+        VERSION="${{ steps.version.outputs.version }}"
 
-        python3 << 'PYTHON_SCRIPT'
-        import os
-        import re
-        from datetime import date
-
-        version = os.environ['RELEASE_VERSION']
-        release_date = os.environ['RELEASE_DATE']
-
-        with open('CHANGELOG.md', 'r') as f:
-            content = f.read()
-
-        # Replace [Unreleased] with [X.Y.Z] - DATE
-        content = content.replace('## [Unreleased]', f'## [{version}] - {release_date}')
-
-        # Add new [Unreleased] section
-        new_section = "## [Unreleased]\n\n### Added\n\n### Changed\n\n### Fixed\n\n"
-        # Insert new section before the versioned release
-        content = content.replace(f'## [{version}] - {release_date}', new_section + f'## [{version}] - {release_date}')
-
-        with open('CHANGELOG.md', 'w') as f:
-            f.write(content)
-
-        print("CHANGELOG.md updated")
-        PYTHON_SCRIPT
-
-    - name: Commit CHANGELOG update
-      if: steps.check_tag.outputs.exists == 'false'
-      continue-on-error: true
-      run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add CHANGELOG.md
-
-        # Only commit if there are changes
-        if git diff --cached --quiet; then
-          echo "No CHANGELOG changes to commit"
-          exit 0
+        # Check if this version exists in CHANGELOG
+        if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+          echo "✅ CHANGELOG.md contains release notes for version $VERSION"
+        else
+          echo "⚠️  WARNING: CHANGELOG.md does not contain section for version $VERSION"
+          echo ""
+          echo "The release was created, but please update CHANGELOG.md manually:"
+          echo "1. Rename [Unreleased] to [$VERSION] - $(date +%Y-%m-%d)"
+          echo "2. Add new [Unreleased] section above it"
+          echo "3. Commit and push to main"
         fi
-
-        git commit -m "chore: update CHANGELOG for ${{ steps.version.outputs.version }} release [skip ci]"
-
-        # Try to push, but don't fail if branch protection prevents it
-        git push || echo "⚠️  Could not push CHANGELOG update due to branch protection. Please update manually."

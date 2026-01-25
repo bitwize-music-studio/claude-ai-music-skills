@@ -40,14 +40,17 @@ This plugin uses [Semantic Versioning](https://semver.org/) with [Conventional C
 **Release process:**
 1. Update entries in `CHANGELOG.md` under `[Unreleased]` as you work
 2. When ready to release:
+   - Finalize `CHANGELOG.md`: Rename `[Unreleased]` → `[0.x.0] - YYYY-MM-DD`
+   - Add new `[Unreleased]` section above it
    - Update version in `.claude-plugin/plugin.json`
    - Update version in `.claude-plugin/marketplace.json` (must match plugin.json)
 3. Commit: `chore: release 0.x.0`
 4. Push to main → **Automated workflow**:
    - Creates git tag `v0.x.0`
    - Creates GitHub release with CHANGELOG notes
-   - Updates CHANGELOG.md (renames [Unreleased] → [0.x.0] with date)
-   - Commits CHANGELOG update back to main
+   - Verifies CHANGELOG was updated for this version
+
+**Note:** CHANGELOG.md is manually maintained to ensure quality release notes and maintain security (no branch protection bypass needed).
 
 **Version files (must stay in sync):**
 - `.claude-plugin/plugin.json` - Plugin manifest
