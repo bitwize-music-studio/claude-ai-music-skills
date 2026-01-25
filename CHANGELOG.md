@@ -9,6 +9,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ### Added
 
 ### Changed
+
+### Fixed
+
+## [0.6.0] - 2026-01-25
+
+### Added
+
+### Changed
 - CHANGELOG.md is now manually maintained (no automated commits) for security and quality
 - Auto-release workflow verifies CHANGELOG was updated instead of attempting to modify it
 
