@@ -52,6 +52,25 @@ This plugin uses [Semantic Versioning](https://semver.org/) with [Conventional C
 
 **Co-author line:** Include `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>` in commits.
 
+**Development workflow:**
+
+For all changes (even solo development):
+1. Create feature branch: `git checkout -b feat/your-feature`
+2. Make changes and commit with Conventional Commits
+3. Run `/bitwize-music:test all` to verify locally
+4. Push and create PR on GitHub
+5. Automated static validation runs via GitHub Actions (JSON/YAML validation, version sync)
+6. Review PR (or self-review)
+7. Merge to main
+
+This ensures:
+- Automated validation catches common issues
+- Version files stay in sync
+- Changes are documented in commits
+- CHANGELOG.md stays current
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for full workflow details.
+
 ## Plugin vs Content Architecture
 
 This plugin separates **plugin code** from **user content** so you can accept plugin updates without merge conflicts.

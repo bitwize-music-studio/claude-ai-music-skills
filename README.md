@@ -425,7 +425,7 @@ CC0 - Public Domain. Do whatever you want with it.
 
 ## Contributing
 
-PRs welcome. See the skills in `skills/` for examples of the format.
+PRs welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our development workflow and guidelines.
 
 ---
 
