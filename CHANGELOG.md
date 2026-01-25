@@ -7,6 +7,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- CODEOWNERS file to protect workflow files and critical configuration
+- SECURITY.md with security policy and AI-assisted development guidelines
 
 ### Changed
 
