@@ -42,3 +42,5 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - Research files being saved to working directory instead of album directory
 - Mastering scripts mixing .py files with .wav files in audio folders
 - User-provided names now preserve exact casing (no auto-capitalization)
+- Skill references in docs now use full `/bitwize-music:` prefix (required for plugin skills)
+- Researcher skill names aligned with folder names (colon → hyphen in frontmatter)
