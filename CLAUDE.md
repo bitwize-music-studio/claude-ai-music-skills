@@ -127,7 +127,7 @@ Future services (not yet implemented):
 To configure: Set `generation.service` in `~/.bitwize-music/config.yaml`. If unset, defaults to `suno`.
 
 **Service-specific content:**
-- Skills: `/suno-engineer` (Suno), future: `/udio-engineer`, etc.
+- Skills: `/bitwize-music:suno-engineer` (Suno), future: `/bitwize-music:udio-engineer`, etc.
 - Reference docs: `/reference/suno/` (Suno), future: `/reference/udio/`, etc.
 - Template sections: Marked with `<!-- SERVICE: suno -->` comments
 
@@ -147,10 +147,10 @@ At the beginning of a fresh session:
    - If config missing, tell user:
      ```
      Config not found. To set up:
-       Option 1: Run /configure (interactive)
+       Option 1: Run /bitwize-music:configure (interactive)
        Option 2: mkdir -p ~/.bitwize-music && cp config/config.example.yaml ~/.bitwize-music/config.yaml
      ```
-2. **Check skill models** - Run `/skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
+2. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
 3. **Check IDEAS.md** - Check `{content_root}/IDEAS.md` for pending album ideas
 4. **Check in-progress albums**:
    - Scan `{content_root}/artists/*/albums/*/` for albums with Status: "In Progress" or "Research Complete"
@@ -164,7 +164,7 @@ At the beginning of a fresh session:
 
 **Present status summary** to user, ask what to work on.
 
-**Tip**: Users can also run `/tutorial resume` for an interactive guide to their in-progress work.
+**Tip**: Users can also run `/bitwize-music:tutorial resume` for an interactive guide to their in-progress work.
 
 ## Mid-Session Workflow Updates
 
@@ -255,60 +255,60 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 
 | Skill | When to Use |
 |-------|-------------|
-| `/tutorial` | Interactive guided album creation, session resume, getting started |
-| `/lyric-writer` | Writing/reviewing lyrics, fixing prosody issues |
-| `/researcher` | Source verification, fact-checking, coordinates specialized researchers |
-| `/document-hunter` | Automated document search/download from free public archives (Playwright) |
-| `/album-conceptualizer` | Album concepts, tracklist architecture |
-| `/album-art-director` | Album artwork concepts, visual prompts for AI art generation |
-| `/suno-engineer` | Technical Suno prompting, genre selection |
-| `/explicit-checker` | Scan lyrics for explicit content, verify flags match content |
-| `/pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
-| `/lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
-| `/mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
-| `/import-audio` | Move audio files to correct album location (always reads config) |
-| `/import-track` | Move track .md files to correct album location (always reads config) |
-| `/import-art` | Place album art in both audio and content locations (always reads config) |
-| `/new-album` | Create album directory structure with templates (always reads config) |
-| `/release-director` | Album release coordination, QA, distribution, platform uploads |
-| `/validate-album` | Validate album structure, file locations, catch path issues |
-| `/configure` | Set up or edit plugin configuration (~/.bitwize-music/config.yaml) |
-| `/test` | Run automated tests to validate plugin integrity (`/test e2e` for full E2E test) |
-| `/skill-model-updater` | Update model references in skills when new Claude models are released |
+| `/bitwize-music:tutorial` | Interactive guided album creation, session resume, getting started |
+| `/bitwize-music:lyric-writer` | Writing/reviewing lyrics, fixing prosody issues |
+| `/bitwize-music:researcher` | Source verification, fact-checking, coordinates specialized researchers |
+| `/bitwize-music:document-hunter` | Automated document search/download from free public archives (Playwright) |
+| `/bitwize-music:album-conceptualizer` | Album concepts, tracklist architecture |
+| `/bitwize-music:album-art-director` | Album artwork concepts, visual prompts for AI art generation |
+| `/bitwize-music:suno-engineer` | Technical Suno prompting, genre selection |
+| `/bitwize-music:explicit-checker` | Scan lyrics for explicit content, verify flags match content |
+| `/bitwize-music:pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
+| `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
+| `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
+| `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
+| `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |
+| `/bitwize-music:import-art` | Place album art in both audio and content locations (always reads config) |
+| `/bitwize-music:new-album` | Create album directory structure with templates (always reads config) |
+| `/bitwize-music:release-director` | Album release coordination, QA, distribution, platform uploads |
+| `/bitwize-music:validate-album` | Validate album structure, file locations, catch path issues |
+| `/bitwize-music:configure` | Set up or edit plugin configuration (~/.bitwize-music/config.yaml) |
+| `/bitwize-music:test` | Run automated tests to validate plugin integrity (`/bitwize-music:test e2e` for full E2E test) |
+| `/bitwize-music:skill-model-updater` | Update model references in skills when new Claude models are released |
 
 ### Specialized Researchers
 
-For deep research, `/researcher` coordinates specialists:
+For deep research, `/bitwize-music:researcher` coordinates specialists:
 
 | Skill | Domain |
 |-------|--------|
-| `/researchers:legal` | Court documents, indictments, plea agreements, sentencing |
-| `/researchers:gov` | DOJ/FBI/SEC press releases, agency statements |
-| `/researchers:tech` | Project histories, changelogs, developer interviews |
-| `/researchers:journalism` | Investigative articles, interviews, coverage |
-| `/researchers:security` | Malware analysis, CVEs, attribution reports, hacker communities |
-| `/researchers:financial` | SEC filings, earnings calls, analyst reports, market data |
-| `/researchers:historical` | Archives, contemporary accounts, timeline reconstruction |
-| `/researchers:biographical` | Personal backgrounds, interviews, motivations, humanizing details |
-| `/researchers:primary-source` | Subject's own words: tweets, blogs, forums, chat logs |
-| `/researchers:verifier` | Quality control, citation validation, fact-checking before human review |
+| `/bitwize-music:researchers-legal` | Court documents, indictments, plea agreements, sentencing |
+| `/bitwize-music:researchers-gov` | DOJ/FBI/SEC press releases, agency statements |
+| `/bitwize-music:researchers-tech` | Project histories, changelogs, developer interviews |
+| `/bitwize-music:researchers-journalism` | Investigative articles, interviews, coverage |
+| `/bitwize-music:researchers-security` | Malware analysis, CVEs, attribution reports, hacker communities |
+| `/bitwize-music:researchers-financial` | SEC filings, earnings calls, analyst reports, market data |
+| `/bitwize-music:researchers-historical` | Archives, contemporary accounts, timeline reconstruction |
+| `/bitwize-music:researchers-biographical` | Personal backgrounds, interviews, motivations, humanizing details |
+| `/bitwize-music:researchers-primary-source` | Subject's own words: tweets, blogs, forums, chat logs |
+| `/bitwize-music:researchers-verifier` | Quality control, citation validation, fact-checking before human review |
 
 ### How to Invoke
 
 **Explicit invocation** (user types slash command):
 ```
-/lyric-writer artists/{artist}/albums/{genre}/{album}/tracks/01-track.md
-/researcher "Great Molasses Flood 1919"
-/researchers:historical "Boston molasses disaster USIA"
+/bitwize-music:lyric-writer artists/{artist}/albums/{genre}/{album}/tracks/01-track.md
+/bitwize-music:researcher "Great Molasses Flood 1919"
+/bitwize-music:researchers-historical "Boston molasses disaster USIA"
 ```
 
 **Proactive invocation** (Claude recognizes the need):
-- Writing lyrics → automatically apply `/lyric-writer` expertise
-- Planning album → automatically apply `/album-conceptualizer` expertise
-- Creating album art → automatically apply `/album-art-director` expertise
-- Verifying sources → automatically apply `/researcher` standards
-- Finding court documents → automatically apply `/document-hunter` for systematic search
-- Mastering audio → automatically apply `/mastering-engineer` standards
+- Writing lyrics → automatically apply `/bitwize-music:lyric-writer` expertise
+- Planning album → automatically apply `/bitwize-music:album-conceptualizer` expertise
+- Creating album art → automatically apply `/bitwize-music:album-art-director` expertise
+- Verifying sources → automatically apply `/bitwize-music:researcher` standards
+- Finding court documents → automatically apply `/bitwize-music:document-hunter` for systematic search
+- Mastering audio → automatically apply `/bitwize-music:mastering-engineer` standards
 
 **The rule**: Skills contain the deep expertise. CLAUDE.md contains workflow and structure.
 
@@ -318,9 +318,9 @@ For deep research, `/researcher` coordinates specialists:
 
 Skills can update their own reference documentation when new issues are discovered:
 
-- `/pronunciation-specialist` → Updates `/reference/suno/pronunciation-guide.md` with new phonetic fixes
-- `/suno-engineer` → Updates `/reference/suno/*.md` with new tips, techniques, version changes
-- `/skill-model-updater` → Updates model references across all skills when new Claude models release
+- `/bitwize-music:pronunciation-specialist` → Updates `/reference/suno/pronunciation-guide.md` with new phonetic fixes
+- `/bitwize-music:suno-engineer` → Updates `/reference/suno/*.md` with new tips, techniques, version changes
+- `/bitwize-music:skill-model-updater` → Updates model references across all skills when new Claude models release
 
 **The rule**: When a skill discovers something new, it should add it to the relevant reference file so future invocations benefit.
 
@@ -329,18 +329,18 @@ Skills can update their own reference documentation when new issues are discover
 Skills are optimized for quality where it matters most. On the Claude Code Max subscription plan, use the best model for critical creative outputs.
 
 **Opus 4.5 (`claude-opus-4-5-20251101`)** - Critical creative outputs:
-- `/lyric-writer` - Core content, storytelling, prosody
-- `/suno-engineer` - Music generation prompts
-- `/researchers:legal` - Complex legal document synthesis
-- `/researchers:verifier` - High-stakes quality control
+- `/bitwize-music:lyric-writer` - Core content, storytelling, prosody
+- `/bitwize-music:suno-engineer` - Music generation prompts
+- `/bitwize-music:researchers-legal` - Complex legal document synthesis
+- `/bitwize-music:researchers-verifier` - High-stakes quality control
 
 **Sonnet 4.5 (`claude-sonnet-4-5-20250929`)** - Most tasks:
-- `/album-conceptualizer` - Album planning
-- `/researcher` - Research coordination
+- `/bitwize-music:album-conceptualizer` - Album planning
+- `/bitwize-music:researcher` - Research coordination
 - All other creative and reasoning tasks
 
 **Haiku 4.5 (`claude-haiku-4-5-20251001`)** - Pattern matching only:
-- `/pronunciation-specialist` - Scanning for pronunciation risks
+- `/bitwize-music:pronunciation-specialist` - Scanning for pronunciation risks
 
 **The rule**: Optimize for quality on lyrics and Suno prompts. These define the music output. Everything else can use Sonnet.
 
@@ -348,7 +348,7 @@ Skills are optimized for quality where it matters most. On the Claude Code Max s
 
 ## Quick Reference: Lyric Writing
 
-Use `/lyric-writer` for full guidance. See `/skills/lyric-writer/SKILL.md` for documentation.
+Use `/bitwize-music:lyric-writer` for full guidance. See `/skills/lyric-writer/SKILL.md` for documentation.
 
 ### Key Principles
 
@@ -435,7 +435,7 @@ claude-ai-music-skills/           # {plugin_root}
 
 ## Sources & Verification
 
-Use `/researcher` for full guidance. See `/skills/researcher/SKILL.md` for documentation.
+Use `/bitwize-music:researcher` for full guidance. See `/skills/researcher/SKILL.md` for documentation.
 
 ### Critical Rules
 
@@ -541,7 +541,7 @@ Once user confirms verification:
 
 **Ask questions first. Don't assume.**
 
-Use `/album-conceptualizer` for full guidance. See `/skills/album-conceptualizer/SKILL.md` for documentation.
+Use `/bitwize-music:album-conceptualizer` for full guidance. See `/skills/album-conceptualizer/SKILL.md` for documentation.
 
 ### The 7 Planning Phases (REQUIRED)
 
@@ -626,10 +626,10 @@ Use templates from `/templates/` for all new content.
 
 **CRITICAL: When user says "make a new album" or "let's work on [album]", IMMEDIATELY create the directory structure BEFORE any discussion or writing.**
 
-**Step 1: Use `/new-album` skill (FIRST)**
+**Step 1: Use `/bitwize-music:new-album` skill (FIRST)**
 
 ```
-/new-album shell-no electronic
+/bitwize-music:new-album shell-no electronic
 ```
 
 The skill:
@@ -655,7 +655,7 @@ The skill:
 4. Fill in all sections (Concept, Tracklist, Production Notes, etc.)
 
 **Step 4: Then Ask Planning Questions**
-Use the 7 Planning Phases from `/album-conceptualizer` to fill in details.
+Use the 7 Planning Phases from `/bitwize-music:album-conceptualizer` to fill in details.
 
 **Note**: The album template includes YAML frontmatter skeleton.
 
@@ -667,10 +667,10 @@ Use the 7 Planning Phases from `/album-conceptualizer` to fill in details.
 
 **Trigger**: User says "I created track X for [album]" or "I have a track file for [album]" and the file is outside the album directory (e.g., Downloads, Desktop, another folder).
 
-**Use the `/import-track` skill:**
+**Use the `/bitwize-music:import-track` skill:**
 
 ```
-/import-track ~/Downloads/t-day-beach.md shell-no 03
+/bitwize-music:import-track ~/Downloads/t-day-beach.md shell-no 03
 ```
 
 The skill:
@@ -686,10 +686,10 @@ The skill:
 
 **Trigger**: User says "I have audio for track X", "I downloaded track X", or mentions a WAV/audio file in Downloads or another location.
 
-**Use the `/import-audio` skill:**
+**Use the `/bitwize-music:import-audio` skill:**
 
 ```
-/import-audio ~/Downloads/03-t-day-beach.wav shell-no
+/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav shell-no
 ```
 
 The skill:
@@ -714,7 +714,7 @@ The skill:
    - Suno Style Box filled
    - Suno Lyrics Box filled
    - Sources verified (if applicable)
-3. Run explicit content check: `/explicit-checker [album-path]`
+3. Run explicit content check: `/bitwize-music:explicit-checker [album-path]`
 4. Run phonetic check on all tracks (scan for names, places, homographs, acronyms)
 5. Present summary to user
 
@@ -741,7 +741,7 @@ Proceed to generation?
 
 ## Suno Generation Workflow
 
-**Reference:** Use `/suno-engineer` for technical details, or see `/reference/suno/v5-best-practices.md`
+**Reference:** Use `/bitwize-music:suno-engineer` for technical details, or see `/reference/suno/v5-best-practices.md`
 
 ### Generation Process
 
@@ -917,7 +917,7 @@ Generate album art when tracks are complete and you're preparing for release.
 
 **Step 1: Verify Prompt Exists**
 - Album README should have ChatGPT/DALL-E prompt in "Album Art" section
-- If missing, use `/album-art-director` to create prompt
+- If missing, use `/bitwize-music:album-art-director` to create prompt
 
 **Step 2: Generate with User**
 Since Claude Code cannot directly generate images:
@@ -932,10 +932,10 @@ Since Claude Code cannot directly generate images:
 
 **Step 3: Save to Standard Locations**
 
-Once user has generated and downloaded the image, use the `/import-art` skill:
+Once user has generated and downloaded the image, use the `/bitwize-music:import-art` skill:
 
 ```
-/import-art ~/Downloads/album-art.jpg shell-no
+/bitwize-music:import-art ~/Downloads/album-art.jpg shell-no
 ```
 
 The skill:
@@ -962,7 +962,7 @@ Mark album art as complete in Album Completion Checklist.
 - Adjust prompt for that tool's syntax
 
 **Need prompt revisions:**
-- Use `/album-art-director` to refine visual concept
+- Use `/bitwize-music:album-art-director` to refine visual concept
 - Iterate on prompt based on generation results
 
 ---
@@ -1244,7 +1244,7 @@ See `/reference/mastering/mastering-workflow.md` for complete guide including:
 
 ## Suno Reference
 
-Use `/suno-engineer` for full guidance. See `/skills/suno-engineer/SKILL.md` for documentation.
+Use `/bitwize-music:suno-engineer` for full guidance. See `/skills/suno-engineer/SKILL.md` for documentation.
 
 ### Reference Files
 
@@ -1331,10 +1331,10 @@ For true-story albums, invoke specialized researcher skills:
 
 | Task | Skill |
 |------|-------|
-| DOJ press releases | `/researchers:gov` |
-| Court documents | `/researchers:legal` |
-| Investigative journalism | `/researchers:journalism` |
-| SEC filings | `/researchers:financial` |
-| Lyric verification | `/researchers:verifier` |
+| DOJ press releases | `/bitwize-music:researchers-gov` |
+| Court documents | `/bitwize-music:researchers-legal` |
+| Investigative journalism | `/bitwize-music:researchers-journalism` |
+| SEC filings | `/bitwize-music:researchers-financial` |
+| Lyric verification | `/bitwize-music:researchers-verifier` |
 
 Each researcher returns: Source URL, key facts, relevant quotes with citations, discrepancies found.

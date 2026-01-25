@@ -113,24 +113,24 @@ Each phase has specialized skills and quality gates:
 
 | Phase | What Happens | Skills Used |
 |-------|--------------|-------------|
-| **Concept** | Define album theme, tracklist, sonic direction | `/album-conceptualizer` |
-| **Research** | Gather sources (for true-story albums) | `/researcher`, `/document-hunter` |
-| **Write** | Create lyrics with quality checks | `/lyric-writer`, `/pronunciation-specialist` |
-| **Generate** | Create tracks on Suno | `/suno-engineer` |
-| **Master** | Optimize audio for streaming | `/mastering-engineer` |
-| **Release** | QA, upload, distribute | `/release-director` |
+| **Concept** | Define album theme, tracklist, sonic direction | `/bitwize-music:album-conceptualizer` |
+| **Research** | Gather sources (for true-story albums) | `/bitwize-music:researcher`, `/bitwize-music:document-hunter` |
+| **Write** | Create lyrics with quality checks | `/bitwize-music:lyric-writer`, `/bitwize-music:pronunciation-specialist` |
+| **Generate** | Create tracks on Suno | `/bitwize-music:suno-engineer` |
+| **Master** | Optimize audio for streaming | `/bitwize-music:mastering-engineer` |
+| **Release** | QA, upload, distribute | `/bitwize-music:release-director` |
 
 ### Skills = Specialized Expertise
 
-Skills are invoked with `/skill-name`. They can be called explicitly or Claude will use them automatically when relevant.
+Skills are invoked with `/bitwize-music:skill-name`. They can be called explicitly or Claude will use them automatically when relevant.
 
 **Example explicit call:**
 ```
-/lyric-writer Write verse 2 for track 3
+/bitwize-music:lyric-writer Write verse 2 for track 3
 ```
 
 **Example automatic use:**
-When you say "let's write the lyrics for track 1", Claude automatically applies `/lyric-writer` expertise including rhyme checks, prosody analysis, and pronunciation scanning.
+When you say "let's write the lyrics for track 1", Claude automatically applies `/bitwize-music:lyric-writer` expertise including rhyme checks, prosody analysis, and pronunciation scanning.
 
 ### File Structure
 
@@ -272,11 +272,11 @@ Claude runs the release checklist:
 
 | Skill | Description |
 |-------|-------------|
-| `/lyric-writer` | Write/review lyrics with prosody and rhyme checks |
-| `/album-conceptualizer` | Album concepts, tracklist architecture |
-| `/suno-engineer` | Technical Suno V5 prompting |
-| `/pronunciation-specialist` | Prevent Suno mispronunciations |
-| `/album-art-director` | Album artwork concepts and AI art prompts |
+| `/bitwize-music:lyric-writer` | Write/review lyrics with prosody and rhyme checks |
+| `/bitwize-music:album-conceptualizer` | Album concepts, tracklist architecture |
+| `/bitwize-music:suno-engineer` | Technical Suno V5 prompting |
+| `/bitwize-music:pronunciation-specialist` | Prevent Suno mispronunciations |
+| `/bitwize-music:album-art-director` | Album artwork concepts and AI art prompts |
 
 ### Research & Verification
 
@@ -284,40 +284,40 @@ For documentary or true-story albums:
 
 | Skill | Description |
 |-------|-------------|
-| `/researcher` | Coordinates specialized researchers |
-| `/document-hunter` | Automated document search from public archives |
-| `/researchers:legal` | Court documents, indictments |
-| `/researchers:gov` | DOJ/FBI/SEC press releases |
-| `/researchers:journalism` | Investigative articles |
-| `/researchers:tech` | Project histories, changelogs |
-| `/researchers:security` | Malware analysis, CVEs |
-| `/researchers:financial` | SEC filings, market data |
-| `/researchers:historical` | Archives, timelines |
-| `/researchers:biographical` | Personal backgrounds |
-| `/researchers:primary-source` | Subject's own words |
-| `/researchers:verifier` | Quality control, fact-checking |
+| `/bitwize-music:researcher` | Coordinates specialized researchers |
+| `/bitwize-music:document-hunter` | Automated document search from public archives |
+| `/bitwize-music:researchers-legal` | Court documents, indictments |
+| `/bitwize-music:researchers-gov` | DOJ/FBI/SEC press releases |
+| `/bitwize-music:researchers-journalism` | Investigative articles |
+| `/bitwize-music:researchers-tech` | Project histories, changelogs |
+| `/bitwize-music:researchers-security` | Malware analysis, CVEs |
+| `/bitwize-music:researchers-financial` | SEC filings, market data |
+| `/bitwize-music:researchers-historical` | Archives, timelines |
+| `/bitwize-music:researchers-biographical` | Personal backgrounds |
+| `/bitwize-music:researchers-primary-source` | Subject's own words |
+| `/bitwize-music:researchers-verifier` | Quality control, fact-checking |
 
 ### Quality Control
 
 | Skill | Description |
 |-------|-------------|
-| `/lyric-reviewer` | QC gate before Suno - 8-point checklist |
-| `/explicit-checker` | Scan lyrics for explicit content |
+| `/bitwize-music:lyric-reviewer` | QC gate before Suno - 8-point checklist |
+| `/bitwize-music:explicit-checker` | Scan lyrics for explicit content |
 
 ### Release
 
 | Skill | Description |
 |-------|-------------|
-| `/mastering-engineer` | Audio mastering for streaming |
-| `/release-director` | QA, distribution prep |
+| `/bitwize-music:mastering-engineer` | Audio mastering for streaming |
+| `/bitwize-music:release-director` | QA, distribution prep |
 
 ### Setup & Maintenance
 
 | Skill | Description |
 |-------|-------------|
-| `/configure` | Set up or edit plugin configuration |
-| `/test` | Run automated tests to validate plugin integrity |
-| `/skill-model-updater` | Update Claude model references |
+| `/bitwize-music:configure` | Set up or edit plugin configuration |
+| `/bitwize-music:test` | Run automated tests to validate plugin integrity |
+| `/bitwize-music:skill-model-updater` | Update Claude model references |
 
 ---
 
