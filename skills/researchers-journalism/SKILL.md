@@ -1,5 +1,5 @@
 ---
-name: researchers:journalism
+name: researchers-journalism
 description: Investigative articles, interviews, news coverage
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

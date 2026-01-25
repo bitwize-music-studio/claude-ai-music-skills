@@ -1,5 +1,5 @@
 ---
-name: researchers:historical
+name: researchers-historical
 description: Archives, contemporary accounts, timeline reconstruction
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

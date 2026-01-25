@@ -1,5 +1,5 @@
 ---
-name: researchers:gov
+name: researchers-gov
 description: DOJ/FBI/SEC press releases, agency statements, government sources
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

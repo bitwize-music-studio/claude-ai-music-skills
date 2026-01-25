@@ -1,5 +1,5 @@
 ---
-name: researchers:biographical
+name: researchers-biographical
 description: Personal backgrounds, interviews, motivations, humanizing details
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

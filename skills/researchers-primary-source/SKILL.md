@@ -1,5 +1,5 @@
 ---
-name: researchers:primary-source
+name: researchers-primary-source
 description: Subject's own words - tweets, blogs, forums, chat logs
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

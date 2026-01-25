@@ -1,5 +1,5 @@
 ---
-name: researchers:legal
+name: researchers-legal
 description: Court documents, indictments, plea agreements, sentencing records
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-opus-4-5-20251101

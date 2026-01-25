@@ -208,7 +208,7 @@ Before marking "Ready for Suno":
 ### Related Skills
 - `pronunciation-specialist` - deep pronunciation analysis
 - `explicit-checker` - explicit content scanning
-- `researchers:verifier` - source verification for documentary albums
+- `researchers-verifier` - source verification for documentary albums
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: researchers:verifier
+name: researchers-verifier
 description: Quality control, citation validation, fact-checking before human review
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-opus-4-5-20251101

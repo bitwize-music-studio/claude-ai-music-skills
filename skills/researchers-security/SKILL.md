@@ -1,5 +1,5 @@
 ---
-name: researchers:security
+name: researchers-security
 description: Malware analysis, CVEs, attribution reports, hacker communities
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

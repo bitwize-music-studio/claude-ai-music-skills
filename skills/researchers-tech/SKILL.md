@@ -1,5 +1,5 @@
 ---
-name: researchers:tech
+name: researchers-tech
 description: Project histories, changelogs, developer interviews, open source
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929

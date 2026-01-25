@@ -1,5 +1,5 @@
 ---
-name: researchers:financial
+name: researchers-financial
 description: SEC filings, earnings calls, analyst reports, market data
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
