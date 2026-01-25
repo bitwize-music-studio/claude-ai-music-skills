@@ -47,9 +47,12 @@ jobs:
           if (/^## \[Unreleased\]/) next
           if (/^## \[/) exit
           print
-        }' CHANGELOG.md | sed '/^$/d' | head -c 65000)
+        }' CHANGELOG.md | head -c 65000)
 
-        # If empty, use default message
+        # Trim leading/trailing whitespace
+        NOTES=$(echo "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+        # If empty or only whitespace, use default message
         if [ -z "$NOTES" ]; then
           NOTES="Release ${{ steps.version.outputs.version }}"
         fi
