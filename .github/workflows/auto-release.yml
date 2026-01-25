@@ -78,17 +78,18 @@ jobs:
 
     - name: Update CHANGELOG
       if: steps.check_tag.outputs.exists == 'false'
+      env:
+        RELEASE_VERSION: ${{ steps.version.outputs.version }}
       run: |
-        VERSION="${{ steps.version.outputs.version }}"
-        DATE=$(date +%Y-%m-%d)
+        export RELEASE_DATE=$(date +%Y-%m-%d)
 
         python3 << 'PYTHON_SCRIPT'
         import os
         import re
         from datetime import date
 
-        version = os.environ['VERSION']
-        release_date = os.environ['DATE']
+        version = os.environ['RELEASE_VERSION']
+        release_date = os.environ['RELEASE_DATE']
 
         with open('CHANGELOG.md', 'r') as f:
             content = f.read()
