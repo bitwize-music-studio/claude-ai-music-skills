@@ -60,6 +60,41 @@ Interactive first-time setup. Guide user through creating their config.
 5. `artist.genres` - "What are your primary genres? (comma-separated, or skip)"
 6. `urls.soundcloud` - "SoundCloud profile URL? (or skip)"
 
+**Step 5: Custom Instructions (Optional)**
+
+Ask:
+> You can optionally provide a path to a file containing custom Claude instructions.
+> This lets you add personal workflow preferences that supplement the base CLAUDE.md.
+>
+> Default: ~/music-projects/CUSTOM_CLAUDE.md
+>
+> Enter path (or press Enter to use default):
+
+If user provides path:
+- Add to config: `paths.custom_instructions: "[user-path]"`
+
+If user presses Enter (accepts default):
+- Add to config: `paths.custom_instructions: "~/music-projects/CUSTOM_CLAUDE.md"`
+- Tell user: "Note: File doesn't need to exist yet. Create it when you want to add custom instructions."
+
+**Step 6: Custom Pronunciation Guide (Optional)**
+
+Ask:
+> You can optionally provide a path to a file containing custom phonetic spellings.
+> This is for artist names, album-specific terms, and character names.
+> Merges with the base pronunciation guide to avoid conflicts.
+>
+> Default: ~/music-projects/CUSTOM_PRONUNCIATION.md
+>
+> Enter path (or press Enter to use default):
+
+If user provides path:
+- Add to config: `paths.custom_pronunciation: "[user-path]"`
+
+If user presses Enter (accepts default):
+- Add to config: `paths.custom_pronunciation: "~/music-projects/CUSTOM_PRONUNCIATION.md"`
+- Tell user: "Note: File doesn't need to exist yet. Create it when you discover pronunciations."
+
 **Example interaction:**
 ```
 Let's set up your bitwize-music configuration.
@@ -83,6 +118,12 @@ What are your primary genres? (comma-separated, or press Enter to skip)
 SoundCloud profile URL? (or press Enter to skip)
 > https://soundcloud.com/neon-circuits
 
+Path to custom Claude instructions file? (press Enter for default: ~/music-projects/CUSTOM_CLAUDE.md)
+> [Enter]
+
+Path to custom pronunciation guide? (press Enter for default: ~/music-projects/CUSTOM_PRONUNCIATION.md)
+> [Enter]
+
 Creating config at ~/.bitwize-music/config.yaml...
 
 ✓ Configuration saved!
@@ -94,6 +135,8 @@ Your settings:
   Documents: ~/music-projects/documents
   Genres: electronic, synthwave
   SoundCloud: https://soundcloud.com/neon-circuits
+  Custom Instructions: ~/music-projects/CUSTOM_CLAUDE.md (will be used if created)
+  Custom Pronunciation: ~/music-projects/CUSTOM_PRONUNCIATION.md (will be used if created)
 
 You're ready to start creating albums!
 ```
@@ -145,6 +188,8 @@ Location: ~/.bitwize-music/config.yaml
 │ paths.content_root  │ ~/music-projects                   │
 │ paths.audio_root    │ ~/music-projects/audio             │
 │ paths.documents_root│ ~/music-projects/documents         │
+│ paths.custom_instructions│ ~/music-projects/CUSTOM_CLAUDE.md │
+│ paths.custom_pronunciation│ ~/music-projects/CUSTOM_PRONUNCIATION.md │
 │ urls.soundcloud     │ https://soundcloud.com/neon-circuits│
 │ generation.service  │ suno                               │
 └─────────────────────┴────────────────────────────────────┘
@@ -171,6 +216,8 @@ Validating ~/.bitwize-music/config.yaml...
 ✓ paths.content_root: ~/music-projects (exists)
 ✓ paths.audio_root: ~/music-projects/audio (exists)
 ✓ paths.documents_root: ~/music-projects/documents (will be created)
+✓ paths.custom_instructions: ~/music-projects/CUSTOM_CLAUDE.md (will be used if created)
+✓ paths.custom_pronunciation: ~/music-projects/CUSTOM_PRONUNCIATION.md (will be used if created)
 ✓ generation.service: suno
 
 All checks passed!
@@ -238,6 +285,8 @@ paths:
   content_root: "{content_root}"
   audio_root: "{audio_root}"
   documents_root: "{documents_root}"
+  custom_instructions: "{custom_instructions}"
+  custom_pronunciation: "{custom_pronunciation}"
 
 urls:
   soundcloud: "{soundcloud_url}"

@@ -39,6 +39,18 @@ paths:
   # Structure: {documents_root}/[artist]/[album]/
   documents_root: "~/music-projects/documents"
 
+  # Custom Claude instructions (optional)
+  # File containing additional workflow instructions for Claude
+  # If not set, Claude will check for ~/music-projects/CUSTOM_CLAUDE.md
+  # Set to your content_root or separate repo for version control
+  custom_instructions: "~/music-projects/CUSTOM_CLAUDE.md"
+
+  # Custom pronunciation guide (optional)
+  # File containing your custom phonetic spellings for artist names, album-specific terms
+  # If not set, Claude will check for ~/music-projects/CUSTOM_PRONUNCIATION.md
+  # Merges with base pronunciation guide at session start
+  custom_pronunciation: "~/music-projects/CUSTOM_PRONUNCIATION.md"
+
   # tools_root is always ~/.bitwize-music (where this config lives)
   # Contains: mastering-env/, cache/, etc.
 
