@@ -12,6 +12,28 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.12.1] - 2026-01-26
+
+### Fixed
+- **Critical**: Fixed mastering-engineer skill to run scripts from plugin directory instead of copying them to audio folders
+  - Scripts now use dynamic plugin path finding (version-independent)
+  - Uses `find` command to locate latest plugin version automatically
+  - Scripts invoked with audio path as argument instead of cd-ing to audio folder
+  - Removed all instructions to copy scripts (cp command)
+  - Added "Important: Script Location" section with CRITICAL warning
+  - Added Common Mistakes section with 5 error patterns:
+    - Don't copy scripts to audio folders
+    - Don't hardcode plugin version number
+    - Don't run scripts without path argument
+    - Don't forget to activate venv
+    - Don't use wrong path for mastered verification
+  - Updated "Per-Album Session" workflow to use dynamic paths
+  - Added regression test to prevent recurrence
+
+**Root cause**: Previous documentation implied scripts lived in audio folder by saying "navigate to folder, run python3 analyze_tracks.py", causing Claude to copy scripts first. Plugin version numbers in cache path (0.12.0, 0.13.0, etc.) meant hardcoded paths would break after updates.
+
+**Impact**: Audio folders now stay clean (only audio files), scripts always use latest version, plugin updates don't break mastering workflow.
+
 ## [0.12.0] - 2026-01-26
 
 ### Added

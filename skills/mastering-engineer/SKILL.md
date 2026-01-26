@@ -107,10 +107,31 @@ genres:
 
 ## Mastering Workflow
 
-### Step 1: Analyze Tracks
+### Important: Script Location
+
+**CRITICAL**: Mastering scripts live in the plugin directory and should **never be copied** to audio folders.
+
+**Find plugin directory** (version-independent):
 ```bash
-# Navigate to folder containing WAV files
-python3 analyze_tracks.py
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+MASTERING_DIR="$PLUGIN_DIR/tools/mastering"
+```
+
+This finds the latest installed version automatically.
+
+### Step 1: Analyze Tracks
+
+```bash
+# Find plugin directory
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+
+# Analyze tracks in audio folder
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder
+```
+
+**Example with full path**:
+```bash
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/bitwize/my-album
 ```
 
 **What to check**:
@@ -128,32 +149,40 @@ python3 analyze_tracks.py
 
 **Standard (most cases)**:
 ```bash
-python3 master_tracks.py --cut-highmid -2
+python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --cut-highmid -2
 ```
 
 **Genre-specific**:
 ```bash
-python3 master_tracks.py --genre [genre]
+python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --genre [genre]
 ```
 
 **Reference-based** (advanced):
 ```bash
-python3 reference_master.py --reference reference_track.wav
+python3 "$PLUGIN_DIR/tools/mastering/reference_master.py" /path/to/audio/folder --reference reference_track.wav
 ```
 
 ### Step 3: Dry Run (Preview)
+
 ```bash
-python3 master_tracks.py --dry-run --cut-highmid -2
+python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --dry-run --cut-highmid -2
 ```
+
+Shows what will happen without modifying files.
 
 ### Step 4: Master
+
 ```bash
-python3 master_tracks.py --cut-highmid -2
+python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --cut-highmid -2
 ```
 
+Creates `mastered/` subdirectory in audio folder with processed files.
+
 ### Step 5: Verify
+
 ```bash
-cd mastered && python ../analyze_tracks.py
+# Analyze the mastered output
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder/mastered
 ```
 
 **Quality check**:
@@ -186,16 +215,37 @@ pip install matchering pyloudnorm scipy numpy soundfile
 ```
 
 ### Per-Album Session
-```bash
-# Navigate to folder with WAV files, then:
-source ~/.bitwize-music/mastering-env/bin/activate
-cp {plugin_root}/tools/mastering/*.py .
 
-python3 analyze_tracks.py
-python3 master_tracks.py --cut-highmid -2
-cd mastered && python ../analyze_tracks.py
+**IMPORTANT**: Scripts run from plugin directory, never copied to audio folders.
+
+```bash
+# Activate venv
+source ~/.bitwize-music/mastering-env/bin/activate
+
+# Find plugin directory (version-independent)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+
+# Set audio path
+AUDIO_DIR="/path/to/audio/folder"
+
+# Analyze
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" "$AUDIO_DIR"
+
+# Master
+python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" "$AUDIO_DIR" --cut-highmid -2
+
+# Verify
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" "$AUDIO_DIR/mastered"
+
+# Deactivate
 deactivate
 ```
+
+**Why this approach?**
+- Scripts always use latest plugin version
+- No duplicate copies in audio folders
+- Updates to plugin automatically apply
+- Audio folders stay clean (only audio files)
 
 ---
 
@@ -235,6 +285,92 @@ Test on:
 - Laptop speakers
 - Phone speaker
 - Car stereo (if possible)
+
+---
+
+## Common Mistakes
+
+### ❌ Don't: Copy scripts to audio folders
+
+**Wrong:**
+```bash
+cd ~/audio/my-album
+cp ~/.claude/plugins/.../tools/mastering/*.py .
+python3 analyze_tracks.py
+```
+
+**Right:**
+```bash
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
+```
+
+**Why it matters:**
+- Copying creates duplicates that don't get updated
+- Audio folders should only contain audio files
+- Scripts won't work after plugin updates
+
+### ❌ Don't: Hardcode plugin version number
+
+**Wrong:**
+```bash
+cd ~/.claude/plugins/cache/bitwize-music/bitwize-music/0.12.0/tools/mastering
+```
+
+**Right:**
+```bash
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+cd "$PLUGIN_DIR/tools/mastering"
+```
+
+**Why it matters:** Plugin version changes with every update. Hardcoding breaks after updates.
+
+### ❌ Don't: Run scripts without path argument
+
+**Wrong:**
+```bash
+cd ~/audio/my-album
+python3 /path/to/analyze_tracks.py  # Analyzes wrong directory
+```
+
+**Right:**
+```bash
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
+```
+
+**Why it matters:** Scripts analyze current directory by default. Pass explicit path to ensure correct folder.
+
+### ❌ Don't: Forget to activate venv
+
+**Wrong:**
+```bash
+python3 analyze_tracks.py  # Missing dependencies
+```
+
+**Right:**
+```bash
+source ~/.bitwize-music/mastering-env/bin/activate
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
+deactivate
+```
+
+**Why it matters:** Mastering scripts require pyloudnorm, matchering, etc. Must activate venv first.
+
+### ❌ Don't: Use wrong path for mastered verification
+
+**Wrong:**
+```bash
+# After mastering, analyzing wrong directory
+python3 analyze_tracks.py ~/audio/my-album  # Analyzes originals, not mastered
+```
+
+**Right:**
+```bash
+# Analyze the mastered output
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album/mastered
+```
+
+**Why it matters:** master_tracks.py creates `mastered/` subdirectory. Must verify that folder, not originals.
 
 ---
 

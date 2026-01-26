@@ -620,6 +620,19 @@ Glob: reference/mastering/mastering-workflow.md
 Glob: skills/mastering-engineer/SKILL.md
 ```
 
+### TEST: /mastering-engineer skill uses dynamic plugin path (regression)
+Read skills/mastering-engineer/SKILL.md.
+Verify it includes:
+1. "Important: Script Location" section with CRITICAL warning
+2. Dynamic plugin directory finding using find command with sort -V
+3. All script invocations use "$PLUGIN_DIR/tools/mastering/script.py" format
+4. Scripts receive audio path as argument (not run from audio directory)
+5. NO instructions to copy scripts to audio folders
+6. "Common Mistakes" section with subsection "Don't: Copy scripts to audio folders"
+7. "Common Mistakes" section with subsection "Don't: Hardcode plugin version number"
+
+This test was added after a bug where scripts were copied to audio folders instead of being run from plugin directory, breaking after plugin updates.
+
 ### TEST: /import-audio skill exists
 ```
 Glob: skills/import-audio/SKILL.md
