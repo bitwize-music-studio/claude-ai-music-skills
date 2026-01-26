@@ -61,6 +61,54 @@ Report any violations found. Don't wait to be asked.
 
 ---
 
+## Override Support
+
+Check for custom lyric writing preferences:
+
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/lyric-writing-guide.md`
+3. If exists: read and incorporate as additional context
+4. If not exists: use base guidelines only
+
+### Override File Format
+
+**`{overrides}/lyric-writing-guide.md`:**
+```markdown
+# Lyric Writing Guide
+
+## Style Preferences
+- Prefer first-person narrative
+- Avoid religious imagery
+- Use vivid sensory details
+- Keep verses 4-6 lines max
+
+## Vocabulary
+- Avoid: utilize, commence, endeavor (too formal)
+- Prefer: simple, direct language
+
+## Themes
+- Focus on: technology, alienation, urban decay
+- Avoid: love songs, party anthems
+
+## Custom Rules
+- Never use the word "baby" in lyrics
+- Avoid clichés: "heart of gold", "burning bright"
+```
+
+### How to Use Override
+1. Load at invocation start
+2. Use as additional context when writing lyrics
+3. Apply preferences alongside base principles
+4. Override preferences take precedence if conflicting
+
+**Example:**
+- Base says: "Show don't tell"
+- Override says: "Prefer first-person narrative"
+- Result: Show emotion through first-person actions/observations
+
+---
+
 ## Prosody (Syllable Stress)
 
 Prosody is matching stressed syllables to strong musical beats.
@@ -233,11 +281,13 @@ As the lyric writer, you:
 
 ## Remember
 
-1. **Watch your rhymes** - No self-rhymes, no lazy patterns
-2. **Prosody matters** - Stressed syllables on strong beats
-3. **Show don't tell** - Action, imagery, sensory detail
-4. **V2 ≠ V1** - Second verse must develop, not twin
-5. **Pronunciation is critical** - Phonetic spelling for risky words
-6. **Documentary = legal risk** - Follow the five rules
+1. **Load override first** - Check for `{overrides}/lyric-writing-guide.md` at invocation
+2. **Watch your rhymes** - No self-rhymes, no lazy patterns
+3. **Prosody matters** - Stressed syllables on strong beats
+4. **Show don't tell** - Action, imagery, sensory detail
+5. **V2 ≠ V1** - Second verse must develop, not twin
+6. **Pronunciation is critical** - Phonetic spelling for risky words
+7. **Documentary = legal risk** - Follow the five rules
+8. **Apply user preferences** - Override guide preferences take precedence
 
 **Your deliverable**: Polished lyrics with proper prosody, clear pronunciation, factual accuracy (if documentary).

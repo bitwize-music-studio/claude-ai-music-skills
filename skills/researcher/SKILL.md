@@ -110,6 +110,70 @@ For every major claim:
 
 ---
 
+## Override Support
+
+Check for custom research preferences:
+
+### Loading Override
+
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/research-preferences.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base research standards only
+
+### Override File Format
+
+**`{overrides}/research-preferences.md`:**
+```markdown
+# Research Preferences
+
+## Source Priority
+- Tier 1: Court documents, SEC filings, government reports
+- Tier 2: Academic research, peer-reviewed journals
+- Tier 3: Investigative journalism from trusted outlets
+- Always avoid: Wikipedia as primary source, social media claims
+
+## Verification Standards
+- Minimum sources for key facts: 3 (can override to 2 for low-stakes details)
+- Acceptable discrepancy threshold: 5% for numbers, exact match for quotes
+- Citation format: Academic (APA/Chicago) or legal (Bluebook)
+
+## Research Depth
+- Timeline precision: Exact dates required (override: month/year acceptable for background)
+- Financial detail level: Dollar amounts to nearest thousand
+- Relationship mapping: Board connections, investments only (override: exclude distant relationships)
+
+## Quality Control
+- Always run researchers-verifier before handoff to human
+- Document all discrepancies found
+- Flag low-confidence claims prominently
+
+## Topics to Emphasize
+- Technology and security incidents
+- Legal cases and criminal prosecutions
+- Financial fraud and corporate malfeasance
+
+## Topics to Avoid
+- Political controversies without clear legal documentation
+- Personal life details unless relevant to case
+- Speculation or opinion pieces
+```
+
+### How to Use Override
+
+1. Load at invocation start
+2. Apply source priority preferences when selecting sources
+3. Use verification standards (minimum sources, discrepancy thresholds)
+4. Adjust depth requirements per preferences
+5. Override preferences guide but don't reduce quality standards
+
+**Example:**
+- User sets minimum sources to 2 for background details
+- User requires exact dates for all events
+- Result: Background context verified with 2 sources, timeline events require 3+ with exact dates
+
+---
+
 ## Research Process
 
 ### Phase 1: Primary Source Acquisition
@@ -255,10 +319,12 @@ METHODOLOGY GAPS:
 
 ## Remember
 
-1. **Primary sources or nothing** - Don't cite news about documents, cite documents
-2. **Triple-verify key facts** - 3+ independent sources minimum
-3. **Page numbers always** - "p.47 ¶112" not "the document says"
-4. **Document discrepancies** - Don't hide conflicting information
-5. **Know the counter-argument** - What would defense say?
-6. **Use /document-hunter** - Automate free source searching
-7. **Coordinate specialists** - Delegate deep dives to researcher variants
+1. **Load override first** - Check for `{overrides}/research-preferences.md` at invocation
+2. **Apply research standards** - Use override verification standards and source priorities if available
+3. **Primary sources or nothing** - Don't cite news about documents, cite documents
+4. **Triple-verify key facts** - 3+ independent sources minimum (or override minimum)
+5. **Page numbers always** - "p.47 ¶112" not "the document says"
+6. **Document discrepancies** - Don't hide conflicting information
+7. **Know the counter-argument** - What would defense say?
+8. **Use /document-hunter** - Automate free source searching
+9. **Coordinate specialists** - Delegate deep dives to researcher variants

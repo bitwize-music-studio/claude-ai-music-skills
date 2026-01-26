@@ -89,6 +89,11 @@ Verify these fields exist:
 - `paths.documents_root`
 - `generation.service`
 
+### TEST: config.example.yaml has all optional fields documented
+Verify these optional fields exist and are documented:
+- `paths.overrides` (overrides directory for skill customization)
+- `paths.ideas_file` (album ideas tracking file)
+
 ### TEST: config/README.md exists and documents all settings
 1. Read config/README.md
 2. Verify it documents each setting from config.example.yaml
@@ -175,6 +180,39 @@ Read skills/configure/SKILL.md and verify these are documented:
 
 ### TEST: /test skill covers all categories
 This skill should document tests for: config, skills, templates, workflow, suno, research, mastering, sheet-music, release, consistency, terminology, behavior, quality
+
+### TEST: /album-ideas skill exists
+```
+Glob: skills/album-ideas/SKILL.md
+```
+
+### TEST: /album-ideas skill has all commands documented
+Read skills/album-ideas/SKILL.md and verify these commands are documented:
+- `list` - Show all album ideas
+- `add` - Add new album idea
+- `remove` - Remove album idea
+- `status` - Update idea status
+- `show` - Show details for specific idea
+- `edit` - Edit existing idea
+
+### TEST: Override support documented in skills
+Verify these skills have "Override Support" section in their SKILL.md:
+- `skills/explicit-checker/SKILL.md` → loads `explicit-words.md`
+- `skills/lyric-writer/SKILL.md` → loads `lyric-writing-guide.md`
+- `skills/suno-engineer/SKILL.md` → loads `suno-preferences.md`
+- `skills/mastering-engineer/SKILL.md` → loads `mastering-presets.yaml`
+- `skills/album-conceptualizer/SKILL.md` → loads `album-planning-guide.md`
+- `skills/pronunciation-specialist/SKILL.md` → loads `pronunciation-guide.md`
+- `skills/album-art-director/SKILL.md` → loads `album-art-preferences.md`
+- `skills/researcher/SKILL.md` → loads `research-preferences.md`
+- `skills/release-director/SKILL.md` → loads `release-preferences.md`
+- `skills/sheet-music-publisher/SKILL.md` → loads `sheet-music-preferences.md`
+
+Each should have:
+1. Section titled "## Override Support"
+2. Subsection "### Loading Override" with steps
+3. Subsection "### How to Use Override" with behavior
+4. Reference to loading override in "Remember" section
 
 ---
 
@@ -275,7 +313,10 @@ This test was added after audio files were repeatedly moved to `{audio_root}/[al
 ### TEST: Session start procedure documented
 Read CLAUDE.md "Session Start" section.
 Verify step 1 is loading configuration.
+Verify step 1b is loading overrides (if present).
+Verify step 3 is checking album ideas file.
 Verify it mentions /configure when config missing.
+Verify it mentions /bitwize-music:album-ideas for detailed ideas list.
 
 ### TEST: Checkpoints documented
 Verify these checkpoints exist in CLAUDE.md:

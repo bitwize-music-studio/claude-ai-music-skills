@@ -53,6 +53,46 @@ Note: "damn" alone is clean, but "goddamn" is explicit.
 
 ---
 
+## Override Support
+
+Check for custom explicit words list:
+
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/explicit-words.md`
+3. If exists: parse and merge with base list
+4. If not exists: use base list only
+
+### Override File Format
+
+**`{overrides}/explicit-words.md`:**
+```markdown
+# Custom Explicit Words
+
+## Additional Explicit Words
+- slang-term
+- regional-profanity
+- artist-specific-explicit
+
+## Not Explicit (Override Base)
+- hell (context: historical/literary)
+- damn (context: emphasis)
+```
+
+### Merge Behavior
+1. Start with base explicit word list
+2. Add any words from "Additional Explicit Words" section
+3. Remove any words from "Not Explicit" section
+4. Merged list used for scanning
+
+**Example:**
+- Base list has: `fuck, shit, hell, damn`
+- Override adds: `slang-term`
+- Override removes: `hell, damn`
+- Final list: `fuck, shit, slang-term`
+
+---
+
 ## Workflow
 
 ### For Album Path
@@ -172,8 +212,11 @@ This skill is called during:
 
 ## Remember
 
+- **Load override first** - Check for `{overrides}/explicit-words.md` before scanning
 - Case-insensitive matching (Fuck = fuck = FUCK)
 - Check variations (fucking, fucked, fucker)
 - Phonetic spellings count (fuk, sh1t if intentional)
 - Context matters less than presence - if the word is there, flag it
 - Album is explicit if ANY track is explicit
+- **Override additions** - Add artist/genre-specific explicit words
+- **Override removals** - Remove words for specific contexts (historical, literary)

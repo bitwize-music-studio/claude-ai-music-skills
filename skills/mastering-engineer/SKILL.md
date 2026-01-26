@@ -64,6 +64,47 @@ See [genre-presets.md](genre-presets.md) for detailed genre settings.
 
 ---
 
+## Override Support
+
+Check for custom mastering presets:
+
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/mastering-presets.yaml`
+3. If exists: load and apply custom presets
+4. If not exists: use base genre presets only
+
+### Override File Format
+
+**`{overrides}/mastering-presets.yaml`:**
+```yaml
+# Custom Mastering Presets
+
+genres:
+  dark-electronic:
+    cut_highmid: -3  # More aggressive cut
+    boost_sub: 2     # More sub bass
+    target_lufs: -12 # Louder master
+
+  ambient:
+    cut_highmid: -1  # Gentle cut
+    boost_sub: 0     # Natural bass
+    target_lufs: -16 # Quieter, more dynamic
+```
+
+### How to Use Override
+1. Load at invocation start
+2. Check for genre-specific presets when mastering
+3. Override presets take precedence over base genre presets
+4. Use override target_lufs instead of default -14
+
+**Example:**
+- Mastering "dark-electronic" genre
+- Override has custom preset
+- Result: Apply -3 highmid cut, +2 sub boost, target -12 LUFS
+
+---
+
 ## Mastering Workflow
 
 ### Step 1: Analyze Tracks
@@ -221,13 +262,15 @@ After all tracks mastered and verified:
 
 ## Remember
 
-1. **-14 LUFS is the standard** - works for all streaming platforms
-2. **Preserve dynamics** - don't crush to hit target
-3. **True peak < -1.0 dBTP** - prevents clipping after encoding
-4. **Album consistency** - tracks within 1 dB LUFS range
-5. **Genre informs targets** - but streaming favors -14 across the board
-6. **Master last** - after all other editing/approval complete
-7. **Test on multiple systems** - not just studio headphones
-8. **Tools are helpers** - your ears are final judge
+1. **Load override first** - Check for `{overrides}/mastering-presets.yaml` at invocation
+2. **Apply custom presets** - Use override genre settings if available
+3. **-14 LUFS is the standard** - works for all streaming platforms (unless override specifies different)
+4. **Preserve dynamics** - don't crush to hit target
+5. **True peak < -1.0 dBTP** - prevents clipping after encoding
+6. **Album consistency** - tracks within 1 dB LUFS range
+7. **Genre informs targets** - but streaming favors -14 across the board
+8. **Master last** - after all other editing/approval complete
+9. **Test on multiple systems** - not just studio headphones
+10. **Tools are helpers** - your ears are final judge
 
-**Your deliverable**: Mastered WAV files at consistent loudness, optimized for streaming → release-director handles release workflow.
+**Your deliverable**: Mastered WAV files at consistent loudness, optimized for streaming (with user preferences applied) → release-director handles release workflow.

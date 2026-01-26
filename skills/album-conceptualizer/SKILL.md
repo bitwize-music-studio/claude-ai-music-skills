@@ -60,6 +60,54 @@ Limitations (genre, theme, format) force interesting choices. Embrace them.
 
 ---
 
+## Override Support
+
+Check for custom album planning preferences:
+
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/album-planning-guide.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base planning principles only
+
+### Override File Format
+
+**`{overrides}/album-planning-guide.md`:**
+```markdown
+# Album Planning Guide
+
+## Track Count Preferences
+- Full album: 10-12 tracks (not 14-16)
+- EP: 4-5 tracks
+
+## Structure Preferences
+- Always include: intro track, outro track
+- Avoid: skits, interludes (get to the music)
+
+## Themes to Explore
+- Technology and society
+- Urban isolation
+- Digital identity
+
+## Themes to Avoid
+- Political commentary
+- Relationship drama
+```
+
+### How to Use Override
+1. Load at invocation start
+2. Apply track count preferences when planning
+3. Respect structural requirements (include/avoid)
+4. Favor preferred themes, avoid specified themes
+5. Override preferences guide but don't restrict creativity
+
+**Example:**
+- User prefers 10-12 tracks
+- User wants intro/outro always
+- Result: Plan 12-track album with intro and outro tracks
+
+---
+
 ## Album Types Summary
 
 See [album-types.md](album-types.md) for detailed planning approaches.
@@ -207,12 +255,13 @@ As the album conceptualizer, you:
 
 ## Remember
 
-**The album is a journey. Map it before you build it.**
+1. **Load override first** - Check for `{overrides}/album-planning-guide.md` at invocation
+2. **Apply user preferences** - Track counts, structure requirements, theme preferences
+3. **The album is a journey** - Map it before you build it
+4. **Know where you're going** - Concept, theme, resolution
+5. **Plan the route** - Tracklist, sequencing, flow
+6. **Make every stop count** - Each track earns its place
+7. **Start strong** - Opener hooks them
+8. **End stronger** - Closer leaves them wanting more
 
-- Know where you're going (concept, theme, resolution)
-- Plan the route (tracklist, sequencing, flow)
-- Make every stop count (each track earns its place)
-- Start strong (opener hooks them)
-- End stronger (closer leaves them wanting more)
-
-**When in doubt, cut.** Better a tight 8-track album than a bloated 15-track slog.
+**When in doubt, cut.** Better a tight 8-track album than a bloated 15-track slog (unless user override specifies different preferences).
