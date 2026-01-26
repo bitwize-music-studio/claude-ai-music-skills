@@ -7,6 +7,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.8.1] - 2026-01-26
+
+### Added
 - `/clipboard` skill - Copy track content (lyrics, style prompts) to system clipboard
   - Cross-platform support: macOS (pbcopy), Linux (xclip/xsel), WSL (clip.exe)
   - Content types: lyrics, style, streaming-lyrics, all (combined Suno inputs)
@@ -34,8 +42,6 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   - Simplified Creating Content sections - Condensed album creation and file import workflows
   - Simplified Suno Generation Workflow - Streamlined process description
   - Architecture: CLAUDE.md now focuses on workflow orchestration (WHEN/WHY), detailed procedures in reference docs (HOW)
-
-### Fixed
 
 ## [0.8.0] - 2026-01-26
 
