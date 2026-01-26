@@ -8,11 +8,11 @@ This is an AI music generation workflow using Suno. The repository contains skil
 
 ## ⚠️ CRITICAL: Finding Albums When User Mentions Them
 
-**WHENEVER the user mentions an album name** (e.g., "let's work on shell-no", "continue with X", "I want to work on Y"):
+**WHENEVER the user mentions an album name** (e.g., "let's work on my-album", "continue with X", "I want to work on Y"):
 
 **BEST APPROACH - Use the resume skill:**
 ```
-/bitwize-music:resume shell-no
+/bitwize-music:resume my-album
 ```
 This automatically handles all the steps below and provides a detailed status report.
 
@@ -256,7 +256,7 @@ At the beginning of a fresh session:
 
 Invoke the resume skill with the album name:
 ```
-/bitwize-music:resume shell-no
+/bitwize-music:resume my-album
 ```
 
 The skill automatically:
@@ -640,7 +640,7 @@ Use templates from `/templates/` for all new content.
 
 **CRITICAL: When user says "make a new album", IMMEDIATELY use `/bitwize-music:new-album` skill BEFORE any discussion.**
 
-Example: `/bitwize-music:new-album shell-no electronic`
+Example: `/bitwize-music:new-album my-album rock`
 
 **Then**: Fill in album README (YAML frontmatter, distributor genres, sections) → Use 7 Planning Phases to gather details
 

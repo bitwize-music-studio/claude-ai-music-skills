@@ -5,8 +5,8 @@
 **Usage**:
 ```
 /bitwize-music:resume <album-name>
-/bitwize-music:resume shell-no
-/bitwize-music:resume "shell no"
+/bitwize-music:resume my-album
+/bitwize-music:resume "demo album"
 ```
 
 **When to use**: When user wants to continue working on an existing album.
@@ -152,10 +152,10 @@ Based on the phase, suggest concrete next steps:
 ### Example 1: Album in Writing Phase
 
 ```
-/bitwize-music:resume shell-no
+/bitwize-music:resume my-album
 
-📁 Album: Shell No
-   Location: ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/
+📁 Album: My Album
+   Location: ~/bitwize-music/artists/bitwize/albums/rock/my-album/
    Status: In Progress
 
 📊 Progress:
@@ -181,10 +181,10 @@ Ready to continue? Tell me which track you'd like to work on.
 ### Example 2: Album Ready for Generation
 
 ```
-/bitwize-music:resume shell-no
+/bitwize-music:resume demo-album
 
-📁 Album: Shell No
-   Location: ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/
+📁 Album: Demo Album
+   Location: ~/bitwize-music/artists/bitwize/albums/electronic/demo-album/
    Status: In Progress
 
 📊 Progress:
@@ -214,8 +214,8 @@ Shall I run the Ready to Generate checkpoint now?
 ❌ Album 'my-album' not found.
 
 Available albums:
-- shell-no (electronic) - In Progress
-- linux-legends (hip-hop) - Complete
+- demo-album (electronic) - In Progress
+- example-tracks (hip-hop) - Complete
 
 Did you mean one of these? Or use /bitwize-music:new-album to create a new album.
 ```
