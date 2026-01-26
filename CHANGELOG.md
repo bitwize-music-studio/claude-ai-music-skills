@@ -7,6 +7,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.9.0] - 2026-01-26
+
+### Added
 - `/bitwize-music:resume` skill - Dedicated skill for resuming work on albums
   - Takes album name as argument
   - Reads config to get paths
@@ -23,8 +31,6 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - "Resuming Work on an Album" section updated to prioritize the resume skill
 - Skills table: Added `/bitwize-music:resume` at the top
 - Session Start tip now mentions `/bitwize-music:resume <album-name>` instead of tutorial resume
-
-### Fixed
 
 ## [0.8.2] - 2026-01-26
 
