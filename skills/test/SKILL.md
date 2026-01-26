@@ -195,6 +195,31 @@ Read skills/album-ideas/SKILL.md and verify these commands are documented:
 - `show` - Show details for specific idea
 - `edit` - Edit existing idea
 
+### TEST: /clipboard skill exists
+```
+Glob: skills/clipboard/SKILL.md
+```
+
+### TEST: /clipboard skill has platform detection
+Read skills/clipboard/SKILL.md and verify:
+1. Documents platform detection (macOS, Linux, WSL)
+2. Lists clipboard tools: pbcopy, xclip, xsel, clip.exe
+3. Has error handling for missing clipboard utility
+4. Provides install instructions for each platform
+
+### TEST: /clipboard skill has all content types documented
+Read skills/clipboard/SKILL.md and verify these content types are documented:
+- `lyrics` - Suno Lyrics Box
+- `style` - Suno Style Box
+- `streaming-lyrics` - Streaming Lyrics for distributors
+- `all` - Combined Style + Lyrics
+
+### TEST: /clipboard skill has correct argument format
+Read skills/clipboard/SKILL.md and verify:
+1. `argument-hint` matches format: `<content-type> <album-name> <track-number>`
+2. Examples show correct usage pattern
+3. Error handling for missing arguments is documented
+
 ### TEST: Override support documented in skills
 Verify these skills have "Override Support" section in their SKILL.md:
 - `skills/explicit-checker/SKILL.md` → loads `explicit-words.md`

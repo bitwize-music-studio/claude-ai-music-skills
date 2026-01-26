@@ -7,6 +7,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- `/clipboard` skill - Copy track content (lyrics, style prompts) to system clipboard
+  - Cross-platform support: macOS (pbcopy), Linux (xclip/xsel), WSL (clip.exe)
+  - Content types: lyrics, style, streaming-lyrics, all (combined Suno inputs)
+  - Auto-detects platform and clipboard utility
+  - Config-aware path resolution
+  - Usage: `/clipboard <content-type> <album-name> <track-number>`
 
 ### Changed
 

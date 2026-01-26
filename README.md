@@ -9,7 +9,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 ## What Is This?
 
-This is a collection of **31 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
+This is a collection of **32 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
 
 **What you get:**
 - Structured workflow from idea to released album
@@ -316,6 +316,7 @@ For documentary or true-story albums:
 | Skill | Description |
 |-------|-------------|
 | `/bitwize-music:configure` | Set up or edit plugin configuration |
+| `/bitwize-music:clipboard` | Copy track content to clipboard (macOS/Linux/WSL) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity |
 | `/bitwize-music:skill-model-updater` | Update Claude model references |
 | `/bitwize-music:about` | About bitwize and this plugin |

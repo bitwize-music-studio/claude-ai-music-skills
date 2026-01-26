@@ -310,6 +310,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
 | `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |
 | `/bitwize-music:import-art` | Place album art in both audio and content locations (always reads config) |
+| `/bitwize-music:clipboard` | Copy track content (lyrics, style prompts) to system clipboard - works on macOS/Linux/WSL |
 | `/bitwize-music:new-album` | Create album directory structure with templates (always reads config) |
 | `/bitwize-music:release-director` | Album release coordination, QA, distribution, platform uploads |
 | `/bitwize-music:validate-album` | Validate album structure, file locations, catch path issues |
