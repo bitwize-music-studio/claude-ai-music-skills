@@ -97,9 +97,10 @@ You reference TWO pronunciation guides:
 - **Contains**: Universal pronunciation rules, common homographs, tech terms
 - **Updated**: By plugin maintainers when new issues are discovered
 
-### Custom Guide (User-Maintained)
-- **Location**: Read from `~/.bitwize-music/config.yaml` → `paths.custom_pronunciation`
-- **Default**: `{content_root}/CUSTOM_PRONUNCIATION.md` if not set in config
+### Override Guide (User-Maintained)
+- **Location**: Read from `~/.bitwize-music/config.yaml` → `paths.overrides`
+- **File**: `{overrides}/pronunciation-guide.md`
+- **Default**: `{content_root}/overrides/pronunciation-guide.md` if not set in config
 - **Contains**: Artist names, album-specific terms, genre-specific jargon
 - **Optional**: Skip silently if file doesn't exist
 
@@ -107,15 +108,17 @@ You reference TWO pronunciation guides:
 
 At session start or when invoked:
 1. Load base guide from `/reference/suno/pronunciation-guide.md`
-2. Read config to get `paths.custom_pronunciation`
-3. If custom guide exists, load and merge with base guide
-4. **Custom entries take precedence** - if same word in both, use custom version
-5. If custom guide doesn't exist, continue with base guide only
+2. Read config to get `paths.overrides`
+3. Check for `{overrides}/pronunciation-guide.md`
+4. If override guide exists, load and merge with base guide
+5. **Override entries take precedence** - if same word in both, use override version
+6. If override guide doesn't exist, continue with base guide only
 
 **Why two guides:**
 - Base guide updates via plugin updates without conflicts
-- Custom guide version-controlled with your music content
+- Override guide version-controlled with your music content
 - Your artist-specific pronunciations don't get overwritten
+- Part of unified overrides system (all customizations in one directory)
 
 ---
 
@@ -235,11 +238,12 @@ CLEAN LYRICS:
 
 When you discover new pronunciation issues specific to the user's content:
 
-**Add to CUSTOM guide** (`{content_root}/CUSTOM_PRONUNCIATION.md`):
-1. Read config to get `paths.custom_pronunciation` location
-2. Create file if it doesn't exist (with header and table structure)
-3. Add the word to appropriate section (Artist Terms, Album Names, etc.)
-4. Include: word, standard spelling, phonetic spelling, notes
+**Add to OVERRIDE guide** (`{overrides}/pronunciation-guide.md`):
+1. Read config to get `paths.overrides` location
+2. Check for `{overrides}/pronunciation-guide.md`
+3. Create file if it doesn't exist (with header and table structure)
+4. Add the word to appropriate section (Artist Terms, Album Names, etc.)
+5. Include: word, standard spelling, phonetic spelling, notes
 
 **Example entry:**
 ```markdown
@@ -254,16 +258,16 @@ When you discover new pronunciation issues specific to the user's content:
 - Location names specific to album content
 - Any pronunciation discovered during production
 
-This keeps discoveries version-controlled with the music content.
+This keeps discoveries version-controlled with the music content in the overrides directory.
 
 ---
 
 ## Remember
 
-1. **Load both guides at start** - Base guide + custom guide (if exists)
+1. **Load both guides at start** - Base guide + override guide (if exists)
 2. **Homographs are landmines** - live, read, lead, wind WILL mispronounce without fixes
 3. **Tech terms need phonetic spelling** - Don't trust Suno with acronyms
 4. **Non-English names always need help** - Phonetic spelling mandatory
 5. **Numbers are tricky** - Write them out or use apostrophes
 6. **When in doubt, ask** - Better to clarify than regenerate
-7. **Add discoveries to CUSTOM guide** - Never edit base guide (plugin will overwrite)
+7. **Add discoveries to OVERRIDE guide** - Never edit base guide (plugin will overwrite)

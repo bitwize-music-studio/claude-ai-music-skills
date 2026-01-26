@@ -40,8 +40,7 @@ paths:
   content_root: "~/music-projects"           # Albums, artists, research
   audio_root: "~/music-projects/audio"       # Mastered audio output
   documents_root: "~/music-projects/docs"    # PDFs, primary sources
-  custom_instructions: "~/music-projects/CUSTOM_CLAUDE.md"  # Optional custom workflow instructions
-  custom_pronunciation: "~/music-projects/CUSTOM_PRONUNCIATION.md"  # Optional custom phonetic spellings
+  overrides: "~/music-projects/overrides"    # Optional overrides directory
 
 # Platform URLs
 urls:
@@ -82,8 +81,7 @@ The `~/.bitwize-music/` directory also contains:
 | `paths.content_root` | Yes | Where albums and artists live |
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |
-| `paths.custom_instructions` | No | Path to markdown file with custom Claude instructions. Defaults to `{content_root}/CUSTOM_CLAUDE.md` if not set. |
-| `paths.custom_pronunciation` | No | Path to markdown file with custom phonetic spellings. Defaults to `{content_root}/CUSTOM_PRONUNCIATION.md` if not set. Merges with base pronunciation guide. |
+| `paths.overrides` | No | Directory containing override files for skills and workflows. Defaults to `{content_root}/overrides` if not set. |
 | `urls.soundcloud` | No | SoundCloud profile URL |
 | `urls.spotify` | No | Spotify artist URL |
 | `urls.bandcamp` | No | Bandcamp URL |
@@ -100,72 +98,106 @@ Config not found. Run:
 Then edit ~/.bitwize-music/config.yaml with your settings.
 ```
 
-## Custom Instructions
+## Overrides System
 
-You can provide custom Claude instructions to supplement the base CLAUDE.md workflow:
+The overrides directory lets you customize any skill or workflow without plugin update conflicts.
 
-**Setup:**
-1. Set `paths.custom_instructions` in config (or use default)
-2. Create the file with your custom instructions:
-   ```bash
-   touch ~/music-projects/CUSTOM_CLAUDE.md
-   ```
-3. Add your preferences:
-   ```markdown
-   # My Custom Workflow Preferences
+### How It Works
 
-   - Always ask before creating new albums
-   - Prefer aggressive industrial sound for electronic tracks
-   - Use British spelling in all documentation
-   ```
+**Single directory, per-skill files:**
+```bash
+~/music-projects/overrides/
+├── CLAUDE.md                 # Override base workflow instructions
+├── pronunciation-guide.md    # Override base pronunciation guide
+├── explicit-words.md         # Custom explicit word list (future)
+├── lyric-writing-guide.md    # Custom lyric writing preferences (future)
+└── mastering-presets.yaml    # Custom mastering settings (future)
+```
 
-**When it loads:**
-- At session start, Claude reads this file if it exists
-- Instructions supplement (don't override) base CLAUDE.md
-- If file doesn't exist, no error - it's optional
+**Each skill checks for its own override:**
+1. Skill reads `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Checks for `{overrides}/[filename].md`
+3. If exists: merge with base (or replace, depending on skill)
+4. If not exists: use base only (no error)
 
-**Version control:**
-- Default location (`~/music-projects/CUSTOM_CLAUDE.md`) can be committed with your content
-- Or point to separate repo for shared workflow across projects
+### Setup
 
-## Custom Pronunciation Guide
+```bash
+# Create overrides directory
+mkdir -p ~/music-projects/overrides
 
-You can provide custom phonetic spellings to supplement the base pronunciation guide:
+# Add any override files you want
+touch ~/music-projects/overrides/CLAUDE.md
+touch ~/music-projects/overrides/pronunciation-guide.md
+```
 
-**Setup:**
-1. Set `paths.custom_pronunciation` in config (or use default)
-2. Create the file with your custom pronunciations:
-   ```bash
-   touch ~/music-projects/CUSTOM_PRONUNCIATION.md
-   ```
-3. Add your phonetic spellings:
-   ```markdown
-   # Custom Pronunciation Guide
+### Available Overrides
 
-   ## Artist-Specific Terms
-   | Word | Standard | Phonetic | Notes |
-   |------|----------|----------|-------|
-   | BitWize | bitwize | Bit-Wize | Artist name |
-   | ShellNo | shellno | Shell-No | Album title |
+#### `CLAUDE.md` - Workflow Instructions
+Supplements base CLAUDE.md with your personal workflow preferences.
 
-   ## Album-Specific Names
-   | Word | Standard | Phonetic | Notes |
-   |------|----------|----------|-------|
-   | Larocca | larocca | Luh-rock-uh | Character name |
-   | Finnerty | finnerty | Finn-er-tee | Character name |
-   ```
+**Example:**
+```markdown
+# My Custom Workflow Preferences
 
-**When it loads:**
-- At session start, Claude reads this file if it exists
-- Merges with base pronunciation guide from `/reference/suno/pronunciation-guide.md`
-- Your custom entries take precedence over base guide
-- If file doesn't exist, no error - it's optional
+- Always ask before creating new albums
+- Prefer aggressive industrial sound for electronic tracks
+- Use British spelling in all documentation
+```
 
-**Why separate from base guide:**
-- Plugin updates won't overwrite your additions
-- Version control your custom pronunciations with your music content
-- Share artist-specific pronunciations across projects
+**Behavior:** Loaded at session start, supplements (doesn't override) base instructions.
 
-**Version control:**
-- Default location (`~/music-projects/CUSTOM_PRONUNCIATION.md`) can be committed with your content
-- Avoids merge conflicts when plugin updates the base guide
+#### `pronunciation-guide.md` - Phonetic Spellings
+Merges with base pronunciation guide for artist-specific terms.
+
+**Example:**
+```markdown
+# Custom Pronunciation Guide
+
+## Artist-Specific Terms
+| Word | Standard | Phonetic | Notes |
+|------|----------|----------|-------|
+| BitWize | bitwize | Bit-Wize | Artist name |
+| ShellNo | shellno | Shell-No | Album title |
+
+## Album-Specific Names
+| Word | Standard | Phonetic | Notes |
+|------|----------|----------|-------|
+| Larocca | larocca | Luh-rock-uh | Character name |
+| Finnerty | finnerty | Finn-er-tee | Character name |
+```
+
+**Behavior:** Loaded by pronunciation-specialist, merged with base guide, custom takes precedence.
+
+#### Future Overrides
+
+These don't exist yet but will follow the same pattern:
+
+- **`explicit-words.md`** - Custom explicit word list for your content
+- **`lyric-writing-guide.md`** - Personal lyric writing style preferences
+- **`mastering-presets.yaml`** - Custom mastering EQ/compression settings
+- **`suno-genre-mappings.md`** - Your preferred Suno genre combinations
+
+### Benefits
+
+**For users:**
+- **One directory** - All customizations in one place
+- **Self-documenting** - File names match what they override
+- **Version control** - Commit overrides with your music content
+- **No conflicts** - Plugin updates won't overwrite your files
+- **Easy discovery** - `ls overrides/` shows what's overrideable
+
+**For skills:**
+- **Convention over configuration** - Skills know where to look
+- **No config proliferation** - No new config field per customization
+- **Future-proof** - New overrides added without touching config
+
+### Version Control
+
+```bash
+# .gitignore (in your content repo)
+# Commit overrides with your content
+!overrides/
+```
+
+Default location (`~/music-projects/overrides/`) can be committed with your music content to share preferences across projects.

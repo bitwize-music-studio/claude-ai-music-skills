@@ -12,7 +12,21 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
-## [0.7.0] - 2026-01-26
+## [0.7.1] - 2026-01-26
+
+### Changed
+- **BREAKING**: Refactored customization system to use unified overrides directory
+  - Replaced `paths.custom_instructions` with `paths.overrides`
+  - Replaced `paths.custom_pronunciation` with `paths.overrides`
+  - Single directory now contains all override files: `~/music-projects/overrides/`
+  - Override files: `CLAUDE.md`, `pronunciation-guide.md`, `explicit-words.md` (future), etc.
+  - Benefits: self-documenting, easy discovery, future-proof, convention over configuration
+  - **Note**: Released immediately after 0.7.0 to fix design before user adoption
+
+### Fixed
+- Config design now scales for future overrides without new config fields
+
+## [0.7.0] - 2026-01-26 **[DEPRECATED - Use 0.7.1]**
 
 ### Added
 - Custom instructions support (`paths.custom_instructions` config field)
