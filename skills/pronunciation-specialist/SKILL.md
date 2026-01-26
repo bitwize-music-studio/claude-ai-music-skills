@@ -88,6 +88,37 @@ Word-like acronyms → phonetic (RICO → Ree-koh, NASA → Nah-sah)
 
 ---
 
+## Pronunciation Guides
+
+You reference TWO pronunciation guides:
+
+### Base Guide (Plugin-Maintained)
+- **Location**: `/reference/suno/pronunciation-guide.md`
+- **Contains**: Universal pronunciation rules, common homographs, tech terms
+- **Updated**: By plugin maintainers when new issues are discovered
+
+### Custom Guide (User-Maintained)
+- **Location**: Read from `~/.bitwize-music/config.yaml` → `paths.custom_pronunciation`
+- **Default**: `{content_root}/CUSTOM_PRONUNCIATION.md` if not set in config
+- **Contains**: Artist names, album-specific terms, genre-specific jargon
+- **Optional**: Skip silently if file doesn't exist
+
+### Loading Behavior
+
+At session start or when invoked:
+1. Load base guide from `/reference/suno/pronunciation-guide.md`
+2. Read config to get `paths.custom_pronunciation`
+3. If custom guide exists, load and merge with base guide
+4. **Custom entries take precedence** - if same word in both, use custom version
+5. If custom guide doesn't exist, continue with base guide only
+
+**Why two guides:**
+- Base guide updates via plugin updates without conflicts
+- Custom guide version-controlled with your music content
+- Your artist-specific pronunciations don't get overwritten
+
+---
+
 ## Scanning Workflow
 
 ### Step 1: Automatic Scan
@@ -200,23 +231,39 @@ CLEAN LYRICS:
 
 ---
 
-## Updating the Pronunciation Guide
+## Adding Custom Pronunciations
 
-When you discover new pronunciation issues not in [word-lists.md](word-lists.md):
+When you discover new pronunciation issues specific to the user's content:
 
-1. Add the word to the appropriate category table
-2. Include: word, common error, correct pronunciation, phonetic fix
-3. Note the source (which track/album revealed this)
+**Add to CUSTOM guide** (`{content_root}/CUSTOM_PRONUNCIATION.md`):
+1. Read config to get `paths.custom_pronunciation` location
+2. Create file if it doesn't exist (with header and table structure)
+3. Add the word to appropriate section (Artist Terms, Album Names, etc.)
+4. Include: word, standard spelling, phonetic spelling, notes
 
-This keeps the reference current for future scans.
+**Example entry:**
+```markdown
+| Larocca | larocca | Luh-rock-uh | Character in "shell-no" album |
+```
+
+**DO NOT** edit the base guide (`/reference/suno/pronunciation-guide.md`) - plugin updates will overwrite it.
+
+**When to add:**
+- Artist names, album titles, track titles
+- Character names in documentary/narrative albums
+- Location names specific to album content
+- Any pronunciation discovered during production
+
+This keeps discoveries version-controlled with the music content.
 
 ---
 
 ## Remember
 
-1. **Homographs are landmines** - live, read, lead, wind WILL mispronounce without fixes
-2. **Tech terms need phonetic spelling** - Don't trust Suno with acronyms
-3. **Non-English names always need help** - Phonetic spelling mandatory
-4. **Numbers are tricky** - Write them out or use apostrophes
-5. **When in doubt, ask** - Better to clarify than regenerate
-6. **Update the guide** - Add new discoveries to word-lists.md
+1. **Load both guides at start** - Base guide + custom guide (if exists)
+2. **Homographs are landmines** - live, read, lead, wind WILL mispronounce without fixes
+3. **Tech terms need phonetic spelling** - Don't trust Suno with acronyms
+4. **Non-English names always need help** - Phonetic spelling mandatory
+5. **Numbers are tricky** - Write them out or use apostrophes
+6. **When in doubt, ask** - Better to clarify than regenerate
+7. **Add discoveries to CUSTOM guide** - Never edit base guide (plugin will overwrite)
