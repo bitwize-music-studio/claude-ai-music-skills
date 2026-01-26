@@ -12,6 +12,25 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.10.0] - 2026-01-26
+
+### Added
+- Session startup contextual tips system in CLAUDE.md
+  - Smart, contextual one-liners based on detected user state
+  - 6 conditional tip categories: tutorial (new users), album ideas, resume, overrides customization, overrides loaded confirmation, verification warning
+  - 6 rotating general productivity tips for feature discovery
+  - Tips show right feature at right time without overwhelming users
+- Comprehensive test suite for session startup tips
+  - Tests verify all 6 conditional tip categories are documented
+  - Tests verify productivity tips reference actual skills
+  - Tests verify correct skill command format
+  - Tests verify path variables used instead of hardcoded paths
+
+### Changed
+- Session Start section in CLAUDE.md now shows contextual tips after status summary
+- Session startup tips replace single static tip with comprehensive contextual guidance
+- Final session startup prompt now asks "What would you like to work on?"
+
 ## [0.9.1] - 2026-01-26
 
 ### Changed

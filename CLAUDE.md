@@ -244,9 +244,37 @@ At the beginning of a fresh session:
    - Tracks with Status: "In Progress" (partially generated)
    - Albums with some tracks Final, others not
 
-**Present status summary** to user, ask what to work on.
+**Present status summary** to user.
 
-**Tip**: Users can run `/bitwize-music:resume <album-name>` to resume work on a specific album with a detailed status report.
+**Show contextual tips based on detected state:**
+
+**If no albums exist:**
+- 💡 Getting started? Try `/bitwize-music:tutorial` for guided album creation.
+
+**If IDEAS.md has content (X ideas detected):**
+- 💡 X album ideas in your backlog. Use `/bitwize-music:album-ideas list` to manage them.
+
+**If in-progress albums exist:**
+- 💡 Resume any album: `/bitwize-music:resume <album-name>` for detailed status and next steps.
+
+**If overrides don't exist:**
+- 💡 Customize my behavior: Create `{overrides}/CLAUDE.md` with your own workflow instructions.
+
+**If overrides loaded:**
+- ✨ Custom overrides loaded from `{overrides}/`
+
+**If pending source verifications exist:**
+- ⚠️ Albums with unverified sources detected. Research must be verified before generation.
+
+**Always show one general productivity tip (rotate randomly):**
+- 💡 Stuck? Use `/bitwize-music:help` or ask "what should I do next?"
+- 💡 Track-by-track status: `/bitwize-music:resume` shows what's done and what's next.
+- 💡 All research skills: Use `/bitwize-music:researcher` to coordinate specialized researchers.
+- 💡 Pronunciation risks? `/bitwize-music:pronunciation-specialist` scans for homographs and tricky names.
+- 💡 Quick clipboard: `/bitwize-music:clipboard` copies track lyrics/prompts for pasting into Suno.
+- 💡 Audio mastering: Tell me "master the tracks in /path/to/folder" when ready.
+
+**Finally, ask:** "What would you like to work on?"
 
 ## Resuming Work on an Album
 

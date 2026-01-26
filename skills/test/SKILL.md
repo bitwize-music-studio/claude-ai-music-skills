@@ -343,6 +343,41 @@ Verify step 3 is checking album ideas file.
 Verify it mentions /configure when config missing.
 Verify it mentions /bitwize-music:album-ideas for detailed ideas list.
 
+### TEST: Session startup contextual tips system documented
+Read CLAUDE.md "Session Start" section after the 6 status check steps.
+Verify section exists: "Show contextual tips based on detected state:"
+Verify all conditional tip categories are documented:
+- If no albums exist → tutorial tip
+- If IDEAS.md has content → album-ideas tip
+- If in-progress albums exist → resume tip
+- If overrides don't exist → customization tip
+- If overrides loaded → confirmation message
+- If pending source verifications exist → verification warning
+
+### TEST: Session startup general productivity tips exist
+Read CLAUDE.md "Session Start" section.
+Verify section exists: "Always show one general productivity tip (rotate randomly):"
+Verify it contains at least 4 different productivity tips.
+Verify tips reference actual skills (e.g., /bitwize-music:resume, /bitwize-music:researcher).
+
+### TEST: Session startup ends with question
+Read CLAUDE.md "Session Start" section.
+Verify final instruction says: "Finally, ask:" followed by "What would you like to work on?"
+
+### TEST: Contextual tips use correct skill commands
+Read CLAUDE.md session startup tips section.
+Verify all skill references use correct format:
+- `/bitwize-music:tutorial` (not /tutorial)
+- `/bitwize-music:album-ideas` (not /album-ideas)
+- `/bitwize-music:resume` (not /resume)
+- `/bitwize-music:researcher` (not /researcher)
+- `/bitwize-music:pronunciation-specialist` (not /pronunciation-specialist)
+- `/bitwize-music:clipboard` (not /clipboard)
+
+### TEST: Contextual tips reference overrides path variable
+Read CLAUDE.md session startup tips section.
+Verify overrides tips use `{overrides}` path variable (not hardcoded path).
+
 ### TEST: Checkpoints documented
 Verify these checkpoints exist in CLAUDE.md:
 - Ready to Generate Checkpoint
