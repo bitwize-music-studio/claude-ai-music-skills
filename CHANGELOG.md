@@ -9,13 +9,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ### Added
 
 ### Changed
+
+### Fixed
+
+## [0.9.1] - 2026-01-26
+
+### Changed
 - Updated all documentation examples to use generic album names (my-album, demo-album) instead of "shell-no"
   - Changed examples in /resume skill documentation
   - Changed examples in CLAUDE.md "Finding Albums" section
   - Changed examples in "Resuming Work" section
   - Changed examples in "Creating a New Album" section
-
-### Fixed
 
 ## [0.9.0] - 2026-01-26
 
