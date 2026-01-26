@@ -319,6 +319,7 @@ For documentary or true-story albums:
 | `/bitwize-music:clipboard` | Copy track content to clipboard (macOS/Linux/WSL) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity |
 | `/bitwize-music:skill-model-updater` | Update Claude model references |
+| `/bitwize-music:help` | Show available skills, workflows, and quick reference |
 | `/bitwize-music:about` | About bitwize and this plugin |
 
 ---

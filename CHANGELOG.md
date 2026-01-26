@@ -12,6 +12,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.11.0] - 2026-01-26
+
+### Added
+- New `/bitwize-music:help` skill - comprehensive quick reference for all skills, workflows, and tips
+  - Skills organized by category (Album Creation, Research, QC, Production, File Management, System)
+  - Common workflow guides (new album, true-story albums, resuming work)
+  - Quick tips reference (config, pronunciation, explicit content, mastering, status flows)
+  - Key documentation paths
+  - Getting help section with navigation tips
+- Added help skill to CLAUDE.md skills table
+- Added help skill to README.md Setup & Maintenance section
+
 ## [0.10.1] - 2026-01-26
 
 ### Fixed

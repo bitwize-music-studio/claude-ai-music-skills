@@ -427,6 +427,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:configure` | Set up or edit plugin configuration (~/.bitwize-music/config.yaml) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity (`/bitwize-music:test e2e` for full E2E test) |
 | `/bitwize-music:skill-model-updater` | Update model references in skills when new Claude models are released |
+| `/bitwize-music:help` | Show available skills, common workflows, and quick reference |
 | `/bitwize-music:about` | About bitwize and this plugin |
 
 ### Specialized Researchers
