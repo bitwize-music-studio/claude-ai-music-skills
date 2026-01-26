@@ -342,6 +342,20 @@ Verify it has "Artist/Band Name Warning" section that:
 ### TEST: CLAUDE.md mentions artist names forbidden
 Verify CLAUDE.md Suno Reference section mentions artist names are forbidden.
 
+### TEST: No band names in Suno example prompts (regression)
+Search skills/suno-engineer/SKILL.md for common band/artist name patterns in example prompts.
+Common violations to check for:
+- "[Band] style" (e.g., "NOFX style", "Metallica style")
+- "sounds like [Band]"
+- Direct band name references
+
+If found, report as FAIL with:
+→ Problem: Band name in example prompt violates Suno policy
+→ File: skills/suno-engineer/SKILL.md:[line]
+→ Fix: Replace with descriptive style terms (e.g., "NOFX style" → "melodic punk rock, fast-paced, political, skate punk")
+
+This test was added after band names appeared in example style prompts.
+
 ### TEST: Lyrics box warning documented
 Read skills/suno-engineer/SKILL.md.
 Verify it has "Lyrics Box Warning" section that:
@@ -481,6 +495,14 @@ Verify it includes:
 2. Extracts `paths.content_root` and `artist.name`
 3. Creates correct path: `{content_root}/artists/{artist}/albums/{genre}/{album}/tracks/`
 4. Copies templates from plugin directory
+
+### TEST: /new-album skill offers interactive planning option
+Read skills/new-album/SKILL.md confirmation message.
+Verify it includes:
+1. "Option 1 - Interactive (Recommended)" section
+2. Reference to "7 Planning Phases"
+3. "Option 2 - Manual" section as alternative
+4. Encourages interactive approach for guided workflow
 
 ### TEST: Shared venv path documented correctly
 Search for mastering venv references.

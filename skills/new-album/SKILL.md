@@ -141,8 +141,13 @@ Files created:
 - tracks/ (empty, ready for track files)
 
 Next steps:
-1. Edit README.md with album concept
-2. Create tracks with: /import-track or manually in tracks/
+  Option 1 - Interactive (Recommended):
+    Tell me about your vision and I'll guide you through the 7 Planning Phases
+    to build your album concept together.
+
+  Option 2 - Manual:
+    1. Edit README.md with your album concept
+    2. Create tracks with /import-track or manually in tracks/
 ```
 
 ## Error Handling
@@ -197,8 +202,13 @@ Files created:
 - tracks/ (empty, ready for track files)
 
 Next steps:
-1. Edit README.md with album concept
-2. Create tracks with: /import-track or manually in tracks/
+  Option 1 - Interactive (Recommended):
+    Tell me about your vision and I'll guide you through the 7 Planning Phases
+    to build your album concept together.
+
+  Option 2 - Manual:
+    1. Edit README.md with your album concept
+    2. Create tracks with /import-track or manually in tracks/
 ```
 
 ---
