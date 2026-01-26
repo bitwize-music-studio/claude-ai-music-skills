@@ -7,8 +7,22 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- `/bitwize-music:resume` skill - Dedicated skill for resuming work on albums
+  - Takes album name as argument
+  - Reads config to get paths
+  - Uses Glob to find album across all genre folders
+  - Reads album README and track files to assess status
+  - Determines current workflow phase (Planning, Writing, Generating, Mastering, etc.)
+  - Reports detailed status: location, progress, what's done, next steps
+  - Lists available albums if target album not found
+  - Handles case-insensitive matching and album name variations
+  - Usage: `/bitwize-music:resume shell-no`
 
 ### Changed
+- CLAUDE.md "Finding Albums" section now recommends `/bitwize-music:resume` skill as the primary approach
+- "Resuming Work on an Album" section updated to prioritize the resume skill
+- Skills table: Added `/bitwize-music:resume` at the top
+- Session Start tip now mentions `/bitwize-music:resume <album-name>` instead of tutorial resume
 
 ### Fixed
 

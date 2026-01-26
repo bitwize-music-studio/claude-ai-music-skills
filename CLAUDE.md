@@ -4,6 +4,51 @@
 
 This is an AI music generation workflow using Suno. The repository contains skills, templates, and tools for creating artist profiles, album concepts, and track-by-track prompts/lyrics.
 
+---
+
+## ⚠️ CRITICAL: Finding Albums When User Mentions Them
+
+**WHENEVER the user mentions an album name** (e.g., "let's work on shell-no", "continue with X", "I want to work on Y"):
+
+**BEST APPROACH - Use the resume skill:**
+```
+/bitwize-music:resume shell-no
+```
+This automatically handles all the steps below and provides a detailed status report.
+
+**OR - Manual approach if skill unavailable:**
+
+**DO THIS FIRST - MANDATORY STEPS:**
+
+1. **Read config file**: `~/.bitwize-music/config.yaml`
+   - Get `paths.content_root`
+   - Get `artist.name`
+
+2. **Use Glob to find album**:
+   ```
+   Pattern: {content_root}/artists/{artist}/albums/*/*/README.md
+   ```
+   This searches ALL genre folders for album READMEs.
+
+3. **Filter results** for album name (case-insensitive match in file path)
+
+4. **Read the album README** to get current status
+
+5. **Report to user**: Found album at [path], status is [X], here's what's next...
+
+**COMMON MISTAKE - DO NOT DO THIS:**
+- ❌ Don't search from current working directory
+- ❌ Don't use complex glob patterns like `**/*[Aa]lbum*/**`
+- ❌ Don't assume the path - always read config first
+- ❌ Don't use `ls` or `find` commands
+
+**CORRECT APPROACH:**
+- ✅ Read `~/.bitwize-music/config.yaml` FIRST
+- ✅ Use simple glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
+- ✅ Let Glob tool handle the searching
+
+---
+
 ## Configuration
 
 Configuration lives at `~/.bitwize-music/config.yaml` (outside the plugin directory).
@@ -201,37 +246,41 @@ At the beginning of a fresh session:
 
 **Present status summary** to user, ask what to work on.
 
-**Tip**: Users can also run `/bitwize-music:tutorial resume` for an interactive guide to their in-progress work.
+**Tip**: Users can run `/bitwize-music:resume <album-name>` to resume work on a specific album with a detailed status report.
 
 ## Resuming Work on an Album
 
 **Trigger**: User says "let's work on [album]" or "continue with [album]" or mentions an album name
 
-**Required steps (do these EVERY time):**
+**RECOMMENDED: Use `/bitwize-music:resume` skill**
 
-1. **Read config** - Get `content_root` and `artist.name` from `~/.bitwize-music/config.yaml`
-2. **Find the album** - Use Glob to search for album README:
-   ```
-   Pattern: {content_root}/artists/{artist}/albums/*/*/README.md
-   Then grep results for album name (case-insensitive)
-   ```
-3. **Read album README** - Get full path, read it to understand:
-   - Album status, track count, concept
-   - Which phase of workflow (planning, writing, generating, mastering, release)
-4. **Read track files** - Glob for `tracks/*.md`, read to check:
-   - Track statuses (Not Started, In Progress, Generated, Final)
-   - What needs to be done next
-5. **Report current state** - Tell user:
-   - Album location (full path)
-   - Current status and phase
-   - What's completed, what's next
-   - Specific next actions
+Invoke the resume skill with the album name:
+```
+/bitwize-music:resume shell-no
+```
+
+The skill automatically:
+- Reads config to get paths
+- Finds the album using Glob
+- Checks album and track statuses
+- Determines current workflow phase
+- Reports detailed status and next steps
+
+See `/skills/resume/SKILL.md` for full documentation.
+
+**If skill not available - Manual steps:**
+
+1. Read config: `~/.bitwize-music/config.yaml`
+2. Glob for album: `{content_root}/artists/{artist}/albums/*/*/README.md`
+3. Filter results for album name (case-insensitive)
+4. Read album README and track files
+5. Report status and next actions
 
 **Common mistakes to avoid:**
-- ❌ Don't assume the album path - always search for it
-- ❌ Don't guess the genre folder - use Glob to find it
-- ❌ Don't rely on memory - read config and files fresh every time
-- ✅ Always use Glob + Read to locate albums by name
+- ❌ Don't assume paths - always read config first
+- ❌ Don't search from current directory - use config paths
+- ❌ Don't use complex globs - keep it simple
+- ✅ Use `/bitwize-music:resume` skill whenever possible
 
 ## Mid-Session Workflow Updates
 
@@ -326,6 +375,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 
 | Skill | When to Use |
 |-------|-------------|
+| `/bitwize-music:resume` | Find an album and resume work where you left off - shows status and next steps |
 | `/bitwize-music:tutorial` | Interactive guided album creation, session resume, getting started |
 | `/bitwize-music:album-ideas` | Track and manage album ideas - brainstorming, planning, status tracking |
 | `/bitwize-music:lyric-writer` | Writing/reviewing lyrics, fixing prosody issues |
