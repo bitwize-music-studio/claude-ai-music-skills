@@ -12,6 +12,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.10.1] - 2026-01-26
+
+### Fixed
+- Removed reference to non-existent `/bitwize-music:help` skill in session startup productivity tips
+- Updated tip to simply suggest asking "what should I do next?" for guidance
+
 ## [0.10.0] - 2026-01-26
 
 ### Added

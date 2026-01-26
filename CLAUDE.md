@@ -267,7 +267,7 @@ At the beginning of a fresh session:
 - ⚠️ Albums with unverified sources detected. Research must be verified before generation.
 
 **Always show one general productivity tip (rotate randomly):**
-- 💡 Stuck? Use `/bitwize-music:help` or ask "what should I do next?"
+- 💡 Stuck? Ask "what should I do next?" for guidance on next steps.
 - 💡 Track-by-track status: `/bitwize-music:resume` shows what's done and what's next.
 - 💡 All research skills: Use `/bitwize-music:researcher` to coordinate specialized researchers.
 - 💡 Pronunciation risks? `/bitwize-music:pronunciation-specialist` scans for homographs and tricky names.
