@@ -188,10 +188,12 @@ At the beginning of a fresh session:
 2. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
 3. **Check album ideas** - Read `paths.ideas_file` from config (default: `{content_root}/IDEAS.md`) for pending album ideas. Report counts by status. User can run `/bitwize-music:album-ideas list` for full details.
 4. **Check in-progress albums**:
-   - Scan `{content_root}/artists/*/albums/*/` for albums with Status: "In Progress" or "Research Complete"
-   - Report album name, status, track count, tracks completed
+   - Use Glob to find album READMEs: `{content_root}/artists/*/albums/*/*/README.md`
+   - Read each README to check Status field
+   - Report albums with Status: "In Progress", "Research Complete", "Complete" (not Released)
+   - For each: album name, artist, genre, status, track count, tracks completed
 5. **Check pending verifications**:
-   - Look for tracks with Status: `❌ Pending`
+   - For each in-progress album, check tracks for Status: `❌ Pending`
    - Report which albums need human verification
 6. **Check for incomplete work**:
    - Tracks with Status: "In Progress" (partially generated)
@@ -200,6 +202,36 @@ At the beginning of a fresh session:
 **Present status summary** to user, ask what to work on.
 
 **Tip**: Users can also run `/bitwize-music:tutorial resume` for an interactive guide to their in-progress work.
+
+## Resuming Work on an Album
+
+**Trigger**: User says "let's work on [album]" or "continue with [album]" or mentions an album name
+
+**Required steps (do these EVERY time):**
+
+1. **Read config** - Get `content_root` and `artist.name` from `~/.bitwize-music/config.yaml`
+2. **Find the album** - Use Glob to search for album README:
+   ```
+   Pattern: {content_root}/artists/{artist}/albums/*/*/README.md
+   Then grep results for album name (case-insensitive)
+   ```
+3. **Read album README** - Get full path, read it to understand:
+   - Album status, track count, concept
+   - Which phase of workflow (planning, writing, generating, mastering, release)
+4. **Read track files** - Glob for `tracks/*.md`, read to check:
+   - Track statuses (Not Started, In Progress, Generated, Final)
+   - What needs to be done next
+5. **Report current state** - Tell user:
+   - Album location (full path)
+   - Current status and phase
+   - What's completed, what's next
+   - Specific next actions
+
+**Common mistakes to avoid:**
+- ❌ Don't assume the album path - always search for it
+- ❌ Don't guess the genre folder - use Glob to find it
+- ❌ Don't rely on memory - read config and files fresh every time
+- ✅ Always use Glob + Read to locate albums by name
 
 ## Mid-Session Workflow Updates
 

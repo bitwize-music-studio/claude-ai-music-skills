@@ -7,10 +7,19 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- "Resuming Work on an Album" section in CLAUDE.md with explicit instructions for finding albums when user mentions them
 
 ### Changed
+- Session Start step 4 now includes explicit instructions to use Glob tool to find album READMEs
+- Clearer scanning instructions: find `{content_root}/artists/*/albums/*/*/README.md`, read each, report status
 
 ### Fixed
+- Improved album discovery workflow - Claude now has clear step-by-step instructions for finding albums when user says "let's work on [album]"
+  - Always read config first to get content_root and artist name
+  - Use Glob to search for album README files
+  - Read album and track files to assess current state
+  - Report location, status, and next actions
+  - Common mistakes highlighted (don't assume paths, don't guess genre folders, always search fresh)
 
 ## [0.8.1] - 2026-01-26
 
