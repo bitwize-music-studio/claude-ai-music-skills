@@ -7,10 +7,39 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
-- CODEOWNERS file to protect workflow files and critical configuration
-- SECURITY.md with security policy and AI-assisted development guidelines
 
 ### Changed
+
+### Fixed
+
+## [0.7.0] - 2026-01-26
+
+### Added
+- Custom instructions support (`paths.custom_instructions` config field)
+  - Load user's custom Claude workflow instructions at session start
+  - Defaults to `{content_root}/CUSTOM_CLAUDE.md` if not set in config
+  - Supplements (doesn't override) base CLAUDE.md
+  - Optional - fails silently if file doesn't exist
+  - Prevents plugin update conflicts for user workflow preferences
+- Custom pronunciation guide support (`paths.custom_pronunciation` config field)
+  - Load user's custom phonetic spellings at session start
+  - Defaults to `{content_root}/CUSTOM_PRONUNCIATION.md` if not set in config
+  - Merges with base pronunciation guide, custom entries take precedence
+  - Optional - fails silently if file doesn't exist
+  - pronunciation-specialist adds discoveries to custom guide, never edits base
+  - Prevents conflicts when plugin updates base pronunciation guide
+- Mandatory homograph auto-fix in lyric-reviewer
+  - Automatically detects and fixes homographs based on context
+  - Reference table of 8 common homographs with phonetic fixes
+  - No longer asks user "Option A or B?" - applies fix immediately
+  - Explicit anti-pattern warning in documentation
+
+### Changed
+- `/configure` skill now prompts for custom_instructions and custom_pronunciation paths during setup
+- `/pronunciation-specialist` now loads and merges both base and custom pronunciation guides
+- `/lyric-reviewer` pronunciation check now links to mandatory auto-fix section
+- CLAUDE.md session start procedure now loads custom instructions and custom pronunciation files
+- Self-updating skills documentation clarified: pronunciation-specialist updates custom guide only
 
 ### Fixed
 
