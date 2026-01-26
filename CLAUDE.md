@@ -177,6 +177,14 @@ At the beginning of a fresh session:
        Option 1: Run /bitwize-music:configure (interactive)
        Option 2: mkdir -p ~/.bitwize-music && cp config/config.example.yaml ~/.bitwize-music/config.yaml
      ```
+
+1b. **Load custom instructions (if present)** - Check for user's custom Claude instructions:
+   - Read `paths.custom_instructions` from config
+   - If not set, check default location: `{content_root}/CUSTOM_CLAUDE.md`
+   - If file exists, read and incorporate the instructions immediately
+   - If file doesn't exist, skip silently (this is optional)
+   - Custom instructions supplement base CLAUDE.md (they don't override)
+
 2. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
 3. **Check IDEAS.md** - Check `{content_root}/IDEAS.md` for pending album ideas
 4. **Check in-progress albums**:
@@ -257,7 +265,11 @@ Report all issues with proposed fixes, then proceed.
 
 ### Pronunciation
 
-**Before writing lyrics**, scan for pronunciation risks. See `/reference/suno/pronunciation-guide.md` for the full guide.
+**Before writing lyrics**, scan for pronunciation risks.
+
+**Pronunciation guides:**
+- Base guide: `/reference/suno/pronunciation-guide.md` (universal rules, common homographs, tech terms)
+- Custom guide: `{content_root}/CUSTOM_PRONUNCIATION.md` (artist names, album-specific terms) - optional, merged at session start
 
 **Mandatory**: When using "live" in lyrics, ask which pronunciation (LYVE vs LIV).
 
@@ -347,11 +359,11 @@ For deep research, `/bitwize-music:researcher` coordinates specialists:
 
 Skills can update their own reference documentation when new issues are discovered:
 
-- `/bitwize-music:pronunciation-specialist` → Updates `/reference/suno/pronunciation-guide.md` with new phonetic fixes
+- `/bitwize-music:pronunciation-specialist` → Adds artist/album-specific pronunciations to custom guide (`{content_root}/CUSTOM_PRONUNCIATION.md`), never edits base guide
 - `/bitwize-music:suno-engineer` → Updates `/reference/suno/*.md` with new tips, techniques, version changes
 - `/bitwize-music:skill-model-updater` → Updates model references across all skills when new Claude models release
 
-**The rule**: When a skill discovers something new, it should add it to the relevant reference file so future invocations benefit.
+**The rule**: When a skill discovers something new, it should add it to the relevant reference file so future invocations benefit. User-specific content (pronunciations) goes to custom guide to avoid plugin update conflicts.
 
 ### Model Strategy
 

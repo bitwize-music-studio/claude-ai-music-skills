@@ -40,6 +40,8 @@ paths:
   content_root: "~/music-projects"           # Albums, artists, research
   audio_root: "~/music-projects/audio"       # Mastered audio output
   documents_root: "~/music-projects/docs"    # PDFs, primary sources
+  custom_instructions: "~/music-projects/CUSTOM_CLAUDE.md"  # Optional custom workflow instructions
+  custom_pronunciation: "~/music-projects/CUSTOM_PRONUNCIATION.md"  # Optional custom phonetic spellings
 
 # Platform URLs
 urls:
@@ -80,6 +82,8 @@ The `~/.bitwize-music/` directory also contains:
 | `paths.content_root` | Yes | Where albums and artists live |
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |
+| `paths.custom_instructions` | No | Path to markdown file with custom Claude instructions. Defaults to `{content_root}/CUSTOM_CLAUDE.md` if not set. |
+| `paths.custom_pronunciation` | No | Path to markdown file with custom phonetic spellings. Defaults to `{content_root}/CUSTOM_PRONUNCIATION.md` if not set. Merges with base pronunciation guide. |
 | `urls.soundcloud` | No | SoundCloud profile URL |
 | `urls.spotify` | No | Spotify artist URL |
 | `urls.bandcamp` | No | Bandcamp URL |
@@ -95,3 +99,73 @@ Config not found. Run:
   cp config/config.example.yaml ~/.bitwize-music/config.yaml
 Then edit ~/.bitwize-music/config.yaml with your settings.
 ```
+
+## Custom Instructions
+
+You can provide custom Claude instructions to supplement the base CLAUDE.md workflow:
+
+**Setup:**
+1. Set `paths.custom_instructions` in config (or use default)
+2. Create the file with your custom instructions:
+   ```bash
+   touch ~/music-projects/CUSTOM_CLAUDE.md
+   ```
+3. Add your preferences:
+   ```markdown
+   # My Custom Workflow Preferences
+
+   - Always ask before creating new albums
+   - Prefer aggressive industrial sound for electronic tracks
+   - Use British spelling in all documentation
+   ```
+
+**When it loads:**
+- At session start, Claude reads this file if it exists
+- Instructions supplement (don't override) base CLAUDE.md
+- If file doesn't exist, no error - it's optional
+
+**Version control:**
+- Default location (`~/music-projects/CUSTOM_CLAUDE.md`) can be committed with your content
+- Or point to separate repo for shared workflow across projects
+
+## Custom Pronunciation Guide
+
+You can provide custom phonetic spellings to supplement the base pronunciation guide:
+
+**Setup:**
+1. Set `paths.custom_pronunciation` in config (or use default)
+2. Create the file with your custom pronunciations:
+   ```bash
+   touch ~/music-projects/CUSTOM_PRONUNCIATION.md
+   ```
+3. Add your phonetic spellings:
+   ```markdown
+   # Custom Pronunciation Guide
+
+   ## Artist-Specific Terms
+   | Word | Standard | Phonetic | Notes |
+   |------|----------|----------|-------|
+   | BitWize | bitwize | Bit-Wize | Artist name |
+   | ShellNo | shellno | Shell-No | Album title |
+
+   ## Album-Specific Names
+   | Word | Standard | Phonetic | Notes |
+   |------|----------|----------|-------|
+   | Larocca | larocca | Luh-rock-uh | Character name |
+   | Finnerty | finnerty | Finn-er-tee | Character name |
+   ```
+
+**When it loads:**
+- At session start, Claude reads this file if it exists
+- Merges with base pronunciation guide from `/reference/suno/pronunciation-guide.md`
+- Your custom entries take precedence over base guide
+- If file doesn't exist, no error - it's optional
+
+**Why separate from base guide:**
+- Plugin updates won't overwrite your additions
+- Version control your custom pronunciations with your music content
+- Share artist-specific pronunciations across projects
+
+**Version control:**
+- Default location (`~/music-projects/CUSTOM_PRONUNCIATION.md`) can be committed with your content
+- Avoids merge conflicts when plugin updates the base guide

@@ -69,7 +69,7 @@ lyric-writer → lyric-reviewer → suno-engineer
 
 ### 3. Pronunciation Check
 - Proper nouns, homographs, acronyms, tech terms, numbers
-- **Critical**: Unphonetic proper noun, homograph without clarification
+- **Critical**: Unphonetic proper noun, homograph detected (AUTO-FIX REQUIRED - see Homograph Detection section)
 
 ### 4. POV/Tense Check
 - Pronoun consistency, tense consistency
@@ -116,6 +116,33 @@ See [checklist-reference.md](checklist-reference.md) for detailed criteria.
 - Twin verses
 - Documentary issues
 - Flow/phrasing
+
+### Homograph Detection & Auto-Fix (MANDATORY)
+
+When you detect a homograph (live, read, lead, wind, tear, bass, bow, etc.):
+
+1. **DO NOT** ask the user which option they prefer
+2. **DO NOT** offer to change the lyric to avoid the word
+3. Determine correct pronunciation from context
+4. Create phonetic spelling (e.g., "live" → "liv" for verb)
+5. Apply to Suno Lyrics Box ONLY (streaming lyrics keep standard spelling)
+6. Add to Pronunciation Notes table
+7. Report as "Auto-Fix Applied"
+
+**Anti-pattern**: Offering the user "Option A: keep it, Option B: change the lyric" is WRONG. The answer is ALWAYS phonetic spelling.
+
+#### Common Homograph Fixes
+
+| Word | Context A | Spelling | Context B | Spelling |
+|------|-----------|----------|-----------|----------|
+| live | verb (to live) | liv | adjective (live show) | lyve |
+| read | present tense | reed | past tense | red |
+| lead | verb (to lead) | leed | noun (metal) | led |
+| wind | noun (air) | wind | verb (to wind) | wynd |
+| tear | noun (crying) | teer | verb (to rip) | tare |
+| bass | noun (fish) | bass | noun (music) | base |
+| bow | noun (ribbon) | boh | verb (to bow) | bow |
+| close | verb (to close) | cloze | adjective (near) | close |
 
 ---
 
@@ -219,5 +246,6 @@ Before marking "Ready for Suno":
 3. **Homographs are landmines** - live, read, lead, wind will mispronounce
 4. **Documentary = legal risk** - Take internal state claims seriously
 5. **Report format matters** - Structured output helps track issues across albums
+6. **Homographs are AUTO-FIX, not user choice** - Never ask "which option?" - detect it, fix it, report it as applied
 
 **Your deliverable**: Verification report with applied pronunciation fixes, remaining issues, and warnings.
