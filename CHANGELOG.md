@@ -12,6 +12,33 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.8.0] - 2026-01-26
+
+### Added
+- **Complete override support for 10 skills** - All creative/stylistic skills now support user customization via `{overrides}` directory
+  - `album-art-director` → `album-art-preferences.md` (visual style, color palettes, composition)
+  - `researcher` → `research-preferences.md` (source priorities, verification standards, research depth)
+  - `release-director` → `release-preferences.md` (QA checklist, platform priorities, metadata standards, timeline)
+  - `sheet-music-publisher` → `sheet-music-preferences.md` (page layout, notation, songbook formatting)
+  - Previously added (0.7.x): explicit-checker, lyric-writer, suno-engineer, mastering-engineer, album-conceptualizer, pronunciation-specialist
+  - All skills follow unified override pattern: check `{overrides}/[skill-file]`, merge with base, fail silently if missing
+  - Complete documentation in config/README.md with examples for all 10 override files
+- `/album-ideas` skill - Track and manage album concepts before creating directories
+  - Commands: list, add, remove, status, show, edit
+  - Organize by status: Pending, In Progress, Complete
+  - Config-based location: `paths.ideas_file` (defaults to `{content_root}/IDEAS.md`)
+  - Creates template file automatically on first use
+  - Integrated into session start workflow (step 3: check album ideas)
+
+### Changed
+- CLAUDE.md session start now checks album ideas file (step 3) and mentions `/album-ideas list` for details
+- `/configure` skill now prompts for `paths.ideas_file` during setup
+- config/README.md expanded with comprehensive override system documentation (10 skills, full examples)
+- Skills table in CLAUDE.md now includes `/album-ideas` skill
+
+### Fixed
+- Tests updated to validate override support in all 10 skills and album-ideas commands
+
 ## [0.7.1] - 2026-01-26
 
 ### Changed
