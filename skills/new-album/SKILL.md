@@ -238,3 +238,83 @@ Files created:
 - SOURCES.md (sources template)
 - tracks/ (empty, ready for track files)
 ```
+
+---
+
+## Common Mistakes
+
+### ❌ Don't: Skip reading config
+
+**Wrong:**
+```bash
+# Assuming paths
+mkdir -p ~/music-projects/artists/...
+```
+
+**Right:**
+```bash
+# Always read config first
+cat ~/.bitwize-music/config.yaml
+# Use paths.content_root from config
+```
+
+### ❌ Don't: Use current working directory
+
+**Wrong:**
+```bash
+# Create album relative to wherever we are
+mkdir -p ./artists/bitwize/albums/...
+```
+
+**Right:**
+```bash
+# Use absolute path from config
+mkdir -p {content_root}/artists/{artist}/albums/{genre}/{album-name}/
+```
+
+### ❌ Don't: Hardcode artist name
+
+**Wrong:**
+```bash
+# Assuming artist name
+mkdir -p ~/music-projects/artists/bitwize/albums/...
+```
+
+**Right:**
+```bash
+# Read artist.name from config
+artist=$(yq '.artist.name' ~/.bitwize-music/config.yaml)
+mkdir -p {content_root}/artists/$artist/albums/...
+```
+
+### ❌ Don't: Forget path structure
+
+**Wrong paths:**
+```
+~/music-projects/{album}/           # Missing artists/{artist}/albums/{genre}/
+~/music-projects/albums/{album}/    # Missing artists/{artist}/
+~/music-projects/{artist}/{album}/  # Missing albums/{genre}/
+```
+
+**Correct structure:**
+```
+{content_root}/artists/{artist}/albums/{genre}/{album-name}/
+```
+
+### ❌ Don't: Use wrong genre category
+
+**Wrong:**
+```bash
+# Using subgenre instead of primary category
+/new-album my-album boom-bap        # boom-bap is a subgenre
+/new-album my-album trap            # trap is a subgenre
+```
+
+**Right:**
+```bash
+# Use primary genre category
+/new-album my-album hip-hop         # boom-bap and trap go in hip-hop
+/new-album my-album electronic      # house, techno go in electronic
+```
+
+Valid primary genres: `hip-hop`, `electronic`, `country`, `folk`, `rock`

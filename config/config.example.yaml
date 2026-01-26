@@ -11,50 +11,79 @@
 # =============================================================================
 artist:
   # Your artist/project name
+  # Examples: "bitwize", "my-band", "dj-shadow-clone"
+  # Note: Case-sensitive, used in file paths
   name: "your-artist-name"
 
   # Primary genres (used for default album categorization)
+  # Pick from: hip-hop, electronic, rock, folk, country, etc.
   genres:
     - "electronic"
     - "hip-hop"
 
   # Brief description of your style (optional, helps Claude understand your vibe)
+  # Examples:
+  #   - "dark industrial electronic with aggressive vocals"
+  #   - "storytelling folk with fingerpicked guitar"
+  #   - "boom-bap hip-hop with jazz samples"
   # style: "dark industrial electronic with aggressive vocals"
 
 # =============================================================================
 # PATHS
 # =============================================================================
 # All paths support ~ for home directory
+# Tip: Use absolute paths for clarity, or relative to home (~)
 
 paths:
   # Where albums, artists, and research files live
   # Structure: {content_root}/artists/[artist]/albums/[genre]/[album]/
+  # Examples:
+  #   - "~/music-projects" (separate workspace)
+  #   - "." (inside plugin directory, uses .gitignore)
+  #   - "/home/you/Documents/music" (absolute path)
+  # Must be writable, will contain markdown files and lyrics
   content_root: "~/music-projects"
 
   # Where mastered audio and album art go
   # Structure: {audio_root}/[artist]/[album]/
+  # Examples:
+  #   - "~/music-projects/audio" (under content_root)
+  #   - "~/Music/releases" (separate location)
+  # Must be writable, will store large WAV files
+  # Note: Include [artist] in path! e.g., {audio_root}/bitwize/album-name/
   audio_root: "~/music-projects/audio"
 
   # Where PDFs and primary source documents go (not committed to git)
   # Structure: {documents_root}/[artist]/[album]/
+  # Examples:
+  #   - "~/music-projects/documents" (under content_root)
+  #   - "~/Documents/music-research" (separate location)
+  # Used for research materials too large for git (court docs, PDFs, etc.)
+  # Note: Include [artist] in path! e.g., {documents_root}/bitwize/album-name/
   documents_root: "~/music-projects/documents"
 
   # Overrides directory (optional)
   # Directory containing override files for skills and workflows
   # Each skill checks this directory for its own override file
-  # Examples:
-  #   - CLAUDE.md (overrides base workflow instructions)
-  #   - pronunciation-guide.md (merges with base pronunciation guide)
+  # Override files you can create:
+  #   - CLAUDE.md (custom workflow instructions)
+  #   - pronunciation-guide.md (artist/album-specific pronunciations)
   #   - explicit-words.md (custom explicit word list)
-  #   - lyric-writing-guide.md (custom lyric writing preferences)
-  # If not set, defaults to ~/music-projects/overrides
+  #   - lyric-writing-guide.md (your personal lyric writing preferences)
+  # Examples:
+  #   - "~/music-projects/overrides" (default, under content_root)
+  #   - "~/.bitwize-music/overrides" (alongside config)
+  # If not set, defaults to {content_root}/overrides
   # If directory doesn't exist, skills use base files only (no error)
   overrides: "~/music-projects/overrides"
 
   # Album ideas file (optional)
   # File for tracking album concepts before creating album directories
   # Managed by /bitwize-music:album-ideas skill
-  # If not set, defaults to ~/music-projects/IDEAS.md
+  # Examples:
+  #   - "~/music-projects/IDEAS.md" (default, under content_root)
+  #   - "~/Documents/album-ideas.md" (separate location)
+  # If not set, defaults to {content_root}/IDEAS.md
   # If file doesn't exist, skill creates it with template
   ideas_file: "~/music-projects/IDEAS.md"
 
@@ -64,26 +93,37 @@ paths:
 # =============================================================================
 # PLATFORM URLS
 # =============================================================================
+# Add your streaming/social platform URLs (optional, used in release workflow)
 urls:
+  # SoundCloud profile URL (used in release checklist)
   soundcloud: "https://soundcloud.com/your-artist"
-  # spotify: "https://open.spotify.com/artist/..."
+
+  # Other platforms (uncomment and fill in as needed):
+  # spotify: "https://open.spotify.com/artist/abc123xyz"
   # bandcamp: "https://your-artist.bandcamp.com"
   # youtube: "https://youtube.com/@your-artist"
+  # apple_music: "https://music.apple.com/us/artist/..."
+  # twitter: "https://x.com/your-artist"
 
 # =============================================================================
 # GENERATION SERVICE
 # =============================================================================
 generation:
-  # Music generation service: suno (only supported option for now)
+  # Music generation service to use for track generation
+  # Currently supported: "suno" (Suno V5)
+  # Future options: udio, soundraw, etc.
   service: suno
-  # Future: udio, soundraw, etc.
 
 # =============================================================================
 # SHEET MUSIC (Optional)
 # =============================================================================
+# Settings for /bitwize-music:sheet-music-publisher skill
+# Only needed if you plan to generate sheet music from audio files
 sheet_music:
-  # Page size for songbooks: letter (8.5x11), 9x12, 6x9
+  # Page size for songbooks
+  # Options: "letter" (8.5x11 inches), "9x12", "6x9"
   page_size: "letter"
 
-  # Include section headers in songbooks
+  # Include section headers (Verse, Chorus, etc.) in songbook PDFs
+  # Set to true to show [Verse], [Chorus] labels above each section
   section_headers: false

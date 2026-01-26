@@ -172,3 +172,108 @@ Copied to:
 1. ~/bitwize-music/audio/bitwize/shell-no/album.png (for platforms)
 2. ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/album-art.jpg (for docs)
 ```
+
+---
+
+## Common Mistakes
+
+### ❌ Don't: Skip reading config
+
+**Wrong:**
+```bash
+# Assuming paths
+cp art.png ~/music-projects/audio/shell-no/
+```
+
+**Right:**
+```bash
+# Always read config first
+cat ~/.bitwize-music/config.yaml
+# Use paths.audio_root, paths.content_root, and artist.name from config
+```
+
+### ❌ Don't: Forget to include artist in audio path
+
+**Wrong audio destination:**
+```
+{audio_root}/{album}/album.png
+# Example: ~/music-projects/audio/shell-no/album.png
+```
+
+**Correct audio destination:**
+```
+{audio_root}/{artist}/{album}/album.png
+# Example: ~/music-projects/audio/bitwize/shell-no/album.png
+```
+
+**Why it matters:** This is the most common mistake - audio_root includes artist folder.
+
+### ❌ Don't: Place art in only one location
+
+**Wrong:**
+```bash
+# Only copying to audio folder
+cp art.png {audio_root}/{artist}/{album}/album.png
+# Missing: content folder copy
+```
+
+**Right:**
+```bash
+# Copy to BOTH locations
+# 1. Audio location (for streaming platforms)
+cp art.png {audio_root}/{artist}/{album}/album.png
+# 2. Content location (for documentation)
+cp art.jpg {album_path}/album-art.jpg
+```
+
+**Why it matters:** Album art needs to be in both locations - audio folder for release, content folder for documentation.
+
+### ❌ Don't: Mix up the filenames
+
+**Wrong:**
+```bash
+# Using same filename in both locations
+cp art.png {audio_root}/{artist}/{album}/album-art.png
+cp art.png {album_path}/album.png
+```
+
+**Correct naming:**
+```
+Audio location: album.png (or album.jpg)
+Content location: album-art.jpg (or album-art.png)
+```
+
+**Why it matters:** Different locations use different naming conventions to avoid confusion.
+
+### ❌ Don't: Search from wrong location
+
+**Wrong:**
+```bash
+# Searching from current directory
+find . -name "README.md" -path "*albums/$album_name*"
+```
+
+**Right:**
+```bash
+# Search from content_root
+content_root=$(yq '.paths.content_root' ~/.bitwize-music/config.yaml)
+find "$content_root" -name "README.md" -path "*albums/$album_name*"
+```
+
+### ❌ Don't: Forget to create directories
+
+**Wrong:**
+```bash
+# Copying without ensuring directory exists
+cp art.png {audio_root}/{artist}/{album}/album.png
+# Fails if directory doesn't exist
+```
+
+**Right:**
+```bash
+# Create directory first
+mkdir -p {audio_root}/{artist}/{album}/
+cp art.png {audio_root}/{artist}/{album}/album.png
+```
+
+**Why it matters:** Audio directory might not exist yet, especially for new albums.

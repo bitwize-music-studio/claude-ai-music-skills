@@ -12,6 +12,66 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.12.0] - 2026-01-26
+
+### Added
+- **Quick Win #1**: Added `/bitwize-music:resume` skill to README.md Skills Reference table (Setup & Maintenance section)
+- **Quick Win #2**: Comprehensive Troubleshooting section in README.md with 8 common issue categories
+  - Config Not Found with setup instructions
+  - Album Not Found When Resuming with debug steps
+  - Path Resolution Issues with correct structure examples
+  - Python Dependency Issues for mastering
+  - Playwright Setup for document hunter
+  - Plugin Updates Breaking Things
+  - Skills Not Showing Up
+  - Still Stuck? with GitHub issue link
+- **Quick Win #3**: Getting Started Checklist in README.md with step-by-step setup instructions
+  - Appears before Quick Start section for better onboarding flow
+  - Includes all required steps: plugin install, config setup, optional dependencies
+  - Each step has code examples and explanations
+- **Quick Win #5**: Model Strategy section in README.md explaining Claude model usage
+  - Table showing Opus 4.5 for critical creative outputs (lyrics, Suno prompts)
+  - Sonnet 4.5 for most tasks (planning, research)
+  - Haiku 4.5 for pattern matching (pronunciation scanning)
+  - Rationale for model choices (quality vs cost optimization)
+  - Reference to /skill-model-updater for checking models
+- **Quick Win #6**: Visual workflow diagram in README.md "How It Works" section
+  - ASCII box diagram showing full pipeline: Concept → Research → Write → Generate → Master → Release
+  - Specific actions listed under each phase
+  - Improves at-a-glance understanding of workflow
+- **Quick Win #7**: Common Mistakes sections added to 4 path-handling skills
+  - skills/new-album/SKILL.md: 5 mistake patterns (config reading, path construction, genre categories)
+  - skills/import-audio/SKILL.md: 5 mistake patterns (artist in path, audio_root vs content_root)
+  - skills/import-track/SKILL.md: 6 mistake patterns (tracks subdirectory, track number padding)
+  - skills/import-art/SKILL.md: 6 mistake patterns (dual locations, filename conventions)
+  - Each mistake includes Wrong/Right code examples and "Why it matters" explanation
+  - 22 total mistake examples preventing most common path-related errors
+- **Quick Win #9**: Enhanced config.example.yaml with inline examples throughout
+  - Artist name examples ("bitwize", "my-band", "dj-shadow-clone")
+  - Genre choice examples for each section
+  - Path pattern examples (~/music-projects, ".", absolute paths)
+  - Platform URL examples (Apple Music, Twitter added)
+  - Notes about writability, file types, and use cases
+  - All sections use "Examples:" or "Example:" format consistently
+- **Quick Win #10**: Cross-references added to 4 key reference documentation files
+  - reference/suno/pronunciation-guide.md: Related Skills and See Also sections
+  - reference/suno/v5-best-practices.md: Related Skills and See Also sections
+  - reference/suno/structure-tags.md: Related Skills and See Also sections
+  - reference/mastering/mastering-workflow.md: Related Skills and See Also sections
+  - Each cross-reference links to related skills and documentation for better navigation
+- Test coverage: 15 new regression tests added to skills/test/SKILL.md
+  - Tests for all 10 quick wins
+  - Verifies README sections exist and have required content
+  - Verifies template consistency
+  - Verifies Common Mistakes sections in skills
+  - Verifies config examples present
+  - Verifies cross-references in reference docs
+
+### Changed
+- **Quick Win #4**: templates/ideas.md status values standardized from "Idea | Ready to Plan | In Progress" to "Pending | In Progress | Complete"
+  - Now consistent with album-ideas skill documentation
+  - Added status explanations (Pending: idea captured, In Progress: actively working, Complete: released or archived)
+
 ## [0.11.0] - 2026-01-26
 
 ### Added

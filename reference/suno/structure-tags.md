@@ -170,3 +170,29 @@ Final chorus...
 3. **Combine tags with descriptions**: `[Soft Verse]`, `[Building Chorus]`
 4. **End explicitly** with `[End]` or `[Fade Out]` for clean endings
 5. **Test variations** - tag effectiveness varies by genre/model
+
+---
+
+## Related Skills
+
+- **`/bitwize-music:lyric-writer`** - Lyric writing with automatic section tagging
+  - Automatically adds section tags to lyrics
+  - Uses tags from this reference guide
+  - Ensures proper song structure
+
+- **`/bitwize-music:suno-engineer`** - Technical Suno V5 prompting
+  - Applies section tags correctly in lyrics boxes
+  - Optimizes tag placement for generation results
+  - Uses this guide as reference for tag selection
+
+- **`/bitwize-music:lyric-reviewer`** - Pre-generation QC
+  - Verifies section tags are present and correct
+  - Checks for proper song structure
+  - Ensures tags follow Suno best practices
+
+## See Also
+
+- **`/reference/suno/v5-best-practices.md`** - Complete Suno V5 prompting guide, style box construction
+- **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling and pronunciation fixes for lyrics
+- **`/reference/suno/voice-tags.md`** - Vocal style descriptors and manipulation tags
+- **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and standards

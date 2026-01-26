@@ -155,3 +155,106 @@ Result:
 Moved: ~/Downloads/t-day-beach.md
    To: ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/tracks/03-t-day-beach.md
 ```
+
+---
+
+## Common Mistakes
+
+### ❌ Don't: Skip reading config
+
+**Wrong:**
+```bash
+# Assuming content_root path
+mv track.md ~/music-projects/artists/bitwize/albums/...
+```
+
+**Right:**
+```bash
+# Always read config first
+cat ~/.bitwize-music/config.yaml
+# Use paths.content_root and artist.name from config
+```
+
+### ❌ Don't: Search from wrong location
+
+**Wrong:**
+```bash
+# Searching from current directory
+find . -name "README.md" -path "*albums/$album_name*"
+```
+
+**Right:**
+```bash
+# Search from content_root
+content_root=$(yq '.paths.content_root' ~/.bitwize-music/config.yaml)
+find "$content_root" -name "README.md" -path "*albums/$album_name*"
+```
+
+**Why it matters:** Album might not be in current working directory.
+
+### ❌ Don't: Forget the tracks/ subdirectory
+
+**Wrong destination:**
+```
+{album_path}/01-track.md
+# Example: ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/01-track.md
+```
+
+**Correct destination:**
+```
+{album_path}/tracks/01-track.md
+# Example: ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/tracks/01-track.md
+```
+
+**Why it matters:** Tracks always go in the `tracks/` subdirectory within the album folder.
+
+### ❌ Don't: Use hardcoded artist name
+
+**Wrong:**
+```bash
+# Assuming artist is bitwize
+find ~/music-projects/artists/bitwize/albums -name "README.md"
+```
+
+**Right:**
+```bash
+# Read artist.name from config
+artist=$(yq '.artist.name' ~/.bitwize-music/config.yaml)
+find "$content_root/artists/$artist/albums" -name "README.md"
+```
+
+### ❌ Don't: Skip track number validation
+
+**Wrong:**
+```bash
+# Not validating track number format
+mv track.md {album_path}/tracks/$track_num-track.md
+# Could result in: 3-track.md instead of 03-track.md
+```
+
+**Right:**
+```bash
+# Ensure zero-padding
+track_num=$(printf "%02d" $track_num)
+mv track.md {album_path}/tracks/$track_num-track.md
+# Results in: 03-track.md
+```
+
+**Why it matters:** Track numbers must be zero-padded (01, 02, 03...) for proper sorting.
+
+### ❌ Don't: Assume album location without searching
+
+**Wrong:**
+```bash
+# Guessing album is in electronic genre
+mv track.md ~/music-projects/artists/bitwize/albums/electronic/shell-no/tracks/
+```
+
+**Right:**
+```bash
+# Search for album across all genres
+find "$content_root/artists/$artist/albums" -type d -name "$album_name"
+# Album might be in hip-hop, electronic, folk, etc.
+```
+
+**Why it matters:** Albums are organized by genre. You need to find the album first, not assume its genre.

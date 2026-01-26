@@ -94,6 +94,22 @@ Verify these optional fields exist and are documented:
 - `paths.overrides` (overrides directory for skill customization)
 - `paths.ideas_file` (album ideas tracking file)
 
+### TEST: config.example.yaml has inline examples (quick win #9)
+Read config/config.example.yaml.
+Verify it includes commented examples for:
+- artist.name (examples of artist names)
+- artist.genres (examples of genre choices)
+- artist.style (examples of style descriptions)
+- paths.content_root (path pattern examples)
+- paths.audio_root (path pattern examples, notes about writability)
+- paths.documents_root (examples, use case notes)
+- paths.overrides (examples, override file examples)
+- paths.ideas_file (location examples)
+- urls section (platform URL examples including Apple Music, Twitter)
+- generation.service (explanation of current vs future support)
+- sheet_music section (options explained with context)
+Verify inline comments use "Examples:" or "Example:" format
+
 ### TEST: config/README.md exists and documents all settings
 1. Read config/README.md
 2. Verify it documents each setting from config.example.yaml
@@ -169,6 +185,11 @@ Each must appear in CLAUDE.md skill table (except researcher sub-skills which ar
 
 ### TEST: All skills documented in README.md
 Each skill must appear in README.md skill tables.
+
+### TEST: /resume skill documented in README (quick win #1)
+Read README.md Skills Reference section.
+Verify `/bitwize-music:resume` appears in the Setup & Maintenance table.
+Verify description includes: "Resume work on an album - finds album, shows status and next steps"
 
 ### TEST: /configure skill has all commands
 Read skills/configure/SKILL.md and verify these are documented:
@@ -256,6 +277,12 @@ These files must exist:
 ### TEST: Templates referenced in CLAUDE.md exist
 Search CLAUDE.md for `/templates/` references.
 Each referenced template must exist.
+
+### TEST: IDEAS.md template uses consistent status values (quick win #4)
+Read templates/ideas.md.
+Verify **Status** field uses format: "Pending | In Progress | Complete"
+Should NOT use: "Idea | Ready to Plan | In Progress"
+Verify it includes status explanations (Pending, In Progress, Complete)
 
 ### TEST: album.md template has required sections
 Read templates/album.md and verify it has:
@@ -424,6 +451,54 @@ Verify it has examples for:
 - Tech terms
 - Homographs
 
+### TEST: Suno pronunciation guide has cross-references (quick win #10)
+Read reference/suno/pronunciation-guide.md.
+Verify "## Related Skills" section exists with:
+- /bitwize-music:pronunciation-specialist reference
+- /bitwize-music:lyric-writer reference
+- /bitwize-music:lyric-reviewer reference
+Verify "## See Also" section exists with:
+- /reference/suno/v5-best-practices.md reference
+- /reference/suno/structure-tags.md reference
+- /skills/lyric-writer/SKILL.md reference
+- /skills/pronunciation-specialist/SKILL.md reference
+
+### TEST: Suno v5-best-practices has cross-references (quick win #10)
+Read reference/suno/v5-best-practices.md.
+Verify "## Related Skills" section exists with:
+- /bitwize-music:suno-engineer reference
+- /bitwize-music:lyric-writer reference
+- /bitwize-music:lyric-reviewer reference
+Verify "## See Also" section exists with:
+- /reference/suno/pronunciation-guide.md reference
+- /reference/suno/structure-tags.md reference
+- /reference/suno/genre-list.md reference
+- /reference/suno/voice-tags.md reference
+- /reference/suno/tips-and-tricks.md reference
+- /skills/suno-engineer/SKILL.md reference
+
+### TEST: Suno structure-tags has cross-references (quick win #10)
+Read reference/suno/structure-tags.md.
+Verify "## Related Skills" section exists with:
+- /bitwize-music:lyric-writer reference
+- /bitwize-music:suno-engineer reference
+- /bitwize-music:lyric-reviewer reference
+Verify "## See Also" section exists with:
+- /reference/suno/v5-best-practices.md reference
+- /reference/suno/pronunciation-guide.md reference
+- /reference/suno/voice-tags.md reference
+- /skills/lyric-writer/SKILL.md reference
+
+### TEST: Mastering workflow has cross-references (quick win #10)
+Read reference/mastering/mastering-workflow.md.
+Verify "## Related Skills" section exists with:
+- /bitwize-music:mastering-engineer reference
+- /bitwize-music:release-director reference
+Verify "## See Also" section exists with:
+- /tools/mastering/ scripts listed
+- /reference/workflows/release-procedures.md reference
+- /skills/mastering-engineer/SKILL.md reference
+
 ### TEST: Explicit content word list documented
 Read CLAUDE.md "Explicit Content Guidelines" section.
 Verify explicit words table exists.
@@ -558,6 +633,17 @@ Verify it includes:
 3. CRITICAL warning about including artist folder
 4. Example showing correct path structure
 
+### TEST: /import-audio skill has Common Mistakes section (quick win #7)
+Read skills/import-audio/SKILL.md.
+Verify "## Common Mistakes" section exists.
+Verify it includes these subsections:
+- Don't skip reading config
+- Don't forget to include artist in path
+- Don't use hardcoded artist name
+- Don't assume current working directory
+- Don't mix up content_root and audio_root
+Each subsection should have Wrong/Right examples and "Why it matters" explanation
+
 ### TEST: /import-track skill exists
 ```
 Glob: skills/import-track/SKILL.md
@@ -570,6 +656,18 @@ Verify it includes:
 2. Extracts `paths.content_root` and `artist.name`
 3. Finds album to determine genre folder
 4. Example showing correct path: `{content_root}/artists/{artist}/albums/{genre}/{album}/tracks/`
+
+### TEST: /import-track skill has Common Mistakes section (quick win #7)
+Read skills/import-track/SKILL.md.
+Verify "## Common Mistakes" section exists.
+Verify it includes these subsections:
+- Don't skip reading config
+- Don't search from wrong location
+- Don't forget the tracks/ subdirectory
+- Don't use hardcoded artist name
+- Don't skip track number validation
+- Don't assume album location without searching
+Each subsection should have Wrong/Right examples and "Why it matters" explanation
 
 ### TEST: /import-art skill exists
 ```
@@ -584,6 +682,18 @@ Verify it includes:
 3. Copies to content folder: `{content_root}/artists/{artist}/albums/{genre}/{album}/`
 4. CRITICAL warning about including artist folder in audio path
 
+### TEST: /import-art skill has Common Mistakes section (quick win #7)
+Read skills/import-art/SKILL.md.
+Verify "## Common Mistakes" section exists.
+Verify it includes these subsections:
+- Don't skip reading config
+- Don't forget to include artist in audio path
+- Don't place art in only one location
+- Don't mix up the filenames
+- Don't search from wrong location
+- Don't forget to create directories
+Each subsection should have Wrong/Right examples and "Why it matters" explanation
+
 ### TEST: /new-album skill exists
 ```
 Glob: skills/new-album/SKILL.md
@@ -596,6 +706,17 @@ Verify it includes:
 2. Extracts `paths.content_root` and `artist.name`
 3. Creates correct path: `{content_root}/artists/{artist}/albums/{genre}/{album}/tracks/`
 4. Copies templates from plugin directory
+
+### TEST: /new-album skill has Common Mistakes section (quick win #7)
+Read skills/new-album/SKILL.md.
+Verify "## Common Mistakes" section exists.
+Verify it includes these subsections:
+- Don't skip reading config
+- Don't use current working directory
+- Don't hardcode artist name
+- Don't forget path structure
+- Don't use wrong genre category
+Each subsection should have Wrong/Right examples and explanation
 
 ### TEST: /new-album skill offers interactive planning option
 Read skills/new-album/SKILL.md confirmation message.
@@ -906,6 +1027,50 @@ Read README.md and verify these sections exist:
 - Skills reference tables
 - Configuration
 - Requirements
+
+### TEST: README has Troubleshooting section (quick win #2)
+Read README.md.
+Verify "## Troubleshooting" section exists.
+Verify it includes these subsections:
+- Config Not Found
+- Album Not Found When Resuming
+- Path Resolution Issues
+- Python Dependency Issues (Mastering)
+- Playwright Setup (Document Hunter)
+- Plugin Updates Breaking Things
+- Skills Not Showing Up
+- Still Stuck?
+
+### TEST: README has Getting Started Checklist (quick win #3)
+Read README.md.
+Verify "## Getting Started Checklist" section exists.
+Verify it appears before "## Quick Start" section.
+Verify it includes:
+- Install plugin step
+- Create config directory step
+- Copy config template step
+- Edit config step
+- Optional mastering dependencies step
+- Optional document hunter dependencies step
+- Start Claude and begin step
+
+### TEST: README has Model Strategy section (quick win #5)
+Read README.md.
+Verify "## Model Strategy" section exists.
+Verify it includes:
+- Table showing model/when used/skills mapping
+- Opus 4.5 for critical creative outputs
+- Sonnet 4.5 for most tasks
+- Haiku 4.5 for pattern matching
+- "Why different models?" explanation
+- Reference to /skill-model-updater check command
+
+### TEST: README has visual workflow diagram (quick win #6)
+Read README.md "## How It Works" section.
+Verify it includes ASCII box diagram showing:
+- Concept → Research → Write → Generate → Master → Release
+- Specific actions under each phase
+- Visual representation (not just text list)
 
 ### TEST: CLAUDE.md has required sections
 Read CLAUDE.md and verify these sections exist:

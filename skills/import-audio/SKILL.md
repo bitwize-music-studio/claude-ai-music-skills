@@ -123,3 +123,90 @@ Result:
 Moved: ~/Downloads/03-t-day-beach.wav
    To: ~/bitwize-music/audio/bitwize/shell-no/03-t-day-beach.wav
 ```
+
+---
+
+## Common Mistakes
+
+### ❌ Don't: Skip reading config
+
+**Wrong:**
+```bash
+# Assuming audio_root path
+mv file.wav ~/music-projects/audio/shell-no/
+```
+
+**Right:**
+```bash
+# Always read config first
+cat ~/.bitwize-music/config.yaml
+# Use paths.audio_root from config
+```
+
+**Why it matters:** If audio_root is different from what you assume, files end up in the wrong place.
+
+### ❌ Don't: Forget to include artist in path
+
+**Wrong destination:**
+```
+{audio_root}/{album}/file.wav
+# Example: ~/music-projects/audio/shell-no/file.wav
+```
+
+**Correct destination:**
+```
+{audio_root}/{artist}/{album}/file.wav
+# Example: ~/music-projects/audio/bitwize/shell-no/file.wav
+```
+
+**Why it matters:** Audio path structure includes artist name. This is the most common mistake with import-audio.
+
+### ❌ Don't: Use hardcoded artist name
+
+**Wrong:**
+```bash
+# Hardcoding artist
+mv file.wav ~/audio/bitwize/shell-no/
+```
+
+**Right:**
+```bash
+# Read artist.name from config
+artist=$(yq '.artist.name' ~/.bitwize-music/config.yaml)
+audio_root=$(yq '.paths.audio_root' ~/.bitwize-music/config.yaml)
+mv file.wav "$audio_root/$artist/shell-no/"
+```
+
+### ❌ Don't: Assume current working directory
+
+**Wrong:**
+```bash
+# Moving relative to current directory
+mv ~/Downloads/file.wav ./audio/shell-no/
+```
+
+**Right:**
+```bash
+# Use absolute path from config
+audio_root=$(yq '.paths.audio_root' ~/.bitwize-music/config.yaml)
+# Then use $audio_root for absolute path
+```
+
+### ❌ Don't: Mix up content_root and audio_root
+
+**Wrong:**
+```bash
+# Using content_root for audio files
+mv file.wav {content_root}/artists/bitwize/albums/electronic/shell-no/
+```
+
+**Right:**
+```bash
+# Audio files go to audio_root, not content_root
+mv file.wav {audio_root}/{artist}/{album}/
+```
+
+**Path comparison:**
+- Content: `{content_root}/artists/{artist}/albums/{genre}/{album}/` (markdown, lyrics)
+- Audio: `{audio_root}/{artist}/{album}/` (WAV files, flattened structure)
+- Documents: `{documents_root}/{artist}/{album}/` (PDFs, research)

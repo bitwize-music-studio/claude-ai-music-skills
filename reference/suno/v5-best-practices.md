@@ -362,6 +362,34 @@ crisp, warm, bright, deep, spacious
 
 ---
 
+## Related Skills
+
+- **`/bitwize-music:suno-engineer`** - Technical Suno V5 prompting expert
+  - Uses this guide as reference
+  - Constructs style boxes and genre tags
+  - Optimizes prompts for best generation results
+
+- **`/bitwize-music:lyric-writer`** - Lyric writing with Suno formatting
+  - Automatically formats lyrics with section tags
+  - Prepares Suno-ready lyrics boxes
+  - Applies pronunciation fixes for Suno
+
+- **`/bitwize-music:lyric-reviewer`** - Pre-generation QC gate
+  - Verifies lyrics follow Suno best practices
+  - Checks section tags and structure
+  - Ensures lyrics are ready for generation
+
+## See Also
+
+- **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling, homographs, pronunciation fixes
+- **`/reference/suno/structure-tags.md`** - Complete list of section tags ([Verse], [Chorus], etc.)
+- **`/reference/suno/genre-list.md`** - 500+ genre tags for style prompts
+- **`/reference/suno/voice-tags.md`** - Vocal style descriptors and tags
+- **`/reference/suno/tips-and-tricks.md`** - Troubleshooting, extending tracks, operational tips
+- **`/skills/suno-engineer/SKILL.md`** - Complete Suno engineer skill documentation
+
+---
+
 ## Sources
 
 - [10 Suno v5 Prompt Patterns That Never Miss](https://plainenglish.io/blog/i-made-10-suno-v5-prompt-patterns-that-never-miss)

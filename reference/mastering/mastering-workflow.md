@@ -472,3 +472,29 @@ Large files take time. For a 10-track album, expect 30-60 seconds total.
 - Trust your ears over the numbers
 - When in doubt, use less processing (you can always add more)
 - Different songs may need different treatment - one size doesn't fit all
+
+---
+
+## Related Skills
+
+- **`/bitwize-music:mastering-engineer`** - Audio mastering guidance and automation
+  - Uses this workflow document as reference
+  - Runs mastering scripts automatically
+  - Analyzes LUFS and provides recommendations
+  - Applies genre-specific EQ presets
+
+- **`/bitwize-music:release-director`** - Album release coordination
+  - Verifies mastering is complete before release
+  - Checks LUFS targets for streaming platforms
+  - Manages final QA and distribution prep
+
+## See Also
+
+- **`/tools/mastering/`** - Python mastering scripts referenced in this workflow
+  - `analyze_tracks.py` - LUFS/dynamics analysis
+  - `master_tracks.py` - Automated mastering with genre presets
+  - `fix_dynamic_track.py` - Fix high-dynamic-range tracks
+  - `reference_master.py` - Match loudness to reference track
+
+- **`/reference/workflows/release-procedures.md`** - Complete release workflow including mastering
+- **`/skills/mastering-engineer/SKILL.md`** - Complete mastering engineer skill documentation

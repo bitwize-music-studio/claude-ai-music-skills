@@ -67,6 +67,66 @@ Claude Code will prompt you to install these when needed.
 
 ---
 
+## Getting Started Checklist
+
+New to the plugin? Follow these steps to get up and running:
+
+- [ ] **Install the plugin**
+  ```bash
+  /plugin marketplace add bitwize-music-studio/claude-ai-music-skills
+  /plugin install bitwize-music@claude-ai-music-skills
+  ```
+
+- [ ] **Create config directory**
+  ```bash
+  mkdir -p ~/.bitwize-music
+  ```
+
+- [ ] **Copy config template**
+  ```bash
+  cp config/config.example.yaml ~/.bitwize-music/config.yaml
+  ```
+
+- [ ] **Edit config with your settings**
+  ```bash
+  nano ~/.bitwize-music/config.yaml  # or your preferred editor
+  ```
+
+  **Required settings:**
+  - `artist.name` - Your artist/project name (e.g., "bitwize", "my-band")
+  - `paths.content_root` - Where albums will be stored (e.g., `~/music-projects`)
+  - `paths.audio_root` - Where mastered audio goes (e.g., `~/music-projects/audio`)
+  - `paths.documents_root` - Where research PDFs go (e.g., `~/music-projects/documents`)
+
+- [ ] **(Optional) Install mastering dependencies**
+  ```bash
+  pip install matchering pyloudnorm scipy numpy soundfile
+  ```
+  Only needed if you plan to master audio for streaming platforms.
+
+- [ ] **(Optional) Install document hunter dependencies**
+  ```bash
+  pip install playwright
+  playwright install chromium
+  ```
+  Only needed if you plan to do research for documentary/true-story albums.
+
+- [ ] **Start Claude Code and begin**
+  ```bash
+  claude
+  ```
+
+  Then say: **"Let's plan a new album"**
+
+**That's it!** Claude will guide you through the 7 planning phases and help you create your first album.
+
+**Next steps:**
+- Read the [Tutorial](#tutorial-create-your-album) below for a walkthrough
+- Run `/bitwize-music:help` to see all available skills
+- Check the [Troubleshooting](#troubleshooting) section if you hit issues
+
+---
+
 ## Quick Start
 
 ### 1. Configure the Plugin
@@ -106,7 +166,14 @@ Claude will walk you through the 7 planning phases before any writing begins.
 ### The Workflow
 
 ```
-Concept → Research → Write → Generate → Master → Release
+┌─────────┐    ┌──────────┐    ┌───────┐    ┌──────────┐    ┌────────┐    ┌─────────┐
+│ Concept │ -> │ Research │ -> │ Write │ -> │ Generate │ -> │ Master │ -> │ Release │
+└─────────┘    └──────────┘    └───────┘    └──────────┘    └────────┘    └─────────┘
+     │              │               │              │              │              │
+     v              v               v              v              v              v
+ Plan album    Gather sources  Create lyrics  Generate on    Optimize     Upload &
+ Define theme  Verify facts    Check quality  Suno V5        audio for    distribute
+ Tracklist     Citations       Pronunciation  Iterate        streaming    to platforms
 ```
 
 Each phase has specialized skills and quality gates:
@@ -315,12 +382,32 @@ For documentary or true-story albums:
 
 | Skill | Description |
 |-------|-------------|
+| `/bitwize-music:resume` | Resume work on an album - finds album, shows status and next steps |
 | `/bitwize-music:configure` | Set up or edit plugin configuration |
 | `/bitwize-music:clipboard` | Copy track content to clipboard (macOS/Linux/WSL) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity |
 | `/bitwize-music:skill-model-updater` | Update Claude model references |
 | `/bitwize-music:help` | Show available skills, workflows, and quick reference |
 | `/bitwize-music:about` | About bitwize and this plugin |
+
+---
+
+## Model Strategy
+
+Skills use different Claude models optimized for quality vs cost. On Claude Code Max plans, critical creative outputs use the best models available.
+
+| Model | When Used | Skills |
+|-------|-----------|--------|
+| **Opus 4.5** | Critical creative outputs | `/bitwize-music:lyric-writer` (core lyrics)<br>`/bitwize-music:suno-engineer` (music prompts)<br>`/bitwize-music:researchers-legal` (complex legal synthesis)<br>`/bitwize-music:researchers-verifier` (quality control) |
+| **Sonnet 4.5** | Most tasks | `/bitwize-music:album-conceptualizer`<br>`/bitwize-music:researcher` (coordination)<br>Most other creative and reasoning skills |
+| **Haiku 4.5** | Pattern matching only | `/bitwize-music:pronunciation-specialist` (scanning) |
+
+**Why different models?**
+- **Opus** for lyrics and Suno prompts because these define the final music output
+- **Sonnet** for planning, research, and most tasks - excellent quality at lower cost
+- **Haiku** only for simple pattern matching where speed matters more than creativity
+
+**Checking models:** Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. The updater can automatically update model references when new versions release.
 
 ---
 
@@ -416,6 +503,120 @@ See `config/README.md` for details.
 - Human verification required before generation
 - Never impersonate - narrator voice only
 - Every claim must trace to a captured source
+
+---
+
+## Troubleshooting
+
+### Config Not Found
+
+**Problem:** "Config not found at ~/.bitwize-music/config.yaml"
+
+**Solution:**
+```bash
+mkdir -p ~/.bitwize-music
+cp config/config.example.yaml ~/.bitwize-music/config.yaml
+# Edit with your settings
+nano ~/.bitwize-music/config.yaml
+```
+
+Or use the interactive config tool:
+```
+/bitwize-music:configure
+```
+
+### Album Not Found When Resuming
+
+**Problem:** `/bitwize-music:resume my-album` can't find the album
+
+**Possible causes:**
+1. **Wrong album name** - Album names are case-sensitive. Try: `/bitwize-music:resume` (without name) to see all albums
+2. **Wrong path in config** - Check `paths.content_root` in `~/.bitwize-music/config.yaml` points to where your albums live
+3. **Album in wrong location** - Albums must be in: `{content_root}/artists/{artist}/albums/{genre}/{album}/`
+
+**Debug steps:**
+```bash
+# Check config
+cat ~/.bitwize-music/config.yaml
+
+# List all album READMEs
+find ~/your-content-root/artists -name README.md -path "*/albums/*"
+```
+
+### Path Resolution Issues
+
+**Problem:** Files created in wrong locations, "path not found" errors
+
+**Common mistakes:**
+- Using relative paths instead of reading config
+- Forgetting to include artist name in audio/documents paths
+- Hardcoding paths instead of using `{content_root}` from config
+
+**The rule:** Always read `~/.bitwize-music/config.yaml` first to get paths. Never assume or hardcode.
+
+**Correct path structure:**
+```
+{content_root}/artists/{artist}/albums/{genre}/{album}/    # Content
+{audio_root}/{artist}/{album}/                             # Audio (includes artist!)
+{documents_root}/{artist}/{album}/                         # Documents (includes artist!)
+```
+
+### Python Dependency Issues (Mastering)
+
+**Problem:** Mastering fails with import errors
+
+**Solution:** Install mastering dependencies:
+```bash
+pip install matchering pyloudnorm scipy numpy soundfile
+```
+
+Or use a virtual environment (recommended):
+```bash
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
+pip install matchering pyloudnorm scipy numpy soundfile
+```
+
+### Playwright Setup (Document Hunter)
+
+**Problem:** `/bitwize-music:document-hunter` fails with browser errors
+
+**Solution:** Install Playwright and browser:
+```bash
+pip install playwright
+playwright install chromium
+```
+
+### Plugin Updates Breaking Things
+
+**Problem:** After updating the plugin, things don't work
+
+**Common causes:**
+1. **Config schema changed** - Compare your `~/.bitwize-music/config.yaml` with `config/config.example.yaml`
+2. **Template changes** - Existing albums may use old template format
+3. **Skill renamed or removed** - Check CHANGELOG.md for breaking changes
+
+**Solutions:**
+- Backup your config before updating
+- Review CHANGELOG.md after updates
+- Keep content in separate `content_root` to avoid conflicts
+
+### Skills Not Showing Up
+
+**Problem:** Skills don't appear in `/` menu or can't be invoked
+
+**Check:**
+1. Plugin installed correctly: `/plugin list`
+2. Skill files exist: `ls ~/.claude/plugins/bitwize-music@claude-ai-music-skills/skills/`
+3. Try restarting Claude Code
+
+### Still Stuck?
+
+[Open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) with:
+- What you tried to do
+- What happened (error messages, unexpected behavior)
+- Your OS and Claude Code version
+- Relevant config (redact personal info)
 
 ---
 

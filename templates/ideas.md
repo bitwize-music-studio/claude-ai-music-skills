@@ -23,7 +23,10 @@ Capture album concepts here before they become full projects.
 
 **Research needed**: [Yes/No - if yes, what?]
 
-**Status**: Idea | Ready to Plan | In Progress
+**Status**: Pending | In Progress | Complete
+- **Pending**: Idea captured, not started
+- **In Progress**: Album directory created, actively working
+- **Complete**: Album released or archived
 
 ---
 

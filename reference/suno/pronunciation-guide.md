@@ -313,3 +313,27 @@ When in doubt:
 1. Say the line out loud both ways
 2. Ask: "If Suno picks wrong, is the song ruined?"
 3. If yes, fix it. If no, document and move on.
+
+---
+
+## Related Skills
+
+- **`/bitwize-music:pronunciation-specialist`** - Automated pronunciation scanning for lyrics
+  - Scans for homographs, proper nouns, acronyms, tech terms
+  - Uses this guide as reference
+  - Suggests phonetic fixes automatically
+
+- **`/bitwize-music:lyric-writer`** - Lyric writing with automatic pronunciation checks
+  - Includes automatic pronunciation scanning after every draft
+  - Applies rules from this guide during review process
+
+- **`/bitwize-music:lyric-reviewer`** - Pre-generation QC gate
+  - 8-point checklist includes pronunciation check
+  - Auto-fixes pronunciation issues before Suno generation
+
+## See Also
+
+- **`/reference/suno/v5-best-practices.md`** - Overall Suno V5 prompting guide, style box construction
+- **`/reference/suno/structure-tags.md`** - Section tags for organizing lyrics ([Verse], [Chorus], etc.)
+- **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and quality standards
+- **`/skills/pronunciation-specialist/SKILL.md`** - Detailed pronunciation specialist skill documentation
