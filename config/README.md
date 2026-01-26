@@ -41,6 +41,7 @@ paths:
   audio_root: "~/music-projects/audio"       # Mastered audio output
   documents_root: "~/music-projects/docs"    # PDFs, primary sources
   overrides: "~/music-projects/overrides"    # Optional overrides directory
+  ideas_file: "~/music-projects/IDEAS.md"    # Album ideas tracking file
 
 # Platform URLs
 urls:
@@ -82,6 +83,7 @@ The `~/.bitwize-music/` directory also contains:
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |
 | `paths.overrides` | No | Directory containing override files for skills and workflows. Defaults to `{content_root}/overrides` if not set. |
+| `paths.ideas_file` | No | File for tracking album ideas. Defaults to `{content_root}/IDEAS.md` if not set. Managed by `/bitwize-music:album-ideas` skill. |
 | `urls.soundcloud` | No | SoundCloud profile URL |
 | `urls.spotify` | No | Spotify artist URL |
 | `urls.bandcamp` | No | Bandcamp URL |

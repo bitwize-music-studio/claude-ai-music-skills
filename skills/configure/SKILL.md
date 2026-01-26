@@ -82,6 +82,23 @@ If user presses Enter (accepts default):
 - Add to config: `paths.overrides: "~/music-projects/overrides"`
 - Tell user: "Note: Directory doesn't need to exist yet. Create override files when you want to customize."
 
+**Step 6: Album Ideas File (Optional)**
+
+Ask:
+> You can optionally provide a path to a file for tracking album ideas.
+> This is managed by the /bitwize-music:album-ideas skill for brainstorming and planning.
+>
+> Default: ~/music-projects/IDEAS.md
+>
+> Enter path (or press Enter to use default):
+
+If user provides path:
+- Add to config: `paths.ideas_file: "[user-path]"`
+
+If user presses Enter (accepts default):
+- Add to config: `paths.ideas_file: "~/music-projects/IDEAS.md"`
+- Tell user: "Note: File doesn't need to exist yet. The album-ideas skill creates it when first used."
+
 **Example interaction:**
 ```
 Let's set up your bitwize-music configuration.
@@ -108,6 +125,9 @@ SoundCloud profile URL? (or press Enter to skip)
 Overrides directory path? (press Enter for default: ~/music-projects/overrides)
 > [Enter]
 
+Album ideas file path? (press Enter for default: ~/music-projects/IDEAS.md)
+> [Enter]
+
 Creating config at ~/.bitwize-music/config.yaml...
 
 ✓ Configuration saved!
@@ -120,6 +140,7 @@ Your settings:
   Genres: electronic, synthwave
   SoundCloud: https://soundcloud.com/neon-circuits
   Overrides: ~/music-projects/overrides (will be used if created)
+  Ideas File: ~/music-projects/IDEAS.md (will be created when first used)
 
 You're ready to start creating albums!
 ```
@@ -172,6 +193,7 @@ Location: ~/.bitwize-music/config.yaml
 │ paths.audio_root    │ ~/music-projects/audio             │
 │ paths.documents_root│ ~/music-projects/documents         │
 │ paths.overrides     │ ~/music-projects/overrides         │
+│ paths.ideas_file    │ ~/music-projects/IDEAS.md          │
 │ urls.soundcloud     │ https://soundcloud.com/neon-circuits│
 │ generation.service  │ suno                               │
 └─────────────────────┴────────────────────────────────────┘
@@ -199,6 +221,7 @@ Validating ~/.bitwize-music/config.yaml...
 ✓ paths.audio_root: ~/music-projects/audio (exists)
 ✓ paths.documents_root: ~/music-projects/documents (will be created)
 ✓ paths.overrides: ~/music-projects/overrides (will be used if created)
+✓ paths.ideas_file: ~/music-projects/IDEAS.md (will be created when first used)
 ✓ generation.service: suno
 
 All checks passed!
@@ -267,6 +290,7 @@ paths:
   audio_root: "{audio_root}"
   documents_root: "{documents_root}"
   overrides: "{overrides}"
+  ideas_file: "{ideas_file}"
 
 urls:
   soundcloud: "{soundcloud_url}"

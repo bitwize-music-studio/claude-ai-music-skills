@@ -51,6 +51,13 @@ paths:
   # If directory doesn't exist, skills use base files only (no error)
   overrides: "~/music-projects/overrides"
 
+  # Album ideas file (optional)
+  # File for tracking album concepts before creating album directories
+  # Managed by /bitwize-music:album-ideas skill
+  # If not set, defaults to ~/music-projects/IDEAS.md
+  # If file doesn't exist, skill creates it with template
+  ideas_file: "~/music-projects/IDEAS.md"
+
   # tools_root is always ~/.bitwize-music (where this config lives)
   # Contains: mastering-env/, cache/, etc.
 

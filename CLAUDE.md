@@ -186,7 +186,7 @@ At the beginning of a fresh session:
    - Override instructions supplement (don't replace) base files
 
 2. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
-3. **Check IDEAS.md** - Check `{content_root}/IDEAS.md` for pending album ideas
+3. **Check album ideas** - Read `paths.ideas_file` from config (default: `{content_root}/IDEAS.md`) for pending album ideas. Report counts by status. User can run `/bitwize-music:album-ideas list` for full details.
 4. **Check in-progress albums**:
    - Scan `{content_root}/artists/*/albums/*/` for albums with Status: "In Progress" or "Research Complete"
    - Report album name, status, track count, tracks completed
@@ -295,6 +295,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | Skill | When to Use |
 |-------|-------------|
 | `/bitwize-music:tutorial` | Interactive guided album creation, session resume, getting started |
+| `/bitwize-music:album-ideas` | Track and manage album ideas - brainstorming, planning, status tracking |
 | `/bitwize-music:lyric-writer` | Writing/reviewing lyrics, fixing prosody issues |
 | `/bitwize-music:researcher` | Source verification, fact-checking, coordinates specialized researchers |
 | `/bitwize-music:document-hunter` | Automated document search/download from free public archives (Playwright) |
