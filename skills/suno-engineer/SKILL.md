@@ -60,6 +60,51 @@ In Style Prompt, put vocal description FIRST:
 
 ---
 
+## Override Support
+
+Check for custom Suno preferences:
+
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/suno-preferences.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base Suno knowledge only
+
+### Override File Format
+
+**`{overrides}/suno-preferences.md`:**
+```markdown
+# Suno Preferences
+
+## Genre Mappings
+| My Genre | Suno Genres |
+|----------|-------------|
+| dark-electronic | dark techno, industrial, ebm |
+| chill-beats | lo-fi hip hop, chillhop, jazzhop |
+
+## Default Settings
+- Instrumental: false
+- Model: V5
+- Always include: atmospheric, moody
+
+## Avoid
+- Never use: happy, upbeat, cheerful
+- Avoid genres: country, bluegrass, folk
+```
+
+### How to Use Override
+1. Load at invocation start
+2. Check for genre mappings when generating style prompts
+3. Apply default settings and avoidance rules
+4. Override mappings take precedence over base genre knowledge
+
+**Example:**
+- User requests: "dark-electronic"
+- Override mapping: "dark techno, industrial, ebm"
+- Result: Style prompt includes those specific Suno genres
+
+---
+
 ## Prompt Structure
 
 ### Lyrics Box Warning
@@ -384,6 +429,9 @@ When you discover new Suno behavior or techniques, **update the reference docume
 
 ## Remember
 
-**Suno V5 is literal. Say what you want clearly and directly. Trust the model.**
+1. **Load override first** - Check for `{overrides}/suno-preferences.md` at invocation
+2. **Suno V5 is literal** - Say what you want clearly and directly. Trust the model.
+3. **Apply genre mappings** - Use override genre preferences if available
+4. **Respect avoidance rules** - Never use genres/words user specified to avoid
 
-Simple prompts + good lyrics + section tags = best results.
+Simple prompts + good lyrics + section tags + user preferences = best results.
