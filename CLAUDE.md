@@ -510,73 +510,13 @@ Use `/bitwize-music:researcher` for full guidance. See `/skills/researcher/SKILL
 ### Human Verification Handoff
 
 **When to stop and request verification:**
+- **Trigger 1**: After adding sources to a track
+- **Trigger 2**: After all track sources added but none verified
+- **Trigger 3**: User tries to skip verification (block and warn)
 
-#### Trigger 1: After Adding Sources to Track
-When you've added source material to a track's "Quotes & Attribution" section:
+**After verification complete**: Update status `❌ Pending` → `✅ Verified (YYYY-MM-DD)`
 
-**Say to user:**
-```
-⚠️ VERIFICATION REQUIRED
-
-I've added source material to [track name]. Before we proceed to writing lyrics:
-
-1. Review the "Quotes & Attribution" section in tracks/XX-track-name.md
-2. Click each source URL and visually confirm the quotes/facts
-3. Check that citations match the actual source content
-4. If verified, tell me: "sources verified for track XX"
-5. If issues found, tell me what needs correction
-
-Do NOT proceed to generation until you confirm verification.
-```
-
-#### Trigger 2: After All Track Sources Added
-When all tracks in an album have sources but none are verified:
-
-**Say to user:**
-```
-⚠️ ALBUM VERIFICATION REQUIRED
-
-All tracks have source material added (Status: ❌ Pending).
-
-Next step: Human verification of all sources before any track generation.
-
-To verify:
-1. Open each track file in tracks/
-2. Review "Quotes & Attribution" section
-3. Click URLs, verify quotes/facts match sources
-4. Tell me which tracks are verified (e.g., "tracks 1-5 verified")
-
-Current verification status:
-- Track 01: ❌ Pending
-- Track 02: ❌ Pending
-[... list all tracks ...]
-
-I'll wait for your verification before proceeding.
-```
-
-#### Trigger 3: User Tries to Skip Verification
-If user says "let's generate" or "start production" while tracks show `❌ Pending`:
-
-**Say to user:**
-```
-⚠️ CANNOT PROCEED - VERIFICATION REQUIRED
-
-Tracks with unverified sources cannot be generated. This is a legal safeguard.
-
-Tracks needing verification:
-- Track XX: [name] (❌ Pending)
-
-Please verify sources first, then we can proceed to generation.
-```
-
-### After Verification Complete
-
-Once user confirms verification:
-
-1. Update track status from `❌ Pending` to `✅ Verified (YYYY-MM-DD)`
-2. Update "Sources Verified" field in track file
-3. Now track can move to `In Progress` for generation
-4. Update album status if all tracks verified
+**Full procedures and message templates**: See `/reference/workflows/source-verification-handoff.md`
 
 ---
 
@@ -588,72 +528,21 @@ Use `/bitwize-music:album-conceptualizer` for full guidance. See `/skills/album-
 
 ### The 7 Planning Phases (REQUIRED)
 
-**Before writing any lyrics or creating tracks**, work through these phases with the user. Each phase requires explicit answers.
+Before writing any lyrics or creating tracks, work through these phases with the user. Each phase requires explicit answers:
 
-#### Phase 1: Foundation
-**MUST answer before proceeding:**
-- Who is the artist? (Existing or new?)
-- What genre(s)? (Primary category: hip-hop, electronic, country, folk, rock)
-- What album type? (Documentary, Narrative, Thematic, Character Study, Collection)
-- How many tracks? (Full album ~10-15, EP ~4-6, Single)
-- Is this true-story/documentary? (Determines research requirements)
+1. **Foundation** - Artist, genre, album type, track count, true-story?
+2. **Concept Deep Dive** - Story/theme, characters, narrative arc, emotional core
+3. **Sonic Direction** - Inspirations, production style, vocal approach, instrumentation
+4. **Structure Planning** - Tracklist, track concepts, flow, pacing
+5. **Album Art** - Visual concept discussion
+6. **Practical Details** - Finalize titles, research needs, explicit content, distributor genres
+7. **Confirmation** - Present plan, get go-ahead: "Ready to start writing?"
 
-#### Phase 2: Concept Deep Dive
-**MUST answer before proceeding:**
-- What's the central story/theme/message?
-- Who are the key characters or subjects?
-- What's the narrative arc or thematic journey?
-- What's the emotional core?
-- Why this story? (For artist, for audience)
-
-#### Phase 3: Sonic Direction
-**MUST answer before proceeding:**
-- What artists/albums inspire this sound?
-- Production style? (Dark/bright, minimal/dense, organic/synthetic)
-- Vocal approach? (Narrator, character voices, sung, rapped, mixed)
-- Instrumentation palette?
-- Mood/atmosphere?
-
-#### Phase 4: Structure Planning
-**MUST answer before proceeding:**
-- Tracklist outline (titles or working titles)
-- Track-by-track concepts (1-2 sentences each)
-- Narrative/thematic flow across tracks
-- Which tracks are pivotal?
-- Pacing (building, episodic, consistent intensity)?
-
-#### Phase 5: Album Art
-**Discuss visual concept:**
-- What imagery represents the album?
-- Color palette?
-- Mood/aesthetic?
-- Any symbolic elements?
-
-*(Actual generation happens later - see Album Art Generation)*
-
-#### Phase 6: Practical Details
-**Confirm:**
-- Album title finalized?
-- Track titles finalized (or willing to adjust)?
-- Research needs? (Documentary albums: RESEARCH.md, SOURCES.md)
-- Explicit content expected?
-- distributor genre categories?
-
-#### Phase 7: Confirmation
-**Required before writing:**
-- Present complete plan to user
-- Get explicit go-ahead: **"Ready to start writing?"**
-- Document all answers in album README
-
-### Planning Checklist
-
-Before creating any track files:
-- [ ] All 7 phases completed with explicit answers
-- [ ] User confirmed: "Ready to start writing"
-- [ ] Album README created with all planning details documented
-- [ ] Research plan established (if true-story album)
+**Planning Checklist**: All phases complete → User confirmed → Album README created → Research plan (if needed)
 
 **The rule**: No track writing until all phases complete and user confirms.
+
+**Full details**: See `/reference/workflows/album-planning-phases.md`
 
 ---
 
@@ -667,81 +556,23 @@ Use templates from `/templates/` for all new content.
 
 ### Creating a New Album
 
-**CRITICAL: When user says "make a new album" or "let's work on [album]", IMMEDIATELY create the directory structure BEFORE any discussion or writing.**
+**CRITICAL: When user says "make a new album", IMMEDIATELY use `/bitwize-music:new-album` skill BEFORE any discussion.**
 
-**Step 1: Use `/bitwize-music:new-album` skill (FIRST)**
+Example: `/bitwize-music:new-album shell-no electronic`
 
-```
-/bitwize-music:new-album shell-no electronic
-```
-
-The skill:
-1. Reads config to get `content_root` and `artist.name`
-2. Creates directory: `{content_root}/artists/{artist}/albums/{genre}/{album}/tracks/`
-3. Copies album template as README.md
-4. For documentary albums, also copies RESEARCH.md and SOURCES.md templates
-
-**Why use the skill**: It always reads config fresh and creates the correct path structure with all templates.
-
-**Step 2: Fill in Album README**
-1. **Fill in YAML frontmatter** at the top of README:
-   - `title`: Album title (required)
-   - `release_date`: YYYY-MM-DD format (fill in when releasing)
-   - `genres`: Array like `["hip-hop", "documentary"]`
-   - `tags`: Array like `["tech", "linux", "true-story"]`
-   - `explicit`: `true` or `false`
-   - `soundcloud_url`: Fill in when released
-   - `spotify_url`: Optional, fill in when released
-   - `slug`: Only needed if overriding auto-generated slug
-2. Add distributor genre categories (Primary Genre, Secondary Genre, Subgenre)
-3. Fill in Suno Persona if using a consistent persona for the album (name + link)
-4. Fill in all sections (Concept, Tracklist, Production Notes, etc.)
-
-**Step 4: Then Ask Planning Questions**
-Use the 7 Planning Phases from `/bitwize-music:album-conceptualizer` to fill in details.
-
-**Note**: The album template includes YAML frontmatter skeleton.
+**Then**: Fill in album README (YAML frontmatter, distributor genres, sections) → Use 7 Planning Phases to gather details
 
 ### Creating Tracks
 1. Create `tracks/XX-track-name.md` (zero-padded: `01-`, `02-`)
 2. Fill in all sections including Suno Inputs
 
-### Importing External Track Files
+### Importing Files
 
-**Trigger**: User says "I created track X for [album]" or "I have a track file for [album]" and the file is outside the album directory (e.g., Downloads, Desktop, another folder).
+**Track files**: Use `/bitwize-music:import-track ~/Downloads/file.md album-name track-number`
 
-**Use the `/bitwize-music:import-track` skill:**
+**Audio files**: Use `/bitwize-music:import-audio ~/Downloads/file.wav album-name`
 
-```
-/bitwize-music:import-track ~/Downloads/t-day-beach.md shell-no 03
-```
-
-The skill:
-1. Reads config to get `content_root` and `artist.name`
-2. Finds album to determine genre folder
-3. Constructs correct path: `{content_root}/artists/{artist}/albums/{genre}/{album}/tracks/`
-4. Moves and renames file with track number
-5. Confirms the move
-
-**Why use the skill**: It always reads the config file fresh and handles the complex path structure (content_root → artists → artist → albums → genre → album → tracks).
-
-### Importing External Audio Files
-
-**Trigger**: User says "I have audio for track X", "I downloaded track X", or mentions a WAV/audio file in Downloads or another location.
-
-**Use the `/bitwize-music:import-audio` skill:**
-
-```
-/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav shell-no
-```
-
-The skill:
-1. Reads config to get `audio_root` and `artist.name`
-2. Constructs correct path: `{audio_root}/[artist]/[album]/`
-3. Creates directory and moves file
-4. Confirms the move
-
-**Why use the skill**: It always reads the config file fresh and enforces the correct path structure, preventing the common mistake of omitting the artist folder.
+**Why use skills**: They read config fresh and handle complex path structures correctly.
 
 ---
 
@@ -749,84 +580,26 @@ The skill:
 
 **Trigger**: When all track lyrics are written for an album
 
-**Claude should:**
+**Actions:**
 1. Review all track statuses
-2. Verify all tracks have:
-   - Complete lyrics
-   - **Phonetic review complete** (all proper nouns, homographs, acronyms checked)
-   - Suno Style Box filled
-   - Suno Lyrics Box filled
-   - Sources verified (if applicable)
+2. Verify all tracks have: complete lyrics, phonetic review complete, Suno boxes filled, sources verified (if applicable)
 3. Run explicit content check: `/bitwize-music:explicit-checker [album-path]`
-4. Run phonetic check on all tracks (scan for names, places, homographs, acronyms)
+4. Run phonetic check on all tracks
 5. Present summary to user
 
-**Say to user:**
-```
-✅ ALL LYRICS COMPLETE
-
-Album: [name]
-Tracks: [count] tracks written
-Explicit: [Yes/No]
-Sources: [All verified / X pending]
-
-Ready to begin Suno generation?
-
-Next steps:
-1. You'll generate tracks on Suno using the Style/Lyrics boxes
-2. Log each attempt in Generation Log
-3. Mark tracks as "Generated" when you have keepers
-
-Proceed to generation?
-```
+**Message template**: See `/reference/workflows/checkpoint-scripts.md`
 
 ---
 
 ## Suno Generation Workflow
 
-**Reference:** Use `/bitwize-music:suno-engineer` for technical details, or see `/reference/suno/v5-best-practices.md`
+**Process**: Copy Style/Lyrics boxes to Suno → Generate 2-3 variations → Log attempt → Evaluate (keeper or regenerate) → Iterate until satisfied
 
-### Generation Process
+**Stop when**: Correct vocals, good pronunciation, proper structure, acceptable quality. Don't chase perfection.
 
-**For each track:**
+**Approach**: Sequential (recommended) or batch, user's choice.
 
-1. **Copy inputs from track file**:
-   - Style Box → Suno's "Style of Music" field
-   - Lyrics Box → Suno's "Lyrics" field
-
-2. **Generate**:
-   - Use V5 model (or latest)
-   - Generate 2-3 variations initially
-   - Listen to results
-
-3. **Log attempt** in track's Generation Log:
-   ```markdown
-   | 1 | 2026-01-09 | V5 | [Suno URL] | First attempt | — |
-   ```
-
-4. **Evaluate**:
-   - ✓ **Keeper**: Mark Status `Generated`, add Suno Link to track details
-   - ❌ **Not good**: Note issues, refine Style/Lyrics, regenerate
-
-5. **Iterate until satisfied**
-
-### When to Stop Iterating
-
-Stop when track has:
-- Correct vocal delivery
-- Good pronunciation
-- Proper structure (verse/chorus/etc)
-- Acceptable audio quality
-- Matches intended mood
-
-**Don't chase perfection** - "good enough to release" is the bar.
-
-### Batch vs Sequential
-
-- **Sequential** (recommended): Generate one track, get it right, move to next
-- **Batch**: Generate all tracks at once, then iterate on problem tracks
-
-User preference drives approach.
+**Reference**: `/bitwize-music:suno-engineer` or `/reference/suno/v5-best-practices.md`
 
 ---
 
@@ -834,35 +607,13 @@ User preference drives approach.
 
 **Trigger**: When all tracks marked `Generated` with Suno Links
 
-**Claude should:**
+**Actions:**
 1. Verify all tracks have Status: `Generated`
 2. Verify all Suno Links present and working
 3. Check Generation Log - all tracks have keeper marked with ✓
+4. Present track status summary
 
-**Say to user:**
-```
-✅ ALL TRACKS GENERATED
-
-Album: [name]
-Tracks: [count] / [count] complete
-
-Track Status:
-- Track 01: [title] - ✓ Generated [Suno Link]
-- Track 02: [title] - ✓ Generated [Suno Link]
-[... list all ...]
-
-Ready for QA review?
-
-Please listen through the full album:
-1. Check vocal quality, pronunciation
-2. Verify structure (all sections present)
-3. Check for audio artifacts or issues
-4. Confirm track order flows well
-
-After QA, tell me:
-- "Album approved" → Move to mastering
-- "Track X needs regen" → We'll fix specific tracks
-```
+**Message template**: See `/reference/workflows/checkpoint-scripts.md`
 
 ---
 
@@ -870,27 +621,13 @@ After QA, tell me:
 
 **Trigger**: User says "album approved" after QA review
 
-**Claude should:**
+**Actions:**
 1. Update all track statuses from `Generated` to `Final`
 2. Update album status to `Complete`
 3. Verify user has WAV files downloaded from Suno
+4. Guide to mastering workflow
 
-**Say to user:**
-```
-✅ ALBUM APPROVED FOR MASTERING
-
-All tracks marked Final. Album status: Complete.
-
-Next step: Audio mastering
-
-Do you have WAV files downloaded from Suno?
-- If NO: Download all tracks as WAV (highest quality)
-- If YES: Tell me where they're located
-
-I'll set up mastering workflow once files are ready.
-```
-
-Then proceed to mastering workflow (which already exists).
+**Message template**: See `/reference/workflows/checkpoint-scripts.md`
 
 ---
 
@@ -951,63 +688,11 @@ When you find a keeper: Set Status to `Generated`, add Suno Link.
 
 ## Album Art Generation
 
-Generate album art when tracks are complete and you're preparing for release.
+**Trigger**: When all tracks marked `Final`, ask: "Ready to generate the album art?"
 
-### When to Generate Album Art
+**Workflow**: Verify prompt exists (use `/bitwize-music:album-art-director` if needed) → User generates with ChatGPT/DALL-E → Save with `/bitwize-music:import-art` skill → Update checklist
 
-**Proactive trigger**: When user says "album is done" or you see all tracks marked `Final`, ask: **"Ready to generate the album art?"**
-
-### Workflow
-
-**Step 1: Verify Prompt Exists**
-- Album README should have ChatGPT/DALL-E prompt in "Album Art" section
-- If missing, use `/bitwize-music:album-art-director` to create prompt
-
-**Step 2: Generate with User**
-Since Claude Code cannot directly generate images:
-
-1. **Tell user**: "The album art prompt is ready. I'll copy it for you to use with ChatGPT/DALL-E."
-2. **Show the prompt** from the album README
-3. **Instruct user**:
-   - Open ChatGPT (with DALL-E access) or other image generation tool
-   - Paste the prompt
-   - Generate image (may need multiple attempts)
-   - Download as high-resolution (3000x3000px recommended)
-
-**Step 3: Save to Standard Locations**
-
-Once user has generated and downloaded the image, use the `/bitwize-music:import-art` skill:
-
-```
-/bitwize-music:import-art ~/Downloads/album-art.jpg shell-no
-```
-
-The skill:
-1. Reads config to get `audio_root`, `content_root`, and `artist.name`
-2. Copies to audio folder: `{audio_root}/{artist}/{album}/album.png`
-3. Copies to content folder: `{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.jpg`
-
-**Why use the skill**: It handles both destinations correctly and always includes the artist folder in the audio path.
-
-**Step 4: Update Checklist**
-Mark album art as complete in Album Completion Checklist.
-
-### File Naming Standards
-
-| Location | Filename | Format |
-|----------|----------|--------|
-| NFS share | `album.png` | PNG for platforms |
-| Album directory | `album-art.jpg` or `album-art.png` | Either |
-
-### Troubleshooting
-
-**User doesn't have ChatGPT access:**
-- Try other tools: Midjourney, Stable Diffusion, etc.
-- Adjust prompt for that tool's syntax
-
-**Need prompt revisions:**
-- Use `/bitwize-music:album-art-director` to refine visual concept
-- Iterate on prompt based on generation results
+**Full procedures**: See `/reference/workflows/release-procedures.md`
 
 ---
 
@@ -1015,59 +700,20 @@ Mark album art as complete in Album Completion Checklist.
 
 **Trigger**: After mastering complete and album art generated
 
-**Claude should:**
+**Actions:**
 1. Review Album Completion Checklist
 2. Verify all items checked
-3. Present final status
+3. Present final status with checklist summary
 
-**Say to user:**
-```
-✅ ALBUM READY FOR RELEASE
-
-Album Completion Checklist:
-- [✓] All tracks marked Final with Suno Links
-- [✓] Album art generated and saved
-- [✓] Audio mastered (-14 LUFS, -1.0 dBTP)
-- [✓] SoundCloud metadata filled in
-- [✓] Streaming Lyrics filled in each track
-- [✓] For source-based albums:
-  - [✓] All sources verified
-  - [✓] RESEARCH.md and SOURCES.md complete
-
-Album: [name]
-Tracks: [count] tracks
-Status: Complete → Ready to Release
-
-Proceed with release?
-
-Next steps:
-1. Set release_date and Status: Released in album README
-2. Upload to SoundCloud/distributor
-
-Confirm to proceed with release.
-```
+**Message template**: See `/reference/workflows/checkpoint-scripts.md`
 
 ---
 
 ## Releasing an Album
 
-When an album is ready for release:
+**Steps**: Verify Album Completion Checklist → Update album README (`release_date` and `Status: Released`) → Upload to platforms → Add URLs to README
 
-### 1. Verify Completion Checklist
-Ensure all items in Album Completion Checklist are done:
-- All tracks Final with Suno Links
-- Album art generated and saved
-- Audio mastered
-- Streaming Lyrics filled in each track (if using distributor)
-
-### 2. Update Album README
-In the album's README.md:
-1. Set `release_date: YYYY-MM-DD` in YAML frontmatter
-2. Set `Status: Released`
-
-### 3. Upload to Platforms
-- Upload to SoundCloud and/or distributor
-- Add platform URLs back to album README
+**Full procedures**: See `/reference/workflows/release-procedures.md`
 
 ---
 
@@ -1075,260 +721,52 @@ In the album's README.md:
 
 **Trigger**: After album status set to `Released`
 
-### Immediate Checklist (Day 1)
+**Day 1 Checklist:**
+1. SoundCloud Upload - Upload tracks, add metadata, copy URLs to album README
+2. Update Album README - Add SoundCloud URLs, verify release_date and status
+3. Initial Announcement - Twitter/X announcement with album link
+4. Distributor Upload (if distributing) - Upload tracks, streaming lyrics, metadata
 
-**Claude should guide user through:**
-
-1. **SoundCloud Upload**:
-   - Upload all mastered tracks
-   - Use SoundCloud description from album README
-   - Add tags and genre
-   - Set explicit flag if needed
-   - Copy SoundCloud URLs back to album README
-
-2. **Update Album README**:
-   - Add SoundCloud URLs to tracklist
-   - Verify `release_date` and `Status: Released` are set
-
-3. **Initial Announcement**:
-   - Twitter/X announcement
-   - Template:
-     ```
-     🎵 NEW ALBUM 🎵
-
-     [Album Title]
-     [X] tracks | [Genre]
-
-     [Brief description]
-
-     Listen now: [SoundCloud URL]
-     ```
-
-4. **Distributor Upload** (if distributing):
-   - Upload mastered tracks
-   - Copy Streaming Lyrics from each track file
-   - Set release date (typically 2-4 weeks out for streaming)
-   - Enter metadata (genre, explicit, etc.)
-
-### Next Steps
-
-After immediate actions complete:
-- Monitor engagement
-- Respond to feedback
-
-### Release Complete Message
-
-**After all release actions complete**, generate and display this message:
-
-**IMPORTANT**: Dynamically generate the tweet URL using the ACTUAL album name:
-1. Take the real album name from the album README
-2. URL-encode it (spaces become %20, quotes become %22, etc.)
-3. Insert into the tweet intent URL
-4. Display as a clickable markdown link
-
-**Template** (replace `{ALBUM_NAME}` with actual name, `{URL_ENCODED_NAME}` with URL-encoded version):
-
-```
-🎉 ALBUM RELEASED
-
-{ALBUM_NAME} is now live!
-
----
-
-If you used this plugin to make your album, I'd love to hear about it.
-
-[Click to tweet about your release](https://twitter.com/intent/tweet?text=Just%20released%20%22{URL_ENCODED_NAME}%22%20🎵%20Made%20with%20%40bitwizemusic%27s%20Claude%20AI%20Music%20Skills%20%23ClaudeCode%20%23SunoAI%20%23AIMusic)
-
-Or manually: @bitwizemusic #ClaudeCode #SunoAI #AIMusic
-
-Not required, just curious what people create with this. 🎵
-```
+**Release Complete Message**: See `/reference/workflows/checkpoint-scripts.md` for template with dynamically generated tweet URL.
 
 ---
 
 ## Error Recovery Procedures
 
-### Wrong Track Marked Final
+**Common scenarios:**
+- **Wrong track marked Final**: Revert to `In Progress`, regenerate, remark as `Final`
+- **Lyrics need fixing after verification**: Fix but keep `✅ Verified`, ask for re-verification
+- **Regenerate after mastering**: Rename old file `track-OLD.wav`, regenerate, re-master
+- **Release went wrong**: Don't delete, update or document in "Version History"
+- **Undo release**: Revert status, clear `release_date`, remove from platforms
 
-If a track was marked `Final` but needs regeneration:
-
-1. Change Status: `Final` → `In Progress`
-2. Note reason in Generation Log: "Needs regen - [reason]"
-3. Regenerate on Suno
-4. Log new attempt
-5. When satisfied, mark `Generated` → `Final` again
-
-### Lyrics Need Fixing After Verification
-
-If lyrics have errors after human verification:
-
-1. **DO NOT** change Status from `✅ Verified`
-2. Fix lyrics in track file
-3. Add note in track file: "Lyrics revised [date] - [reason]"
-4. Tell user: "Lyrics updated, please re-verify"
-5. After re-verification, update verification date
-
-### Need to Regenerate After Mastering
-
-If a mastered track has issues:
-
-1. Don't delete mastered file - rename: `track.wav` → `track-OLD.wav`
-2. Go back to Suno, regenerate
-3. Download new WAV
-4. Re-master just that track
-5. Update Generation Log with notes
-
-### Release Went Wrong
-
-If release has issues after going live:
-
-1. **DO NOT** delete from SoundCloud/platforms
-2. If fixable: Generate corrected version, update platforms
-3. If major issue: Note in album README: "Version History" section
-4. Document what happened and resolution
-
-### Undoing Release (Nuclear Option)
-
-If you absolutely must undo a release:
-
-1. Change Status: `Released` → `Complete`
-2. Clear `release_date` field (or add note)
-3. Remove from platforms (if possible)
-4. Document why in album README
+**Full procedures**: See `/reference/workflows/error-recovery.md`
 
 ---
 
 ## Audio Mastering
 
-Before releasing to streaming platforms, master the audio for loudness consistency and tonal balance.
+Master audio for streaming platforms to ensure loudness consistency (-14 LUFS, -1.0 dBTP) and tonal balance.
 
-### How to Request Mastering
+**How to request**: Tell Claude: "Master the tracks in /path/to/folder"
 
-Tell Claude: **"Master the tracks in /path/to/folder"**
+**Workflow**: Analyze → Preview (dry-run) → Master → Verify. Scripts stay in `{plugin_root}/tools/mastering/`, run from there.
 
-Claude will:
-1. Navigate to the folder
-2. Set up the Python environment (if needed)
-3. Copy mastering scripts from `tools/mastering/`
-4. Analyze all tracks
-5. Apply mastering with appropriate settings
-6. Report results
+**Genre presets**: Use `--genre` flag for 60+ automatic EQ presets (pop, hip-hop, rock, electronic, etc.)
 
-**Optional modifiers:**
-- "Master with reference /path/to/reference.wav" → Uses reference-based mastering
-- "Master for [genre]" → Applies genre-appropriate EQ preset
-- "Just analyze" → Runs analysis only, no processing
-
-### When to Master
-
-When the user provides a folder of WAV files (from Suno or elsewhere) and asks to master them for release.
-
-### Quick Workflow
-
-```bash
-# One-time setup (shared venv in tools_root)
-mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
-pip install matchering pyloudnorm scipy numpy soundfile
-
-# For each album - run scripts from plugin directory:
-source ~/.bitwize-music/mastering-env/bin/activate
-
-# Analyze tracks (pass audio folder path)
-python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/
-
-# Preview mastering (dry run)
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --dry-run --cut-highmid -2
-
-# Master with standard settings
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --cut-highmid -2
-
-# Verify results (mastered/ subfolder created automatically)
-python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/mastered/
-```
-
-**Note**: Scripts stay in plugin directory - never copy them into audio folders.
-
-### Mastering by Genre
-
-Use `--genre` flag for automatic presets:
-
-```bash
-python3 master_tracks.py --genre country
-python3 master_tracks.py --genre rock
-python3 master_tracks.py --genre jazz
-```
-
-**Available genres:** 60+ presets including pop, k-pop, hip-hop, trap, drill, rock, punk, metal (thrash, black, doom), electronic, house, techno, ambient, lo-fi, folk, country, jazz, classical, latin, afrobeats, and more. Run `python3 master_tracks.py --help` for the full list.
-
-### Target Settings
-
-- **LUFS**: -14 (streaming standard)
-- **True Peak**: -1.0 dBTP
-- **Album consistency**: < 1 dB LUFS range across tracks
-
-### Problem Tracks
-
-For tracks that won't reach target LUFS (high dynamic range):
-
-```bash
-python3 fix_dynamic_track.py "problem_track.wav"
-```
-
-### Full Documentation
-
-See `/reference/mastering/mastering-workflow.md` for complete guide including:
-- Detailed analysis interpretation
-- Troubleshooting
-- Platform-specific targets
-- Reference-based mastering with `matchering`
+**Full documentation**: See `/reference/mastering/mastering-workflow.md` for setup, troubleshooting, and advanced techniques.
 
 ---
 
 ## Sheet Music Generation (Optional)
 
-After mastering, optionally create professional sheet music and songbooks.
+Optionally create professional sheet music and songbooks after mastering using `/bitwize-music:sheet-music-publisher`.
 
-**External software required:**
-- **AnthemScore** ($42 Professional edition) - [lunaverus.com](https://www.lunaverus.com/)
-  - Free trial: 30 seconds per song, 100 total transcriptions
-- **MuseScore** (Free) - [musescore.org](https://musescore.org/)
+**Requirements**: AnthemScore ($42, or free trial), MuseScore (free)
 
-**Python dependencies (songbook only):**
-```bash
-pip install pypdf reportlab pyyaml
-```
+**Best for**: Melodic tracks, folk, acoustic. **Challenging**: Dense electronic, heavy distortion.
 
-Use `/bitwize-music:sheet-music-publisher` skill:
-
-```bash
-/bitwize-music:sheet-music-publisher shell-no
-```
-
-**Guides through:**
-1. Setup verification (AnthemScore, MuseScore)
-2. Track selection
-3. Transcription (automated, ~30-60 sec/track)
-4. Polish (optional MuseScore editing)
-5. Title cleanup
-6. Songbook creation (optional KDP-ready PDF)
-
-**Output:**
-```
-{audio_root}/{artist}/{album}/sheet-music/
-├── 01-track.pdf
-├── 01-track.xml (MusicXML source)
-├── 02-track.pdf
-└── Album_Songbook.pdf (combined)
-```
-
-**Good candidates:** Melodic tracks, singer-songwriter, folk, acoustic
-**Challenging:** Dense electronic, heavy distortion
-
-**Workflow position:** Generate → Master → **[Sheet Music]** → Release (optional enhancement)
-
-**See also:** `/reference/sheet-music/workflow.md` for complete documentation
+**Full documentation**: See `/reference/sheet-music/workflow.md`
 
 ---
 
@@ -1359,59 +797,19 @@ All Suno-specific documentation in `/reference/suno/`:
 
 ---
 
-## Streaming Lyrics Format (for Distributors)
+## Distribution Guidelines
 
-Each track file has a "Streaming Lyrics" section for distributor submission (Spotify, Apple Music, etc.).
+### Streaming Lyrics Format
 
-**Format rules:**
-- Just lyrics (no section labels, no vocalist names, no extra text)
-- Write out repeats fully
-- Capitalize first letter of each line
-- No end punctuation
-- Blank lines only between sections
-- Don't censor explicit words
+Fill in "Streaming Lyrics" section in each track file before distributor upload. Format: just lyrics (no section labels/vocalist names), capitalize first letter of lines, no end punctuation, write out repeats fully.
 
-Fill in the Streaming Lyrics section in each track file before distributor upload.
+### Explicit Content
 
----
+Use explicit flag when lyrics contain: fuck, shit, bitch, cunt, cock, dick, pussy, asshole, whore, slut, goddamn, or variations. Clean words (no flag needed): damn, hell, crap, ass, bastard, piss.
 
-## Explicit Content Guidelines
+**Check with Grep**: Use pattern `\b(fuck|shit|bitch|cunt|cock|dick|pussy|asshole|whore|slut)\b` on track files.
 
-### Explicit Words (require Explicit = Yes)
-
-These words and variations require the explicit flag:
-
-| Category | Words |
-|----------|-------|
-| **F-word** | fuck, fucking, fucked, fucker, motherfuck, motherfucker |
-| **S-word** | shit, shitting, shitty, bullshit |
-| **B-word** | bitch, bitches |
-| **C-words** | cunt, cock, cocks |
-| **D-word** | dick, dicks |
-| **P-word** | pussy, pussies |
-| **A-word** | asshole, assholes |
-| **Slurs** | whore, slut, n-word, f-word (slur) |
-| **Profanity** | goddamn, goddammit |
-
-### Clean Words (no explicit flag needed)
-
-These are fine without explicit flag: damn, hell, crap, ass, bastard, piss.
-
-Note: "damn" alone is clean, but "goddamn" is explicit.
-
-### How to Check
-
-When asked to check for explicit content, or before finalizing an album:
-
-1. Use Grep to scan lyrics for explicit words
-2. Report any matches with track name and word count
-3. Flag mismatches (explicit content but flag says No, or vice versa)
-
-Example scan:
-```
-Grep pattern: \b(fuck|shit|bitch|cunt|cock|dick|pussy|asshole|whore|slut)\b
-Path: {content_root}/artists/[artist]/albums/[genre]/[album]/tracks/
-```
+**Full guidelines**: See `/reference/distribution.md` for complete formatting rules and explicit word lists.
 
 ---
 

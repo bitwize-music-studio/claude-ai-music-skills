@@ -13,8 +13,27 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   - Auto-detects platform and clipboard utility
   - Config-aware path resolution
   - Usage: `/clipboard <content-type> <album-name> <track-number>`
+- Workflow reference documentation in `/reference/workflows/`
+  - `checkpoint-scripts.md` - Detailed checkpoint message templates
+  - `album-planning-phases.md` - The 7 Planning Phases detailed guide
+  - `source-verification-handoff.md` - Human verification procedures
+  - `error-recovery.md` - Edge case recovery procedures
+  - `release-procedures.md` - Album art generation and release steps
+- `/reference/distribution.md` - Streaming lyrics format and explicit content guidelines
 
 ### Changed
+- **CLAUDE.md refactored for performance** - Reduced from 50,495 to 34,202 characters (32% reduction)
+  - Compressed checkpoint sections - Kept triggers/actions, moved verbose messages to `/reference/workflows/checkpoint-scripts.md`
+  - Condensed Audio Mastering section - Brief overview with reference to existing `/reference/mastering/mastering-workflow.md`
+  - Condensed Sheet Music section - Summary with reference to `/reference/sheet-music/workflow.md`
+  - Condensed Album Art Generation - Core workflow with reference to `/reference/workflows/release-procedures.md`
+  - Condensed 7 Planning Phases - Summary with reference to `/reference/workflows/album-planning-phases.md`
+  - Condensed Human Verification Handoff - Triggers with reference to `/reference/workflows/source-verification-handoff.md`
+  - Condensed Error Recovery - Quick reference with link to `/reference/workflows/error-recovery.md`
+  - Condensed Distribution Guidelines - Combined streaming lyrics and explicit content with reference to `/reference/distribution.md`
+  - Simplified Creating Content sections - Condensed album creation and file import workflows
+  - Simplified Suno Generation Workflow - Streamlined process description
+  - Architecture: CLAUDE.md now focuses on workflow orchestration (WHEN/WHY), detailed procedures in reference docs (HOW)
 
 ### Fixed
 
