@@ -416,6 +416,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
 | `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
 | `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
+| `/bitwize-music:promo-director` | Generate promo videos for social media from mastered audio |
 | `/bitwize-music:sheet-music-publisher` | Convert audio to sheet music, create songbooks |
 | `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
 | `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |
@@ -579,11 +580,12 @@ claude-ai-music-skills/           # {plugin_root}
 5. **Generate** → Use Suno to create tracks
 6. **Iterate** → Log results in Generation Log, refine prompts
 7. **Master** → Optimize audio for streaming platforms
-8. **Release** → QA, distribution prep, platform uploads
+8. **Promo Videos** → [Optional] Generate social media promo videos
+9. **Release** → QA, distribution prep, platform uploads
 
 **Critical**: Research must complete before Document for any source-based content.
 
-**Complete workflow**: Concept → Research → Write → Generate → Master → **Release**
+**Complete workflow**: Concept → Research → Write → Generate → Master → Promo Videos → **Release**
 
 ---
 
@@ -787,6 +789,7 @@ When you find a keeper: Set Status to `Generated`, add Suno Link.
 - [ ] Album art prompt created (see Album Art Generation below)
 - [ ] Album art generated and saved
 - [ ] Audio mastered (-14 LUFS, -1.0 dBTP)
+- [ ] Promo videos generated (optional, see Promo Videos below)
 - [ ] Sheet music generated (optional)
 - [ ] Streaming Lyrics filled in each track (if using distributor)
 - [ ] SoundCloud metadata filled in
@@ -866,6 +869,22 @@ Master audio for streaming platforms to ensure loudness consistency (-14 LUFS, -
 **Genre presets**: Use `--genre` flag for 60+ automatic EQ presets (pop, hip-hop, rock, electronic, etc.)
 
 **Full documentation**: See `/reference/mastering/mastering-workflow.md` for setup, troubleshooting, and advanced techniques.
+
+---
+
+## Promo Videos (Optional)
+
+Generate professional 15-second vertical promo videos (9:16) for social media after mastering using `/bitwize-music:promo-director`.
+
+**Trigger**: After mastering complete, before release
+
+**Requirements**: ffmpeg with filters, Python 3.8+, PIL, album artwork
+
+**Output**: Individual track promos + album sampler video optimized for Instagram Reels, Twitter, TikTok
+
+**Workflow**: Verify dependencies → Choose visualization style (pulse, bars, line, etc.) → Generate videos → Review → Ready for social media
+
+**Full documentation**: See `/skills/promo-director/SKILL.md` and `/reference/promotion/promo-workflow.md`
 
 ---
 

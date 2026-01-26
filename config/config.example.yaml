@@ -115,6 +115,34 @@ generation:
   service: suno
 
 # =============================================================================
+# PROMO VIDEOS (Optional)
+# =============================================================================
+# Settings for /bitwize-music:promo-director skill
+# Only needed if you plan to generate promo videos for social media
+# promotion:
+  # Default visualization style for promo videos
+  # Options: pulse, bars, line, mirror, mountains, colorwave, neon, dual, circular
+  # Recommendations:
+  #   - Electronic/Hip-Hop: pulse
+  #   - Pop/Rock: bars
+  #   - Acoustic/Folk: line
+  #   - Ambient/Chill: mirror
+  #   - Synthwave/80s: neon
+  # default_style: "pulse"
+
+  # Default video duration in seconds
+  # Common options: 15 (Instagram/Twitter optimal), 30, 60
+  # duration: 15
+
+  # Generate album sampler by default (true/false)
+  # Album sampler = single video with clips from all tracks
+  # include_sampler: true
+
+  # Sampler clip duration (seconds per track)
+  # Shorter = fits more tracks in Twitter's 140s limit
+  # sampler_clip_duration: 12
+
+# =============================================================================
 # SHEET MUSIC (Optional)
 # =============================================================================
 # Settings for /bitwize-music:sheet-music-publisher skill

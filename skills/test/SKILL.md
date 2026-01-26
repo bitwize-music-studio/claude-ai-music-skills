@@ -904,6 +904,24 @@ Verify it documents:
 
 Cross-reference and consistency checks.
 
+### TEST: All skills documented in help system
+Run the validation script:
+```bash
+python3 tools/validate_help_completeness.py
+```
+
+This checks:
+1. All skills have SKILL.md file
+2. All skills are listed in CLAUDE.md skills table
+3. All skills are listed in skills/help/SKILL.md
+
+If this test fails:
+- Add missing skill to CLAUDE.md skills table (alphabetically)
+- Add missing skill to skills/help/SKILL.md (in appropriate category)
+- Update CHANGELOG.md
+
+**Note:** This is critical - if a skill isn't in the help system, users can't discover it!
+
 ### TEST: No deprecated terminology
 Search entire repo for:
 - `media_root` (should be `audio_root`)

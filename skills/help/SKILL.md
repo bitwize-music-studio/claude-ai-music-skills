@@ -55,6 +55,7 @@ Display this help information to the user in a clear, organized format.
 **Production & Release**
 - `/bitwize-music:album-art-director` - Visual concepts and AI art prompts
 - `/bitwize-music:mastering-engineer` - Audio mastering guidance
+- `/bitwize-music:promo-director` - Generate promo videos for social media
 - `/bitwize-music:sheet-music-publisher` - Convert audio to sheet music
 - `/bitwize-music:release-director` - Release coordination and distribution
 
@@ -82,7 +83,8 @@ Display this help information to the user in a clear, organized format.
 4. Run `/bitwize-music:lyric-reviewer` before generation
 5. Generate in Suno, log results
 6. Master audio with `/bitwize-music:mastering-engineer`
-7. Release with `/bitwize-music:release-director`
+7. [Optional] Generate promo videos with `/bitwize-music:promo-director`
+8. Release with `/bitwize-music:release-director`
 
 **True-Story Albums (with research):**
 1. Use researcher skills to gather sources
@@ -102,6 +104,7 @@ Display this help information to the user in a clear, organized format.
 - **Pronunciation:** Use phonetic spelling for tricky words (see pronunciation guide)
 - **Explicit content:** Use flag for: fuck, shit, bitch, cunt, cock, dick, pussy, etc.
 - **Mastering target:** -14 LUFS, -1.0 dBTP for streaming platforms
+- **Promo videos:** Generate after mastering, 15s vertical (9:16) for social media
 - **Track status flow:** Not Started → In Progress → Generated → Final
 - **Album status flow:** Concept → In Progress → Complete → Released
 

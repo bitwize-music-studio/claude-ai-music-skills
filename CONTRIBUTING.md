@@ -31,6 +31,37 @@ Follow the existing code patterns and documentation style.
 - If user-facing: Update `README.md`
 - Always: Update `CHANGELOG.md` under "Unreleased"
 
+#### Adding a New Skill - Complete Checklist
+
+When adding a new skill, you MUST update all of these files:
+
+**Required (skill won't work without these):**
+- [ ] Create `/skills/your-skill/SKILL.md` with skill documentation
+- [ ] Add entry to `CLAUDE.md` skills table (alphabetically in correct category)
+- [ ] Add entry to `skills/help/SKILL.md` in appropriate category
+- [ ] Add entry to `skills/help/SKILL.md` Common Workflows section (if applicable)
+- [ ] Update `CHANGELOG.md` under "Unreleased" → "Added"
+
+**Recommended:**
+- [ ] Add quick tip to `skills/help/SKILL.md` Quick Tips section (if relevant)
+- [ ] Update workflow diagram in `CLAUDE.md` (if part of main workflow)
+- [ ] Add to Album Completion Checklist in `CLAUDE.md` (if part of release)
+- [ ] Add reference docs in `/reference/` if complex
+- [ ] Update `README.md` if user-facing feature
+
+**Testing:**
+- [ ] Run `/bitwize-music:test all` to ensure no regressions
+- [ ] Test skill invocation: `/bitwize-music:your-skill`
+- [ ] Verify skill appears in `/bitwize-music:help` output
+- [ ] Check skill in skills table works as expected
+
+**Common mistakes to avoid:**
+- ❌ Forgetting to add skill to help system
+- ❌ Not updating CHANGELOG.md
+- ❌ Adding to CLAUDE.md but not help/SKILL.md
+- ❌ Inconsistent naming between files
+- ❌ Breaking alphabetical order in lists
+
 ### 3. Test Your Changes
 
 Run the automated test suite:

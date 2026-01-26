@@ -12,6 +12,60 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.13.0] - 2026-01-26
+
+### Added
+- **promo-director skill**: Generate professional promo videos for social media from mastered audio
+  - Creates 15-second vertical videos (9:16, 1080x1920) optimized for Instagram Reels, Twitter, TikTok
+  - 9 visualization styles: pulse, bars, line, mirror, mountains, colorwave, neon, dual, circular
+  - Automatic color extraction from album artwork (dominant + complementary colors)
+  - Intelligent audio segment selection using librosa (falls back to 20% into track)
+  - Batch processing: individual track promos + album sampler video
+  - Config integration: reads artist name from `~/.bitwize-music/config.yaml`
+  - Robust artwork detection: finds album.png, album-art.png, artwork.png, cover.png, etc.
+  - Multi-font path discovery (works on Linux/macOS)
+  - Platform-optimized output: H.264, AAC, yuv420p, 30fps
+  - Album sampler with crossfades (fits Twitter's 140s limit)
+- **Promo video tools**: 3 Python scripts in `tools/promotion/`
+  - `generate_promo_video.py` - Core video generator with 9 styles
+  - `generate_album_sampler.py` - Multi-track sampler video
+  - `generate_all_promos.py` - Batch wrapper for complete campaigns
+- **Promo video documentation**:
+  - `skills/promo-director/SKILL.md` - Complete skill workflow
+  - `skills/promo-director/visualization-guide.md` - Style gallery with genre recommendations
+  - `reference/promotion/promo-workflow.md` - End-to-end workflow guide
+  - `reference/promotion/platform-specs.md` - Instagram, Twitter, TikTok, Facebook, YouTube specs
+  - `reference/promotion/ffmpeg-reference.md` - Technical ffmpeg documentation
+  - `reference/promotion/example-output.md` - Visual examples and benchmarks
+  - `reference/promotion/promotion-preferences-override.md` - Override template
+- **Config support for promo videos**: Added `promotion` section to `config/config.example.yaml`
+  - `default_style` - Default visualization style (pulse, bars, etc.)
+  - `duration` - Default video duration (15s, 30s, 60s)
+  - `include_sampler` - Generate album sampler by default
+  - `sampler_clip_duration` - Seconds per track in sampler (12s default)
+- **Workflow integration**: Added promo videos as optional step 8 (between Master and Release)
+  - Updated CLAUDE.md workflow: Concept → Research → Write → Generate → Master → **Promo Videos** → Release
+  - Added to Album Completion Checklist
+  - Added "Promo Videos (Optional)" section to CLAUDE.md
+- **Plugin keywords**: Added promo-videos, social-media, video-generation to plugin.json
+- **Skill documentation safeguards**: Added validation and documentation to prevent skills being forgotten
+  - `tools/validate_help_completeness.py` - Cross-platform Python script that checks all skills are documented
+  - Validates skills appear in CLAUDE.md skills table
+  - Validates skills appear in skills/help/SKILL.md
+  - Integrated into `/bitwize-music:test consistency` suite
+  - Added "Adding a New Skill - Complete Checklist" to CONTRIBUTING.md with 15-item checklist
+  - Lists all required files, recommended updates, testing steps, and common mistakes
+
+### Changed
+- **import-art compatibility**: All promo scripts now check for multiple artwork naming patterns
+  - album.png, album.jpg (standard import-art output)
+  - album-art.png, album-art.jpg (alternative from import-art content location)
+  - artwork.png, artwork.jpg, cover.png, cover.jpg (fallbacks)
+  - Scripts check both album directory and parent directory
+  - Clear error messages when artwork not found
+
+### Fixed
+
 ## [0.12.1] - 2026-01-26
 
 ### Fixed
