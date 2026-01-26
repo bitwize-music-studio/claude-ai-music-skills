@@ -7,6 +7,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+## [0.8.2] - 2026-01-26
+
+### Added
 - "Resuming Work on an Album" section in CLAUDE.md with explicit instructions for finding albums when user mentions them
 
 ### Changed
