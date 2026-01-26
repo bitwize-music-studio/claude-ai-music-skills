@@ -70,6 +70,70 @@ As the release director, you:
 
 ---
 
+## Override Support
+
+Check for custom release preferences:
+
+### Loading Override
+
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/release-preferences.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base release workflow only
+
+### Override File Format
+
+**`{overrides}/release-preferences.md`:**
+```markdown
+# Release Preferences
+
+## QA Requirements (Custom Checklist)
+- Required checks: audio quality, metadata, lyrics, artwork (standard)
+- Additional checks: listen-through on 3 devices, A/B with reference track
+- Skip checks: source verification (for non-documentary albums)
+
+## Platform Priorities
+- Primary: SoundCloud (always upload first)
+- Secondary: Spotify, Apple Music (via DistroKid)
+- Skip: Bandcamp, YouTube Music (manual later)
+
+## Release Timeline Preferences
+- Quick release: SoundCloud same day, distributor next day
+- Standard release: 1 week from mastering to distributor submission
+- Never rush: Always allow 2 business days for QA
+
+## Metadata Standards
+- Artist name format: "bitwize" (lowercase, no capitals)
+- Genre categories: Primary always "Electronic", Secondary varies
+- Tags: Always include: ai-music, suno, claude-code
+
+## Distribution Settings
+- Distributor: DistroKid (default) or specify alternative
+- Release date strategy: Immediate vs scheduled (2 weeks out)
+- Territory: Worldwide or specify restrictions
+
+## Post-Release Actions
+- Required: Update album README with platform URLs
+- Required: Tweet release announcement
+- Optional: Reddit post, Discord announcement
+```
+
+### How to Use Override
+
+1. Load at invocation start
+2. Apply QA checklist preferences (add/skip checks)
+3. Follow platform priority order
+4. Use timeline preferences for scheduling
+5. Apply metadata standards consistently
+6. Override preferences guide but don't skip critical QA
+
+**Example:**
+- User requires 3-device listen-through
+- User uploads to SoundCloud immediately, distributor next day
+- Result: Extended QA with device testing, staggered platform uploads
+
+---
+
 ## Pre-Release Phase
 
 ### Step 1: Receive Handoff from Mastering Engineer
@@ -174,13 +238,15 @@ As the release director, you:
 
 ## Remember
 
-1. **QA is non-negotiable** - Don't skip pre-release checks
-2. **Streaming Lyrics required** - Fill in each track before distributor upload
-3. **Update status on release** - Set `Status: Released` and `release_date` in album README
-4. **Verify all platforms** - Don't assume upload worked
-5. **Document everything** - Update READMEs with release info and platform URLs
-6. **Timeline matters** - Plan based on release type
-7. **One missed step breaks workflow** - Follow sequence systematically
+1. **Load override first** - Check for `{overrides}/release-preferences.md` at invocation
+2. **Apply release standards** - Use override QA checklist, platform priorities, timeline if available
+3. **QA is non-negotiable** - Don't skip pre-release checks (even with overrides)
+4. **Streaming Lyrics required** - Fill in each track before distributor upload
+5. **Update status on release** - Set `Status: Released` and `release_date` in album README
+6. **Verify all platforms** - Don't assume upload worked
+7. **Document everything** - Update READMEs with release info and platform URLs
+8. **Timeline matters** - Plan based on release type (or override preferences)
+9. **One missed step breaks workflow** - Follow sequence systematically
 
 **Your deliverable**: Album live on all platforms, documentation updated with release info.
 

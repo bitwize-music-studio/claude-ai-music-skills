@@ -203,6 +203,10 @@ Verify these skills have "Override Support" section in their SKILL.md:
 - `skills/mastering-engineer/SKILL.md` → loads `mastering-presets.yaml`
 - `skills/album-conceptualizer/SKILL.md` → loads `album-planning-guide.md`
 - `skills/pronunciation-specialist/SKILL.md` → loads `pronunciation-guide.md`
+- `skills/album-art-director/SKILL.md` → loads `album-art-preferences.md`
+- `skills/researcher/SKILL.md` → loads `research-preferences.md`
+- `skills/release-director/SKILL.md` → loads `release-preferences.md`
+- `skills/sheet-music-publisher/SKILL.md` → loads `sheet-music-preferences.md`
 
 Each should have:
 1. Section titled "## Override Support"

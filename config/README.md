@@ -286,6 +286,96 @@ Custom guidelines for album conceptualization.
 
 **Behavior:** Loaded by album-conceptualizer, used when planning albums.
 
+#### `album-art-preferences.md` - Album Art Visual Preferences
+Your visual style guidelines for album artwork.
+
+**Example:**
+```markdown
+# Album Art Preferences
+
+## Visual Style Preferences
+- Prefer: minimalist, geometric, high contrast
+- Avoid: photorealistic, busy compositions, text overlays
+
+## Color Palette Preferences
+- Primary: deep blues, purples, blacks
+- Accent: neon cyan, electric pink
+- Avoid: warm colors, pastels, earth tones
+
+## Composition Preferences
+- Always: centered subject, negative space
+- Avoid: cluttered backgrounds, multiple focal points
+```
+
+**Behavior:** Loaded by album-art-director, applied when developing visual concepts.
+
+#### `research-preferences.md` - Research Standards
+Custom research depth and verification requirements.
+
+**Example:**
+```markdown
+# Research Preferences
+
+## Source Priority
+- Tier 1: Court documents, SEC filings, government reports
+- Tier 2: Academic research, peer-reviewed journals
+- Tier 3: Investigative journalism from trusted outlets
+
+## Verification Standards
+- Minimum sources for key facts: 3 (can override to 2 for background)
+- Citation format: Academic (APA/Chicago) or legal (Bluebook)
+
+## Research Depth
+- Timeline precision: Exact dates required
+- Financial detail level: Dollar amounts to nearest thousand
+```
+
+**Behavior:** Loaded by researcher, applied to source selection and verification standards.
+
+#### `release-preferences.md` - Release Workflow
+Custom QA requirements and platform priorities.
+
+**Example:**
+```markdown
+# Release Preferences
+
+## QA Requirements
+- Additional checks: listen-through on 3 devices, A/B with reference track
+- Skip checks: source verification (for non-documentary albums)
+
+## Platform Priorities
+- Primary: SoundCloud (always upload first)
+- Secondary: Spotify, Apple Music (via DistroKid)
+
+## Metadata Standards
+- Artist name format: "bitwize" (lowercase, no capitals)
+- Tags: Always include: ai-music, suno, claude-code
+```
+
+**Behavior:** Loaded by release-director, applied to QA checklist and platform workflow.
+
+#### `sheet-music-preferences.md` - Sheet Music Formatting
+Page layout, notation, and songbook preferences.
+
+**Example:**
+```markdown
+# Sheet Music Preferences
+
+## Page Layout
+- Page size: 9x12 (standard songbook)
+- Staff size: 8mm for large print
+
+## Title Formatting
+- Include track numbers: no (default)
+- Composer credit: "Music by [artist]" below title
+
+## Songbook Settings
+- Table of contents: yes (default)
+- Cover page style: minimalist (title + artist)
+```
+
+**Behavior:** Loaded by sheet-music-publisher, applied to PDF generation and songbook creation.
+
 ### Benefits
 
 **For users:**

@@ -99,6 +99,72 @@ Mastered audio:  {audio_root}/{artist}/{album}/
 Sheet music out: {audio_root}/{artist}/{album}/sheet-music/
 ```
 
+---
+
+## Override Support
+
+Check for custom sheet music preferences:
+
+### Loading Override
+
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/sheet-music-preferences.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base sheet music workflow only
+
+### Override File Format
+
+**`{overrides}/sheet-music-preferences.md`:**
+```markdown
+# Sheet Music Preferences
+
+## Page Layout
+- Page size: letter (8.5x11) or 9x12 (standard songbook)
+- Margins: 0.5" all sides (override: 0.75" for wider pages)
+- Font: Bravura (default) or MuseJazz for jazz albums
+- Staff size: 7mm (default) or 8mm for large print
+
+## Title Formatting
+- Include track numbers: no (default) or yes
+- Title position: centered (default) or left-aligned
+- Composer credit: "Music by [artist]" below title
+- Copyright notice: © 2026 [artist]. All rights reserved.
+
+## Notation Preferences
+- Clefs: Treble and bass (piano) or single staff (melody only)
+- Key signatures: Shown (default) or omitted for atonal music
+- Time signatures: Shown (default) or omitted for free time
+- Tempo markings: BPM numbers or Italian terms
+
+## Songbook Settings
+- Table of contents: yes (default) or no
+- Page numbers: bottom center (default) or bottom right
+- Section headers: by genre (default) or chronological
+- Cover page style: minimalist (title + artist) or elaborate (artwork)
+
+## Transcription Settings
+- Accuracy target: 85% (default) or 95% (requires manual polish)
+- Polish level: minimal (quick) or detailed (time-consuming)
+- Instrument focus: piano (default), guitar, or vocal melody
+- Complexity: simplified (easier to play) or exact (harder, more accurate)
+```
+
+### How to Use Override
+
+1. Load at invocation start
+2. Apply page layout preferences to songbook creation
+3. Use title formatting rules consistently
+4. Follow notation preferences when polishing
+5. Apply songbook settings to combined PDF
+6. Override preferences guide but don't compromise quality
+
+**Example:**
+- User prefers 9x12 page size, large print
+- User wants track numbers in titles
+- Result: Generate songbook with 9x12 pages, 8mm staff, titles include track numbers
+
+---
+
 ## Phase 1: Setup Verification
 
 ### Check AnthemScore
@@ -678,12 +744,14 @@ This helps track release readiness.
 
 ## Remember
 
-1. **Always read config first** - Don't assume paths
-2. **Check software exists** - Graceful failure with install instructions
-3. **Set expectations** - 70-95% accuracy, may need polish
-4. **Offer polish** - Don't skip this step
-5. **Automate what you can** - Use CLI tools, minimize manual work
-6. **KDP-ready output** - Songbook should be upload-ready
+1. **Load override first** - Check for `{overrides}/sheet-music-preferences.md` at invocation
+2. **Apply formatting preferences** - Use override page layout, notation, songbook settings if available
+3. **Always read config first** - Don't assume paths
+4. **Check software exists** - Graceful failure with install instructions
+5. **Set expectations** - 70-95% accuracy, may need polish
+6. **Offer polish** - Don't skip this step
+7. **Automate what you can** - Use CLI tools, minimize manual work
+8. **KDP-ready output** - Songbook should be upload-ready (with user preferences applied)
 
 ## Success Criteria
 

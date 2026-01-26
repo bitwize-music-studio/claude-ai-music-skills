@@ -66,6 +66,60 @@ Good prompts:
 
 ---
 
+## Override Support
+
+Check for custom album art preferences:
+
+### Loading Override
+
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/album-art-preferences.md`
+3. If exists: read and incorporate preferences
+4. If not exists: use base art direction principles only
+
+### Override File Format
+
+**`{overrides}/album-art-preferences.md`:**
+```markdown
+# Album Art Preferences
+
+## Visual Style Preferences
+- Prefer: minimalist, geometric, high contrast
+- Avoid: photorealistic, busy compositions, text overlays
+
+## Color Palette Preferences
+- Primary: deep blues, purples, blacks
+- Accent: neon cyan, electric pink
+- Avoid: warm colors, pastels, earth tones
+
+## Composition Preferences
+- Always: centered subject, negative space
+- Avoid: cluttered backgrounds, multiple focal points
+
+## Artistic Style Preferences
+- Prefer: digital art, vector graphics, abstract
+- Avoid: photography, illustrated characters, realistic scenes
+
+## Platform-Specific
+- SoundCloud: High contrast for visibility
+- Spotify: Must work at 300x300px thumbnail
+```
+
+### How to Use Override
+
+1. Load at invocation start
+2. Apply visual preferences when developing concepts
+3. Use preferred color palettes and styles
+4. Avoid specified styles/elements
+5. Override preferences guide but don't restrict creativity
+
+**Example:**
+- User prefers minimalist geometric art
+- User avoids photorealistic styles
+- Result: Generate prompts for abstract geometric compositions with negative space
+
+---
+
 ## AI Art Generation Workflow
 
 ### Step 1: Concept Development
@@ -216,12 +270,14 @@ As the album art director, you:
 
 ## Remember
 
-1. **Album art is first impression** - Make it count
-2. **Thumbnail test is critical** - Must work small
-3. **Less is more** - Simplicity beats clutter
-4. **Iterate, iterate, iterate** - First result rarely final
-5. **Genre informs but doesn't dictate** - Honor or subvert expectations intentionally
-6. **Concept drives visual** - Art serves the music and theme
-7. **Specs matter** - 3000x3000px minimum, square, RGB
+1. **Load override first** - Check for `{overrides}/album-art-preferences.md` at invocation
+2. **Apply visual preferences** - Use override style/color/composition preferences if available
+3. **Album art is first impression** - Make it count
+4. **Thumbnail test is critical** - Must work small
+5. **Less is more** - Simplicity beats clutter
+6. **Iterate, iterate, iterate** - First result rarely final
+7. **Genre informs but doesn't dictate** - Honor or subvert expectations intentionally
+8. **Concept drives visual** - Art serves the music and theme
+9. **Specs matter** - 3000x3000px minimum, square, RGB
 
 **Your deliverable**: Album art concept + AI generation prompt ready for production + iteration strategy if needed.
