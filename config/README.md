@@ -169,14 +169,120 @@ Merges with base pronunciation guide for artist-specific terms.
 
 **Behavior:** Loaded by pronunciation-specialist, merged with base guide, custom takes precedence.
 
-#### Future Overrides
+#### `explicit-words.md` - Custom Explicit Word List
+Add or remove words from the explicit content scanner.
 
-These don't exist yet but will follow the same pattern:
+**Example:**
+```markdown
+# Custom Explicit Words
 
-- **`explicit-words.md`** - Custom explicit word list for your content
-- **`lyric-writing-guide.md`** - Personal lyric writing style preferences
-- **`mastering-presets.yaml`** - Custom mastering EQ/compression settings
-- **`suno-genre-mappings.md`** - Your preferred Suno genre combinations
+## Additional Explicit Words
+- slang-term-1
+- slang-term-2
+
+## Not Explicit (override base list)
+- hell (context: historical/literary usage)
+- damn (context: emphasis, not profanity)
+```
+
+**Behavior:** Loaded by explicit-checker, merged with base list, custom additions/removals applied.
+
+#### `lyric-writing-guide.md` - Lyric Writing Preferences
+Custom style guidelines for your lyric writing.
+
+**Example:**
+```markdown
+# Lyric Writing Guide
+
+## Style Preferences
+- Prefer first-person narrative
+- Avoid religious imagery
+- Use vivid sensory details
+- Keep verses 4-6 lines max
+
+## Vocabulary
+- Avoid: utilize, commence, endeavor (too formal)
+- Prefer: simple, direct language
+
+## Themes
+- Focus on: technology, alienation, urban decay
+- Avoid: love songs, party anthems
+```
+
+**Behavior:** Loaded by lyric-writer, used as additional context when writing lyrics.
+
+#### `suno-preferences.md` - Suno Generation Preferences
+Your preferred Suno settings and genre combinations.
+
+**Example:**
+```markdown
+# Suno Preferences
+
+## Genre Mappings
+| My Genre | Suno Genres |
+|----------|-------------|
+| dark-electronic | dark techno, industrial, ebm |
+| chill-beats | lo-fi hip hop, chillhop, jazzhop |
+
+## Default Settings
+- Instrumental: false
+- Model: V5
+- Always include: atmospheric, moody
+
+## Avoid
+- Never use: happy, upbeat, cheerful
+- Avoid genres: country, bluegrass, folk
+```
+
+**Behavior:** Loaded by suno-engineer, used when generating style prompts.
+
+#### `mastering-presets.yaml` - Custom Mastering Presets
+Override mastering EQ and dynamics settings.
+
+**Example:**
+```yaml
+# Custom Mastering Presets
+
+genres:
+  dark-electronic:
+    cut_highmid: -3  # More aggressive cut
+    boost_sub: 2     # More sub bass
+    target_lufs: -12 # Louder master
+
+  ambient:
+    cut_highmid: -1  # Gentle cut
+    boost_sub: 0     # Natural bass
+    target_lufs: -16 # Quieter, more dynamic
+```
+
+**Behavior:** Loaded by mastering-engineer, overrides default genre presets.
+
+#### `album-planning-guide.md` - Album Planning Preferences
+Custom guidelines for album conceptualization.
+
+**Example:**
+```markdown
+# Album Planning Guide
+
+## Track Count Preferences
+- Full album: 10-12 tracks (not 14-16)
+- EP: 4-5 tracks
+
+## Structure Preferences
+- Always include: intro track, outro track
+- Avoid: skits, interludes (get to the music)
+
+## Themes to Explore
+- Technology and society
+- Urban isolation
+- Digital identity
+
+## Themes to Avoid
+- Political commentary
+- Relationship drama
+```
+
+**Behavior:** Loaded by album-conceptualizer, used when planning albums.
 
 ### Benefits
 
