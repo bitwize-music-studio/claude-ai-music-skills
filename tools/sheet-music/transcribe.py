@@ -226,7 +226,7 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
         )
 
         if result.returncode == 0:
-            print(f"  {Colors.GREEN}✓ Complete{Colors.NC}")
+            print(f"  {Colors.GREEN}[OK] Complete{Colors.NC}")
             if args.pdf:
                 print(f"    → {output_dir / f'{basename}.pdf'}")
             if args.xml:
@@ -235,16 +235,16 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
                 print(f"    → {output_dir / f'{basename}.mid'}")
             return True
         else:
-            print(f"  {Colors.RED}✗ Failed{Colors.NC}")
+            print(f"  {Colors.RED}[FAIL] Failed{Colors.NC}")
             if result.stderr:
                 print(f"  Error: {result.stderr}")
             return False
 
     except subprocess.TimeoutExpired:
-        print(f"  {Colors.RED}✗ Timed out (>5 minutes){Colors.NC}")
+        print(f"  {Colors.RED}[FAIL] Timed out (>5 minutes){Colors.NC}")
         return False
     except Exception as e:
-        print(f"  {Colors.RED}✗ Error: {e}{Colors.NC}")
+        print(f"  {Colors.RED}[FAIL] Error: {e}{Colors.NC}")
         return False
 
 

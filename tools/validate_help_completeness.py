@@ -34,7 +34,7 @@ def check_claude_md(plugin_root: Path, skills: List[str]) -> List[str]:
     claude_file = plugin_root / "CLAUDE.md"
 
     if not claude_file.exists():
-        print(f"{RED}✗ CLAUDE.md not found!{NC}")
+        print(f"{RED}[FAIL] CLAUDE.md not found!{NC}")
         return skills
 
     claude_content = claude_file.read_text()
@@ -59,7 +59,7 @@ def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
     help_file = plugin_root / "skills" / "help" / "SKILL.md"
 
     if not help_file.exists():
-        print(f"{RED}✗ skills/help/SKILL.md not found!{NC}")
+        print(f"{RED}[FAIL] skills/help/SKILL.md not found!{NC}")
         return skills
 
     help_content = help_file.read_text()
@@ -78,7 +78,7 @@ def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
     return missing
 
 def main():
-    print("🔍 Validating skill documentation completeness...")
+    print("Validating skill documentation completeness...")
     print()
 
     # Get plugin root directory
@@ -88,7 +88,7 @@ def main():
     all_skills = get_all_skills(plugin_root)
 
     if not all_skills:
-        print(f"{RED}✗ No skills found!{NC}")
+        print(f"{RED}[FAIL] No skills found!{NC}")
         return 1
 
     print(f"Found {len(all_skills)} skills:")
@@ -99,26 +99,26 @@ def main():
     errors = 0
 
     # Check CLAUDE.md
-    print("📋 Checking CLAUDE.md skills table...")
+    print("Checking CLAUDE.md skills table...")
     missing_claude = check_claude_md(plugin_root, all_skills)
 
     if not missing_claude:
-        print(f"{GREEN}✓ All skills documented in CLAUDE.md{NC}")
+        print(f"{GREEN}[OK] All skills documented in CLAUDE.md{NC}")
     else:
-        print(f"{RED}✗ Skills missing from CLAUDE.md:{NC}")
+        print(f"{RED}[FAIL] Skills missing from CLAUDE.md:{NC}")
         for skill in missing_claude:
             print(f"  - {skill}")
         errors += len(missing_claude)
     print()
 
     # Check help system
-    print("📋 Checking skills/help/SKILL.md...")
+    print("Checking skills/help/SKILL.md...")
     missing_help = check_help_skill(plugin_root, all_skills)
 
     if not missing_help:
-        print(f"{GREEN}✓ All skills documented in help system{NC}")
+        print(f"{GREEN}[OK] All skills documented in help system{NC}")
     else:
-        print(f"{RED}✗ Skills missing from help system:{NC}")
+        print(f"{RED}[FAIL] Skills missing from help system:{NC}")
         for skill in missing_help:
             print(f"  - {skill}")
         errors += len(missing_help)
@@ -127,14 +127,14 @@ def main():
     # Summary
     print("━" * 40)
     if errors == 0:
-        print(f"{GREEN}✓ All skills properly documented!{NC}")
+        print(f"{GREEN}[OK] All skills properly documented!{NC}")
         print()
         print("All skills are listed in:")
         print("  - CLAUDE.md (main skills table)")
         print("  - skills/help/SKILL.md (help system)")
         return 0
     else:
-        print(f"{RED}✗ Found {errors} documentation issues{NC}")
+        print(f"{RED}[FAIL] Found {errors} documentation issues{NC}")
         print()
         print("To fix:")
         print("  1. Add missing skills to CLAUDE.md skills table")

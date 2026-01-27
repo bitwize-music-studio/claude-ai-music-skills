@@ -527,9 +527,9 @@ def batch_process_album(
         )
 
         if success:
-            print(f"  ✓ {output_file.name}")
+            print(f"  [OK] {output_file.name}")
         else:
-            print(f"  ✗ Failed: {audio_file.name}")
+            print(f"  [FAIL] {audio_file.name}")
 
 
 def main():
@@ -687,9 +687,9 @@ Examples:
         )
 
         if success:
-            print(f"\n✓ Created: {output}")
+            print(f"\n[OK] Created: {output}")
         else:
-            print(f"\n✗ Failed to create video")
+            print(f"\n[FAIL] Failed to create video")
             sys.exit(1)
 
 

@@ -24,7 +24,7 @@ jobs:
 
         if [ "$PLUGIN_VERSION" != "$MARKETPLACE_VERSION" ]; then
           echo ""
-          echo "❌ ERROR: Version files are out of sync!"
+          echo "[FAIL] ERROR: Version files are out of sync!"
           echo ""
           echo "Please update both:"
           echo "  - .claude-plugin/plugin.json"
@@ -35,4 +35,4 @@ jobs:
         fi
 
         echo ""
-        echo "✅ Version files are in sync: $PLUGIN_VERSION"
+        echo "[OK] Version files are in sync: $PLUGIN_VERSION"

@@ -89,16 +89,16 @@ jobs:
             elif [[ "$CURRENT_MODEL" == *haiku* ]]; then
               TARGET="$HAIKU"
             else
-              echo "⚠ $SKILL_NAME: Unknown tier ($CURRENT_MODEL)"
+              echo "[WARN] $SKILL_NAME: Unknown tier ($CURRENT_MODEL)"
               continue
             fi
 
             if [ "$CURRENT_MODEL" != "$TARGET" ]; then
-              echo "⚠ $SKILL_NAME: $CURRENT_MODEL → $TARGET"
+              echo "[UPDATE] $SKILL_NAME: $CURRENT_MODEL -> $TARGET"
               UPDATES_NEEDED=true
               OUTDATED_SKILLS="$OUTDATED_SKILLS$SKILL_NAME:$CURRENT_MODEL:$TARGET\n"
             else
-              echo "✓ $SKILL_NAME: $CURRENT_MODEL (current)"
+              echo "[OK] $SKILL_NAME: $CURRENT_MODEL (current)"
             fi
           done
 
@@ -108,13 +108,13 @@ jobs:
       - name: Exit if no updates needed
         if: steps.check.outputs.updates_needed == 'false'
         run: |
-          echo "✅ All skills use current models. No updates needed."
+          echo "[OK] All skills use current models. No updates needed."
           exit 0
 
       - name: Exit if dry run
         if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run == 'true'
         run: |
-          echo "🔍 DRY RUN: Updates would be applied to:"
+          echo "DRY RUN: Updates would be applied to:"
           cat /tmp/outdated_skills.txt
           exit 0
 
@@ -137,7 +137,7 @@ jobs:
             fi
           done
 
-          echo "✅ Updated skill files"
+          echo "[OK] Updated skill files"
 
       - name: Bump version
         if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'
@@ -192,7 +192,7 @@ jobs:
             cat /tmp/changelog_entry.txt >> /tmp/CHANGELOG.md
             tail -n +$((LINE_NUM + 1)) CHANGELOG.md >> /tmp/CHANGELOG.md
             mv /tmp/CHANGELOG.md CHANGELOG.md
-            echo "✅ Updated CHANGELOG.md"
+            echo "[OK] Updated CHANGELOG.md"
           else
             echo "::warning::Could not find [Unreleased] section in CHANGELOG.md"
           fi
@@ -247,4 +247,4 @@ jobs:
             --label "automated" \
             --reviewer "bitwize-music"
 
-          echo "✅ PR created"
+          echo "[OK] PR created"

@@ -88,9 +88,9 @@ jobs:
 
         # Check if this version exists in CHANGELOG
         if grep -q "## \[$VERSION\]" CHANGELOG.md; then
-          echo "✅ CHANGELOG.md contains release notes for version $VERSION"
+          echo "[OK] CHANGELOG.md contains release notes for version $VERSION"
         else
-          echo "⚠️  WARNING: CHANGELOG.md does not contain section for version $VERSION"
+          echo "[WARN] CHANGELOG.md does not contain section for version $VERSION"
           echo ""
           echo "The release was created, but please update CHANGELOG.md manually:"
           echo "1. Rename [Unreleased] to [$VERSION] - $(date +%Y-%m-%d)"

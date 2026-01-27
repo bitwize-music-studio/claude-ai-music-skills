@@ -35,9 +35,9 @@ jobs:
             with open('.claude-plugin/plugin.json') as f:
                 import json
                 json.load(f)
-            print('✓ plugin.json is valid')
+            print('[OK] plugin.json is valid')
         except Exception as e:
-            print(f'✗ plugin.json validation failed: {e}')
+            print(f'[FAIL] plugin.json validation failed: {e}')
             sys.exit(1)
 
         # Validate marketplace.json can be read
@@ -45,18 +45,18 @@ jobs:
             with open('.claude-plugin/marketplace.json') as f:
                 import json
                 json.load(f)
-            print('✓ marketplace.json is valid')
+            print('[OK] marketplace.json is valid')
         except Exception as e:
-            print(f'✗ marketplace.json validation failed: {e}')
+            print(f'[FAIL] marketplace.json validation failed: {e}')
             sys.exit(1)
 
         # Validate config.example.yaml
         try:
             with open('config/config.example.yaml') as f:
                 yaml.safe_load(f)
-            print('✓ config.example.yaml is valid')
+            print('[OK] config.example.yaml is valid')
         except Exception as e:
-            print(f'✗ config.example.yaml validation failed: {e}')
+            print(f'[FAIL] config.example.yaml validation failed: {e}')
             sys.exit(1)
         "
 
@@ -78,14 +78,14 @@ jobs:
         print(f'marketplace.json version: {marketplace_version}')
 
         if plugin_version != marketplace_version:
-            print('✗ ERROR: Version mismatch!')
+            print('[FAIL] ERROR: Version mismatch!')
             print(f'  plugin.json:      {plugin_version}')
             print(f'  marketplace.json: {marketplace_version}')
             print('')
             print('Fix by updating both files to the same version.')
             sys.exit(1)
 
-        print('✓ Versions match')
+        print('[OK] Versions match')
         "
 
     - name: Check SKILL.md structure
@@ -103,12 +103,12 @@ jobs:
                 missing_skill_md.append(skill_md_path)
 
         if missing_skill_md:
-            print('✗ Missing SKILL.md files:')
+            print('[FAIL] Missing SKILL.md files:')
             for path in missing_skill_md:
                 print(f'  - {path}')
             sys.exit(1)
 
-        print(f'✓ All {len(skill_dirs)} skills have SKILL.md')
+        print(f'[OK] All {len(skill_dirs)} skills have SKILL.md')
         "
 
     - name: Validation summary

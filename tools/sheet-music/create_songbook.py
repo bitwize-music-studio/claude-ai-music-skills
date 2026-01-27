@@ -374,7 +374,7 @@ def create_songbook(
 
     # Summary
     total_pages = len(writer.pages)
-    print(f"\n✓ Songbook created: {total_pages} page(s)")
+    print(f"\n[OK] Songbook created: {total_pages} page(s)")
     print(f"  Title: {title}")
     print(f"  Artist: {artist}")
     print(f"  Tracks: {len(pdf_files)}")
