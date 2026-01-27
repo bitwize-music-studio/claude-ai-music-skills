@@ -25,6 +25,8 @@ Override files let you customize skill behavior without editing plugin files.
 
 ## Available Override Files
 
+All files below have examples in this directory.
+
 | File | Used By | Purpose |
 |------|---------|---------|
 | `CLAUDE.md` | Main workflow | Custom workflow instructions |
@@ -36,7 +38,7 @@ Override files let you customize skill behavior without editing plugin files.
 | `album-art-preferences.md` | `/album-art-director` | Visual style preferences |
 | `research-preferences.md` | `/researcher` | Research workflow preferences |
 | `release-preferences.md` | `/release-director` | Release workflow preferences |
-| `mastering-presets.yaml` | `/mastering-engineer` | Custom genre presets |
+| `mastering-presets.yaml` | `/mastering-engineer` | Custom genre presets (YAML format) |
 | `sheet-music-preferences.md` | `/sheet-music-publisher` | Sheet music preferences |
 
 ## How Overrides Work

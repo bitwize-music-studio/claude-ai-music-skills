@@ -1,0 +1,22 @@
+# Custom Mastering Presets
+#
+# Override default genre presets for mastering.
+# Values are in dB unless noted.
+
+genres:
+  # Example: darker electronic with more sub bass
+  # dark-electronic:
+  #   cut_highmid: -3      # More aggressive high-mid cut
+  #   boost_sub: 2         # Extra sub bass
+  #   target_lufs: -12     # Louder master
+
+  # Example: ambient with more dynamics
+  # ambient:
+  #   cut_highmid: -1      # Gentle cut
+  #   boost_sub: 0         # Natural bass
+  #   target_lufs: -16     # Quieter, more dynamic range
+
+# Default settings (applied to all genres unless overridden)
+defaults:
+  # target_lufs: -14       # Streaming standard
+  # true_peak: -1.0        # dBTP ceiling
