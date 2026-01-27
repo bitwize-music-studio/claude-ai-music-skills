@@ -272,7 +272,8 @@ Common issues:
 **Next Steps:**
 1. Review videos: Open promo_videos/ folder
 2. Test on phone: Transfer one video and verify quality
-3. Ready for release workflow: /bitwize-music:release-director {album}
+3. [Optional] Upload to cloud: /bitwize-music:cloud-uploader {album}
+4. Ready for release workflow: /bitwize-music:release-director {album}
 ```
 
 ## Technical Details
@@ -419,6 +420,8 @@ After mastering complete:
 After promo generation:
 ```
 Promo videos generated successfully.
+
+**Optional:** Upload to cloud storage: /bitwize-music:cloud-uploader my-album
 
 Ready for release workflow: /bitwize-music:release-director my-album
 ```

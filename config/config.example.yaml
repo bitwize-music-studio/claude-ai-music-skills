@@ -155,3 +155,37 @@ sheet_music:
   # Include section headers (Verse, Chorus, etc.) in songbook PDFs
   # Set to true to show [Verse], [Chorus] labels above each section
   section_headers: false
+
+# =============================================================================
+# CLOUD STORAGE (Optional)
+# =============================================================================
+# Settings for /bitwize-music:cloud-uploader skill
+# Upload promo videos to Cloudflare R2 or AWS S3
+# See /reference/cloud/setup-guide.md for detailed setup instructions
+
+# cloud:
+  # Master switch - must be true to enable uploads
+  # enabled: true
+
+  # Provider: "r2" (Cloudflare R2) or "s3" (AWS S3)
+  # R2 recommended: no egress fees, built-in CDN
+  # provider: "r2"
+
+  # Cloudflare R2 configuration
+  # Get credentials: Cloudflare Dashboard → R2 → Manage R2 API Tokens
+  # r2:
+  #   account_id: "your-32-char-account-id"      # From R2 dashboard sidebar
+  #   access_key_id: "your-r2-access-key"        # From API token creation
+  #   secret_access_key: "your-r2-secret-key"    # From API token creation
+  #   bucket: "promo-videos"                     # Your R2 bucket name
+
+  # AWS S3 configuration
+  # Get credentials: AWS IAM → Users → Security credentials → Access keys
+  # s3:
+  #   region: "us-west-2"                        # Your bucket's region
+  #   access_key_id: "AKIAIOSFODNN7EXAMPLE"      # IAM access key
+  #   secret_access_key: "wJalrXUtnFEMI/..."     # IAM secret key
+  #   bucket: "my-promo-bucket"                  # Your S3 bucket name
+
+  # Upload settings
+  # public_read: false    # Set true to make uploads publicly accessible

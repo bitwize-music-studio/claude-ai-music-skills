@@ -7,6 +7,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- `/bitwize-music:cloud-uploader` skill for uploading promo videos to Cloudflare R2 or AWS S3
+  - Uses boto3 S3-compatible API (works with both R2 and S3)
+  - Dry-run mode for previewing uploads
+  - Public/private upload options
+  - Path organization: `{bucket}/{artist}/{album}/promos/`
+  - Comprehensive setup guide in `/reference/cloud/setup-guide.md`
+  - Config section added to `config/config.example.yaml`
 
 ### Changed
 

@@ -188,7 +188,29 @@ Not every track needs a promo video on every platform.
 - Singles only
 - Most energetic moments
 
-### Step 6: Platform Upload
+### Step 6: Cloud Upload (Optional)
+
+Upload promo videos to cloud storage for hosting and CDN distribution.
+
+**Use skill:**
+```
+/bitwize-music:cloud-uploader my-album
+```
+
+**Or run script directly:**
+```bash
+cd {plugin_root}
+python3 tools/cloud/upload_to_cloud.py my-album --dry-run  # Preview first
+python3 tools/cloud/upload_to_cloud.py my-album            # Then upload
+```
+
+**Supports:**
+- Cloudflare R2 (recommended, no egress fees)
+- AWS S3
+
+See `/reference/cloud/setup-guide.md` for setup instructions.
+
+### Step 7: Platform Upload
 
 See `platform-specs.md` for detailed requirements.
 
@@ -225,7 +247,7 @@ See `platform-specs.md` for detailed requirements.
 4. Add caption
 5. Post to page
 
-### Step 7: Track Performance (Optional)
+### Step 8: Track Performance (Optional)
 
 Monitor engagement:
 - Views
@@ -398,13 +420,16 @@ After generating promo videos:
 
 1. **Review all videos** - Quality check
 2. **Select key tracks** - Which to promote where
-3. **Write captions** - Prepare copy for posts
-4. **Schedule posts** - Plan timing
-5. **Continue to release workflow** - `/bitwize-music:release-director`
+3. **[Optional] Upload to cloud** - `/bitwize-music:cloud-uploader`
+4. **Write captions** - Prepare copy for posts
+5. **Schedule posts** - Plan timing
+6. **Continue to release workflow** - `/bitwize-music:release-director`
 
 ## Related Documentation
 
 - `/skills/promo-director/SKILL.md` - Skill documentation
+- `/skills/cloud-uploader/SKILL.md` - Cloud upload skill
+- `/reference/cloud/setup-guide.md` - Cloud storage setup
 - `/skills/promo-director/visualization-guide.md` - Style guide
 - `/reference/promotion/platform-specs.md` - Platform requirements
 - `/reference/promotion/ffmpeg-reference.md` - Technical details

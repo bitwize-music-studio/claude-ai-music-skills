@@ -417,6 +417,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
 | `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
 | `/bitwize-music:promo-director` | Generate promo videos for social media from mastered audio |
+| `/bitwize-music:cloud-uploader` | Upload promo videos to Cloudflare R2 or AWS S3 |
 | `/bitwize-music:sheet-music-publisher` | Convert audio to sheet music, create songbooks |
 | `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
 | `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |

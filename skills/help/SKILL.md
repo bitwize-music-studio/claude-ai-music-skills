@@ -56,6 +56,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:album-art-director` - Visual concepts and AI art prompts
 - `/bitwize-music:mastering-engineer` - Audio mastering guidance
 - `/bitwize-music:promo-director` - Generate promo videos for social media
+- `/bitwize-music:cloud-uploader` - Upload promo videos to Cloudflare R2 or AWS S3
 - `/bitwize-music:sheet-music-publisher` - Convert audio to sheet music
 - `/bitwize-music:release-director` - Release coordination and distribution
 
@@ -84,7 +85,8 @@ Display this help information to the user in a clear, organized format.
 5. Generate in Suno, log results
 6. Master audio with `/bitwize-music:mastering-engineer`
 7. [Optional] Generate promo videos with `/bitwize-music:promo-director`
-8. Release with `/bitwize-music:release-director`
+8. [Optional] Upload to cloud with `/bitwize-music:cloud-uploader`
+9. Release with `/bitwize-music:release-director`
 
 **True-Story Albums (with research):**
 1. Use researcher skills to gather sources
