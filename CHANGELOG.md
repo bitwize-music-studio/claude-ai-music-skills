@@ -12,6 +12,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.14.2] - 2026-01-27
+
+### Fixed
+- Promo videos now read track titles from markdown frontmatter when `--album` specified
+  - Uses actual title from `{content_dir}/tracks/*.md` instead of filename
+  - Falls back to uppercase filename conversion if markdown not found
+- Improved special character escaping for ffmpeg drawtext filter
+  - Handles apostrophes, quotes, backticks, colons, semicolons, brackets, ampersands
+  - Prevents ffmpeg errors on tracks with special characters in titles
+
 ## [0.14.1] - 2026-01-27
 
 ### Fixed
