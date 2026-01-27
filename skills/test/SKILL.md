@@ -168,6 +168,25 @@ Each SKILL.md must have:
 - `model:` (required)
 - `allowed-tools:` (required, must be array)
 
+### TEST: Skills with external deps have requirements field
+Skills that require external tools or Python packages should have `requirements:` in frontmatter.
+
+Required for:
+- `mastering-engineer` - needs matchering, pyloudnorm, scipy, numpy, soundfile
+- `promo-director` - needs ffmpeg, pillow, librosa
+- `sheet-music-publisher` - needs AnthemScore, MuseScore, pypdf, reportlab
+- `document-hunter` - needs Playwright, chromium
+- `cloud-uploader` - needs boto3
+
+Check with:
+```bash
+for skill in mastering-engineer promo-director sheet-music-publisher document-hunter cloud-uploader; do
+  if ! grep -q "^requirements:" "skills/$skill/SKILL.md"; then
+    echo "MISSING: skills/$skill/SKILL.md needs requirements field"
+  fi
+done
+```
+
 ### TEST: All model references are valid
 Each skill's `model:` field must match the pattern:
 ```

@@ -10,6 +10,13 @@ allowed-tools:
   - Grep
   - Glob
   - Bash
+requirements:
+  python:
+    - matchering
+    - pyloudnorm
+    - scipy
+    - numpy
+    - soundfile
 ---
 
 ## Your Task

@@ -6,6 +6,9 @@ allowed-tools:
   - Read
   - Bash
   - Glob
+requirements:
+  python:
+    - boto3
 ---
 
 # Cloud Uploader Skill

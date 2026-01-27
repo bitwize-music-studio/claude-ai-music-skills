@@ -9,6 +9,13 @@ allowed-tools:
   - Read
   - Glob
   - WebSearch
+requirements:
+  external:
+    - name: Chromium
+      purpose: Browser for Playwright automation
+      install: "playwright install chromium"
+  python:
+    - playwright
 ---
 
 ## Your Task

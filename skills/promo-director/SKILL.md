@@ -6,6 +6,16 @@ allowed-tools:
   - Read
   - Bash
   - Glob
+requirements:
+  external:
+    - name: ffmpeg
+      purpose: Video generation and audio visualization
+      install: "brew install ffmpeg (macOS) or apt install ffmpeg (Linux)"
+      notes: "Requires showwaves, showfreqs, drawtext, gblur filters"
+  python:
+    - pillow
+    - librosa
+    - pyyaml
 ---
 
 # Promo Director Skill
