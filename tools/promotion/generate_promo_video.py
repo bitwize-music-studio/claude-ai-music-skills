@@ -417,6 +417,28 @@ def generate_waveform_video(
         return False
 
 
+def get_title_from_markdown(track_md_path: Path) -> Optional[str]:
+    """Extract title from track markdown frontmatter."""
+    try:
+        content = track_md_path.read_text()
+        if content.startswith('---'):
+            # Parse YAML frontmatter
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                frontmatter = parts[1]
+                for line in frontmatter.split('\n'):
+                    if line.strip().startswith('title:'):
+                        title = line.split(':', 1)[1].strip()
+                        # Remove quotes if present
+                        if (title.startswith('"') and title.endswith('"')) or \
+                           (title.startswith("'") and title.endswith("'")):
+                            title = title[1:-1]
+                        return title
+    except Exception:
+        pass
+    return None
+
+
 def batch_process_album(
     album_dir: Path,
     artwork_path: Path,
@@ -424,7 +446,8 @@ def batch_process_album(
     duration: int = DEFAULT_DURATION,
     style: str = "bars",
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None
+    font_path: Optional[str] = None,
+    content_dir: Optional[Path] = None
 ):
     """Process all audio files in an album directory."""
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
@@ -441,17 +464,37 @@ def batch_process_album(
         return
 
     print(f"Found {len(audio_files)} tracks")
+    if content_dir:
+        print(f"  Reading titles from: {content_dir}/tracks/")
 
     for audio_file in sorted(audio_files):
-        # Extract track name from filename
-        title = audio_file.stem
-        # Clean up common patterns (e.g., "08 - 116 Cadets" -> "116 Cadets")
-        if ' - ' in title:
-            title = title.split(' - ', 1)[-1]
-        else:
-            # Only remove 1-2 digit track numbers at start (not 3+ like "116")
-            import re
-            title = re.sub(r'^\d{1,2}[\.\-_\s]+', '', title)
+        title = None
+
+        # Try to get title from track markdown file
+        if content_dir:
+            # Match audio filename to track markdown
+            # e.g., "01-shell-no.wav" -> "01-shell-no.md"
+            track_md = content_dir / 'tracks' / f"{audio_file.stem}.md"
+            if track_md.exists():
+                title = get_title_from_markdown(track_md)
+                if title:
+                    print(f"  Found title for {audio_file.stem}: {title}")
+
+        # Fall back to filename-based title
+        if not title:
+            title = audio_file.stem
+            # Clean up common patterns (e.g., "08 - 116 Cadets" -> "116 Cadets")
+            if ' - ' in title:
+                title = title.split(' - ', 1)[-1]
+            else:
+                # Only remove 1-2 digit track numbers at start (not 3+ like "116")
+                import re
+                title = re.sub(r'^\d{1,2}[\.\-_\s]+', '', title)
+
+            # Convert filename format to display format
+            # "shell-no" -> "SHELL NO", "t-day" -> "T-DAY"
+            title = title.replace('-', ' ').replace('_', ' ')
+            title = title.upper()  # All caps for video display
 
         output_file = output_dir / f"{audio_file.stem}_promo.mp4"
 
@@ -532,6 +575,7 @@ Examples:
 
     if args.batch:
         # Batch mode
+        album_content_dir = None  # Will be set if --album provided
         if args.batch_artwork:
             artwork = args.batch_artwork
         else:
@@ -560,21 +604,23 @@ Examples:
                         break
 
             # 3. Check content directory via config
-            if not artwork and args.album:
+            album_content_dir = None
+            if args.album:
                 content_root = Path(config.get('paths', {}).get('content_root', '')).expanduser()
                 if content_root.exists():
                     # Search for album in content directory
                     for genre_dir in (content_root / 'artists' / artist_name / 'albums').glob('*'):
-                        album_content_dir = genre_dir / args.album
-                        if album_content_dir.exists():
-                            for pattern in artwork_patterns:
-                                candidate = album_content_dir / pattern
-                                if candidate.exists():
-                                    artwork = candidate
-                                    print(f"  Found artwork in content dir: {artwork}")
-                                    break
-                            if artwork:
-                                break
+                        candidate_dir = genre_dir / args.album
+                        if candidate_dir.exists():
+                            album_content_dir = candidate_dir
+                            if not artwork:
+                                for pattern in artwork_patterns:
+                                    candidate = album_content_dir / pattern
+                                    if candidate.exists():
+                                        artwork = candidate
+                                        print(f"  Found artwork in content dir: {artwork}")
+                                        break
+                            break
 
             if not artwork:
                 print("Error: No artwork found")
@@ -596,7 +642,8 @@ Examples:
             duration=args.duration,
             style=args.style,
             artist_name=artist_name,
-            font_path=font_path
+            font_path=font_path,
+            content_dir=album_content_dir
         )
 
     else:
