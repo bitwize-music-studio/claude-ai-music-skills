@@ -169,10 +169,25 @@ Each SKILL.md must have:
 - `allowed-tools:` (required, must be array)
 
 ### TEST: All model references are valid
-Valid models:
-- `claude-sonnet-4-5-20250929`
+Each skill's `model:` field must match the pattern:
+```
+claude-(opus|sonnet|haiku)-[0-9]+-[0-9]+-[0-9]{8}
+```
+
+Examples of valid models:
 - `claude-opus-4-5-20251101`
+- `claude-sonnet-4-5-20250929`
 - `claude-haiku-4-5-20251001`
+
+Check with:
+```bash
+for f in skills/*/SKILL.md; do
+  model=$(grep -E '^model:' "$f" | sed 's/model: *//')
+  if ! echo "$model" | grep -qE '^claude-(opus|sonnet|haiku)-[0-9]+-[0-9]+-[0-9]{8}$'; then
+    echo "INVALID: $f has model: $model"
+  fi
+done
+```
 
 ### TEST: Skill count in README matches actual
 1. Count: `ls -1 skills/ | wc -l`
