@@ -169,7 +169,7 @@ python3 tools/cloud/upload_to_cloud.py {album} --public
 - {artist}/{album}/promos/01-track_promo.mp4
 - {artist}/{album}/promos/02-track_promo.mp4
 - ...
-- {artist}/{album}/album_sampler.mp4
+- {artist}/{album}/promos/album_sampler.mp4
 
 **Total:** 11 files, 125.4 MB
 
@@ -181,18 +181,32 @@ python3 tools/cloud/upload_to_cloud.py {album} --public
 
 ## Upload Path Structure
 
+**IMPORTANT: Cloud paths are FLAT - no genre folder.**
+
+The cloud path structure is different from the local content structure:
+
+| Location | Path Structure |
+|----------|----------------|
+| Local content | `{content_root}/artists/{artist}/albums/{genre}/{album}/` |
+| Local audio | `{audio_root}/{artist}/{album}/` |
+| **Cloud** | `{artist}/{album}/` (no genre!) |
+
 Files are organized in the bucket as:
 
 ```
 {bucket}/
 └── {artist}/
     └── {album}/
-        ├── promos/
-        │   ├── 01-track_promo.mp4
-        │   ├── 02-track_promo.mp4
-        │   └── ...
-        └── album_sampler.mp4
+        └── promos/
+            ├── 01-track_promo.mp4
+            ├── 02-track_promo.mp4
+            ├── ...
+            └── album_sampler.mp4
 ```
+
+**Example for album "my-album" by "bitwize" in rock genre:**
+- Local: `~/music/artists/bitwize/albums/rock/my-album/`
+- Cloud: `bitwize/my-album/promos/` (NOT `bitwize/albums/rock/my-album/`)
 
 ## Command Options
 

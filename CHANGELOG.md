@@ -12,6 +12,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.14.3] - 2026-01-27
+
+### Changed
+- Promo video titles now use Title Case instead of ALL CAPS when derived from filenames
+- Album sampler now saved in `promo_videos/` folder alongside track promos (was at album root)
+- Cloud uploader puts all promos in same folder (`{artist}/{album}/promos/`)
+
+### Fixed
+- Cloud uploader documentation clarifies flat path structure (no genre folder in cloud paths)
+- Config README updated with all current settings (promotion, sheet_music, cloud sections)
+
 ## [0.14.2] - 2026-01-27
 
 ### Fixed

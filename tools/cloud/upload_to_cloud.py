@@ -326,11 +326,8 @@ Examples:
     failed = 0
 
     for file_path in files:
-        # Determine S3 key based on file location
-        if file_path.parent.name == "promo_videos":
-            s3_key = f"{artist}/{args.album}/promos/{file_path.name}"
-        else:
-            s3_key = f"{artist}/{args.album}/{file_path.name}"
+        # All promo content goes in the promos folder (track promos + album sampler)
+        s3_key = f"{artist}/{args.album}/promos/{file_path.name}"
 
         if upload_file(s3_client, bucket, file_path, s3_key, public_read, args.dry_run):
             successful += 1

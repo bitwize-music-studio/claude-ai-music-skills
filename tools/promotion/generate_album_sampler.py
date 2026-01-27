@@ -508,8 +508,13 @@ Examples:
             print("  Specify with: --artwork /path/to/artwork.png")
             sys.exit(1)
 
-    # Set output path
-    output = args.output or args.tracks_dir.parent / 'album_sampler.mp4'
+    # Set output path (default to promo_videos folder)
+    if args.output:
+        output = args.output
+    else:
+        promo_dir = args.tracks_dir.parent / 'promo_videos'
+        promo_dir.mkdir(exist_ok=True)
+        output = promo_dir / 'album_sampler.mp4'
 
     # Calculate expected duration
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}

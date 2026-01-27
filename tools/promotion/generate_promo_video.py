@@ -509,9 +509,9 @@ def batch_process_album(
                 title = re.sub(r'^\d{1,2}[\.\-_\s]+', '', title)
 
             # Convert filename format to display format
-            # "shell-no" -> "SHELL NO", "t-day" -> "T-DAY"
+            # "my-song" -> "My Song", "track-name" -> "Track Name"
             title = title.replace('-', ' ').replace('_', ' ')
-            title = title.upper()  # All caps for video display
+            title = title.title()  # Title case for video display
 
         output_file = output_dir / f"{audio_file.stem}_promo.mp4"
 

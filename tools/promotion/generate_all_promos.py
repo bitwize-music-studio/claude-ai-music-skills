@@ -169,7 +169,7 @@ Examples:
         print("GENERATING ALBUM SAMPLER")
         print("=" * 50)
 
-        sampler_output = album_dir / "album_sampler.mp4"
+        sampler_output = album_dir / "promo_videos" / "album_sampler.mp4"
 
         cmd = [
             sys.executable,
@@ -199,7 +199,7 @@ Examples:
         print(f"  {promo_count} videos generated")
 
     if not args.tracks_only:
-        sampler = album_dir / "album_sampler.mp4"
+        sampler = album_dir / "promo_videos" / "album_sampler.mp4"
         if sampler.exists():
             size_mb = sampler.stat().st_size / (1024 * 1024)
             print(f"Album sampler: {sampler}")

@@ -34,22 +34,49 @@ artist:
   genres:
     - "electronic"
     - "hip-hop"
+  # style: "dark industrial electronic with aggressive vocals"  # Optional
 
 # Paths (all support ~ for home directory)
 paths:
   content_root: "~/music-projects"           # Albums, artists, research
   audio_root: "~/music-projects/audio"       # Mastered audio output
-  documents_root: "~/music-projects/docs"    # PDFs, primary sources
+  documents_root: "~/music-projects/documents"  # PDFs, primary sources
   overrides: "~/music-projects/overrides"    # Optional overrides directory
   ideas_file: "~/music-projects/IDEAS.md"    # Album ideas tracking file
 
 # Platform URLs
 urls:
   soundcloud: "https://soundcloud.com/your-artist"
+  # spotify: "https://open.spotify.com/artist/..."
+  # bandcamp: "https://your-artist.bandcamp.com"
+  # youtube: "https://youtube.com/@your-artist"
+  # twitter: "https://x.com/your-artist"
 
 # Generation service
 generation:
   service: suno
+
+# Promo videos (optional)
+# promotion:
+#   default_style: "pulse"      # pulse, bars, line, mirror, etc.
+#   duration: 15                # seconds
+#   include_sampler: true
+#   sampler_clip_duration: 12
+
+# Sheet music (optional)
+sheet_music:
+  page_size: "letter"           # letter, 9x12, 6x9
+  section_headers: false
+
+# Cloud storage (optional)
+# cloud:
+#   enabled: true
+#   provider: "r2"              # r2 or s3
+#   r2:
+#     account_id: "..."
+#     access_key_id: "..."
+#     secret_access_key: "..."
+#     bucket: "promo-videos"
 ```
 
 ### Path Structure
@@ -75,19 +102,62 @@ The `~/.bitwize-music/` directory also contains:
 
 ## Settings Reference
 
+### Core Settings
+
 | Setting | Required | Description |
 |---------|----------|-------------|
 | `artist.name` | Yes | Your artist/project name |
 | `artist.genres` | No | Primary genres (array) |
+| `artist.style` | No | Brief style description to help Claude understand your vibe |
 | `paths.content_root` | Yes | Where albums and artists live |
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |
-| `paths.overrides` | No | Directory containing override files for skills and workflows. Defaults to `{content_root}/overrides` if not set. |
-| `paths.ideas_file` | No | File for tracking album ideas. Defaults to `{content_root}/IDEAS.md` if not set. Managed by `/bitwize-music:album-ideas` skill. |
+| `paths.overrides` | No | Directory for override files. Defaults to `{content_root}/overrides` |
+| `paths.ideas_file` | No | Album ideas file. Defaults to `{content_root}/IDEAS.md` |
 | `urls.soundcloud` | No | SoundCloud profile URL |
 | `urls.spotify` | No | Spotify artist URL |
 | `urls.bandcamp` | No | Bandcamp URL |
+| `urls.youtube` | No | YouTube channel URL |
+| `urls.twitter` | No | Twitter/X profile URL |
 | `generation.service` | No | Music service (default: `suno`) |
+
+### Promo Videos (`promotion:`)
+
+Settings for `/bitwize-music:promo-director` skill.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `promotion.default_style` | No | Visualization style: `pulse`, `bars`, `line`, `mirror`, `mountains`, `colorwave`, `neon`, `dual`, `circular` |
+| `promotion.duration` | No | Video duration in seconds (default: 15) |
+| `promotion.include_sampler` | No | Generate album sampler video (default: true) |
+| `promotion.sampler_clip_duration` | No | Seconds per track in sampler (default: 12) |
+
+### Sheet Music (`sheet_music:`)
+
+Settings for `/bitwize-music:sheet-music-publisher` skill.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `sheet_music.page_size` | No | Page size: `letter`, `9x12`, `6x9` (default: letter) |
+| `sheet_music.section_headers` | No | Include [Verse], [Chorus] labels (default: false) |
+
+### Cloud Storage (`cloud:`)
+
+Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-guide.md` for setup.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `cloud.enabled` | No | Master switch to enable uploads |
+| `cloud.provider` | No | `r2` (Cloudflare R2) or `s3` (AWS S3) |
+| `cloud.public_read` | No | Make uploads publicly accessible |
+| `cloud.r2.account_id` | If R2 | Cloudflare account ID |
+| `cloud.r2.access_key_id` | If R2 | R2 API access key |
+| `cloud.r2.secret_access_key` | If R2 | R2 API secret key |
+| `cloud.r2.bucket` | If R2 | R2 bucket name |
+| `cloud.s3.region` | If S3 | AWS region |
+| `cloud.s3.access_key_id` | If S3 | IAM access key |
+| `cloud.s3.secret_access_key` | If S3 | IAM secret key |
+| `cloud.s3.bucket` | If S3 | S3 bucket name |
 
 ## Missing Config
 
