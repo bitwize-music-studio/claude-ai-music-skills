@@ -13,8 +13,14 @@ Usage:
     # Single track
     python generate_promo_video.py track.wav artwork.png "Track Name" -o output.mp4
 
-    # Batch process album
-    python generate_promo_video.py --batch /path/to/album --artwork album.png
+    # Batch process album (auto-finds artwork in folder)
+    python generate_promo_video.py --batch /path/to/album
+
+    # Batch with explicit artwork path
+    python generate_promo_video.py --batch /path/to/album --batch-artwork /path/to/artwork.png
+
+    # Batch with album name (checks content directory for artwork)
+    python generate_promo_video.py --batch /path/to/album --album my-album
 
     # Custom duration and style
     python generate_promo_video.py track.wav art.png "Song" --duration 30 --style circular
@@ -475,8 +481,14 @@ Examples:
     # Single track
     python generate_promo_video.py song.wav cover.png "Song Title"
 
-    # Full album
-    python generate_promo_video.py --batch ./mastered --artwork album.png -o ./videos
+    # Full album (auto-finds artwork)
+    python generate_promo_video.py --batch ./mastered -o ./videos
+
+    # Full album with explicit artwork
+    python generate_promo_video.py --batch ./mastered --batch-artwork /path/to/art.png
+
+    # Full album checking content dir for artwork
+    python generate_promo_video.py --batch ./mastered --album my-album
 
     # 30 second clip with line style
     python generate_promo_video.py song.wav cover.png "Title" --duration 30 --style line
@@ -489,6 +501,8 @@ Examples:
 
     parser.add_argument('--batch', type=Path,
                         help='Batch process all audio in directory')
+    parser.add_argument('--batch-artwork', type=Path, dest='batch_artwork',
+                        help='Path to album artwork (for batch mode)')
     parser.add_argument('-o', '--output', type=Path,
                         help='Output path (file or directory for batch)')
     parser.add_argument('--duration', '-d', type=int, default=DEFAULT_DURATION,
@@ -499,6 +513,8 @@ Examples:
                         help='Start time in seconds (auto-detect if not set)')
     parser.add_argument('--artist', type=str,
                         help='Artist name (read from config if not set)')
+    parser.add_argument('--album', type=str,
+                        help='Album name (for finding artwork in content directory)')
 
     args = parser.parse_args()
 
@@ -516,7 +532,9 @@ Examples:
 
     if args.batch:
         # Batch mode
-        if not args.artwork:
+        if args.batch_artwork:
+            artwork = args.batch_artwork
+        else:
             # Try to find artwork with multiple naming patterns
             artwork_patterns = [
                 'album.png', 'album.jpg',
@@ -525,27 +543,49 @@ Examples:
                 'cover.png', 'cover.jpg'
             ]
             artwork = None
+
+            # 1. Check batch directory (audio folder)
             for pattern in artwork_patterns:
                 candidate = args.batch / pattern
                 if candidate.exists():
                     artwork = candidate
                     break
 
+            # 2. Check parent directory
             if not artwork:
-                # Try parent directory
                 for pattern in artwork_patterns:
                     candidate = args.batch.parent / pattern
                     if candidate.exists():
                         artwork = candidate
                         break
 
+            # 3. Check content directory via config
+            if not artwork and args.album:
+                content_root = Path(config.get('paths', {}).get('content_root', '')).expanduser()
+                if content_root.exists():
+                    # Search for album in content directory
+                    for genre_dir in (content_root / 'artists' / artist_name / 'albums').glob('*'):
+                        album_content_dir = genre_dir / args.album
+                        if album_content_dir.exists():
+                            for pattern in artwork_patterns:
+                                candidate = album_content_dir / pattern
+                                if candidate.exists():
+                                    artwork = candidate
+                                    print(f"  Found artwork in content dir: {artwork}")
+                                    break
+                            if artwork:
+                                break
+
             if not artwork:
-                print("Error: No artwork found in album directory")
-                print("  Looked for: album.png, album.jpg, album-art.png, artwork.png, cover.png")
-                print("  Specify with: --artwork /path/to/artwork.png")
+                print("Error: No artwork found")
+                print("  Looked in:")
+                print(f"    - {args.batch}/")
+                print(f"    - {args.batch.parent}/")
+                if args.album:
+                    print(f"    - content directory for album '{args.album}'")
+                print("  Specify with: --batch-artwork /path/to/artwork.png")
+                print("  Or use: /bitwize-music:import-art to copy artwork to audio folder")
                 sys.exit(1)
-        else:
-            artwork = Path(args.artwork)
 
         output_dir = args.output or args.batch / 'promo_videos'
 
