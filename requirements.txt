@@ -1,0 +1,36 @@
+# Claude AI Music Skills - Python Dependencies
+# Install all: pip install -r requirements.txt
+# Or install by feature as needed
+
+# =============================================================================
+# AUDIO MASTERING (required for /bitwize-music:mastering-engineer)
+# =============================================================================
+matchering>=2.0.6
+pyloudnorm>=0.1.1
+scipy>=1.10.0
+numpy>=1.24.0
+soundfile>=0.12.1
+
+# =============================================================================
+# PROMO VIDEOS (required for /bitwize-music:promo-director)
+# =============================================================================
+pillow>=10.0.0
+librosa>=0.10.0
+
+# =============================================================================
+# SHEET MUSIC (required for /bitwize-music:sheet-music-publisher)
+# =============================================================================
+pypdf>=3.0.0
+reportlab>=4.0.0
+pyyaml>=6.0
+
+# =============================================================================
+# CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
+# =============================================================================
+boto3>=1.28.0
+
+# =============================================================================
+# DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
+# After pip install, also run: playwright install chromium
+# =============================================================================
+playwright>=1.40.0

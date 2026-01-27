@@ -7,10 +7,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- Root `requirements.txt` consolidating all Python dependencies by feature (mastering, promo videos, sheet music, cloud uploads, document hunting)
+- Regression test for README skill count matching actual skill directory count
+- Regression test to prevent accidental skill.json files (standard is SKILL.md)
+- Genre validation test to catch mismatched genre references
 
 ### Changed
+- Standardized co-author line in CONTRIBUTING.md to use "Claude Opus 4.5" (was inconsistently using Sonnet)
 
 ### Fixed
+- README.md skill count corrected from 32 to 38
+- Removed accidental `skill.json` from resume skill (SKILL.md is the standard format)
 
 ## [0.14.3] - 2026-01-27
 

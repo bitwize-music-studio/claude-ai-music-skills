@@ -952,6 +952,29 @@ Read .gitignore. Verify it includes:
 - `mastering-env/`
 - `TESTING.md`
 
+### TEST: No skill.json files exist (standard is SKILL.md)
+```bash
+find skills -name "skill.json" -type f
+```
+Should return zero results. All skills must use SKILL.md format.
+
+This test was added after an accidental skill.json was found in the resume skill.
+
+### TEST: Genre references match genres/ directory
+1. List valid genres:
+   ```bash
+   ls -1 genres/
+   ```
+2. Search for genre references in templates and documentation:
+   - `templates/album.md` - genre field examples
+   - `skills/new-album/SKILL.md` - genre parameter
+   - `CLAUDE.md` - genre examples
+3. Any genre referenced in examples must exist in `genres/` directory
+4. Common issues to catch:
+   - `hiphop` vs `hip-hop` (hyphenation)
+   - `synth-wave` vs `synthwave` (hyphenation)
+   - References to genres without documentation
+
 ---
 
 ## 10. TERMINOLOGY TESTS (`/test terminology`)
@@ -1102,6 +1125,13 @@ Verify it includes ASCII box diagram showing:
 - Concept → Research → Write → Generate → Master → Release
 - Specific actions under each phase
 - Visual representation (not just text list)
+
+### TEST: README skill count matches actual (regression)
+1. Count skill directories: `ls -1 skills/ | wc -l`
+2. Read README.md and extract the number from "collection of **XX specialized skills**"
+3. The counts must match exactly
+
+This test was added after the README claimed 32 skills when there were actually 38.
 
 ### TEST: CLAUDE.md has required sections
 Read CLAUDE.md and verify these sections exist:

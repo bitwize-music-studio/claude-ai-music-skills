@@ -9,7 +9,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 ## What Is This?
 
-This is a collection of **32 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
+This is a collection of **38 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
 
 **What you get:**
 - Structured workflow from idea to released album
@@ -62,6 +62,12 @@ Not required, but I'd love to hear what you create with this. Drop a tweet with 
 **Document hunting** (optional, for research):
 - Python 3.8+
 - Playwright (`pip install playwright && playwright install chromium`)
+
+**Install all optional dependencies at once:**
+```bash
+pip install -r requirements.txt
+playwright install chromium
+```
 
 Claude Code will prompt you to install these when needed.
 

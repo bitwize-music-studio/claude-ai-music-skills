@@ -87,7 +87,7 @@ We use [Conventional Commits](https://conventionalcommits.org/).
 
 <body>
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
 **Examples:**
@@ -96,13 +96,13 @@ git commit -m "feat: add sheet-music-publisher skill
 
 Add comprehensive sheet music generation workflow...
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 git commit -m "fix: correct audio path in import-audio skill
 
 Was missing artist folder in path construction.
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 ```
 
 **Commit types:**
