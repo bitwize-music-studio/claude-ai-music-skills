@@ -1,3 +1,13 @@
+---
+name: promo-director
+description: Generate promo videos for social media from mastered audio
+model: claude-sonnet-4-5-20250929
+allowed-tools:
+  - Read
+  - Bash
+  - Glob
+---
+
 # Promo Director Skill
 
 Generate professional promo videos for social media from mastered audio. Creates 15-second vertical videos (9:16, 1080x1920) optimized for Instagram Reels, Twitter, and TikTok.

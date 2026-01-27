@@ -1,3 +1,13 @@
+---
+name: resume
+description: Find an album and resume work where you left off
+argument-hint: <album-name>
+model: claude-sonnet-4-5-20250929
+allowed-tools:
+  - Read
+  - Glob
+---
+
 # Resume Album Work
 
 **Purpose**: Find an album and resume work where you left off.
