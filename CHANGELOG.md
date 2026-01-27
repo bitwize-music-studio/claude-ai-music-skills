@@ -11,6 +11,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - Regression test for README skill count matching actual skill directory count
 - Regression test to prevent accidental skill.json files (standard is SKILL.md)
 - Genre validation test to catch mismatched genre references
+- "What's New" section in README showing recent version highlights
 
 ### Changed
 - Standardized co-author line in CONTRIBUTING.md to use "Claude Opus 4.5" (was inconsistently using Sonnet)

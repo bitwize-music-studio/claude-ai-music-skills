@@ -21,6 +21,19 @@ This is a collection of **38 specialized skills** that turn Claude Code into a f
 
 ---
 
+## What's New
+
+See [CHANGELOG.md](CHANGELOG.md) for full history.
+
+| Version | Highlights |
+|---------|------------|
+| **0.14** | Cloud uploader for R2/S3, promo video generation for social media |
+| **0.13** | Promo director skill with 9 visualization styles |
+| **0.12** | Resume skill, troubleshooting guide, common mistakes docs |
+| **0.11** | Help skill for quick reference |
+
+---
+
 ## Behind the Music
 
 Want to know how this project came together? Read the full story:
