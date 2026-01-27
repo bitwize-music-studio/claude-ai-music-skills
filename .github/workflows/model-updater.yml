@@ -1,0 +1,249 @@
+name: Claude Model Updater
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # Every day at 9 AM UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Check only (no PR creation)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current date info
+        id: date
+        run: |
+          echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "iso=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
+
+      - name: Fetch latest models from Anthropic docs
+        id: fetch
+        run: |
+          # Fetch the models documentation page
+          DOCS_URL="https://platform.claude.com/docs/en/docs/about-claude/models"
+          PAGE=$(curl -sL "$DOCS_URL" --fail)
+
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to fetch Anthropic docs page"
+            exit 1
+          fi
+
+          # Extract model IDs from the page
+          # Pattern: claude-[tier]-[version]-[8-digit-date]
+          # Sort by date and take latest for each tier
+          OPUS=$(echo "$PAGE" | grep -oE 'claude-opus-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+          SONNET=$(echo "$PAGE" | grep -oE 'claude-sonnet-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+          HAIKU=$(echo "$PAGE" | grep -oE 'claude-haiku-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+
+          # Validate we found all models
+          if [ -z "$OPUS" ] || [ -z "$SONNET" ] || [ -z "$HAIKU" ]; then
+            echo "::error::Could not extract all model IDs from docs"
+            echo "  Opus: ${OPUS:-NOT FOUND}"
+            echo "  Sonnet: ${SONNET:-NOT FOUND}"
+            echo "  Haiku: ${HAIKU:-NOT FOUND}"
+            exit 1
+          fi
+
+          echo "Latest models discovered from docs:"
+          echo "  Opus: $OPUS"
+          echo "  Sonnet: $SONNET"
+          echo "  Haiku: $HAIKU"
+
+          echo "opus=$OPUS" >> $GITHUB_OUTPUT
+          echo "sonnet=$SONNET" >> $GITHUB_OUTPUT
+          echo "haiku=$HAIKU" >> $GITHUB_OUTPUT
+
+      - name: Check current models in skills
+        id: check
+        run: |
+          OPUS="${{ steps.fetch.outputs.opus }}"
+          SONNET="${{ steps.fetch.outputs.sonnet }}"
+          HAIKU="${{ steps.fetch.outputs.haiku }}"
+
+          UPDATES_NEEDED=false
+          OUTDATED_SKILLS=""
+
+          for skill_file in skills/*/SKILL.md; do
+            SKILL_NAME=$(dirname "$skill_file" | xargs basename)
+            CURRENT_MODEL=$(grep -E '^model:' "$skill_file" | head -1 | sed 's/model: *//')
+
+            # Determine target model based on current tier
+            if [[ "$CURRENT_MODEL" == *opus* ]]; then
+              TARGET="$OPUS"
+            elif [[ "$CURRENT_MODEL" == *sonnet* ]]; then
+              TARGET="$SONNET"
+            elif [[ "$CURRENT_MODEL" == *haiku* ]]; then
+              TARGET="$HAIKU"
+            else
+              echo "⚠ $SKILL_NAME: Unknown tier ($CURRENT_MODEL)"
+              continue
+            fi
+
+            if [ "$CURRENT_MODEL" != "$TARGET" ]; then
+              echo "⚠ $SKILL_NAME: $CURRENT_MODEL → $TARGET"
+              UPDATES_NEEDED=true
+              OUTDATED_SKILLS="$OUTDATED_SKILLS$SKILL_NAME:$CURRENT_MODEL:$TARGET\n"
+            else
+              echo "✓ $SKILL_NAME: $CURRENT_MODEL (current)"
+            fi
+          done
+
+          echo "updates_needed=$UPDATES_NEEDED" >> $GITHUB_OUTPUT
+          echo -e "$OUTDATED_SKILLS" > /tmp/outdated_skills.txt
+
+      - name: Exit if no updates needed
+        if: steps.check.outputs.updates_needed == 'false'
+        run: |
+          echo "✅ All skills use current models. No updates needed."
+          exit 0
+
+      - name: Exit if dry run
+        if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run == 'true'
+        run: |
+          echo "🔍 DRY RUN: Updates would be applied to:"
+          cat /tmp/outdated_skills.txt
+          exit 0
+
+      - name: Apply updates to skill files
+        if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          OPUS="${{ steps.fetch.outputs.opus }}"
+          SONNET="${{ steps.fetch.outputs.sonnet }}"
+          HAIKU="${{ steps.fetch.outputs.haiku }}"
+
+          for skill_file in skills/*/SKILL.md; do
+            CURRENT_MODEL=$(grep -E '^model:' "$skill_file" | head -1 | sed 's/model: *//')
+
+            if [[ "$CURRENT_MODEL" == *opus* ]]; then
+              sed -i "s/^model: .*/model: $OPUS/" "$skill_file"
+            elif [[ "$CURRENT_MODEL" == *sonnet* ]]; then
+              sed -i "s/^model: .*/model: $SONNET/" "$skill_file"
+            elif [[ "$CURRENT_MODEL" == *haiku* ]]; then
+              sed -i "s/^model: .*/model: $HAIKU/" "$skill_file"
+            fi
+          done
+
+          echo "✅ Updated skill files"
+
+      - name: Bump version
+        if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'
+        id: version
+        run: |
+          # Read current version
+          CURRENT=$(jq -r '.version' .claude-plugin/plugin.json)
+          echo "Current version: $CURRENT"
+
+          # Parse and bump MINOR version
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          NEW_MINOR=$((MINOR + 1))
+          NEW_VERSION="$MAJOR.$NEW_MINOR.0"
+          echo "New version: $NEW_VERSION"
+
+          # Update both version files
+          jq ".version = \"$NEW_VERSION\"" .claude-plugin/plugin.json > /tmp/plugin.json && mv /tmp/plugin.json .claude-plugin/plugin.json
+          jq ".plugins[0].version = \"$NEW_VERSION\"" .claude-plugin/marketplace.json > /tmp/marketplace.json && mv /tmp/marketplace.json .claude-plugin/marketplace.json
+
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "old_version=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'
+        run: |
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          ISO_DATE="${{ steps.date.outputs.iso }}"
+          OPUS="${{ steps.fetch.outputs.opus }}"
+          SONNET="${{ steps.fetch.outputs.sonnet }}"
+          HAIKU="${{ steps.fetch.outputs.haiku }}"
+
+          # Count updated skills
+          SKILL_COUNT=$(cat /tmp/outdated_skills.txt | grep -c ':' || echo "0")
+
+          # Create changelog entry using printf (avoids heredoc YAML issues)
+          {
+            echo ""
+            echo "## [$NEW_VERSION] - $ISO_DATE"
+            echo ""
+            echo "### Changed"
+            echo "- Updated Claude model references to latest versions"
+            echo "  - Opus: $OPUS"
+            echo "  - Sonnet: $SONNET"
+            echo "  - Haiku: $HAIKU"
+            echo "- Updated $SKILL_COUNT skills to use current model versions"
+          } > /tmp/changelog_entry.txt
+
+          # Find line number of [Unreleased] section and insert after it
+          LINE_NUM=$(grep -n '## \[Unreleased\]' CHANGELOG.md | head -1 | cut -d: -f1)
+          if [ -n "$LINE_NUM" ]; then
+            head -n "$LINE_NUM" CHANGELOG.md > /tmp/CHANGELOG.md
+            cat /tmp/changelog_entry.txt >> /tmp/CHANGELOG.md
+            tail -n +$((LINE_NUM + 1)) CHANGELOG.md >> /tmp/CHANGELOG.md
+            mv /tmp/CHANGELOG.md CHANGELOG.md
+            echo "✅ Updated CHANGELOG.md"
+          else
+            echo "::warning::Could not find [Unreleased] section in CHANGELOG.md"
+          fi
+
+      - name: Create branch, commit, and PR
+        if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="feat/update-claude-models-${{ steps.date.outputs.date }}"
+          NEW_VERSION="${{ steps.version.outputs.new_version }}"
+
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create branch and commit
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "feat: update Claude model references to latest versions
+
+          Automated model update by GitHub Actions.
+
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+
+          # Push and create PR
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "feat: Update Claude model references to $NEW_VERSION" \
+            --body "## Summary
+
+          Automated update of Claude model references to latest versions.
+
+          ### New Models
+          - **Opus**: ${{ steps.fetch.outputs.opus }}
+          - **Sonnet**: ${{ steps.fetch.outputs.sonnet }}
+          - **Haiku**: ${{ steps.fetch.outputs.haiku }}
+
+          ### Changes
+          - Updated model references in skills/*/SKILL.md
+          - Bumped version to $NEW_VERSION
+          - Added CHANGELOG entry
+
+          ### Verification Checklist
+          - [ ] Review model changes in skill files
+          - [ ] Verify version bump is correct
+          - [ ] Run \`/bitwize-music:test skills\` locally
+
+          ---
+          Generated by model-updater.yml workflow" \
+            --label "automated"
+
+          echo "✅ PR created"
