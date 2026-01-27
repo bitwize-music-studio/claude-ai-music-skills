@@ -12,6 +12,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 
+## [0.14.1] - 2026-01-27
+
+### Fixed
+- Add missing YAML frontmatter to `promo-director` and `resume` skills (skills weren't appearing in Claude Code)
+- Add `--batch-artwork` and `--album` flags to promo video generator for better artwork discovery
+  - `--batch-artwork /path/to/art.png` - explicit artwork path
+  - `--album my-album` - checks content directory for artwork via config
+  - Better error messages showing where artwork was searched
+
 ## [0.14.0] - 2026-01-27
 
 ### Added
