@@ -198,10 +198,13 @@ The overrides directory lets you customize any skill or workflow without plugin 
 # Create overrides directory
 mkdir -p ~/music-projects/overrides
 
-# Add any override files you want
-touch ~/music-projects/overrides/CLAUDE.md
-touch ~/music-projects/overrides/pronunciation-guide.md
+# Copy examples from the plugin
+cp config/overrides.example/pronunciation-guide.md ~/music-projects/overrides/
+cp config/overrides.example/suno-preferences.md ~/music-projects/overrides/
+# etc.
 ```
+
+**See `config/overrides.example/` for ready-to-use templates.**
 
 ### Available Overrides
 
