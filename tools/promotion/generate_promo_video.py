@@ -278,10 +278,27 @@ def generate_waveform_video(
 
     print(f"  Dominant: {dominant} -> Complementary: {complementary} (hex: {color2})")
 
-    # Escape special characters in title for ffmpeg
-    # Escape for ffmpeg drawtext filter
-    # Remove apostrophes (they break ffmpeg's single-quote text wrapper)
-    safe_title = title.replace("'", "").replace("'", "").replace(":", "\\:").replace("%", "\\%").replace("\\", "\\\\")
+    # Escape special characters in title for ffmpeg drawtext filter
+    # The text is wrapped in single quotes, so we need to handle various special chars
+    safe_title = title
+    # Remove or replace problematic quote characters
+    safe_title = safe_title.replace("'", "")      # Straight apostrophe
+    safe_title = safe_title.replace("'", "")      # Curly apostrophe
+    safe_title = safe_title.replace("'", "")      # Another curly apostrophe
+    safe_title = safe_title.replace('"', "")      # Double quote
+    safe_title = safe_title.replace('"', "")      # Curly double quote
+    safe_title = safe_title.replace('"', "")      # Curly double quote
+    safe_title = safe_title.replace('`', "")      # Backtick
+    # Escape backslashes first (before adding more)
+    safe_title = safe_title.replace("\\", "\\\\")
+    # Escape ffmpeg filter special characters
+    safe_title = safe_title.replace(":", "\\:")   # Colon (filter separator)
+    safe_title = safe_title.replace("%", "\\%")   # Percent (escape sequence)
+    safe_title = safe_title.replace(";", "\\;")   # Semicolon (filter chain)
+    safe_title = safe_title.replace("[", "\\[")   # Brackets (stream labels)
+    safe_title = safe_title.replace("]", "\\]")
+    # Replace ampersand with 'and' for cleaner display
+    safe_title = safe_title.replace("&", "and")
 
     # Build visualization filter based on style
     viz_height = 600  # Much taller - fills space between art and text
