@@ -1,7 +1,7 @@
 ---
 name: test
 description: Run automated tests to validate plugin integrity
-argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality]
+argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality | quick]
 model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
@@ -23,6 +23,31 @@ Run automated tests to validate plugin integrity. Execute each test methodically
 # Plugin Test Suite
 
 You are the plugin's automated test runner. Execute each test, track pass/fail, and report actionable results.
+
+## Quick Automated Tests (`/test quick`)
+
+For fast automated validation, run the Python test runner:
+
+```bash
+python3 tools/tests/run_tests.py
+```
+
+This covers:
+- **skills** - YAML frontmatter validation, required fields, model references
+- **templates** - Required templates exist, template structure
+- **references** - Suno reference docs, mastering docs
+- **links** - Internal markdown link validation
+- **terminology** - Deprecated terms, path variable consistency
+- **consistency** - Skill count, version sync, .gitignore entries
+- **config** - Config file structure and documentation
+
+Run specific categories:
+```bash
+python3 tools/tests/run_tests.py skills templates
+python3 tools/tests/run_tests.py --verbose  # Debug mode
+```
+
+The Python runner is faster and catches common issues. For deep behavioral tests, use the full test suite below.
 
 ## Output Format
 
@@ -1326,6 +1351,7 @@ Verify it includes:
 | Command | Description |
 |---------|-------------|
 | `/test` or `/test all` | Run all tests |
+| `/test quick` | Run Python test runner (fast automated checks) |
 | `/test config` | Configuration system tests |
 | `/test skills` | Skill definitions and docs |
 | `/test templates` | Template file tests |
@@ -1340,6 +1366,33 @@ Verify it includes:
 | `/test behavior` | Scenario-based tests |
 | `/test quality` | Code quality checks |
 | `/test e2e` | End-to-end integration test |
+
+## Quick Tests via Python Runner
+
+For rapid validation during development, use the Python test runner directly:
+
+```bash
+# Run all automated tests
+python3 tools/tests/run_tests.py
+
+# Run specific categories
+python3 tools/tests/run_tests.py skills templates
+
+# Verbose mode for debugging
+python3 tools/tests/run_tests.py --verbose
+
+# No color output (for CI/logs)
+python3 tools/tests/run_tests.py --no-color
+```
+
+Categories available in Python runner:
+- `skills` - Frontmatter, required fields, model validation
+- `templates` - Template existence and structure
+- `references` - Reference doc existence
+- `links` - Internal markdown links
+- `terminology` - Deprecated terms check
+- `consistency` - Version sync, skill counts
+- `config` - Config file validation
 
 ## Adding New Tests
 

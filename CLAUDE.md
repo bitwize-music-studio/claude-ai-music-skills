@@ -497,8 +497,12 @@ Skills are optimized for quality where it matters most. On the Claude Code Max s
 
 **Haiku 4.5 (`claude-haiku-4-5-20251001`)** - Pattern matching only:
 - `/bitwize-music:pronunciation-specialist` - Scanning for pronunciation risks
+- `/bitwize-music:validate-album` - Structure validation
+- Import skills, clipboard, help, about
 
 **The rule**: Optimize for quality on lyrics and Suno prompts. These define the music output. Everything else can use Sonnet.
+
+**Full documentation**: See `/reference/model-strategy.md` for complete skill assignments, decision framework, and override guidance.
 
 ---
 

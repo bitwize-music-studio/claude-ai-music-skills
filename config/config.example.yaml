@@ -1,191 +1,605 @@
+# =============================================================================
 # bitwize-music Plugin Configuration
-# Copy this file to: ~/.bitwize-music/config.yaml
+# =============================================================================
 #
-# Setup:
+# This file configures the AI music generation workflow. Copy it to your
+# user config directory and customize the values.
+#
+# SETUP:
 #   mkdir -p ~/.bitwize-music
 #   cp config/config.example.yaml ~/.bitwize-music/config.yaml
-#   # Then edit ~/.bitwize-music/config.yaml with your settings
+#   # Edit ~/.bitwize-music/config.yaml with your settings
+#
+# Or use the interactive setup: /bitwize-music:configure
+#
+# WHY ~/.bitwize-music/?
+#   - Survives plugin updates (your config is never overwritten)
+#   - Same location whether you cloned the repo or installed as plugin
+#   - Easy to backup and version control separately
+#
+# SECTIONS OVERVIEW:
+#   [REQUIRED] artist:      Your artist name (used in all file paths)
+#   [REQUIRED] paths:       Where files are stored (content, audio, documents)
+#   [optional] urls:        Your streaming platform links
+#   [optional] generation:  Music generation service settings
+#   [optional] promotion:   Promo video generation settings
+#   [optional] sheet_music: Sheet music generation settings
+#   [optional] cloud:       Cloud storage for uploads
+#
+# =============================================================================
+
 
 # =============================================================================
-# ARTIST
+# ARTIST [REQUIRED]
 # =============================================================================
+# Your artist identity. Used for file paths and metadata.
+# The 'name' field is required - everything else is optional.
+
 artist:
-  # Your artist/project name
-  # Examples: "bitwize", "my-band", "dj-shadow-clone"
-  # Note: Case-sensitive, used in file paths
+  # ---------------------------
+  # name [REQUIRED]
+  # ---------------------------
+  # Your artist or project name. Used in directory paths.
+  #
+  # IMPORTANT:
+  #   - Case-sensitive: "bitwize" and "Bitwize" create different folders
+  #   - Use lowercase-with-hyphens for consistency: "my-band" not "My Band"
+  #   - No spaces - use hyphens: "dj-shadow-clone" not "dj shadow clone"
+  #
+  # Examples:
+  #   name: "bitwize"           # Solo artist
+  #   name: "the-synthetics"    # Band name
+  #   name: "dj-neon"           # DJ alias
+  #
+  # Creates paths like:
+  #   {content_root}/artists/bitwize/albums/electronic/my-album/
+  #   {audio_root}/bitwize/my-album/
+  #
   name: "your-artist-name"
 
-  # Primary genres (used for default album categorization)
-  # Pick from: hip-hop, electronic, rock, folk, country, etc.
+  # ---------------------------
+  # genres [optional]
+  # ---------------------------
+  # Your primary genres. Used as defaults when creating new albums.
+  # The plugin supports 64+ subgenres (see /genres/ directory).
+  #
+  # Primary genre categories:
+  #   hip-hop, electronic, rock, folk, country, pop, metal, jazz, rnb,
+  #   classical, reggae, punk, indie-folk, blues, gospel, latin, k-pop
+  #
+  # Examples:
+  #   genres: ["electronic"]                    # Single genre artist
+  #   genres: ["hip-hop", "electronic"]         # Multi-genre artist
+  #   genres: ["folk", "country", "americana"]  # Related genres
+  #
   genres:
     - "electronic"
     - "hip-hop"
 
-  # Brief description of your style (optional, helps Claude understand your vibe)
+  # ---------------------------
+  # style [optional]
+  # ---------------------------
+  # Brief description of your sound. Helps Claude understand your aesthetic
+  # and make better suggestions for lyrics, production, and prompts.
+  #
+  # Be specific about:
+  #   - Mood/tone: dark, uplifting, melancholic, aggressive
+  #   - Production style: lo-fi, polished, raw, atmospheric
+  #   - Vocal approach: raspy, smooth, spoken word, falsetto
+  #   - Influences: (describe style, don't name artists)
+  #
   # Examples:
-  #   - "dark industrial electronic with aggressive vocals"
-  #   - "storytelling folk with fingerpicked guitar"
-  #   - "boom-bap hip-hop with jazz samples"
+  #   style: "dark industrial electronic with aggressive vocals"
+  #   style: "storytelling folk with fingerpicked acoustic guitar"
+  #   style: "boom-bap hip-hop with jazz samples and conscious lyrics"
+  #   style: "synthwave with retro 80s production and emotional hooks"
+  #
+  # Uncomment to enable:
   # style: "dark industrial electronic with aggressive vocals"
 
+
 # =============================================================================
-# PATHS
+# PATHS [REQUIRED]
 # =============================================================================
-# All paths support ~ for home directory
-# Tip: Use absolute paths for clarity, or relative to home (~)
+# Where your files are stored. All three main paths are required.
+# All paths support ~ for home directory expansion.
+#
+# STRUCTURE OVERVIEW:
+#   {content_root}/artists/[artist]/albums/[genre]/[album]/  <- Album files
+#   {audio_root}/[artist]/[album]/                           <- Mastered audio
+#   {documents_root}/[artist]/[album]/                       <- PDFs/sources
+#
+# IMPORTANT: audio_root and documents_root include [artist] in the path!
+# Wrong: {audio_root}/my-album/
+# Right: {audio_root}/bitwize/my-album/
+#
+# PLATFORM-SPECIFIC EXAMPLES:
+#
+# macOS:
+#   content_root: "~/Music/bitwize-music"
+#   audio_root: "~/Music/bitwize-music/audio"
+#   documents_root: "~/Documents/bitwize-music"
+#
+# Linux:
+#   content_root: "~/music/bitwize-music"
+#   audio_root: "~/music/bitwize-music/audio"
+#   documents_root: "~/documents/bitwize-music"
+#
+# WSL (Windows Subsystem for Linux):
+#   content_root: "/mnt/c/Users/YourName/Music/bitwize-music"
+#   audio_root: "/mnt/c/Users/YourName/Music/bitwize-music/audio"
+#   documents_root: "/mnt/c/Users/YourName/Documents/bitwize-music"
+#
+# Shared location (all in one folder):
+#   content_root: "~/bitwize-music"
+#   audio_root: "~/bitwize-music/audio"
+#   documents_root: "~/bitwize-music/documents"
 
 paths:
-  # Where albums, artists, and research files live
-  # Structure: {content_root}/artists/[artist]/albums/[genre]/[album]/
-  # Examples:
-  #   - "~/music-projects" (separate workspace)
-  #   - "." (inside plugin directory, uses .gitignore)
-  #   - "/home/you/Documents/music" (absolute path)
-  # Must be writable, will contain markdown files and lyrics
+  # ---------------------------
+  # content_root [REQUIRED]
+  # ---------------------------
+  # Where albums, artists, and research files live.
+  # This is your main workspace - markdown files, lyrics, concepts.
+  # Typically version-controlled (git).
+  #
+  # Structure created:
+  #   {content_root}/
+  #   ├── IDEAS.md                              # Album ideas backlog
+  #   ├── artists/
+  #   │   └── [artist]/
+  #   │       ├── README.md                     # Artist profile
+  #   │       └── albums/
+  #   │           └── [genre]/
+  #   │               └── [album]/
+  #   │                   ├── README.md         # Album concept
+  #   │                   ├── RESEARCH.md       # Research notes
+  #   │                   ├── SOURCES.md        # Citations
+  #   │                   └── tracks/
+  #   │                       ├── 01-track.md
+  #   │                       └── 02-track.md
+  #   └── overrides/                            # Custom override files
+  #
+  # Must be writable. Will create directories as needed.
+  #
   content_root: "~/music-projects"
 
-  # Where mastered audio and album art go
-  # Structure: {audio_root}/[artist]/[album]/
-  # Examples:
-  #   - "~/music-projects/audio" (under content_root)
-  #   - "~/Music/releases" (separate location)
-  # Must be writable, will store large WAV files
-  # Note: Include [artist] in path! e.g., {audio_root}/bitwize/album-name/
+  # ---------------------------
+  # audio_root [REQUIRED]
+  # ---------------------------
+  # Where mastered audio files and album art go.
+  # Contains large binary files (WAV, PNG) - typically NOT in git.
+  #
+  # Structure created:
+  #   {audio_root}/
+  #   └── [artist]/                   <- Note: includes artist folder!
+  #       └── [album]/
+  #           ├── cover.png           # Album artwork
+  #           ├── 01-track.wav        # Mastered audio
+  #           └── 02-track.wav
+  #
+  # COMMON MISTAKE: Forgetting the [artist] folder!
+  #   Wrong path: ~/music-projects/audio/my-album/
+  #   Right path: ~/music-projects/audio/bitwize/my-album/
+  #
+  # Size considerations:
+  #   - Each mastered WAV: ~50-100 MB
+  #   - Full album: ~500 MB - 1 GB
+  #   - Consider an external drive for large catalogs
+  #
   audio_root: "~/music-projects/audio"
 
-  # Where PDFs and primary source documents go (not committed to git)
-  # Structure: {documents_root}/[artist]/[album]/
-  # Examples:
-  #   - "~/music-projects/documents" (under content_root)
-  #   - "~/Documents/music-research" (separate location)
-  # Used for research materials too large for git (court docs, PDFs, etc.)
-  # Note: Include [artist] in path! e.g., {documents_root}/bitwize/album-name/
+  # ---------------------------
+  # documents_root [REQUIRED]
+  # ---------------------------
+  # Where PDFs and primary source documents go.
+  # For research-heavy albums: court documents, SEC filings, articles.
+  # Too large for git - store separately.
+  #
+  # Structure created:
+  #   {documents_root}/
+  #   └── [artist]/                   <- Note: includes artist folder!
+  #       └── [album]/
+  #           ├── indictment.pdf
+  #           ├── sec-filing.pdf
+  #           └── news-article.pdf
+  #
+  # If you don't make research-based albums, this can be the same as
+  # content_root - the folder just won't be used much.
+  #
   documents_root: "~/music-projects/documents"
 
-  # Overrides directory (optional)
-  # Directory containing override files for skills and workflows
-  # Each skill checks this directory for its own override file
+  # ---------------------------
+  # overrides [optional]
+  # ---------------------------
+  # Directory for override files that customize skills and workflows.
+  # Lets you personalize behavior without editing plugin files.
+  #
+  # Default: {content_root}/overrides
+  #
   # Override files you can create:
-  #   - CLAUDE.md (custom workflow instructions)
-  #   - pronunciation-guide.md (artist/album-specific pronunciations)
-  #   - explicit-words.md (custom explicit word list)
-  #   - lyric-writing-guide.md (your personal lyric writing preferences)
-  # Examples:
-  #   - "~/music-projects/overrides" (default, under content_root)
-  #   - "~/.bitwize-music/overrides" (alongside config)
-  # If not set, defaults to {content_root}/overrides
-  # If directory doesn't exist, skills use base files only (no error)
+  #   - CLAUDE.md               # Custom workflow instructions
+  #   - pronunciation-guide.md  # Artist/album-specific pronunciations
+  #   - explicit-words.md       # Custom explicit word list
+  #   - lyric-writing-guide.md  # Your lyric writing preferences
+  #   - suno-preferences.md     # Preferred Suno settings
+  #   - mastering-presets.yaml  # Custom EQ presets
+  #
+  # How it works:
+  #   1. Skills check this directory for their override file
+  #   2. If found, merge with (or replace) base behavior
+  #   3. If not found, use defaults (no error)
+  #
+  # Example override files in: config/overrides.example/
+  #
+  # Alternative locations:
+  #   overrides: "~/.bitwize-music/overrides"   # Next to config
+  #   overrides: "~/music-projects/overrides"   # With content (default)
+  #
   overrides: "~/music-projects/overrides"
 
-  # Album ideas file (optional)
-  # File for tracking album concepts before creating album directories
-  # Managed by /bitwize-music:album-ideas skill
-  # Examples:
-  #   - "~/music-projects/IDEAS.md" (default, under content_root)
-  #   - "~/Documents/album-ideas.md" (separate location)
-  # If not set, defaults to {content_root}/IDEAS.md
-  # If file doesn't exist, skill creates it with template
+  # ---------------------------
+  # ideas_file [optional]
+  # ---------------------------
+  # File for tracking album concepts before creating album directories.
+  # Managed by /bitwize-music:album-ideas skill.
+  #
+  # Default: {content_root}/IDEAS.md
+  #
+  # If the file doesn't exist, the skill creates it with a template.
+  # Great for capturing inspiration before committing to a full album.
+  #
   ideas_file: "~/music-projects/IDEAS.md"
 
-  # tools_root is always ~/.bitwize-music (where this config lives)
-  # Contains: mastering-env/, cache/, etc.
+  # ---------------------------
+  # tools_root (automatic)
+  # ---------------------------
+  # Always ~/.bitwize-music (where this config lives).
+  # Contains shared tools, not user-configurable.
+  #
+  # Structure:
+  #   ~/.bitwize-music/
+  #   ├── config.yaml       # This file
+  #   ├── mastering-env/    # Python venv for mastering tools
+  #   └── cache/            # Temporary files
+
 
 # =============================================================================
-# PLATFORM URLS
+# PLATFORM URLS [optional]
 # =============================================================================
-# Add your streaming/social platform URLs (optional, used in release workflow)
+# Your streaming and social platform URLs.
+# Used in release workflows, README generation, and announcements.
+#
+# Only fill in platforms you actually use.
+# All fields are optional - leave out or comment out unused ones.
+
 urls:
-  # SoundCloud profile URL (used in release checklist)
+  # Primary platforms
   soundcloud: "https://soundcloud.com/your-artist"
 
-  # Other platforms (uncomment and fill in as needed):
-  # spotify: "https://open.spotify.com/artist/abc123xyz"
+  # Streaming platforms (uncomment and fill in as needed)
+  # spotify: "https://open.spotify.com/artist/your-spotify-id"
+  # apple_music: "https://music.apple.com/us/artist/your-artist/123456789"
   # bandcamp: "https://your-artist.bandcamp.com"
+  # youtube_music: "https://music.youtube.com/channel/your-channel-id"
+
+  # Social platforms
   # youtube: "https://youtube.com/@your-artist"
-  # apple_music: "https://music.apple.com/us/artist/..."
   # twitter: "https://x.com/your-artist"
+  # instagram: "https://instagram.com/your-artist"
+  # tiktok: "https://tiktok.com/@your-artist"
+
+  # Other platforms
+  # linktree: "https://linktr.ee/your-artist"
+  # website: "https://your-artist.com"
+
 
 # =============================================================================
-# GENERATION SERVICE
+# GENERATION SERVICE [optional]
 # =============================================================================
+# Music generation service configuration.
+# Defaults to Suno if not specified.
+
 generation:
-  # Music generation service to use for track generation
-  # Currently supported: "suno" (Suno V5)
-  # Future options: udio, soundraw, etc.
+  # ---------------------------
+  # service
+  # ---------------------------
+  # Which AI music generation service to use.
+  #
+  # Currently supported:
+  #   suno    - Suno V5 (default, recommended)
+  #
+  # Future support planned:
+  #   udio    - Udio
+  #   soundraw - SoundRaw
+  #
+  # Each service has dedicated reference docs in /reference/{service}/
+  # and a specialized skill: /bitwize-music:{service}-engineer
+  #
   service: suno
 
+
 # =============================================================================
-# PROMO VIDEOS (Optional)
+# PROMO VIDEOS [optional]
 # =============================================================================
-# Settings for /bitwize-music:promo-director skill
-# Only needed if you plan to generate promo videos for social media
+# Settings for /bitwize-music:promo-director skill.
+# Generate 15-second vertical videos (9:16) for social media.
+#
+# REQUIREMENTS:
+#   - ffmpeg with filters support
+#   - Python 3.8+ with PIL
+#   - Album artwork (cover.png)
+#
+# Skip this section entirely if you don't plan to make promo videos.
+# All settings have sensible defaults.
+#
+# Uncomment to customize:
+
 # promotion:
-  # Default visualization style for promo videos
-  # Options: pulse, bars, line, mirror, mountains, colorwave, neon, dual, circular
-  # Recommendations:
-  #   - Electronic/Hip-Hop: pulse
-  #   - Pop/Rock: bars
-  #   - Acoustic/Folk: line
-  #   - Ambient/Chill: mirror
-  #   - Synthwave/80s: neon
+  # ---------------------------
+  # default_style
+  # ---------------------------
+  # Visualization style for audio waveform display.
+  #
+  # Options and recommended genres:
+  #   pulse      - Pulsing circle (electronic, hip-hop)
+  #   bars       - Frequency bars (pop, rock)
+  #   line       - Waveform line (acoustic, folk)
+  #   mirror     - Mirrored waveform (ambient, chill)
+  #   mountains  - Mountain-like peaks (cinematic, epic)
+  #   colorwave  - Flowing colors (psychedelic, experimental)
+  #   neon       - Neon glow effect (synthwave, 80s)
+  #   dual       - Split left/right (stereo showcase)
+  #   circular   - Circular display (EDM, dance)
+  #
   # default_style: "pulse"
 
-  # Default video duration in seconds
-  # Common options: 15 (Instagram/Twitter optimal), 30, 60
+  # ---------------------------
+  # duration
+  # ---------------------------
+  # Video duration in seconds.
+  #
+  # Platform recommendations:
+  #   15  - Instagram Reels, Twitter (optimal)
+  #   30  - TikTok, YouTube Shorts
+  #   60  - Longer previews
+  #
   # duration: 15
 
-  # Generate album sampler by default (true/false)
-  # Album sampler = single video with clips from all tracks
+  # ---------------------------
+  # include_sampler
+  # ---------------------------
+  # Generate an album sampler video (clips from all tracks).
+  # Great for album announcements.
+  #
   # include_sampler: true
 
-  # Sampler clip duration (seconds per track)
-  # Shorter = fits more tracks in Twitter's 140s limit
+  # ---------------------------
+  # sampler_clip_duration
+  # ---------------------------
+  # Seconds per track in the sampler video.
+  # Keep short to fit more tracks (Twitter limit: 140s).
+  #
   # sampler_clip_duration: 12
 
+
 # =============================================================================
-# SHEET MUSIC (Optional)
+# SHEET MUSIC [optional]
 # =============================================================================
-# Settings for /bitwize-music:sheet-music-publisher skill
-# Only needed if you plan to generate sheet music from audio files
+# Settings for /bitwize-music:sheet-music-publisher skill.
+# Convert audio to sheet music and create songbooks.
+#
+# REQUIREMENTS:
+#   - AnthemScore ($42 one-time, or free trial)
+#   - MuseScore (free, open source)
+#
+# BEST FOR: Melodic tracks, folk, acoustic, piano-based
+# CHALLENGING: Dense electronic, heavy distortion, complex polyrhythms
+#
+# Skip this section if you don't need sheet music.
+
 sheet_music:
-  # Page size for songbooks
-  # Options: "letter" (8.5x11 inches), "9x12", "6x9"
+  # ---------------------------
+  # page_size
+  # ---------------------------
+  # Page size for PDF songbooks.
+  #
+  # Options:
+  #   letter - 8.5 x 11 inches (US standard, home printing)
+  #   9x12   - 9 x 12 inches (professional songbook size)
+  #   6x9    - 6 x 9 inches (compact/travel size)
+  #
   page_size: "letter"
 
-  # Include section headers (Verse, Chorus, etc.) in songbook PDFs
-  # Set to true to show [Verse], [Chorus] labels above each section
+  # ---------------------------
+  # section_headers
+  # ---------------------------
+  # Include [Verse], [Chorus], etc. labels in sheet music.
+  # Set true for educational/study purposes.
+  # Set false for cleaner professional look.
+  #
   section_headers: false
 
+
 # =============================================================================
-# CLOUD STORAGE (Optional)
+# CLOUD STORAGE [optional]
 # =============================================================================
-# Settings for /bitwize-music:cloud-uploader skill
-# Upload promo videos to Cloudflare R2 or AWS S3
-# See /reference/cloud/setup-guide.md for detailed setup instructions
+# Settings for /bitwize-music:cloud-uploader skill.
+# Upload promo videos and assets to cloud storage for sharing.
+#
+# SUPPORTED PROVIDERS:
+#   r2  - Cloudflare R2 (recommended: no egress fees, global CDN)
+#   s3  - AWS S3 (standard cloud storage)
+#
+# Skip this entire section if you don't need cloud uploads.
+# See /reference/cloud/setup-guide.md for detailed setup instructions.
+#
+# SECURITY NOTE:
+#   Store credentials carefully. This file may be version-controlled.
+#   Consider environment variables for sensitive values.
+#
+# Uncomment to enable:
 
 # cloud:
-  # Master switch - must be true to enable uploads
+  # ---------------------------
+  # enabled [required if using cloud]
+  # ---------------------------
+  # Master switch. Must be true to enable uploads.
+  # Set false to temporarily disable without removing config.
+  #
   # enabled: true
 
-  # Provider: "r2" (Cloudflare R2) or "s3" (AWS S3)
-  # R2 recommended: no egress fees, built-in CDN
+  # ---------------------------
+  # provider [required if using cloud]
+  # ---------------------------
+  # Cloud storage provider.
+  #
+  # Options:
+  #   r2  - Cloudflare R2 (no egress fees, built-in CDN, recommended)
+  #   s3  - AWS S3 (more regions, familiar to AWS users)
+  #
   # provider: "r2"
 
-  # Cloudflare R2 configuration
-  # Get credentials: Cloudflare Dashboard → R2 → Manage R2 API Tokens
+  # ---------------------------
+  # public_read
+  # ---------------------------
+  # Make uploaded files publicly accessible via URL.
+  # Set true for sharing promo videos on social media.
+  # Set false for private storage (requires signed URLs).
+  #
+  # public_read: false
+
+  # ---------------------------
+  # Cloudflare R2 Configuration
+  # ---------------------------
+  # Get credentials: Cloudflare Dashboard > R2 > Manage R2 API Tokens
+  #
   # r2:
-  #   account_id: "your-32-char-account-id"      # From R2 dashboard sidebar
-  #   access_key_id: "your-r2-access-key"        # From API token creation
-  #   secret_access_key: "your-r2-secret-key"    # From API token creation
-  #   bucket: "promo-videos"                     # Your R2 bucket name
+  #   account_id: "your-32-character-account-id"
+  #   access_key_id: "your-r2-access-key-id"
+  #   secret_access_key: "your-r2-secret-access-key"
+  #   bucket: "promo-videos"
 
-  # AWS S3 configuration
-  # Get credentials: AWS IAM → Users → Security credentials → Access keys
+  # ---------------------------
+  # AWS S3 Configuration
+  # ---------------------------
+  # Get credentials: AWS Console > IAM > Users > Security credentials
+  #
   # s3:
-  #   region: "us-west-2"                        # Your bucket's region
-  #   access_key_id: "AKIAIOSFODNN7EXAMPLE"      # IAM access key
-  #   secret_access_key: "wJalrXUtnFEMI/..."     # IAM secret key
-  #   bucket: "my-promo-bucket"                  # Your S3 bucket name
+  #   region: "us-west-2"
+  #   access_key_id: "AKIAIOSFODNN7EXAMPLE"
+  #   secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+  #   bucket: "my-promo-bucket"
 
-  # Upload settings
-  # public_read: false    # Set true to make uploads publicly accessible
+
+# =============================================================================
+# CONFIGURATION PATTERNS
+# =============================================================================
+# Below are complete example configurations for common setups.
+# These are COMMENTS ONLY - copy/adapt what you need above.
+#
+# -----------------------------------------------------------------------------
+# PATTERN 1: Minimal Config (just the essentials)
+# -----------------------------------------------------------------------------
+# Good for: Getting started quickly, single-genre artist
+#
+# artist:
+#   name: "your-artist"
+#
+# paths:
+#   content_root: "~/music-projects"
+#   audio_root: "~/music-projects/audio"
+#   documents_root: "~/music-projects/documents"
+#
+# -----------------------------------------------------------------------------
+# PATTERN 2: Full Featured Config (all features enabled)
+# -----------------------------------------------------------------------------
+# Good for: Power users, multiple release targets
+#
+# artist:
+#   name: "bitwize"
+#   genres: ["electronic", "hip-hop", "industrial"]
+#   style: "dark industrial electronic with aggressive vocals and cyberpunk themes"
+#
+# paths:
+#   content_root: "~/bitwize-music"
+#   audio_root: "~/bitwize-music/audio"
+#   documents_root: "~/bitwize-music/documents"
+#   overrides: "~/bitwize-music/overrides"
+#   ideas_file: "~/bitwize-music/IDEAS.md"
+#
+# urls:
+#   soundcloud: "https://soundcloud.com/bitwize"
+#   spotify: "https://open.spotify.com/artist/abc123"
+#   bandcamp: "https://bitwize.bandcamp.com"
+#   twitter: "https://x.com/bitwize"
+#
+# generation:
+#   service: suno
+#
+# promotion:
+#   default_style: "neon"
+#   duration: 15
+#   include_sampler: true
+#   sampler_clip_duration: 12
+#
+# sheet_music:
+#   page_size: "9x12"
+#   section_headers: false
+#
+# cloud:
+#   enabled: true
+#   provider: "r2"
+#   public_read: true
+#   r2:
+#     account_id: "your-account-id"
+#     access_key_id: "your-key"
+#     secret_access_key: "your-secret"
+#     bucket: "promo-videos"
+#
+# -----------------------------------------------------------------------------
+# PATTERN 3: macOS Music Folder Setup
+# -----------------------------------------------------------------------------
+# Good for: macOS users who want files in standard Music folder
+#
+# artist:
+#   name: "your-artist"
+#   genres: ["pop", "indie"]
+#
+# paths:
+#   content_root: "~/Music/ai-music-projects"
+#   audio_root: "~/Music/ai-music-projects/mastered"
+#   documents_root: "~/Documents/ai-music-research"
+#
+# urls:
+#   soundcloud: "https://soundcloud.com/your-artist"
+#
+# -----------------------------------------------------------------------------
+# PATTERN 4: WSL with Windows Paths
+# -----------------------------------------------------------------------------
+# Good for: Windows users running plugin in WSL
+#
+# artist:
+#   name: "your-artist"
+#   genres: ["electronic"]
+#
+# paths:
+#   content_root: "/mnt/c/Users/YourName/Music/ai-music"
+#   audio_root: "/mnt/c/Users/YourName/Music/ai-music/audio"
+#   documents_root: "/mnt/c/Users/YourName/Documents/ai-music-docs"
+#
+# -----------------------------------------------------------------------------
+# PATTERN 5: Separate Drives (Large Catalog)
+# -----------------------------------------------------------------------------
+# Good for: Users with many albums, external audio storage
+#
+# artist:
+#   name: "prolific-producer"
+#   genres: ["electronic", "ambient", "techno"]
+#
+# paths:
+#   content_root: "~/music-projects"           # SSD for fast editing
+#   audio_root: "/media/external/music-audio"  # External drive for large files
+#   documents_root: "~/music-projects/docs"    # With content
+#
+# =============================================================================

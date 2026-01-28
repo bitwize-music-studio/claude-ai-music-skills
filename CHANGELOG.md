@@ -6,6 +6,29 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-01-28
+
+### Added
+- **Test automation runner** (`tools/tests/run_tests.py`) - Validates skills, templates, references, links, terminology, consistency
+- **Genre INDEX.md** - Searchable, categorized guide to all 64 genres with quick reference tables
+- **Quick-start guides** (`reference/quick-start/`) - first-album.md, true-story-album.md, bulk-releases.md
+- **Override documentation** (`reference/overrides/`) - how-to-customize.md, override-index.md
+- **Release documentation** (`reference/release/`) - platform-comparison.md, distributor-guide.md, metadata-by-platform.md, rights-and-claims.md
+- **Cross-platform guides** (`reference/cross-platform/`) - wsl-setup-guide.md, tool-compatibility-matrix.md
+- **Model strategy documentation** (`reference/model-strategy.md`) - Complete rationale for skill model assignments
+- **Terminology glossary** (`reference/terminology.md`) - Standardized definitions for all key terms
+- **Skill index** (`reference/SKILL_INDEX.md`) - Decision tree, prerequisites, skill sequences
+- **Mastering reference docs** - genre-specific-presets.md, loudness-measurement.md, mastering-checklist.md
+- **Sheet music reference docs** - genre-recommendations.md, troubleshooting.md
+- **Workflow docs** - importing-audio.md
+- **Skill supporting docs** for clipboard, album-ideas, configure, help, about
+- **Researcher skill guides** for all 10 specialized researchers (legal, gov, journalism, security, financial, historical, biographical, tech, primary-source, verifier)
+
+### Changed
+- Expanded error-recovery.md from 52 to 316 lines with 12 detailed recovery scenarios
+- Enhanced config.example.yaml with comprehensive inline documentation and platform examples
+- Updated CLAUDE.md model strategy section to reference new documentation
+
 ## [0.16.0] - 2026-01-28
 
 ### Added
