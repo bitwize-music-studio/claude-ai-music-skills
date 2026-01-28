@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-01-28
+
+### Added
+- Enhanced all 64 genre documentation files to Gold standard quality
+  - 3+ paragraph overviews with historical context and scene development
+  - 8+ subgenres with detailed descriptions and reference artists
+  - 12+ artists with filled tables (no placeholder entries)
+  - 12+ reference tracks with rich contextual descriptions
+  - Comprehensive Suno prompt keywords for AI music generation
+  - Coverage spans origins through modern revival movements
+
 ## [0.15.0] - 2026-01-28
 
 ### Added

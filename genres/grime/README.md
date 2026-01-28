@@ -2,7 +2,11 @@
 
 ## Genre Overview
 
-Grime is a British electronic music genre originating in East London in the early 2000s. Characterized by rapid-fire, aggressive MCing over complex, synth-heavy instrumentals, grime fuses elements of UK garage, jungle, dancehall, and hip-hop into a distinctly British urban sound. The genre is defined by its high energy, dark atmospheric production, and technical vocal delivery, often featuring stacked vocals, heavy stuttering, and quick wordplay. Grime has evolved from underground pirate radio culture to mainstream prominence, becoming a defining voice in contemporary UK music.
+Grime is a British electronic music genre that emerged from the council estates and tower blocks of East London in the early 2000s. Born from the collision of UK garage's rhythmic sophistication, jungle's breakneck energy, dancehall's vocal swagger, and hip-hop's lyrical ambition, grime forged a sound that was unmistakably British yet globally influential. The genre is defined by its aggressive, synth-heavy instrumentals running at approximately 140 BPM, layered with rapid-fire MCing that prioritizes technical delivery, stacked vocals, and razor-sharp wordplay. From its inception, grime represented the voice of young Black British communities, channeling the energy, frustrations, and aspirations of urban London life into a sonic assault that was impossible to ignore.
+
+The genre's foundation was built on pirate radio stations like Deja Vu FM, Rinse FM, and Heat FM, where MCs would clash over instrumentals broadcast from makeshift aerials on East London rooftops. These illegal transmissions, constantly evading Ofcom shutdowns, became the breeding ground for talents like Wiley, Dizzee Rascal, and the Roll Deep collective. The early scene coalesced around crews - Pay As U Go, Nasty Crew, Roll Deep, and Boy Better Know - who would clash on radio sets, building reputations through lyrical warfare. Wiley's 2002 instrumental "Eskimo" is often cited as grime's founding document, its icy synths and skeletal percussion establishing the template that countless producers would follow. Dizzee Rascal's 2003 debut "Boy in da Corner" brought the genre its first Mercury Prize and proved grime could be both critically acclaimed and commercially viable, though mainstream success remained elusive for years.
+
+The mid-2000s saw grime struggle against industry skepticism and a UK garage scene in decline, with many artists pivoting to more commercial sounds. However, the scene never truly died - it simply went underground, sustained by dedicated fans, pirate radio, and a growing YouTube culture. The 2014-2016 period marked grime's triumphant return to mainstream consciousness, led by Skepta's "That's Not Me" (a deliberate return to raw, classic grime production) and culminating in his Mercury Prize-winning album "Konnichiwa." Stormzy's emergence as a crossover star, performing at Glastonbury and charting with "Shut Up," proved grime could dominate British pop culture. By the late 2010s, grime had influenced global hip-hop (Drake's "Skepta Interlude," Kanye's UK sessions), spawned next-generation stars, and cemented its place as one of Britain's most significant musical exports since punk. The genre continues to evolve, with artists blending grime's DNA with drill, afrobeats, and experimental electronic music while honoring its East London roots.
 
 ## Characteristics
 
@@ -27,9 +31,23 @@ Grime is a British electronic music genre originating in East London in the earl
 
 ## Artists
 
-| Artist | Notable Tracks | Era | Style |
-|--------|----------------|-----|-------|
-| — | — | — | — |
+| Artist | Notable Albums | Era | Style Focus |
+|--------|----------------|-----|-------------|
+| **Wiley** | *Treddin' on Thin Ice* (2004), *Godfather* (2017) | 2000s-present | Pioneer and "Godfather of Grime"; created the Eski sound, prolific producer and MC |
+| **Dizzee Rascal** | *Boy in da Corner* (2003), *Showtime* (2004) | 2000s-present | Mercury Prize winner; technical lyricism, genre-defying experimentation |
+| **Skepta** | *Konnichiwa* (2016), *Ignorance Is Bliss* (2019) | 2000s-present | Boy Better Know leader; brought grime to global mainstream, fashion icon |
+| **JME** | *Integrity>* (2015), *Grime MC* (2019) | 2000s-present | BBK co-founder; independent ethos, witty wordplay, underground authenticity |
+| **Stormzy** | *Gang Signs & Prayer* (2017), *Heavy Is the Head* (2019) | 2010s-present | Crossover superstar; gospel-influenced, socially conscious, chart-topping appeal |
+| **Ghetts** | *Rebel with a Cause* (2014), *Conflict of Interest* (2021) | 2000s-present | Technical virtuoso; introspective lyricism, critical acclaim, late-career resurgence |
+| **Kano** | *Home Sweet Home* (2005), *Made in the Manor* (2016) | 2000s-present | Storyteller; narrative depth, East London pride, also acclaimed actor |
+| **Lethal Bizzle** | *Against All Oddz* (2005), *Pow! Forward* era | 2000s-present | Rave anthem king; energetic, crowd-moving style, "Pow!" pioneer |
+| **Chip** | *Transition* (2012), *Ten10* (2022) | 2000s-present | Technical precision; comeback king, prolific clash participant |
+| **D Double E** | Singles/features, *Jackuum* (2018) | 2000s-present | Legendary ad-libs; distinctive flow, Newham Generals member, cult figure |
+| **Jammer** | *Jahmanji* (2011), Lord of the Mics founder | 2000s-present | Clash culture architect; Eski pioneer, BBK member, grime historian |
+| **Lady Leshurr** | *Queen's Speech* freestyles, various singles | 2010s-present | Female grime trailblazer; viral success, rapid-fire delivery, humor |
+| **P Money** | *Money Over Everyone* series | 2000s-present | Clash champion; relentless work ethic, respected battler |
+| **Novelist** | *Novelist Guy* (2018) | 2010s-present | New generation torchbearer; experimental production, authenticity advocate |
+| **AJ Tracey** | *AJ Tracey* (2019), *Flu Game* (2021) | 2010s-present | Genre-fluid star; grime roots with mainstream pop and rap crossover |
 
 ## Suno Prompt Keywords
 
@@ -43,13 +61,17 @@ lo-fi aesthetic, instrumental loops, British electronic, mosh-pit energy
 
 ## Reference Tracks
 
-- **Dizzee Rascal** - "Boy in da Corner" (Classic Grime foundation, technical MCing and dark production)
-- **Wiley** - "Wot Do U Call It?" (Archetypal grime production, showcases the wobbling synths and rapid delivery)
-- **Skepta** - "Shutdown" (Modern classic, perfect example of grime aggression and production quality)
-- **JME** - "Man Don't Care" (Energetic delivery, showcases grime swagger and rhythm)
-- **Stormzy** - "Big for Your Boots" (Contemporary grime with mainstream appeal, heavy production)
-- **Jammer** - "Man Dem Have It" (Eski grime variant with swing and bounce)
-- **Ghetts** - "Conflict" (Technical MCing, showcases lyrical complexity of grime)
-- **Tempa T** - "Next Ting" (Pure grime energy, rapid-fire delivery and aggressive synths)
-- **Lady Leshurr** - "Queen's Speech (Freestyle)" (Female grime perspective, technical ability)
-- **Manga Saint Hilare** - "One Time for Your Mind" (Underground grime energy, pirate radio culture)
+- **Dizzee Rascal** - "I Luv U" (2003) - The breakthrough single that announced grime to the wider world; paranoid, claustrophobic production with Dizzee's staccato delivery capturing young love's darker side in East London estates
+- **Wiley** - "Wot Do U Call It?" (2004) - Genre-defining track where Wiley literally asks what to call this new sound; showcases the wobbling synths, rapid delivery, and self-aware identity that defined early grime
+- **Wiley** - "Eskimo" (2002) - Instrumental foundation of the genre; the icy, alien synth stabs created the "Eski" sound that influenced countless grime productions
+- **Lethal Bizzle ft. Fumin, D Double E, Napper, Jamakabi, Neeko, Flow Dan, Ozzie B, Forcer, Demon** - "Pow! (Forward)" (2004) - The ultimate grime anthem; ten MCs over a relentless beat, banned from clubs for inciting mosh pits, pure distilled grime energy
+- **Skepta** - "That's Not Me" (2014) - The track that reignited grime's mainstream resurgence; stripped-back production, self-aware lyrics rejecting commercial compromise
+- **Skepta** - "Shutdown" (2015) - Modern classic that crossed over globally; aggressive production, anthemic energy, perfect example of grime's commercial evolution without losing edge
+- **JME** - "Man Don't Care" ft. Giggs (2015) - Energetic collaboration showcasing grime's swagger; infectious hook, JME's witty delivery paired with Giggs' menacing flow
+- **Stormzy** - "Shut Up" (2015) - Freestyle that became a phenomenon; pure bars over minimal production, proved grime could chart without compromising
+- **Stormzy** - "Big for Your Boots" (2017) - Contemporary grime with mainstream polish; heavy production, quotable lyrics, Stormzy's commanding presence
+- **Ghetts** - "Conflict of Interest" (2021) - Title track showcasing Ghetts' evolved artistry; introspective yet hard-hitting, technical mastery with emotional depth
+- **Kano** - "T-Shirt Weather in the Manor" (2016) - Nostalgic storytelling at its finest; vivid East London imagery, demonstrates grime's capacity for narrative depth beyond aggression
+- **D Double E** - "Street Fighter Riddim" (2008) - Iconic vocal performance; D Double's legendary ad-libs and distinctive flow over video game-influenced production
+- **Tempa T** - "Next Hype" (2009) - Pure adrenaline grime; aggressive synths, rapid-fire delivery, became synonymous with grime's mosh-pit energy
+- **Lady Leshurr** - "Queen's Speech 4" (2016) - Viral freestyle demonstrating technical ability and humor; put female grime MCs in the spotlight, clever wordplay throughout

@@ -2,45 +2,74 @@
 
 ## Genre Overview
 
-Country music is rooted in American folk traditions, characterized by storytelling lyrics, acoustic and steel guitars, fiddles, and themes of love, loss, home, and heartland life. From traditional honky-tonk to modern country pop, the genre spans a wide range of styles unified by emotional authenticity and narrative songwriting.
+Country music is a quintessentially American genre rooted in folk, blues, and gospel traditions of the rural South. Emerging in the 1920s from Appalachian mountain music and Western cowboy songs, country has evolved through decades of stylistic shifts—from the honky-tonk bars of the 1950s to the polished Nashville sound of the 1960s, the outlaw movement of the 1970s, and the arena-filling country pop of today. At its core, country music prioritizes storytelling, emotional authenticity, and instrumental craftsmanship. Whether delivered through a mournful fiddle, a crying steel guitar, or a gritty vocal delivery, country music connects listeners to themes of love, loss, working-class struggle, faith, and the American heartland experience.
 
 ## Characteristics
 
-- **Instrumentation**: Acoustic guitar, steel guitar, fiddle, bass, drums
-- **Vocals**: Expressive, storytelling delivery, often with twang or drawl
-- **Lyrics**: Narrative-driven, personal, themes of love/loss/home/life
-- **Production**: Ranges from stripped-back acoustic to polished Nashville sound
-- **Tone**: Heartfelt, nostalgic, sometimes melancholic, sometimes uplifting
+- **Instrumentation**: Acoustic guitar (often with fingerpicking or strumming patterns), pedal steel guitar (signature crying/sliding sound), fiddle, electric guitar (twang with clean or overdriven tones), bass, drums, banjo, mandolin, piano, harmonica, dobro
+- **Vocals**: Storytelling delivery with emotional authenticity; often features Southern drawl, twang, or regional inflection; vocal bends and emotional tremor; harmonies common in traditional styles; ranges from whispered intimacy to powerful belt
+- **Production**: Ranges from stripped-down acoustic recordings (traditional) to highly polished Nashville productions (country pop); often features room ambiance and natural reverb; modern productions may include electronic elements while maintaining organic core
+- **Energy/Mood**: Heartfelt, nostalgic, melancholic, celebratory, defiant; emotional honesty is paramount; themes of resilience, love, loss, faith, working-class pride, rural life, and American identity
+- **Structure**: Verse-chorus-bridge with emphasis on lyrical narrative; often features instrumental breaks showcasing fiddle, steel guitar, or electric guitar solos; songs typically 3-4 minutes with clear melodic hooks
+- **Tempo**: Wide range—ballads (60-80 BPM), mid-tempo story songs (90-120 BPM), uptempo party/dance tracks (130-160 BPM)
 
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |
 |-------|-------------|-------------------|
-| Traditional Country | Classic honky-tonk and outlaw sounds | George Jones, Merle Haggard |
-| Modern Country | Contemporary Nashville production | Chris Stapleton, Zach Bryan |
-| Country Pop | Crossover appeal, polished production | Taylor Swift (early), Shania Twain |
-| Americana | Folk-influenced, roots-oriented | Jason Isbell, Sturgill Simpson |
+| **Traditional/Honky-Tonk** | Classic 1940s-60s sound with fiddle, steel guitar, and heartbreak themes; originated in Texas dance halls and Nashville recording studios; twangy vocals with emotional delivery | Hank Williams, George Jones, Patsy Cline, Loretta Lynn |
+| **Outlaw Country** | 1970s rebellion against polished Nashville production; gritty, rock-influenced, anti-establishment; DIY ethos and personal authenticity over commercial appeal | Willie Nelson, Waylon Jennings, Merle Haggard, Kris Kristofferson |
+| **Country Pop/Nashville Sound** | Crossover appeal with pop production techniques; orchestral arrangements, backing vocals, and radio-friendly polish; emphasizes melody over twang | Shania Twain, Taylor Swift (early), Carrie Underwood, Keith Urban |
+| **Americana/Alt-Country** | Roots-rock sensibility with indie/folk influences; emphasis on songwriting craft and authentic storytelling over commercial production; often darker or more literary | Jason Isbell, Sturgill Simpson, Tyler Childers, Lucinda Williams |
+| **Bro-Country** | 2010s party-focused country with hip-hop influences, tailgate anthems, and modern production; emphasis on lifestyle celebration over introspection | Florida Georgia Line, Luke Bryan, Jason Aldean, Sam Hunt |
+| **Texas/Red Dirt Country** | Regional sound from Texas and Oklahoma with blues, rock, and honky-tonk influences; independent spirit and regional pride; often more raw than Nashville productions | Cody Jinks, Whiskey Myers, Turnpike Troubadours, Pat Green |
+| **Bluegrass-Country** | Acoustic-driven with banjo, mandolin, and close harmonies; fast picking and mountain music roots; often features virtuosic instrumental breaks | Ricky Skaggs, Alison Krauss, The Steeldrivers, Billy Strings |
+| **Western/Cowboy** | Traditional songs of the American West; themes of ranching, rodeo, and frontier life; often acoustic with storytelling focus | Marty Robbins, Gene Autry, Colter Wall, Ian Tyson |
 
 ## Artists
 
-| Artist | Style | Albums | Status |
-|--------|-------|--------|--------|
-| — | — | — | — |
+| Artist | Primary Style | Notable Albums | Known For |
+|--------|---------------|----------------|-----------|
+| Hank Williams | Traditional/Honky-Tonk | *I Saw the Light*, *Moanin' the Blues* | Foundational country songwriting; emotional vocal delivery; tragic icon |
+| George Jones | Traditional/Honky-Tonk | *I Am What I Am*, *Bartender's Blues* | "The Possum"; considered greatest country voice; heartbreak ballads |
+| Merle Haggard | Outlaw Country | *Mama Tried*, *Okie from Muskogee* | Working-class storytelling; outlaw movement pioneer; Bakersfield sound |
+| Willie Nelson | Outlaw Country | *Red Headed Stranger*, *Stardust* | Outlaw icon; distinctive phrasing; crossover success; enduring career |
+| Dolly Parton | Traditional/Country Pop | *Jolene*, *Coat of Many Colors* | Songwriting genius; powerhouse vocals; cultural icon |
+| Johnny Cash | Outlaw/Traditional | *At Folsom Prison*, *American Recordings* | "The Man in Black"; bass-baritone voice; cross-genre influence |
+| Patsy Cline | Traditional/Nashville Sound | *Patsy Cline Showcase* | Crossover pop appeal; emotional vocal control; torch song perfection |
+| Chris Stapleton | Americana/Soul-Country | *Traveller*, *Starting Over* | Blues-infused vocals; critical acclaim; modern authenticity |
+| Tyler Childers | Americana/Appalachian | *Purgatory*, *Long Violent History* | Kentucky coal country storytelling; raw production; folk roots |
+| Zach Bryan | Americana/Folk-Country | *American Heartbreak*, *Zach Bryan* | DIY origins; prolific songwriter; emotionally raw delivery |
+| Sturgill Simpson | Americana/Outlaw | *Metamodern Sounds in Country Music*, *A Sailor's Guide to Earth* | Psychedelic country; genre experimentation; Grammy winner |
+| Jason Isbell | Americana | *Southeastern*, *The Nashville Sound* | Literary songwriting; critical darling; Drive-By Truckers alumni |
+| Cody Jinks | Texas Country | *Lifers*, *Less Wise* | Independent success; outlaw ethos; working-class themes |
+| Loretta Lynn | Traditional | *Coal Miner's Daughter*, *Van Lear Rose* | Feminist icon; Appalachian roots; Jack White collaboration |
 
 ## Suno Prompt Keywords
 
-Useful terms for generating country in Suno:
-
 ```
-country, americana, acoustic guitar, steel guitar, pedal steel,
-fiddle, country ballad, Nashville, heartfelt, storytelling,
-country rock, honky-tonk, twang, country vocals
+country, americana, acoustic guitar, steel guitar, pedal steel guitar, fiddle, country ballad,
+Nashville sound, heartfelt, storytelling, country rock, honky-tonk, twang, country vocals,
+Southern drawl, outlaw country, Texas country, red dirt, bluegrass influence, banjo,
+mandolin, dobro, crying steel guitar, emotional delivery, working-class anthem,
+heartbreak ballad, country pop, modern country, traditional country, Appalachian,
+Western, cowboy, truck song, drinking song, love song, breakup ballad, folk-country,
+fingerpicked acoustic, country harmonies, Nashville production, stripped-down acoustic
 ```
 
 ## Reference Tracks
 
-For style reference when prompting:
-- Chris Stapleton - "Tennessee Whiskey"
-- Zach Bryan - "Something in the Orange"
-- Tyler Childers - "Feathered Indians"
-- Colter Wall - "Sleeping on the Blacktop"
+- **Hank Williams - "I'm So Lonesome I Could Cry"** — Foundational honky-tonk ballad; sparse arrangement highlighting emotional vocal delivery and steel guitar; template for country heartbreak songs
+- **George Jones - "He Stopped Loving Her Today"** — Considered greatest country song ever recorded; masterful vocal performance; narrative storytelling over orchestral Nashville production
+- **Merle Haggard - "Mama Tried"** — Outlaw country prototype; autobiographical storytelling; working-class Bakersfield sound with tight band arrangement
+- **Willie Nelson - "Blue Eyes Crying in the Rain"** — Stripped-down acoustic intimacy; distinctive behind-the-beat phrasing; outlaw era classic
+- **Dolly Parton - "Jolene"** — Fingerpicked acoustic guitar with desperate vocal pleading; simple arrangement showcasing songwriting genius
+- **Johnny Cash - "Folsom Prison Blues"** — Boom-chicka-boom rhythm; baritone vocal presence; outlaw narrative with train imagery
+- **Patsy Cline - "Crazy"** — Willie Nelson composition; torch song perfection with Nashville Sound orchestration; crossover appeal
+- **Chris Stapleton - "Tennessee Whiskey"** — Soul-country hybrid; whiskey-soaked vocals; modern take on traditional heartbreak ballad
+- **Tyler Childers - "Feathered Indians"** — Appalachian fingerpicking; raw emotional vulnerability; modern outlaw authenticity
+- **Zach Bryan - "Something in the Orange"** — DIY production aesthetic; emotionally naked delivery; contemporary folk-country resonance
+- **Sturgill Simpson - "Turtles All the Way Down"** — Psychedelic country exploration; outlaw tradition meets cosmic themes
+- **Jason Isbell - "Cover Me Up"** — Literary songwriting; quiet acoustic arrangement; redemption narrative
+- **Colter Wall - "Sleeping on the Blacktop"** — Deep baritone delivery; sparse Western arrangement; traditional storytelling
+- **Cody Jinks - "Loud and Heavy"** — Texas country-rock; independent spirit; working-class anthem with full band arrangement

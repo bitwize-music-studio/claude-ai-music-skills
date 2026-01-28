@@ -2,7 +2,11 @@
 
 ## Genre Overview
 
-Trip-hop is a downtempo electronic music genre that emerged in Bristol, UK during the early 1990s, blending hip-hop beats with atmospheric samples, psychedelic textures, and moody aesthetics. Characterized by slow, syncopated breakbeats (typically 85-110 BPM), layered instrumentation, and introspective lyrics, trip-hop creates a cinematic, introspective sound perfect for late-night listening. The genre draws from breakbeats, dub reggae, and ambient music, often incorporating organic instruments alongside electronic production. Trip-hop achieved mainstream recognition through acts like Massive Attack and Portishead, establishing a blueprint for downtempo electronic music that remains influential across multiple genres.
+Trip-hop is a downtempo electronic music genre that emerged from Bristol, UK during the early 1990s, blending hip-hop beats with atmospheric samples, psychedelic textures, and moody aesthetics. The term itself was coined by British music magazine Mixmag in 1994 to describe the sound emanating from Bristol's vibrant music scene, though many of the genre's pioneers have expressed ambivalence toward the label. Characterized by slow, syncopated breakbeats (typically 85-110 BPM), layered instrumentation, and introspective lyrics, trip-hop creates a cinematic, late-night sound that draws from breakbeats, dub reggae, ambient music, jazz, and soul.
+
+The genre's holy trinity - Massive Attack, Portishead, and Tricky - established the Bristol Sound that defined trip-hop's golden era. Massive Attack's "Blue Lines" (1991) is widely considered the genre's founding document, fusing hip-hop production with soul samples and live instrumentation. Portishead's "Dummy" (1994) introduced a darker, more cinematic approach with Beth Gibbons' haunting vocals over scratchy samples and spy-film atmospheres. Tricky, initially a Massive Attack collaborator, pushed the genre into more paranoid, claustrophobic territory with "Maxinquaye" (1995), incorporating whispered vocals and fragmented production. Together, these three acts created a template for downtempo electronic music that prioritized atmosphere, texture, and emotional depth over dancefloor functionality.
+
+Beyond Bristol, trip-hop's influence spread globally and evolved through various interpretations. DJ Shadow's "Endtroducing....." (1996) demonstrated the genre's potential as purely instrumental sample-based art, while Morcheeba and Sneaker Pimps brought more accessible, pop-friendly approaches. The late 1990s and 2000s saw trip-hop's DNA absorbed into adjacent genres - Radiohead's "Kid A" borrowed its atmospheric production techniques, while artists like Bonobo and Zero 7 carried its sophisticated, organic approach into the new millennium. Though the genre's commercial peak has passed, its influence persists in contemporary downtempo, dark pop, and atmospheric electronic music, with Massive Attack continuing to evolve their sound and artists like James Blake and Burial carrying forward trip-hop's commitment to intimacy and mood.
 
 ## Characteristics
 
@@ -39,6 +43,8 @@ Trip-hop is a downtempo electronic music genre that emerged in Bristol, UK durin
 | The Cinematic Orchestra | Everyday, Every Last Day of Our Lives | 1999-present | "To Build a Home", "Arrival of the Birds" |
 | Nightmares on Wax | Thought So..., Les Nuits | 1992-present | "Les Nuits", "Nights Interlude" |
 | Jaga Jazzist | A Livingroom Hush | 2002-present | "Airborne", "The Double" |
+| Morcheeba | Who Can You Trust?, Big Calm | 1996-present | "Tape Loop", "The Sea", "Rome Wasn't Built in a Day" |
+| Sneaker Pimps | Becoming X, Splinter | 1996-2002 | "6 Underground", "Spin Spin Sugar", "Low Place Like Home" |
 
 ## Suno Prompt Keywords
 
@@ -48,13 +54,15 @@ slow breakbeats, atmospheric samples, downtempo, moody, cinematic, Bristol sound
 
 ## Reference Tracks
 
-- Massive Attack - "Teardrop" - Atmospheric intro leading to hypnotic rhythm, classic trip-hop blueprint
-- Portishead - "Glory Box" - Breathy vocals, jazzy chords, perfect downtempo groove
-- Tricky - "Overcome" - Dark, fragmented production with dramatic vocal presence
-- DJ Shadow - "Untitled (How Does It Feel)" - Instrumental showcase of sampling artistry and mood building
-- Thom Yorke - "The Eraser" - Contemporary downtempo electronica, introspective production
-- Amon Tobin - "Journeyman" - Cinematic, orchestral approach to electronic production
-- The Cinematic Orchestra - "To Build a Home" - Piano-driven downtempo with emotional depth
-- Bonobo - "Kiara" - Modern trip-hop sensibility with organic instrumentation
-- Nightmares on Wax - "Les Nuits" - Languid breakbeats, warm production aesthetics
-- Jaga Jazzist - "The Double" - Jazz-fusion approach to trip-hop structure and orchestration
+- Massive Attack - "Teardrop" - Atmospheric intro leading to hypnotic rhythm, classic trip-hop blueprint. The harpsichord sample and Elizabeth Fraser's otherworldly vocals over a heartbeat-like kick drum defined the genre's emotional potential. Featured as the theme for House M.D., introducing millions to trip-hop's cinematic intimacy.
+- Portishead - "Glory Box" - Breathy vocals, jazzy chords, perfect downtempo groove. Built on an Isaac Hayes sample, Beth Gibbons' vulnerable delivery over scratchy vinyl textures and spy-film guitar established Portishead's signature melancholic noir atmosphere.
+- Tricky - "Overcome" - Dark, fragmented production with dramatic vocal presence. Originally conceived with Massive Attack, Tricky's version transforms the track into a paranoid whisper, exemplifying his claustrophobic approach to the Bristol Sound.
+- DJ Shadow - "Untitled (How Does It Feel)" - Instrumental showcase of sampling artistry and mood building. From "Endtroducing.....", this track demonstrates how trip-hop production techniques could create profound emotional narratives without vocals.
+- Thom Yorke - "The Eraser" - Contemporary downtempo electronica, introspective production. The Radiohead frontman's solo work carries trip-hop's atmospheric DNA into the 21st century with glitchy beats and anxious synthesizer textures.
+- Amon Tobin - "Journeyman" - Cinematic, orchestral approach to electronic production. Brazilian-born Tobin pushed trip-hop toward film-score grandeur, incorporating jazz samples and complex arrangements.
+- The Cinematic Orchestra - "To Build a Home" - Piano-driven downtempo with emotional depth. Features Patrick Watson's heartbreaking vocal over minimalist piano, demonstrating trip-hop's capacity for devastating emotional directness.
+- Bonobo - "Kiara" - Modern trip-hop sensibility with organic instrumentation. Simon Green's approach balances electronic production with world music influences and live instrumentation, representing the genre's contemporary evolution.
+- Nightmares on Wax - "Les Nuits" - Languid breakbeats, warm production aesthetics. George Evelyn's Leeds-based take on trip-hop emphasizes comfort and intimacy over Bristol's darker tendencies.
+- Jaga Jazzist - "The Double" - Jazz-fusion approach to trip-hop structure and orchestration. The Norwegian collective brought progressive complexity to downtempo, featuring a full band with brass and strings.
+- Morcheeba - "The Sea" - Accessible trip-hop with Skye Edwards' smooth vocals gliding over organic grooves. Represents the genre's pop-friendly wing while maintaining atmospheric depth and sophisticated production.
+- Sneaker Pimps - "6 Underground" - Sultry, hook-driven trip-hop that brought the genre to mainstream audiences. Kelli Dayton's seductive vocal over crisp breakbeats and cinematic strings demonstrated trip-hop's commercial viability without sacrificing atmosphere.
