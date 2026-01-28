@@ -74,35 +74,6 @@ Haiku:  claude-haiku-4-5-20251001
 
 ---
 
-## Skill Tier Assignments
-
-Skills are assigned tiers based on their function:
-
-### Opus Tier (Critical Creative)
-These skills produce core content that defines quality:
-- `lyric-writer` - Lyrics are the product
-- `suno-engineer` - Prompts determine music output
-- `researchers-legal` - Complex legal document synthesis
-- `researchers-verifier` - High-stakes quality control
-
-### Sonnet Tier (Standard)
-Most skills that require reasoning but not maximum creativity:
-- `album-conceptualizer`
-- `album-art-director`
-- `researcher`
-- `release-director`
-- `mastering-engineer`
-- `document-hunter`
-- `lyric-reviewer`
-- All other researcher specialists
-
-### Haiku Tier (Fast Pattern Matching)
-Simple scanning tasks:
-- `pronunciation-specialist`
-- `explicit-checker`
-
----
-
 ## Workflow
 
 ### Check Mode
@@ -131,7 +102,7 @@ Skill Status:
 ✓ lyric-writer: claude-opus-4-5-20251101 (current)
 ✓ researcher: claude-sonnet-4-5-20250929 (current)
 ⚠ album-art-director: claude-sonnet-4-20250114 (outdated → claude-sonnet-4-5-20250929)
-✓ pronunciation-specialist: claude-haiku-4-5-20251001 (current)
+✓ import-audio: claude-haiku-4-5-20251001 (current)
 
 Summary: 19/20 skills current, 1 needs update
 ```
@@ -184,26 +155,29 @@ A model is outdated if:
 1. It's an older version of a current model family (e.g., `claude-sonnet-4-20250114` vs `claude-sonnet-4-5-20250929`)
 2. It's a deprecated model (e.g., `claude-3-opus-20240229`)
 
-### Preserving Tier Intent
+### Tier Detection (Auto)
 
-When updating, preserve the skill's intended tier:
-- If skill uses any opus model → update to current opus
-- If skill uses any sonnet model → update to current sonnet
-- If skill uses any haiku model → update to current haiku
-- If skill uses shorthand (`opus`, `sonnet`, `haiku`) → leave as-is (always resolves to current)
+Detect tier from the skill's existing `model:` field - no hardcoded tier list needed:
+- If model contains `opus` → update to current opus
+- If model contains `sonnet` → update to current sonnet
+- If model contains `haiku` → update to current haiku
+- If model is shorthand (`opus`, `sonnet`, `haiku`) → leave as-is (always resolves to current)
+
+This preserves deliberate tier assignments without maintaining a separate mapping.
 
 ---
 
 ## When New Models Release
 
-This skill discovers models automatically, so no manual mapping updates needed.
+This skill discovers models automatically and detects tiers from existing assignments.
 
 When Anthropic releases new models:
 
 1. **Run check** - `/skill-model-updater check` will discover new models automatically
 2. **Review changes** - Verify discovered models are correct
 3. **Run update** - `/skill-model-updater update` to propagate changes
-4. **Update CLAUDE.md** - If tier assignments change, update "Model Strategy" section manually
+
+**Note**: Tier assignments are documented in `/reference/model-strategy.md`. This skill preserves existing tiers - it only updates version numbers.
 
 ---
 
@@ -260,6 +234,6 @@ If a SKILL.md has malformed frontmatter:
 ## Remember
 
 - **Check before update** - Always know what will change
-- **Preserve tiers** - Don't accidentally downgrade opus skills to sonnet
-- **Update this skill first** - Model mapping must be current before propagating
+- **Tiers are auto-detected** - Skill reads existing model field to determine tier (opus/sonnet/haiku)
 - **Shorthand is safe** - `opus`, `sonnet`, `haiku` always resolve to current versions
+- **Tier rationale** - See `/reference/model-strategy.md` for why each skill uses its tier
