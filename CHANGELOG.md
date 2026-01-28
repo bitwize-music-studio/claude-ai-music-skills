@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-01-28
+
+### Changed
+- Revised model assignments for 6 skills with comprehensive rationale for all 38 skills
+  - Promoted to Opus: album-conceptualizer, lyric-reviewer
+  - Promoted to Sonnet: pronunciation-specialist, explicit-checker
+  - Moved to Haiku: skill-model-updater, test
+- Simplified skill-model-updater to auto-detect tiers from existing model fields instead of maintaining a hardcoded tier list
+- Updated model-strategy.md with per-skill rationale and decision framework
+
 ## [0.17.0] - 2026-01-28
 
 ### Added
