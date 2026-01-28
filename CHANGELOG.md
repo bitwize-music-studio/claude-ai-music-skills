@@ -6,7 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-01-28
+
 ### Added
+- Example override files in `config/overrides.example/` for all 11 documented overrides
+  - CLAUDE.md, pronunciation-guide.md, suno-preferences.md, lyric-writing-guide.md
+  - explicit-words.md, mastering-presets.yaml, album-planning-guide.md
+  - album-art-preferences.md, research-preferences.md, release-preferences.md
+  - sheet-music-preferences.md
+- `requirements:` field in skill frontmatter for skills with external dependencies
+  - mastering-engineer, promo-director, document-hunter, cloud-uploader
+- Test to verify skills with external deps have requirements field
 - Root `requirements.txt` consolidating all Python dependencies by feature (mastering, promo videos, sheet music, cloud uploads, document hunting)
 - Regression test for README skill count matching actual skill directory count
 - Regression test to prevent accidental skill.json files (standard is SKILL.md)
@@ -14,6 +24,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - "What's New" section in README showing recent version highlights
 
 ### Changed
+- Replaced emojis with text indicators in all logging output ([OK], [FAIL], [WARN])
+  - Python tools: generate_promo_video.py, validate_help_completeness.py, transcribe.py, create_songbook.py
+  - GitHub workflows: test.yml, model-updater.yml, auto-release.yml, version-sync.yml
 - Standardized co-author line in CONTRIBUTING.md to use "Claude Opus 4.5" (was inconsistently using Sonnet)
 
 ### Fixed
