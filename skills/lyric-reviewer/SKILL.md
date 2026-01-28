@@ -2,7 +2,7 @@
 name: lyric-reviewer
 description: Review lyrics for quality issues before Suno generation
 argument-hint: <track-path | album-path | --fix>
-model: claude-sonnet-4-5-20250929
+model: claude-opus-4-5-20251101
 allowed-tools:
   - Read
   - Edit

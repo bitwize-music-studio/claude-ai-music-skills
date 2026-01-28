@@ -2,7 +2,7 @@
 name: pronunciation-specialist
 description: Scan lyrics for pronunciation risks, prevent Suno mispronunciations
 argument-hint: <track-file-path or paste lyrics to scan>
-model: claude-haiku-4-5-20251001
+model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
   - Edit

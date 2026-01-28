@@ -2,7 +2,7 @@
 name: skill-model-updater
 description: Update model references in skill files when new Claude models are released
 argument-hint: <"check" | "update" | "update --dry-run">
-model: claude-sonnet-4-5-20250929
+model: claude-haiku-4-5-20251001
 disable-model-invocation: true
 allowed-tools:
   - Read

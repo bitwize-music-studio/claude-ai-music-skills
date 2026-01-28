@@ -2,7 +2,7 @@
 name: test
 description: Run automated tests to validate plugin integrity
 argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality | quick]
-model: claude-sonnet-4-5-20250929
+model: claude-haiku-4-5-20251001
 allowed-tools:
   - Read
   - Grep

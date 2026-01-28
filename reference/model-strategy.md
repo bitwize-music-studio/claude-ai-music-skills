@@ -1,224 +1,216 @@
 # Model Selection Strategy
 
-This document explains how Claude models are assigned to skills in the AI Music Skills plugin.
+This document explains the rationale for which Claude model is assigned to each skill in the AI Music Skills plugin.
 
-## Model Tiers
+## Model Tiers Overview
 
-The plugin uses three Claude models, each optimized for different types of tasks:
-
-### Opus 4.5 (`claude-opus-4-5-20251101`)
-
-**Use for**: Critical creative outputs where quality directly impacts the final music product.
-
-Opus is Claude's most capable model with the strongest creative writing, complex reasoning, and nuanced judgment. The cost is higher, but the investment pays off for tasks where output quality is paramount.
-
-**Characteristics**:
-- Highest creative quality and originality
-- Best at complex, multi-step reasoning
-- Superior nuance in tone, style, and voice
-- Most accurate at synthesizing complex information
-
-### Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
-
-**Use for**: Most tasks requiring reasoning, coordination, or moderate creativity.
-
-Sonnet balances capability with efficiency. It handles planning, research coordination, technical guidance, and structured creative tasks well.
-
-**Characteristics**:
-- Strong reasoning and analysis
-- Good creative output for structured tasks
-- Efficient for multi-step workflows
-- Reliable for technical and procedural work
-
-### Haiku 4.5 (`claude-haiku-4-5-20251001`)
-
-**Use for**: Fast, simple tasks that follow clear rules or patterns.
-
-Haiku is optimized for speed and efficiency. Perfect for validation, pattern matching, and straightforward operations where creative judgment isn't needed.
-
-**Characteristics**:
-- Fastest response time
-- Most cost-effective
-- Excellent for rule-based tasks
-- Good for simple transformations and lookups
+| Model | Strengths | Cost | When to Use |
+|-------|-----------|------|-------------|
+| **Opus 4.5** | Highest creative quality, nuanced judgment, complex synthesis | ~15x | Output directly impacts music quality; errors are costly |
+| **Sonnet 4.5** | Strong reasoning, good creativity, reliable coordination | ~5x | Most tasks; balance of capability and efficiency |
+| **Haiku 4.5** | Fastest, pattern matching, rule-following | 1x | Simple operations; binary decisions; no judgment needed |
 
 ---
 
-## Complete Skill Assignments
+## Opus 4.5 Skills (6 skills)
 
-### Opus 4.5 Skills (4 skills)
+These skills directly impact music quality or have high error costs.
 
-| Skill | Description | Rationale |
-|-------|-------------|-----------|
-| `lyric-writer` | Write/review lyrics with prosody and quality checks | Core creative output - lyrics define the music. Requires nuanced storytelling, rhyme craft, emotional resonance, and prosody mastery. Poor lyrics ruin tracks. |
-| `suno-engineer` | Technical Suno V5 prompting, genre selection | Style prompts directly control music generation. Requires deep understanding of genre conventions, vocal descriptions, and Suno's interpretation. |
-| `researchers-legal` | Court documents, indictments, plea agreements | Legal documents require precise interpretation and synthesis. Missing nuance in plea agreements or indictments can lead to factual errors that damage credibility. |
-| `researchers-verifier` | Quality control, citation validation, fact-checking | Final verification gate before human review. Must catch subtle inconsistencies across sources. Errors here propagate to lyrics and public claims. |
+### lyric-writer
+**Why Opus**: Lyrics ARE the music for vocal tracks. This skill requires:
+- Nuanced storytelling that connects emotionally
+- Sophisticated rhyme schemes without lazy patterns
+- Prosody mastery (stressed syllables on strong beats)
+- Voice consistency across an album
+- Balancing artistic expression with singability
 
-### Sonnet 4.5 Skills (25 skills)
+A mediocre lyric ruins the track. There's no "good enough" - lyrics must be excellent. The cost of Opus is trivial compared to regenerating music because lyrics fell flat.
 
-| Skill | Description | Rationale |
-|-------|-------------|-----------|
-| `album-conceptualizer` | Album concepts, tracklist architecture | Planning requires structure and creativity, but follows established patterns. Sonnet handles the 7-phase workflow effectively. |
-| `album-art-director` | Visual concepts for album artwork | Visual direction follows clear principles (composition, color theory). Creative but more structured than lyric writing. |
-| `album-ideas` | Track and manage album ideas | Idea management is organizational with light creative input. Sonnet handles brainstorming and tracking well. |
-| `configure` | Set up or edit plugin configuration | Technical/procedural task following clear steps. No creative judgment needed. |
-| `document-hunter` | Automated document search/download | Primarily technical automation and coordination. Creative judgment not required. |
-| `lyric-reviewer` | QC gate before Suno generation | Checklist-based review following established criteria. Catches issues but doesn't require Opus-level creativity. |
-| `mastering-engineer` | Audio mastering guidance, loudness optimization | Technical guidance following established standards (-14 LUFS, etc.). Procedural with clear targets. |
-| `promo-director` | Generate promo videos for social media | Technical workflow with creative elements. Follows templates and specifications. |
-| `release-director` | Album release coordination, QA, distribution | Coordination and checklist management. Important but procedural. |
-| `researcher` | Source verification, fact-checking, coordinates specialists | Research coordination and methodology. Delegates complex legal research to Opus-powered researchers-legal. |
-| `researchers-biographical` | Personal backgrounds, interviews, motivations | Background research is important but less legally sensitive than court documents. |
-| `researchers-financial` | SEC filings, earnings calls, analyst reports | Financial documents have clear structure. Less interpretive complexity than legal documents. |
-| `researchers-gov` | DOJ/FBI/SEC press releases, agency statements | Government press releases are more straightforward than raw legal filings. |
-| `researchers-historical` | Archives, contemporary accounts, timeline reconstruction | Historical research follows established methods. Less legally sensitive. |
-| `researchers-journalism` | Investigative articles, interviews, coverage | Journalism synthesis is important but sources are pre-interpreted by journalists. |
-| `researchers-primary-source` | Subject's own words: tweets, blogs, forums | Extracting quotes and context. Clear source material. |
-| `researchers-security` | Malware analysis, CVEs, attribution reports | Technical security research with established terminology. |
-| `researchers-tech` | Project histories, changelogs, developer interviews | Technical documentation is structured and clear. |
-| `resume` | Find an album and resume work | Status checking and coordination. Organizational task. |
-| `sheet-music-publisher` | Convert audio to sheet music, create songbooks | Technical workflow with clear specifications. |
-| `skill-model-updater` | Update model references in skills | Pattern matching and replacement. Technical maintenance. |
-| `test` | Run automated tests to validate plugin | Test execution and reporting. Procedural. |
-| `tutorial` | Interactive guided album creation | Guidance and conversation. Follows established workflow phases. |
-| `cloud-uploader` | Upload promo videos to cloud storage | Technical operation following clear steps. |
+### suno-engineer
+**Why Opus**: Style prompts directly control what Suno generates. This skill requires:
+- Deep understanding of 64+ genre conventions
+- Precise vocabulary for describing vocals, instruments, energy
+- Knowledge of what Suno interprets literally vs. figuratively
+- Ability to diagnose why a generation failed and adjust
 
-### Haiku 4.5 Skills (9 skills)
+Bad style prompts = bad music. Every regeneration costs time. Getting it right the first time with Opus pays for itself.
 
-| Skill | Description | Rationale |
-|-------|-------------|-----------|
-| `about` | About bitwize and this plugin | Static information display. No reasoning needed. |
-| `clipboard` | Copy track content to system clipboard | Simple extraction and system call. Pattern matching only. |
-| `explicit-checker` | Scan lyrics for explicit content | Pattern matching against word lists. Binary yes/no decisions. |
-| `help` | Show available skills and quick reference | Static information display. No reasoning needed. |
-| `import-art` | Place album art in correct locations | File operations following clear rules. |
-| `import-audio` | Move audio files to correct album location | File operations with path resolution. Rule-based. |
-| `import-track` | Move track .md files to correct album location | File operations with path resolution. Rule-based. |
-| `new-album` | Create album directory structure with templates | Directory creation following templates. Rule-based. |
-| `pronunciation-specialist` | Scan lyrics for pronunciation risks | Pattern matching against known risky words. Lookup-based with clear rules. |
-| `validate-album` | Validate album structure, file locations | Checklist validation. Binary pass/fail decisions. |
+### album-conceptualizer
+**Why Opus**: The album concept shapes everything downstream - tracklist, themes, arc, genre choices. This skill requires:
+- Creative vision for cohesive album identity
+- Understanding narrative arc across 8-15 tracks
+- Genre knowledge to make informed style decisions
+- Balancing artistic ambition with achievability
+
+A weak concept produces a weak album. Spending Opus here prevents wasted effort on a fundamentally flawed foundation.
+
+### lyric-reviewer
+**Why Opus**: This is the quality gate before Suno generation. If issues slip through, they become embedded in the music. This skill requires:
+- Catching subtle prosody problems
+- Identifying lazy rhymes that sound acceptable but aren't
+- Verifying source accuracy for documentary tracks
+- Judging whether a line "works" or needs revision
+
+Missing a problem here means regenerating after hearing it fail. Opus catches what Sonnet might miss.
+
+### researchers-legal
+**Why Opus**: Legal documents (indictments, plea agreements, sentencing memos) require:
+- Precise interpretation of legal language
+- Understanding what's alleged vs. proven vs. admitted
+- Extracting quotes without misrepresentation
+- Synthesizing complex procedural history
+
+Errors in legal interpretation can produce defamatory lyrics or factual inaccuracies that damage credibility. The stakes are too high for Sonnet.
+
+### researchers-verifier
+**Why Opus**: The final automated gate before human review. This skill must:
+- Cross-reference facts across multiple sources
+- Catch subtle inconsistencies in dates, names, amounts
+- Identify when quotes are paraphrased vs. verbatim
+- Flag methodology gaps others missed
+
+If the verifier misses something, errors reach the human reviewer or the public. This is the last line of defense before lyrics go into production.
+
+---
+
+## Sonnet 4.5 Skills (21 skills)
+
+These skills require reasoning and moderate creativity but follow established patterns.
+
+### album-art-director
+**Why Sonnet**: Visual direction follows compositional principles (rule of thirds, color theory, visual hierarchy). Creative input needed, but more structured than lyric writing. Clear deliverable: an art prompt for image generation.
+
+### album-ideas
+**Why Sonnet**: Brainstorming and organizing album concepts. Requires creativity to suggest ideas but follows a simple status workflow. Not generating final output - just capturing and organizing possibilities.
+
+### cloud-uploader
+**Why Sonnet**: Coordinates file uploads to R2/S3 with correct paths and metadata. Requires understanding the folder structure and naming conventions. Technical but not complex enough for Opus, not simple enough for Haiku.
+
+### configure
+**Why Sonnet**: Guides users through configuration setup. Must understand what each setting does and suggest appropriate values. Conversational and adaptive, but following a clear structure.
+
+### document-hunter
+**Why Sonnet**: Automates searching public archives for documents. Requires judgment about search strategies and evaluating results. Technical automation with decision-making, not pure pattern matching.
+
+### explicit-checker
+**Why Sonnet**: Scans lyrics for explicit content. Moved from Haiku because context matters - "ass" in "bass guitar" isn't explicit, "ass" alone might be. Needs judgment about artistic intent and platform standards.
+
+### mastering-engineer
+**Why Sonnet**: Guides audio mastering with technical knowledge (-14 LUFS, true peak limits, genre-specific EQ). Follows established standards but needs to explain rationale and troubleshoot issues.
+
+### promo-director
+**Why Sonnet**: Coordinates video generation with creative decisions (visualization style, timing, text overlays). Technical workflow with aesthetic judgment. Not creating music, but creating promotional assets.
+
+### pronunciation-specialist
+**Why Sonnet**: Scans for pronunciation risks. Moved from Haiku because edge cases need judgment - is "live" pronounced LIVE or LIV in this context? Names, technical terms, and homographs require understanding, not just pattern matching.
+
+### release-director
+**Why Sonnet**: Coordinates release across platforms with different requirements. Must track checklists, verify metadata, and adapt to platform-specific needs. Procedural but requires understanding the "why" behind each step.
+
+### researcher
+**Why Sonnet**: Coordinates specialized researchers and synthesizes their findings. Delegates complex legal work to Opus-powered researchers-legal. Orchestration role requiring judgment about which specialist to invoke.
+
+### researchers-biographical
+**Why Sonnet**: Researches personal backgrounds, interviews, motivations. Important for humanizing subjects but less legally sensitive than court documents. Sources are generally clearer than legal filings.
+
+### researchers-financial
+**Why Sonnet**: Navigates SEC filings, earnings calls, financial statements. Structured documents with established formats. Less interpretive complexity than legal proceedings.
+
+### researchers-gov
+**Why Sonnet**: Finds DOJ/FBI/SEC press releases and agency statements. Government communications are more straightforward than raw legal filings - they're already written for public consumption.
+
+### researchers-historical
+**Why Sonnet**: Archives, contemporary accounts, timeline reconstruction. Follows established historical research methods. Important for accuracy but less legally sensitive than court documents.
+
+### researchers-journalism
+**Why Sonnet**: Investigative articles, interviews, news coverage. Sources are pre-interpreted by professional journalists. Requires evaluating credibility but not legal interpretation.
+
+### researchers-primary-source
+**Why Sonnet**: Finds subject's own words (tweets, blogs, forums). Extracting and contextualizing quotes from clear source material. Less interpretation needed than legal documents.
+
+### researchers-security
+**Why Sonnet**: CVE databases, malware analysis, attribution reports. Technical security research with established terminology and formats. Structured information extraction.
+
+### researchers-tech
+**Why Sonnet**: Project histories, changelogs, developer interviews. Technical documentation is structured and clear. Following breadcrumbs through GitHub and mailing lists.
+
+### resume
+**Why Sonnet**: Finds albums and reports status. Requires understanding workflow state and suggesting next steps. Conversational and adaptive, but following established patterns.
+
+### sheet-music-publisher
+**Why Sonnet**: Coordinates transcription workflow with tool-specific guidance. Technical process requiring troubleshooting knowledge. Not creative output, but needs to explain and adapt.
+
+### tutorial
+**Why Sonnet**: Interactive guided album creation. Must be conversational, adaptive, and educational. Follows the 7-phase workflow but needs to meet users where they are.
+
+---
+
+## Haiku 4.5 Skills (11 skills)
+
+These skills perform simple, rule-based operations with no creative judgment.
+
+### about
+**Why Haiku**: Displays static information about the plugin. No reasoning needed - just retrieves and formats predetermined content.
+
+### clipboard
+**Why Haiku**: Copies track content to system clipboard. Pure extraction: find the section, copy the text, call the system clipboard command. No judgment required.
+
+### help
+**Why Haiku**: Displays available skills and quick reference. Static information retrieval and formatting. No decision-making beyond basic lookup.
+
+### import-art
+**Why Haiku**: Places album art in correct locations. Rule-based file operation: read config, determine paths, copy files. Binary success/failure.
+
+### import-audio
+**Why Haiku**: Moves audio files to correct album location. Path resolution following strict rules: `{audio_root}/{artist}/{album}/`. No judgment - just correct path construction.
+
+### import-track
+**Why Haiku**: Moves track markdown files to correct location. Same as import-audio - rule-based path resolution and file operations.
+
+### new-album
+**Why Haiku**: Creates album directory structure from templates. Follows a template exactly: create folders, copy files, replace placeholders. No creative decisions.
+
+### skill-model-updater
+**Why Haiku**: Updates model references when new Claude versions release. Pattern matching and replacement: find old model ID, replace with new. No judgment about which model to use (that's documented separately).
+
+### test
+**Why Haiku**: Runs predefined test suites. Executes checks and reports pass/fail. Tests are already defined - this just runs them and formats output.
+
+### validate-album
+**Why Haiku**: Validates album structure against expected format. Checklist validation with binary pass/fail for each item. No interpretation - either the file exists or it doesn't.
 
 ---
 
 ## Decision Framework
 
-When assigning a model to a new skill, ask these questions:
+When assigning a model to a new skill:
 
-### Use Opus 4.5 when:
+```
+Is the output the actual music content (lyrics, prompts)?
+  YES → Opus (errors directly impact music quality)
+  NO ↓
 
-1. **Output defines the music** - Lyrics, Suno prompts
-2. **Legal/factual accuracy is critical** - Court document interpretation
-3. **Quality gate for public content** - Final verification before release
-4. **Creative nuance matters** - Tone, voice, emotional resonance
-5. **Errors are costly to fix** - Regenerating music, retracting claims
+Is there significant legal/factual risk if errors occur?
+  YES → Opus (errors can be defamatory or damage credibility)
+  NO ↓
 
-### Use Sonnet 4.5 when:
+Does the task require creative judgment or synthesis?
+  YES → Sonnet (reasoning + creativity)
+  NO ↓
 
-1. **Task requires reasoning but follows patterns** - Album planning, research coordination
-2. **Technical guidance with clear targets** - Mastering specs, release procedures
-3. **Moderate creativity within structure** - Visual concepts, video direction
-4. **Multi-step workflows** - Tutorials, configuration, testing
-5. **Coordination across skills** - Researcher orchestrating specialists
-
-### Use Haiku 4.5 when:
-
-1. **Pattern matching only** - Word lists, pronunciation risks
-2. **Rule-based operations** - File moves, directory creation
-3. **Binary decisions** - Pass/fail validation, yes/no checks
-4. **Static information** - Help text, about pages
-5. **Simple transformations** - Clipboard operations
+Is it purely pattern matching, file operations, or static info?
+  YES → Haiku (fast, cheap, sufficient)
+  NO → Sonnet (default for uncertain cases)
+```
 
 ---
 
-## Override Guidance
+## Distribution Summary
 
-Users on the Claude Code Max subscription have access to all model tiers. In some cases, users may want to override the default model:
+| Tier | Count | Percentage | Purpose |
+|------|-------|------------|---------|
+| Opus 4.5 | 6 | 15.8% | Music-defining output, high error cost |
+| Sonnet 4.5 | 21 | 55.3% | Reasoning, coordination, moderate creativity |
+| Haiku 4.5 | 11 | 28.9% | Rule-based operations, no judgment |
 
-### When to consider upgrading to Opus:
-
-- **album-conceptualizer**: For unusually complex or experimental album concepts
-- **lyric-reviewer**: When reviewing source-based documentary lyrics with legal sensitivity
-- **researchers-journalism**: For investigative pieces requiring synthesis of conflicting accounts
-
-### When Haiku might suffice:
-
-- **resume**: If only checking status (no complex decision-making)
-- **configure**: For straightforward configuration updates
-- **test**: For running pre-defined test suites
-
-### How to override:
-
-Model assignments are in each skill's SKILL.md frontmatter. To change:
-
-1. Edit `skills/[skill-name]/SKILL.md`
-2. Change the `model:` field
-3. Test to verify quality meets expectations
-
-**Note**: Overriding to lower-tier models may reduce output quality. Overriding to higher-tier models increases cost but may improve results for edge cases.
-
----
-
-## Researcher Skill Models
-
-The research skills warrant special explanation since they span different model tiers:
-
-### Why researchers-legal uses Opus:
-
-Legal documents (indictments, plea agreements, sentencing memos) require:
-- Precise interpretation of legal language
-- Understanding implied vs. explicit claims
-- Synthesis of complex procedural history
-- Extraction of lyric-worthy quotes without misrepresentation
-
-Errors in legal interpretation can lead to defamatory lyrics or factual inaccuracies that damage credibility.
-
-### Why researchers-verifier uses Opus:
-
-The verifier is the final automated gate before human review. It must:
-- Cross-reference facts across multiple sources
-- Catch subtle inconsistencies in dates, names, amounts
-- Identify when quotes are paraphrased vs. verbatim
-- Flag methodology gaps
-
-Missing verification issues means errors reach the human reviewer (or worse, the public).
-
-### Why other researchers use Sonnet:
-
-Government press releases, journalism, financial filings, and technical documentation are:
-- More structured and pre-interpreted
-- Less legally sensitive
-- Following established formats
-- Less prone to misinterpretation
-
-The coordinator (`researcher`) also uses Sonnet because it orchestrates rather than interprets.
-
----
-
-## Cost Considerations
-
-Model costs increase with capability:
-
-| Model | Relative Cost | Use Sparingly |
-|-------|---------------|---------------|
-| Haiku 4.5 | 1x (baseline) | No - use freely |
-| Sonnet 4.5 | ~5x | No - default choice |
-| Opus 4.5 | ~15x | Yes - reserve for critical tasks |
-
-The plugin assigns Opus to only 4 of 38 skills (10.5%) to balance quality and cost. These four skills directly impact music output quality.
-
----
-
-## Updating This Document
-
-When adding new skills:
-
-1. Apply the decision framework above
-2. Add the skill to the appropriate tier table with rationale
-3. If the choice isn't obvious, document the tradeoff considered
-
-When Claude releases new models:
-
-1. Run `/bitwize-music:skill-model-updater check` to identify outdated references
-2. Evaluate if tier assignments should change based on new model capabilities
-3. Update this document with new model IDs
+The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

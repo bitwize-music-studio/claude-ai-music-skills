@@ -2,7 +2,7 @@
 name: explicit-checker
 description: Scan lyrics for explicit content, verify explicit flags match actual content
 argument-hint: <album-path or track-path>
-model: claude-haiku-4-5-20251001
+model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
   - Glob

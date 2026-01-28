@@ -484,25 +484,29 @@ Skills can update their own reference documentation when new issues are discover
 
 Skills are optimized for quality where it matters most. On the Claude Code Max subscription plan, use the best model for critical creative outputs.
 
-**Opus 4.5 (`claude-opus-4-5-20251101`)** - Critical creative outputs:
+**Opus 4.5 (`claude-opus-4-5-20251101`)** - Music-defining output and high error cost (6 skills):
 - `/bitwize-music:lyric-writer` - Core content, storytelling, prosody
 - `/bitwize-music:suno-engineer` - Music generation prompts
+- `/bitwize-music:album-conceptualizer` - Album concept shapes everything downstream
+- `/bitwize-music:lyric-reviewer` - QC gate before generation, must catch all issues
 - `/bitwize-music:researchers-legal` - Complex legal document synthesis
 - `/bitwize-music:researchers-verifier` - High-stakes quality control
 
-**Sonnet 4.5 (`claude-sonnet-4-5-20250929`)** - Most tasks:
-- `/bitwize-music:album-conceptualizer` - Album planning
+**Sonnet 4.5 (`claude-sonnet-4-5-20250929`)** - Reasoning and coordination (21 skills):
 - `/bitwize-music:researcher` - Research coordination
+- `/bitwize-music:pronunciation-specialist` - Edge cases need judgment (homographs, context)
+- `/bitwize-music:explicit-checker` - Context matters for content decisions
 - All other creative and reasoning tasks
 
-**Haiku 4.5 (`claude-haiku-4-5-20251001`)** - Pattern matching only:
-- `/bitwize-music:pronunciation-specialist` - Scanning for pronunciation risks
+**Haiku 4.5 (`claude-haiku-4-5-20251001`)** - Rule-based operations (11 skills):
 - `/bitwize-music:validate-album` - Structure validation
-- Import skills, clipboard, help, about
+- `/bitwize-music:test` - Runs predefined checks
+- `/bitwize-music:skill-model-updater` - Pattern matching and replacement
+- Import skills, clipboard, help, about, new-album
 
-**The rule**: Optimize for quality on lyrics and Suno prompts. These define the music output. Everything else can use Sonnet.
+**The rule**: Opus for output that defines the music or has high error cost. Sonnet for tasks needing judgment. Haiku for mechanical operations.
 
-**Full documentation**: See `/reference/model-strategy.md` for complete skill assignments, decision framework, and override guidance.
+**Full documentation**: See `/reference/model-strategy.md` for complete rationale for all 38 skills.
 
 ---
 
