@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.19.3] - 2026-01-29
+
+### Changed
+- **Venv-first messaging** across all tools and skills — error messages in `upload_to_cloud.py` and `generate_promo_video.py` now show venv setup commands instead of bare `pip install`. Cloud-uploader and promo-director SKILL.md docs updated to present venv as the primary (not alternative) approach.
+
 ## [0.19.2] - 2026-01-29
 
 ### Fixed

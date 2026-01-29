@@ -75,15 +75,12 @@ See `/reference/cloud/setup-guide.md` for detailed setup instructions.
 ### Python Dependencies
 
 ```bash
-pip install boto3 pyyaml
-```
-
-Or use venv:
-```bash
 python3 -m venv ~/.bitwize-music/cloud-env
 source ~/.bitwize-music/cloud-env/bin/activate
-pip install -r {plugin_root}/tools/cloud/requirements.txt
+pip install -r {plugin_root}/requirements-cloud.txt
 ```
+
+**Always use the venv** — activate it before running the upload script.
 
 ## Workflow
 
@@ -114,8 +111,9 @@ Generate with: /bitwize-music:promo-director {album}
 
 ### 2. Preview Upload (Dry Run)
 
-Always preview first:
+Always activate the venv and preview first:
 ```bash
+source ~/.bitwize-music/cloud-env/bin/activate
 cd {plugin_root}
 python3 tools/cloud/upload_to_cloud.py {album} --dry-run
 ```

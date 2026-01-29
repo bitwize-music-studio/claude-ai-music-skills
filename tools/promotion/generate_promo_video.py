@@ -221,7 +221,9 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
 
     except ImportError:
         print("  librosa not installed, using fallback (20% into track)")
-        print("  Install with: pip install librosa")
+        print("  For energy analysis, set up venv:")
+        print("    source ~/.bitwize-music/promotion-env/bin/activate")
+        print("    pip install librosa numpy")
         return min(total_duration * 0.2, max_start)
     except Exception as e:
         print(f"  Energy analysis failed: {e}, using fallback")

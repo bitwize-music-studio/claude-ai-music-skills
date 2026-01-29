@@ -6,9 +6,13 @@ Uploads promo videos and album content to Cloudflare R2 or AWS S3 buckets.
 Both use S3-compatible API via boto3.
 
 Requirements:
-    - boto3 (pip install boto3)
-    - pyyaml (pip install pyyaml)
+    - boto3, pyyaml (use venv: see below)
     - Cloud credentials configured in ~/.bitwize-music/config.yaml
+
+Setup:
+    python3 -m venv ~/.bitwize-music/cloud-env
+    source ~/.bitwize-music/cloud-env/bin/activate
+    pip install boto3 pyyaml
 
 Usage:
     # Upload all promos for an album
@@ -37,14 +41,22 @@ import mimetypes
 try:
     import yaml
 except ImportError:
-    print("Error: pyyaml not installed. Run: pip install pyyaml")
+    print("Error: pyyaml not installed.")
+    print("Set up venv:")
+    print("  python3 -m venv ~/.bitwize-music/cloud-env")
+    print("  source ~/.bitwize-music/cloud-env/bin/activate")
+    print("  pip install boto3 pyyaml")
     sys.exit(1)
 
 try:
     import boto3
     from botocore.exceptions import ClientError, NoCredentialsError
 except ImportError:
-    print("Error: boto3 not installed. Run: pip install boto3")
+    print("Error: boto3 not installed.")
+    print("Set up venv:")
+    print("  python3 -m venv ~/.bitwize-music/cloud-env")
+    print("  source ~/.bitwize-music/cloud-env/bin/activate")
+    print("  pip install boto3 pyyaml")
     sys.exit(1)
 
 

@@ -475,11 +475,13 @@ Ready for release workflow: /bitwize-music:release-director my-album
 - Override with: `--font-path /path/to/font.ttf`
 
 **"Color extraction failed"**
-- Install PIL: `pip install pillow`
+- Activate venv: `source ~/.bitwize-music/promotion-env/bin/activate`
+- Install PIL in venv: `pip install pillow`
 - Or accept default cyan color scheme (still works)
 
 **"librosa not found" (warning, not error)**
-- Install: `pip install librosa numpy`
+- Activate venv: `source ~/.bitwize-music/promotion-env/bin/activate`
+- Install in venv: `pip install librosa numpy`
 - Or continue with fallback (20% into track)
 - Quality still good, just less intelligent segment selection
 
