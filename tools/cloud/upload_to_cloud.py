@@ -126,21 +126,37 @@ def get_bucket_name(config: Dict[str, Any]) -> str:
 
 
 def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override: Optional[str] = None) -> Path:
-    """Find the album directory in audio_root."""
+    """Find the album directory in audio_root.
+
+    Standard structure: {audio_root}/{artist}/{album}/
+    With --audio-root override: tries {override}/{artist}/{album}/ first,
+    then falls back to {override}/{album}/ (for when override already
+    includes the artist path).
+    """
     if audio_root_override:
         audio_root = Path(audio_root_override).expanduser()
     else:
         audio_root = Path(config["paths"]["audio_root"]).expanduser()
 
     artist = config["artist"]["name"]
+
+    # Try standard path first: {audio_root}/{artist}/{album}
     album_path = audio_root / artist / album_name
+    if album_path.exists():
+        return album_path
 
-    if not album_path.exists():
-        print(f"Error: Album not found at {album_path}")
-        print(f"Expected structure: {audio_root}/{artist}/{album_name}/")
-        sys.exit(1)
+    # If override provided, also try without artist prefix
+    # (user may have passed a path that already includes the artist)
+    if audio_root_override:
+        album_path_direct = audio_root / album_name
+        if album_path_direct.exists():
+            return album_path_direct
 
-    return album_path
+    print(f"Error: Album not found at {album_path}")
+    if audio_root_override:
+        print(f"Also checked: {audio_root / album_name}")
+    print(f"Expected structure: {audio_root}/{artist}/{album_name}/")
+    sys.exit(1)
 
 
 def get_files_to_upload(album_path: Path, upload_type: str) -> List[Path]:

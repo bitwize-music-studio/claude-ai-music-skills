@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-01-29
+
+### Fixed
+- **Cloud upload path resolution** in `upload_to_cloud.py` — when `--audio-root` override already includes the artist path, the script no longer doubles it (e.g., `.../bitwize/albums/rock/bitwize/shell-no`). Now tries standard path first, then falls back to direct `{override}/{album}` lookup.
+
 ## [0.19.0] - 2026-01-29
 
 ### Added
