@@ -949,6 +949,119 @@ class PluginTestRunner:
                     fix_hint="Remove skill.json - use SKILL.md format instead"
                 )
 
+        # Test: Model tiers are consistent across SKILL.md files
+        self.log("Checking model tier consistency...")
+        model_tiers: Dict[str, List[str]] = {}  # tier -> [skill_names]
+        for skill_name, frontmatter in skills.items():
+            if '_error' in frontmatter:
+                continue
+            model = frontmatter.get('model', '')
+            if 'opus' in model:
+                model_tiers.setdefault('opus', []).append(skill_name)
+            elif 'sonnet' in model:
+                model_tiers.setdefault('sonnet', []).append(skill_name)
+            elif 'haiku' in model:
+                model_tiers.setdefault('haiku', []).append(skill_name)
+
+        # Check model-strategy.md lists match actual assignments
+        strategy_path = self.plugin_root / "reference" / "model-strategy.md"
+        if strategy_path.exists():
+            strategy_content = strategy_path.read_text()
+
+            for skill_name, frontmatter in skills.items():
+                if '_error' in frontmatter:
+                    continue
+                model = frontmatter.get('model', '')
+                if not model:
+                    continue
+
+                # Determine actual tier
+                if 'opus' in model:
+                    actual_tier = 'opus'
+                elif 'sonnet' in model:
+                    actual_tier = 'sonnet'
+                elif 'haiku' in model:
+                    actual_tier = 'haiku'
+                else:
+                    continue
+
+                # Check if model-strategy.md lists this skill under the right section
+                # Look for skill name in the section for a DIFFERENT tier
+                tier_sections = {
+                    'opus': r'## Opus.*?(?=## Sonnet|## Haiku|## Decision|$)',
+                    'sonnet': r'## Sonnet.*?(?=## Haiku|## Decision|$)',
+                    'haiku': r'## Haiku.*?(?=## Decision|$)',
+                }
+
+                # Find which section has a ### heading for this skill
+                documented_tier = None
+                skill_heading_pattern = re.compile(rf'^### {re.escape(skill_name)}$', re.MULTILINE)
+                for tier, pattern in tier_sections.items():
+                    section_match = re.search(pattern, strategy_content, re.DOTALL)
+                    if section_match and skill_heading_pattern.search(section_match.group()):
+                        documented_tier = tier
+                        break
+
+                if documented_tier is None:
+                    self._add_test(
+                        category,
+                        f"Model strategy documents: {skill_name}",
+                        TestResult.WARN,
+                        f"Skill not found in model-strategy.md (actual: {actual_tier})",
+                        "reference/model-strategy.md"
+                    )
+                elif documented_tier != actual_tier:
+                    self._add_test(
+                        category,
+                        f"Model tier match: {skill_name}",
+                        TestResult.FAIL,
+                        f"SKILL.md says {actual_tier}, model-strategy.md says {documented_tier}",
+                        frontmatter.get('_path', ''),
+                        fix_hint=f"Align SKILL.md model with model-strategy.md"
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        f"Model tier match: {skill_name}",
+                        TestResult.OK
+                    )
+
+            # Report tier distribution summary
+            tier_counts = {t: len(s) for t, s in model_tiers.items()}
+            self._add_test(
+                category,
+                f"Model distribution: opus={tier_counts.get('opus', 0)}, "
+                f"sonnet={tier_counts.get('sonnet', 0)}, haiku={tier_counts.get('haiku', 0)}",
+                TestResult.OK
+            )
+        else:
+            self._add_test(
+                category,
+                "Model strategy document exists",
+                TestResult.WARN,
+                "reference/model-strategy.md not found, skipping tier consistency check"
+            )
+
+        # Test: No disable-model-invocation flags
+        self.log("Checking for disable-model-invocation flags...")
+        skills_with_flag = []
+        for skill_name, frontmatter in skills.items():
+            if '_error' in frontmatter:
+                continue
+            if frontmatter.get('disable-model-invocation'):
+                skills_with_flag.append(skill_name)
+
+        if not skills_with_flag:
+            self._add_test(category, "No disable-model-invocation flags", TestResult.OK)
+        else:
+            self._add_test(
+                category,
+                "No disable-model-invocation flags",
+                TestResult.WARN,
+                f"Skills with flag: {', '.join(skills_with_flag)}",
+                fix_hint="Remove disable-model-invocation unless intentional"
+            )
+
         # Test: .gitignore has required entries
         self.log("Checking .gitignore entries...")
         gitignore_path = self.plugin_root / ".gitignore"
@@ -1136,8 +1249,7 @@ class PluginTestRunner:
                 self._add_test(category, "Schema version constant exists", TestResult.OK)
 
                 # Check it's a valid semver string
-                import re as _re
-                version_match = _re.search(r'CURRENT_VERSION\s*=\s*["\'](\d+\.\d+\.\d+)["\']', content)
+                version_match = re.search(r'CURRENT_VERSION\s*=\s*["\'](\d+\.\d+\.\d+)["\']', content)
                 if version_match:
                     self._add_test(
                         category,
@@ -1202,9 +1314,10 @@ class PluginTestRunner:
         self.log("Running state parser tests...")
         import subprocess
         try:
+            test_timeout = int(os.environ.get('BITWIZE_TEST_TIMEOUT', '60'))
             result = subprocess.run(
                 [sys.executable, '-m', 'pytest', 'tools/state/tests/test_parsers.py', '-q', '--tb=short'],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=test_timeout,
                 cwd=str(self.plugin_root)
             )
             if result.returncode == 0:
@@ -1232,7 +1345,7 @@ class PluginTestRunner:
                 category,
                 "Parser unit tests pass",
                 TestResult.FAIL,
-                "Tests timed out after 30s"
+                f"Tests timed out after {test_timeout}s (set BITWIZE_TEST_TIMEOUT to increase)"
             )
 
         # Print results

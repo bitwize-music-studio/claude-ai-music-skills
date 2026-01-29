@@ -19,6 +19,7 @@ Usage (either form works):
 """
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -157,6 +158,11 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
         # Scan tracks
         tracks = scan_tracks(album_dir)
 
+        try:
+            readme_mtime = readme_path.stat().st_mtime
+        except OSError:
+            continue  # File removed between glob and stat
+
         albums[album_slug] = {
             'path': str(album_dir),
             'genre': genre,
@@ -166,7 +172,7 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
             'release_date': album_data.get('release_date'),
             'track_count': album_data.get('track_count', len(tracks)),
             'tracks_completed': album_data.get('tracks_completed', 0),
-            'readme_mtime': readme_path.stat().st_mtime,
+            'readme_mtime': readme_mtime,
             'tracks': tracks,
         }
 
@@ -196,6 +202,11 @@ def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
             print(f"{Colors.YELLOW}[WARN]{Colors.NC} Skipping {track_path}: {track_data['_error']}")
             continue
 
+        try:
+            track_mtime = track_path.stat().st_mtime
+        except OSError:
+            continue  # File removed between glob and stat
+
         tracks[track_slug] = {
             'path': str(track_path),
             'title': track_data.get('title', track_slug),
@@ -203,7 +214,7 @@ def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
             'explicit': track_data.get('explicit', False),
             'has_suno_link': track_data.get('has_suno_link', False),
             'sources_verified': track_data.get('sources_verified', 'N/A'),
-            'mtime': track_path.stat().st_mtime,
+            'mtime': track_mtime,
         }
 
     return tracks
@@ -294,7 +305,7 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
     content_root = Path(config_section['content_root'])
     artist_name = config_section['artist_name']
 
-    state = existing_state.copy()
+    state = copy.deepcopy(existing_state)
     state['config'] = config_section
     state['generated_at'] = datetime.now(timezone.utc).isoformat()
 
@@ -321,7 +332,10 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
             existing_album = existing_albums.get(slug)
 
             # Check if README changed
-            readme_mtime = readme_path.stat().st_mtime
+            try:
+                readme_mtime = readme_path.stat().st_mtime
+            except OSError:
+                continue  # File removed between glob and stat
             if existing_album and existing_album.get('readme_mtime') == readme_mtime:
                 # README unchanged, check individual tracks
                 _update_tracks_incremental(existing_album, album_dir)
@@ -381,7 +395,10 @@ def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
     for track_path in sorted(tracks_dir.glob("*.md")):
         slug = track_path.stem
         current_track_slugs.add(slug)
-        current_mtime = track_path.stat().st_mtime
+        try:
+            current_mtime = track_path.stat().st_mtime
+        except OSError:
+            continue  # File removed between glob and stat
 
         existing_track = existing_tracks.get(slug)
         if existing_track and existing_track.get('mtime') == current_mtime:

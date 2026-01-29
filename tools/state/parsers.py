@@ -305,7 +305,7 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
 
     # Suno Link
     suno_link_raw = _extract_table_value(text, 'Suno Link')
-    if suno_link_raw and suno_link_raw not in ('—', '-', ''):
+    if suno_link_raw and suno_link_raw.strip() not in ('—', '–', '-', ''):
         result['has_suno_link'] = True
     else:
         result['has_suno_link'] = False
@@ -313,13 +313,14 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
     # Sources Verified
     sources_raw = _extract_table_value(text, 'Sources Verified')
     if sources_raw:
-        raw_lower = sources_raw.lower()
+        raw_lower = sources_raw.strip().lower()
         if 'n/a' in raw_lower:
             result['sources_verified'] = 'N/A'
-        elif '✅' in sources_raw or 'verified' in raw_lower:
-            result['sources_verified'] = 'Verified'
-        elif '❌' in sources_raw or 'pending' in raw_lower:
+        elif '❌' in sources_raw or raw_lower == 'pending' or raw_lower.startswith('pending'):
+            # Check pending BEFORE verified so "pending verification" doesn't match "verified"
             result['sources_verified'] = 'Pending'
+        elif '✅' in sources_raw or raw_lower == 'verified' or raw_lower.startswith('verified'):
+            result['sources_verified'] = 'Verified'
         else:
             result['sources_verified'] = sources_raw
     else:

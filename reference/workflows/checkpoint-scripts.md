@@ -2,6 +2,9 @@
 
 This document contains the detailed example messages for workflow checkpoints. CLAUDE.md references these scripts but keeps only triggers and action lists for brevity.
 
+> **Related docs**: [release-procedures.md](release-procedures.md), [error-recovery.md](error-recovery.md)
+> **Related skills**: `/bitwize-music:release-director` (release coordination), `/bitwize-music:validate-album` (structure validation)
+
 ## Ready to Generate Checkpoint
 
 **Trigger**: When all track lyrics are written for an album

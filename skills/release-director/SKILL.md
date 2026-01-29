@@ -3,7 +3,6 @@ name: release-director
 description: Album release coordination, QA, distribution, platform uploads
 argument-hint: <album-path or "release [album]">
 model: claude-sonnet-4-5-20250929
-disable-model-invocation: true
 allowed-tools:
   - Read
   - Edit

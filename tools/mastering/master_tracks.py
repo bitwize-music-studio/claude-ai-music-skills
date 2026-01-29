@@ -239,6 +239,17 @@ def master_track(input_path, output_path, target_lufs=-14.0,
     meter = pyln.Meter(rate)
     current_lufs = meter.integrated_loudness(data)
 
+    # Guard against silent or near-silent audio (loudness returns -inf)
+    if not np.isfinite(current_lufs):
+        print(f"  WARNING: Audio is silent or near-silent, skipping: {input_path}")
+        return {
+            'original_lufs': float('-inf'),
+            'final_lufs': float('-inf'),
+            'gain_applied': 0.0,
+            'final_peak': float('-inf'),
+            'skipped': True,
+        }
+
     # Calculate required gain
     gain_db = target_lufs - current_lufs
     gain_linear = 10 ** (gain_db / 20)
@@ -251,7 +262,8 @@ def master_track(input_path, output_path, target_lufs=-14.0,
 
     # Verify final loudness
     final_lufs = meter.integrated_loudness(data)
-    final_peak = 20 * np.log10(np.max(np.abs(data)))
+    peak_abs = np.max(np.abs(data))
+    final_peak = 20 * np.log10(peak_abs) if peak_abs > 0 else float('-inf')
 
     # Convert back to mono if input was mono
     if was_mono:
@@ -334,9 +346,10 @@ Examples:
     if not args.dry_run:
         output_dir.mkdir(exist_ok=True)
 
-    # Find wav files
-    wav_files = sorted([f for f in input_dir.glob('*.wav')
-                       if 'mastering-env' not in str(f)])
+    # Find wav files (case-insensitive for cross-platform compatibility)
+    wav_files = sorted([f for f in input_dir.iterdir()
+                       if f.suffix.lower() == '.wav'
+                       and 'mastering-env' not in str(f)])
 
     # Build EQ settings
     eq_settings = []
@@ -379,6 +392,9 @@ Examples:
                 data = np.column_stack([data, data])
             meter = pyln.Meter(rate)
             current_lufs = meter.integrated_loudness(data)
+            if not np.isfinite(current_lufs):
+                print(f"  WARNING: Silent/near-silent audio, skipping: {wav_file.name}")
+                continue
             gain = args.target_lufs - current_lufs
             result = {
                 'original_lufs': current_lufs,
@@ -395,6 +411,9 @@ Examples:
                 ceiling_db=args.ceiling
             )
 
+        if result.get('skipped'):
+            continue
+
         results.append(result)
 
         name = wav_file.name[:34]
@@ -402,6 +421,10 @@ Examples:
               f"{result['gain_applied']:>+7.1f} {result['final_peak']:>7.1f}")
 
     print("-" * 70)
+
+    if not results:
+        print("\nNo tracks were processed (all silent or no WAV files found).")
+        return
 
     # Summary
     gains = [r['gain_applied'] for r in results]

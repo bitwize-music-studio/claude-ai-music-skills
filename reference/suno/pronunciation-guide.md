@@ -2,6 +2,9 @@
 
 Suno's text-to-speech engine can mispronounce words, especially homographs (same spelling, different pronunciation) and technical terms. This guide helps identify problem words and provides solutions.
 
+> **Related skill**: `/bitwize-music:pronunciation-specialist` (automated scanning for pronunciation risks)
+> **Related docs**: [v5-best-practices.md](v5-best-practices.md)
+
 ## Why This Matters
 
 Suno reads lyrics literally. It doesn't understand context the way humans do. When it sees "live," it picks one pronunciation - and it might be wrong for your meaning.

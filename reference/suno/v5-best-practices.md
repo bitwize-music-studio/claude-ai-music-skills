@@ -2,6 +2,9 @@
 
 Comprehensive guide for getting the best results with Suno V5.
 
+> **Related skills**: `/bitwize-music:suno-engineer` (interactive prompting), `/bitwize-music:pronunciation-specialist` (phonetic review)
+> **Related docs**: [pronunciation-guide.md](pronunciation-guide.md), [structure-tags.md](structure-tags.md), [voice-tags.md](voice-tags.md), [tips-and-tricks.md](tips-and-tricks.md)
+
 ## Quick Start Formula
 
 ```

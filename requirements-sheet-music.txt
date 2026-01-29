@@ -1,0 +1,5 @@
+# Sheet Music (required for /bitwize-music:sheet-music-publisher)
+# Also requires: AnthemScore or MuseScore (external apps)
+pypdf>=3.0.0
+reportlab>=4.0.0
+pyyaml>=6.0

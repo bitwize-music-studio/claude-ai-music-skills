@@ -236,31 +236,46 @@ Redundant or conflicting combinations:
 
 ## Skill Categories by Model
 
-Skills are assigned to models based on task complexity:
+Skills are assigned to models based on task complexity. See [model-strategy.md](model-strategy.md) for full rationale.
 
-### Opus 4.5 (Critical Creative Work)
+### Opus 4.5 (Critical Creative Work — 6 skills)
 - `/lyric-writer` - Core creative content
 - `/suno-engineer` - Music generation prompts
+- `/album-conceptualizer` - Album concept shapes everything downstream
+- `/lyric-reviewer` - QC gate before generation, must catch all issues
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (General Tasks)
-- `/album-conceptualizer` - Album planning
-- `/researcher` - Research coordination
-- `/resume` - Status reporting
-- `/release-director` - Release coordination
+### Sonnet 4.5 (Reasoning & Coordination — 21 skills)
+- `/album-art-director` - Visual direction
+- `/album-ideas` - Idea brainstorming and organization
+- `/cloud-uploader` - Cloud storage coordination
+- `/configure` - Interactive config setup
+- `/document-hunter` - Automated searching
+- `/explicit-checker` - Context-dependent content scanning
 - `/mastering-engineer` - Audio guidance
 - `/promo-director` - Video generation
-- `/document-hunter` - Automated searching
-- Most researcher specialists
+- `/pronunciation-specialist` - Edge cases need judgment (homographs, context)
+- `/release-director` - Release coordination
+- `/researcher` - Research coordination
+- `/researchers-biographical`, `/researchers-financial`, `/researchers-gov` - Specialized research
+- `/researchers-historical`, `/researchers-journalism`, `/researchers-primary-source` - Specialized research
+- `/researchers-security`, `/researchers-tech` - Specialized research
+- `/resume` - Status reporting
+- `/sheet-music-publisher` - Transcription workflow
+- `/tutorial` - Interactive guided creation
 
-### Haiku 4.5 (Pattern Matching)
-- `/pronunciation-specialist` - Word scanning
-- `/new-album` - Directory creation
-- `/validate-album` - Structure validation
-- `/help` - Display information
-- `/configure` - Configuration
+### Haiku 4.5 (Pattern Matching — 11 skills)
 - `/about` - Static information
+- `/clipboard` - Copy to clipboard
+- `/help` - Display information
+- `/import-art` - File operations
+- `/import-audio` - File operations
+- `/import-track` - File operations
+- `/new-album` - Directory creation
+- `/skill-model-updater` - Pattern replacement
+- `/test` - Run predefined checks
+- `/validate-album` - Structure validation
 
 ---
 

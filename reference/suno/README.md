@@ -17,6 +17,20 @@ Reference guides for Suno AI music generation.
 | [CHANGELOG](CHANGELOG.md) | Chronological log of Suno updates and doc changes |
 | [Version History](version-history/) | Migration guides between Suno versions |
 
+## When to Use Which Guide
+
+| Task | Start Here |
+|------|-----------|
+| Writing a style prompt from scratch | [V5 Best Practices](v5-best-practices.md) |
+| Checking lyrics for mispronunciation risks | [Pronunciation Guide](pronunciation-guide.md) |
+| Adding section markers (`[Verse]`, `[Chorus]`, etc.) | [Structure Tags](structure-tags.md) |
+| Controlling vocal style or vocal effects | [Voice Tags](voice-tags.md) |
+| Adding specific instruments | [Instrumental Tags](instrumental-tags.md) |
+| Finding the right genre/subgenre tag | [Genre List](genre-list.md) |
+| Debugging a failed generation | [Tips & Tricks](tips-and-tricks.md) |
+
+> **Related skill**: `/bitwize-music:suno-engineer` provides interactive guidance using these references.
+
 ## Quick Links
 
 - [Suno Website](https://suno.com)

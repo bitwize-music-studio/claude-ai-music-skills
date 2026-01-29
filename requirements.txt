@@ -1,6 +1,14 @@
 # Claude AI Music Skills - Python Dependencies
-# Install all: pip install -r requirements.txt
-# Or install by feature as needed
+#
+# Install everything:
+#   pip install -r requirements.txt
+#
+# Or install only what you need:
+#   pip install -r requirements-mastering.txt    # Audio mastering
+#   pip install -r requirements-promo.txt        # Promo videos
+#   pip install -r requirements-sheet-music.txt  # Sheet music
+#   pip install -r requirements-cloud.txt        # Cloud uploads (R2/S3)
+#   pip install -r requirements-research.txt     # Document hunting (Playwright)
 
 # =============================================================================
 # AUDIO MASTERING (required for /bitwize-music:mastering-engineer)

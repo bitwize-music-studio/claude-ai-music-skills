@@ -158,7 +158,7 @@ Dialogue and internal thoughts are dramatized for artistic purposes."]
 [Detailed visual description including style, mood, colors, composition, and subject matter. Specify square album cover format. Include the artist name "[Artist Name]" in small, subtle text in the bottom right corner - clean sans-serif font, integrated into the design.]
 ```
 
-**Note**: Artist name should always appear in the bottom right. For your-artist, always use lowercase "your-artist".
+**Note**: Artist name should always appear in the bottom right. Preserve the artist's preferred casing/spelling.
 
 ## SoundCloud
 
@@ -179,7 +179,7 @@ Dialogue and internal thoughts are dramatized for artistic purposes."]
 [tag1, tag2, tag3, tag4, tag5]
 ```
 
-## distributor
+## Distributor Genres
 
 | Attribute | Selection |
 |-----------|-----------|

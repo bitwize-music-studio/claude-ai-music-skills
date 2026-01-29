@@ -69,20 +69,19 @@ def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
     """Extract the dominant color from an image using PIL."""
     try:
         from PIL import Image
-        img = Image.open(image_path)
-        img = img.convert('RGB')
-        img = img.resize((100, 100))  # Resize for speed
+        from collections import Counter
+        with Image.open(image_path) as img:
+            img = img.convert('RGB')
+            img = img.resize((100, 100))  # Resize for speed
 
-        # Get all pixels and find most common
-        pixels = list(img.getdata())
+            # Get all pixels and find most common
+            pixels = list(img.getdata())
 
         # Filter out very dark and very light pixels
         filtered = [p for p in pixels if 30 < sum(p)/3 < 225]
         if not filtered:
             filtered = pixels
 
-        # Simple average of saturated colors
-        from collections import Counter
         # Quantize to reduce color space
         quantized = [(r//32*32, g//32*32, b//32*32) for r, g, b in filtered]
         most_common = Counter(quantized).most_common(5)
@@ -278,27 +277,18 @@ def generate_waveform_video(
 
     print(f"  Dominant: {dominant} -> Complementary: {complementary} (hex: {color2})")
 
-    # Escape special characters in title for ffmpeg drawtext filter
-    # The text is wrapped in single quotes, so we need to handle various special chars
-    safe_title = title
-    # Remove or replace problematic quote characters
-    safe_title = safe_title.replace("'", "")      # Straight apostrophe
-    safe_title = safe_title.replace("'", "")      # Curly apostrophe
-    safe_title = safe_title.replace("'", "")      # Another curly apostrophe
-    safe_title = safe_title.replace('"', "")      # Double quote
-    safe_title = safe_title.replace('"', "")      # Curly double quote
-    safe_title = safe_title.replace('"', "")      # Curly double quote
-    safe_title = safe_title.replace('`', "")      # Backtick
-    # Escape backslashes first (before adding more)
-    safe_title = safe_title.replace("\\", "\\\\")
-    # Escape ffmpeg filter special characters
-    safe_title = safe_title.replace(":", "\\:")   # Colon (filter separator)
-    safe_title = safe_title.replace("%", "\\%")   # Percent (escape sequence)
-    safe_title = safe_title.replace(";", "\\;")   # Semicolon (filter chain)
-    safe_title = safe_title.replace("[", "\\[")   # Brackets (stream labels)
-    safe_title = safe_title.replace("]", "\\]")
-    # Replace ampersand with 'and' for cleaner display
-    safe_title = safe_title.replace("&", "and")
+    # Write title and artist to temp files so ffmpeg reads them via textfile=
+    # This avoids all escaping issues with drawtext's text= parameter,
+    # preventing injection of ffmpeg filter directives through track titles.
+    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    title_file.write(title)
+    title_file.close()
+    title_file_path = title_file.name
+
+    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    artist_file.write(artist_name)
+    artist_file.close()
+    artist_file_path = artist_file.name
 
     # Build visualization filter based on style
     viz_height = 600  # Much taller - fills space between art and text
@@ -383,7 +373,7 @@ def generate_waveform_video(
 
     [base][wave]overlay=0:H-750[withwave];
 
-    [withwave]drawtext=text='{safe_title}':
+    [withwave]drawtext=textfile='{title_file_path}':
          fontfile={font_path}:
          fontsize={TITLE_FONT_SIZE}:
          fontcolor={TEXT_COLOR}:
@@ -391,7 +381,7 @@ def generate_waveform_video(
          y=h-130:
          shadowcolor=black:shadowx=2:shadowy=2[withtitle];
 
-    [withtitle]drawtext=text='{artist_name}':
+    [withtitle]drawtext=textfile='{artist_file_path}':
          fontfile={font_path}:
          fontsize={ARTIST_FONT_SIZE}:
          fontcolor={TEXT_COLOR}@0.8:
@@ -432,6 +422,13 @@ def generate_waveform_video(
     except Exception as e:
         print(f"Error generating video: {e}")
         return False
+    finally:
+        # Clean up temp text files
+        for tmp in (title_file_path, artist_file_path):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def get_title_from_markdown(track_md_path: Path) -> Optional[str]:

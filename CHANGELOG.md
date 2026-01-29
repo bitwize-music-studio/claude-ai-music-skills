@@ -6,6 +6,37 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-01-29
+
+### Added
+- **Per-feature requirements files** - Install only what you need:
+  - `requirements-mastering.txt` - Audio mastering (matchering, pyloudnorm, scipy, numpy, soundfile)
+  - `requirements-promo.txt` - Promo videos (pillow, librosa)
+  - `requirements-sheet-music.txt` - Sheet music (pypdf, reportlab, pyyaml)
+  - `requirements-cloud.txt` - Cloud uploads (boto3)
+  - `requirements-research.txt` - Document hunting (playwright)
+- **Model tier consistency test** in `run_tests.py` - Validates SKILL.md model assignments match model-strategy.md, reports tier distribution, detects `disable-model-invocation` flags
+- **Cross-references** added to reference docs (v5-best-practices, distribution, pronunciation-guide, checkpoint-scripts) linking related skills and docs
+- **Task-oriented guide table** in `reference/suno/README.md` - "When to Use Which Guide" quick lookup
+
+### Fixed
+- **Security: ffmpeg command injection** in `generate_promo_video.py` - Switched from `text=` (injectable via title/artist strings) to `textfile=` parameter with temp files
+- **Silent audio crash** in `master_tracks.py` - Added guards for `-inf` LUFS from silent/near-silent audio, skips instead of crashing
+- **Case-insensitive WAV discovery** in `master_tracks.py` - Now finds `.WAV` and `.wav` files
+- **PIL file handle leak** in `generate_promo_video.py` - `Image.open()` now uses `with` block
+- **Shallow copy bug** in `indexer.py` - `existing_state.copy()` replaced with `copy.deepcopy()` to prevent nested dict mutation
+- **Race conditions** in `indexer.py` - Added `try/except OSError` around 4 `stat()` calls where files could be deleted between glob and stat
+- **Whitespace in Suno Link parsing** in `parsers.py` - Added `.strip()` and en-dash to exclusion list
+- **Sources Verified false positive** in `parsers.py` - Reordered matching to check "pending" before "verified", preventing "NOT verified" matching as verified
+- **Model tier test substring matching** in `run_tests.py` - Used exact `### heading` regex instead of substring match (prevented "about" matching in prose, "researcher" matching "researchers-legal")
+
+### Changed
+- **SKILL_INDEX.md** realigned all 38 skills with model-strategy.md (added missing Opus/Sonnet skills, corrected tier assignments)
+- **Album template** (`templates/album.md`) - Replaced hardcoded artist text with generic guidance, renamed distributor heading
+- Removed `disable-model-invocation: true` from `release-director` and `skill-model-updater` skills
+- Test runner timeout now configurable via `BITWIZE_TEST_TIMEOUT` env var (default: 60s)
+- Removed redundant `import re` in `run_tests.py`
+
 ## [0.18.0] - 2026-01-29
 
 ### Added
