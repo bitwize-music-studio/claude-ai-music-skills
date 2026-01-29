@@ -6,6 +6,59 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-01-29
+
+### Added
+- **State cache layer** (`tools/state/`) - JSON index of all project state for fast session startup
+  - `parsers.py` - Markdown parsing functions for album READMEs, track files, IDEAS.md
+  - `indexer.py` - CLI tool with `rebuild`, `update`, `validate`, `show`, `session` commands
+  - State cached at `~/.bitwize-music/cache/state.json` (always rebuildable from markdown)
+  - Schema versioning with migration chain for plugin upgrades
+  - Atomic writes for crash safety
+  - Incremental updates (only re-parse files with newer mtime)
+- **`session` CLI command** for `indexer.py` - Update session context in state.json
+  - `--album`, `--track`, `--phase` to set context
+  - `--add-action` to append pending actions
+  - `--clear` to reset session data
+- **`__main__.py`** for `tools/state/` - Enables `python3 -m tools.state` invocation
+- **State cache tests** - 57 tests across parsers and indexer
+  - `test_parsers.py` - 29 unit tests including flexible column tracklist parsing
+  - `test_indexer.py` - 28 integration tests for build, update, validate, migrate, session, script invocation
+  - Test fixtures for album README, track files, and IDEAS.md
+  - Regression tests: script invocation (`python3 tools/state/indexer.py --help`), module invocation, package invocation
+- **State test category** in test runner (`/bitwize-music:test state`)
+  - Validates state tool files exist
+  - Checks schema version constant
+  - Runs parser unit tests as subprocess
+
+### Changed
+- Session Start in CLAUDE.md now uses state cache instead of scanning markdown files
+  - Reduces startup from 50-220 file reads to 2-3 file reads
+  - Falls back to full rebuild if cache missing, corrupted, or schema changed
+  - Shows last session context (album, phase, pending actions)
+- Resume skill now reads from state cache instead of glob + individual file reads
+  - Reduces per-invocation from 15-50 file reads to 1-2 file reads
+  - Updates session context via `indexer.py session` command
+  - Includes optional staleness check with incremental update
+- CLAUDE.md "Finding Albums" section now references state cache as primary lookup before Glob fallback
+- CLAUDE.md "Resuming Work" section updated to describe state cache workflow
+- CLAUDE.md Session Start step 2 uses full `python3 {plugin_root}/tools/state/indexer.py` paths consistently
+
+### Fixed
+- **Critical**: `indexer.py` now runnable as `python3 tools/state/indexer.py` (was failing with `ModuleNotFoundError`)
+  - Added `sys.path` fixup at top of file (same pattern as test files)
+  - CLAUDE.md and resume SKILL.md both documented the broken form
+- `documents_root` default now derives from `content_root` instead of CWD
+  - `audio_root` default also derives from `content_root`
+  - Prevents wrong paths when running from a different directory
+- Tracklist parser now handles variable column counts (3+ columns)
+  - Previously required exactly 5 columns; silently returned 0 tracks if template changed
+  - Extracts track number (first col), title (second col), status (last col)
+  - Emits warning if Tracklist section exists but no rows matched
+- `state.session` was dead code — no write mechanism existed
+  - Added `session` CLI command to `indexer.py`
+  - Resume skill step 5 now calls `indexer.py session` to persist context
+
 ## [0.17.1] - 2026-01-28
 
 ### Changed

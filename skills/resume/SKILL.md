@@ -6,6 +6,7 @@ model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
   - Glob
+  - Bash
 ---
 
 # Resume Album Work
@@ -27,64 +28,64 @@ allowed-tools:
 
 When this skill is invoked with an album name:
 
-### Step 1: Read Configuration
+### Step 1: Read State Cache
 
-Read `~/.bitwize-music/config.yaml` to get:
-- `paths.content_root` - Where album files live
-- `artist.name` - Artist name for path construction
+Read `~/.bitwize-music/cache/state.json` to get album and track data.
 
-If config missing, tell user to run `/bitwize-music:configure` first.
+**If state.json is missing or corrupted**:
+- Run: `python3 {plugin_root}/tools/state/indexer.py rebuild`
+- Then read the newly created state.json
+
+**If state.json exists**: Use it directly (much faster than scanning files).
 
 ### Step 2: Find the Album
 
-Use Glob to search for album README files:
-
-```
-Pattern: {content_root}/artists/{artist}/albums/*/*/README.md
-```
-
-This searches all genre folders for album READMEs.
-
-**Filter the results**:
-- Look for album name in the file path (case-insensitive)
-- Match variations: "shell-no", "shell_no", "shell no" should all match
+Search `state.albums` keys for the album name:
+- Case-insensitive match
+- Match variations: "shell-no", "shell_no", "shell no" should all match the same slug
 
 **If no matches found**:
 - Tell user: "Album '[name]' not found"
-- List available albums (all READMEs found)
+- List available albums from `state.albums` (slug, genre, status)
 - Suggest: "Did you mean one of these?" or "Use /bitwize-music:new-album to create it"
 
 **If multiple matches found**:
 - List all matches with full paths
 - Ask user which one they want
 
-### Step 3: Read Album Status
+### Step 3: Extract Album and Track Data
 
-Once album is located, read the README to determine:
-- **Album status**: Concept, In Progress, Complete, Released
-- **Track count**: How many tracks total
-- **Tracklist**: Track titles and order
+From the matched album entry in `state.albums`, extract:
+- **Album status**: from `album.status`
+- **Track count**: from `album.track_count`
+- **Tracks completed**: from `album.tracks_completed`
+- **Track details**: from `album.tracks` — each track has status, has_suno_link, sources_verified
 
-### Step 4: Check Track Status
-
-Glob for track files in the album's tracks directory:
-
-```
-Pattern: {album_path}/tracks/*.md
-```
-
-Read each track file to check:
-- **Status field**: Not Started, Sources Pending, Verified, In Progress, Generated, Final
-- **Suno Link**: Present or missing
-- **Lyrics**: Complete or incomplete
-
-Count tracks by status:
+Count tracks by status from `album.tracks`:
 - Not Started: X tracks
 - In Progress: Y tracks
 - Generated: Z tracks
 - Final: N tracks
 
-### Step 5: Determine Current Phase
+### Step 4: Staleness Check (Optional)
+
+Spot-check one track file's mtime against `track.mtime` in state. If stale:
+- Run `python3 {plugin_root}/tools/state/indexer.py update`
+- Re-read state.json
+
+### Step 5: Update Session Context
+
+After finding the album, update session context using the CLI command:
+```bash
+python3 {plugin_root}/tools/state/indexer.py session --album <album-slug> --phase <phase>
+```
+
+Optional flags:
+- `--track <track-slug>` — set last track worked on
+- `--add-action "description"` — append a pending action
+- `--clear` — clear session data before applying new values
+
+### Step 6: Determine Current Phase
 
 Based on album and track statuses, identify the workflow phase:
 
@@ -98,7 +99,7 @@ Based on album and track statuses, identify the workflow phase:
 | Complete | All "Final" | Mastering - Ready to master audio |
 | Released | All "Final" | Released - Album is live |
 
-### Step 6: Report to User
+### Step 7: Report to User
 
 Present a clear status report:
 
@@ -127,7 +128,7 @@ Present a clear status report:
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 7: Offer Specific Next Actions
+### Step 8: Offer Specific Next Actions
 
 Based on the phase, suggest concrete next steps:
 

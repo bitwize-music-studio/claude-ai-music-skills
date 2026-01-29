@@ -14,38 +14,34 @@ This is an AI music generation workflow using Suno. The repository contains skil
 ```
 /bitwize-music:resume my-album
 ```
-This automatically handles all the steps below and provides a detailed status report.
+This reads the state cache, finds the album, and provides a detailed status report.
 
 **OR - Manual approach if skill unavailable:**
 
 **DO THIS FIRST - MANDATORY STEPS:**
 
-1. **Read config file**: `~/.bitwize-music/config.yaml`
-   - Get `paths.content_root`
-   - Get `artist.name`
+1. **Check state cache**: Read `~/.bitwize-music/cache/state.json`
+   - Search `state.albums` keys for the album name (case-insensitive)
+   - If found: use album data directly (path, status, tracks)
 
-2. **Use Glob to find album**:
-   ```
-   Pattern: {content_root}/artists/{artist}/albums/*/*/README.md
-   ```
-   This searches ALL genre folders for album READMEs.
+2. **If state cache is missing or stale**: Fall back to Glob
+   - Read config: `~/.bitwize-music/config.yaml` (get `content_root`, `artist.name`)
+   - Glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
+   - Filter for album name (case-insensitive)
+   - Rebuild cache: `python3 {plugin_root}/tools/state/indexer.py rebuild`
 
-3. **Filter results** for album name (case-insensitive match in file path)
-
-4. **Read the album README** to get current status
-
-5. **Report to user**: Found album at [path], status is [X], here's what's next...
+3. **Report to user**: Found album at [path], status is [X], here's what's next...
 
 **COMMON MISTAKE - DO NOT DO THIS:**
 - ❌ Don't search from current working directory
 - ❌ Don't use complex glob patterns like `**/*[Aa]lbum*/**`
-- ❌ Don't assume the path - always read config first
+- ❌ Don't assume the path - always check state cache or read config first
 - ❌ Don't use `ls` or `find` commands
 
 **CORRECT APPROACH:**
-- ✅ Read `~/.bitwize-music/config.yaml` FIRST
-- ✅ Use simple glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
-- ✅ Let Glob tool handle the searching
+- ✅ Check state cache (`~/.bitwize-music/cache/state.json`) FIRST
+- ✅ Fall back to config + Glob if cache missing
+- ✅ Rebuild cache after Glob fallback
 
 ---
 
@@ -230,19 +226,21 @@ At the beginning of a fresh session:
    - If override files don't exist, skip silently (overrides are optional)
    - Override instructions supplement (don't replace) base files
 
-2. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
-3. **Check album ideas** - Read `paths.ideas_file` from config (default: `{content_root}/IDEAS.md`) for pending album ideas. Report counts by status. User can run `/bitwize-music:album-ideas list` for full details.
-4. **Check in-progress albums**:
-   - Use Glob to find album READMEs: `{content_root}/artists/*/albums/*/*/README.md`
-   - Read each README to check Status field
-   - Report albums with Status: "In Progress", "Research Complete", "Complete" (not Released)
-   - For each: album name, artist, genre, status, track count, tracks completed
-5. **Check pending verifications**:
-   - For each in-progress album, check tracks for Status: `❌ Pending`
-   - Report which albums need human verification
-6. **Check for incomplete work**:
-   - Tracks with Status: "In Progress" (partially generated)
-   - Albums with some tracks Final, others not
+2. **Load state cache** - Check for `~/.bitwize-music/cache/state.json`:
+   - **Missing** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`, then read state
+   - **Exists** → read state, check `config.config_mtime` vs actual config mtime
+   - **Config changed** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - **Corrupted** (JSON parse error) → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - **Schema version mismatch** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - The state cache is a JSON file that indexes all album/track/ideas data. It is always rebuildable from markdown files.
+
+3. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
+4. **Report from state cache** (instead of scanning individual files):
+   - **Album ideas**: Read counts from `state.ideas.counts` — report by status. User can run `/bitwize-music:album-ideas list` for full details.
+   - **In-progress albums**: Filter `state.albums` by status: "In Progress", "Research Complete", "Complete" (not Released). For each: album name, genre, status, track count, tracks completed.
+   - **Pending verifications**: Filter `state.albums.*.tracks` where `sources_verified` is "Pending". Report which albums need human verification.
+   - **Incomplete work**: Tracks with status "In Progress" (partially generated). Albums with some tracks Final, others not.
+5. **Show last session context** (if available): From `state.session`, show what album/track was last worked on, current phase, and any pending actions.
 
 **Present status summary** to user.
 
@@ -288,26 +286,26 @@ Invoke the resume skill with the album name:
 ```
 
 The skill automatically:
-- Reads config to get paths
-- Finds the album using Glob
+- Reads state cache (`~/.bitwize-music/cache/state.json`) for fast lookup
+- Finds the album by matching `state.albums` keys
 - Checks album and track statuses
 - Determines current workflow phase
+- Updates session context via `indexer.py session`
 - Reports detailed status and next steps
 
 See `/skills/resume/SKILL.md` for full documentation.
 
 **If skill not available - Manual steps:**
 
-1. Read config: `~/.bitwize-music/config.yaml`
-2. Glob for album: `{content_root}/artists/{artist}/albums/*/*/README.md`
-3. Filter results for album name (case-insensitive)
-4. Read album README and track files
-5. Report status and next actions
+1. Read state cache: `~/.bitwize-music/cache/state.json`
+2. Search `state.albums` keys for album name (case-insensitive)
+3. If cache missing: read config, Glob for album, then rebuild cache
+4. Report status and next actions
 
 **Common mistakes to avoid:**
-- ❌ Don't assume paths - always read config first
+- ❌ Don't skip the state cache - it's faster than Glob
+- ❌ Don't assume paths - check state cache or read config first
 - ❌ Don't search from current directory - use config paths
-- ❌ Don't use complex globs - keep it simple
 - ✅ Use `/bitwize-music:resume` skill whenever possible
 
 ## Mid-Session Workflow Updates

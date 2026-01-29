@@ -228,6 +228,7 @@ class PluginTestRunner:
             'terminology': self.test_terminology,
             'consistency': self.test_consistency,
             'config': self.test_config,
+            'state': self.test_state,
         }
 
         if categories:
@@ -822,10 +823,24 @@ class PluginTestRunner:
                 content = file_path.read_text()
                 # Skip if in a code block or example section
                 if regex.search(content):
-                    # Simple heuristic: check if it's in an example
+                    # Simple heuristic: skip examples, comments, and code blocks
                     lines = content.split('\n')
+                    in_code_block = False
                     for i, line in enumerate(lines):
+                        stripped = line.lstrip()
+                        if stripped.startswith('```'):
+                            in_code_block = not in_code_block
+                            continue
+                        if in_code_block:
+                            continue
                         if regex.search(line) and 'example' not in line.lower():
+                            # Skip YAML/code comments
+                            if stripped.startswith('#') or stripped.startswith('//'):
+                                continue
+                            # Skip inline code (match is inside backticks)
+                            line_no_code = re.sub(r'`[^`]+`', '', line)
+                            if not regex.search(line_no_code):
+                                continue
                             found_in.append(f"{file_path.relative_to(self.plugin_root)}:{i+1}")
 
             if not found_in:
@@ -1066,6 +1081,168 @@ class PluginTestRunner:
         self.categories.append(category)
 
 
+    def test_state(self):
+        """Test state cache tool files and structure."""
+        category = TestCategory(name="State Cache")
+        self._print_category_header("State Cache")
+
+        state_dir = self.plugin_root / "tools" / "state"
+
+        # Test: tools/state/ directory exists
+        self.log("Checking state tool directory...")
+        if state_dir.exists():
+            self._add_test(category, "State tool directory exists", TestResult.OK)
+        else:
+            self._add_test(
+                category,
+                "State tool directory exists",
+                TestResult.FAIL,
+                "tools/state/ directory missing",
+                str(self.plugin_root / "tools"),
+                fix_hint="Create tools/state/ directory"
+            )
+            for test in category.tests:
+                self._print_test_result(test)
+            self._print_category_summary(category)
+            self.categories.append(category)
+            return
+
+        # Test: Required Python files exist
+        required_files = [
+            ('__init__.py', 'Package init'),
+            ('indexer.py', 'CLI indexer'),
+            ('parsers.py', 'Markdown parsers'),
+        ]
+        for filename, desc in required_files:
+            filepath = state_dir / filename
+            if filepath.exists():
+                self._add_test(category, f"State file exists: {filename} ({desc})", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    f"State file exists: {filename} ({desc})",
+                    TestResult.FAIL,
+                    f"Missing {filename}",
+                    str(state_dir),
+                    fix_hint=f"Create tools/state/{filename}"
+                )
+
+        # Test: Schema version constant exists in indexer.py
+        self.log("Checking schema version constant...")
+        indexer_path = state_dir / "indexer.py"
+        if indexer_path.exists():
+            content = indexer_path.read_text()
+            if 'CURRENT_VERSION' in content:
+                self._add_test(category, "Schema version constant exists", TestResult.OK)
+
+                # Check it's a valid semver string
+                import re as _re
+                version_match = _re.search(r'CURRENT_VERSION\s*=\s*["\'](\d+\.\d+\.\d+)["\']', content)
+                if version_match:
+                    self._add_test(
+                        category,
+                        f"Schema version is valid semver ({version_match.group(1)})",
+                        TestResult.OK
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        "Schema version is valid semver",
+                        TestResult.FAIL,
+                        "CURRENT_VERSION should be a semver string like '1.0.0'",
+                        str(indexer_path)
+                    )
+            else:
+                self._add_test(
+                    category,
+                    "Schema version constant exists",
+                    TestResult.FAIL,
+                    "CURRENT_VERSION not found in indexer.py",
+                    str(indexer_path)
+                )
+
+        # Test: Test directory and files exist
+        self.log("Checking state test files...")
+        test_dir = state_dir / "tests"
+        test_files = [
+            'test_parsers.py',
+            'test_indexer.py',
+        ]
+        for test_file in test_files:
+            test_path = test_dir / test_file
+            if test_path.exists():
+                self._add_test(category, f"State test exists: {test_file}", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    f"State test exists: {test_file}",
+                    TestResult.FAIL,
+                    f"Missing {test_file}",
+                    str(test_dir),
+                    fix_hint=f"Create tools/state/tests/{test_file}"
+                )
+
+        # Test: Fixture files exist
+        fixtures_dir = test_dir / "fixtures"
+        fixture_files = ['album-readme.md', 'track-file.md', 'ideas.md']
+        for fixture in fixture_files:
+            fixture_path = fixtures_dir / fixture
+            if fixture_path.exists():
+                self._add_test(category, f"Test fixture exists: {fixture}", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    f"Test fixture exists: {fixture}",
+                    TestResult.WARN,
+                    f"Missing test fixture {fixture}",
+                    str(fixtures_dir)
+                )
+
+        # Test: Run parser unit tests as subprocess
+        self.log("Running state parser tests...")
+        import subprocess
+        try:
+            result = subprocess.run(
+                [sys.executable, '-m', 'pytest', 'tools/state/tests/test_parsers.py', '-q', '--tb=short'],
+                capture_output=True, text=True, timeout=30,
+                cwd=str(self.plugin_root)
+            )
+            if result.returncode == 0:
+                # Extract test count from output
+                lines = result.stdout.strip().split('\n')
+                summary = lines[-1] if lines else 'passed'
+                self._add_test(category, f"Parser unit tests pass ({summary.strip()})", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    "Parser unit tests pass",
+                    TestResult.FAIL,
+                    result.stdout.strip().split('\n')[-1] if result.stdout else result.stderr[:200],
+                    "tools/state/tests/test_parsers.py"
+                )
+        except FileNotFoundError:
+            self._add_test(
+                category,
+                "Parser unit tests pass",
+                TestResult.SKIP,
+                "pytest not installed"
+            )
+        except subprocess.TimeoutExpired:
+            self._add_test(
+                category,
+                "Parser unit tests pass",
+                TestResult.FAIL,
+                "Tests timed out after 30s"
+            )
+
+        # Print results
+        for test in category.tests:
+            self._print_test_result(test)
+
+        self._print_category_summary(category)
+        self.categories.append(category)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Run plugin validation tests',
@@ -1085,6 +1262,7 @@ Categories:
     terminology  - Consistent language
     consistency  - Cross-reference checks
     config       - Configuration files
+    state        - State cache tool validation
         """
     )
     parser.add_argument(
