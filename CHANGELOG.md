@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-01-29
+
+### Fixed
+- **Cloud upload album discovery** in `upload_to_cloud.py` — added recursive glob fallback when standard flat path (`{audio_root}/{artist}/{album}`) doesn't exist. Handles audio directories that mirror the content structure with genre folders (e.g., `artists/bitwize/albums/rock/shell-no/`). Reports all checked paths on failure.
+
 ## [0.19.1] - 2026-01-29
 
 ### Fixed

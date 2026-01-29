@@ -128,10 +128,11 @@ def get_bucket_name(config: Dict[str, Any]) -> str:
 def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override: Optional[str] = None) -> Path:
     """Find the album directory in audio_root.
 
-    Standard structure: {audio_root}/{artist}/{album}/
-    With --audio-root override: tries {override}/{artist}/{album}/ first,
-    then falls back to {override}/{album}/ (for when override already
-    includes the artist path).
+    Tries multiple path patterns in order:
+    1. {audio_root}/{artist}/{album}  (documented flat structure)
+    2. {audio_root}/{album}           (override already includes artist)
+    3. Glob search for {album} anywhere under audio_root (handles
+       mirrored content structure like artists/{artist}/albums/{genre}/{album})
     """
     if audio_root_override:
         audio_root = Path(audio_root_override).expanduser()
@@ -139,23 +140,38 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
         audio_root = Path(config["paths"]["audio_root"]).expanduser()
 
     artist = config["artist"]["name"]
+    checked = []
 
-    # Try standard path first: {audio_root}/{artist}/{album}
+    # Try standard flat path: {audio_root}/{artist}/{album}
     album_path = audio_root / artist / album_name
+    checked.append(str(album_path))
     if album_path.exists():
         return album_path
 
-    # If override provided, also try without artist prefix
-    # (user may have passed a path that already includes the artist)
-    if audio_root_override:
-        album_path_direct = audio_root / album_name
-        if album_path_direct.exists():
-            return album_path_direct
+    # Try direct path (override already includes artist)
+    album_path_direct = audio_root / album_name
+    checked.append(str(album_path_direct))
+    if album_path_direct.exists():
+        return album_path_direct
 
-    print(f"Error: Album not found at {album_path}")
-    if audio_root_override:
-        print(f"Also checked: {audio_root / album_name}")
-    print(f"Expected structure: {audio_root}/{artist}/{album_name}/")
+    # Glob search as fallback (handles genre folders, mirrored structures)
+    matches = sorted(audio_root.rglob(album_name))
+    album_matches = [m for m in matches if m.is_dir()]
+    if len(album_matches) == 1:
+        return album_matches[0]
+    elif len(album_matches) > 1:
+        print(f"Error: Multiple directories named '{album_name}' found:")
+        for m in album_matches:
+            print(f"  - {m}")
+        print(f"\nUse --audio-root to point directly at the parent directory.")
+        sys.exit(1)
+
+    print(f"Error: Album '{album_name}' not found.")
+    print(f"Checked:")
+    for path in checked:
+        print(f"  - {path}")
+    print(f"Also searched recursively under: {audio_root}")
+    print(f"\nExpected structure: {audio_root}/{artist}/{album_name}/")
     sys.exit(1)
 
 
