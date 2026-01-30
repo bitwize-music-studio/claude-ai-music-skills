@@ -81,6 +81,17 @@ def temp_workspace():
     with open(config_path, 'w') as f:
         yaml.dump(config, f)
 
+    # Override module-level paths so all tests use temp dirs
+    import tools.state.indexer as _indexer
+    _orig_cache_dir = _indexer.CACHE_DIR
+    _orig_state_file = _indexer.STATE_FILE
+    _orig_config_file = _indexer.CONFIG_FILE
+    _orig_lock_file = _indexer.LOCK_FILE
+    _indexer.CACHE_DIR = Path(cache_dir)
+    _indexer.STATE_FILE = Path(cache_dir) / "state.json"
+    _indexer.CONFIG_FILE = Path(config_path)
+    _indexer.LOCK_FILE = Path(cache_dir) / "state.lock"
+
     yield {
         'tmpdir': tmpdir,
         'content_root': content_root,
@@ -90,6 +101,12 @@ def temp_workspace():
         'album_dir': album_dir,
         'tracks_dir': tracks_dir,
     }
+
+    # Restore module-level paths
+    _indexer.CACHE_DIR = _orig_cache_dir
+    _indexer.STATE_FILE = _orig_state_file
+    _indexer.CONFIG_FILE = _orig_config_file
+    _indexer.LOCK_FILE = _orig_lock_file
 
     # Cleanup
     shutil.rmtree(tmpdir)
