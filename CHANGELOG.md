@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-01-30
+
+### Changed
+- **README** — Added Claude Code Max plan ($200/month) recommendation callout for new users
+
 ## [0.20.0] - 2026-01-29
 
 ### Added
