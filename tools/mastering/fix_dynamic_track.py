@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
 """Fix tracks with excessive dynamic range that won't reach target LUFS."""
 
+import logging
 import sys
 import numpy as np
 import soundfile as sf
 import pyloudnorm as pyln
 from scipy import signal
 from pathlib import Path
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 def gentle_compress(data, threshold_db=-10, ratio=3.0, attack_ms=10, release_ms=100, rate=44100):
     """Apply gentle compression to reduce dynamic range."""
@@ -73,15 +83,17 @@ def soft_clip(data, threshold=0.95):
     return result
 
 def main():
+    setup_logging(__name__)
+
     if len(sys.argv) < 2:
-        print("Usage: python fix_dynamic_track.py <input.wav> [output.wav]")
-        print("  Fixes tracks with excessive dynamic range")
+        logger.error("Usage: python fix_dynamic_track.py <input.wav> [output.wav]")
+        logger.error("  Fixes tracks with excessive dynamic range")
         sys.exit(1)
 
     input_file = sys.argv[1]
     output_file = sys.argv[2] if len(sys.argv) > 2 else f"mastered/{Path(input_file).name}"
 
-    print(f"Processing {input_file}...")
+    logger.info("Processing %s...", input_file)
 
     # Ensure output directory exists
     Path(output_file).parent.mkdir(exist_ok=True)
@@ -126,7 +138,7 @@ def main():
 
     # Write
     sf.write(output_file, data, rate, subtype='PCM_16')
-    print(f"  Written to: {output_file}")
+    logger.info("Written to: %s", output_file)
 
 if __name__ == '__main__':
     main()

@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 """Analyze audio tracks for mastering decisions."""
 
+import logging
 import os
 import sys
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
+
 import numpy as np
 import soundfile as sf
 import pyloudnorm as pyln
 from scipy import signal
-from pathlib import Path
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
+
+logger = logging.getLogger(__name__)
 
 def analyze_track(filepath):
     """Analyze a single track and return metrics."""
@@ -63,8 +76,8 @@ def analyze_track(filepath):
     # Tinniness indicator: ratio of high_mid to mid energy
     tinniness_ratio = band_energy['high_mid'] / band_energy['mid'] if band_energy['mid'] > 0 else 0
 
-    # Crest factor (peak to RMS ratio in dB)
-    crest_factor = dynamic_range
+    # Crest factor (peak to RMS as linear ratio)
+    crest_factor = peak_linear / rms if rms > 0 else 0.0
 
     return {
         'filename': os.path.basename(filepath),
@@ -82,12 +95,20 @@ def main():
     parser = argparse.ArgumentParser(description='Analyze audio tracks for mastering.')
     parser.add_argument('path', nargs='?', default='.',
                         help='Path to directory containing WAV files (default: current directory)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Show debug output')
+    parser.add_argument('--quiet', '-q', action='store_true',
+                        help='Show only warnings and errors')
+    parser.add_argument('-j', '--jobs', type=int, default=1,
+                        help='Parallel jobs (0=auto, default: 1)')
     args = parser.parse_args()
+
+    setup_logging(__name__, verbose=args.verbose, quiet=args.quiet)
 
     # Find all wav files
     wav_dir = Path(args.path).expanduser().resolve()
     if not wav_dir.exists():
-        print(f"Error: Directory not found: {wav_dir}")
+        logger.error("Directory not found: %s", wav_dir)
         sys.exit(1)
 
     wav_files = sorted(wav_dir.glob('*.wav'))
@@ -97,13 +118,29 @@ def main():
     print("=" * 80)
     print()
 
-    results = []
-    for wav_file in wav_files:
-        if 'mastering-env' in str(wav_file):
-            continue
-        print(f"Analyzing: {wav_file.name}...")
-        result = analyze_track(str(wav_file))
-        results.append(result)
+    filterable = [f for f in wav_files if 'mastering-env' not in str(f)]
+    workers = args.jobs if args.jobs > 0 else os.cpu_count()
+    progress = ProgressBar(len(filterable), prefix="Analyzing")
+
+    if workers == 1:
+        results = []
+        for wav_file in filterable:
+            progress.update(wav_file.name)
+            result = analyze_track(str(wav_file))
+            results.append(result)
+    else:
+        logger.info("Using %d parallel workers", workers)
+        ordered = {}
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(analyze_track, str(wf)): i
+                for i, wf in enumerate(filterable)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                progress.update(filterable[idx].name)
+                ordered[idx] = future.result()
+        results = [ordered[i] for i in sorted(ordered)]
 
     print()
     print("=" * 80)
@@ -169,7 +206,7 @@ def main():
     print()
     lufs_range = max(r['lufs'] for r in results) - min(r['lufs'] for r in results)
     print(f"LUFS range across album: {lufs_range:.1f} dB (should be < 2 dB ideally)")
-    print(f"Target loudness: -14 LUFS (streaming standard)")
+    print("Target loudness: -14 LUFS (streaming standard)")
     print()
 
 if __name__ == '__main__':

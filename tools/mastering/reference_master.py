@@ -4,9 +4,20 @@ Reference-Based Mastering Script
 Uses matchering to match your tracks to a professionally mastered reference.
 """
 
+import logging
 import sys
 import argparse
 from pathlib import Path
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
+
+logger = logging.getLogger(__name__)
 
 try:
     import matchering as mg
@@ -24,9 +35,9 @@ def master_with_reference(target_path, reference_path, output_path):
         reference_path: Path to professionally mastered reference (WAV)
         output_path: Path for output file
     """
-    print(f"  Target: {target_path}")
-    print(f"  Reference: {reference_path}")
-    print(f"  Output: {output_path}")
+    logger.info("  Target: %s", target_path)
+    logger.info("  Reference: %s", reference_path)
+    logger.info("  Output: %s", output_path)
 
     mg.process(
         target=str(target_path),
@@ -35,7 +46,7 @@ def master_with_reference(target_path, reference_path, output_path):
             mg.pcm16(str(output_path)),
         ],
     )
-    print(f"  Done!")
+    logger.info("  Done!")
 
 
 def main():
@@ -60,12 +71,18 @@ Examples:
                        help='Path to single target track (if omitted, processes all WAVs in current dir)')
     parser.add_argument('--output-dir', '-o', default='mastered',
                        help='Output directory (default: mastered)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Show debug output')
+    parser.add_argument('--quiet', '-q', action='store_true',
+                       help='Show only warnings and errors')
 
     args = parser.parse_args()
 
+    setup_logging(__name__, verbose=args.verbose, quiet=args.quiet)
+
     reference_path = Path(args.reference)
     if not reference_path.exists():
-        print(f"Error: Reference file not found: {reference_path}")
+        logger.error("Reference file not found: %s", reference_path)
         sys.exit(1)
 
     output_dir = Path(args.output_dir)
@@ -83,11 +100,11 @@ Examples:
         # Single file mode
         target_path = Path(args.target)
         if not target_path.exists():
-            print(f"Error: Target file not found: {target_path}")
+            logger.error("Target file not found: %s", target_path)
             sys.exit(1)
 
         output_path = output_dir / target_path.name
-        print(f"Processing: {target_path.name}")
+        logger.info("Processing: %s", target_path.name)
         master_with_reference(target_path, reference_path, output_path)
     else:
         # Batch mode - process all WAVs in current directory
@@ -96,19 +113,21 @@ Examples:
                            and f != reference_path])
 
         if not wav_files:
-            print("No WAV files found in current directory")
+            logger.error("No WAV files found in current directory")
             sys.exit(1)
 
-        print(f"Found {len(wav_files)} tracks to process")
+        logger.info("Found %d tracks to process", len(wav_files))
         print()
 
+        progress = ProgressBar(len(wav_files), prefix="Mastering")
         for i, wav_file in enumerate(wav_files, 1):
-            print(f"[{i}/{len(wav_files)}] Processing: {wav_file.name}")
+            progress.update(wav_file.name)
+            logger.info("[%d/%d] Processing: %s", i, len(wav_files), wav_file.name)
             output_path = output_dir / wav_file.name
             try:
                 master_with_reference(wav_file, reference_path, output_path)
             except Exception as e:
-                print(f"  Error: {e}")
+                logger.error("  Error: %s", e)
             print()
 
     print("=" * 60)

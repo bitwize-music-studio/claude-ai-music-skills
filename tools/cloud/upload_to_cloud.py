@@ -31,9 +31,9 @@ Usage:
     python upload_to_cloud.py my-album --audio-root /path/to/audio
 """
 
-import os
 import sys
 import argparse
+import time
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import mimetypes
@@ -59,17 +59,23 @@ except ImportError:
     print("  pip install boto3 pyyaml")
     sys.exit(1)
 
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+import logging
+
+from tools.shared.config import load_config as _load_config
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
+
+logger = logging.getLogger(__name__)
+
 
 def load_config() -> Dict[str, Any]:
-    """Load bitwize-music config file."""
-    config_path = Path.home() / ".bitwize-music" / "config.yaml"
-    if not config_path.exists():
-        print(f"Error: Config file not found at {config_path}")
-        print("Run /bitwize-music:configure to set up your configuration.")
-        sys.exit(1)
-
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    """Load bitwize-music config file (required)."""
+    return _load_config(required=True)
 
 
 def get_s3_client(config: Dict[str, Any]) -> Any:
@@ -84,8 +90,8 @@ def get_s3_client(config: Dict[str, Any]) -> Any:
         secret_key = r2_config.get("secret_access_key")
 
         if not all([account_id, access_key, secret_key]):
-            print("Error: R2 credentials not configured in ~/.bitwize-music/config.yaml")
-            print("Required fields: cloud.r2.account_id, cloud.r2.access_key_id, cloud.r2.secret_access_key")
+            logger.error("R2 credentials not configured in ~/.bitwize-music/config.yaml")
+            logger.error("Required fields: cloud.r2.account_id, cloud.r2.access_key_id, cloud.r2.secret_access_key")
             sys.exit(1)
 
         endpoint_url = f"https://{account_id}.r2.cloudflarestorage.com"
@@ -104,8 +110,8 @@ def get_s3_client(config: Dict[str, Any]) -> Any:
         secret_key = s3_config.get("secret_access_key")
 
         if not all([access_key, secret_key]):
-            print("Error: S3 credentials not configured in ~/.bitwize-music/config.yaml")
-            print("Required fields: cloud.s3.access_key_id, cloud.s3.secret_access_key")
+            logger.error("S3 credentials not configured in ~/.bitwize-music/config.yaml")
+            logger.error("Required fields: cloud.s3.access_key_id, cloud.s3.secret_access_key")
             sys.exit(1)
 
         return boto3.client(
@@ -116,7 +122,7 @@ def get_s3_client(config: Dict[str, Any]) -> Any:
         )
 
     else:
-        print(f"Error: Unknown cloud provider '{provider}'. Supported: r2, s3")
+        logger.error("Unknown cloud provider '%s'. Supported: r2, s3", provider)
         sys.exit(1)
 
 
@@ -131,7 +137,7 @@ def get_bucket_name(config: Dict[str, Any]) -> str:
         bucket = cloud_config.get("s3", {}).get("bucket")
 
     if not bucket:
-        print(f"Error: Bucket name not configured in cloud.{provider}.bucket")
+        logger.error("Bucket name not configured in cloud.%s.bucket", provider)
         sys.exit(1)
 
     return bucket
@@ -172,18 +178,18 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     if len(album_matches) == 1:
         return album_matches[0]
     elif len(album_matches) > 1:
-        print(f"Error: Multiple directories named '{album_name}' found:")
+        logger.error("Multiple directories named '%s' found:", album_name)
         for m in album_matches:
-            print(f"  - {m}")
-        print(f"\nUse --audio-root to point directly at the parent directory.")
+            logger.error("  - %s", m)
+        logger.error("Use --audio-root to point directly at the parent directory.")
         sys.exit(1)
 
-    print(f"Error: Album '{album_name}' not found.")
-    print(f"Checked:")
+    logger.error("Album '%s' not found.", album_name)
+    logger.error("Checked:")
     for path in checked:
-        print(f"  - {path}")
-    print(f"Also searched recursively under: {audio_root}")
-    print(f"\nExpected structure: {audio_root}/{artist}/{album_name}/")
+        logger.error("  - %s", path)
+    logger.error("Also searched recursively under: %s", audio_root)
+    logger.error("Expected structure: %s/%s/%s/", audio_root, artist, album_name)
     sys.exit(1)
 
 
@@ -196,14 +202,14 @@ def get_files_to_upload(album_path: Path, upload_type: str) -> List[Path]:
         if promo_dir.exists():
             files.extend(sorted(promo_dir.glob("*.mp4")))
         else:
-            print(f"Warning: promo_videos directory not found at {promo_dir}")
+            logger.warning("promo_videos directory not found at %s", promo_dir)
 
     if upload_type in ("sampler", "all"):
         sampler = album_path / "album_sampler.mp4"
         if sampler.exists():
             files.append(sampler)
         else:
-            print(f"Warning: album_sampler.mp4 not found at {sampler}")
+            logger.warning("album_sampler.mp4 not found at %s", sampler)
 
     return files
 
@@ -236,9 +242,9 @@ def upload_file(
     content_type = get_content_type(file_path)
 
     if dry_run:
-        print(f"  [DRY RUN] Would upload: {file_path.name}")
-        print(f"             -> s3://{bucket}/{s3_key}")
-        print(f"             Size: {format_size(file_size)}, Type: {content_type}")
+        logger.info("  [DRY RUN] Would upload: %s", file_path.name)
+        logger.info("             -> s3://%s/%s", bucket, s3_key)
+        logger.info("             Size: %s, Type: %s", format_size(file_size), content_type)
         return True
 
     try:
@@ -246,7 +252,7 @@ def upload_file(
         if public_read:
             extra_args["ACL"] = "public-read"
 
-        print(f"  Uploading: {file_path.name} ({format_size(file_size)})...", end=" ", flush=True)
+        logger.info("  Uploading: %s (%s)...", file_path.name, format_size(file_size))
 
         s3_client.upload_file(
             str(file_path),
@@ -255,17 +261,48 @@ def upload_file(
             ExtraArgs=extra_args,
         )
 
-        print("OK")
+        logger.info("  OK")
         return True
 
     except ClientError as e:
-        print(f"FAILED")
-        print(f"    Error: {e}")
+        logger.error("  FAILED")
+        logger.error("    Error: %s", e)
         return False
     except NoCredentialsError:
-        print(f"FAILED")
-        print("    Error: AWS credentials not found")
+        logger.error("  FAILED")
+        logger.error("    AWS credentials not found")
         return False
+
+
+def retry_upload(
+    s3_client: Any,
+    bucket: str,
+    file_path: Path,
+    s3_key: str,
+    public_read: bool = False,
+    dry_run: bool = False,
+    max_retries: int = 3,
+) -> bool:
+    """Upload with exponential backoff retry.
+
+    Retries on transient errors (network issues, server errors).
+    Does not retry on auth errors (403, 404, missing credentials).
+    """
+    for attempt in range(1, max_retries + 1):
+        result = upload_file(s3_client, bucket, file_path, s3_key, public_read, dry_run)
+        if result or dry_run:
+            return result
+
+        # Don't retry on last attempt
+        if attempt >= max_retries:
+            logger.error("  All %d attempts failed for %s", max_retries, file_path.name)
+            return False
+
+        delay = 2 ** (attempt - 1)  # 1s, 2s, 4s
+        logger.warning("  Retry %d/%d in %ds...", attempt, max_retries - 1, delay)
+        time.sleep(delay)
+
+    return False
 
 
 def main():
@@ -302,8 +339,26 @@ Examples:
         action="store_true",
         help="Set uploaded files as public-read (default: private)",
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Show debug output",
+    )
+    parser.add_argument(
+        "--quiet", "-q",
+        action="store_true",
+        help="Only show warnings and errors",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=3,
+        help="Max retry attempts per file on failure (default: 3)",
+    )
 
     args = parser.parse_args()
+
+    setup_logging(__name__, verbose=getattr(args, 'verbose', False), quiet=getattr(args, 'quiet', False))
 
     # Load config
     config = load_config()
@@ -311,9 +366,9 @@ Examples:
     # Check if cloud is enabled
     cloud_config = config.get("cloud", {})
     if not cloud_config.get("enabled", False):
-        print("Error: Cloud uploads not enabled in config.")
-        print("Add 'cloud.enabled: true' to ~/.bitwize-music/config.yaml")
-        print("See /reference/cloud/setup-guide.md for setup instructions.")
+        logger.error("Cloud uploads not enabled in config.")
+        logger.error("Add 'cloud.enabled: true' to ~/.bitwize-music/config.yaml")
+        logger.error("See /reference/cloud/setup-guide.md for setup instructions.")
         sys.exit(1)
 
     # Get cloud settings
@@ -324,8 +379,8 @@ Examples:
     album_path = find_album_path(config, args.album, args.audio_root)
     artist = config["artist"]["name"]
 
-    print(f"Cloud Uploader")
-    print(f"==============")
+    print("Cloud Uploader")
+    print("==============")
     print(f"Provider: {provider.upper()}")
     print(f"Album: {args.album}")
     print(f"Artist: {artist}")
@@ -333,22 +388,20 @@ Examples:
     print(f"Upload type: {args.type}")
     print(f"Public access: {public_read}")
     if args.dry_run:
-        print(f"Mode: DRY RUN (no actual uploads)")
+        print("Mode: DRY RUN (no actual uploads)")
     print()
 
     # Get files to upload
     files = get_files_to_upload(album_path, args.type)
 
     if not files:
-        print("No files found to upload.")
-        print()
-        print("Expected files:")
+        logger.error("No files found to upload.")
+        logger.error("Expected files:")
         if args.type in ("promos", "all"):
-            print(f"  - {album_path}/promo_videos/*.mp4")
+            logger.error("  - %s/promo_videos/*.mp4", album_path)
         if args.type in ("sampler", "all"):
-            print(f"  - {album_path}/album_sampler.mp4")
-        print()
-        print("Generate videos with: /bitwize-music:promo-director " + args.album)
+            logger.error("  - %s/album_sampler.mp4", album_path)
+        logger.error("Generate videos with: /bitwize-music:promo-director %s", args.album)
         sys.exit(1)
 
     print(f"Found {len(files)} file(s) to upload:")
@@ -365,21 +418,23 @@ Examples:
     bucket = get_bucket_name(config)
 
     # Upload files
-    print("Uploading...")
+    logger.info("Uploading...")
     successful = 0
     failed = 0
 
+    progress = ProgressBar(len(files), prefix="Uploading")
     for file_path in files:
+        progress.update(file_path.name)
         # All promo content goes in the promos folder (track promos + album sampler)
         s3_key = f"{artist}/{args.album}/promos/{file_path.name}"
 
-        if upload_file(s3_client, bucket, file_path, s3_key, public_read, args.dry_run):
+        if retry_upload(s3_client, bucket, file_path, s3_key, public_read, args.dry_run, args.retries):
             successful += 1
         else:
             failed += 1
 
     print()
-    print(f"Upload complete!")
+    print("Upload complete!")
     print(f"  Successful: {successful}")
     if failed:
         print(f"  Failed: {failed}")
@@ -391,14 +446,14 @@ Examples:
         if provider == "r2":
             account_id = cloud_config.get("r2", {}).get("account_id")
             # R2 public URL format (if public access enabled on bucket)
-            print(f"  Note: Enable public access on R2 bucket to get public URLs")
+            print("  Note: Enable public access on R2 bucket to get public URLs")
             print(f"  Bucket URL pattern: https://{bucket}.{account_id}.r2.dev/")
         else:
             region = cloud_config.get("s3", {}).get("region", "us-east-1")
             print(f"  https://{bucket}.s3.{region}.amazonaws.com/{artist}/{args.album}/")
 
     if args.dry_run:
-        print("This was a dry run. Run without --dry-run to actually upload.")
+        logger.info("This was a dry run. Run without --dry-run to actually upload.")
 
 
 if __name__ == "__main__":

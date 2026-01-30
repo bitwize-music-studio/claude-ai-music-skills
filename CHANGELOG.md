@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-01-29
+
+### Added
+- **Python logging module** across all 15 tool files — `tools/shared/logging_config.py` with `ColorFormatter` (TTY-aware colored output via `Colors` class) and `setup_logging()`. Errors/warnings/status go to stderr via `logger`, formatted tables and data summaries stay as `print()`. `--verbose`/`--quiet` CLI flags added where argparse exists.
+- **Progress indicators** — `tools/shared/progress.py` with `ProgressBar` class (TTY-aware █/░ bar). Added to 7 batch-processing tools: `master_tracks.py`, `analyze_tracks.py`, `reference_master.py`, `upload_to_cloud.py`, `generate_promo_video.py`, `generate_album_sampler.py`, `transcribe.py`.
+- **Retry logic for cloud uploads** — `retry_upload()` in `upload_to_cloud.py` with exponential backoff (1s/2s/4s), `--retries` CLI arg (default: 3). Retries on `ClientError` (except 403/404), `ConnectionError`, `Timeout`.
+- **Concurrent processing** — `-j`/`--jobs` CLI arg in 4 tools: `master_tracks.py` and `analyze_tracks.py` (`ProcessPoolExecutor`), `transcribe.py` and `generate_promo_video.py` (`ThreadPoolExecutor`). Default: 1 (sequential), 0 = auto (CPU count).
+- **State cache cleanup command** — `python tools/state/indexer.py cleanup` removes albums from cache whose paths no longer exist on disk. Supports `--dry-run`.
+- **New shared modules** — `tools/shared/logging_config.py`, `tools/shared/progress.py`, `tools/shared/__init__.py`
+- **Test coverage improvements** — 180 tests (up from 137), 91% coverage. New test files: `test_logging_config.py` (13 tests), `test_progress.py` (14 tests). New test classes in `test_indexer.py`: `TestCmdCleanup`, `TestCmdRebuild`, `TestCmdValidate`, `TestCmdShow`, `TestCmdUpdate`. Edge case tests added to `test_parsers.py`.
+- **Dev tooling** — `requirements-test.txt` (pytest, pyyaml, ruff, pytest-cov), `ruff.toml` config, CI workflow updated with test and lint jobs
+
 ## [0.19.3] - 2026-01-29
 
 ### Changed

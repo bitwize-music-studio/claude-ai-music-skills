@@ -11,9 +11,19 @@ Usage:
 """
 
 import argparse
+import logging
 import subprocess
 import sys
 from pathlib import Path
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 
 def find_mastered_dir(album_dir: Path) -> Path:
@@ -104,21 +114,29 @@ Examples:
                         help='Visualization style (default: pulse)')
     parser.add_argument('--clip-duration', type=int, default=12,
                         help='Sampler clip duration per track (default: 12)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Show debug output')
+    parser.add_argument('--quiet', action='store_true',
+                        help='Only show warnings and errors')
 
     args = parser.parse_args()
+
+    setup_logging(__name__,
+                  verbose=getattr(args, 'verbose', False),
+                  quiet=getattr(args, 'quiet', False))
 
     # Resolve paths
     album_dir = args.album_dir.resolve()
     if not album_dir.exists():
-        print(f"Error: Album directory not found: {album_dir}")
+        logger.error("Album directory not found: %s", album_dir)
         sys.exit(1)
 
     mastered_dir = find_mastered_dir(album_dir)
     artwork = find_artwork(album_dir)
 
     if not artwork:
-        print(f"Error: Could not find album artwork in {album_dir}")
-        print("  Looked for: album.png, album.jpg, artwork.png, cover.png")
+        logger.error("Could not find album artwork in %s", album_dir)
+        logger.error("  Looked for: album.png, album.jpg, artwork.png, cover.png")
         sys.exit(1)
 
     # Count tracks
@@ -126,8 +144,8 @@ Examples:
     track_count = sum(1 for f in mastered_dir.iterdir()
                       if f.is_file() and f.suffix.lower() in audio_extensions)
 
-    print(f"Album Promo Generator")
-    print(f"=====================")
+    print("Album Promo Generator")
+    print("=====================")
     print(f"Album dir: {album_dir}")
     print(f"Tracks dir: {mastered_dir}")
     print(f"Artwork: {artwork}")
@@ -158,7 +176,7 @@ Examples:
 
         result = subprocess.run(cmd)
         if result.returncode != 0:
-            print("Warning: Track promo generation had errors")
+            logger.warning("Track promo generation had errors")
             success = False
 
         print()
@@ -182,7 +200,7 @@ Examples:
 
         result = subprocess.run(cmd)
         if result.returncode != 0:
-            print("Warning: Album sampler generation had errors")
+            logger.warning("Album sampler generation had errors")
             success = False
 
         print()

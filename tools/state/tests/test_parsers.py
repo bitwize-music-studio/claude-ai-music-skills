@@ -19,6 +19,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import pytest
 from tools.state.parsers import (
+    _extract_bold_field,
+    _extract_genre_from_path,
+    _extract_table_value,
+    _normalize_status,
+    _parse_track_count,
     _parse_tracklist_table,
     parse_album_readme,
     parse_frontmatter,
@@ -380,3 +385,364 @@ No table here, just text.
 """
         tracks = _parse_tracklist_table(text)
         assert len(tracks) == 1
+
+
+class TestNormalizeStatus:
+    """Tests for _normalize_status()."""
+
+    def test_canonical_statuses(self):
+        from tools.state.parsers import _normalize_status
+        assert _normalize_status('In Progress') == 'In Progress'
+        assert _normalize_status('Final') == 'Final'
+        assert _normalize_status('Not Started') == 'Not Started'
+        assert _normalize_status('Generated') == 'Generated'
+        assert _normalize_status('Complete') == 'Complete'
+        assert _normalize_status('Released') == 'Released'
+        assert _normalize_status('Concept') == 'Concept'
+
+    def test_case_insensitive(self):
+        from tools.state.parsers import _normalize_status
+        assert _normalize_status('in progress') == 'In Progress'
+        assert _normalize_status('IN PROGRESS') == 'In Progress'
+        assert _normalize_status('final') == 'Final'
+        assert _normalize_status('FINAL') == 'Final'
+
+    def test_trailing_content(self):
+        from tools.state.parsers import _normalize_status
+        assert _normalize_status('In Progress (started 2026-01-01)') == 'In Progress'
+        assert _normalize_status('Complete - all tracks done') == 'Complete'
+
+    def test_empty_returns_unknown(self):
+        from tools.state.parsers import _normalize_status
+        assert _normalize_status('') == 'Unknown'
+        assert _normalize_status(None) == 'Unknown'
+
+    def test_unrecognized_returns_as_is(self):
+        from tools.state.parsers import _normalize_status
+        assert _normalize_status('SomeCustomStatus') == 'SomeCustomStatus'
+
+
+class TestExtractTableValue:
+    """Tests for _extract_table_value()."""
+
+    def test_standard_extraction(self):
+        from tools.state.parsers import _extract_table_value
+        text = "| **Status** | In Progress |"
+        assert _extract_table_value(text, 'Status') == 'In Progress'
+
+    def test_extra_whitespace(self):
+        from tools.state.parsers import _extract_table_value
+        text = "|  **Status**  |   In Progress   |"
+        assert _extract_table_value(text, 'Status') == 'In Progress'
+
+    def test_key_not_found(self):
+        from tools.state.parsers import _extract_table_value
+        text = "| **Title** | My Track |"
+        assert _extract_table_value(text, 'Status') is None
+
+    def test_multiline_text(self):
+        from tools.state.parsers import _extract_table_value
+        text = """| **Title** | My Track |
+| **Status** | Final |
+| **Explicit** | No |"""
+        assert _extract_table_value(text, 'Status') == 'Final'
+        assert _extract_table_value(text, 'Title') == 'My Track'
+        assert _extract_table_value(text, 'Explicit') == 'No'
+
+    def test_value_with_special_characters(self):
+        from tools.state.parsers import _extract_table_value
+        text = '| **Suno Link** | [Listen](https://suno.com/song/abc) |'
+        result = _extract_table_value(text, 'Suno Link')
+        assert 'Listen' in result
+        assert 'https://suno.com' in result
+
+
+class TestExtractBoldField:
+    """Tests for _extract_bold_field()."""
+
+    def test_standard_extraction(self):
+        from tools.state.parsers import _extract_bold_field
+        text = "**Genre**: hip-hop"
+        assert _extract_bold_field(text, 'Genre') == 'hip-hop'
+
+    def test_case_insensitive(self):
+        from tools.state.parsers import _extract_bold_field
+        text = "**genre**: rock"
+        assert _extract_bold_field(text, 'Genre') == 'rock'
+
+    def test_field_not_found(self):
+        from tools.state.parsers import _extract_bold_field
+        text = "**Type**: Documentary"
+        assert _extract_bold_field(text, 'Genre') is None
+
+    def test_field_with_extra_spacing(self):
+        from tools.state.parsers import _extract_bold_field
+        text = "**Status**:   In Progress  "
+        assert _extract_bold_field(text, 'Status') == 'In Progress'
+
+
+class TestSourcesVerifiedParsing:
+    """Tests for sources_verified field parsing edge cases."""
+
+    def test_verified_with_date(self):
+        import tempfile
+        content = """# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Final |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | ✅ Verified (2026-01-15) |
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+            f.write(content)
+            f.flush()
+            result = parse_track_file(Path(f.name))
+            assert result['sources_verified'] == 'Verified'
+        os.unlink(f.name)
+
+    def test_pending_with_emoji(self):
+        import tempfile
+        content = """# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | ❌ Pending |
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+            f.write(content)
+            f.flush()
+            result = parse_track_file(Path(f.name))
+            assert result['sources_verified'] == 'Pending'
+        os.unlink(f.name)
+
+    def test_pending_verification_text(self):
+        import tempfile
+        content = """# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | Pending verification |
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+            f.write(content)
+            f.flush()
+            result = parse_track_file(Path(f.name))
+            assert result['sources_verified'] == 'Pending'
+        os.unlink(f.name)
+
+    def test_missing_sources_verified(self):
+        import tempfile
+        content = """# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | In Progress |
+| **Suno Link** | — |
+| **Explicit** | No |
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+            f.write(content)
+            f.flush()
+            result = parse_track_file(Path(f.name))
+            assert result['sources_verified'] == 'N/A'
+        os.unlink(f.name)
+
+
+class TestFrontmatterEdgeCases:
+    """Additional edge cases for frontmatter parsing."""
+
+    def test_frontmatter_with_list(self):
+        text = '---\ngenres:\n  - rock\n  - blues\n---\n'
+        result = parse_frontmatter(text)
+        assert result['genres'] == ['rock', 'blues']
+
+    def test_frontmatter_with_nested_dict(self):
+        text = '---\npaths:\n  content_root: /tmp\n  audio_root: /audio\n---\n'
+        result = parse_frontmatter(text)
+        assert result['paths']['content_root'] == '/tmp'
+
+    def test_frontmatter_with_special_yaml_chars(self):
+        text = '---\ntitle: "Album: The Sequel"\n---\n'
+        result = parse_frontmatter(text)
+        assert result['title'] == 'Album: The Sequel'
+
+    def test_frontmatter_with_null_value(self):
+        text = '---\nrelease_date: null\n---\n'
+        result = parse_frontmatter(text)
+        assert result['release_date'] is None
+
+    def test_frontmatter_with_multiline_string(self):
+        text = '---\ntitle: |\n  Multi\n  Line\n---\n'
+        result = parse_frontmatter(text)
+        assert 'Multi' in result['title']
+
+    def test_frontmatter_yaml_error(self):
+        """Invalid YAML in frontmatter returns _error key."""
+        text = '---\n{{invalid: yaml: ::\n---\n'
+        result = parse_frontmatter(text)
+        assert '_error' in result
+        assert 'Invalid YAML' in result['_error']
+
+    def test_frontmatter_yaml_none(self):
+        """When yaml module is None, returns _error."""
+        import tools.state.parsers as parsers_mod
+        original_yaml = parsers_mod.yaml
+        try:
+            parsers_mod.yaml = None
+            text = '---\ntitle: Test\n---\n'
+            result = parse_frontmatter(text)
+            assert '_error' in result
+            assert 'PyYAML' in result['_error']
+        finally:
+            parsers_mod.yaml = original_yaml
+
+
+class TestAlbumReadmeEdgeCases:
+    """Additional edge case tests for parse_album_readme."""
+
+    def test_frontmatter_error_sets_warning(self, tmp_path):
+        """Frontmatter parse error sets _warning on result."""
+        readme = tmp_path / "README.md"
+        readme.write_text('---\n{{bad yaml::\n---\n\n# Test Album\n\n## Album Details\n\n| Attribute | Detail |\n|-----------|--------|\n| **Status** | Concept |\n| **Tracks** | 5 |\n')
+        result = parse_album_readme(readme)
+        assert '_warning' in result
+        assert result['status'] == 'Concept'
+
+    def test_genre_from_path_no_albums_dir(self, tmp_path):
+        """Genre extraction returns empty when path has no 'albums' dir."""
+        result = _extract_genre_from_path(tmp_path / "some" / "other" / "README.md")
+        assert result == ''
+
+    def test_genre_from_path_with_albums_dir(self, tmp_path):
+        """Genre extraction returns genre when path has 'albums' dir."""
+        result = _extract_genre_from_path(tmp_path / "artists" / "test" / "albums" / "rock" / "my-album" / "README.md")
+        assert result == 'rock'
+
+    def test_track_count_no_digits(self):
+        """Track count returns 0 for non-numeric string."""
+        assert _parse_track_count('TBD') == 0
+        assert _parse_track_count('[Number]') == 0
+
+    def test_track_count_none(self):
+        """Track count returns 0 for None input."""
+        assert _parse_track_count(None) == 0
+        assert _parse_track_count('') == 0
+
+    def test_tracklist_row_too_few_columns(self):
+        """Tracklist rows with fewer than 3 columns are skipped."""
+        text = """## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+| 1 | Good Track | Final |
+| bad row |
+| 2 | Another | In Progress |
+"""
+        result = _parse_tracklist_table(text)
+        assert len(result) == 2
+        assert result[0]['title'] == 'Good Track'
+        assert result[1]['title'] == 'Another'
+
+
+class TestTrackFileEdgeCases:
+    """Additional edge case tests for parse_track_file."""
+
+    def test_sources_verified_raw_passthrough(self, tmp_path):
+        """Unknown sources_verified value passes through as-is."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Sources Verified** | Custom Value |
+""")
+        result = parse_track_file(track)
+        assert result['sources_verified'] == 'Custom Value'
+
+
+class TestIdeasEdgeCases:
+    """Additional edge case tests for parse_ideas_file."""
+
+    def test_idea_with_template_placeholder(self, tmp_path):
+        """Template placeholders (starting with '[') are skipped."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""## Ideas
+
+### [Placeholder Title]
+
+**Genre**: Rock
+**Status**: Pending
+
+### Real Idea
+
+**Genre**: Electronic
+**Status**: Planning
+""")
+        result = parse_ideas_file(ideas)
+        assert len(result['items']) == 1
+        assert result['items'][0]['title'] == 'Real Idea'
+
+    def test_idea_with_no_status_defaults_pending(self, tmp_path):
+        """Ideas without a status field default to Pending."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""## Ideas
+
+### No Status Idea
+
+**Genre**: Folk
+**Type**: Concept
+""")
+        result = parse_ideas_file(ideas)
+        assert result['items'][0]['status'] == 'Pending'
+
+    def test_idea_status_with_pipe_separator(self, tmp_path):
+        """Status with pipe separator takes first value."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""## Ideas
+
+### Piped Idea
+
+**Genre**: Rock
+**Status**: Planning | Research | Writing
+""")
+        result = parse_ideas_file(ideas)
+        assert result['items'][0]['status'] == 'Planning'
+
+    def test_empty_idea_blocks_skipped(self, tmp_path):
+        """Empty idea blocks (no title) are skipped."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""## Ideas
+
+###
+
+### Valid Idea
+
+**Genre**: Pop
+**Status**: Planning
+""")
+        result = parse_ideas_file(ideas)
+        assert len(result['items']) == 1
+        assert result['items'][0]['title'] == 'Valid Idea'

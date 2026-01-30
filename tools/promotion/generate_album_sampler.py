@@ -24,34 +24,27 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 import colorsys
 import re
-import yaml
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+import logging
+
+from tools.shared.config import load_config as _load_config
+from tools.shared.fonts import find_font
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_CONFIG = {"artist": {"name": "bitwize"}}
 
 
 def load_config() -> dict:
     """Load bitwize-music config file."""
-    config_path = Path.home() / ".bitwize-music" / "config.yaml"
-    if not config_path.exists():
-        return {"artist": {"name": "bitwize"}}  # Fallback
-
-    with open(config_path) as f:
-        return yaml.safe_load(f)
-
-
-def find_font() -> Optional[str]:
-    """Find an available system font."""
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-    ]
-
-    for font in font_paths:
-        if Path(font).exists():
-            return font
-
-    return None
+    return _load_config(fallback=_DEFAULT_CONFIG) or _DEFAULT_CONFIG
 
 
 # Video settings
@@ -89,7 +82,7 @@ def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
         best_color = max(most_common, key=lambda x: max(x[0]) - min(x[0]))[0]
         return best_color
     except Exception as e:
-        print(f"  Color extraction failed: {e}, using default cyan")
+        logger.debug("Color extraction failed: %s, using default cyan", e)
         return (0, 255, 255)
 
 
@@ -115,7 +108,7 @@ def check_ffmpeg():
         subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
         return True
     except FileNotFoundError:
-        print("Error: ffmpeg not found. Install with: brew install ffmpeg")
+        logger.error("ffmpeg not found. Install with: brew install ffmpeg")
         sys.exit(1)
 
 
@@ -191,9 +184,19 @@ def generate_clip(
 ) -> bool:
     """Generate a single clip for one track."""
 
-    # Escape for ffmpeg drawtext filter
-    # Remove apostrophes (they break ffmpeg's single-quote text wrapper)
-    safe_title = title.replace("'", "").replace("'", "").replace(":", "\\:").replace("%", "\\%").replace("\\", "\\\\")
+    # Write title and artist to temp files so ffmpeg reads them via textfile=
+    # This avoids all escaping issues with drawtext's text= parameter,
+    # preventing injection of ffmpeg filter directives through track titles.
+    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    title_file.write(title)
+    title_file.close()
+    title_file_path = title_file.name
+
+    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    artist_file.write(artist_name)
+    artist_file.close()
+    artist_file_path = artist_file.name
+
     viz_height = 600
 
     # Pulse style visualization
@@ -218,7 +221,7 @@ def generate_clip(
 
     [base][wave]overlay=0:H-750[withwave];
 
-    [withwave]drawtext=text='{safe_title}':
+    [withwave]drawtext=textfile='{title_file_path}':
          fontfile={font_path}:
          fontsize={TITLE_FONT_SIZE}:
          fontcolor={TEXT_COLOR}:
@@ -226,7 +229,7 @@ def generate_clip(
          y=h-130:
          shadowcolor=black:shadowx=2:shadowy=2[withtitle];
 
-    [withtitle]drawtext=text='{artist_name}':
+    [withtitle]drawtext=textfile='{artist_file_path}':
          fontfile={font_path}:
          fontsize={ARTIST_FONT_SIZE}:
          fontcolor={TEXT_COLOR}@0.8:
@@ -261,6 +264,13 @@ def generate_clip(
         return result.returncode == 0
     except Exception:
         return False
+    finally:
+        # Clean up temp text files
+        for tmp in (title_file_path, artist_file_path):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def concatenate_with_crossfade(
@@ -334,11 +344,11 @@ def concatenate_with_crossfade(
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"Concatenation error: {result.stderr[:500]}")
+            logger.error("Concatenation error: %s", result.stderr[:500])
             return False
         return True
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Concatenation failed: %s", e)
         return False
 
 
@@ -356,7 +366,7 @@ def generate_album_sampler(
     if font_path is None:
         font_path = find_font()
         if font_path is None:
-            print("Error: No suitable font found")
+            logger.error("No suitable font found")
             return False
 
     # Find audio files
@@ -370,17 +380,17 @@ def generate_album_sampler(
     audio_files = sorted(audio_files)
 
     if not audio_files:
-        print(f"No audio files found in {tracks_dir}")
+        logger.warning("No audio files found in %s", tracks_dir)
         return False
 
-    print(f"Found {len(audio_files)} tracks")
+    logger.info("Found %d tracks", len(audio_files))
 
     # Extract colors from artwork
-    print("Extracting colors from artwork...")
+    logger.info("Extracting colors from artwork...")
     dominant = extract_dominant_color(artwork_path)
     complementary = get_complementary_color(dominant)
     color_hex = rgb_to_hex(complementary)
-    print(f"  Using color: {color_hex}")
+    logger.debug("Using color: %s", color_hex)
 
     # Create temp directory for clips
     temp_dir = Path(tempfile.mkdtemp(prefix="album_sampler_"))
@@ -388,9 +398,11 @@ def generate_album_sampler(
 
     try:
         # Generate individual clips
+        clip_progress = ProgressBar(len(audio_files), prefix="Clips")
         for i, audio_file in enumerate(audio_files):
+            clip_progress.update(audio_file.name)
             title = get_track_title(audio_file.name)
-            print(f"[{i+1}/{len(audio_files)}] {title}...")
+            logger.info("[%d/%d] %s...", i + 1, len(audio_files), title)
 
             # Find best segment
             start_time = find_best_segment(audio_file, clip_duration)
@@ -411,16 +423,16 @@ def generate_album_sampler(
 
             if success:
                 clip_paths.append(clip_path)
-                print(f"  OK")
+                logger.info("  OK")
             else:
-                print(f"  FAILED - skipping")
+                logger.error("  FAILED - skipping")
 
         if not clip_paths:
-            print("No clips generated!")
+            logger.error("No clips generated!")
             return False
 
         # Concatenate all clips
-        print(f"\nConcatenating {len(clip_paths)} clips with {crossfade}s crossfades...")
+        logger.info("Concatenating %d clips with %ss crossfades...", len(clip_paths), crossfade)
         success = concatenate_with_crossfade(clip_paths, output_path, crossfade)
 
         if success:
@@ -432,11 +444,11 @@ def generate_album_sampler(
             print(f"  Size: {file_size:.1f} MB")
 
             if final_duration > 140:
-                print(f"  WARNING: Duration exceeds Twitter limit (140s)")
+                logger.warning("Duration exceeds Twitter limit (140s)")
 
             return True
         else:
-            print("Failed to concatenate clips")
+            logger.error("Failed to concatenate clips")
             return False
 
     finally:
@@ -467,8 +479,16 @@ Examples:
                         help=f'Crossfade duration in seconds (default: {DEFAULT_CROSSFADE})')
     parser.add_argument('--artist', type=str,
                         help='Artist name (read from config if not set)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Show debug output')
+    parser.add_argument('--quiet', action='store_true',
+                        help='Only show warnings and errors')
 
     args = parser.parse_args()
+
+    setup_logging(__name__,
+                  verbose=getattr(args, 'verbose', False),
+                  quiet=getattr(args, 'quiet', False))
 
     check_ffmpeg()
 
@@ -503,9 +523,9 @@ Examples:
                     break
 
         if not artwork:
-            print("Error: No artwork found in album directory")
-            print("  Looked for: album.png, album.jpg, album-art.png, artwork.png, cover.png")
-            print("  Specify with: --artwork /path/to/artwork.png")
+            logger.error("No artwork found in album directory")
+            logger.error("  Looked for: album.png, album.jpg, album-art.png, artwork.png, cover.png")
+            logger.error("  Specify with: --artwork /path/to/artwork.png")
             sys.exit(1)
 
     # Set output path (default to promo_videos folder)
@@ -522,18 +542,19 @@ Examples:
                       if f.suffix.lower() in audio_extensions)
     expected_duration = track_count * args.clip_duration - (track_count - 1) * args.crossfade
 
-    print(f"Album Sampler Generator")
-    print(f"=======================")
+    print("Album Sampler Generator")
+    print("=======================")
     print(f"Tracks: {track_count}")
     print(f"Clip duration: {args.clip_duration}s")
     print(f"Crossfade: {args.crossfade}s")
     print(f"Expected duration: {expected_duration:.1f}s")
-    print(f"Twitter limit: 140s")
+    print("Twitter limit: 140s")
     print()
 
     if expected_duration > 140:
-        print(f"WARNING: Expected duration exceeds Twitter limit!")
-        print(f"Consider reducing --clip-duration to {int(140 / track_count)}s or less")
+        logger.warning("Expected duration exceeds Twitter limit!")
+        logger.warning("Consider reducing --clip-duration to %ds or less",
+                        int(140 / track_count))
         print()
 
     success = generate_album_sampler(

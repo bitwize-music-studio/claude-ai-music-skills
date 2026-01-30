@@ -1,0 +1,11 @@
+# Test dependencies
+#
+# Install:
+#   pip install -r requirements-test.txt
+
+pytest>=7.0
+pytest-cov>=4.0
+pyyaml>=6.0
+
+# Linting
+ruff>=0.4.0

@@ -38,25 +38,21 @@ import sys
 import yaml
 from pathlib import Path
 
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-# ANSI colors for output
-class Colors:
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    NC = '\033[0m'  # No Color
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    @classmethod
-    def disable(cls):
-        """Disable colors (for non-TTY)"""
-        cls.RED = ''
-        cls.GREEN = ''
-        cls.YELLOW = ''
-        cls.NC = ''
+from tools.shared.colors import Colors
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
 
+logger = logging.getLogger(__name__)
 
-if not sys.stdout.isatty():
-    Colors.disable()
+Colors.auto()
 
 
 def find_anthemscore():
@@ -109,31 +105,22 @@ def show_install_instructions(system):
     print("Free trial: 30 seconds per song, 100 total transcriptions\n")
 
     if system == 'darwin':
-        print(f"After installing, AnthemScore should be at:")
-        print(f"  /Applications/AnthemScore.app/Contents/MacOS/AnthemScore")
+        print("After installing, AnthemScore should be at:")
+        print("  /Applications/AnthemScore.app/Contents/MacOS/AnthemScore")
     elif system == 'linux':
-        print(f"After installing, AnthemScore should be at:")
-        print(f"  /usr/bin/anthemscore or /usr/local/bin/anthemscore")
+        print("After installing, AnthemScore should be at:")
+        print("  /usr/bin/anthemscore or /usr/local/bin/anthemscore")
     elif system == 'windows':
-        print(f"After installing, AnthemScore should be at:")
-        print(f"  C:\\Program Files\\AnthemScore\\AnthemScore.exe")
+        print("After installing, AnthemScore should be at:")
+        print("  C:\\Program Files\\AnthemScore\\AnthemScore.exe")
 
-    print(f"\nThen run this command again.")
+    print("\nThen run this command again.")
 
 
 def read_config():
     """Read ~/.bitwize-music/config.yaml"""
-    config_path = Path.home() / '.bitwize-music' / 'config.yaml'
-
-    if not config_path.exists():
-        return None
-
-    try:
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
-    except Exception as e:
-        print(f"{Colors.RED}Error reading config: {e}{Colors.NC}")
-        return None
+    from tools.shared.config import load_config
+    return load_config()
 
 
 def resolve_album_path(album_name):
@@ -141,8 +128,8 @@ def resolve_album_path(album_name):
     config = read_config()
 
     if not config:
-        print(f"{Colors.YELLOW}Config not found at ~/.bitwize-music/config.yaml{Colors.NC}")
-        print("Treating as direct path instead of album name.\n")
+        logger.warning("Config not found at ~/.bitwize-music/config.yaml")
+        logger.warning("Treating as direct path instead of album name.")
         return None
 
     try:
@@ -156,14 +143,14 @@ def resolve_album_path(album_name):
         album_path = audio_root / artist / album_name
 
         if not album_path.exists():
-            print(f"{Colors.YELLOW}Album path not found: {album_path}{Colors.NC}")
-            print("Treating as direct path instead.\n")
+            logger.warning("Album path not found: %s", album_path)
+            logger.warning("Treating as direct path instead.")
             return None
 
         return album_path
 
     except KeyError as e:
-        print(f"{Colors.YELLOW}Config missing key: {e}{Colors.NC}")
+        logger.warning("Config missing key: %s", e)
         return None
 
 
@@ -175,16 +162,16 @@ def get_wav_files(source):
         if source_path.suffix.lower() == '.wav':
             return [source_path], source_path.parent
         else:
-            print(f"{Colors.RED}Error: {source} is not a WAV file{Colors.NC}")
+            logger.error("%s is not a WAV file", source)
             sys.exit(1)
     elif source_path.is_dir():
         wav_files = sorted(source_path.glob('*.wav'))
         if not wav_files:
-            print(f"{Colors.RED}Error: No WAV files found in {source}{Colors.NC}")
+            logger.error("No WAV files found in %s", source)
             sys.exit(1)
         return wav_files, source_path
     else:
-        print(f"{Colors.RED}Error: {source} does not exist{Colors.NC}")
+        logger.error("%s does not exist", source)
         sys.exit(1)
 
 
@@ -192,7 +179,7 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
     """Transcribe a single WAV file"""
     basename = wav_file.stem
 
-    print(f"{Colors.YELLOW}Processing: {wav_file.name}{Colors.NC}")
+    logger.info("Processing: %s", wav_file.name)
 
     # Build command
     cmd = [anthemscore, str(wav_file), '-a']  # -a = headless mode
@@ -213,7 +200,7 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
         cmd.append('-b')
 
     if args.dry_run:
-        print(f"  Would run: {' '.join(cmd)}")
+        logger.info("  Would run: %s", ' '.join(cmd))
         return True
 
     # Run AnthemScore
@@ -226,25 +213,25 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
         )
 
         if result.returncode == 0:
-            print(f"  {Colors.GREEN}[OK] Complete{Colors.NC}")
+            logger.info("  [OK] Complete")
             if args.pdf:
-                print(f"    → {output_dir / f'{basename}.pdf'}")
+                logger.info("    -> %s", output_dir / f'{basename}.pdf')
             if args.xml:
-                print(f"    → {output_dir / f'{basename}.xml'}")
+                logger.info("    -> %s", output_dir / f'{basename}.xml')
             if args.midi:
-                print(f"    → {output_dir / f'{basename}.mid'}")
+                logger.info("    -> %s", output_dir / f'{basename}.mid')
             return True
         else:
-            print(f"  {Colors.RED}[FAIL] Failed{Colors.NC}")
+            logger.error("  [FAIL] Failed")
             if result.stderr:
-                print(f"  Error: {result.stderr}")
+                logger.error("  Error: %s", result.stderr)
             return False
 
     except subprocess.TimeoutExpired:
-        print(f"  {Colors.RED}[FAIL] Timed out (>5 minutes){Colors.NC}")
+        logger.error("  [FAIL] Timed out (>5 minutes)")
         return False
     except Exception as e:
-        print(f"  {Colors.RED}[FAIL] Error: {e}{Colors.NC}")
+        logger.error("  [FAIL] Error: %s", e)
         return False
 
 
@@ -299,8 +286,24 @@ Examples:
         action='store_true',
         help='Show what would be done without making changes'
     )
+    parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Show debug output'
+    )
+    parser.add_argument(
+        '--quiet', '-q',
+        action='store_true',
+        help='Only show warnings and errors'
+    )
+    parser.add_argument(
+        '-j', '--jobs', type=int, default=1,
+        help='Parallel jobs (0=auto, default: 1)'
+    )
 
     args = parser.parse_args()
+
+    setup_logging(__name__, verbose=getattr(args, 'verbose', False), quiet=getattr(args, 'quiet', False))
 
     # Determine output formats
     if args.pdf_only:
@@ -327,15 +330,15 @@ Examples:
         if album_path:
             source = album_path
         else:
-            print(f"{Colors.RED}Error: Source not found: {args.source}{Colors.NC}\n")
-            print("Tried:")
-            print(f"  1. Direct path: {args.source}")
+            logger.error("Source not found: %s", args.source)
+            logger.error("Tried:")
+            logger.error("  1. Direct path: %s", args.source)
             config = read_config()
             if config:
                 try:
                     audio_root = Path(config['paths']['audio_root']).expanduser()
                     artist = config['artist']['name']
-                    print(f"  2. Album path: {audio_root}/{artist}/{args.source}")
+                    logger.error("  2. Album path: %s/%s/%s", audio_root, artist, args.source)
                 except:
                     pass
             sys.exit(1)
@@ -364,9 +367,9 @@ Examples:
         formats.append("MIDI")
     print(f"Format:  {' '.join(formats)}")
     if args.treble:
-        print(f"Clef:    Treble only")
+        print("Clef:    Treble only")
     elif args.bass:
-        print(f"Clef:    Bass only")
+        print("Clef:    Bass only")
     print()
 
     # Create output directory
@@ -376,13 +379,32 @@ Examples:
     # Process each file
     success_count = 0
     failed_count = 0
+    workers = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
 
-    for wav_file in wav_files:
-        if transcribe_track(anthemscore, wav_file, output_dir, args):
-            success_count += 1
-        else:
-            failed_count += 1
-        print()
+    progress = ProgressBar(len(wav_files), prefix="Transcribing")
+
+    if workers == 1:
+        for wav_file in wav_files:
+            progress.update(wav_file.name)
+            if transcribe_track(anthemscore, wav_file, output_dir, args):
+                success_count += 1
+            else:
+                failed_count += 1
+            print()
+    else:
+        logger.info("Using %d parallel workers", workers)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(transcribe_track, anthemscore, wf, output_dir, args): wf
+                for wf in wav_files
+            }
+            for future in as_completed(futures):
+                wf = futures[future]
+                progress.update(wf.name)
+                if future.result():
+                    success_count += 1
+                else:
+                    failed_count += 1
 
     # Summary
     print("=" * 40)

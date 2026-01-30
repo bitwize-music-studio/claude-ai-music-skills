@@ -15,12 +15,22 @@ Requirements:
 """
 
 import argparse
+import logging
 import os
 import re
 import sys
 import yaml
 from pathlib import Path
 from datetime import datetime
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 
 def strip_track_number(name):
@@ -58,17 +68,9 @@ PAGE_SIZES = {
 
 def read_config():
     """Read ~/.bitwize-music/config.yaml"""
-    config_path = Path.home() / '.bitwize-music' / 'config.yaml'
-
-    if not config_path.exists():
-        return None
-
-    try:
-        with open(config_path, 'r') as f:
-            return yaml.safe_load(f)
-    except Exception as e:
-        print(f"Warning: Error reading config: {e}")
-        return None
+    # Late import to avoid requiring project root on sys.path at module load
+    from tools.shared.config import load_config
+    return load_config()
 
 
 def get_website_from_config():
@@ -329,7 +331,7 @@ def create_songbook(
     ])
 
     if not pdf_files:
-        print(f"No PDF files found in {source_dir}")
+        logger.error("No PDF files found in %s", source_dir)
         return False
 
     print(f"Found {len(pdf_files)} PDF file(s)")
@@ -428,12 +430,24 @@ def main():
         "--website", "-w",
         help="Website URL to include (auto-detected from config if not provided)"
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Show debug output"
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Only show warnings and errors"
+    )
 
     args = parser.parse_args()
 
+    setup_logging(__name__, verbose=getattr(args, 'verbose', False), quiet=getattr(args, 'quiet', False))
+
     # Validate source directory
     if not os.path.isdir(args.source_dir):
-        print(f"Error: {args.source_dir} is not a directory")
+        logger.error("%s is not a directory", args.source_dir)
         sys.exit(1)
 
     # Read config for auto-detection
@@ -444,20 +458,20 @@ def main():
     if not artist and config:
         try:
             artist = config['artist']['name']
-            print(f"Auto-detected artist from config: {artist}")
+            logger.info("Auto-detected artist from config: %s", artist)
         except KeyError:
             pass
 
     if not artist:
         artist = "Unknown Artist"
-        print(f"Warning: Artist not specified, using: {artist}")
+        logger.warning("Artist not specified, using: %s", artist)
 
     # Auto-detect page size from config
     page_size = args.page_size
     if not page_size and config:
         try:
             page_size = config.get('sheet_music', {}).get('page_size', 'letter')
-            print(f"Using page size from config: {page_size}")
+            logger.info("Using page size from config: %s", page_size)
         except:
             page_size = 'letter'
     elif not page_size:
@@ -469,7 +483,7 @@ def main():
         try:
             section_headers = config.get('sheet_music', {}).get('section_headers', False)
             if section_headers:
-                print(f"Using section headers from config: {section_headers}")
+                logger.info("Using section headers from config: %s", section_headers)
         except:
             pass
 
@@ -478,14 +492,14 @@ def main():
     if not cover:
         cover = auto_detect_cover_art(args.source_dir)
         if cover:
-            print(f"Auto-detected cover art: {cover}")
+            logger.info("Auto-detected cover art: %s", cover)
 
     # Auto-detect website from config
     website = args.website
     if not website:
         website = get_website_from_config()
         if website:
-            print(f"Auto-detected website from config: {website}")
+            logger.info("Auto-detected website from config: %s", website)
 
     # Set output path
     if args.output:

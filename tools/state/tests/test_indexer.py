@@ -26,9 +26,15 @@ import pytest
 import yaml
 from tools.state.indexer import (
     CURRENT_VERSION,
+    _version_compare,
     build_config_section,
     build_state,
+    cmd_cleanup,
+    cmd_rebuild,
     cmd_session,
+    cmd_show,
+    cmd_update,
+    cmd_validate,
     incremental_update,
     migrate_state,
     read_state,
@@ -43,6 +49,8 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 def temp_workspace():
     """Create a temporary workspace with config and content."""
     tmpdir = tempfile.mkdtemp()
+    # Resolve symlinks (macOS /var -> /private/var) so paths match resolve_path() output
+    tmpdir = str(Path(tmpdir).resolve())
     content_root = Path(tmpdir) / "content"
     config_dir = Path(tmpdir) / "config"
     cache_dir = Path(tmpdir) / "cache"
@@ -498,3 +506,886 @@ class TestDocumentsRootDefault:
         }
         section = build_config_section(config)
         assert section['documents_root'] == '/mnt/docs'
+
+
+class TestVersionCompare:
+    """Tests for _version_compare() with variable-length versions."""
+
+    def test_equal_versions(self):
+        assert _version_compare("1.0.0", "1.0.0") == 0
+
+    def test_less_than(self):
+        assert _version_compare("1.0.0", "1.1.0") == -1
+
+    def test_greater_than(self):
+        assert _version_compare("2.0.0", "1.9.9") == 1
+
+    def test_two_part_vs_three_part_equal(self):
+        assert _version_compare("1.0", "1.0.0") == 0
+
+    def test_two_part_vs_three_part_less(self):
+        assert _version_compare("1.0", "1.0.1") == -1
+
+    def test_four_part_version(self):
+        assert _version_compare("1.0.0.0", "1.0.0") == 0
+
+    def test_four_part_version_greater(self):
+        assert _version_compare("1.0.0.1", "1.0.0") == 1
+
+    def test_non_numeric_part_treated_as_zero(self):
+        assert _version_compare("1.0.beta", "1.0.0") == 0
+
+    def test_single_part(self):
+        assert _version_compare("1", "1.0.0") == 0
+        assert _version_compare("2", "1.0.0") == 1
+
+
+class TestCorruptedStateRecovery:
+    """Tests for corrupted state.json recovery."""
+
+    def test_read_state_corrupted_json(self, temp_workspace):
+        """Corrupted JSON file returns None (triggers rebuild)."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            # Write corrupted JSON
+            indexer.STATE_FILE.write_text("{invalid json content, not valid")
+
+            result = read_state()
+            assert result is None
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_read_state_truncated_json(self, temp_workspace):
+        """Truncated JSON file returns None."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            # Write truncated JSON (simulates crash during write)
+            indexer.STATE_FILE.write_text('{"version": "1.0.0", "albums": {')
+
+            result = read_state()
+            assert result is None
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_read_state_empty_file(self, temp_workspace):
+        """Empty state file returns None."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            indexer.STATE_FILE.write_text("")
+
+            result = read_state()
+            assert result is None
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_read_state_missing_file(self, temp_workspace):
+        """Missing state file returns None."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "nonexistent.json"
+
+            result = read_state()
+            assert result is None
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_read_state_valid_json_not_dict(self, temp_workspace):
+        """Valid JSON that isn't a dict (e.g., a list) is still returned."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            # Valid JSON but wrong type - read_state returns it as-is
+            indexer.STATE_FILE.write_text('[1, 2, 3]')
+
+            result = read_state()
+            # read_state doesn't validate shape, just parses JSON
+            assert result == [1, 2, 3]
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_rebuild_after_corruption(self, temp_workspace):
+        """Full rebuild produces valid state after corruption."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            # Write corrupted state
+            indexer.STATE_FILE.write_text("not json at all")
+
+            # Verify it's corrupted
+            assert read_state() is None
+
+            # Rebuild from scratch
+            config = temp_workspace['config']
+            state = build_state(config)
+            write_state(state)
+
+            # Verify recovery
+            recovered = read_state()
+            assert recovered is not None
+            assert recovered['version'] == CURRENT_VERSION
+            assert 'test-album' in recovered['albums']
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+
+class TestConcurrentStateUpdates:
+    """Tests for concurrent state update safety."""
+
+    def test_write_state_creates_cache_dir(self):
+        """write_state creates cache directory if missing."""
+        import tools.state.indexer as indexer
+
+        tmpdir = tempfile.mkdtemp()
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_lock_file = indexer.LOCK_FILE
+
+        try:
+            new_cache = Path(tmpdir) / "new_cache_dir"
+            indexer.CACHE_DIR = new_cache
+            indexer.STATE_FILE = new_cache / "state.json"
+            indexer.LOCK_FILE = new_cache / "state.lock"
+
+            assert not new_cache.exists()
+            write_state({'version': '1.0.0', 'test': True})
+            assert new_cache.exists()
+            assert indexer.STATE_FILE.exists()
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.LOCK_FILE = original_lock_file
+            shutil.rmtree(tmpdir)
+
+    def test_write_state_no_temp_file_left(self):
+        """write_state cleans up temp file after successful write."""
+        import tools.state.indexer as indexer
+
+        tmpdir = tempfile.mkdtemp()
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_lock_file = indexer.LOCK_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(tmpdir)
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+            indexer.LOCK_FILE = indexer.CACHE_DIR / "state.lock"
+
+            write_state({'version': '1.0.0'})
+
+            tmp_file = indexer.STATE_FILE.with_suffix('.tmp')
+            assert not tmp_file.exists()
+            assert indexer.STATE_FILE.exists()
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.LOCK_FILE = original_lock_file
+            shutil.rmtree(tmpdir)
+
+    def test_sequential_writes_preserve_latest(self):
+        """Multiple sequential writes preserve the last written state."""
+        import tools.state.indexer as indexer
+
+        tmpdir = tempfile.mkdtemp()
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_lock_file = indexer.LOCK_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(tmpdir)
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+            indexer.LOCK_FILE = indexer.CACHE_DIR / "state.lock"
+
+            write_state({'version': '1.0.0', 'value': 'first'})
+            write_state({'version': '1.0.0', 'value': 'second'})
+            write_state({'version': '1.0.0', 'value': 'third'})
+
+            result = read_state()
+            assert result['value'] == 'third'
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.LOCK_FILE = original_lock_file
+            shutil.rmtree(tmpdir)
+
+
+class TestEdgeCaseAlbums:
+    """Tests for edge-case album and track scenarios."""
+
+    def test_unicode_album_title(self):
+        """Album with unicode characters in title."""
+        tmpdir = tempfile.mkdtemp()
+        content_root = Path(tmpdir) / "content"
+        album_dir = content_root / "artists" / "testartist" / "albums" / "electronic" / "caf\u00e9-beats"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        readme = album_dir / "README.md"
+        readme.write_text("""---
+title: "Caf\u00e9 Beats"
+genres: ["electronic"]
+explicit: false
+---
+
+# Caf\u00e9 Beats
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 5 |
+
+## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+| 01 | \u00c9clat | Not Started |
+| 02 | R\u00e9sum\u00e9 | Not Started |
+""", encoding='utf-8')
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        assert 'caf\u00e9-beats' in state['albums']
+        album = state['albums']['caf\u00e9-beats']
+        assert album['title'] == 'Caf\u00e9 Beats'
+        shutil.rmtree(tmpdir)
+
+    def test_special_characters_in_track_name(self):
+        """Track file with special characters."""
+        tmpdir = tempfile.mkdtemp()
+        content_root = Path(tmpdir) / "content"
+        album_dir = content_root / "artists" / "testartist" / "albums" / "rock" / "test-album"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        # Album README
+        (album_dir / "README.md").write_text("""---
+title: "Test Album"
+genres: ["rock"]
+explicit: false
+---
+
+# Test Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Tracks** | 1 |
+
+## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+| 01 | Don't Stop & Won't Stop | In Progress |
+""")
+
+        # Track file with apostrophe and ampersand in name
+        (tracks_dir / "01-dont-stop-and-wont-stop.md").write_text("""# Don't Stop & Won't Stop
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Don't Stop & Won't Stop |
+| **Status** | In Progress |
+| **Suno Link** | \u2014 |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        tracks = state['albums']['test-album']['tracks']
+        assert '01-dont-stop-and-wont-stop' in tracks
+        assert tracks['01-dont-stop-and-wont-stop']['title'] == "Don't Stop & Won't Stop"
+        shutil.rmtree(tmpdir)
+
+    def test_album_with_many_tracks(self):
+        """Album with large number of tracks (20+)."""
+        tmpdir = tempfile.mkdtemp()
+        content_root = Path(tmpdir) / "content"
+        album_dir = content_root / "artists" / "testartist" / "albums" / "electronic" / "big-album"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        tracklist_rows = []
+        for i in range(1, 26):
+            num = str(i).zfill(2)
+            tracklist_rows.append(f"| {num} | Track {num} | Not Started |")
+
+            (tracks_dir / f"{num}-track-{num}.md").write_text(f"""# Track {num}
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Track {num} |
+| **Status** | Not Started |
+| **Suno Link** | \u2014 |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+
+        tracklist_table = "\n".join(tracklist_rows)
+        (album_dir / "README.md").write_text(f"""---
+title: "Big Album"
+genres: ["electronic"]
+explicit: false
+---
+
+# Big Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 25 |
+
+## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+{tracklist_table}
+""")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        album = state['albums']['big-album']
+        assert album['track_count'] == 25
+        assert len(album['tracks']) == 25
+        shutil.rmtree(tmpdir)
+
+    def test_malformed_track_missing_table(self):
+        """Track file with no details table still returns data."""
+        tmpdir = tempfile.mkdtemp()
+        track_path = Path(tmpdir) / "01-minimal.md"
+        track_path.write_text("# Minimal Track\n\nJust a heading, no table.\n")
+
+        from tools.state.parsers import parse_track_file
+        result = parse_track_file(track_path)
+        assert '_error' not in result
+        assert result['title'] == 'Minimal Track'
+        assert result['status'] == 'Unknown'
+        shutil.rmtree(tmpdir)
+
+    def test_album_with_empty_tracks_dir(self):
+        """Album with tracks/ directory but no .md files."""
+        tmpdir = tempfile.mkdtemp()
+        content_root = Path(tmpdir) / "content"
+        album_dir = content_root / "artists" / "testartist" / "albums" / "rock" / "empty-tracks"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        (album_dir / "README.md").write_text("""---
+title: "Empty Tracks"
+genres: ["rock"]
+explicit: false
+---
+
+# Empty Tracks
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+""")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        album = state['albums']['empty-tracks']
+        assert album['tracks'] == {}
+        shutil.rmtree(tmpdir)
+
+    def test_multiple_albums_different_genres(self):
+        """Multiple albums across different genres are all found."""
+        tmpdir = tempfile.mkdtemp()
+        content_root = Path(tmpdir) / "content"
+
+        genres = ['rock', 'electronic', 'hip-hop']
+        for genre in genres:
+            album_dir = content_root / "artists" / "testartist" / "albums" / genre / f"{genre}-album"
+            album_dir.mkdir(parents=True)
+            (album_dir / "README.md").write_text(f"""---
+title: "{genre.title()} Album"
+genres: ["{genre}"]
+explicit: false
+---
+
+# {genre.title()} Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 3 |
+""")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        assert len(state['albums']) == 3
+        assert 'rock-album' in state['albums']
+        assert 'electronic-album' in state['albums']
+        assert 'hip-hop-album' in state['albums']
+
+        assert state['albums']['rock-album']['genre'] == 'rock'
+        assert state['albums']['electronic-album']['genre'] == 'electronic'
+        assert state['albums']['hip-hop-album']['genre'] == 'hip-hop'
+        shutil.rmtree(tmpdir)
+
+
+class TestCmdCleanup:
+    """Tests for cmd_cleanup() - remove stale albums from cache."""
+
+    def test_cleanup_no_state_file(self, temp_workspace):
+        """Returns error when no state file exists."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "nonexistent.json"
+
+            args = argparse.Namespace(dry_run=False)
+            result = cmd_cleanup(args)
+            assert result == 1
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_cleanup_no_stale_albums(self, temp_workspace):
+        """Returns 0 when all album paths exist."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            write_state(state)
+
+            args = argparse.Namespace(dry_run=False)
+            result = cmd_cleanup(args)
+            assert result == 0
+
+            # State unchanged
+            after = read_state()
+            assert len(after['albums']) == len(state['albums'])
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_cleanup_removes_stale_album(self, temp_workspace):
+        """Removes albums whose paths no longer exist on disk."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            # Inject a fake album with a nonexistent path
+            state['albums']['ghost-album'] = {
+                'path': '/nonexistent/path/ghost-album',
+                'genre': 'electronic',
+                'status': 'In Progress',
+                'tracks': {},
+            }
+            write_state(state)
+
+            args = argparse.Namespace(dry_run=False)
+            result = cmd_cleanup(args)
+            assert result == 0
+
+            after = read_state()
+            assert 'ghost-album' not in after['albums']
+            assert 'test-album' in after['albums']
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_cleanup_dry_run_preserves_state(self, temp_workspace):
+        """Dry run reports but does not remove stale albums."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            state['albums']['ghost-album'] = {
+                'path': '/nonexistent/path/ghost-album',
+                'genre': 'electronic',
+                'status': 'In Progress',
+                'tracks': {},
+            }
+            write_state(state)
+
+            args = argparse.Namespace(dry_run=True)
+            result = cmd_cleanup(args)
+            assert result == 0
+
+            # State should still have the ghost album
+            after = read_state()
+            assert 'ghost-album' in after['albums']
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_cleanup_empty_albums(self, temp_workspace):
+        """Returns 0 when state has no albums."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            state['albums'] = {}
+            write_state(state)
+
+            args = argparse.Namespace(dry_run=False)
+            result = cmd_cleanup(args)
+            assert result == 0
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+
+class TestCmdRebuild:
+    """Tests for cmd_rebuild()."""
+
+    def test_rebuild_success(self, temp_workspace):
+        """Rebuild creates valid state file."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_config = indexer.CONFIG_FILE
+        original_lock = indexer.LOCK_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+            indexer.CONFIG_FILE = Path(temp_workspace['config_path'])
+            indexer.LOCK_FILE = indexer.CACHE_DIR / "state.lock"
+
+            args = argparse.Namespace()
+            result = cmd_rebuild(args)
+            assert result in (None, 0)  # success
+
+            state = read_state()
+            assert state is not None
+            assert 'test-album' in state['albums']
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.CONFIG_FILE = original_config
+            indexer.LOCK_FILE = original_lock
+
+    def test_rebuild_no_config(self, temp_workspace):
+        """Rebuild returns error when config missing."""
+        import tools.state.indexer as indexer
+
+        original_config = indexer.CONFIG_FILE
+
+        try:
+            indexer.CONFIG_FILE = Path("/nonexistent/config.yaml")
+
+            args = argparse.Namespace()
+            result = cmd_rebuild(args)
+            assert result == 1
+        finally:
+            indexer.CONFIG_FILE = original_config
+
+
+class TestCmdValidate:
+    """Tests for cmd_validate()."""
+
+    def test_validate_valid_state(self, temp_workspace):
+        """Validate passes on valid state."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            write_state(state)
+
+            args = argparse.Namespace()
+            result = cmd_validate(args)
+            assert result == 0
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_validate_no_state(self, temp_workspace):
+        """Validate returns error when no state file."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "nonexistent.json"
+
+            args = argparse.Namespace()
+            result = cmd_validate(args)
+            assert result == 1
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_validate_invalid_state(self, temp_workspace):
+        """Validate detects invalid state (missing keys)."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            # Write minimal invalid state
+            write_state({'version': '1.0'})
+
+            args = argparse.Namespace()
+            result = cmd_validate(args)
+            assert result == 1
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+
+class TestCmdShow:
+    """Tests for cmd_show()."""
+
+    def test_show_valid_state(self, temp_workspace, capsys):
+        """Show prints state summary."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            write_state(state)
+
+            args = argparse.Namespace(verbose=False)
+            result = cmd_show(args)
+            assert result == 0
+
+            captured = capsys.readouterr()
+            assert 'Albums' in captured.out
+            assert 'test-album' in captured.out
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_show_no_state(self, temp_workspace, capsys):
+        """Show returns error when no state file."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "nonexistent.json"
+
+            args = argparse.Namespace(verbose=False)
+            result = cmd_show(args)
+            assert result == 1
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+    def test_show_verbose(self, temp_workspace, capsys):
+        """Show verbose includes track details."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+
+            state = build_state(temp_workspace['config'])
+            write_state(state)
+
+            args = argparse.Namespace(verbose=True)
+            result = cmd_show(args)
+            assert result == 0
+
+            captured = capsys.readouterr()
+            assert 'test-album' in captured.out
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+
+
+class TestCmdUpdate:
+    """Tests for cmd_update()."""
+
+    def test_update_success(self, temp_workspace):
+        """Update succeeds on existing state."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_config = indexer.CONFIG_FILE
+        original_lock = indexer.LOCK_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+            indexer.CONFIG_FILE = Path(temp_workspace['config_path'])
+            indexer.LOCK_FILE = indexer.CACHE_DIR / "state.lock"
+
+            # First build initial state
+            state = build_state(temp_workspace['config'])
+            write_state(state)
+
+            args = argparse.Namespace()
+            result = cmd_update(args)
+            assert result in (None, 0)  # success
+
+            updated = read_state()
+            assert updated is not None
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.CONFIG_FILE = original_config
+            indexer.LOCK_FILE = original_lock
+
+    def test_update_no_config(self, temp_workspace):
+        """Update returns error when config missing."""
+        import tools.state.indexer as indexer
+
+        original_config = indexer.CONFIG_FILE
+
+        try:
+            indexer.CONFIG_FILE = Path("/nonexistent/config.yaml")
+
+            args = argparse.Namespace()
+            result = cmd_update(args)
+            assert result == 1
+        finally:
+            indexer.CONFIG_FILE = original_config
+
+    def test_update_no_state_falls_back_to_rebuild(self, temp_workspace):
+        """Update with no existing state does a full rebuild."""
+        import tools.state.indexer as indexer
+
+        original_cache_dir = indexer.CACHE_DIR
+        original_state_file = indexer.STATE_FILE
+        original_config = indexer.CONFIG_FILE
+        original_lock = indexer.LOCK_FILE
+
+        try:
+            indexer.CACHE_DIR = Path(temp_workspace['cache_dir'])
+            indexer.STATE_FILE = indexer.CACHE_DIR / "state.json"
+            indexer.CONFIG_FILE = Path(temp_workspace['config_path'])
+            indexer.LOCK_FILE = indexer.CACHE_DIR / "state.lock"
+
+            # No pre-existing state
+            args = argparse.Namespace()
+            result = cmd_update(args)
+            assert result in (None, 0)  # success
+
+            state = read_state()
+            assert state is not None
+            assert 'test-album' in state['albums']
+        finally:
+            indexer.CACHE_DIR = original_cache_dir
+            indexer.STATE_FILE = original_state_file
+            indexer.CONFIG_FILE = original_config
+            indexer.LOCK_FILE = original_lock
