@@ -1,4 +1,4 @@
-name: Static Validation
+name: Validation & Tests
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ on:
 
 jobs:
   validate:
+    name: Static Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -111,10 +112,52 @@ jobs:
         print(f'[OK] All {len(skill_dirs)} skills have SKILL.md')
         "
 
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Run tests
+      run: |
+        python -m pytest tools/state/tests/ tools/shared/tests/ -v --tb=short
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install linting dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Run ruff linter
+      run: |
+        ruff check tools/
+
     - name: Validation summary
       run: |
         echo "================================"
-        echo "All static validation passed!"
-        echo ""
-        echo "Note: Run /bitwize-music:test locally before submitting PR"
+        echo "All lint checks passed!"
         echo "================================"

@@ -20,10 +20,11 @@ Usage (either form works):
 
 import argparse
 import copy
+import fcntl
 import json
+import logging
 import os
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -42,7 +43,12 @@ except ImportError:
     print("Error: PyYAML is required. Install with: pip install pyyaml")
     sys.exit(1)
 
-from tools.state.parsers import parse_album_readme, parse_frontmatter, parse_ideas_file, parse_track_file
+from tools.shared.colors import Colors
+from tools.shared.config import CONFIG_PATH
+from tools.shared.logging_config import setup_logging
+from tools.state.parsers import parse_album_readme, parse_ideas_file, parse_track_file
+
+logger = logging.getLogger(__name__)
 
 # Schema version for state.json
 CURRENT_VERSION = "1.0.0"
@@ -50,9 +56,9 @@ CURRENT_VERSION = "1.0.0"
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
 STATE_FILE = CACHE_DIR / "state.json"
+LOCK_FILE = CACHE_DIR / "state.lock"
 
-# Config location (constant)
-CONFIG_FILE = Path.home() / ".bitwize-music" / "config.yaml"
+CONFIG_FILE = CONFIG_PATH
 
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
@@ -60,28 +66,6 @@ MIGRATIONS: Dict[str, tuple] = {
     # Future migrations go here:
     # "1.0.0": (migrate_1_0_to_1_1, "1.1.0"),
 }
-
-
-# ANSI colors for terminal output
-class Colors:
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    BLUE = '\033[0;34m'
-    CYAN = '\033[0;36m'
-    BOLD = '\033[1m'
-    NC = '\033[0m'
-
-    @classmethod
-    def disable(cls):
-        """Disable colors for non-TTY output."""
-        cls.RED = ''
-        cls.GREEN = ''
-        cls.YELLOW = ''
-        cls.BLUE = ''
-        cls.CYAN = ''
-        cls.BOLD = ''
-        cls.NC = ''
 
 
 def read_config() -> Optional[Dict[str, Any]]:
@@ -96,7 +80,7 @@ def read_config() -> Optional[Dict[str, Any]]:
         with open(CONFIG_FILE) as f:
             return yaml.safe_load(f) or {}
     except (yaml.YAMLError, OSError) as e:
-        print(f"{Colors.RED}[ERROR]{Colors.NC} Cannot read config: {e}")
+        logger.error("Cannot read config: %s", e)
         return None
 
 
@@ -152,7 +136,7 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
 
         album_data = parse_album_readme(readme_path)
         if '_error' in album_data:
-            print(f"{Colors.YELLOW}[WARN]{Colors.NC} Skipping {readme_path}: {album_data['_error']}")
+            logger.warning("Skipping %s: %s", readme_path, album_data['_error'])
             continue
 
         # Scan tracks
@@ -199,7 +183,7 @@ def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
         track_data = parse_track_file(track_path)
 
         if '_error' in track_data:
-            print(f"{Colors.YELLOW}[WARN]{Colors.NC} Skipping {track_path}: {track_data['_error']}")
+            logger.warning("Skipping %s: %s", track_path, track_data['_error'])
             continue
 
         try:
@@ -245,7 +229,7 @@ def scan_ideas(config: Dict[str, Any], content_root: Path) -> Dict[str, Any]:
 
     ideas_data = parse_ideas_file(ideas_path)
     if '_error' in ideas_data:
-        print(f"{Colors.YELLOW}[WARN]{Colors.NC} Cannot parse IDEAS.md: {ideas_data['_error']}")
+        logger.warning("Cannot parse IDEAS.md: %s", ideas_data['_error'])
         return {
             'file_mtime': 0.0,
             'counts': {},
@@ -433,26 +417,35 @@ def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
 
 
 def write_state(state: Dict[str, Any]):
-    """Write state to cache file atomically.
+    """Write state to cache file atomically with file locking.
 
-    Writes to a temp file first, then renames for atomicity.
+    Acquires an exclusive lock to prevent concurrent writes, then
+    writes to a temp file and renames for atomicity.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
     tmp_path = STATE_FILE.with_suffix('.tmp')
+    lock_fd = None
     try:
+        lock_fd = open(LOCK_FILE, 'w')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+
         with open(tmp_path, 'w') as f:
             json.dump(state, f, indent=2, default=str)
             f.write('\n')
         os.replace(str(tmp_path), str(STATE_FILE))
     except OSError as e:
-        print(f"{Colors.RED}[ERROR]{Colors.NC} Cannot write state file: {e}")
+        logger.error("Cannot write state file: %s", e)
         # Clean up temp file
         try:
             tmp_path.unlink(missing_ok=True)
         except OSError:
             pass
         raise
+    finally:
+        if lock_fd is not None:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
 
 
 def read_state() -> Optional[Dict[str, Any]]:
@@ -467,7 +460,7 @@ def read_state() -> Optional[Dict[str, Any]]:
         with open(STATE_FILE) as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError) as e:
-        print(f"{Colors.YELLOW}[WARN]{Colors.NC} Corrupted state file: {e}")
+        logger.warning("Corrupted state file: %s", e)
         return None
 
 
@@ -499,17 +492,31 @@ def migrate_state(state: Dict[str, Any]) -> Dict[str, Any]:
             state['version'] = next_version
             version = next_version
         except Exception as e:
-            print(f"{Colors.YELLOW}[WARN]{Colors.NC} Migration failed: {e}")
+            logger.warning("Migration failed: %s", e)
             return None
 
     return state
 
 
 def _version_compare(a: str, b: str) -> int:
-    """Compare two semver strings. Returns -1, 0, or 1."""
+    """Compare two version strings. Returns -1, 0, or 1.
+
+    Handles variable-length versions (e.g., "1.0" vs "1.0.0") by
+    zero-padding the shorter one. Non-numeric parts are treated as 0.
+    """
     def _parts(v):
-        return [int(x) for x in v.split('.')]
+        parts = []
+        for x in v.split('.'):
+            try:
+                parts.append(int(x))
+            except ValueError:
+                parts.append(0)
+        return parts
     pa, pb = _parts(a), _parts(b)
+    # Pad shorter list with zeros
+    max_len = max(len(pa), len(pb))
+    pa.extend([0] * (max_len - len(pa)))
+    pb.extend([0] * (max_len - len(pb)))
     for x, y in zip(pa, pb):
         if x < y:
             return -1
@@ -599,12 +606,12 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
 
 def cmd_rebuild(args):
     """Full rebuild of state cache."""
-    print(f"Building project index...")
+    logger.info("Building project index...")
 
     config = read_config()
     if config is None:
-        print(f"{Colors.RED}[ERROR]{Colors.NC} Config not found at {CONFIG_FILE}")
-        print("Run /bitwize-music:configure to set up.")
+        logger.error("Config not found at %s", CONFIG_FILE)
+        logger.error("Run /bitwize-music:configure to set up.")
         return 1
 
     state = build_state(config)
@@ -622,7 +629,7 @@ def cmd_rebuild(args):
     )
     ideas_count = len(state.get('ideas', {}).get('items', []))
 
-    print(f"{Colors.GREEN}[OK]{Colors.NC} State cache rebuilt")
+    logger.info("State cache rebuilt")
     print(f"  Albums: {album_count}")
     print(f"  Tracks: {track_count}")
     print(f"  Ideas: {ideas_count}")
@@ -634,24 +641,24 @@ def cmd_update(args):
     """Incremental update of state cache."""
     config = read_config()
     if config is None:
-        print(f"{Colors.RED}[ERROR]{Colors.NC} Config not found at {CONFIG_FILE}")
+        logger.error("Config not found at %s", CONFIG_FILE)
         return 1
 
     existing = read_state()
     if existing is None:
-        print("No existing state, performing full rebuild...")
+        logger.info("No existing state, performing full rebuild...")
         return cmd_rebuild(args)
 
     # Check schema version
     migrated = migrate_state(existing)
     if migrated is None:
-        print("State schema changed, performing full rebuild...")
+        logger.info("State schema changed, performing full rebuild...")
         return cmd_rebuild(args)
 
     state = incremental_update(migrated, config)
     write_state(state)
 
-    print(f"{Colors.GREEN}[OK]{Colors.NC} State cache updated")
+    logger.info("State cache updated")
     return 0
 
 
@@ -659,13 +666,13 @@ def cmd_validate(args):
     """Validate state.json against schema."""
     state = read_state()
     if state is None:
-        print(f"{Colors.RED}[FAIL]{Colors.NC} No state file found at {STATE_FILE}")
-        print("Run: python3 tools/state/indexer.py rebuild")
+        logger.error("No state file found at %s", STATE_FILE)
+        logger.error("Run: python3 tools/state/indexer.py rebuild")
         return 1
 
     errors = validate_state(state)
     if errors:
-        print(f"{Colors.RED}[FAIL]{Colors.NC} State validation failed:")
+        logger.error("State validation failed:")
         for error in errors:
             print(f"  - {error}")
         return 1
@@ -673,9 +680,9 @@ def cmd_validate(args):
     # Also check version
     version = state.get('version', '')
     if version != CURRENT_VERSION:
-        print(f"{Colors.YELLOW}[WARN]{Colors.NC} Version mismatch: state={version}, expected={CURRENT_VERSION}")
+        logger.warning("Version mismatch: state=%s, expected=%s", version, CURRENT_VERSION)
     else:
-        print(f"{Colors.GREEN}[OK]{Colors.NC} State is valid (v{version})")
+        logger.info("State is valid (v%s)", version)
 
     return 0
 
@@ -684,7 +691,7 @@ def cmd_session(args):
     """Update session context in state.json."""
     state = read_state()
     if state is None:
-        print(f"{Colors.RED}[ERROR]{Colors.NC} No state file found. Run: python3 tools/state/indexer.py rebuild")
+        logger.error("No state file found. Run: python3 tools/state/indexer.py rebuild")
         return 1
 
     session = state.get('session', {})
@@ -713,7 +720,7 @@ def cmd_session(args):
     state['session'] = session
     write_state(state)
 
-    print(f"{Colors.GREEN}[OK]{Colors.NC} Session updated")
+    logger.info("Session updated")
     if session.get('last_album'):
         print(f"  Album: {session['last_album']}")
     if session.get('last_phase'):
@@ -722,6 +729,46 @@ def cmd_session(args):
         print(f"  Track: {session['last_track']}")
     if session.get('pending_actions'):
         print(f"  Pending actions: {len(session['pending_actions'])}")
+    return 0
+
+
+def cmd_cleanup(args):
+    """Remove albums from cache that no longer exist on disk."""
+    state = read_state()
+    if state is None:
+        logger.error("No state file found. Run: python3 tools/state/indexer.py rebuild")
+        return 1
+
+    albums = state.get('albums', {})
+    if not albums:
+        logger.info("No albums in cache, nothing to clean up")
+        return 0
+
+    stale = []
+    for slug, album in albums.items():
+        album_path = album.get('path', '')
+        if album_path and not Path(album_path).exists():
+            stale.append(slug)
+
+    if not stale:
+        logger.info("All %d album paths exist on disk, nothing to clean up", len(albums))
+        return 0
+
+    for slug in stale:
+        path = albums[slug].get('path', '?')
+        if args.dry_run:
+            logger.info("[DRY RUN] Would remove: %s (%s)", slug, path)
+        else:
+            logger.warning("Removing stale album: %s (%s)", slug, path)
+            del albums[slug]
+
+    if not args.dry_run:
+        state['albums'] = albums
+        write_state(state)
+        logger.info("Removed %d stale album(s) from cache", len(stale))
+    else:
+        logger.info("[DRY RUN] Would remove %d stale album(s)", len(stale))
+
     return 0
 
 
@@ -785,7 +832,7 @@ def cmd_show(args):
         if session.get('last_phase'):
             print(f"  Phase: {session['last_phase']}")
         if session.get('pending_actions'):
-            print(f"  Pending:")
+            print("  Pending:")
             for action in session['pending_actions']:
                 print(f"    - {action}")
 
@@ -824,6 +871,10 @@ Examples:
     show_parser = subparsers.add_parser('show', help='Pretty-print current state summary')
     show_parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
 
+    # cleanup
+    cleanup_parser = subparsers.add_parser('cleanup', help='Remove albums from cache that no longer exist on disk')
+    cleanup_parser.add_argument('--dry-run', action='store_true', help='Show what would be removed without changing state')
+
     # session
     session_parser = subparsers.add_parser('session', help='Update session context in state.json')
     session_parser.add_argument('--album', help='Set last_album')
@@ -837,11 +888,14 @@ Examples:
     if args.no_color or not sys.stdout.isatty():
         Colors.disable()
 
+    setup_logging(__name__)
+
     commands = {
         'rebuild': cmd_rebuild,
         'update': cmd_update,
         'validate': cmd_validate,
         'show': cmd_show,
+        'cleanup': cmd_cleanup,
         'session': cmd_session,
     }
 

@@ -7,14 +7,27 @@ Automated Mastering Script for Album
 - Preserves dynamics while ensuring consistency
 """
 
+import logging
 import os
 import sys
+import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
+
 import numpy as np
 import soundfile as sf
 import pyloudnorm as pyln
 from scipy import signal
-from pathlib import Path
-import argparse
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+from tools.shared.progress import ProgressBar
+
+logger = logging.getLogger(__name__)
 
 # Genre presets: (target_lufs, cut_highmid, cut_highs)
 # - target_lufs: Loudness target (streaming standard is -14, dynamic genres use -16 to -18)
@@ -241,7 +254,7 @@ def master_track(input_path, output_path, target_lufs=-14.0,
 
     # Guard against silent or near-silent audio (loudness returns -inf)
     if not np.isfinite(current_lufs):
-        print(f"  WARNING: Audio is silent or near-silent, skipping: {input_path}")
+        logger.warning("Audio is silent or near-silent, skipping: %s", input_path)
         return {
             'original_lufs': float('-inf'),
             'final_lufs': float('-inf'),
@@ -279,6 +292,41 @@ def master_track(input_path, output_path, target_lufs=-14.0,
         'final_peak': final_peak,
     }
 
+def _process_one_track(wav_file, output_path, target_lufs, eq_settings, ceiling_db, dry_run):
+    """Process a single track (used by both sequential and parallel paths).
+
+    Returns (wav_file_name, result_dict) or (wav_file_name, None) if skipped.
+    """
+    if dry_run:
+        data, rate = sf.read(str(wav_file))
+        if len(data.shape) == 1:
+            data = np.column_stack([data, data])
+        meter = pyln.Meter(rate)
+        current_lufs = meter.integrated_loudness(data)
+        if not np.isfinite(current_lufs):
+            return (str(wav_file), None)
+        gain = target_lufs - current_lufs
+        result = {
+            'original_lufs': current_lufs,
+            'final_lufs': target_lufs,
+            'gain_applied': gain,
+            'final_peak': -1.0,
+        }
+    else:
+        result = master_track(
+            str(wav_file),
+            str(output_path),
+            target_lufs=target_lufs,
+            eq_settings=eq_settings,
+            ceiling_db=ceiling_db
+        )
+
+    if result.get('skipped'):
+        return (str(wav_file), None)
+
+    return (str(wav_file), result)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Master audio tracks for streaming',
@@ -308,15 +356,23 @@ Examples:
                        help='Output directory (default: mastered)')
     parser.add_argument('--dry-run', action='store_true',
                        help='Analyze only, do not write files')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Show debug output')
+    parser.add_argument('--quiet', '-q', action='store_true',
+                       help='Show only warnings and errors')
+    parser.add_argument('-j', '--jobs', type=int, default=1,
+                       help='Parallel jobs (0=auto, default: 1)')
 
     args = parser.parse_args()
+
+    setup_logging(__name__, verbose=args.verbose, quiet=args.quiet)
 
     # Apply genre preset if specified
     if args.genre:
         genre_key = args.genre.lower()
         if genre_key not in GENRE_PRESETS:
-            print(f"Unknown genre: {args.genre}")
-            print(f"Available: {', '.join(sorted(GENRE_PRESETS.keys()))}")
+            logger.error("Unknown genre: %s", args.genre)
+            logger.error("Available: %s", ', '.join(sorted(GENRE_PRESETS.keys())))
             return
         preset_lufs, preset_highmid, preset_highs = GENRE_PRESETS[genre_key]
         # Genre preset provides defaults, but explicit args override
@@ -338,7 +394,7 @@ Examples:
     # Setup
     input_dir = Path(args.path).expanduser().resolve()
     if not input_dir.exists():
-        print(f"Error: Directory not found: {input_dir}")
+        logger.error("Directory not found: %s", input_dir)
         sys.exit(1)
 
     output_dir = input_dir / args.output_dir
@@ -375,50 +431,58 @@ Examples:
     print()
 
     if args.dry_run:
-        print("DRY RUN - No files will be written")
+        logger.info("DRY RUN - No files will be written")
         print()
 
     print(f"{'Track':<35} {'Before':>8} {'After':>8} {'Gain':>8} {'Peak':>8}")
     print("-" * 70)
 
+    workers = args.jobs if args.jobs > 0 else os.cpu_count()
+    eq = eq_settings if eq_settings else None
+
+    # Build list of (wav_file, output_path) pairs
+    tasks = [(wf, output_dir / wf.name) for wf in wav_files]
+
     results = []
-    for wav_file in wav_files:
-        output_path = output_dir / wav_file.name
+    progress = ProgressBar(len(tasks), prefix="Mastering")
 
-        if args.dry_run:
-            # Just analyze
-            data, rate = sf.read(str(wav_file))
-            if len(data.shape) == 1:
-                data = np.column_stack([data, data])
-            meter = pyln.Meter(rate)
-            current_lufs = meter.integrated_loudness(data)
-            if not np.isfinite(current_lufs):
-                print(f"  WARNING: Silent/near-silent audio, skipping: {wav_file.name}")
-                continue
-            gain = args.target_lufs - current_lufs
-            result = {
-                'original_lufs': current_lufs,
-                'final_lufs': args.target_lufs,
-                'gain_applied': gain,
-                'final_peak': -1.0,  # Estimated
-            }
-        else:
-            result = master_track(
-                str(wav_file),
-                str(output_path),
-                target_lufs=args.target_lufs,
-                eq_settings=eq_settings if eq_settings else None,
-                ceiling_db=args.ceiling
+    if workers == 1:
+        # Sequential (existing behavior)
+        for wav_file, output_path in tasks:
+            progress.update(wav_file.name)
+            _, result = _process_one_track(
+                wav_file, output_path, args.target_lufs, eq, args.ceiling, args.dry_run
             )
-
-        if result.get('skipped'):
-            continue
-
-        results.append(result)
-
-        name = wav_file.name[:34]
-        print(f"{name:<35} {result['original_lufs']:>7.1f} {result['final_lufs']:>7.1f} "
-              f"{result['gain_applied']:>+7.1f} {result['final_peak']:>7.1f}")
+            if result is None:
+                continue
+            results.append((wav_file.name, result))
+            name = wav_file.name[:34]
+            print(f"{name:<35} {result['original_lufs']:>7.1f} {result['final_lufs']:>7.1f} "
+                  f"{result['gain_applied']:>+7.1f} {result['final_peak']:>7.1f}")
+    else:
+        # Parallel
+        logger.info("Using %d parallel workers", workers)
+        ordered_results = {}
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            futures = {
+                executor.submit(
+                    _process_one_track, wf, op, args.target_lufs, eq, args.ceiling, args.dry_run
+                ): i
+                for i, (wf, op) in enumerate(tasks)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                progress.update(tasks[idx][0].name)
+                wav_name, result = future.result()
+                if result is not None:
+                    ordered_results[idx] = (Path(wav_name).name, result)
+        # Print table in original order
+        for idx in sorted(ordered_results):
+            name, result = ordered_results[idx]
+            results.append((name, result))
+            display = name[:34]
+            print(f"{display:<35} {result['original_lufs']:>7.1f} {result['final_lufs']:>7.1f} "
+                  f"{result['gain_applied']:>+7.1f} {result['final_peak']:>7.1f}")
 
     print("-" * 70)
 

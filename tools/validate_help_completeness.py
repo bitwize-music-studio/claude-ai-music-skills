@@ -6,15 +6,28 @@ Cross-platform validation to ensure no skill is forgotten in documentation.
 Run this before committing changes that add new skills.
 """
 
+import logging
 import sys
 from pathlib import Path
-from typing import List, Set
+from typing import List
 
-# ANSI colors for terminal output
-RED = '\033[0;31m'
-GREEN = '\033[0;32m'
-YELLOW = '\033[1;33m'
-NC = '\033[0m'  # No Color
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.colors import Colors
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
+
+Colors.auto()
+
+# Convenience aliases for existing code
+RED = Colors.RED
+GREEN = Colors.GREEN
+YELLOW = Colors.YELLOW
+NC = Colors.NC
 
 def get_all_skills(plugin_root: Path) -> List[str]:
     """Find all skills (directories under skills/ with SKILL.md)."""
@@ -34,7 +47,7 @@ def check_claude_md(plugin_root: Path, skills: List[str]) -> List[str]:
     claude_file = plugin_root / "CLAUDE.md"
 
     if not claude_file.exists():
-        print(f"{RED}[FAIL] CLAUDE.md not found!{NC}")
+        logger.error("CLAUDE.md not found!")
         return skills
 
     claude_content = claude_file.read_text()
@@ -59,7 +72,7 @@ def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
     help_file = plugin_root / "skills" / "help" / "SKILL.md"
 
     if not help_file.exists():
-        print(f"{RED}[FAIL] skills/help/SKILL.md not found!{NC}")
+        logger.error("skills/help/SKILL.md not found!")
         return skills
 
     help_content = help_file.read_text()
@@ -78,8 +91,9 @@ def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
     return missing
 
 def main():
-    print("Validating skill documentation completeness...")
-    print()
+    setup_logging(__name__)
+
+    logger.info("Validating skill documentation completeness...")
 
     # Get plugin root directory
     plugin_root = Path(__file__).parent.parent
@@ -88,7 +102,7 @@ def main():
     all_skills = get_all_skills(plugin_root)
 
     if not all_skills:
-        print(f"{RED}[FAIL] No skills found!{NC}")
+        logger.error("No skills found!")
         return 1
 
     print(f"Found {len(all_skills)} skills:")
@@ -99,7 +113,7 @@ def main():
     errors = 0
 
     # Check CLAUDE.md
-    print("Checking CLAUDE.md skills table...")
+    logger.info("Checking CLAUDE.md skills table...")
     missing_claude = check_claude_md(plugin_root, all_skills)
 
     if not missing_claude:
@@ -112,7 +126,7 @@ def main():
     print()
 
     # Check help system
-    print("Checking skills/help/SKILL.md...")
+    logger.info("Checking skills/help/SKILL.md...")
     missing_help = check_help_skill(plugin_root, all_skills)
 
     if not missing_help:

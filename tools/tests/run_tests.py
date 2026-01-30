@@ -21,7 +21,7 @@ import re
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Optional, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -32,27 +32,18 @@ except ImportError:
     print("Error: PyYAML is required. Install with: pip install pyyaml")
     sys.exit(1)
 
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
-# ANSI colors for terminal output
-class Colors:
-    RED = '\033[0;31m'
-    GREEN = '\033[0;32m'
-    YELLOW = '\033[1;33m'
-    BLUE = '\033[0;34m'
-    CYAN = '\033[0;36m'
-    BOLD = '\033[1m'
-    NC = '\033[0m'  # No Color
+import logging
 
-    @classmethod
-    def disable(cls):
-        """Disable colors for non-TTY output."""
-        cls.RED = ''
-        cls.GREEN = ''
-        cls.YELLOW = ''
-        cls.BLUE = ''
-        cls.CYAN = ''
-        cls.BOLD = ''
-        cls.NC = ''
+from tools.shared.colors import Colors
+from tools.shared.logging_config import setup_logging
+from tools.state.parsers import parse_frontmatter
+
+logger = logging.getLogger(__name__)
 
 
 class TestResult(Enum):
@@ -198,25 +189,13 @@ class PluginTestRunner:
 
     def _parse_frontmatter(self, content: str) -> Dict[str, Any]:
         """Parse YAML frontmatter from markdown content."""
-        if not content.startswith('---'):
+        result = parse_frontmatter(content)
+        # For test validation, missing frontmatter is an error
+        if not result and not content.startswith('---'):
             return {'_error': 'No frontmatter (missing opening ---)'}
-
-        # Find closing ---
-        lines = content.split('\n')
-        end_index = -1
-        for i, line in enumerate(lines[1:], 1):
-            if line.strip() == '---':
-                end_index = i
-                break
-
-        if end_index == -1:
+        if not result and content.startswith('---'):
             return {'_error': 'No frontmatter (missing closing ---)'}
-
-        try:
-            frontmatter_text = '\n'.join(lines[1:end_index])
-            return yaml.safe_load(frontmatter_text) or {}
-        except yaml.YAMLError as e:
-            return {'_error': f'Invalid YAML: {e}'}
+        return result
 
     def run_all_tests(self, categories: Optional[List[str]] = None) -> int:
         """Run all test categories."""
@@ -237,7 +216,7 @@ class PluginTestRunner:
                 if cat in available_categories:
                     available_categories[cat]()
                 else:
-                    print(f"{Colors.YELLOW}[WARN]{Colors.NC} Unknown category: {cat}")
+                    logger.warning("Unknown category: %s", cat)
         else:
             # Run all categories
             for test_func in available_categories.values():
@@ -942,7 +921,7 @@ class PluginTestRunner:
             for sjf in skill_json_files:
                 self._add_test(
                     category,
-                    f"Invalid skill.json found",
+                    "Invalid skill.json found",
                     TestResult.FAIL,
                     f"Found {sjf.relative_to(self.plugin_root)}",
                     str(sjf),
@@ -1017,7 +996,7 @@ class PluginTestRunner:
                         TestResult.FAIL,
                         f"SKILL.md says {actual_tier}, model-strategy.md says {documented_tier}",
                         frontmatter.get('_path', ''),
-                        fix_hint=f"Align SKILL.md model with model-strategy.md"
+                        fix_hint="Align SKILL.md model with model-strategy.md"
                     )
                 else:
                     self._add_test(
@@ -1404,10 +1383,12 @@ Categories:
     script_path = Path(__file__).resolve()
     plugin_root = script_path.parent.parent.parent
 
+    setup_logging(__name__)
+
     # Verify we're in the right place
     if not (plugin_root / "CLAUDE.md").exists():
-        print(f"Error: CLAUDE.md not found at {plugin_root}")
-        print("Run this script from within the plugin directory.")
+        logger.error("CLAUDE.md not found at %s", plugin_root)
+        logger.error("Run this script from within the plugin directory.")
         sys.exit(1)
 
     print(f"{Colors.BOLD}Plugin Test Runner{Colors.NC}")

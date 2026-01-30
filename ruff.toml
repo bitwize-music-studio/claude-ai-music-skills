@@ -1,0 +1,36 @@
+# Ruff linter configuration
+# https://docs.astral.sh/ruff/
+
+target-version = "py38"
+
+[lint]
+# Start with default rules, add more over time
+select = [
+    "F",   # Pyflakes (unused imports, undefined names, etc.)
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+]
+
+ignore = [
+    "E402",  # Module import not at top of file (used for conditional imports)
+    "E741",  # Ambiguous variable name (e.g., l, O, I) — used in math/audio code
+    "E501",  # Line too long — not enforcing yet
+]
+
+# Auto-fixable rules
+fixable = ["F541", "F401", "W"]
+
+[lint.per-file-ignores]
+# Test files can have unused imports for fixtures
+"tools/state/tests/*.py" = ["F401", "F811"]
+# run_tests.py uses bare excepts for resilient validation
+"tools/tests/run_tests.py" = ["E722"]
+# Sheet music tools use bare excepts for defensive capability detection
+# and import page sizes for availability checks
+"tools/sheet-music/*.py" = ["E722", "F401"]
+# Audio analysis has intentional placeholder variables (true_peak, crest_factor)
+"tools/mastering/analyze_tracks.py" = ["F841"]
+# Promo video computes analogous colors for future visualization styles
+"tools/promotion/generate_promo_video.py" = ["F841"]
+# Cloud upload imports yaml for availability checking
+"tools/cloud/*.py" = ["F401"]

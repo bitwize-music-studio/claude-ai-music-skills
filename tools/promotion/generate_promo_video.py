@@ -31,38 +31,31 @@ import sys
 import argparse
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional, Tuple
-import json
 import colorsys
-import yaml
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+import logging
+
+from tools.shared.config import load_config as _load_config
+from tools.shared.progress import ProgressBar
+from tools.shared.fonts import find_font
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
+
+_DEFAULT_CONFIG = {"artist": {"name": "bitwize"}}
 
 
 def load_config() -> dict:
     """Load bitwize-music config file."""
-    config_path = Path.home() / ".bitwize-music" / "config.yaml"
-    if not config_path.exists():
-        return {"artist": {"name": "bitwize"}}  # Fallback
-
-    with open(config_path) as f:
-        return yaml.safe_load(f)
-
-
-def find_font() -> Optional[str]:
-    """Find an available system font."""
-    font_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/Library/Fonts/Arial Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
-    ]
-
-    for font in font_paths:
-        if Path(font).exists():
-            return font
-
-    return None
+    return _load_config(fallback=_DEFAULT_CONFIG) or _DEFAULT_CONFIG
 
 
 def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
@@ -90,7 +83,7 @@ def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
         best_color = max(most_common, key=lambda x: max(x[0]) - min(x[0]))[0]
         return best_color
     except Exception as e:
-        print(f"  Color extraction failed: {e}, using default cyan")
+        logger.debug("Color extraction failed: %s, using default cyan", e)
         return (0, 255, 255)
 
 
@@ -151,11 +144,11 @@ def check_ffmpeg():
             capture_output=True, text=True
         )
         if 'showwaves' not in result.stdout:
-            print("Warning: ffmpeg showwaves filter not found. Visualization may not work.")
+            logger.warning("ffmpeg showwaves filter not found. Visualization may not work.")
             return False
         return True
     except FileNotFoundError:
-        print("Error: ffmpeg not found. Install with: brew install ffmpeg")
+        logger.error("ffmpeg not found. Install with: brew install ffmpeg")
         sys.exit(1)
 
 
@@ -189,7 +182,7 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
         import librosa
         import numpy as np
 
-        print(f"  Analyzing audio for most energetic segment...")
+        logger.info("Analyzing audio for most energetic segment...")
 
         # Load audio (mono, 22050 Hz is fine for energy analysis)
         y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
@@ -216,17 +209,17 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
         best_start = min(best_start, max_start)
         best_start = max(best_start, 0)
 
-        print(f"  Found energetic segment at {best_start:.1f}s")
+        logger.info("Found energetic segment at %.1fs", best_start)
         return best_start
 
     except ImportError:
-        print("  librosa not installed, using fallback (20% into track)")
-        print("  For energy analysis, set up venv:")
-        print("    source ~/.bitwize-music/promotion-env/bin/activate")
-        print("    pip install librosa numpy")
+        logger.warning("librosa not installed, using fallback (20%% into track)")
+        logger.info("For energy analysis, set up venv:")
+        logger.info("  source ~/.bitwize-music/promotion-env/bin/activate")
+        logger.info("  pip install librosa numpy")
         return min(total_duration * 0.2, max_start)
     except Exception as e:
-        print(f"  Energy analysis failed: {e}, using fallback")
+        logger.warning("Energy analysis failed: %s, using fallback", e)
         return min(total_duration * 0.2, max_start)
 
 
@@ -259,14 +252,14 @@ def generate_waveform_video(
     if font_path is None:
         font_path = find_font()
         if font_path is None:
-            print("Error: No suitable font found")
+            logger.error("No suitable font found")
             return False
 
     if start_time is None:
         start_time = find_best_segment(audio_path, duration)
 
     # Extract colors from album art
-    print(f"  Extracting colors from artwork...")
+    logger.info("Extracting colors from artwork...")
     dominant = extract_dominant_color(artwork_path)
     complementary = get_complementary_color(dominant)
     analogous1, analogous2 = get_analogous_colors(dominant)
@@ -277,7 +270,7 @@ def generate_waveform_video(
     color_ana1 = rgb_to_hex(analogous1)
     color_ana2 = rgb_to_hex(analogous2)
 
-    print(f"  Dominant: {dominant} -> Complementary: {complementary} (hex: {color2})")
+    logger.debug("Dominant: %s -> Complementary: %s (hex: %s)", dominant, complementary, color2)
 
     # Write title and artist to temp files so ffmpeg reads them via textfile=
     # This avoids all escaping issues with drawtext's text= parameter,
@@ -413,16 +406,16 @@ def generate_waveform_video(
         str(output_path)
     ]
 
-    print(f"Generating: {output_path.name}")
+    logger.info("Generating: %s", output_path.name)
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"Error: {result.stderr}")
+            logger.error("ffmpeg failed: %s", result.stderr)
             return False
         return True
     except Exception as e:
-        print(f"Error generating video: {e}")
+        logger.error("Error generating video: %s", e)
         return False
     finally:
         # Clean up temp text files
@@ -463,7 +456,8 @@ def batch_process_album(
     style: str = "bars",
     artist_name: str = "bitwize",
     font_path: Optional[str] = None,
-    content_dir: Optional[Path] = None
+    content_dir: Optional[Path] = None,
+    jobs: int = 1,
 ):
     """Process all audio files in an album directory."""
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
@@ -476,44 +470,39 @@ def batch_process_album(
         audio_files.extend(album_dir.glob(f'*{ext}'))
 
     if not audio_files:
-        print(f"No audio files found in {album_dir}")
+        logger.warning("No audio files found in %s", album_dir)
         return
 
-    print(f"Found {len(audio_files)} tracks")
+    logger.info("Found %d tracks", len(audio_files))
     if content_dir:
-        print(f"  Reading titles from: {content_dir}/tracks/")
+        logger.info("Reading titles from: %s/tracks/", content_dir)
 
-    for audio_file in sorted(audio_files):
+    sorted_audio = sorted(audio_files)
+
+    def _resolve_title(audio_file):
+        """Resolve track title from markdown or filename."""
+        import re
         title = None
-
-        # Try to get title from track markdown file
         if content_dir:
-            # Match audio filename to track markdown
-            # e.g., "01-shell-no.wav" -> "01-shell-no.md"
             track_md = content_dir / 'tracks' / f"{audio_file.stem}.md"
             if track_md.exists():
                 title = get_title_from_markdown(track_md)
                 if title:
-                    print(f"  Found title for {audio_file.stem}: {title}")
-
-        # Fall back to filename-based title
+                    logger.debug("Found title for %s: %s", audio_file.stem, title)
         if not title:
             title = audio_file.stem
-            # Clean up common patterns (e.g., "08 - 116 Cadets" -> "116 Cadets")
             if ' - ' in title:
                 title = title.split(' - ', 1)[-1]
             else:
-                # Only remove 1-2 digit track numbers at start (not 3+ like "116")
-                import re
                 title = re.sub(r'^\d{1,2}[\.\-_\s]+', '', title)
-
-            # Convert filename format to display format
-            # "my-song" -> "My Song", "track-name" -> "Track Name"
             title = title.replace('-', ' ').replace('_', ' ')
-            title = title.title()  # Title case for video display
+            title = title.title()
+        return title
 
+    def _process_one(audio_file):
+        """Generate promo video for a single track. Returns (name, success)."""
+        title = _resolve_title(audio_file)
         output_file = output_dir / f"{audio_file.stem}_promo.mp4"
-
         success = generate_waveform_video(
             audio_path=audio_file,
             artwork_path=artwork_path,
@@ -524,11 +513,31 @@ def batch_process_album(
             artist_name=artist_name,
             font_path=font_path
         )
+        return (audio_file.name, output_file.name, success)
 
-        if success:
-            print(f"  [OK] {output_file.name}")
-        else:
-            print(f"  [FAIL] {audio_file.name}")
+    workers = jobs if jobs > 0 else (os.cpu_count() or 1)
+    progress = ProgressBar(len(sorted_audio), prefix="Generating")
+
+    if workers == 1:
+        for audio_file in sorted_audio:
+            progress.update(audio_file.name)
+            _, out_name, success = _process_one(audio_file)
+            if success:
+                logger.info("  [OK] %s", out_name)
+            else:
+                logger.error("  [FAIL] %s", audio_file.name)
+    else:
+        logger.info("Using %d parallel workers", workers)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(_process_one, af): af for af in sorted_audio}
+            for future in as_completed(futures):
+                af = futures[future]
+                progress.update(af.name)
+                _, out_name, success = future.result()
+                if success:
+                    logger.info("  [OK] %s", out_name)
+                else:
+                    logger.error("  [FAIL] %s", af.name)
 
 
 def main():
@@ -574,8 +583,18 @@ Examples:
                         help='Artist name (read from config if not set)')
     parser.add_argument('--album', type=str,
                         help='Album name (for finding artwork in content directory)')
+    parser.add_argument('--verbose', action='store_true',
+                        help='Show debug output')
+    parser.add_argument('--quiet', action='store_true',
+                        help='Only show warnings and errors')
+    parser.add_argument('-j', '--jobs', type=int, default=1,
+                        help='Parallel jobs for batch mode (0=auto, default: 1)')
 
     args = parser.parse_args()
+
+    setup_logging(__name__,
+                  verbose=getattr(args, 'verbose', False),
+                  quiet=getattr(args, 'quiet', False))
 
     check_ffmpeg()
 
@@ -586,7 +605,7 @@ Examples:
     # Find font
     font_path = find_font()
     if font_path is None:
-        print("Error: No suitable font found")
+        logger.error("No suitable font found")
         sys.exit(1)
 
     if args.batch:
@@ -634,19 +653,19 @@ Examples:
                                     candidate = album_content_dir / pattern
                                     if candidate.exists():
                                         artwork = candidate
-                                        print(f"  Found artwork in content dir: {artwork}")
+                                        logger.info("Found artwork in content dir: %s", artwork)
                                         break
                             break
 
             if not artwork:
-                print("Error: No artwork found")
-                print("  Looked in:")
-                print(f"    - {args.batch}/")
-                print(f"    - {args.batch.parent}/")
+                logger.error("No artwork found")
+                logger.error("  Looked in:")
+                logger.error("    - %s/", args.batch)
+                logger.error("    - %s/", args.batch.parent)
                 if args.album:
-                    print(f"    - content directory for album '{args.album}'")
-                print("  Specify with: --batch-artwork /path/to/artwork.png")
-                print("  Or use: /bitwize-music:import-art to copy artwork to audio folder")
+                    logger.error("    - content directory for album '%s'", args.album)
+                logger.error("  Specify with: --batch-artwork /path/to/artwork.png")
+                logger.error("  Or use: /bitwize-music:import-art to copy artwork to audio folder")
                 sys.exit(1)
 
         output_dir = args.output or args.batch / 'promo_videos'
@@ -659,14 +678,15 @@ Examples:
             style=args.style,
             artist_name=artist_name,
             font_path=font_path,
-            content_dir=album_content_dir
+            content_dir=album_content_dir,
+            jobs=args.jobs,
         )
 
     else:
         # Single file mode
         if not all([args.audio, args.artwork, args.title]):
             parser.print_help()
-            print("\nError: audio, artwork, and title are required for single file mode")
+            logger.error("audio, artwork, and title are required for single file mode")
             sys.exit(1)
 
         audio = Path(args.audio)
@@ -686,9 +706,9 @@ Examples:
         )
 
         if success:
-            print(f"\n[OK] Created: {output}")
+            logger.info("[OK] Created: %s", output)
         else:
-            print(f"\n[FAIL] Failed to create video")
+            logger.error("[FAIL] Failed to create video")
             sys.exit(1)
 
 

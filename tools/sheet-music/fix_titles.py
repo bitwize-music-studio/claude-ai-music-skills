@@ -17,12 +17,21 @@ Usage:
 """
 
 import argparse
-import os
+import logging
 import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# Ensure project root is on sys.path
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from tools.shared.logging_config import setup_logging
+
+logger = logging.getLogger(__name__)
 
 
 def strip_track_number(name):
@@ -46,14 +55,14 @@ def fix_xml_title(xml_path, dry_run=False):
     # Find and replace work-title
     match = re.search(r'<work-title>([^<]+)</work-title>', content)
     if not match:
-        print(f"  No <work-title> found in {xml_path.name}")
+        logger.warning("  No <work-title> found in %s", xml_path.name)
         return None
 
     old_title = match.group(1)
     new_title = strip_track_number(old_title)
 
     if old_title == new_title:
-        print(f"  {xml_path.name}: title already clean")
+        logger.info("  %s: title already clean", xml_path.name)
         return None
 
     print(f"  {old_title} → {new_title}")
@@ -151,7 +160,7 @@ def export_pdf(xml_path, musescore_path, dry_run=False):
     pdf_path = xml_path.with_suffix('.pdf')
 
     if dry_run:
-        print(f"  Would export: {pdf_path.name}")
+        logger.info("  Would export: %s", pdf_path.name)
         return True
 
     try:
@@ -164,16 +173,16 @@ def export_pdf(xml_path, musescore_path, dry_run=False):
         )
 
         if result.returncode == 0:
-            print(f"  Exported: {pdf_path.name}")
+            logger.info("  Exported: %s", pdf_path.name)
             return True
         else:
-            print(f"  Export failed: {result.stderr}")
+            logger.error("  Export failed: %s", result.stderr)
             return False
     except subprocess.TimeoutExpired:
-        print(f"  Export timed out: {xml_path.name}")
+        logger.error("  Export timed out: %s", xml_path.name)
         return False
     except Exception as e:
-        print(f"  Export error: {e}")
+        logger.error("  Export error: %s", e)
         return False
 
 
@@ -186,12 +195,18 @@ def main():
                        help='Show what would be done without making changes')
     parser.add_argument('--xml-only', action='store_true',
                        help='Only fix XML titles, skip PDF export')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Show debug output')
+    parser.add_argument('--quiet', '-q', action='store_true',
+                       help='Only show warnings and errors')
 
     args = parser.parse_args()
 
+    setup_logging(__name__, verbose=getattr(args, 'verbose', False), quiet=getattr(args, 'quiet', False))
+
     source_path = Path(args.source_dir)
     if not source_path.is_dir():
-        print(f"Error: {args.source_dir} is not a directory")
+        logger.error("%s is not a directory", args.source_dir)
         sys.exit(1)
 
     # Find MuseScore
@@ -199,13 +214,13 @@ def main():
     if not args.xml_only:
         musescore = find_musescore()
         if not musescore:
-            print("Warning: MuseScore not found.")
+            logger.warning("MuseScore not found.")
             show_install_instructions(platform.system().lower())
             print("\nOptions:")
             print("  1. Install MuseScore and run this script again")
             print("  2. Use --xml-only to skip PDF export (just fix XML titles)")
             sys.exit(1)
-        print(f"Using MuseScore: {musescore}\n")
+        logger.info("Using MuseScore: %s", musescore)
 
     # Find XML files (only those starting with digits)
     xml_files = sorted([
@@ -222,8 +237,8 @@ def main():
     xml_files.extend(musicxml_files)
 
     if not xml_files:
-        print(f"No XML files found in {source_path}")
-        print("\nLooking for files like: 01-track.xml, 02-track.musicxml")
+        logger.error("No XML files found in %s", source_path)
+        logger.error("Looking for files like: 01-track.xml, 02-track.musicxml")
         sys.exit(1)
 
     print(f"Found {len(xml_files)} XML file(s)")
@@ -242,7 +257,7 @@ def main():
 
     # Export PDFs
     if not args.xml_only and fixed_count > 0:
-        print("\nExporting PDFs...")
+        logger.info("Exporting PDFs...")
         export_count = 0
         for xml_file in xml_files:
             if export_pdf(xml_file, musescore, args.dry_run):
