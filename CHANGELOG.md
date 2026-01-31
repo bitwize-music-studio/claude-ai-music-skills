@@ -6,6 +6,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-01-31
+
+### Added
+- **46 artist deep-dives** across 11 genres — comprehensive reference files (265-554 lines each) with overview, members, discography, musical analysis, Suno prompt keywords, and reference tracks:
+  - **Punk** (8 new): Bad Religion, Blink-182, Descendents, Me First and the Gimme Gimmes, Mest, Propagandhi, Rancid, The Offspring
+  - **Rock** (9): Fountains of Wayne, Hoobastank, Incubus, Jeff Buckley, Linkin Park, Phil Collins, Polaris, Toto, Weezer
+  - **Country** (9): Alan Jackson, Dolly Parton, Garth Brooks, George Strait, Johnny Cash, Randy Travis, Sturgill Simpson, Tyler Childers, Willie Nelson
+  - **Synthwave** (4): FM-84, GUNSHIP, The Midnight, Timecop1983
+  - **Piano-Rock** (2): Billy Joel, Elton John
+  - **Pop** (2): Carly Rae Jepsen, Taylor Swift
+  - **Folk** (2): Israel Kamakawiwo'ole, Mumford & Sons
+  - **Celtic-Punk** (1): Dropkick Murphys
+  - **Electronic** (1): Daft Punk
+  - **Hip-Hop** (1): Brock Berrigan
+  - **Ambient** (1): Enya
+- **11 genre INDEX.md files** — lightweight keyword indexes for all genres with deep-dives (rock, country, synthwave, electronic, folk, celtic-punk, hip-hop, ambient, pop); punk and piano-rock indexes expanded with new artists
+- **Genre README updates** — Deep Dive and Keywords links added to artist tables across all 11 genres; Garth Brooks added to country README
+
 ## [0.21.0] - 2026-01-31
 
 ### Added
