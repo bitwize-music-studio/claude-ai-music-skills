@@ -6,6 +6,23 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-01-31
+
+### Added
+- **Genre overview files** — New genre READMEs for piano-rock, piano-pop, and singer-songwriter (67 genres total, up from 64)
+- **Artist deep-dive references** — 6 comprehensive artist files in `genres/[genre]/artists/`:
+  - `punk/artists/nofx.md` — Members, 15 albums, Fat Wreck Chords, farewell tour, Suno keywords
+  - `punk/artists/lagwagon.md` — Members, 9 albums, Derrick Plourde, Tony Sly, Joey Cape solo work
+  - `punk/artists/green-day.md` — Members, 14 albums, Gilman Street, American Idiot phenomenon
+  - `punk/artists/masked-intruder.md` — Anonymous concept, 3 albums, gimmick analysis
+  - `piano-rock/artists/ben-folds-five.md` — Members, 4 albums, Chapel Hill scene, production
+  - `piano-rock/artists/ben-folds-solo.md` — 8 solo albums, orchestral work, collaborations
+
+### Changed
+- **Genre directory structure** — Artist deep-dives now live in `genres/[genre]/artists/` subdirectories instead of alongside genre READMEs
+- **Genre README Artists tables** — Added "Deep Dive" column with links to artist reference files (punk, piano-rock)
+- **CLAUDE.md** — Added `genres/` to plugin root directory tree, documented `artists/` subdirectory pattern, added deep-dive linking rule to Key Rules
+
 ## [0.20.1] - 2026-01-30
 
 ### Changed
