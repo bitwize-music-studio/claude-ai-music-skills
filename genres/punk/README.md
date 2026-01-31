@@ -64,23 +64,25 @@ Punk rock exploded in the mid-1970s as a visceral rejection of the bloated exces
 
 ## Artists
 
-| Artist | Era | Style Focus | Key Albums | Influence/Notes |
-|--------|-----|-------------|------------|-----------------|
-| Ramones | 1974-1996 | Classic Punk | Ramones (1976), Rocket to Russia (1977), Road to Ruin (1978) | Invented the punk rock template: 2-minute songs, leather jackets, "1-2-3-4!" count-offs. Every punk band since owes them a debt. |
-| Sex Pistols | 1975-1978 | Classic Punk | Never Mind the Bollocks (1977) | Brief but seismic impact; invented punk as cultural confrontation. One album that changed everything. |
-| The Clash | 1976-1986 | Classic Punk, Punk Reggae | The Clash (1977), London Calling (1979), Sandinista! (1980) | "The Only Band That Matters" - expanded punk's musical palette while maintaining political edge. |
-| Black Flag | 1976-1986 | Hardcore Punk | Damaged (1981), My War (1984) | Defined American hardcore; Henry Rollins' confrontational vocals; DIY touring model (the "van tour"). |
-| Dead Kennedys | 1978-1986 | Hardcore Punk | Fresh Fruit for Rotting Vegetables (1980), Plastic Surgery Disasters (1982) | Jello Biafra's satirical lyrics targeting Reagan-era America; surf-influenced guitar from East Bay Ray. |
-| Minor Threat | 1980-1983 | Hardcore Punk, Straight Edge | Complete Discography (1989) | Ian MacKaye founded straight edge movement and Dischord Records. Short career, massive influence. |
-| Bad Brains | 1977-present | Hardcore Punk, Punk Reggae | Bad Brains (1982), I Against I (1986) | Fastest band of the era; fused hardcore with reggae; all-Black band challenging punk's whiteness. |
-| Joy Division | 1976-1980 | Post-Punk | Unknown Pleasures (1979), Closer (1980) | Defined post-punk's dark, atmospheric sound. Ian Curtis's baritone and tragic death created enduring mythology. |
-| Bauhaus | 1978-1983 | Post-Punk, Gothic Rock | In the Flat Field (1980), Mask (1981) | Theatrical post-punk that birthed goth rock; Peter Murphy's dramatic vocals; angular guitars. |
-| Green Day | 1987-present | Pop-Punk, Punk Rock | Dookie (1994), American Idiot (2004) | Brought punk to MTV generation; Dookie sold 20 million copies; American Idiot was a political rock opera. |
-| Blink-182 | 1992-present | Pop-Punk | Enema of the State (1999), Take Off Your Pants and Jacket (2001) | Defined late-90s/early-2000s pop-punk; juvenile humor balanced by genuine hooks. |
-| NOFX | 1983-present | Skate Punk | Punk in Drublic (1994), The Decline (1999) | Fat Wreck Chords founders; sardonic humor; "The Decline" is an 18-minute punk epic. |
-| Bad Religion | 1980-present | Skate Punk, Melodic Hardcore | Suffer (1988), No Control (1989) | Harmonized vocals, intelligent lyrics, PhD-holding frontman; Epitaph Records founders. |
-| Fugazi | 1987-2003 | Post-Hardcore | 13 Songs (1989), Repeater (1990), The Argument (2001) | Ian MacKaye's post-Minor Threat project; $5 shows, no merch, uncompromising ethics. |
-| IDLES | 2012-present | Modern Punk, Post-Punk | Brutalism (2017), Joy as an Act of Resistance (2018) | Contemporary UK punk addressing masculinity, immigration, mental health; visceral live shows. |
+| Artist | Era | Style Focus | Key Albums | Influence/Notes | Deep Dive |
+|--------|-----|-------------|------------|-----------------|-----------|
+| Ramones | 1974-1996 | Classic Punk | Ramones (1976), Rocket to Russia (1977), Road to Ruin (1978) | Invented the punk rock template: 2-minute songs, leather jackets, "1-2-3-4!" count-offs. Every punk band since owes them a debt. | |
+| Sex Pistols | 1975-1978 | Classic Punk | Never Mind the Bollocks (1977) | Brief but seismic impact; invented punk as cultural confrontation. One album that changed everything. | |
+| The Clash | 1976-1986 | Classic Punk, Punk Reggae | The Clash (1977), London Calling (1979), Sandinista! (1980) | "The Only Band That Matters" - expanded punk's musical palette while maintaining political edge. | |
+| Black Flag | 1976-1986 | Hardcore Punk | Damaged (1981), My War (1984) | Defined American hardcore; Henry Rollins' confrontational vocals; DIY touring model (the "van tour"). | |
+| Dead Kennedys | 1978-1986 | Hardcore Punk | Fresh Fruit for Rotting Vegetables (1980), Plastic Surgery Disasters (1982) | Jello Biafra's satirical lyrics targeting Reagan-era America; surf-influenced guitar from East Bay Ray. | |
+| Minor Threat | 1980-1983 | Hardcore Punk, Straight Edge | Complete Discography (1989) | Ian MacKaye founded straight edge movement and Dischord Records. Short career, massive influence. | |
+| Bad Brains | 1977-present | Hardcore Punk, Punk Reggae | Bad Brains (1982), I Against I (1986) | Fastest band of the era; fused hardcore with reggae; all-Black band challenging punk's whiteness. | |
+| Joy Division | 1976-1980 | Post-Punk | Unknown Pleasures (1979), Closer (1980) | Defined post-punk's dark, atmospheric sound. Ian Curtis's baritone and tragic death created enduring mythology. | |
+| Bauhaus | 1978-1983 | Post-Punk, Gothic Rock | In the Flat Field (1980), Mask (1981) | Theatrical post-punk that birthed goth rock; Peter Murphy's dramatic vocals; angular guitars. | |
+| Green Day | 1987-present | Pop-Punk, Punk Rock | Dookie (1994), American Idiot (2004) | Brought punk to MTV generation; Dookie sold 20 million copies; American Idiot was a political rock opera. | [Deep Dive](artists/green-day.md) |
+| Blink-182 | 1992-present | Pop-Punk | Enema of the State (1999), Take Off Your Pants and Jacket (2001) | Defined late-90s/early-2000s pop-punk; juvenile humor balanced by genuine hooks. | |
+| NOFX | 1983-2024 | Skate Punk | Punk in Drublic (1994), The Decline (1999) | Fat Wreck Chords founders; sardonic humor; "The Decline" is an 18-minute punk epic. | [Deep Dive](artists/nofx.md) |
+| Lagwagon | 1990-present | Skate Punk, Melodic Punk | Hoss (1995), Resolve (2005), Railer (2019) | First band signed to Fat Wreck Chords; Joey Cape's introspective lyrics; technically gifted drumming. | [Deep Dive](artists/lagwagon.md) |
+| Masked Intruder | 2010-present | Pop-Punk, Ramonescore | Masked Intruder (2012), III (2019) | Anonymous masked criminals writing love songs; Ramones meets doo-wop; Fat Wreck / Pure Noise. | [Deep Dive](artists/masked-intruder.md) |
+| Bad Religion | 1980-present | Skate Punk, Melodic Hardcore | Suffer (1988), No Control (1989) | Harmonized vocals, intelligent lyrics, PhD-holding frontman; Epitaph Records founders. | |
+| Fugazi | 1987-2003 | Post-Hardcore | 13 Songs (1989), Repeater (1990), The Argument (2001) | Ian MacKaye's post-Minor Threat project; $5 shows, no merch, uncompromising ethics. | |
+| IDLES | 2012-present | Modern Punk, Post-Punk | Brutalism (2017), Joy as an Act of Resistance (2018) | Contemporary UK punk addressing masculinity, immigration, mental health; visceral live shows. | |
 
 ## Suno Prompt Keywords
 

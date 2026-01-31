@@ -543,6 +543,12 @@ claude-ai-music-skills/           # {plugin_root}
 ├── templates/                    # Templates for new content
 ├── tools/                        # Utility scripts
 │   └── mastering/
+├── genres/                       # Genre documentation & artist references
+│   ├── INDEX.md                  # Quick-reference genre index
+│   └── [genre]/
+│       ├── README.md             # Genre overview, characteristics, Suno keywords
+│       └── artists/              # Artist deep-dive reference files
+│           └── [artist].md
 ├── reference/                    # Reference documentation
 │   ├── suno/
 │   └── mastering/
@@ -557,7 +563,8 @@ claude-ai-music-skills/           # {plugin_root}
 {content_root}/                   # Your workspace (may be same as plugin_root)
 ├── IDEAS.md                      # Album ideas
 ├── research/                     # Staging area for research
-├── genres/[genre]/README.md      # Genre documentation
+├── genres/[genre]/README.md      # Genre overview (characteristics, artists table, Suno keywords)
+├── genres/[genre]/artists/       # Artist deep-dive reference files (per genre)
 └── artists/[artist]/
     ├── README.md                 # Artist profile
     ├── albums/[genre]/[album]/   # In-progress albums
@@ -575,6 +582,7 @@ claude-ai-music-skills/           # {plugin_root}
 - Top-level `{content_root}/research/` is staging only
 - Use templates from `{plugin_root}/templates/` for new content
 - **Released albums stay in place** - just set `Status: Released` and `release_date`
+- **Artist deep-dives** go in `genres/[genre]/artists/[artist].md` — when creating a new deep-dive, add a `[Deep Dive](artists/[artist].md)` link in the genre README's Artists table
 
 ---
 
