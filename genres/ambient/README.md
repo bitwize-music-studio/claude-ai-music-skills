@@ -39,7 +39,7 @@ Contemporary ambient has fractured into numerous subgenres while maintaining rem
 | Vangelis | Space Ambient, Cinematic Ambient | "Blade Runner" OST, "Chariots of Fire" | 1970s |
 | Tangerine Dream | Space Ambient, Drone | "Phaedra," "Electronic Ocean" | 1970s |
 | Lustmord | Dark Ambient, Industrial Ambient | "Heresy," "The Monstrous Soul" | 1980s |
-| Enya | New Age Ambient, Celtic Ambient | "Orinoco Flow," "Caribbean Blue" | 1980s |
+| Enya | New Age Ambient, Celtic Ambient | "Orinoco Flow," "Caribbean Blue" | 1980s [Deep Dive](artists/enya.md) |
 | William Basinski | Drone, Lo-Fi Ambient, Experimental | "The Disintegration Loops," "A Shadow in Time" | 1990s |
 | Stars of the Lid | Drone, Ambient | "The Tired Sounds of..." series | 1990s |
 | Chris Watson | Nature Ambient, Soundscape | "Outside the Circle of Fire," "Stepping Out of the Frame" | 1990s |
