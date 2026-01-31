@@ -441,9 +441,9 @@ Strong support from BBC throughout career. Songs for Silverman: #65 UK; So There
 ## Suno Prompt Keywords (Ben Folds Solo-Specific)
 
 ```
-Ben Folds solo style, piano-driven pop-rock, orchestral piano pop,
-piano and strings, string arrangement, Paul Buckmaster strings,
-piano and orchestra, chamber pop, yMusic chamber rock,
+solo piano-driven pop-rock, orchestral piano pop,
+piano and strings, string arrangement, lush cinematic strings,
+piano and orchestra, chamber pop, indie chamber rock,
 Nashville piano, RCA Studio A sound, analog warmth,
 self-produced, multi-instrumentalist, one-man-band,
 witty lyrics, sardonic humor, self-deprecating,
@@ -461,7 +461,7 @@ Nashville sound, refined production, warm piano tone,
 chamber arrangement, flute clarinet trumpet strings,
 live piano energy, solo piano performance,
 funny and sad, comedy and tragedy, emotional whiplash,
-literary collaboration, Nick Hornby storytelling
+literary collaboration, novelist-inspired storytelling
 ```
 
 ---

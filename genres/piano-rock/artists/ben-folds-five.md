@@ -376,7 +376,7 @@ Five BF5 singles made the UK Top 40: "Underground," "Battle of Who Could Care Le
 ## Suno Prompt Keywords (BF5-Specific)
 
 ```
-Ben Folds Five style, piano trio, piano bass drums, no guitar,
+piano trio rock, piano bass drums, no guitar,
 Chapel Hill sound, 90s piano rock, 90s alternative piano,
 percussive piano attack, hammered piano chords, forearm piano,
 fuzz bass, distorted bass, Big Muff bass, bass as guitar replacement,

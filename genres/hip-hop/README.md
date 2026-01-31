@@ -46,7 +46,9 @@ The genre's production has evolved from simple breakbeat loops to sophisticated 
 | A Tribe Called Quest | *The Low End Theory*, *Midnight Marauders* | 1990-2017 | Jazz rap, conscious; innovative sampling, laid-back delivery |
 | OutKast | *ATLiens*, *Aquemini*, *Stankonia* | 1994-2006 | Southern innovation; genre-blending, experimental production |
 | Jay-Z | *Reasonable Doubt*, *The Blueprint*, *4:44* | 1996-present | Hustler narratives, lyrical precision; sample-based to modern production |
-| Kendrick Lamar | *good kid, m.A.A.d city*, *To Pimp a Butterfly* | 2011-present | Conscious, jazz-influenced; complex narratives, genre experimentation |
+| Kendrick Lamar | *good kid, m.A.A.d city*, *To Pimp a Butterfly* | 2011-present | Conscious, jazz-influenced; complex narratives, genre experimentation. [Deep Dive](artists/kendrick-lamar.md) |
+| Immortal Technique | *Revolutionary Vol. 1*, *Revolutionary Vol. 2*, *The 3rd World*, *The Martyr* | 2001-present | Political/documentary hip-hop, hardcore boom-bap; fiercely independent, narrative storytelling. [Deep Dive](artists/immortal-technique.md) |
+| Run the Jewels | *Run the Jewels*, *RTJ2*, *RTJ3*, *RTJ4* | 2013-present | Industrial political hip-hop; El-P production + Killer Mike delivery, dual-MC interplay. [Deep Dive](artists/run-the-jewels.md) |
 | Brock Berrigan | *Diamond in the Rough*, *The Narrows*, *The Scenic Route*, *Utah* | 2011-present | Lo-fi boom-bap, jazz samples, instrumental beats; sample hunter, multi-instrumentalist. [Deep Dive](artists/brock-berrigan.md) |
 | J Dilla | *Donuts*, *The Shining* | 1996-2006 | Lo-fi production legend; sample manipulation, MPC virtuoso |
 | MF DOOM | *Madvillainy*, *MM..FOOD*, *Operation: Doomsday* | 1999-2020 | Abstract lyricism, lo-fi production; masked villain persona |
