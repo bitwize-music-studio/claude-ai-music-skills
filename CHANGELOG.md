@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-01-31
+
+### Added
+- **Artist reference indexes** — New `genres/[genre]/artists/INDEX.md` files for punk (127 lines) and piano-rock (84 lines) providing extracted Suno prompt keywords and reference tracks without loading full deep-dives (~2,900 lines across 6 files)
+- **Lazy-loading guidance in CLAUDE.md** — New rule: read `artists/INDEX.md` first for Suno keywords; only read full deep-dive when detailed history/analysis is needed
+
+### Changed
+- **Genre README Artists tables** — Deep Dive column now includes `[Keywords]` shortcut links to INDEX.md alongside existing deep-dive links (punk, piano-rock)
+- **CLAUDE.md directory structure** — Added `INDEX.md` to both plugin and content directory trees; updated deep-dive creation rule to require INDEX.md updates
+
 ## [0.20.2] - 2026-01-31
 
 ### Added
