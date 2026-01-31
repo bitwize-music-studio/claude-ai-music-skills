@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-01-31
+
+### Added
+- **3 documentary/storytelling hip-hop deep-dives** — focused on narrative architecture, political documentary craft, and storytelling technique:
+  - **Kendrick Lamar** — concept album mastery, vocal personas, jazz-funk-West Coast fusion, nonlinear timelines (GKMC, TPAB, DAMN., GNX)
+  - **Run the Jewels** — El-P/Killer Mike dual-MC interplay, industrial political hip-hop, humor + protest balance (RTJ1-4)
+  - **Immortal Technique** — politically charged documentary rap, "Dance with the Devil" narrative craft, fierce independence
+- Hip-hop genre INDEX.md and README.md updated with all 3 artists
+
+### Fixed
+- **Removed artist/person names from Suno prompt keywords** in Ben Folds deep-dives — replaced "Ben Folds Five style", "Ben Folds solo style", "Ben Folds style", "Paul Buckmaster strings", "Nick Hornby storytelling", and "yMusic chamber rock" with descriptive style keywords (both deep-dive files and piano-rock INDEX.md)
+
 ## [0.21.1] - 2026-01-31
 
 ### Added
