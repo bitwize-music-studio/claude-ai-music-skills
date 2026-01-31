@@ -331,7 +331,7 @@ When in doubt:
   - Applies rules from this guide during review process
 
 - **`/bitwize-music:lyric-reviewer`** - Pre-generation QC gate
-  - 8-point checklist includes pronunciation check
+  - 9-point checklist includes pronunciation check
   - Auto-fixes pronunciation issues before Suno generation
 
 ## See Also

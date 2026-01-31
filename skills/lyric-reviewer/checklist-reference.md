@@ -1,4 +1,4 @@
-# 8-Point Checklist Reference
+# 9-Point Checklist Reference
 
 Detailed criteria for each lyric review checkpoint.
 
@@ -236,6 +236,41 @@ Detailed criteria for each lyric review checkpoint.
 - [✗] CRITICAL: V1 says "1943" but RESEARCH.md says "1942"
 - [⚠] Bridge: "seventeen convicted" - actually 17 of 22, context unclear
 - [✓] Names: All match sources
+```
+
+---
+
+## 9. Length Check
+
+**What to scan:**
+- Total word count (count all lyrics excluding section tags)
+- Number of verses
+- Whether user explicitly requested extra verses
+
+**Genre targets:**
+
+| Genre | Target Words | Max Verses |
+|-------|-------------|------------|
+| Pop / Dance-Pop / Synth-Pop | 150–250 | 2 |
+| Punk / Pop-Punk | 150–250 | 2 |
+| Rock / Alt-Rock | 200–350 | 2–3 |
+| Folk / Country / Americana | 200–350 | 2–3 |
+| Hip-Hop / Rap | 300–500 | 2–3 |
+| Ballad (any genre) | 200–300 | 2–3 |
+
+**Severity:**
+- **Critical**: Over 500 words (non-hip-hop) or over 700 words (hip-hop) — Suno will rush or skip content
+- **Warning**: Over genre target range
+- **Warning**: More than 3 verses without explicit user request
+- **Info**: At upper end of range, could trim
+
+**Output format:**
+```
+### Length Check
+- [✗] CRITICAL: 720 words (pop) - far over 150-250 target, Suno will skip sections
+- [✗] V1, V2, V3, V4 - 4 verses, user did not request extra
+- [⚠] 360 words (rock) - slightly over 200-350 target
+- [✓] 280 words (folk) - within 200-350 range
 ```
 
 ---

@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-01-31
+
+### Added
+- **Song length guidance for lyric writer** — word count targets by genre (150–250 pop, 200–350 rock/folk, 300–500 hip-hop), default structure (2 verses + chorus + bridge), and hard limits to prevent 800+ word songs that cause Suno to rush or skip sections
+- **Length check added to lyric reviewer** — 9-point checklist (was 8-point) now includes word count validation with warning/critical severity levels
+- **Suno best practices updated** — "Keep Lyrics Concise" note in Lyric Formatting section explaining shorter lyrics generate better results
+
 ## [0.22.0] - 2026-01-31
 
 ### Added

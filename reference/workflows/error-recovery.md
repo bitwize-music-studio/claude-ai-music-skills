@@ -267,7 +267,7 @@ Verify before each phase to avoid recovery scenarios:
 
 ### Before Generation
 - [ ] Pronunciation check complete on all tracks
-- [ ] Lyric review complete (8-point checklist)
+- [ ] Lyric review complete (9-point checklist)
 - [ ] Style prompts filled in all track files
 - [ ] Explicit content flags set correctly
 

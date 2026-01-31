@@ -191,6 +191,35 @@ Prosody is matching stressed syllables to strong musical beats.
 
 ---
 
+## Song Length
+
+Songs that are too long (800+ words) cause Suno to rush, compress sections, or skip lyrics. Keep songs concise.
+
+### Word Count Targets by Genre
+
+| Genre | Words | Verses | Lines/Verse |
+|-------|-------|--------|-------------|
+| Pop / Dance-Pop / Synth-Pop | 150–250 | 2 | 4–6 |
+| Punk / Pop-Punk | 150–250 | 2 | 4–6 |
+| Rock / Alt-Rock | 200–350 | 2–3 | 4–8 |
+| Folk / Country / Americana | 200–350 | 2–3 | 4–8 |
+| Hip-Hop / Rap | 300–500 | 2–3 | 8–16 |
+| Ballad (any genre) | 200–300 | 2–3 | 4–6 |
+
+### Structure Defaults
+
+- **Default**: 2 verses + chorus + bridge. 3 verses max unless user explicitly requests more.
+- **Chorus**: 4–6 lines, repeated verbatim — not rewritten each time.
+- **Bridge**: 2–4 lines.
+- **Outro**: Optional, 2–4 lines max. Not a new verse.
+
+### Length Limits
+
+- **If draft exceeds 350 words (non-hip-hop) or 500 words (hip-hop)**: Cut it down before presenting.
+- Count words after drafting. If over target, remove a verse or trim sections — don't just shorten lines.
+
+---
+
 ## Point of View & Tense
 
 **POV**: Choose one and maintain it

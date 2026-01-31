@@ -18,12 +18,12 @@ Based on the argument provided:
 
 **Single track path** (`tracks/01-song.md`):
 - Read the track file
-- Run 8-point checklist
+- Run 9-point checklist
 - Generate verification report
 
 **Album path** (`artists/[artist]/albums/[genre]/album-name/`):
 - Glob all track files in `tracks/`
-- Run 8-point checklist on each
+- Run 9-point checklist on each
 - Generate consolidated album report
 
 **Default behavior**:
@@ -39,7 +39,7 @@ Based on the argument provided:
 
 ## Supporting Files
 
-- **[checklist-reference.md](checklist-reference.md)** - Detailed 8-point checklist criteria
+- **[checklist-reference.md](checklist-reference.md)** - Detailed 9-point checklist criteria
 
 ---
 
@@ -57,7 +57,7 @@ lyric-writer → lyric-reviewer → suno-engineer
 
 ---
 
-## The 8-Point Checklist
+## The 9-Point Checklist
 
 ### 1. Rhyme Check
 - Repeated end words, self-rhymes, predictable patterns
@@ -92,6 +92,11 @@ lyric-writer → lyric-reviewer → suno-engineer
 - Only if RESEARCH.md exists
 - Names, dates, numbers, events match sources
 - **Critical**: Wrong date/name/major fact
+
+### 9. Length Check
+- Word count vs genre target (see lyric-writer Song Length table)
+- **Warning**: Over genre target range, or more than 3 verses without explicit request
+- **Critical**: Over 500 words (non-hip-hop) or 700 words (hip-hop)
 
 See [checklist-reference.md](checklist-reference.md) for detailed criteria.
 
@@ -217,6 +222,7 @@ Before marking "Ready for Suno":
 - [ ] Zero critical issues
 - [ ] All pronunciation notes applied to Lyrics Box
 - [ ] No unresolved homographs
+- [ ] Word count within genre target range
 - [ ] For documentary: No internal state claims, no fabricated quotes
 - [ ] Warnings documented (can proceed with caution)
 
