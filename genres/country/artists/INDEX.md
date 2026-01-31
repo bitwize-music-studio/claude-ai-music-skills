@@ -13,6 +13,7 @@ members, discography, or musical analysis.
 | Dolly Parton | Appalachian country, country pop crossover, bluegrass, soprano vocals | [Full Deep Dive](dolly-parton.md) |
 | Garth Brooks | Arena country, country rock, 90s country, power ballads | [Full Deep Dive](garth-brooks.md) |
 | George Strait | Neotraditional country, Texas honky-tonk, Western swing | [Full Deep Dive](george-strait.md) |
+| Randy Travis | Neo-traditional country, country gospel, deep bass-baritone, 1980s traditional revival | [Full Deep Dive](randy-travis.md) |
 | Alan Jackson | Neo-traditional country, honky-tonk, steel guitar-driven country | [Full Deep Dive](alan-jackson.md) |
 | Sturgill Simpson | Outlaw country, psychedelic country, country-soul fusion, bluegrass | [Full Deep Dive](sturgill-simpson.md) |
 | Tyler Childers | Appalachian country, neotraditional country, fiddle-driven folk-country | [Full Deep Dive](tyler-childers.md) |
@@ -141,6 +142,35 @@ classic Nashville production, warm country recording, organic country mix,
 fiddle-and-steel country, no-frills country production, live-feel country recording
 ```
 
+### Randy Travis
+```
+deep country baritone, warm bass-baritone vocals, rich resonant country voice,
+neo-traditional country, classic country revival, 1980s traditional country,
+understated country vocal delivery, restrained emotional singing, conversational country baritone,
+smooth country baritone, velvety deep male vocals, unhurried country phrasing,
+fiddle and steel guitar country, pedal steel guitar melody, crying steel guitar,
+clean Telecaster twang, traditional country electric guitar, tasteful country guitar fills,
+acoustic guitar foundation, strummed acoustic country rhythm,
+dobro accent, country dobro, warm country bass, brushed country drums,
+traditional Nashville arrangement, uncluttered country production,
+country love ballad, heartfelt country crooner, sincere country ballad,
+warm country ballad, tender baritone ballad, devotional country love song,
+aching country baritone, deep voice country ballad, intimate country vocal,
+slow country waltz, mid-tempo country ballad, sweeping country arrangement,
+traditional country shuffle, honky-tonk two-step, classic country groove,
+uptempo neo-traditional country, fiddle-driven country, steel guitar country shuffle,
+country gospel, Southern gospel baritone, hymn-like country vocal,
+inspirational country, faith-based country, reverent country delivery,
+gospel country ballad, spiritual country, deep gospel vocals,
+warm analog country recording, rich baritone-forward mix,
+fiddle-and-steel country arrangement, traditional country mix,
+clean country production, instrument-forward country, Nashville traditional production,
+sincere country, honest country vocal, genuine emotional delivery,
+nostalgic country, small-town country, heartland country values,
+warm and reassuring country, comforting country baritone,
+dignified country, understated country elegance, quiet country conviction
+```
+
 ### Alan Jackson
 ```
 neo-traditional country, traditional country, honky-tonk country, classic country,
@@ -263,6 +293,16 @@ warm country production, natural reverb, room sound
 - "Check Yes or No" (Blue Clear Sky, 1996) — Childhood-sweetheart love story with a two-step shuffle. One of the most requested country songs of the 1990s.
 - "Troubadour" (Troubadour, 2008) — Reflective late-career anthem. Won him his first Grammy. Proves the voice aged gracefully.
 - "Every Little Honky Tonk Bar" (Honky Tonk Time Machine, 2019) — Classic uptempo Strait nearly 40 years into his career. Unchanged and uncompromised.
+
+### Randy Travis
+- "Forever and Ever, Amen" (Always & Forever, 1987) — The signature track. Mid-tempo country with fiddle, steel guitar, and that deep baritone delivering one of country's most beloved love songs. CMA and ACM Song of the Year.
+- "On the Other Hand" (Storms of Life, 1986) — The breakthrough single. A man tempted by infidelity, choosing his marriage. Traditional arrangement, restrained vocal delivery, emotional complexity without melodrama.
+- "Diggin' Up Bones" (Storms of Life, 1986) — Uptempo heartbreak with a clever metaphor. Fiddle-driven, honky-tonk energy. Travis delivering pain with a rhythmic groove.
+- "Deeper Than the Holler" (Old 8x10, 1988) — A love song built on rural metaphors. The vocal sits deep in the chest register, warm and resonant. One of the purest demonstrations of the Travis baritone.
+- "I Told You So" (Always & Forever, 1987) — Heartbreak ballad later covered by Carrie Underwood. Aching restraint. The voice does all the emotional work.
+- "Three Wooden Crosses" (Rise and Shine, 2002) — Travis's final #1. A narrative parable about four strangers on a bus. Country-gospel storytelling at its finest. CMA Song of the Year.
+- "Storms of Life" (Storms of Life, 1986) — Title track of the album that changed Nashville. Traditional country arrangement supporting a vocal performance of quiet devastation.
+- "1982" (Storms of Life, 1986) — Nostalgic honky-tonk. The song that first put Travis on the charts and made "On the Other Hand" possible on re-release.
 
 ### Alan Jackson
 - "Don't Rock the Jukebox" (Don't Rock the Jukebox, 1991) — The artistic manifesto. Steel guitar, shuffling rhythm, and a lyric that namedrops George Jones while declaring loyalty to traditional country.

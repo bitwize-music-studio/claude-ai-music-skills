@@ -32,23 +32,24 @@ From the British Invasion of the 1960s through the MTV revolution of the 1980s, 
 
 ## Artists
 
-| Artist | Primary Style | Notable Albums | Known For |
-|--------|---------------|----------------|-----------|
-| Michael Jackson | Dance-Pop/Pop-R&B | *Thriller*, *Bad*, *Off the Wall* | "King of Pop"; revolutionary music videos; defining 1980s sound; unparalleled performance and production |
-| Madonna | Dance-Pop/Synth-Pop | *Like a Prayer*, *Ray of Light*, *True Blue* | Constant reinvention; visual presentation pioneer; cultural provocateur; career spanning five decades |
-| Prince | Art Pop/Synth-Funk | *Purple Rain*, *Sign o' the Times*, *1999* | Multi-instrumental genius; genre-blending visionary; Minneapolis sound; provocative artistry |
-| Taylor Swift | Teen Pop/Indie Pop | *1989*, *Folklore*, *Midnights* | Country-to-pop transition; autobiographical songwriting; re-recording movement; cultural phenomenon |
-| Lady Gaga | Electropop/Dance-Pop | *The Fame Monster*, *Born This Way*, *Chromatica* | Theatrical presentation; LGBTQ+ icon; vocal powerhouse; fashion and visual art integration |
-| Beyonce | R&B-Pop/Dance-Pop | *Lemonade*, *Renaissance*, *Beyonce* | Vocal excellence; visual album pioneer; cultural commentary; performance perfectionism |
-| Dua Lipa | Dance-Pop/Disco-Pop | *Future Nostalgia*, *Dua Lipa* | 1980s disco revival; consistent hit-making; confident vocal delivery; pandemic-era success |
-| Ariana Grande | Teen Pop/R&B-Pop | *Thank U, Next*, *Positions*, *Sweetener* | Whistle register vocals; R&B-influenced pop; ponytail era; Broadway-trained performance |
-| The Weeknd | Dark Pop/R&B-Pop | *After Hours*, *Starboy*, *Dawn FM* | Cinematic aesthetics; dark thematic content; falsetto vocals; conceptual album storytelling |
-| Kate Bush | Art Pop | *Hounds of Love*, *The Kick Inside*, *Never for Ever* | Theatrical vocals; literary lyrics; avant-garde production; cult influence on modern artists |
-| ABBA | Disco-Pop/Europop | *Arrival*, *Super Trouper*, *Voyage* | Swedish mega-success; harmonic precision; theatrical arrangements; enduring catalog |
-| Billie Eilish | Dark Pop/Electropop | *When We All Fall Asleep...*, *Happier Than Ever* | Whispered vocals; brother-sister production team; Gen-Z icon; bedroom production success |
-| Britney Spears | Teen Pop/Dance-Pop | *...Baby One More Time*, *Blackout*, *In the Zone* | Late 1990s teen pop explosion; visual presentation; cultural impact; vocal processing pioneer |
-| Pet Shop Boys | Synth-Pop | *Actually*, *Behaviour*, *Please* | Ironic lyricism; synthesizer sophistication; gay icon status; decades-long consistency |
-| Robyn | Electropop/Dance-Pop | *Body Talk*, *Honey*, *Robyn* | Swedish electropop queen; emotional dance music; critical acclaim with commercial success |
+| Artist | Primary Style | Notable Albums | Known For | Deep Dive |
+|--------|---------------|----------------|-----------|-----------|
+| Michael Jackson | Dance-Pop/Pop-R&B | *Thriller*, *Bad*, *Off the Wall* | "King of Pop"; revolutionary music videos; defining 1980s sound; unparalleled performance and production | |
+| Madonna | Dance-Pop/Synth-Pop | *Like a Prayer*, *Ray of Light*, *True Blue* | Constant reinvention; visual presentation pioneer; cultural provocateur; career spanning five decades | |
+| Prince | Art Pop/Synth-Funk | *Purple Rain*, *Sign o' the Times*, *1999* | Multi-instrumental genius; genre-blending visionary; Minneapolis sound; provocative artistry | |
+| Taylor Swift | Teen Pop/Indie Pop | *1989*, *Folklore*, *Midnights* | Country-to-pop transition; autobiographical songwriting; re-recording movement; cultural phenomenon | [Keywords](artists/INDEX.md#taylor-swift) · [Deep Dive](artists/taylor-swift.md) |
+| Lady Gaga | Electropop/Dance-Pop | *The Fame Monster*, *Born This Way*, *Chromatica* | Theatrical presentation; LGBTQ+ icon; vocal powerhouse; fashion and visual art integration | |
+| Beyonce | R&B-Pop/Dance-Pop | *Lemonade*, *Renaissance*, *Beyonce* | Vocal excellence; visual album pioneer; cultural commentary; performance perfectionism | |
+| Dua Lipa | Dance-Pop/Disco-Pop | *Future Nostalgia*, *Dua Lipa* | 1980s disco revival; consistent hit-making; confident vocal delivery; pandemic-era success | |
+| Ariana Grande | Teen Pop/R&B-Pop | *Thank U, Next*, *Positions*, *Sweetener* | Whistle register vocals; R&B-influenced pop; ponytail era; Broadway-trained performance | |
+| The Weeknd | Dark Pop/R&B-Pop | *After Hours*, *Starboy*, *Dawn FM* | Cinematic aesthetics; dark thematic content; falsetto vocals; conceptual album storytelling | |
+| Kate Bush | Art Pop | *Hounds of Love*, *The Kick Inside*, *Never for Ever* | Theatrical vocals; literary lyrics; avant-garde production; cult influence on modern artists | |
+| ABBA | Disco-Pop/Europop | *Arrival*, *Super Trouper*, *Voyage* | Swedish mega-success; harmonic precision; theatrical arrangements; enduring catalog | |
+| Billie Eilish | Dark Pop/Electropop | *When We All Fall Asleep...*, *Happier Than Ever* | Whispered vocals; brother-sister production team; Gen-Z icon; bedroom production success | |
+| Britney Spears | Teen Pop/Dance-Pop | *...Baby One More Time*, *Blackout*, *In the Zone* | Late 1990s teen pop explosion; visual presentation; cultural impact; vocal processing pioneer | |
+| Pet Shop Boys | Synth-Pop | *Actually*, *Behaviour*, *Please* | Ironic lyricism; synthesizer sophistication; gay icon status; decades-long consistency | |
+| Carly Rae Jepsen | Synth-Pop/Disco-Pop | *E·MO·TION*, *Dedicated*, *Kiss* | "Call Me Maybe" to cult pop icon; 80s-influenced synth-pop; emotional maximalism; E·MO·TION as decade-defining pop album | [Keywords](artists/INDEX.md#carly-rae-jepsen) · [Deep Dive](artists/carly-rae-jepsen.md) |
+| Robyn | Electropop/Dance-Pop | *Body Talk*, *Honey*, *Robyn* | Swedish electropop queen; emotional dance music; critical acclaim with commercial success | |
 
 ## Suno Prompt Keywords
 
