@@ -548,6 +548,7 @@ claude-ai-music-skills/           # {plugin_root}
 │   └── [genre]/
 │       ├── README.md             # Genre overview, characteristics, Suno keywords
 │       └── artists/              # Artist deep-dive reference files
+│           ├── INDEX.md          # Quick-reference: Suno keywords + links to deep-dives
 │           └── [artist].md
 ├── reference/                    # Reference documentation
 │   ├── suno/
@@ -564,6 +565,7 @@ claude-ai-music-skills/           # {plugin_root}
 ├── IDEAS.md                      # Album ideas
 ├── research/                     # Staging area for research
 ├── genres/[genre]/README.md      # Genre overview (characteristics, artists table, Suno keywords)
+├── genres/[genre]/artists/INDEX.md # Quick-reference: Suno keywords per artist
 ├── genres/[genre]/artists/       # Artist deep-dive reference files (per genre)
 └── artists/[artist]/
     ├── README.md                 # Artist profile
@@ -582,7 +584,8 @@ claude-ai-music-skills/           # {plugin_root}
 - Top-level `{content_root}/research/` is staging only
 - Use templates from `{plugin_root}/templates/` for new content
 - **Released albums stay in place** - just set `Status: Released` and `release_date`
-- **Artist deep-dives** go in `genres/[genre]/artists/[artist].md` — when creating a new deep-dive, add a `[Deep Dive](artists/[artist].md)` link in the genre README's Artists table
+- **Artist deep-dives** go in `genres/[genre]/artists/[artist].md` — when creating a new deep-dive, add a `[Deep Dive](artists/[artist].md)` link in the genre README's Artists table, and update `genres/[genre]/artists/INDEX.md` with the artist's Suno keywords and reference tracks
+- **Reading artist references**: Read `genres/[genre]/artists/INDEX.md` first for Suno prompt keywords and reference tracks; only read the full deep-dive when you need detailed history, members, discography, or musical analysis
 
 ---
 

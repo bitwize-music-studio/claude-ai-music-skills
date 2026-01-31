@@ -32,16 +32,20 @@ Country music is a quintessentially American genre rooted in folk, blues, and go
 |--------|---------------|----------------|-----------|
 | Hank Williams | Traditional/Honky-Tonk | *I Saw the Light*, *Moanin' the Blues* | Foundational country songwriting; emotional vocal delivery; tragic icon |
 | George Jones | Traditional/Honky-Tonk | *I Am What I Am*, *Bartender's Blues* | "The Possum"; considered greatest country voice; heartbreak ballads |
+| Garth Brooks | Arena Country | *No Fences*, *Ropin' the Wind*, *The Chase* | [Deep Dive](artists/garth-brooks.md) Best-selling solo artist in US history (170M+); arena-rock scale country; "Friends in Low Places"; transformed country into stadium events |
+| George Strait | Neotraditional/Western Swing | *Ocean Front Property*, *Pure Country*, *Troubadour* | [Deep Dive](artists/george-strait.md) — "King of Country"; 60 #1 hits (all-time record, any genre); neotraditional pioneer; fiddle-and-steel purist |
 | Merle Haggard | Outlaw Country | *Mama Tried*, *Okie from Muskogee* | Working-class storytelling; outlaw movement pioneer; Bakersfield sound |
-| Willie Nelson | Outlaw Country | *Red Headed Stranger*, *Stardust* | Outlaw icon; distinctive phrasing; crossover success; enduring career |
-| Dolly Parton | Traditional/Country Pop | *Jolene*, *Coat of Many Colors* | Songwriting genius; powerhouse vocals; cultural icon |
-| Johnny Cash | Outlaw/Traditional | *At Folsom Prison*, *American Recordings* | "The Man in Black"; bass-baritone voice; cross-genre influence |
+| Willie Nelson | Outlaw Country | *Red Headed Stranger*, *Stardust* | [Deep Dive](artists/willie-nelson.md) Outlaw icon; distinctive phrasing; crossover success; enduring career |
+| Dolly Parton | Traditional/Country Pop | *Jolene*, *Coat of Many Colors* | [Deep Dive](artists/dolly-parton.md) Songwriting genius; powerhouse vocals; cultural icon; Imagination Library; Rock Hall 2022 |
+| Johnny Cash | Outlaw/Traditional | *At Folsom Prison*, *American Recordings* | [Deep Dive](artists/johnny-cash.md) "The Man in Black"; bass-baritone voice; cross-genre influence |
 | Patsy Cline | Traditional/Nashville Sound | *Patsy Cline Showcase* | Crossover pop appeal; emotional vocal control; torch song perfection |
 | Chris Stapleton | Americana/Soul-Country | *Traveller*, *Starting Over* | Blues-infused vocals; critical acclaim; modern authenticity |
-| Tyler Childers | Americana/Appalachian | *Purgatory*, *Long Violent History* | Kentucky coal country storytelling; raw production; folk roots |
+| Tyler Childers | Americana/Appalachian | *Purgatory*, *Long Violent History* | [Deep Dive](artists/tyler-childers.md) Kentucky coal country storytelling; raw production; folk roots |
 | Zach Bryan | Americana/Folk-Country | *American Heartbreak*, *Zach Bryan* | DIY origins; prolific songwriter; emotionally raw delivery |
-| Sturgill Simpson | Americana/Outlaw | *Metamodern Sounds in Country Music*, *A Sailor's Guide to Earth* | Psychedelic country; genre experimentation; Grammy winner |
+| Sturgill Simpson | Americana/Outlaw | *Metamodern Sounds in Country Music*, *A Sailor's Guide to Earth* | [Deep Dive](artists/sturgill-simpson.md) Psychedelic country; genre experimentation; Grammy winner |
 | Jason Isbell | Americana | *Southeastern*, *The Nashville Sound* | Literary songwriting; critical darling; Drive-By Truckers alumni |
+| Randy Travis | Neotraditional/Gospel | *Storms of Life*, *Always & Forever*, *Rise and Shine* | [Deep Dive](artists/randy-travis.md) Neo-traditionalist pioneer; deep bass-baritone; 25M+ records sold; 7 Grammys; Country Music Hall of Fame 2016; AI-assisted comeback 2024 |
+| Alan Jackson | Traditional/Neo-Traditionalist | *A Lot About Livin'*, *Don't Rock the Jukebox*, *Drive* | [Deep Dive](artists/alan-jackson.md) Neo-traditionalist icon; 75M+ records sold; Country Music Hall of Fame 2017; George Jones-influenced honky-tonk |
 | Cody Jinks | Texas Country | *Lifers*, *Less Wise* | Independent success; outlaw ethos; working-class themes |
 | Loretta Lynn | Traditional | *Coal Miner's Daughter*, *Van Lear Rose* | Feminist icon; Appalachian roots; Jack White collaboration |
 
@@ -66,6 +70,7 @@ fingerpicked acoustic, country harmonies, Nashville production, stripped-down ac
 - **Dolly Parton - "Jolene"** — Fingerpicked acoustic guitar with desperate vocal pleading; simple arrangement showcasing songwriting genius
 - **Johnny Cash - "Folsom Prison Blues"** — Boom-chicka-boom rhythm; baritone vocal presence; outlaw narrative with train imagery
 - **Patsy Cline - "Crazy"** — Willie Nelson composition; torch song perfection with Nashville Sound orchestration; crossover appeal
+- **Randy Travis - "Forever and Ever, Amen"** — Neo-traditionalist anthem; deep baritone over fiddle and steel guitar; the song that defined 1980s country revival
 - **Chris Stapleton - "Tennessee Whiskey"** — Soul-country hybrid; whiskey-soaked vocals; modern take on traditional heartbreak ballad
 - **Tyler Childers - "Feathered Indians"** — Appalachian fingerpicking; raw emotional vulnerability; modern outlaw authenticity
 - **Zach Bryan - "Something in the Orange"** — DIY production aesthetic; emotionally naked delivery; contemporary folk-country resonance

@@ -33,23 +33,25 @@ Contemporary folk spans a vast spectrum: from traditionalists preserving centuri
 
 ## Artists
 
-| Artist | Primary Style | Notable Albums | Known For |
-|--------|---------------|----------------|-----------|
-| Woody Guthrie | Protest/Traditional | *Dust Bowl Ballads*, *This Land Is Your Land* | "This Land Is Your Land"; dust bowl balladeer; folk as protest; American songwriting foundation |
-| Bob Dylan | Folk-Rock/Singer-Songwriter | *The Freewheelin' Bob Dylan*, *Blood on the Tracks* | Transformed folk music; literary lyrics; Nobel Prize in Literature; folk-rock catalyst |
-| Joni Mitchell | Singer-Songwriter | *Blue*, *Court and Spark* | Open tunings; confessional depth; jazz-folk fusion; "Blue" as genre-defining masterpiece |
-| Nick Drake | Singer-Songwriter | *Pink Moon*, *Five Leaves Left* | Fingerpicking virtuosity; melancholic intimacy; posthumous influence; sparse production |
-| Leonard Cohen | Singer-Songwriter | *Songs of Leonard Cohen*, *I'm Your Man* | Poetic lyrics; baritone delivery; spiritual themes; literary songcraft |
-| Gillian Welch | Dark Americana | *Revival*, *Time (The Revelator)* | Murder ballads; timeless Appalachian sound; duo with David Rawlings |
-| Fleet Foxes | Contemporary/Indie Folk | *Fleet Foxes*, *Helplessness Blues* | Baroque harmonies; nature imagery; lush vocal arrangements; Pacific Northwest aesthetic |
-| Iron & Wine | Contemporary/Indie Folk | *The Creek Drank the Cradle*, *Our Endless Numbered Days* | Intimate whispered vocals; fingerpicked acoustic; lo-fi warmth |
-| Bon Iver | Contemporary Folk | *For Emma, Forever Ago*, *22, A Million* | Cabin isolation origin story; falsetto vocals; experimental evolution |
-| Phoebe Bridgers | Singer-Songwriter | *Stranger in the Alps*, *Punisher* | Millennial melancholy; ghostly vocals; confessional vulnerability |
-| Sufjan Stevens | Contemporary/Indie Folk | *Illinois*, *Carrie & Lowell* | Ambitious conceptual albums; orchestral folk; deeply personal grief |
-| The Decemberists | Literary Folk | *Picaresque*, *The Crane Wife* | Narrative epics; literary references; theatrical arrangements; sea shanties |
-| Richard Thompson | British Folk-Rock | *Shoot Out the Lights*, *Rumor and Sigh* | Virtuosic guitar; dark songwriting; Fairport Convention founder |
-| Joan Baez | Traditional/Protest | *Joan Baez*, *Diamonds & Rust* | Soprano clarity; civil rights activism; Dylan collaborator; traditional interpreter |
-| Adrianne Lenker | Contemporary Folk | *songs*, *abyss* (Big Thief) | Raw intimacy; unconventional tunings; stream-of-consciousness lyrics |
+| Artist | Primary Style | Notable Albums | Known For | Deep Dive |
+|--------|---------------|----------------|-----------|-----------|
+| Woody Guthrie | Protest/Traditional | *Dust Bowl Ballads*, *This Land Is Your Land* | "This Land Is Your Land"; dust bowl balladeer; folk as protest; American songwriting foundation | |
+| Bob Dylan | Folk-Rock/Singer-Songwriter | *The Freewheelin' Bob Dylan*, *Blood on the Tracks* | Transformed folk music; literary lyrics; Nobel Prize in Literature; folk-rock catalyst | |
+| Joni Mitchell | Singer-Songwriter | *Blue*, *Court and Spark* | Open tunings; confessional depth; jazz-folk fusion; "Blue" as genre-defining masterpiece | |
+| Nick Drake | Singer-Songwriter | *Pink Moon*, *Five Leaves Left* | Fingerpicking virtuosity; melancholic intimacy; posthumous influence; sparse production | |
+| Leonard Cohen | Singer-Songwriter | *Songs of Leonard Cohen*, *I'm Your Man* | Poetic lyrics; baritone delivery; spiritual themes; literary songcraft | |
+| Gillian Welch | Dark Americana | *Revival*, *Time (The Revelator)* | Murder ballads; timeless Appalachian sound; duo with David Rawlings | |
+| Fleet Foxes | Contemporary/Indie Folk | *Fleet Foxes*, *Helplessness Blues* | Baroque harmonies; nature imagery; lush vocal arrangements; Pacific Northwest aesthetic | |
+| Iron & Wine | Contemporary/Indie Folk | *The Creek Drank the Cradle*, *Our Endless Numbered Days* | Intimate whispered vocals; fingerpicked acoustic; lo-fi warmth | |
+| Bon Iver | Contemporary Folk | *For Emma, Forever Ago*, *22, A Million* | Cabin isolation origin story; falsetto vocals; experimental evolution | |
+| Phoebe Bridgers | Singer-Songwriter | *Stranger in the Alps*, *Punisher* | Millennial melancholy; ghostly vocals; confessional vulnerability | |
+| Sufjan Stevens | Contemporary/Indie Folk | *Illinois*, *Carrie & Lowell* | Ambitious conceptual albums; orchestral folk; deeply personal grief | |
+| The Decemberists | Literary Folk | *Picaresque*, *The Crane Wife* | Narrative epics; literary references; theatrical arrangements; sea shanties | |
+| Richard Thompson | British Folk-Rock | *Shoot Out the Lights*, *Rumor and Sigh* | Virtuosic guitar; dark songwriting; Fairport Convention founder | |
+| Joan Baez | Traditional/Protest | *Joan Baez*, *Diamonds & Rust* | Soprano clarity; civil rights activism; Dylan collaborator; traditional interpreter | |
+| Adrianne Lenker | Contemporary Folk | *songs*, *abyss* (Big Thief) | Raw intimacy; unconventional tunings; stream-of-consciousness lyrics | |
+| Israel Kamakawiwoʻole (IZ) | Hawaiian Folk/Island Folk | *Facing Future*, *E Ala Ē*, *Alone in IZ World* | "Over the Rainbow" (1B+ views); gentle giant with sweet tenor; ukulele-and-voice intimacy; Hawaiian sovereignty advocate; first Hawaiian to lie in state at Capitol | [Keywords](artists/INDEX.md#israel-kamakawiwoʻole-iz) · [Deep Dive](artists/israel-kamakawiwoole.md) |
+| Mumford & Sons | Folk-Rock/Arena Folk | *Sigh No More*, *Babel*, *Rushmere* | Arena folk pioneers; banjo-driven quiet-to-loud dynamics; Grammy AOTY (*Babel*); standing kick drum | [Keywords](artists/INDEX.md#mumford--sons) · [Deep Dive](artists/mumford-and-sons.md) |
 
 ## Suno Prompt Keywords
 

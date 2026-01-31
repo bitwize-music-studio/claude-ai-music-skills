@@ -56,23 +56,23 @@ Today, electronic music production tools are democratized through affordable sof
 
 ## Artists
 
-| Artist | Era | Style Focus | Key Albums | Notes |
-|--------|-----|-------------|------------|-------|
-| Kraftwerk | 1970s-present | Electro, synth-pop pioneer | Trans-Europe Express (1977), The Man-Machine (1978), Computer World (1981) | Invented modern electronic pop; robotic vocals, precise rhythms, man-machine themes |
-| Brian Eno | 1970s-present | Ambient, experimental | Ambient 1: Music for Airports (1978), Apollo (1983) | Coined "ambient music"; pioneered generative and installation music |
-| Tangerine Dream | 1970s-1990s | Berlin School, space music | Phaedra (1974), Rubycon (1975), Exit (1981) | Pioneered sequencer-based electronic music; prolific film scorers |
-| Depeche Mode | 1980s-present | Synth-pop, darkwave | Violator (1990), Music for the Masses (1987), Black Celebration (1986) | Defined dark synth-pop; stadium-filling electronic rock evolution |
-| New Order | 1980s-present | Synth-pop, electronic rock | Power, Corruption & Lies (1983), Technique (1989) | Bridged post-punk and electronic dance; "Blue Monday" is best-selling 12" ever |
-| Aphex Twin | 1990s-present | IDM, ambient, experimental | Selected Ambient Works 85-92 (1992), Richard D. James Album (1996), Drukqs (2001) | Most influential IDM artist; ranges from beautiful ambient to abrasive drill'n'bass |
-| Boards of Canada | 1990s-present | IDM, ambient, downtempo | Music Has the Right to Children (1998), Geogaddi (2002) | Nostalgic, lo-fi aesthetic; vintage synths, decaying samples, mysterious themes |
-| Massive Attack | 1990s-present | Trip-hop, downtempo | Blue Lines (1991), Mezzanine (1998) | Pioneered trip-hop; dark, cinematic, sample-heavy soundscapes |
-| Air | 1990s-2010s | Downtempo, French touch | Moon Safari (1998), Virgin Suicides soundtrack (2000) | Dreamy, romantic French electronic; vintage synths meet lounge sophistication |
-| The Chemical Brothers | 1990s-present | Big beat, electronica | Dig Your Own Hole (1997), Surrender (1999) | Brought electronic music to rock audiences; visceral, sample-heavy productions |
-| Daft Punk | 1990s-2021 | French house, disco, synth-pop | Homework (1997), Discovery (2001), Random Access Memories (2013) | Iconic robot personas; evolved from filter house to polished disco homage |
-| Kavinsky | 2000s-present | Synthwave, outrun | OutRun (2013) | Defined modern synthwave; cinematic 80s nostalgia with Drive soundtrack |
-| Gunship | 2010s-present | Synthwave, vocal synthwave | Gunship (2015), Dark All Day (2018) | Elevated synthwave with rock production values and guest vocalists |
-| CHVRCHES | 2010s-present | Synth-pop, electropop | The Bones of What You Believe (2013), Every Open Eye (2015) | Modern synth-pop with soaring vocals and anthemic hooks |
-| Bonobo | 2000s-present | Downtempo, organic electronic | Black Sands (2010), Migration (2017) | Blends electronic production with live instrumentation and world music |
+| Artist | Era | Style Focus | Key Albums | Notes | Deep Dive |
+|--------|-----|-------------|------------|-------|-----------|
+| Kraftwerk | 1970s-present | Electro, synth-pop pioneer | Trans-Europe Express (1977), The Man-Machine (1978), Computer World (1981) | Invented modern electronic pop; robotic vocals, precise rhythms, man-machine themes | |
+| Brian Eno | 1970s-present | Ambient, experimental | Ambient 1: Music for Airports (1978), Apollo (1983) | Coined "ambient music"; pioneered generative and installation music | |
+| Tangerine Dream | 1970s-1990s | Berlin School, space music | Phaedra (1974), Rubycon (1975), Exit (1981) | Pioneered sequencer-based electronic music; prolific film scorers | |
+| Depeche Mode | 1980s-present | Synth-pop, darkwave | Violator (1990), Music for the Masses (1987), Black Celebration (1986) | Defined dark synth-pop; stadium-filling electronic rock evolution | |
+| New Order | 1980s-present | Synth-pop, electronic rock | Power, Corruption & Lies (1983), Technique (1989) | Bridged post-punk and electronic dance; "Blue Monday" is best-selling 12" ever | |
+| Aphex Twin | 1990s-present | IDM, ambient, experimental | Selected Ambient Works 85-92 (1992), Richard D. James Album (1996), Drukqs (2001) | Most influential IDM artist; ranges from beautiful ambient to abrasive drill'n'bass | |
+| Boards of Canada | 1990s-present | IDM, ambient, downtempo | Music Has the Right to Children (1998), Geogaddi (2002) | Nostalgic, lo-fi aesthetic; vintage synths, decaying samples, mysterious themes | |
+| Massive Attack | 1990s-present | Trip-hop, downtempo | Blue Lines (1991), Mezzanine (1998) | Pioneered trip-hop; dark, cinematic, sample-heavy soundscapes | |
+| Air | 1990s-2010s | Downtempo, French touch | Moon Safari (1998), Virgin Suicides soundtrack (2000) | Dreamy, romantic French electronic; vintage synths meet lounge sophistication | |
+| The Chemical Brothers | 1990s-present | Big beat, electronica | Dig Your Own Hole (1997), Surrender (1999) | Brought electronic music to rock audiences; visceral, sample-heavy productions | |
+| Daft Punk | 1990s-2021 | French house, disco, synth-pop | Homework (1997), Discovery (2001), Random Access Memories (2013) | Iconic robot personas; evolved from filter house to polished disco homage | [Keywords](artists/INDEX.md#daft-punk) · [Deep Dive](artists/daft-punk.md) |
+| Kavinsky | 2000s-present | Synthwave, outrun | OutRun (2013) | Defined modern synthwave; cinematic 80s nostalgia with Drive soundtrack | |
+| Gunship | 2010s-present | Synthwave, vocal synthwave | Gunship (2015), Dark All Day (2018) | Elevated synthwave with rock production values and guest vocalists | |
+| CHVRCHES | 2010s-present | Synth-pop, electropop | The Bones of What You Believe (2013), Every Open Eye (2015) | Modern synth-pop with soaring vocals and anthemic hooks | |
+| Bonobo | 2000s-present | Downtempo, organic electronic | Black Sands (2010), Migration (2017) | Blends electronic production with live instrumentation and world music | |
 
 ## Suno Prompt Keywords
 

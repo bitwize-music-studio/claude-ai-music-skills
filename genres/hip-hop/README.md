@@ -47,6 +47,7 @@ The genre's production has evolved from simple breakbeat loops to sophisticated 
 | OutKast | *ATLiens*, *Aquemini*, *Stankonia* | 1994-2006 | Southern innovation; genre-blending, experimental production |
 | Jay-Z | *Reasonable Doubt*, *The Blueprint*, *4:44* | 1996-present | Hustler narratives, lyrical precision; sample-based to modern production |
 | Kendrick Lamar | *good kid, m.A.A.d city*, *To Pimp a Butterfly* | 2011-present | Conscious, jazz-influenced; complex narratives, genre experimentation |
+| Brock Berrigan | *Diamond in the Rough*, *The Narrows*, *The Scenic Route*, *Utah* | 2011-present | Lo-fi boom-bap, jazz samples, instrumental beats; sample hunter, multi-instrumentalist. [Deep Dive](artists/brock-berrigan.md) |
 | J Dilla | *Donuts*, *The Shining* | 1996-2006 | Lo-fi production legend; sample manipulation, MPC virtuoso |
 | MF DOOM | *Madvillainy*, *MM..FOOD*, *Operation: Doomsday* | 1999-2020 | Abstract lyricism, lo-fi production; masked villain persona |
 | Kanye West | *The College Dropout*, *My Beautiful Dark Twisted Fantasy* | 2004-present | Soul sampling evolved to maximalist production; genre-pushing |
