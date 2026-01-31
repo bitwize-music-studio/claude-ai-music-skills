@@ -135,6 +135,10 @@ Male baritone, gravelly, introspective, folk storyteller
 
 ## Lyric Formatting
 
+### Keep Lyrics Concise
+
+Shorter lyrics generate better results. Dense or long lyrics cause Suno to rush, compress sections, or skip content entirely. Target **200–350 words** for most genres (up to 500 for hip-hop/rap). Two verses plus chorus plus bridge is the sweet spot — avoid 4–5 verse songs.
+
 ### Use Explicit Section Tags
 
 ```

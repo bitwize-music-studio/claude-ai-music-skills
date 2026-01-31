@@ -98,7 +98,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
 | [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
-| [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (8-point checklist) | Final quality check before generating |
+| [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (9-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |

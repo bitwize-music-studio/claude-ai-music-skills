@@ -412,7 +412,7 @@ Specialized skills are available as slash commands. Type `/` to see the menu.
 | `/bitwize-music:suno-engineer` | Technical Suno prompting, genre selection |
 | `/bitwize-music:explicit-checker` | Scan lyrics for explicit content, verify flags match content |
 | `/bitwize-music:pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
-| `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 8-point checklist, auto-fix pronunciation |
+| `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 9-point checklist, auto-fix pronunciation |
 | `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
 | `/bitwize-music:promo-director` | Generate promo videos for social media from mastered audio |
 | `/bitwize-music:cloud-uploader` | Upload promo videos to Cloudflare R2 or AWS S3 |

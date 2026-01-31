@@ -393,7 +393,7 @@ For documentary or true-story albums:
 
 | Skill | Description |
 |-------|-------------|
-| `/bitwize-music:lyric-reviewer` | QC gate before Suno - 8-point checklist |
+| `/bitwize-music:lyric-reviewer` | QC gate before Suno - 9-point checklist |
 | `/bitwize-music:explicit-checker` | Scan lyrics for explicit content |
 
 ### Release

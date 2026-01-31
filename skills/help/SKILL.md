@@ -47,7 +47,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:researchers-verifier` - Quality control, citation validation
 
 **Quality Control**
-- `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (8-point checklist)
+- `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (9-point checklist)
 - `/bitwize-music:pronunciation-specialist` - Scan for pronunciation risks
 - `/bitwize-music:explicit-checker` - Verify explicit content flags
 - `/bitwize-music:validate-album` - Validate album structure and paths
