@@ -15,7 +15,7 @@ I'm bitwize—a hacker who loves music and experimenting with new technology. Wh
 
 **Behind the Music:** https://www.bitwizemusic.com/behind-the-music/
 
-**Share What You Make:** Tag [@bitwizemusic](https://x.com/bitwizemusic) on X/Twitter with anything interesting you create!
+**Share What You Make:** Share what you create on X/Twitter and tag [@bitwizemusic](https://x.com/bitwizemusic)!
 
 ---
 

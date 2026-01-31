@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-01-31
+
+### Fixed
+- **Tweet copy-paste text no longer starts with @bitwizemusic** — tweets starting with @ are treated as replies on X/Twitter, not public posts. Moved @ mention to end of tweet text in release templates, about skill, and README
+
 ## [0.22.0] - 2026-01-31
 
 ### Added

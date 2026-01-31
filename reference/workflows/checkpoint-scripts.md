@@ -130,7 +130,7 @@ If you used this plugin to make your album, I'd love to hear about it.
 
 [Click to tweet about your release](https://twitter.com/intent/tweet?text=Just%20released%20%22{URL_ENCODED_NAME}%22%20🎵%20Made%20with%20%40bitwizemusic%27s%20Claude%20AI%20Music%20Skills%20%23ClaudeCode%20%23SunoAI%20%23AIMusic)
 
-Or manually: @bitwizemusic #ClaudeCode #SunoAI #AIMusic
+Or manually: Just released my new album! #ClaudeCode #SunoAI #AIMusic @bitwizemusic
 
 Not required, just curious what people create with this. 🎵
 ```
