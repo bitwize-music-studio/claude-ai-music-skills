@@ -449,10 +449,6 @@ Before finalizing:
 
 ## Pronunciation
 
-**Mandatory**: When using "live" in lyrics, ask which pronunciation (LYVE vs LIV).
-
-**Common homographs**: read, lead, wind, close, tear, bass
-
 **Always use phonetic spelling** for tricky words:
 
 | Type | Example | Write As |
@@ -462,6 +458,36 @@ Before finalizing:
 | Tech terms | Linux, SQL | Lin-ucks, sequel |
 | Numbers | ninety-three | '93 |
 | Homographs | live (verb) | lyve or liv |
+
+### Homograph Handling (Suno Pronunciation)
+
+Suno CANNOT infer pronunciation from context. **"Context is clear" is NEVER an acceptable resolution for a homograph.**
+
+**Process:**
+1. **Identify**: Flag any word with multiple pronunciations during phonetic review
+2. **ASK**: Ask the user which pronunciation is intended — do NOT assume
+3. **Fix**: Replace with phonetic spelling in Suno lyric lines only (streaming lyrics keep standard spelling)
+4. **Document**: Add to track pronunciation table with reason
+
+**Common homographs — ALWAYS ask, NEVER guess:**
+
+| Word | Pronunciation A | Phonetic | Pronunciation B | Phonetic |
+|------|----------------|----------|-----------------|----------|
+| live | real-time/broadcast | lyve | reside/exist | live |
+| read | present tense | reed | past tense | red |
+| lead | to guide | leed | metal | led |
+| wound | injury | woond | past of wind | wownd |
+| close | to shut | kloze | nearby | klohs |
+| bass | low sound | bayss | the fish | bas |
+| tear | from crying | teer | to rip | tare |
+| wind | air movement | wihnd | to turn | wynd |
+
+**Rules:**
+- NEVER mark a homograph as "context clear" in the phonetic checklist
+- ALWAYS ask the user when a homograph is encountered — do not guess
+- Only apply phonetic spelling to Suno lyrics — streaming/distributor lyrics use standard English
+- When in doubt, it's a homograph. Ask.
+- Full homograph reference: `/reference/suno/pronunciation-guide.md`
 
 ---
 

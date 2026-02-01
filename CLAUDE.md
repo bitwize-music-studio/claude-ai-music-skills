@@ -381,10 +381,6 @@ Report all issues with proposed fixes, then proceed.
 - Base guide: `/reference/suno/pronunciation-guide.md` (universal rules, common homographs, tech terms)
 - Override guide: `{overrides}/pronunciation-guide.md` (artist names, album-specific terms) - optional, merged at session start
 
-**Mandatory**: When using "live" in lyrics, ask which pronunciation (LYVE vs LIV).
-
-**Common homographs**: read, lead, wind, close, tear, bass
-
 **Always use phonetic spelling** for tricky words in the Lyrics Box:
 
 | Type | Example | Write As |
@@ -395,6 +391,13 @@ Report all issues with proposed fixes, then proceed.
 | Common words | legal, illegal | lee-gul, ill-ee-gul |
 | Numbers | ninety-three, sixty-three | '93, '63 |
 | Homographs | live (verb) | lyve or liv |
+
+**Homograph handling — hard rule**: Suno CANNOT infer pronunciation from context. "Context is clear" is NEVER an acceptable resolution. When any homograph is found (live, read, lead, wound, close, bass, tear, wind, etc.):
+1. **ASK** the user which pronunciation is intended — do NOT assume or guess
+2. **Fix** with phonetic spelling in Suno lyrics only (streaming lyrics keep standard spelling)
+3. **Document** in track pronunciation table
+
+See `/skills/lyric-writer/SKILL.md` for full homograph table and process.
 
 ---
 
