@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-02-01
+
+### Added
+- **Genre-specific lyric conventions for all 67 genres** — research-backed rhyme schemes, verse structures, rhyme quality expectations, key rules, and anti-patterns added to every genre README under a new "Lyric Conventions" section
+- **Genre-aware quality checks** — rhyme scheme check (#8) and flow check (#9) now verify conventions match the genre instead of enforcing hip-hop couplets universally
+- **Quick-reference rhyme table in lyric-writer** — compact summary of all genre families' default schemes, replacing 190 lines of inlined genre tables with a pointer to genre READMEs
+
+### Changed
+- **Architecture**: Genre READMEs now own lyric conventions (rhyme, structure, rules). Lyric-writer SKILL.md keeps universal craft rules + quick-reference table.
+
 ## [0.24.0] - 2026-02-01
 
 ### Added
