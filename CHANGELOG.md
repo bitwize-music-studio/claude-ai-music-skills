@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-02-01
+
+### Added
+- **Genre-specific lyric density/pacing norms** — all 67 genre READMEs now include density character, syllables/line range, max topics/verse, typical BPM, and genre-specific pacing notes under Lyric Conventions
+- **Chorus lead-in rule** — the line before a chorus must not duplicate the chorus hook, phrase, or rhyme word. Prevents flat chorus entries.
+- **Quality checks expanded to 12** — #10 density/pacing (genre-aware), #11 chorus lead-in, #12 pitfalls checklist
+- **4 new pitfalls checklist items** — verse too dense for BPM, too many proper nouns per verse, density mismatch with Musical Direction, chorus lead-in repeats chorus
+
+### Changed
+- **Lyric density architecture**: Genre READMEs now own density/pacing norms. SKILL.md keeps universal rules + quick-reference table by genre family.
+
 ## [0.27.0] - 2026-02-01
 
 ### Added
