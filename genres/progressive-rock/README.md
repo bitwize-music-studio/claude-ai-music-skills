@@ -41,6 +41,14 @@ Today, progressive rock continues to evolve through artists who blend its compos
 - **Moods**: Intellectually intense, grandiose, melancholic, triumphant, mysterious, pastoral
 - **Pacing**: Patient builds; delayed gratification; rewards attentive listening
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Variable — can use ABAB, AABB, or free form. Through-composed structures common.
+- **Rhyme quality**: Sophisticated and literary. Internal rhyme and wordplay welcomed.
+- **Verse structure**: No constraints — extended narratives, asymmetric sections, concept-driven passages. Songs can be 10+ minutes.
+- **Key rule**: Ambitious subjects — philosophy, fantasy, science, epic narratives. Concept albums that tell unified stories.
+- **Avoid**: Simplistic lyrics beneath the genre's intellectual ambition. Standard 3-minute song structures.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

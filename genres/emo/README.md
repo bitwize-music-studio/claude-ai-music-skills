@@ -54,6 +54,14 @@ After a brief period of mainstream retreat, emo experienced a revival driven by 
 - **Non-traditional Forms**: Rejection of verse-chorus conventions in favor of through-composed emotional arcs
 - **Time Signature Variation**: Complex meters, especially in midwest emo
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABAB or AABB — more structured than other punk subgenres.
+- **Rhyme quality**: Higher tolerance for poetic/near rhymes. Literary devices and complex vocabulary OK.
+- **Verse structure**: 4–8 lines per section. Quiet verses, explosive choruses (dynamic contrast).
+- **Key rule**: Introspective and confessional. Vivid sensory imagery essential — sights, sounds, smells, textures. Vulnerability and authenticity paramount.
+- **Avoid**: Generic emotional cliches without specific detail. Telling emotions instead of showing through imagery. Twin verses.
+
 ## Subgenres & Styles
 
 | Style | Description | Era | Reference Artists |

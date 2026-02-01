@@ -39,6 +39,14 @@ Beyond Nigeria, Afrobeats has catalyzed a pan-African musical movement. Ghanaian
 - **Spiritual**: Gospel influences, expressions of faith and gratitude
 - **Social Commentary**: Less political than classic Afrobeat, but commentary on success, struggle, and African pride present
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Call-and-response throughout. Catchy hooks with repetitive, melodic phrasing.
+- **Rhyme quality**: Repetition and melodic catchiness over complex rhyme schemes. Onomatopoeic words and ad-libs add flavor.
+- **Verse structure**: Call-and-response structure. Short repeated phrases as hooks. Code-switching between English, Pidgin, and local languages.
+- **Key rule**: Audience participation is a design principle. Catchy chorus designed for immediate sing-along. Multilingual flow (English, Pidgin, Yoruba, Igbo, etc.).
+- **Avoid**: Overcomplicating lyrics. Forcing standard English rhythms onto Pidgin phrasing. Missing call-and-response opportunities.
+
 ## Subgenres & Styles
 
 | Style | Description | BPM Range | Reference Artists |

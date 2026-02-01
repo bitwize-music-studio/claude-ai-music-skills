@@ -38,6 +38,14 @@ Classical music's influence extends far beyond the concert hall. Its harmonic la
 - **Tempo/Rhythm**: Wide range from Grave (extremely slow, approximately 25-45 BPM) through Largo, Adagio, Andante, Moderato, Allegro, Vivace, to Prestissimo (extremely fast, 200+ BPM); rubato (expressive timing flexibility) common especially in Romantic repertoire; complex metric modulation, polyrhythm, and irregular meters (5/4, 7/8, additive meters) in 20th-century works; Baroque often features steady rhythmic motion (motor rhythm); Contemporary works may eliminate pulse entirely or use extreme tempo contrasts
 - **Harmony**: Tonal system predominant from Baroque through late Romantic (major/minor keys, functional progressions); Impressionism introduces modal mixture, parallel harmony, extended chords; 20th-century encompasses atonality, serialism, pandiatonicism, cluster chords, microtones, spectral harmony; contemporary music draws on all historical approaches
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — primarily instrumental. When text is set (art song, choral), follows poetry conventions.
+- **Rhyme quality**: Depends on the text being set. Classical vocal music prioritizes text painting and prosody.
+- **Verse structure**: Through-composed or strophic depending on form. Text serves the musical composition.
+- **Key rule**: Words serve the music, not vice versa. Text painting (musical expression of word meaning) is paramount.
+- **Avoid**: Pop song conventions. Simple repetitive structures. Ignoring classical prosody.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

@@ -22,6 +22,14 @@ Hyperpop thrives on digital manipulation, unconventional song structures, and a 
 
 - **Structure**: Non-traditional song structures with chaotic builds and sudden drops, unexpected key/tempo changes (sometimes mid-phrase), repetitive loops interrupted by jarring shifts, minimal verses with explosive choruses, genre-switching within single tracks, dramatic breakdowns, songs that feel like channel-surfing through multiple genres
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose — XAXA or free. Rules are deliberately broken for aesthetic effect.
+- **Rhyme quality**: Playful, ironic, deliberately saccharine. Near rhymes and unconventional phrasing embraced.
+- **Verse structure**: Short, punchy sections. Heavy vocal processing (pitch-shifting, distortion) affects how lyrics land.
+- **Key rule**: Maximalist and genre-bending. Lyrics can be absurdist, ironic, or hyper-emotional. Vocal processing is part of the writing.
+- **Avoid**: Conventional pop sincerity without ironic edge. Writing for unprocessed vocals when heavy effects are expected.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

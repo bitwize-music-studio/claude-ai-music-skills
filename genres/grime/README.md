@@ -16,6 +16,14 @@ The mid-2000s saw grime struggle against industry skepticism and a UK garage sce
 - **Energy/Mood**: Aggressive yet rhythmic, urban and edgy, often dark or cynical in tone, infectious and mosh-pit inducing, can be introspective or boastful
 - **Structure**: Often built on repeated instrumental loops, sparse track architecture, MCed verses with minimal chorus elements, sometimes features brief sung hooks, typically 2-4 minutes
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Complex schemes with dense internal rhyme. 8-bar pattern changes are fundamental.
+- **Rhyme quality**: Lightning-speed delivery (140–150 BPM) demands tight, intricate rhyme patterns.
+- **Verse structure**: 8-bar, 16-bar, or 32-bar patterns ("nu shape"). Drums/lyrics/melody change every 8 bars.
+- **Key rule**: 8-bar changes are the heartbeat of grime. Regional British accents and slang are essential.
+- **Avoid**: Slow delivery, American slang, ignoring the 8-bar structure.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

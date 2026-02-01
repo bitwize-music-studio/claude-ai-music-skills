@@ -18,6 +18,14 @@ Contemporary ambient has fractured into numerous subgenres while maintaining rem
 - **Energy/Mood**: Contemplative, meditative, atmospheric, introspective, sometimes haunting or unsettling; low to moderate dynamic range
 - **Structure**: Non-linear; emphasis on texture and atmosphere over verse/chorus form; long sustain periods; gradual builds over minutes
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — often entirely instrumental. When vocals present, no strict rhyme.
+- **Rhyme quality**: Irrelevant. Vocals are textural, not narrative.
+- **Verse structure**: No traditional structure. Sparse, impressionistic lines (2–4 words floating through the track). Spoken word or breathy phrases.
+- **Key rule**: Atmosphere first. Vocals are texture, not focal point. Most ambient is instrumental.
+- **Avoid**: Dense lyrics. Narrative structure. Anything that demands listener attention over the soundscape.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

@@ -56,6 +56,14 @@ After a commercial decline in the mid-2000s as electro-house dominated, trance e
 - **Dynamics**: Significant contrast between sparse breakdowns and full drops
 - **Intention**: Designed to induce trance-like states through repetition and emotional manipulation
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose — no traditional verse/chorus structure.
+- **Rhyme quality**: When present, ethereal and uplifting. Near rhymes fine.
+- **Verse structure**: Single hook phrase repeated at intervals. Often mezzo-soprano to soprano female vocals drenched in delay/reverb.
+- **Key rule**: Themes of love, hope, transcendence. Dreamy vocal tones. No verse/chorus — one central hook repeated.
+- **Avoid**: Dense lyrics. Grounded/mundane themes. Verse-chorus structure.
+
 ## Subgenres & Styles
 
 | Style | BPM | Description | Characteristics | Reference Artists |

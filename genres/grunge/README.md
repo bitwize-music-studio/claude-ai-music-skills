@@ -23,6 +23,14 @@ The movement's tragic dimension—Kurt Cobain's 1994 suicide, Layne Staley's 200
 - **Guitar Tones**: Drop-D and other alternate tunings for heavier sound; chorus and flanger effects on clean passages; feedback and noise as compositional elements; power chords dominating; single-note riffs alternating with full chord attacks; wah pedal for leads
 - **Rhythm Section**: Bass often follows guitar riffs in unison for wall-of-sound effect; drums emphasize feel over flash; heavy snare hits; tom-heavy fills; deliberate avoidance of technical showmanship; groove-oriented approach
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or loose — rarely straightforward. Inward-facing, specific imagery.
+- **Rhyme quality**: Near rhymes preferred. Lyrics should feel raw, not crafted.
+- **Verse structure**: Quiet verses, loud choruses (quiet-loud-quiet dynamic). 4–8 lines per section.
+- **Key rule**: Images that make the listener feel seen, sorry, or amused simultaneously. First verse sets emotion, chorus releases dissatisfaction.
+- **Avoid**: Straightforward, literal lyrics. Polished delivery. Happy-sounding choruses.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

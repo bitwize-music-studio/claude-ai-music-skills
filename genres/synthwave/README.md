@@ -17,6 +17,14 @@ Today, synthwave has matured into a diverse ecosystem with distinct regional sce
 - **Structure**: Typically longer track lengths (4-7+ minutes); gradual builds, atmospheric intros, synth-led arrangements; emphasis on hooks and memorable melodic phrases; often features extended instrumental sections and breakdown/climax dynamics
 - **Tempo**: Generally 80-118 BPM; outrun tracks tend toward faster tempos (100-120 BPM), dreamwave slower and more relaxed (80-100 BPM), darksynth varies widely
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or ABAB — follows 80s pop conventions when vocals present. Often instrumental.
+- **Rhyme quality**: Near rhymes acceptable. Nostalgic, retro-futuristic tone.
+- **Verse structure**: Verse-chorus when vocals present. Concise verses (4–8 lines), catchy chorus.
+- **Key rule**: Themes of technology, futurism, nostalgia, retrofuturism. Combine vintage references with modern ideas. Many tracks are purely instrumental.
+- **Avoid**: Lyrics that don't fit the 80s aesthetic. Overly modern references. Excessive lyrics in an instrumental-first genre.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

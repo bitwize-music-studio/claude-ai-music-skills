@@ -50,6 +50,14 @@ The 21st century has seen Latin music achieve unprecedented global reach. Reggae
 - **Modern Urban**: 808 bass, trap hi-hats, auto-tune processing, minimalist arrangements
 - **Crossover/Pop**: Polished production blending Latin elements with contemporary pop techniques
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABAB or AABB — depends on specific Latin subgenre. Melodic and rhythmic phrasing.
+- **Rhyme quality**: Spanish-language rhyming conventions. Near rhymes and assonance common.
+- **Verse structure**: Verse-chorus with emphasis on rhythmic delivery. Bilingual (Spanish/English) hooks common in crossover tracks.
+- **Key rule**: Rhythm drives everything — lyrics must lock into the specific Latin rhythm (reggaeton, cumbia, bachata, etc.). Passion and emotional directness.
+- **Avoid**: Rhythmically stiff phrasing. Ignoring the specific Latin subgenre's rhythmic pattern. Awkward bilingual mixing.
+
 ## Subgenres & Styles
 
 | Style | Description | BPM Range | Reference Artists |

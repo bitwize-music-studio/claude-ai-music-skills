@@ -16,6 +16,14 @@ Vaporwave quickly transcended music to become a broader aesthetic movement encom
 - **Energy/Mood**: Contemplative, melancholic, dreamlike, ironic nostalgia; ranges from meditative and introspective to unsettling and dystopian
 - **Structure**: Often ambient and non-linear; tracks may lack traditional verse-chorus structure, instead building atmospherically or through repetition with subtle evolution
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — primarily sampled and chopped vocal loops.
+- **Rhyme quality**: Irrelevant — vocals are usually slowed-down, pitched samples, not original writing.
+- **Verse structure**: Short, slowed-down phrases continuously repeated as ghostly loops.
+- **Key rule**: If writing original vocals: keep it short, dreamy, and designed to be slowed/chopped. Consumer culture critique through aesthetic.
+- **Avoid**: Original dense lyrics. Conventional delivery. Fighting the sample-based aesthetic.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

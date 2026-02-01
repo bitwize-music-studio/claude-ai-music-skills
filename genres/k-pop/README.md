@@ -44,6 +44,14 @@ K-Pop (Korean Pop) is a global entertainment phenomenon rooted in South Korean p
 - **Sophisticated**: Mature themes, refined production, artistic concepts (BTS later work, Red Velvet "Velvet" tracks)
 - **Emotional/Ballad**: Vocal showcases, orchestral elements, restrained production
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or ABAB. English hooks with Korean verses. Simple English choruses for international appeal.
+- **Rhyme quality**: More alliteration and repetition than Western pop. Code-switching between languages.
+- **Verse structure**: Faster tempo, shorter sections, more phrase repetition than Western pop. Tight 8–16 bar sections.
+- **Key rule**: Title/hook always in English. Simple, chantable English choruses. Korean verses for emotional detail.
+- **Avoid**: Complex English vocabulary in hooks. Ignoring code-switching conventions.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

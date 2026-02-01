@@ -16,6 +16,14 @@ By 2012, critics declared chillwave "dead," but its influence proved enduring. T
 - **Energy/Mood**: Relaxed, introspective, melancholic, nostalgic, dreamy, peaceful yet subtly emotional, bittersweet, hazy, sun-drenched yet melancholy
 - **Structure**: Minimalist song structures, long instrumental intros/outros, looping rhythmic elements, gradual builds rather than dramatic shifts, hypnotic repetition, fade-out endings
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose or none. Dreamy, nostalgia-soaked.
+- **Rhyme quality**: Incidental. Hazy vocals with lo-fi processing blur individual words.
+- **Verse structure**: Sparse — short phrases with reverb and delay. Retro synths dominate.
+- **Key rule**: Nostalgia and haze. Dreamy, blissed-out. Vocals are part of the texture.
+- **Avoid**: Clear vocal delivery. Dense wordplay. Narratives that fight the dreamy wash.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

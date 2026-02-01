@@ -18,6 +18,14 @@ Post-rock's evolution has taken it from underground art-rock circles to mainstre
 - **Mood**: Cinematic, melancholic, transcendent, introspective, cathartic, bittersweet; emotional intensity without lyrical specificity allows listeners to project personal meaning; often described as "soundtracks for films that don't exist"
 - **Tempo**: Generally moderate to slow (60-100 BPM), though tempos shift dramatically within tracks; half-time feel common during builds; time signature changes and metric modulation add complexity
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — often entirely instrumental. When vocals present: non-narrative, poetic, opaque.
+- **Rhyme quality**: Rhyme is irrelevant. Vocals function as textural layers, not narrative delivery.
+- **Verse structure**: No verse-chorus structure. Vocals (if any) float over long instrumental passages.
+- **Key rule**: Mood and atmosphere over lyrics. Vocals are texture, not the focal point.
+- **Avoid**: Conventional song structures. Narrative lyrics. Treating vocals as the primary element.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

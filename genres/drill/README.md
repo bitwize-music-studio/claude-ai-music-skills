@@ -47,6 +47,14 @@ The genre has since spread globally: Australian drill (ONEFOUR, HP Boyz) emerged
 - **Brooklyn Evolution**: More anthemic and party-oriented while maintaining aggression; club functionality added emotional dimension
 - **Introspective Threads**: Exploration of trauma, loss, PTSD increasingly common in melodic drill and later work from established artists; vulnerability beneath bravado
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or XAXA. UK drill favors intricate flows with pauses as punctuation.
+- **Rhyme quality**: UK drill values wordplay and clever rhyme; Chicago drill is more direct with less metaphor.
+- **Verse structure**: 8–16 bars. UK drill: 138–151 BPM with expressive delivery. Chicago: ~60–70 BPM, deadpan.
+- **Key rule**: Pauses are punctuation — silence makes the listener lean in. No auto-tune (UK/Brooklyn drill).
+- **Avoid**: Generic imagery without street specificity. Melodic singing where deadpan is expected.
+
 ## Subgenres & Styles
 
 | Style | Description | BPM Range | Reference Artists |

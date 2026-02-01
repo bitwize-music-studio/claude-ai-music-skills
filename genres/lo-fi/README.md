@@ -87,6 +87,14 @@ Lo-fi production treats degradation as enhancement. Where conventional recording
 - **Focus-Oriented**: Engaging enough to create ambiance, unobtrusive enough for concentration; functional music for work and study
 - **Contemplative**: Encourages reflection without demanding attention; background that supports thought
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose or none. Impressionistic and dreamy.
+- **Rhyme quality**: Optional. Mood over meaning. Warm, hazy delivery.
+- **Verse structure**: Sparse — 2–4 lines floating through the track. Often instrumental or with sampled vocal snippets.
+- **Key rule**: Mood over narrative. Nostalgia, warmth, chill. Vocals blend into the texture.
+- **Avoid**: Clear, polished vocal delivery. Dense lyrics. Demanding attention from the listener.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

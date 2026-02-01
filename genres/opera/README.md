@@ -17,6 +17,14 @@ Opera demands extraordinary performers: singers who combine the projection to fi
 - **Libretto**: Text (libretto) by librettist, often adapting literary sources (Shakespeare, myths, historical events); sung in original language (Italian, German, French, English, Russian, Czech) or translated; text setting balances comprehensibility with musical demands
 - **Dramatic Range**: Spans tragedy (opera seria), comedy (opera buffa), fairy tale (Singspiel), epic mythology (music drama), contemporary realism (verismo), and psychological drama; emotional extremes from intimate whispered phrases to overwhelming orchestral-choral climaxes
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Varies by tradition (Italian, German, French). Libretto follows dramatic conventions, not pop structure.
+- **Rhyme quality**: Often uses the rhyme conventions of the language (Italian: rich in natural rhyme; German: more flexible).
+- **Verse structure**: Recitative (speech-like) and aria (melodic) sections alternate. Dramatic arc drives structure.
+- **Key rule**: Dramatic narrative — characters, conflict, emotional arc. Vocal range and power determine phrasing. Libretto serves the story.
+- **Avoid**: Pop conventions. Casual language. Ignoring the dramatic structure of opera.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists/Works |

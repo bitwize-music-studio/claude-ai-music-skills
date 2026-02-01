@@ -350,7 +350,9 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
 5. **Source verification**: If source-based, verify lyrics match captured source material
 6. **Structure check**: Section tags present, verse/chorus contrast, V2 develops (not twins V1)
 7. **Section length check**: Count lines per section, compare against genre limits in `/skills/lyric-writer/SKILL.md`. **Hard fail** — trim any section exceeding its genre max before presenting.
-8. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
+8. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see `/skills/lyric-writer/SKILL.md` Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse.
+9. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
+10. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
 
 Report any violations found. Don't wait to be asked.
 

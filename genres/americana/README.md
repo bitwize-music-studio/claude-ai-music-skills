@@ -16,6 +16,14 @@ Contemporary Americana has evolved into a remarkably diverse tent. At one end st
 - **Energy/Mood**: Grounded and introspective; ranges from melancholic and introspective to energetic and celebratory; emotional depth and narrative complexity; sense of nostalgia or historical awareness
 - **Structure**: Verse-driven songwriting with emphasis on narrative lyrics; traditional song forms (verse-chorus, verse-bridge); instrumental breaks highlight traditional roots instruments; songs often 3-4 minutes, prioritizing storytelling over production spectacle
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB or ABAB — storytelling-friendly.
+- **Rhyme quality**: Near rhymes favored for conversational authenticity. Natural speech patterns.
+- **Verse structure**: Verses 4–8 lines. Emphasis on verse progression over chorus dominance.
+- **Key rule**: Place-based imagery — dusty roads, front porches, wide-open landscapes. Symbolism and layered interpretation. Transport the listener to a specific location and era.
+- **Avoid**: Generic Americana cliches without specific detail. Abstract emotion without sensory grounding.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

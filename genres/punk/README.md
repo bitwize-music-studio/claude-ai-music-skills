@@ -47,6 +47,14 @@ Punk rock exploded in the mid-1970s as a visceral rejection of the bloated exces
 - **Community**: Scene-building, all-ages shows, accessible ticket prices
 - **Lyrical Themes**: Political critique, personal alienation, social commentary, anti-war, working-class struggles, suburban ennui (pop-punk), existential despair (post-punk)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB (loose) or ABAB — but sloppy execution is authentic.
+- **Rhyme quality**: Half-rhymes and slant rhymes are standard. Imperfect rhymes signal authenticity. Polished rhymes sound pretentious.
+- **Verse structure**: Short — 4–6 lines. Songs under 3 minutes. Lines must work at 150–200 BPM.
+- **Key rule**: Directness over poetry. Simple, punchy, shoutable. Authenticity is punk's cardinal virtue.
+- **Avoid**: Pretentious vocabulary. Flowery descriptions. Complex sentence structures. Anything that sounds "carefully written."
+
 ## Subgenres & Styles
 
 | Style | Description | Tempo | Production | Reference Artists |

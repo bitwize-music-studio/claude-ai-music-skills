@@ -53,6 +53,14 @@ Beyond Norway, black metal rapidly globalized while fragmenting into diverse sub
 - **Album Art**: Medieval imagery, Romantic paintings, forests, religious desecration, minimalist designs
 - **Typography**: Illegible logo design as artistic statement, often symmetrical and resembling tree branches
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Optional — atmosphere and imagery dominate over rhyme structure.
+- **Rhyme quality**: Poetic and archaic language valued. Internal rhyme and alliteration more common than end rhyme.
+- **Verse structure**: Variable — through-composed structures common. No pop conventions required.
+- **Key rule**: Nature imagery (forests, mountains, winter), mythology, paganism, anti-religious themes. Archaic or folkloric vocabulary. Transporting the listener to another world.
+- **Avoid**: Modern/mundane imagery. Pop song structures. Literal or prosaic language.
+
 ## Subgenres & Styles
 
 | Style | Description | Characteristics | Reference Artists |

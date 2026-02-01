@@ -17,6 +17,14 @@ At its core, rock remains defined by the interplay of electric guitar, bass, and
 - **Structure**: Verse-chorus-verse with bridge; guitar solos and instrumental breaks; dynamic builds from quiet verses to loud choruses; intros, outros, and codas; songs typically 3-5 minutes (though progressive rock often extends much longer)
 - **Tempo**: Wide range—power ballads (60-80 BPM), mid-tempo rock (90-120 BPM), driving rock (120-140 BPM), punk/fast rock (160-200+ BPM)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or ABAB — flexible, meaning over rhyme.
+- **Rhyme quality**: Near rhymes acceptable and common. Emotional expression and imagery matter more than technical rhyming.
+- **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. 6–10 syllables per line typical.
+- **Key rule**: Specific imagery ("coffee gone cold on the counter") beats abstract statements ("I felt so sad"). Show, don't tell.
+- **Avoid**: Forced perfect rhymes. Generic emotion words without grounding imagery. Cliches ("cold as ice," "learning to fly").
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

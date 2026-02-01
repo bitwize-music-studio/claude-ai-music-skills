@@ -49,6 +49,14 @@ The 1980s saw reggae evolve into dancehall, shifting from live instrumentation t
 - **Cultural Pride**: Celebration of African heritage, Jamaican identity, and resistance to colonialism
 - **Unity and Peace**: Messages of global harmony, "One Love" philosophy
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Flexible — riddim-driven. Lyrics fit over the instrumental groove. End rhyme common but not mandatory.
+- **Rhyme quality**: Pronunciation-based rhyming in Patois differs from standard English. Near rhymes acceptable.
+- **Verse structure**: 4–8 lines per section. Riddim determines section lengths. Heavy repetition of hooks.
+- **Key rule**: Groove lock — lyrics must fit the riddim. Call-and-response, chanted hooks for crowd participation. One love, social justice, spiritual themes.
+- **Avoid**: Fighting the riddim groove. Incorrect Patois use. Ignoring call-and-response conventions.
+
 ## Subgenres and Styles
 
 | Style | Description | Key Characteristics | Reference Artists |

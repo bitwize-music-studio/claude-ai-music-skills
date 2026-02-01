@@ -21,6 +21,14 @@ Today, gospel encompasses a remarkable range of expressions: from traditional qu
 - **Rhythm**: Syncopated, swing-influenced grooves; the "church beat" (driving 4/4 with accented backbeat); hand claps and foot stomps as essential elements
 - **Lyrics**: Faith-centered themes of salvation, redemption, struggle, and triumph; personal testimony and exhortation; scriptural references; hope in adversity
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Repetitive patterns with incremental builds. Same line repeated with slight variations, then resolution.
+- **Rhyme quality**: Simple rhymes that serve congregational participation. Near rhymes acceptable.
+- **Verse structure**: Call-and-response between lead and congregation/choir. Lines designed for repetition and group singing.
+- **Key rule**: Repetition builds intensity — this is the engine of gospel. Faith, belief, passion conveyed through delivery as much as words.
+- **Avoid**: Lyrics too complex for congregation participation. Insufficient repetition. Missing call-and-response structure.
+
 ## Subgenres & Styles
 
 | Style | Description | Era/Context | Reference Artists |

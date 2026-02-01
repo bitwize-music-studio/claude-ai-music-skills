@@ -39,6 +39,14 @@ Today, electronic music production tools are democratized through affordable sof
 - **Dark**: Industrial textures, distorted beats, dystopian atmospheres
 - **Cerebral**: Complex rhythms, unexpected transitions, intellectual engagement
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Rhyme is secondary to repetition. When present, loose and incidental.
+- **Rhyme quality**: Optional. Forced rhymes sound amateur in electronic music.
+- **Verse structure**: Minimal vocals. Short phrases (2–8 words) repeated as loops or hooks. Space between phrases.
+- **Key rule**: Less is more. Repetition is the defining characteristic — same phrase repeating creates hypnotic effect. Too many words ruin the track.
+- **Avoid**: Dense lyrics. Narrative complexity. Traditional verse-chorus structure (unless synthwave). Over-rhyming.
+
 ## Subgenres & Styles
 
 | Style | Description | BPM Range | Reference Artists |

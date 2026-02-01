@@ -16,6 +16,14 @@ Beyond Bristol, trip-hop's influence spread globally and evolved through various
 - **Energy/Mood**: Moody, introspective, dark, contemplative, hypnotic, cinematic, slightly unsettling, noir-influenced, late-night ambiance
 - **Structure**: Typically 3-5 minute tracks, minimal chorus reliance, atmospheric build-ups, layered arrangements that evolve throughout, often features breakbeat-driven rhythm section beneath atmospheric layers
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or loose — more lyrical than other electronic genres. Can support full narrative.
+- **Rhyme quality**: Near rhymes and slant rhymes. Poetic, atmospheric. Abstract stream-of-consciousness.
+- **Verse structure**: Full verses with laid-back, spoken-word delivery. Often without traditional choruses. 4–8 lines.
+- **Key rule**: Urban life, introspection, social commentary. Whispered, abstract, remote from braggadocio. Moody atmospheres.
+- **Avoid**: Upbeat energy. Conventional pop structures. Literal or surface-level lyrics.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

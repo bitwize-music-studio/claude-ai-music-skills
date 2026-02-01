@@ -16,6 +16,14 @@ Contemporary folk spans a vast spectrum: from traditionalists preserving centuri
 - **Tempo**: Predominantly slow to mid-tempo (60-110 BPM); ballads often rubato (flexible tempo); uptempo reels and jigs in Celtic traditions (120-140+ BPM)
 - **Lyrical Themes**: Love and loss, nature and landscape, work and labor, social justice, mortality, mythology, historical events, travel and wandering, homecoming, family, faith and doubt, the passing of time
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB (ballad stanza/quatrain) — traditional folk standard.
+- **Rhyme quality**: Near rhymes common and accepted. Simplicity and clarity help songs endure.
+- **Verse structure**: 4-line quatrains (ballad meter: 8/6/8/6 syllables). Verse-only (strophic) form common — same melody, different lyrics each verse, with refrain line.
+- **Key rule**: Linear narrative progression. Each verse develops the story. Character-focused, historical events, travel, lost love. Simplicity of language paramount.
+- **Avoid**: Flowery or complex vocabulary. Abstract lyrics without grounding. Breaking the ballad meter inconsistently.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

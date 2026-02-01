@@ -15,6 +15,15 @@ From the British Invasion of the 1960s through the MTV revolution of the 1980s, 
 - **Structure**: Strong hooks in verse, pre-chorus, and chorus; repetitive memorable choruses; streamlined arrangements with clear sections; often shorter song lengths (2:30-3:30) optimized for streaming; bridge or breakdown for variation
 - **Tempo**: Ballads (60-80 BPM), mid-tempo (90-110 BPM), uptempo dance-pop (115-130 BPM), high-energy (130-150 BPM)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA (lines 2 & 4 rhyme) — most common, conversational. Also: ABAB (verses), AABB or AAAA (choruses for memorability).
+- **Rhyme quality**: Near rhymes strongly preferred over perfect rhymes. Perfect rhymes can sound forced and break believability. Meaning and emotion always trump technical rhyme.
+- **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines, repeated identically each time. Pre-chorus 2–4 lines.
+- **Syllable range**: 6–10 syllables per line. Conversational phrasing — lyrics should sound natural when spoken as prose.
+- **Key rule**: If it sounds "carefully crafted," it breaks immersion. Conversational beats poetic.
+- **Avoid**: Lyric cliches ("cold as ice," "by my side," "set me free"), forced perfect rhymes, complex/abstract choruses.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

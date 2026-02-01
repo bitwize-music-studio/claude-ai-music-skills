@@ -16,6 +16,14 @@ The international breakthrough came in 1962-1964 through collaborations with Ame
 - **Energy/Mood**: Relaxed, sophisticated, introspective; melancholic undertones despite upbeat harmonic movement; evening/twilight aesthetic; sensual and romantic; cerebral rather than physically energetic
 - **Structure**: Often features longer, more complex chord progressions than standard pop; verses may break traditional 12-bar or 32-bar forms; frequent use of ii-V progressions, suspended chords, and extended jazz harmonies; songs frequently feature distinct grooves and section changes rather than simple verse-chorus repetition
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Compact forms — ABAB or AABA/AABACA. Short sections with subtle variation.
+- **Rhyme quality**: Syncopation, assonance, and consonance create musicality. Natural speech rhythm paramount.
+- **Verse structure**: Short, concrete phrases — objects, places, images over abstract emotion. Keep sections brief.
+- **Key rule**: Wistful mood (saudade — gentle longing mixed with love). Natural speech rhythm. Less is more.
+- **Avoid**: Abstract emotion words without concrete images. Forcing rhythms onto Portuguese-influenced phrasing. Lyric density that overwhelms the gentle groove.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

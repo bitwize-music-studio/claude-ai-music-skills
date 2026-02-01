@@ -46,6 +46,14 @@ The genre's influence extends far beyond its commercial heyday. Post-punk reviva
 - **Dynamics**: Emphasis on timbral shifts and textural contrast rather than volume dynamics; synthesizer filter sweeps and patch changes drive momentum
 - **Length**: Generally radio-friendly (3-5 minutes) with notable exceptions in post-punk (10+ minute tracks from bands like Bauhaus)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or ABAB — pop-influenced but with artistic edge.
+- **Rhyme quality**: Clever wordplay and irony. Near rhymes acceptable. Smart over emotional.
+- **Verse structure**: Verses 4–6 lines, choruses 4–6 lines. Synth-driven arrangements influence phrasing.
+- **Key rule**: Wit, irony, and art-school intelligence. Post-punk sensibility with pop accessibility.
+- **Avoid**: Earnest rock sincerity without ironic distance. Overly complex vocals fighting synth textures.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

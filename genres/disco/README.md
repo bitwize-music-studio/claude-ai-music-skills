@@ -40,6 +40,14 @@ Nu-disco emerged in the early 2000s as producers like Lindstrom, Todd Terje, and
 - **Song Form**: Verse-chorus with extended instrumental sections; gradual builds and layered arrangement changes
 - **DJ-Friendly**: Clear intro/outro sections, isolated rhythm breaks for mixing
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or ABAB — simple, danceable, fun.
+- **Rhyme quality**: Simple, catchy. Perfect rhymes fine for the celebratory tone.
+- **Verse structure**: Verse-chorus with extended dance breaks. Chorus is king — repetitive and singable.
+- **Key rule**: Dance floor energy. Love, celebration, freedom, nightlife. Lyrics serve the groove.
+- **Avoid**: Heavy themes. Complex structures. Anything that kills the party.
+
 ## Subgenres and Styles
 
 | Style | Era | Description | Key Artists |

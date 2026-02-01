@@ -17,6 +17,14 @@ By the 2000s and 2010s, techno had fragmented into numerous subgenres while simu
 - **Structure**: Long-form tracks (6-12 minutes common), gradual builds, minimal verse-chorus structure, emphasis on progressive evolution; tracks designed for DJ mixing with extended intros/outros
 - **Tempo**: Generally 120-150 BPM; minimal/deep techno typically 120-130 BPM, industrial/hard techno 135-150 BPM, some experimental variants below or above this range
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — often instrumental. When vocals present, processed into texture.
+- **Rhyme quality**: Irrelevant. Words become rhythmic/textural elements.
+- **Verse structure**: Minimal — short commands, single words, even counts. 1–2 bar loops at most.
+- **Key rule**: Mechanical, hypnotic pulse. Vocals are texture, not content. Repetition drives the track.
+- **Avoid**: Meaningful lyrics in minimal techno. Traditional song structure. Fighting the repetition.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

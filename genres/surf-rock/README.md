@@ -16,6 +16,14 @@ The surf rock revival beginning in the 1980s and continuing through today has pr
 - **Energy/Mood**: High-energy, playful, and adventurous; oscillates between laid-back coolness and explosive excitement; marine/water imagery; optimistic and sun-drenched atmospherics
 - **Structure**: Classic rock song structures (verse-chorus-bridge); often features extended instrumental breaks showcasing guitar prowess; dynamic builds and releases; catchy, memorable hooks both vocal and instrumental
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or ABAB — simple, upbeat. Often instrumental, so lyrics are secondary.
+- **Rhyme quality**: Simple, fun, beach-themed. Perfect rhymes fine for the playful tone.
+- **Verse structure**: Short verses (4–6 lines). Many tracks are instrumental.
+- **Key rule**: Carefree energy. Summer, waves, cars, fun. When lyrics exist, keep them light and rhythmic.
+- **Avoid**: Heavy themes. Complex structures. Overwriting for an instrumental-first genre.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

@@ -66,6 +66,14 @@ The revival gained further momentum when original acts reformed: Slowdive return
 - Songs frequently exceed 5 minutes; some extend to 10+ minutes
 - Builds to textural climaxes rather than traditional chorus payoffs
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose or none — lyrics are buried in reverb and distortion by design.
+- **Rhyme quality**: Irrelevant — words are texture, not content. Vowel sounds matter more than meaning.
+- **Verse structure**: Sparse lines buried beneath layers of guitar effects. No strong verse-chorus distinction.
+- **Key rule**: Vocals are another instrument in the wall of sound. Choose words for their sonic quality (vowels, sibilance) not just meaning.
+- **Avoid**: Clear, upfront vocal delivery. Dense wordplay. Lyrics that demand to be heard over the guitars.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists | Era |

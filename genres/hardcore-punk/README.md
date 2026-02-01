@@ -16,6 +16,14 @@ Hardcore punk's evolution throughout the 1980s and beyond spawned numerous subge
 - **Energy/Mood**: Violent, confrontational, anarchic; intense anger or frustration; often politically charged; chaotic and unpredictable
 - **Structure**: Song lengths 1-3 minutes typically; verse-chorus structures often abandoned for constant intensity; abrupt starts/stops; minimal or absent choruses
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Minimal rhyme focus — rhythm and delivery matter more. When present, simple AABB.
+- **Rhyme quality**: Rhyme is secondary to intensity. Hard consonants for crowd participation.
+- **Verse structure**: Ultra-short — 4–8 bars max. 5-syllable chants common. Songs often under 2 minutes.
+- **Key rule**: Gang vocals must be simple and shoutable. Political anger, social confrontation, direct message.
+- **Avoid**: Complex vocabulary. Long narrative verses. Melodic singing. Lines too long for breath at 300+ BPM.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |
