@@ -377,6 +377,7 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
    - Acronyms spelled out (F-B-I not FBI, G-P-S not GPS)
    - Tech terms (Lin-ucks not Linux, sequel not SQL)
    - Numbers (use '93 not ninety-three)
+   - No invented contractions (signal'd, TV'd — spell out instead)
    - Reference `/reference/suno/pronunciation-guide.md`
 4. **POV/Tense check**: Consistent point of view and tense throughout
 5. **Source verification**: If source-based, verify lyrics match captured source material
