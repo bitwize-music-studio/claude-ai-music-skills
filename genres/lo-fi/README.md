@@ -94,7 +94,7 @@ Lo-fi production treats degradation as enhancement. Where conventional recording
 - **Verse structure**: Sparse — 2–4 lines floating through the track. Often instrumental or with sampled vocal snippets.
 - **Key rule**: Mood over narrative. Nostalgia, warmth, chill. Vocals blend into the texture.
 - **Avoid**: Clear, polished vocal delivery. Dense lyrics. Demanding attention from the listener.
-- **Density/pacing**: low density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 60-90. Chill, study-music aesthetic. Muted, warm. When vocal, laid-back and spacious. Jazz-influenced phrasing.
+- **Density/pacing (Suno)**: Default **2-4 lines/verse** at 60-90 BPM. Chill, study-music aesthetic. When vocal, laid-back and spacious. Topics: 1/verse.
 
 ## Subgenres & Styles
 

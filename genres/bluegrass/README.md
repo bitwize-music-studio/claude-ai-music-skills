@@ -24,7 +24,7 @@ The genre experienced significant evolution starting in the 1970s when New Grass
 - **Verse structure**: 4-line quatrains typical. Verse-chorus with strong verse progression.
 - **Key rule**: Simplicity of language — powerful emotions without flourish or fluff. Universal human experiences: heartbreak, loss, longing, faith. Gospel influence (Methodist, Holiness, Baptist traditions).
 - **Avoid**: Over-complicating language. Straying from universal human experiences. Ignoring gospel/moral traditions.
-- **Density/pacing**: low-moderate density · 7-10 syl/line · max 1 topics/verse · typical BPM 120-180. Fast picking tempo but sparse lyrics. Instrumental breaks dominate. One clear topic per verse for comprehension at speed.
+- **Density/pacing (Suno)**: Default **4-6 lines/verse** at 120-160 BPM. Fast picking tempo but sparse lyrics. Instrumental breaks dominate. One clear topic per verse. Topics: 1/verse.
 
 ## Subgenres & Styles
 

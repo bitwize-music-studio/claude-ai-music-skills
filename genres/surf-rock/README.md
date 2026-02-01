@@ -23,7 +23,7 @@ The surf rock revival beginning in the 1980s and continuing through today has pr
 - **Verse structure**: Short verses (4–6 lines). Many tracks are instrumental.
 - **Key rule**: Carefree energy. Summer, waves, cars, fun. When lyrics exist, keep them light and rhythmic.
 - **Avoid**: Heavy themes. Complex structures. Overwriting for an instrumental-first genre.
-- **Density/pacing**: low density · 4-7 syl/line · max 1-2 topics/verse · typical BPM 130-170. Often instrumental. When vocal, simple themes. Fast tempo but sparse lyrics. Guitar leads take priority.
+- **Density/pacing (Suno)**: Default **4 lines/verse** (when vocal) at 130-160 BPM. Often instrumental — guitar leads take priority. Topics: 1/verse.
 
 ## Subgenres & Styles
 

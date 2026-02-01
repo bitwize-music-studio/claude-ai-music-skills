@@ -75,7 +75,7 @@ Today, dubstep encompasses a vast spectrum from introspective, atmospheric compo
 - **Verse structure**: No traditional verses. Pre-drop hype vocals, post-drop hooks. Build-drop-build.
 - **Key rule**: Phrases must work when effected, twisted, and transformed. Short and punchy.
 - **Avoid**: Long vocal passages. Complex narratives. Lyrics that don't survive heavy processing.
-- **Density/pacing**: low density · 5-9 syl/line · max 1-2 topics/verse · typical BPM 140 (half-time 70). Bass drops need clear vocal space. Half-time feel. MC-style vocals can be denser, sung vocals stay sparse.
+- **Density/pacing (Suno)**: Default **2-4 lines/verse** at 140 BPM (half-time 70). Bass drops need clear vocal space. MC-style can be denser, sung vocals stay sparse. Topics: 1/verse.
 
 ## Subgenres and Styles
 

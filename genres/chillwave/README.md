@@ -23,7 +23,7 @@ By 2012, critics declared chillwave "dead," but its influence proved enduring. T
 - **Verse structure**: Sparse — short phrases with reverb and delay. Retro synths dominate.
 - **Key rule**: Nostalgia and haze. Dreamy, blissed-out. Vocals are part of the texture.
 - **Avoid**: Clear vocal delivery. Dense wordplay. Narratives that fight the dreamy wash.
-- **Density/pacing**: low density · 4-8 syl/line · max 1 topics/verse · typical BPM 80-110. Hazy, nostalgic. Vocals heavily processed. Simple phrases, dreamy imagery. Let the wash of sound dominate.
+- **Density/pacing (Suno)**: Default **2-4 lines/verse** at 80-110 BPM. Hazy, nostalgic. Heavily processed vocals. Simple phrases, dreamy imagery. Topics: 1/verse.
 
 ## Subgenres & Styles
 

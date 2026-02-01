@@ -26,7 +26,7 @@ The genre's production has evolved from simple breakbeat loops to sophisticated 
 - **Key rule**: Internal rhymes are mandatory in modern hip-hop — rhyme density and placement throughout the bar separates good from amateur.
 - **No orphan lines**: If line 1 rhymes with line 2, line 3 MUST rhyme with line 4.
 - **Avoid**: Filler words (uh, um, like), cramming too many thoughts into one bar, sacrificing meaning for forced rhymes.
-- **Density/pacing**: moderate-high density · 10-14 syl/line · max 2-3 topics/verse · typical BPM 80-100. 16-bar verses at head-nod tempo; internal rhyme density adds perceived syllables. Trap/drill BPMs (130-150) use half-time feel — treat as 65-75 BPM for density.
+- **Density/pacing (Suno)**: Default **8 lines/verse** (4 couplets) at 85-95 BPM. At 80-85 BPM: max 6 lines. Never exceed 8 lines — Suno rushes past this. Topics: 2-3/verse. Half-time trap BPMs (130-150) = treat as 65-75 effective BPM.
 
 ## Subgenres & Styles
 

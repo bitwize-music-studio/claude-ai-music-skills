@@ -63,7 +63,7 @@ After a commercial decline in the mid-2000s as electro-house dominated, trance e
 - **Verse structure**: Single hook phrase repeated at intervals. Often mezzo-soprano to soprano female vocals drenched in delay/reverb.
 - **Key rule**: Themes of love, hope, transcendence. Dreamy vocal tones. No verse/chorus — one central hook repeated.
 - **Avoid**: Dense lyrics. Grounded/mundane themes. Verse-chorus structure.
-- **Density/pacing**: low density · 5-8 syl/line · max 1 topics/verse · typical BPM 128-150. Euphoric build-up needs vocal space. Simple, uplifting phrases. Syllables timed to build/drop structure.
+- **Density/pacing (Suno)**: Default **2-4 lines/verse** at 128-150 BPM. Euphoric build-up needs vocal space. Simple, uplifting phrases timed to build/drop. Topics: 1/verse.
 
 ## Subgenres & Styles
 

@@ -27,7 +27,7 @@ The 2000s brought a significant indie rock revival that pushed the genre into ma
 - **Verse structure**: Varies — standard verse-chorus or unconventional forms. 4–8 lines per section.
 - **Key rule**: Personal, quirky, and specific. Indie lyrics favor the particular over the universal. Conversational delivery.
 - **Avoid**: Arena-rock bombast. Generic emotional statements. Polished-sounding lyrics that feel manufactured.
-- **Density/pacing**: moderate density · 6-9 syl/line · max 2-3 topics/verse · typical BPM 90-130. Conversational, trim excess syllables. Name specific objects/places for authenticity.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 110-120 BPM. Conversational — trim excess syllables. At 100-110: up to 8 lines. At 120-130: 4-6 lines. Topics: 2/verse.
 
 ## Subgenres & Styles
 

@@ -51,7 +51,7 @@ The 2010s and 2020s saw piano pop proliferate further. Sam Smith's ballad-heavy 
 - **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. Slower tempo allows more syllables per line.
 - **Key rule**: Story-driven, emotionally sentimental. First or third person POV. Melody carries the emotion.
 - **Avoid**: Forced upbeat energy. Complex rhythmic patterns that fight the piano-led arrangement.
-- **Density/pacing**: moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 90-120. Piano-driven arrangements need vocal space. Emotional delivery over syllable density. Let the instrument breathe.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 100-120 BPM. Ballad tempo (90-100): up to 8 lines. Piano arrangements need vocal space. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

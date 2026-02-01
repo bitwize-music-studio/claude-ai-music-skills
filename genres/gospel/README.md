@@ -28,7 +28,7 @@ Today, gospel encompasses a remarkable range of expressions: from traditional qu
 - **Verse structure**: Call-and-response between lead and congregation/choir. Lines designed for repetition and group singing.
 - **Key rule**: Repetition builds intensity — this is the engine of gospel. Faith, belief, passion conveyed through delivery as much as words.
 - **Avoid**: Lyrics too complex for congregation participation. Insufficient repetition. Missing call-and-response structure.
-- **Density/pacing**: moderate density · 8-12 syl/line · max 1-2 topics/verse · typical BPM 70-120. Spiritual themes need room to breathe. Melismatic delivery. Building emotional intensity through repetition, not word count.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 70-120 BPM. Melismatic delivery — building emotional intensity through repetition, not word count. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

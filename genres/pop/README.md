@@ -23,7 +23,7 @@ From the British Invasion of the 1960s through the MTV revolution of the 1980s, 
 - **Syllable range**: 6–10 syllables per line. Conversational phrasing — lyrics should sound natural when spoken as prose.
 - **Key rule**: If it sounds "carefully crafted," it breaks immersion. Conversational beats poetic.
 - **Avoid**: Lyric cliches ("cold as ice," "by my side," "set me free"), forced perfect rhymes, complex/abstract choruses.
-- **Density/pacing**: moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 100-130. Syllable matching between verses is critical (Max Martin method). Hook repetition > verse density. Conversational phrasing.
+- **Density/pacing (Suno)**: Default **4 lines/verse** at 110-120 BPM. At 100-110: up to 6 lines. At 120-130: stick to 4. Pop is chorus-first — longer verses bury the hook. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

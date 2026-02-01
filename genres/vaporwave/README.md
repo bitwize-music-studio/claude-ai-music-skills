@@ -23,7 +23,7 @@ Vaporwave quickly transcended music to become a broader aesthetic movement encom
 - **Verse structure**: Short, slowed-down phrases continuously repeated as ghostly loops.
 - **Key rule**: If writing original vocals: keep it short, dreamy, and designed to be slowed/chopped. Consumer culture critique through aesthetic.
 - **Avoid**: Original dense lyrics. Conventional delivery. Fighting the sample-based aesthetic.
-- **Density/pacing**: very low density · 2-6 syl/line · max 1 topics/verse · typical BPM 60-90. Slowed, chopped samples. Often instrumental. When vocal, fragmented consumer culture phrases. Anti-density.
+- **Density/pacing (Suno)**: Default **0-2 lines** at 60-90 BPM. Slowed, chopped samples. Often instrumental. Fragmented phrases when vocal. Topics: 1/verse or none.
 
 ## Subgenres & Styles
 

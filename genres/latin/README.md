@@ -57,7 +57,7 @@ The 21st century has seen Latin music achieve unprecedented global reach. Reggae
 - **Verse structure**: Verse-chorus with emphasis on rhythmic delivery. Bilingual (Spanish/English) hooks common in crossover tracks.
 - **Key rule**: Rhythm drives everything — lyrics must lock into the specific Latin rhythm (reggaeton, cumbia, bachata, etc.). Passion and emotional directness.
 - **Avoid**: Rhythmically stiff phrasing. Ignoring the specific Latin subgenre's rhythmic pattern. Awkward bilingual mixing.
-- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 90-140. Rhythmic patterns (clave, tresillo) govern syllable placement. Dance-oriented — clarity for movement.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 90-140 BPM. Clave/tresillo rhythms govern syllable placement. Dance-oriented — clarity for movement. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

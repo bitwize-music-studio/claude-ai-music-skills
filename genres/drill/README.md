@@ -54,7 +54,7 @@ The genre has since spread globally: Australian drill (ONEFOUR, HP Boyz) emerged
 - **Verse structure**: 8–16 bars. UK drill: 138–151 BPM with expressive delivery. Chicago: ~60–70 BPM, deadpan.
 - **Key rule**: Pauses are punctuation — silence makes the listener lean in. No auto-tune (UK/Brooklyn drill).
 - **Avoid**: Generic imagery without street specificity. Melodic singing where deadpan is expected.
-- **Density/pacing**: moderate density · 9-13 syl/line · max 2-3 topics/verse · typical BPM 140-150. Aggressive but staccato delivery. Sliding 808s need vocal space. Repetitive hooks balance verse density.
+- **Density/pacing (Suno)**: Default **8 lines/verse** (4 couplets) at 140-145 BPM. Aggressive but staccato — sliding 808s need vocal space. Never exceed 8 lines. Topics: 1-2/verse. UK drill: rapid wordplay stays within 8 lines.
 
 ## Subgenres & Styles
 

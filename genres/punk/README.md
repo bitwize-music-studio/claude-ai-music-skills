@@ -54,7 +54,7 @@ Punk rock exploded in the mid-1970s as a visceral rejection of the bloated exces
 - **Verse structure**: Short — 4–6 lines. Songs under 3 minutes. Lines must work at 150–200 BPM.
 - **Key rule**: Directness over poetry. Simple, punchy, shoutable. Authenticity is punk's cardinal virtue.
 - **Avoid**: Pretentious vocabulary. Flowery descriptions. Complex sentence structures. Anything that sounds "carefully written."
-- **Density/pacing**: moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 150-200. Fast and furious. Short songs, short verses. Energy over complexity. Every word must punch.
+- **Density/pacing (Suno)**: Default **4 lines/verse** at 150-180 BPM. At 160+: 2-3 lines. Fast and furious — every word must punch. Never exceed 4 lines. Topics: 1/verse.
 
 ## Subgenres & Styles
 

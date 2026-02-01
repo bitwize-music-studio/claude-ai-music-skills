@@ -23,7 +23,7 @@ The 2000s and 2010s saw drum and bass mature into a global phenomenon while rema
 - **Verse structure**: Short vocal hooks or MC bars over 170+ BPM breakbeats. Jungle/DnB MC style: rapid, rhythmic.
 - **Key rule**: Energy and speed. Vocals must cut through heavy bass and fast drums. Short, punchy, repeatable.
 - **Avoid**: Slow, drawn-out vocal passages. Dense lyrics that can't match the tempo.
-- **Density/pacing**: high density · 8-14 syl/line · max 2-3 topics/verse · typical BPM 160-180. Fastest electronic genre. MC delivery allows high density despite tempo. Jungle tradition of rapid-fire toasting.
+- **Density/pacing (Suno)**: Default **2-4 lines/verse** at 160-180 BPM. Fastest electronic genre. MC delivery allows brief bursts of density. Topics: 1/verse.
 
 ## Subgenres & Styles
 

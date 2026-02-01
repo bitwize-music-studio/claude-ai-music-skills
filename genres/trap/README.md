@@ -56,7 +56,7 @@ The genre's influence extended far beyond hip-hop. EDM producers like Flosstrada
 - **Verse structure**: 8–16 bars. Lower syllable counts (8–10 per bar) with more space and pauses.
 - **Key rule**: Melodic delivery and attitude matter more than lyrical complexity. Snare on 3rd beat.
 - **Avoid**: Overly dense wordplay that fights the beat's spacious feel.
-- **Density/pacing**: moderate density · 8-12 syl/line · max 2-3 topics/verse · typical BPM 130-150 (half-time 65-75). Half-time feel makes high BPM spacious. Leave room for ad-libs and 808 slides. Sparse vocal placement.
+- **Density/pacing (Suno)**: Default **8 lines/verse** (4 couplets). Half-time feel (130-170 BPM = 65-85 effective). At 65-70 effective: max 6 lines. Sparse vocal placement — leave room for ad-libs and 808 slides. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

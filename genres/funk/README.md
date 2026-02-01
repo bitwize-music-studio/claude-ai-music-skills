@@ -44,7 +44,7 @@ The defining element of funk is "the one"—the heavy emphasis on the first beat
 - **Verse structure**: Short, punchy phrases that lock into the rhythm. Non-conventional structure prioritizing groove.
 - **Key rule**: Lyrics accent the downbeat ("on the one"). Groove over narrative. Double entendres and innuendo are genre tradition.
 - **Avoid**: Conventional song structure forced onto funk grooves. Overwriting. Ignoring the "one" (downbeat emphasis).
-- **Density/pacing**: moderate density · 7-10 syl/line · max 1-2 topics/verse · typical BPM 100-130. Rhythmic, groove-locked. Syllables on the one. Call-and-response patterns. Keep it tight and danceable.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 100-130 BPM. Rhythmic, groove-locked. Syllables on the one. Call-and-response patterns. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 
