@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-02-01
+
+### Changed
+- **Verse-chorus echo check** replaces chorus lead-in rule — expanded from single-line check to full phrase deduplication. Now compares last 2 lines of every verse against first 2 lines of the chorus, flagging exact phrases, shared rhyme words, restated hooks, and shared signature imagery. Covers all verse-to-chorus and bridge-to-chorus transitions.
+
 ## [0.30.0] - 2026-02-01
 
 ### Added
