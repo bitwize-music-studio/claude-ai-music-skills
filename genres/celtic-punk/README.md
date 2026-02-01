@@ -49,6 +49,14 @@ Celtic punk's themes reflect its working-class roots and immigrant heritage: Iri
 - **Communal**: Music designed for group participation; assumes audience will join in
 - **Defiance**: Punk spirit of rebellion applied to working-class and immigrant struggles
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB or ABAB — folk storytelling tradition with punk energy.
+- **Rhyme quality**: Near rhymes acceptable. Narrative clarity matters more than technical rhyming.
+- **Verse structure**: 4–8 lines. Story-driven, often character-based. Blends folk narrative with punk directness.
+- **Key rule**: Heritage, history, rebellion, and identity. Folk storytelling meets punk urgency.
+- **Avoid**: Stereotypical Irish cliches (drunken brawler tropes). Appropriating culture without understanding.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

@@ -16,6 +16,14 @@ Today, house music stands as the foundational genre of global dance culture, wit
 - **Energy/Mood**: Euphoric and uplifting at its core, ranging from deep introspective warmth to aggressive peak-time intensity; hypnotic and meditative in minimal variations; celebratory and communal; designed for sustained dance floor engagement over hours
 - **Structure**: Extended arrangements (6-10 minutes typical), minimal verse-chorus structure, gradual introduction and removal of elements, breakdown sections stripping to drums or atmosphere before rebuilding, repetitive loops with subtle evolution, emphasis on tension-and-release dynamics
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Minimal — 1–2 bar vocal loops. Groove-driven, not rhyme-driven.
+- **Rhyme quality**: Incidental. Short, groovy phrases anchor long mixes.
+- **Verse structure**: No traditional verses. Single repeated phrases or very short vocal sections (4–12 words).
+- **Key rule**: Groove lock — vocals must serve the rhythm, not compete with it. Uplifting, soulful, or funky tone.
+- **Avoid**: Walls of lyrics. Complex rhyme schemes. Anything that breaks the groove.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

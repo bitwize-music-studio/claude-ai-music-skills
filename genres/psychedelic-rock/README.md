@@ -41,6 +41,14 @@ Neo-psychedelia emerged in the 1980s and continues thriving today, reinterpretin
 - Gradual builds and dynamic peaks creating psychedelic arcs
 - Integration of samples, spoken word, and found sounds
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Free or loose ABAB. Abstract, surreal imagery dominates over structure.
+- **Rhyme quality**: Internal rhyme and sound-play valued. Stream-of-consciousness acceptable.
+- **Verse structure**: Flexible — can be extended, non-linear, or through-composed. No strict limits.
+- **Key rule**: Surreal imagery, altered states, cosmic themes. Lyrics can be impressionistic sound-paintings.
+- **Avoid**: Literal, grounded narratives. Conventional pop structure unless intentionally subverted.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

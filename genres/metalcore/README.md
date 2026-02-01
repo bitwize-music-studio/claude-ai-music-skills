@@ -24,6 +24,14 @@ The breakdown remains metalcore's most distinctive structural element---a sectio
 - **Structure**: Verse-chorus-breakdown architecture is standard; intros often feature signature riffs, atmospheric builds, or clean guitar passages; breakdowns typically appear mid-song (to build energy) or as climactic finale; pre-chorus sections common as transition to melodic hooks; bridges often feature guitar solos, atmospheric breakdowns, or dynamic shifts; outros may mirror intros or fade on clean passages; song lengths typically 3-5 minutes, though progressive variants extend to 7+ minutes
 - **Tempo**: Typically 100-180 BPM for verse sections; breakdowns drop to 60-90 BPM (half-time feel creates sense of massive weight); blast beat sections may reach 200+ BPM; tempo changes within songs are expected and integral to the genre's dynamic approach; contrast between fast and slow sections creates impact
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Clean choruses may rhyme for memorability. Screamed verses prioritize rhythm over rhyme.
+- **Rhyme quality**: Choruses: melodic, singable, may use AABB or ABAB. Verses: short, hard consonants, aggressive.
+- **Verse structure**: Verse-chorus-verse-chorus-bridge-chorus (most traditional of metal subgenres). Breakdown sections essential.
+- **Key rule**: Clean chorus / screamed verse contrast is the defining characteristic. Choruses must be singable and melodic. Screamed sections carry aggression.
+- **Avoid**: No vocal contrast (clean/screamed dynamic defines the genre). Ignoring melody in choruses. Missing the breakdown.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

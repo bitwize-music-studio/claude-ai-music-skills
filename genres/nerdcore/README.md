@@ -19,6 +19,14 @@ The modern nerdcore scene has expanded well beyond its original boundaries, infl
 - **Structure**: Standard hip-hop structure (verse-hook-verse) with emphasis on dense lyricism; concept albums common; storytelling tracks that follow video game narratives or sci-fi plots
 - **Tempo**: Typically 80-100 BPM (boom-bap influenced) or 140+ BPM (faster, more energetic tracks)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or ABAB with hip-hop foundations. Flow, cadence, and rhyme density are core tools.
+- **Rhyme quality**: Clever wordplay mandatory. Reference-rich and dense — but must be intelligible.
+- **Verse structure**: 85–100 BPM (story-driven) or 120–150 BPM (electro/trap energy). Standard 16-bar verses.
+- **Key rule**: Vocals must be forward and clear — dense references must be understood by the listener.
+- **Avoid**: Obscure references without context. Sacrificing flow for niche in-jokes.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

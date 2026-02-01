@@ -68,6 +68,14 @@ Today, dubstep encompasses a vast spectrum from introspective, atmospheric compo
 - **Melodic Content**: Varies by subgenre; minimal in deep dubstep, elaborate in melodic dubstep; pentatonic and natural minor scales common
 - **Harmonic Rhythm**: Slow harmonic movement during drops; more chord changes in breakdowns and melodic sections
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Minimal — single catchy lines for pre-drops and hooks.
+- **Rhyme quality**: Optional. Short phrases (4–8 words) designed for vocal processing (distortion, pitch-shifting).
+- **Verse structure**: No traditional verses. Pre-drop hype vocals, post-drop hooks. Build-drop-build.
+- **Key rule**: Phrases must work when effected, twisted, and transformed. Short and punchy.
+- **Avoid**: Long vocal passages. Complex narratives. Lyrics that don't survive heavy processing.
+
 ## Subgenres and Styles
 
 | Style | Description | Reference Artists |

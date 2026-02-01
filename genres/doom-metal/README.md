@@ -16,6 +16,14 @@ The late 1980s and 1990s witnessed doom metal's divergence into increasingly ext
 - **Energy/Mood**: Extremely slow tempos (40–80 BPM); hypnotic and meditative despite heaviness; oppressive, melancholic, sometimes meditative or transcendent; emphasis on dynamics and build rather than constant intensity
 - **Structure**: Extended song lengths (6–12+ minutes common); slow buildups and peaks; sparse verse-chorus structures or ambient passages; often features repetitive, trance-like riff cycles
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Optional — space and repetition are features, not limitations.
+- **Rhyme quality**: When present, serves the slow, theatrical tone. Near rhymes or no rhyme both acceptable.
+- **Verse structure**: Longer, theatrical lines with space between phrases. Ritualistic repetition of short phrases.
+- **Key rule**: Suffering, mortality, grief, occult, existential dread. Personal and specific — not generic despair. Concrete imagery (landscapes, occult symbols, myth as mirror for grief).
+- **Avoid**: Generic despair cliches. Overwriting — space and repetition are the point. Fast delivery.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

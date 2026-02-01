@@ -41,6 +41,14 @@ Today, alternative rock encompasses an extraordinary range of sounds united by a
 - **Song Length**: Ranges from sub-two-minute punk blasts to ten-minute-plus epics with multiple sections. No standard length expectations; songs are as long as they need to be. Extended instrumental passages are common in post-rock and psychedelic strains.
 - **Album as Statement**: Albums often conceived as cohesive statements rather than singles collections. Concept albums, thematic consistency, and carefully sequenced track orders are valued. The album format remains central to alternative rock's artistic identity even in the streaming era.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Flexible — XAXA, ABAB, or free. More latitude to abandon traditional schemes entirely.
+- **Rhyme quality**: Non-narrative, opaque, or abstract lyrics are acceptable. Meaning over form.
+- **Verse structure**: Standard 4–8 line verses, but unconventional structures welcomed.
+- **Key rule**: Rejection of mainstream norms. Introspective, thought-provoking. Flexibility for both straightforward storytelling and abstract, image-driven approaches.
+- **Avoid**: Generic rock cliches. Overly conventional structures when the genre invites experimentation.
+
 ## Subgenres & Styles
 
 | Style | Description | Era | Reference Artists |

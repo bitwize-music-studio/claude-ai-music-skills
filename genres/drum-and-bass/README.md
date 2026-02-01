@@ -16,6 +16,14 @@ The 2000s and 2010s saw drum and bass mature into a global phenomenon while rema
 - **Energy/Mood**: High-energy, intense, and aggressive in darker styles; meditative and uplifting in liquid variants; always maintains rhythmic momentum despite fast tempo
 - **Structure**: Often builds from stripped-down breaks into full arrangements. Typical song length 3-5 minutes. Drops, breakdowns, and bass line switches create dynamic tension
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Minimal — MC/vocal hooks over fast breakbeats.
+- **Rhyme quality**: When present (MC style), internal rhyme and rapid-fire delivery. Near rhymes at speed.
+- **Verse structure**: Short vocal hooks or MC bars over 170+ BPM breakbeats. Jungle/DnB MC style: rapid, rhythmic.
+- **Key rule**: Energy and speed. Vocals must cut through heavy bass and fast drums. Short, punchy, repeatable.
+- **Avoid**: Slow, drawn-out vocal passages. Dense lyrics that can't match the tempo.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

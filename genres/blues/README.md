@@ -17,6 +17,14 @@ By the 1960s, British musicians had absorbed blues records and reflected them ba
 - **Rhythm**: Shuffle feel (swung eighth notes) is the signature blues rhythm; 12/8 slow blues for ballads; straight eighth notes in some modern blues-rock; emphasis on beats 2 and 4 (backbeat); tempo ranges from slow, grinding shuffles (60-80 BPM) to up-tempo boogie (140-160 BPM)
 - **Expression**: Dynamics are paramount—quiet verses building to emotional peaks; guitar solos often mirror vocal phrasing; space and silence are as important as notes; vibrato, string bends, and sustain carry emotional weight; improvisation within the form is expected
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AAB — unique 3-line form. Line 1 stated, line 2 repeats line 1, line 3 resolves/answers.
+- **Rhyme quality**: A lines are identical (or near-identical). B line rhymes with A. Only one rhyme pair needed per verse.
+- **Verse structure**: 12-bar blues — each line occupies 4 bars. No separate chorus section. Each verse stands alone while building thematic continuity.
+- **Key rule**: Call-and-response — vocal line followed by instrumental answer. Question-question-answer format. Emotional directness, first-person perspective.
+- **Avoid**: Breaking the AAB structure in traditional blues. Forgetting the instrumental "answer" space. Making the two A lines too different.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

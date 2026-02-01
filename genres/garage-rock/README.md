@@ -45,6 +45,14 @@ Garage rock emerged in the mid-1960s as the raw, unpolished response to the Brit
 - **Approach**: Direct expression over literary sophistication; sometimes deliberately nonsensical; garage-psych incorporated drug references and abstract imagery
 - **Delivery**: Emphasis on attitude over articulation; lyrics often secondary to vocal delivery and instrumental attack
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or ABAB — simple, direct. Similar to mainstream rock but rawer.
+- **Rhyme quality**: Sloppy rhymes acceptable — raw energy over lyrical complexity.
+- **Verse structure**: Short verses (4–6 lines), punchy choruses. Straightforward delivery.
+- **Key rule**: Energy and attitude first. Keep it simple, keep it raw.
+- **Avoid**: Overwritten lyrics. Complex metaphors. Anything that sounds too polished.
+
 ## Subgenres & Styles
 
 | Style | Description | Tempo | Reference Artists |

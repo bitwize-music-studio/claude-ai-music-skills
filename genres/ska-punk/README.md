@@ -45,6 +45,14 @@ Ska punk is a high-energy fusion genre that marries the upbeat, offbeat rhythms 
 - **Dynamics**: Quiet-loud dynamics via ska/punk toggle; breakdowns strip to bass and drums before full-band explosions
 - **Intros**: Often start with guitar skank establishing groove before horns enter; some use punk intro leading into ska verse
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB or ABAB — short, rhythmic, shout-able phrases.
+- **Rhyme quality**: Half-rhymes acceptable. Sarcasm and irony are genre trademarks.
+- **Verse structure**: 4–6 lines. Lines must work with offbeat ska rhythm patterns.
+- **Key rule**: Lyrical dissonance — upbeat music paired with cynical/sarcastic/political lyrics. Pick a voice persona and maintain it.
+- **Avoid**: Pure sincerity without sarcasm/irony. Lines that don't lock into the offbeat groove.
+
 ## Subgenres & Styles
 
 | Style | Description | Tempo | Production | Reference Artists |

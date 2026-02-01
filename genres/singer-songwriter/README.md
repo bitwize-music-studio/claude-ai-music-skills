@@ -43,6 +43,14 @@ The genre's relationship with other styles is fluid. Singer-songwriter overlaps 
 - **Length**: Typically 3-5 minutes, though longer narrative songs are common (Harry Chapin's "Cat's in the Cradle," Don McLean's "American Pie"). The song is as long as it needs to be.
 - **The Bridge as Revelation**: In singer-songwriter tradition, the bridge often delivers the song's emotional or narrative turn — the moment of insight, the shift in perspective, the devastating revelation. This structural expectation gives the bridge special weight.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Flexible — ABCB, ABAB, or looser. Personal expression over formula.
+- **Rhyme quality**: Near rhymes favored. Natural speech patterns. Authenticity is the most important quality.
+- **Verse structure**: Varies — verse-heavy, with chorus as emotional anchor rather than dominant element.
+- **Key rule**: Conversational tone essential. Write like you'd speak to friends. Personal anecdote adds depth. Confessional, intimate lyrical approach.
+- **Avoid**: Inauthenticity. Generic statements. Hiding behind abstraction instead of personal specificity.
+
 ## Subgenres & Styles
 
 | Style | Description | Era | Reference Artists |

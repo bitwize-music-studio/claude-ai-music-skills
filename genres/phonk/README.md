@@ -17,6 +17,14 @@ Modern phonk has exploded into mainstream consciousness, becoming the dominant s
 - **Structure**: Repetitive 4-8 bar loops, minimal evolution, hypnotic builds, sudden drops, often instrumental with sparse vocal interjections, typically 2-5 minutes long; drift phonk specifically engineered for short-form video formats
 - **Tempo**: Typically 130-160 BPM with half-time feel creating perceived tempo of 65-80 BPM; faster aggressive variants can reach 170+ BPM; slower Memphis-style tracks often sit at 60-80 BPM actual tempo
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: End rhyme with internal rhyme chains. Near rhyme (family rhymes) common.
+- **Rhyme quality**: Cadenced and loose. Attitude over polish.
+- **Verse structure**: Short — repetitive, hypnotic, and subtle. Mood first, then detail.
+- **Key rule**: Dark, atmospheric mood drives everything. Night drives, nostalgia, graveyard shift.
+- **Avoid**: Overwriting. Dense wordplay that fights the hypnotic groove.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

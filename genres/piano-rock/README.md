@@ -42,6 +42,14 @@ Piano rock's enduring appeal lies in its paradox: the piano is simultaneously on
 - **Dynamic Architecture**: Songs built around dramatic dynamic arcs — quiet piano-only openings building through verses, exploding in choruses, pulling back, then building to climactic codas.
 - **Breakdowns and Builds**: Piano's ability to sustain chords or play single notes makes it ideal for dramatic breakdowns — stripping away bass and drums to leave naked piano before rebuilding.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABAB or XAXA — rock conventions with piano-driven arrangements.
+- **Rhyme quality**: Near rhymes acceptable. Conversational, witty, or emotionally direct.
+- **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. Storytelling and character sketches common.
+- **Key rule**: Piano drives the harmonic and rhythmic foundation — lyrics should complement, not fight the piano's role. Wit, storytelling, and emotional range.
+- **Avoid**: Generic rock imagery that ignores the piano-centric arrangement. Overly simple lyrics beneath the genre's musicality.
+
 ## Subgenres & Styles
 
 | Style | Description | Era | Reference Artists |

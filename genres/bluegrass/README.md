@@ -17,6 +17,14 @@ The genre experienced significant evolution starting in the 1970s when New Grass
 - **Structure**: Verse-chorus or narrative ballad structure; instrumental breaks between vocals where each instrument solos; multi-part harmonies; call-and-response dynamics; kickoffs (instrumental intro) establish tempo and key
 - **Tempo**: Wide range—ballads at 60-80 BPM, medium tempo at 100-120 BPM, breakneck tempos up to 180+ BPM for showcase pieces; tempo consistency essential for ensemble playing
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB or ABAB — follows country/folk tradition.
+- **Rhyme quality**: More traditional patterns. Near rhymes acceptable but style leans conservative.
+- **Verse structure**: 4-line quatrains typical. Verse-chorus with strong verse progression.
+- **Key rule**: Simplicity of language — powerful emotions without flourish or fluff. Universal human experiences: heartbreak, loss, longing, faith. Gospel influence (Methodist, Holiness, Baptist traditions).
+- **Avoid**: Over-complicating language. Straying from universal human experiences. Ignoring gospel/moral traditions.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

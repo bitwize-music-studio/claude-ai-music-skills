@@ -18,6 +18,14 @@ What unifies all jazz is the centrality of improvisation—the spontaneous creat
 - **Structure**: Head-solos-head format (melody statement, improvised solos over chord changes, melody return); 12-bar blues, 32-bar AABA, and through-composed forms; trading fours/eights between soloists and drummer; intros, outros, and vamps
 - **Mood**: Ranges from intimate and introspective (ballads, cool jazz) to joyous and swinging (bebop, hard bop) to intense and searching (free jazz, spiritual jazz) to accessible and smooth (fusion, smooth jazz)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABA (32-bar form) — four 8-bar sections. A sections share melody with different lyrics. B section (bridge) contrasts.
+- **Rhyme quality**: Sophisticated internal rhyme, slant rhyme, and wordplay valued over simple end rhymes. Dense consonant chains.
+- **Verse structure**: 8-bar sections in AABA form. A sections repeat melodically but lyrics differ each time.
+- **Key rule**: Conversational yet musical phrasing. Swing feel requires phrasing behind or ahead of the beat — lyrics must allow flexibility. Scat sections marked as [Scat] or with written syllables.
+- **Avoid**: Simple, predictable end rhymes (too basic for jazz). Stiff, on-the-beat phrasing. Overly narrative lyrics.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

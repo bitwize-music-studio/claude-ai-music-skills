@@ -49,6 +49,14 @@ The genre's influence extended far beyond hip-hop. EDM producers like Flosstrada
 - **Breakdowns**: Stripped sections featuring just vocals and minimal instrumentation before beat returns
 - **Length**: Typically 2:30-3:30 for streaming optimization; features often extend to 4:00+
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB (loose couplet) or XAXA. Internal rhyme and assonance over complex multisyllabics.
+- **Rhyme quality**: Near rhymes and melodic flow valued over technical perfection. Triplet flows common.
+- **Verse structure**: 8–16 bars. Lower syllable counts (8–10 per bar) with more space and pauses.
+- **Key rule**: Melodic delivery and attitude matter more than lyrical complexity. Snare on 3rd beat.
+- **Avoid**: Overly dense wordplay that fights the beat's spacious feel.
+
 ## Subgenres & Styles
 
 | Style | Description | BPM Range | Reference Artists |

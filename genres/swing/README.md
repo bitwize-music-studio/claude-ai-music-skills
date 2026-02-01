@@ -38,6 +38,14 @@ The 2000s-2010s saw electro-swing emerge, primarily from European producers. Aus
 
 - **Mood**: Ranges from elegant ballroom sophistication (Glenn Miller's "Moonlight Serenade") to juke joint rawness (Louis Jordan's "Caldonia") to punk irreverence (Cherry Poppin' Daddies); always danceable, even at ballad tempo; celebratory and energetic at uptempo; romantic and nostalgic in ballads; neo-swing adds irony, post-punk swagger, and sometimes dark humor; electro-swing brings club energy and modern hedonism. Underlying everything is the fundamental joy of the swing feel itself—the music wants to move.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABA or ABAB — similar to jazz standards with syncopated feel.
+- **Rhyme quality**: Clever, conversational. Internal rhyme and wordplay valued.
+- **Verse structure**: 32-bar form typical. Phrasing matters more than range — anticipation and lag in delivery.
+- **Key rule**: Conversational feel, like telling a bold secret. Dynamic shading and tiny articulations. Lyrics must breathe — room for syncopation.
+- **Avoid**: Stiff, metronomic delivery. Lyrics that don't allow phrasing flexibility. Simple predictable patterns.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

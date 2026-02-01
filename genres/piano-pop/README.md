@@ -44,6 +44,14 @@ The 2010s and 2020s saw piano pop proliferate further. Sam Smith's ballad-heavy 
 - **Ballad Architecture**: Many piano pop songs follow the ballad template — spare opening, building middle, soaring climax, quiet resolution. This arc maps naturally onto the piano's dynamic capabilities.
 - **Harmonic Sophistication**: More adventurous chord progressions than mainstream pop but more accessible than jazz. Suspended chords, added-note chords, chromatic movement, and modal mixture are common. Ben Folds' chord vocabulary is notably richer than most pop, drawing from jazz and classical traditions.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: XAXA or ABAB — conversational, story-driven. Same conventions as pop ballads.
+- **Rhyme quality**: Near rhymes preferred for emotional authenticity. Less rhythmic variation — focus on melody and emotion.
+- **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. Slower tempo allows more syllables per line.
+- **Key rule**: Story-driven, emotionally sentimental. First or third person POV. Melody carries the emotion.
+- **Avoid**: Forced upbeat energy. Complex rhythmic patterns that fight the piano-led arrangement.
+
 ## Subgenres & Styles
 
 | Style | Description | Era | Reference Artists |

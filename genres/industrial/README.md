@@ -49,6 +49,14 @@ Today, industrial's influence pervades contemporary music far beyond its scene b
 - **Cerebral**: Despite aggression, often conceptually dense and intellectually engaged; references to philosophy, literature, politics
 - **Physical**: Music designed to be felt in the body; subwoofer-dependent; volume as essential component
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Uses consonance and mechanical repetition rather than traditional rhyme. Chant-like patterns.
+- **Rhyme quality**: Does NOT require perfect rhymes. Short, punchy lines with percussive consonants.
+- **Verse structure**: Short lines — chant-like repetition. Concrete industrial imagery (machines, soot, conveyor belts, grease).
+- **Key rule**: Alienation, technology, corporate oppression, existential anger. Technical language flipped into emotional context. Small human details amid machine imagery.
+- **Avoid**: Long, flowery lines. Abstract machine metaphors without concrete details. Unexplained jargon.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

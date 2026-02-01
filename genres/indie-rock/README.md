@@ -20,6 +20,14 @@ The 2000s brought a significant indie rock revival that pushed the genre into ma
 
 - **Structure**: Mix of conventional song structures (verse-chorus-bridge) and experimental arrangements. May feature extended instrumental sections, non-traditional timings, or ambient passages. Emphasis on building atmosphere and listener immersion.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Flexible — XAXA, ABAB, or minimal rhyme. Abstract and impressionistic lyrics welcomed.
+- **Rhyme quality**: Near rhymes and no-rhyme sections both acceptable. Authenticity over polish.
+- **Verse structure**: Varies — standard verse-chorus or unconventional forms. 4–8 lines per section.
+- **Key rule**: Personal, quirky, and specific. Indie lyrics favor the particular over the universal. Conversational delivery.
+- **Avoid**: Arena-rock bombast. Generic emotional statements. Polished-sounding lyrics that feel manufactured.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

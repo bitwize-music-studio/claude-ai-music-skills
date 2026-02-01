@@ -16,6 +16,14 @@ Contemporary dancehall continues to evolve through fusion and experimentation wh
 - **Energy/Mood**: High-energy, celebratory, party-oriented, danceable, playful, boastful, often sexual or relationship-focused, infectious groove with strong emphasis on rhythm; ranges from party anthems to conscious social commentary
 - **Structure**: Riddim loops with minimal harmonic progression, multiple vocal layers over consistent beat, instrumental breakdowns, extended grooves designed for dance floors; intros often feature DJ shout-outs and sound effects
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Internal rhyme and assonance create momentum. Fast-chat sections have dense rhyme.
+- **Rhyme quality**: Toasting-style: rapid DJ chanting over riddim. Patois rhyming conventions (pronunciation-based).
+- **Verse structure**: Variable — riddim-driven. Repetitive chanted hooks for crowd participation. Fast-chat sections with rapid delivery.
+- **Key rule**: Toasting (DJ-style vocal delivery) is the foundation. Heavy Patois use. Syncopated phrasing locks into riddim groove.
+- **Avoid**: Standard English delivery without Patois flavor. Slow pacing. Lyrics that don't match the riddim energy.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

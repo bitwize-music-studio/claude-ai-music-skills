@@ -37,6 +37,14 @@ The democratization of orchestral sample libraries and digital production has ex
 - **Wonder/Magical**: Celeste, harp arpeggios, high strings, wide intervals, major 7ths and 9ths, ethereal choir
 - **Dark/Horrific**: Tritones, cluster chords, extended techniques (col legno, sul ponticello), processed sounds, silence as weapon
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: N/A — primarily instrumental. When vocals present, serve the film/scene's emotional needs.
+- **Rhyme quality**: When present, subtle and atmospheric. Lyrics are secondary to orchestral emotion.
+- **Verse structure**: No standard — follows the visual narrative or emotional arc of the scene.
+- **Key rule**: Music serves the image/emotion. Vocals (if present) are atmospheric texture or emotional punctuation.
+- **Avoid**: Dense lyrics that compete with orchestration. Pop song structure. Lyrics that distract from the visual narrative.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Composers |

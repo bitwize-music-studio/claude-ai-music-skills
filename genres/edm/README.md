@@ -16,6 +16,14 @@ From intimate underground warehouse parties to massive festival stages accommoda
 - **Energy/Mood**: Ranges from euphoric and anthemic to dark and hypnotic; designed to sustain physical movement over extended periods; builds tension through layered arrangement before release at the "drop"; underground styles often favor meditative repetition while mainstream styles emphasize dramatic peaks
 - **Structure**: Extended intros and outros for DJ mixing (32-64 bars), breakdown-build-drop architecture in mainstream styles, minimal verse-chorus structure, gradual element introduction and subtraction, DJ-friendly arrangements with clear mix points, typical track lengths of 5-8 minutes (shortened for radio/streaming edits)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Loose or none. Hook-based, not verse-based.
+- **Rhyme quality**: Optional — rhythm and repetition matter more.
+- **Verse structure**: Short vocal hooks (4–8 words) designed for build-up and drop sections. No traditional verse structure.
+- **Key rule**: Energy and singability. Hooks must work in a festival/club context. Build-drop-build structure.
+- **Avoid**: Dense lyrics. Complex narratives. Anything that competes with the production.
+
 ## Subgenres & Styles
 
 | Style | BPM Range | Description | Reference Artists |

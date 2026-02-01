@@ -37,6 +37,14 @@ The defining element of funk is "the one"—the heavy emphasis on the first beat
 - **Breakdowns**: Stripped-back sections (often just bass and drums) that heighten tension before the full band returns
 - **Call-and-Response**: Between lead vocal and backing singers, between horns and rhythm section, or between band and audience
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Minimal structure — groove and rhythm over traditional rhyme. Made-up words and sound-based syllables OK.
+- **Rhyme quality**: Sound and rhythm matter more than rhyme. Percussive syllables, call-and-response.
+- **Verse structure**: Short, punchy phrases that lock into the rhythm. Non-conventional structure prioritizing groove.
+- **Key rule**: Lyrics accent the downbeat ("on the one"). Groove over narrative. Double entendres and innuendo are genre tradition.
+- **Avoid**: Conventional song structure forced onto funk grooves. Overwriting. Ignoring the "one" (downbeat emphasis).
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists | Era |

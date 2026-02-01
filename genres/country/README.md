@@ -13,6 +13,14 @@ Country music is a quintessentially American genre rooted in folk, blues, and go
 - **Structure**: Verse-chorus-bridge with emphasis on lyrical narrative; often features instrumental breaks showcasing fiddle, steel guitar, or electric guitar solos; songs typically 3-4 minutes with clear melodic hooks
 - **Tempo**: Wide range—ballads (60-80 BPM), mid-tempo story songs (90-120 BPM), uptempo party/dance tracks (130-160 BPM)
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB (ballad stanza) — lines 2 & 4 rhyme, giving storytelling freedom. Also common: ABAB, AABB.
+- **Rhyme quality**: Near rhymes preferred in modern country for conversational tone. Too many perfect rhymes = nursery rhyme feel.
+- **Verse structure**: Verses 4–8 lines. Chorus-dominant structure. 74% of recent hits use 2 verses total.
+- **Key rule**: Storytelling is paramount. Show, don't tell. Conversational tone — write like you'd tell a friend. Emotional authenticity over polish.
+- **Avoid**: Overused cliches (trucks, tailgates, generic party imagery). Forced drawl in spelling. Telling instead of showing. Inverted word order for rhyme.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

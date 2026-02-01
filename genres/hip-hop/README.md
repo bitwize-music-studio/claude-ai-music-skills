@@ -17,6 +17,16 @@ The genre's production has evolved from simple breakbeat loops to sophisticated 
 - **Structure**: Typically verse-chorus-verse with 16-bar verses and 8-bar hooks; features and collaborations common; intros/outros often spoken or atmospheric; bridges and breakdowns vary by subgenre
 - **Tempo**: Wide range depending on subgenre—boom-bap typically 85-100 BPM, trap 130-170 BPM (half-time feel at 65-85 BPM), drill 140-145 BPM, hyphy 100-110 BPM
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: AABB (couplet) — the foundation of hip-hop flow. Also common: ABAB, XAXA.
+- **Rhyme quality**: Multisyllabic compound rhymes valued highest. Internal rhyme chains expected throughout bars, not just end rhymes. Near/slant rhymes acceptable for natural flow.
+- **Verse structure**: 16 bars standard (each written line ≈ 1 bar). 12 bars for radio-friendly, 8 bars for hook-heavy tracks.
+- **Syllable range**: 10–14 syllables per line. Land key syllables on beats 2 and 4 (snares).
+- **Key rule**: Internal rhymes are mandatory in modern hip-hop — rhyme density and placement throughout the bar separates good from amateur.
+- **No orphan lines**: If line 1 rhymes with line 2, line 3 MUST rhyme with line 4.
+- **Avoid**: Filler words (uh, um, like), cramming too many thoughts into one bar, sacrificing meaning for forced rhymes.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

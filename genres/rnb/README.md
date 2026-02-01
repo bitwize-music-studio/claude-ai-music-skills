@@ -21,6 +21,14 @@ Throughout its evolution, R&B has remained the voice of Black American experienc
 - **Structure**: Verse-chorus or free-form; builds from subtle to lush arrangements; extended outros and vamps; liberal use of ad-libs and vocal improvisation
 - **Lyrical Content**: Emotional honesty about love, relationships, desire, heartbreak; spirituality and social consciousness; personal reflection and vulnerability
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Flexible — AABB or ABAB when structure is needed, but emotion drives structure. Rhyme is not mandatory on every line.
+- **Rhyme quality**: Light rhymes, near rhymes, and assonance preferred. Never force a rhyme at the expense of emotional authenticity.
+- **Verse structure**: Verses 6–8 lines. Chorus-dominant structure — chorus gets most time allocation.
+- **Key rule**: Leave space for vocal runs and melisma. Don't overload lines with dense wordplay — singers need room for ornamentation. Intimate, specific details over generic emotion.
+- **Avoid**: Dense wordplay that fights vocal interpretation. Greeting card sentiments. Technique overshadowing emotion.
+
 ## Subgenres & Styles
 
 | Style | Era | Description | Reference Artists |

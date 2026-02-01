@@ -46,6 +46,14 @@ The 2000s saw metal fragment further: metalcore merged hardcore breakdowns with 
 - **Progressive**: Philosophy, conceptual narratives, science fiction, introspection
 - **Political**: Social commentary, anti-establishment, environmental concerns
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Optional — metal prioritizes intensity, imagery, and rhythmic power over end rhymes.
+- **Rhyme quality**: Use rhyme when it strengthens the line. Skip it when it weakens imagery. Phonetic punch and cadence matter more.
+- **Verse structure**: Variable — lyrics must fit the riff. Rhythmic alignment with the music is the priority.
+- **Key rule**: Concrete imagery over everything. A skull, a factory, a blizzard — specific images beat vague concepts. Conflict is mandatory.
+- **Avoid**: Forced rhymes over meaning. Vague abstractions. Ignoring the riff's rhythm.
+
 ## Subgenres & Styles
 
 | Style | Description | Characteristics | Reference Artists |

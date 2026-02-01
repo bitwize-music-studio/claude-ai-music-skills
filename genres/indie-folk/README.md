@@ -17,6 +17,14 @@ Indie folk's aesthetic centers on warmth and imperfection. Where mainstream pop 
 - **Structure**: Verse-focused with emphasis on lyrical narrative; choruses often understated or absent; builds tend toward gradual and dynamic rather than explosive; instrumental breaks showcase fingerpicking or ensemble interplay; songs range from sparse two-minute sketches to sprawling seven-minute epics; unconventional structures common
 - **Tempo**: Predominantly slow to mid-tempo (60-100 BPM); patient pacing allows lyrics room to breathe; uptempo tracks typically top out around 120 BPM; rubato (flexible tempo) common in quieter passages
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: ABCB or flexible — folk tradition with indie sensibility.
+- **Rhyme quality**: Near rhymes and minimal rhyme both acceptable. Authenticity over craft.
+- **Verse structure**: 4–8 lines. Often verse-heavy. Acoustic-driven arrangements influence sparse phrasing.
+- **Key rule**: Intimate, personal, and specific. Quiet observation over grand statements. Nature imagery and small domestic details.
+- **Avoid**: Overwrought emotion. Arena-scale lyrics in an intimate genre. Cliched folk imagery.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |

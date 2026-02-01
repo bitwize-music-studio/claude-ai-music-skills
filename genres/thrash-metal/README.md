@@ -18,6 +18,14 @@ After a commercial decline in the mid-1990s due to grunge's dominance and intern
 - **Energy/Mood**: Relentlessly aggressive, confrontational, and intense. Themes often address social injustice, war, corruption, personal anguish, and existential dread. The overall atmosphere is one of controlled chaos.
 - **Structure**: Riff-driven compositions with emphasis on instrumental sections, dynamic tempo changes, and complex arrangements. Songs typically feature multiple riffs, extended solos, and shifting dynamics from muted passages to full-throttle explosive sections.
 
+## Lyric Conventions
+
+- **Default rhyme scheme**: Optional — rhythmic flow more critical than rhyme.
+- **Rhyme quality**: When present, serves the aggressive pace. Near rhymes and consonance over perfect rhymes.
+- **Verse structure**: Fast-paced delivery matching riff speed. Standard verse-chorus-verse with solo sections.
+- **Key rule**: Social commentary — war, corruption, abuse of power, addiction, political dissent. Aggressive, direct language.
+- **Avoid**: Slow delivery. Ignoring real-world issues. Lyrics that can't keep pace with the riffs.
+
 ## Subgenres & Styles
 
 | Style | Description | Reference Artists |
