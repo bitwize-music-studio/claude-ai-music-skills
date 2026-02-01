@@ -299,7 +299,7 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
 **After writing or revising any lyrics**, automatically run through:
 1. **Rhyme check**: Repeated end words, self-rhymes, lazy/predictable patterns
 2. **Prosody check**: Stressed syllables align with strong beats (see `/skills/lyric-writer/SKILL.md`)
-3. **Pronunciation check**: Apply all rules from the Pronunciation section below (proper nouns, homographs, phonetic spelling, acronyms, tech terms, numbers, no invented contractions)
+3. **Pronunciation check**: Apply all rules from the Pronunciation section below (proper nouns, homographs, phonetic spelling, acronyms, tech terms, numbers, no invented contractions, pronunciation table enforcement)
 4. **POV/Tense check**: Consistent point of view and tense throughout
 5. **Source verification**: If source-based, verify lyrics match captured source material
 6. **Structure check**: Section tags present, verse/chorus contrast, V2 develops (not twins V1)
@@ -354,6 +354,8 @@ Report all issues with proposed fixes, then proceed.
 3. **Document** in track pronunciation table
 
 See `/skills/lyric-writer/SKILL.md` for full homograph table and process.
+
+**Pronunciation table enforcement**: Every entry in a track's Pronunciation Notes table MUST be applied as phonetic spelling in Suno lyrics. The table is not documentation — it is a checklist of required substitutions. Before finalizing any track: read the table top to bottom, search Suno lyrics for each standard spelling, replace with phonetic. Common failure: word added to table but never applied to lyrics, or phonetic in one verse but missed in chorus/bridge. See `/skills/lyric-writer/SKILL.md` for full process and verification format.
 
 ---
 
