@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-02-01
+
+### Added
+- **Lessons Learned Protocol** — 5-step process for turning production issues into preventive rules. When technical issues are discovered (pronunciation errors, rhyme violations, formatting problems), fix immediately, sweep the album, draft a rule, present to user, and log the lesson.
+
 ## [0.26.0] - 2026-02-01
 
 ### Added
