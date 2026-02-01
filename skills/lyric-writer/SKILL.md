@@ -58,7 +58,7 @@ You are a professional lyric writer with expertise in prosody, rhyme craft, and 
 7. **Section length check**: Count lines per section, compare against genre limits (see Section Length Limits). **Hard fail** — trim any section that exceeds its genre max before presenting.
 8. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse. Read each rhyming pair aloud.
 9. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
-10. **Density/pacing check**: Count topics per verse (max 2-3 per 8 lines). Cross-reference syllable density against BPM/mood from Musical Direction. Flag verses that read like lists.
+10. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Flag any verse exceeding the genre's max. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse over the limit.
 11. **Chorus lead-in check**: Compare the last line before each chorus against the chorus opening. Flag if they share key phrases, rhyme words, or restate the hook.
 12. **Pitfalls check**: Run through checklist
 
@@ -432,6 +432,7 @@ Songs that are too long (800+ words) cause Suno to rush, compress sections, or s
 5. **Electronic verse over 6 lines**: Cut. Electronic tracks need space, not walls of text.
 6. **Punk sections over limits**: Punk is short and fast. If it's long, it's not punk.
 7. **When unsure about genre**: Use the Pop/Rock defaults (6–8 verse, 4–6 chorus, 4 bridge).
+8. **Also check BPM-aware limits** in the Lyric Density & Pacing section below — a genre may allow 8-line verses at fast tempo but only 4 at slow tempo.
 
 **Suno-specific reasoning**: Long sections cause:
 - Vocal rushing (cramming words into fixed musical time)
@@ -441,53 +442,74 @@ Songs that are too long (800+ words) cause Suno to rush, compress sections, or s
 
 ---
 
-## Lyric Density & Pacing
+## Lyric Density & Pacing (Suno)
 
-Lyrics must match the track's intended energy and tempo. A slow, laid-back track cannot have verses crammed with 6+ topics in 8 lines.
+Suno rushes through dense verse blocks. Verse length must match tempo and feel. **The slower the BPM, the fewer lines Suno can handle** without rushing, compressing, or skipping.
 
-**Genre-specific density/pacing norms are in each genre's README** under "Lyric Conventions → Density/pacing". Always check the genre README for the track you're writing.
+**Genre-specific Suno verse limits are in each genre's README** under "Lyric Conventions → Density/pacing (Suno)". Always check the genre README for the track you're writing.
 
-### Density Check (per verse)
+### Suno Verse Length Defaults
 
-1. **Count the topics** — how many distinct subjects/scenes does the verse cover?
-2. **Check genre limits** — read the genre README's `Density/pacing` line for max topics/verse
-3. **If a verse exceeds its genre's topic limit**, split the verse or cut topics
-
-### Quick Reference: Density by Genre Family
-
-| Genre Family | Density | Syl/Line | Topics/Verse | Key Difference |
+| Genre Family | Default Lines/Verse | Max Safe | Topics/Verse | Key Rule |
 |---|---|---|---|---|
-| **Hip-Hop / Rap** | moderate-high | 10-14 | 2-3 | Internal rhyme adds perceived density; half-time trap feels spacious |
-| **Pop** | moderate | 6-10 | 1-2 | Syllable matching between verses; hook repetition > verse density |
-| **Rock** | moderate | 7-10 | 2-3 | Guitar riffs need space; 120 BPM sweet spot |
-| **Punk** | moderate-high | 6-14 | 1-2 | Fast and short; energy over complexity |
-| **Metal** | moderate-high | 8-16 | 2-3 | Vocal delivery compresses syllables; riff alignment critical |
-| **Country / Folk** | moderate | 8-14 | 1-3 | Storytelling pace; conversational delivery |
-| **Blues** | low | 6-10 | 1 | AAB repetition; one image per verse |
-| **Electronic / EDM** | low-very low | 4-9 | 1 | Production is the star; vocals are texture |
-| **R&B / Soul** | moderate | 8-12 | 2-3 | Melisma spreads syllables; groove > density |
-| **Jazz** | moderate-high | 8-14 | 2-4 | Highly variable; match rhythm section energy |
-| **Singer-Songwriter** | high | 10-16 | 2-4 | Confessional mode; listeners expect dense detail |
-| **Ambient / Shoegaze** | very low | 2-8 | 1 | Vocals are texture; fewer words always better |
+| **Hip-Hop / Rap** | 8 (4 couplets) | 8 | 2-3 | Never exceed 8; half-time trap = treat as 65-75 BPM |
+| **Pop** | 4 | 6-8 | 1-2 | Chorus-first — longer verses bury the hook |
+| **Rock** | 6 | 8 | 2 | 120 BPM sweet spot; guitar riffs need space |
+| **Punk** | 4 | 4 | 1 | Fast, short, every word punches |
+| **Hardcore Punk** | 2-3 | 3 | 1 | Extreme tempo; shouted, minimal |
+| **Metal** | 6-8 | 10 | 2-3 | Vocal delivery compresses syllables; thrash handles most |
+| **Doom Metal** | 4 | 6 | 1 | Slowest metal; each word carries crushing weight |
+| **Country / Folk** | 6 | 8 | 1-2 | Storytelling pace; ballads drop to 4 |
+| **Blues** | 3 (AAB) | 3 | 1 | Rigid structure — never break AAB |
+| **Electronic / EDM** | 2-4 | 4 | 1 | Production is the star; vocals are texture |
+| **Ambient / Shoegaze** | 0-2 | 4 | 1 | Often instrumental; vocals are texture |
+| **R&B / Soul** | 6 | 8 | 1-2 | Melisma stretches syllables; groove > density |
+| **Jazz** | 6-8 | 8 | 1-2 | Bebop: 2-4 lines; ballads: 6-8 |
+| **Singer-Songwriter** | 6-8 | 8 | 2-3 | Confessional; stripped-back production carries words |
+| **Progressive Rock** | 8-10 | 12 | 3-4 | The exception — handles long verses |
+
+### BPM-Aware Limits (Universal Fallback)
+
+When a genre README doesn't specify, use this table:
+
+| BPM Range | Max Lines/Verse | Topics/Verse | Feel |
+|-----------|----------------|-------------|------|
+| < 80 | 4 | 1-2 | Slow, heavy — fewer lines needed |
+| 80-94 | 4-6 | 1-2 | Laid back, mid-tempo |
+| 94-110 | 6 | 2-3 | Energetic, driving |
+| 110-140 | 6-8 | 2-3 | Standard rock/pop range |
+| 140+ | 4 | 1 | Fast — short verses, energy over density |
+
+**Default: 4 lines per verse** unless the genre and tempo justify more.
+
+### Topic Density
+
+- Max **1-2 topics per 4-line verse**, **2-3 per 6-8 line verse**
+- If a verse covers 3+ topics in 4 lines, split it
+- **Prefer more short verses over fewer dense verses** — two 4-line verses beat one 8-line verse
 
 ### Red Flags
 
-- Verse reads like a list of names/shows/facts with no room to breathe
-- Track concept says "laid back" or "slow" but verses are wall-to-wall syllables
+- 8-line verse at any BPM under 100 — too dense for Suno
+- Verse reads like a list of names/facts — it's a Wikipedia entry, not a verse
+- Track concept says "laid back" but verses are wall-to-wall syllables
 - More than 3 proper nouns introduced in a single verse
-- No verse has fewer than 2 topics (every verse is dense = track feels rushed)
-- Syllable count exceeds genre's typical range (check genre README)
+- Every verse in the song is dense (no breathing room anywhere)
 
 ### Fix
 
 When a verse is too dense:
 1. **Prefer adding a verse** over cutting content (spread, don't compress)
 2. Let each topic have at least a full couplet (2 lines) to land
-3. Re-read with the BPM in mind — can you actually rap/sing this at tempo without rushing?
+3. Re-read with the BPM in mind — can you actually sing/rap this at tempo without rushing?
+
+### Streaming Exception
+
+Streaming lyrics (distributor text) can have longer verse blocks since they aren't generated by Suno. But verse BREAKS should still align with the Suno structure so the text matches what's actually sung.
 
 ### Process
 
-Before finalizing any track, ASK: "Does the line density match the BPM and mood described in Musical Direction?" If not, flag it to the user. Cross-reference the genre README's density/pacing norms.
+Before finalizing any track, ASK: "Does the verse length match the BPM and mood described in Musical Direction?" Check the genre README's `Density/pacing (Suno)` line. If the verse exceeds the default, flag it to the user.
 
 ---
 
@@ -522,7 +544,8 @@ Before finalizing:
 - [ ] Wrong rhyme scheme for genre (e.g., AABB couplets in a folk ballad)
 - [ ] Filler phrases padding lines for rhyme or quote setup
 - [ ] Inconsistent syllable counts within a verse (tolerance varies by genre)
-- [ ] Verse too dense for BPM/mood (4+ topics in 8 lines, or wall-to-wall syllables on a slow track)
+- [ ] Verse exceeds Suno line limit for genre (check genre README's Density/pacing default)
+- [ ] 8-line verse at BPM under 100 (too dense for Suno — split or trim)
 - [ ] Too many proper nouns in a single verse (max 3 introductions per verse)
 - [ ] Density mismatch (Musical Direction says "laid back" but verses are packed)
 - [ ] Chorus lead-in repeats chorus (last line before chorus duplicates hook phrase or rhyme word)

@@ -61,7 +61,7 @@ After a brief period of mainstream retreat, emo experienced a revival driven by 
 - **Verse structure**: 4–8 lines per section. Quiet verses, explosive choruses (dynamic contrast).
 - **Key rule**: Introspective and confessional. Vivid sensory imagery essential — sights, sounds, smells, textures. Vulnerability and authenticity paramount.
 - **Avoid**: Generic emotional cliches without specific detail. Telling emotions instead of showing through imagery. Twin verses.
-- **Density/pacing**: moderate density · 7-11 syl/line · max 2-3 topics/verse · typical BPM 90-140. Emotional intensity over speed. Confessional lyrics need breathing room. Quiet/loud dynamics.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 110-140 BPM. Slower emo (<115): up to 8 lines. Fast emo-punk (140-160): 4 lines. Confessional lyrics need breathing room. Topics: 2-3/verse.
 
 ## Subgenres & Styles
 

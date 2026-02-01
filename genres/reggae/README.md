@@ -56,7 +56,7 @@ The 1980s saw reggae evolve into dancehall, shifting from live instrumentation t
 - **Verse structure**: 4–8 lines per section. Riddim determines section lengths. Heavy repetition of hooks.
 - **Key rule**: Groove lock — lyrics must fit the riddim. Call-and-response, chanted hooks for crowd participation. One love, social justice, spiritual themes.
 - **Avoid**: Fighting the riddim groove. Incorrect Patois use. Ignoring call-and-response conventions.
-- **Density/pacing**: low-moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 65-90. Offbeat skank rhythm creates natural spaces. Laid-back delivery. Message-focused but never rushed. One love, one topic.
+- **Density/pacing (Suno)**: Default **4-6 lines/verse** at 65-90 BPM. Offbeat skank rhythm creates natural spaces. Laid-back, never rushed. Topics: 1/verse.
 
 ## Subgenres and Styles
 

@@ -24,7 +24,7 @@ Indie folk's aesthetic centers on warmth and imperfection. Where mainstream pop 
 - **Verse structure**: 4–8 lines. Often verse-heavy. Acoustic-driven arrangements influence sparse phrasing.
 - **Key rule**: Intimate, personal, and specific. Quiet observation over grand statements. Nature imagery and small domestic details.
 - **Avoid**: Overwrought emotion. Arena-scale lyrics in an intimate genre. Cliched folk imagery.
-- **Density/pacing**: moderate-high density · 10-14 syl/line · max 2-3 topics/verse · typical BPM 85-120. Literary lyrics tolerated. Abstract topic shifts OK if mood/theme unifies. Intimate production demands clear enunciation.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 85-120 BPM. Literary lyrics tolerated. Intimate production demands clear enunciation. Topics: 2-3/verse.
 
 ## Subgenres & Styles
 

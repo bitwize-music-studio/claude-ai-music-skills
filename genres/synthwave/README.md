@@ -24,7 +24,7 @@ Today, synthwave has matured into a diverse ecosystem with distinct regional sce
 - **Verse structure**: Verse-chorus when vocals present. Concise verses (4–8 lines), catchy chorus.
 - **Key rule**: Themes of technology, futurism, nostalgia, retrofuturism. Combine vintage references with modern ideas. Many tracks are purely instrumental.
 - **Avoid**: Lyrics that don't fit the 80s aesthetic. Overly modern references. Excessive lyrics in an instrumental-first genre.
-- **Density/pacing**: low-moderate density · 6-9 syl/line · max 1-2 topics/verse · typical BPM 90-120. Retro aesthetic. Clean vocal lines over synth pads. Cinematic imagery but sparse delivery. 80s movie soundtrack feel.
+- **Density/pacing (Suno)**: Default **4-6 lines/verse** at 90-120 BPM. Retro aesthetic — clean vocal lines over synth pads. 80s movie soundtrack feel. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

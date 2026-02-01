@@ -24,7 +24,7 @@ At its core, rock remains defined by the interplay of electric guitar, bass, and
 - **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. 6–10 syllables per line typical.
 - **Key rule**: Specific imagery ("coffee gone cold on the counter") beats abstract statements ("I felt so sad"). Show, don't tell.
 - **Avoid**: Forced perfect rhymes. Generic emotion words without grounding imagery. Cliches ("cold as ice," "learning to fly").
-- **Density/pacing**: moderate density · 7-10 syl/line · max 2-3 topics/verse · typical BPM 110-140. 120 BPM is the rock sweet spot. Balance between vocal and instrumental energy. Guitar riffs need space.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 110-130 BPM. At 130-140: 4 lines. Guitar riffs need space. 120 BPM is the sweet spot. Topics: 2/verse.
 
 ## Subgenres & Styles
 

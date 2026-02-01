@@ -25,7 +25,7 @@ After a commercial decline in the mid-1990s due to grunge's dominance and intern
 - **Verse structure**: Fast-paced delivery matching riff speed. Standard verse-chorus-verse with solo sections.
 - **Key rule**: Social commentary — war, corruption, abuse of power, addiction, political dissent. Aggressive, direct language.
 - **Avoid**: Slow delivery. Ignoring real-world issues. Lyrics that can't keep pace with the riffs.
-- **Density/pacing**: high density · 10-16 syl/line · max 2-3 topics/verse · typical BPM 150-220. Rapid-fire delivery at extreme tempo. Technical precision. Words must cut through wall of guitar.
+- **Density/pacing (Suno)**: Default **8-10 lines/verse** at 150-200+ BPM. Rapid-fire delivery at extreme tempo. Thrash can handle high density but test with Suno — may rush past 10 lines. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

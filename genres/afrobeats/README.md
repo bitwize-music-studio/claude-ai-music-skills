@@ -46,7 +46,7 @@ Beyond Nigeria, Afrobeats has catalyzed a pan-African musical movement. Ghanaian
 - **Verse structure**: Call-and-response structure. Short repeated phrases as hooks. Code-switching between English, Pidgin, and local languages.
 - **Key rule**: Audience participation is a design principle. Catchy chorus designed for immediate sing-along. Multilingual flow (English, Pidgin, Yoruba, Igbo, etc.).
 - **Avoid**: Overcomplicating lyrics. Forcing standard English rhythms onto Pidgin phrasing. Missing call-and-response opportunities.
-- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 100-120. Rhythmic, call-and-response. Repetitive hooks. Dance-oriented — groove determines density. Pidgin/multilingual delivery common.
+- **Density/pacing (Suno)**: Default **6 lines/verse** at 100-120 BPM. Rhythmic, call-and-response. Repetitive hooks. Groove determines density. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

@@ -24,7 +24,7 @@ By the 1960s, British musicians had absorbed blues records and reflected them ba
 - **Verse structure**: 12-bar blues — each line occupies 4 bars. No separate chorus section. Each verse stands alone while building thematic continuity.
 - **Key rule**: Call-and-response — vocal line followed by instrumental answer. Question-question-answer format. Emotional directness, first-person perspective.
 - **Avoid**: Breaking the AAB structure in traditional blues. Forgetting the instrumental "answer" space. Making the two A lines too different.
-- **Density/pacing**: low density · 6-10 syl/line · max 1 topics/verse · typical BPM 60-90. 12-bar AAB structure demands repetition. Topic stated then restated. Extreme clarity — one vivid image per verse.
+- **Density/pacing (Suno)**: Default **3 lines/verse** (AAB structure) at any BPM. Blues form is rigid: line 1 stated, line 2 repeats, line 3 resolves. Never break AAB. Topics: 1/verse.
 
 ## Subgenres & Styles
 

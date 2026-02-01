@@ -56,7 +56,7 @@ Today, industrial's influence pervades contemporary music far beyond its scene b
 - **Verse structure**: Short lines — chant-like repetition. Concrete industrial imagery (machines, soot, conveyor belts, grease).
 - **Key rule**: Alienation, technology, corporate oppression, existential anger. Technical language flipped into emotional context. Small human details amid machine imagery.
 - **Avoid**: Long, flowery lines. Abstract machine metaphors without concrete details. Unexplained jargon.
-- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 100-140. Mechanical, repetitive. Syllables lock to machine rhythms. Distorted vocals limit comprehensible density.
+- **Density/pacing (Suno)**: Default **4-6 lines/verse** at 100-130 BPM. Mechanical, repetitive — syllables lock to machine rhythms. Distorted vocals limit comprehensible density. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

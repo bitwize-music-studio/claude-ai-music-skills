@@ -53,7 +53,7 @@ The 2000s saw metal fragment further: metalcore merged hardcore breakdowns with 
 - **Verse structure**: Variable — lyrics must fit the riff. Rhythmic alignment with the music is the priority.
 - **Key rule**: Concrete imagery over everything. A skull, a factory, a blizzard — specific images beat vague concepts. Conflict is mandatory.
 - **Avoid**: Forced rhymes over meaning. Vague abstractions. Ignoring the riff's rhythm.
-- **Density/pacing**: moderate-high density · 8-12 syl/line · max 2-3 topics/verse · typical BPM 100-140. Vocal delivery style (clean, growl, scream) compresses syllables efficiently. Riff alignment matters — land words on riff accents.
+- **Density/pacing (Suno)**: Default **6-8 lines/verse** at 100-140 BPM. Vocal delivery (clean/growl/scream) compresses syllables — metal handles more density than tempo alone suggests. Topics: 2-3/verse.
 
 ## Subgenres & Styles
 

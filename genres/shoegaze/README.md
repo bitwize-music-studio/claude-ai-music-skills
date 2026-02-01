@@ -73,7 +73,7 @@ The revival gained further momentum when original acts reformed: Slowdive return
 - **Verse structure**: Sparse lines buried beneath layers of guitar effects. No strong verse-chorus distinction.
 - **Key rule**: Vocals are another instrument in the wall of sound. Choose words for their sonic quality (vowels, sibilance) not just meaning.
 - **Avoid**: Clear, upfront vocal delivery. Dense wordplay. Lyrics that demand to be heard over the guitars.
-- **Density/pacing**: low density · 4-8 syl/line · max 1-2 topics/verse · typical BPM 80-120. Vocals are another texture, not the focus. Heavy reverb/distortion obscures words. Fewer syllables, dream-like imagery.
+- **Density/pacing (Suno)**: Default **4 lines/verse** at 80-110 BPM. Vocals are texture, not focus — fewer syllables cut through reverb/distortion. Topics: 1/verse.
 
 ## Subgenres & Styles
 

@@ -52,7 +52,7 @@ Garage rock emerged in the mid-1960s as the raw, unpolished response to the Brit
 - **Verse structure**: Short verses (4–6 lines), punchy choruses. Straightforward delivery.
 - **Key rule**: Energy and attitude first. Keep it simple, keep it raw.
 - **Avoid**: Overwritten lyrics. Complex metaphors. Anything that sounds too polished.
-- **Density/pacing**: low density · 5-8 syl/line · max 1-2 topics/verse · typical BPM 120-160. Raw energy, simple phrasing. Repetition over variety. Lo-fi production means fewer syllables cut through.
+- **Density/pacing (Suno)**: Default **4 lines/verse** at 120-140 BPM. At 140-160: 3-4 lines. Raw energy, simple phrasing. Repetition over variety. Topics: 1/verse.
 
 ## Subgenres & Styles
 

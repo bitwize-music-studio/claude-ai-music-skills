@@ -23,7 +23,7 @@ The international breakthrough came in 1962-1964 through collaborations with Ame
 - **Verse structure**: Short, concrete phrases — objects, places, images over abstract emotion. Keep sections brief.
 - **Key rule**: Wistful mood (saudade — gentle longing mixed with love). Natural speech rhythm. Less is more.
 - **Avoid**: Abstract emotion words without concrete images. Forcing rhythms onto Portuguese-influenced phrasing. Lyric density that overwhelms the gentle groove.
-- **Density/pacing**: low-moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 70-100. Whispered, intimate delivery. Guitar patterns need space. Portuguese-influenced phrasing even in English. Understated elegance.
+- **Density/pacing (Suno)**: Default **4-6 lines/verse** at 70-100 BPM. Whispered, intimate delivery. Guitar patterns need space. Understated elegance. Topics: 1/verse.
 
 ## Subgenres & Styles
 

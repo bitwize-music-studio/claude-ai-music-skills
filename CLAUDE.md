@@ -384,7 +384,7 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
 7. **Section length check**: Count lines per section, compare against genre limits in `/skills/lyric-writer/SKILL.md`. **Hard fail** — trim any section exceeding its genre max before presenting.
 8. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see `/skills/lyric-writer/SKILL.md` Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse.
 9. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
-10. **Density/pacing check**: Count topics per verse, check against genre README's `Density/pacing` norms (syl/line, topics/verse). Cross-reference against BPM/mood from Musical Direction. Flag verses that read like lists or feel too dense for the genre/tempo.
+10. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Flag any verse exceeding the genre's max lines/verse. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse over the limit before presenting.
 11. **Chorus lead-in check**: Compare the last line before each chorus against the chorus opening. Flag if they share key phrases, rhyme words, or restate the hook. The chorus is the payoff — the lead-in should set it up, not pre-deliver it.
 12. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
 

@@ -23,7 +23,7 @@ Contemporary dancehall continues to evolve through fusion and experimentation wh
 - **Verse structure**: Variable — riddim-driven. Repetitive chanted hooks for crowd participation. Fast-chat sections with rapid delivery.
 - **Key rule**: Toasting (DJ-style vocal delivery) is the foundation. Heavy Patois use. Syncopated phrasing locks into riddim groove.
 - **Avoid**: Standard English delivery without Patois flavor. Slow pacing. Lyrics that don't match the riddim energy.
-- **Density/pacing**: moderate-high density · 8-13 syl/line · max 1-2 topics/verse · typical BPM 90-110. Faster than reggae. DJ-style rapid delivery (singjay). Danceable riddim patterns. Higher density than roots reggae.
+- **Density/pacing (Suno)**: Default **6-8 lines/verse** at 90-110 BPM. Faster than reggae. DJ-style rapid delivery (singjay). More density than roots reggae. Topics: 1-2/verse.
 
 ## Subgenres & Styles
 

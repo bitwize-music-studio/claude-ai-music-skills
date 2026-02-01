@@ -29,7 +29,7 @@ Hyperpop thrives on digital manipulation, unconventional song structures, and a 
 - **Verse structure**: Short, punchy sections. Heavy vocal processing (pitch-shifting, distortion) affects how lyrics land.
 - **Key rule**: Maximalist and genre-bending. Lyrics can be absurdist, ironic, or hyper-emotional. Vocal processing is part of the writing.
 - **Avoid**: Conventional pop sincerity without ironic edge. Writing for unprocessed vocals when heavy effects are expected.
-- **Density/pacing**: moderate density · 8-12 syl/line · max 1-2 topics/verse · typical BPM 140-170. Chaotic energy but simple lyrical content. Distortion and pitch-shifting obscure dense lyrics. Keep words clear despite production chaos.
+- **Density/pacing (Suno)**: Default **3 lines/verse** at 140-170 BPM. At 160+: 2-3 lines. Frenetic energy — minimal verses, hook-dominant. Fragment ideas; hyperpop is impressionistic. Topics: 1/verse.
 
 ## Subgenres & Styles
 
