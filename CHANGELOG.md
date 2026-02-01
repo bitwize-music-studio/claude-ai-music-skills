@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-02-01
+
+### Added
+- **No Invented Contractions rule** — Suno only handles standard pronoun/auxiliary contractions (they'd, wouldn't). Invented forms (signal'd, TV'd, network'd) will mispronounce or skip. Added to Pronunciation section, quality check #3, and pitfalls checklist.
+
 ## [0.29.0] - 2026-02-01
 
 ### Changed
