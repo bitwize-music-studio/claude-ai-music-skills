@@ -48,6 +48,7 @@ Today, progressive rock continues to evolve through artists who blend its compos
 - **Verse structure**: No constraints — extended narratives, asymmetric sections, concept-driven passages. Songs can be 10+ minutes.
 - **Key rule**: Ambitious subjects — philosophy, fantasy, science, epic narratives. Concept albums that tell unified stories.
 - **Avoid**: Simplistic lyrics beneath the genre's intellectual ambition. Standard 3-minute song structures.
+- **Density/pacing**: high density · 9-13 syl/line · max 3-5 topics/verse · typical BPM 70-150. Longest acceptable verses in rock. Complex narratives, variable time signatures. Careful phrasing required — density must serve the composition.
 
 ## Subgenres & Styles
 

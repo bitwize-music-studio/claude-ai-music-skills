@@ -23,6 +23,7 @@ Contemporary Americana has evolved into a remarkably diverse tent. At one end st
 - **Verse structure**: Verses 4–8 lines. Emphasis on verse progression over chorus dominance.
 - **Key rule**: Place-based imagery — dusty roads, front porches, wide-open landscapes. Symbolism and layered interpretation. Transport the listener to a specific location and era.
 - **Avoid**: Generic Americana cliches without specific detail. Abstract emotion without sensory grounding.
+- **Density/pacing**: moderate-high density · 10-14 syl/line · max 2-3 topics/verse · typical BPM 85-120. Literary tradition allows complex imagery. Can weave 2-3 related topics if thematically unified. Most density-tolerant in the country family.
 
 ## Subgenres & Styles
 

@@ -46,6 +46,7 @@ Today, electronic music production tools are democratized through affordable sof
 - **Verse structure**: Minimal vocals. Short phrases (2–8 words) repeated as loops or hooks. Space between phrases.
 - **Key rule**: Less is more. Repetition is the defining characteristic — same phrase repeating creates hypnotic effect. Too many words ruin the track.
 - **Avoid**: Dense lyrics. Narrative complexity. Traditional verse-chorus structure (unless synthwave). Over-rhyming.
+- **Density/pacing**: low density · 6-9 syl/line · max 1-2 topics/verse · typical BPM 120-140. Production is the star. Vocals are texture, not focus. Fewer syllables, more space for drops and builds.
 
 ## Subgenres & Styles
 

@@ -30,6 +30,7 @@ The movement's tragic dimension—Kurt Cobain's 1994 suicide, Layne Staley's 200
 - **Verse structure**: Quiet verses, loud choruses (quiet-loud-quiet dynamic). 4–8 lines per section.
 - **Key rule**: Images that make the listener feel seen, sorry, or amused simultaneously. First verse sets emotion, chorus releases dissatisfaction.
 - **Avoid**: Straightforward, literal lyrics. Polished delivery. Happy-sounding choruses.
+- **Density/pacing**: low-moderate density · 6-10 syl/line · max 1-3 topics/verse · typical BPM 90-130. Mumbled delivery makes dense lyrics unintelligible. Keep it raw, emotionally direct, sparse. Dynamics (quiet-loud) matter more than word count.
 
 ## Subgenres & Styles
 

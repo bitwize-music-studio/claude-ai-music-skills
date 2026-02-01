@@ -25,6 +25,7 @@ Contemporary ambient has fractured into numerous subgenres while maintaining rem
 - **Verse structure**: No traditional structure. Sparse, impressionistic lines (2–4 words floating through the track). Spoken word or breathy phrases.
 - **Key rule**: Atmosphere first. Vocals are texture, not focal point. Most ambient is instrumental.
 - **Avoid**: Dense lyrics. Narrative structure. Anything that demands listener attention over the soundscape.
+- **Density/pacing**: very low density · 2-6 syl/line · max 1 topics/verse · typical BPM 60-100. Often instrumental. When vocals appear, whispered/processed. Texture over content. Fewer words is always better.
 
 ## Subgenres & Styles
 

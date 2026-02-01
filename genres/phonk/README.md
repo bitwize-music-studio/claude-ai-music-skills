@@ -24,6 +24,7 @@ Modern phonk has exploded into mainstream consciousness, becoming the dominant s
 - **Verse structure**: Short — repetitive, hypnotic, and subtle. Mood first, then detail.
 - **Key rule**: Dark, atmospheric mood drives everything. Night drives, nostalgia, graveyard shift.
 - **Avoid**: Overwriting. Dense wordplay that fights the hypnotic groove.
+- **Density/pacing**: moderate density · 8-12 syl/line · max 1-2 topics/verse · typical BPM 60-80 (drift phonk 130-170). Memphis-style chopped vocals. Lo-fi aesthetic demands space. Drift phonk variant is often instrumental.
 
 ## Subgenres & Styles
 

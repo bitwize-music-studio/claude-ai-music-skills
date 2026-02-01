@@ -23,6 +23,7 @@ Hardcore punk's evolution throughout the 1980s and beyond spawned numerous subge
 - **Verse structure**: Ultra-short — 4–8 bars max. 5-syllable chants common. Songs often under 2 minutes.
 - **Key rule**: Gang vocals must be simple and shoutable. Political anger, social confrontation, direct message.
 - **Avoid**: Complex vocabulary. Long narrative verses. Melodic singing. Lines too long for breath at 300+ BPM.
+- **Density/pacing**: high density · 8-14 syl/line · max 1-2 topics/verse · typical BPM 160-220. Fastest delivery in punk. Shouted vocals allow high syllable density despite speed. Aggressive, direct.
 
 ## Subgenres & Styles
 

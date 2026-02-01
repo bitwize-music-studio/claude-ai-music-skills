@@ -23,6 +23,7 @@ The late 1980s and 1990s witnessed doom metal's divergence into increasingly ext
 - **Verse structure**: Longer, theatrical lines with space between phrases. Ritualistic repetition of short phrases.
 - **Key rule**: Suffering, mortality, grief, occult, existential dread. Personal and specific — not generic despair. Concrete imagery (landscapes, occult symbols, myth as mirror for grief).
 - **Avoid**: Generic despair cliches. Overwriting — space and repetition are the point. Fast delivery.
+- **Density/pacing**: low-moderate density · 6-10 syl/line · max 1-2 topics/verse · typical BPM 60-100. Slowest metal. Crushing, deliberate delivery. Each word carries weight. Sparse lyrics, heavy imagery.
 
 ## Subgenres & Styles
 

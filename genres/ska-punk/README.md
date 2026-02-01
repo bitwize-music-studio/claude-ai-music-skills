@@ -52,6 +52,7 @@ Ska punk is a high-energy fusion genre that marries the upbeat, offbeat rhythms 
 - **Verse structure**: 4–6 lines. Lines must work with offbeat ska rhythm patterns.
 - **Key rule**: Lyrical dissonance — upbeat music paired with cynical/sarcastic/political lyrics. Pick a voice persona and maintain it.
 - **Avoid**: Pure sincerity without sarcasm/irony. Lines that don't lock into the offbeat groove.
+- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 140-180. Upstroke rhythm creates natural spaces. Call-and-response with horns. Keep verses tight for skank groove.
 
 ## Subgenres & Styles
 

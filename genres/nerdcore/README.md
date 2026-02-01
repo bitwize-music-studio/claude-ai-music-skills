@@ -26,6 +26,7 @@ The modern nerdcore scene has expanded well beyond its original boundaries, infl
 - **Verse structure**: 85–100 BPM (story-driven) or 120–150 BPM (electro/trap energy). Standard 16-bar verses.
 - **Key rule**: Vocals must be forward and clear — dense references must be understood by the listener.
 - **Avoid**: Obscure references without context. Sacrificing flow for niche in-jokes.
+- **Density/pacing**: moderate-high density · 10-15 syl/line · max 2-4 topics/verse · typical BPM 80-110. Technical wordplay and reference density. Similar to boom-bap but with geek-culture subject matter. Avoid cramming too many references per bar.
 
 ## Subgenres & Styles
 

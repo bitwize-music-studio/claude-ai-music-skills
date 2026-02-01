@@ -49,6 +49,7 @@ Piano rock's enduring appeal lies in its paradox: the piano is simultaneously on
 - **Verse structure**: Verses 4–8 lines. Choruses 4–6 lines. Storytelling and character sketches common.
 - **Key rule**: Piano drives the harmonic and rhythmic foundation — lyrics should complement, not fight the piano's role. Wit, storytelling, and emotional range.
 - **Avoid**: Generic rock imagery that ignores the piano-centric arrangement. Overly simple lyrics beneath the genre's musicality.
+- **Density/pacing**: moderate density · 7-10 syl/line · max 2-3 topics/verse · typical BPM 100-130. Piano-driven rock balances instrumental showcasing with vocal narrative. Similar density to mainstream rock.
 
 ## Subgenres & Styles
 

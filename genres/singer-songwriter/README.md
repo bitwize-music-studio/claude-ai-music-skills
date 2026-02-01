@@ -50,6 +50,7 @@ The genre's relationship with other styles is fluid. Singer-songwriter overlaps 
 - **Verse structure**: Varies — verse-heavy, with chorus as emotional anchor rather than dominant element.
 - **Key rule**: Conversational tone essential. Write like you'd speak to friends. Personal anecdote adds depth. Confessional, intimate lyrical approach.
 - **Avoid**: Inauthenticity. Generic statements. Hiding behind abstraction instead of personal specificity.
+- **Density/pacing**: high density · 10-16 syl/line · max 2-4 topics/verse · typical BPM 70-105. Confessional mode allows stream-of-consciousness. Listeners expect dense personal detail. Stripped-back production carries every word.
 
 ## Subgenres & Styles
 
