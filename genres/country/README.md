@@ -20,6 +20,7 @@ Country music is a quintessentially American genre rooted in folk, blues, and go
 - **Verse structure**: Verses 4–8 lines. Chorus-dominant structure. 74% of recent hits use 2 verses total.
 - **Key rule**: Storytelling is paramount. Show, don't tell. Conversational tone — write like you'd tell a friend. Emotional authenticity over polish.
 - **Avoid**: Overused cliches (trucks, tailgates, generic party imagery). Forced drawl in spelling. Telling instead of showing. Inverted word order for rhyme.
+- **Density/pacing**: moderate density · 8-12 syl/line · max 1-2 topics/verse · typical BPM 80-140. Storytelling determines density. Narrative verses can be denser than emotional ones. Conversational pace — write like you'd tell a friend.
 
 ## Subgenres & Styles
 

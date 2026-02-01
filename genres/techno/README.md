@@ -24,6 +24,7 @@ By the 2000s and 2010s, techno had fragmented into numerous subgenres while simu
 - **Verse structure**: Minimal — short commands, single words, even counts. 1–2 bar loops at most.
 - **Key rule**: Mechanical, hypnotic pulse. Vocals are texture, not content. Repetition drives the track.
 - **Avoid**: Meaningful lyrics in minimal techno. Traditional song structure. Fighting the repetition.
+- **Density/pacing**: very low density · 4-7 syl/line · max 1 topics/verse · typical BPM 125-150. Minimal or no vocals. When present, fragmented samples or single phrases. Let the machines talk.
 
 ## Subgenres & Styles
 

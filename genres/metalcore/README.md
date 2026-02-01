@@ -31,6 +31,7 @@ The breakdown remains metalcore's most distinctive structural element---a sectio
 - **Verse structure**: Verse-chorus-verse-chorus-bridge-chorus (most traditional of metal subgenres). Breakdown sections essential.
 - **Key rule**: Clean chorus / screamed verse contrast is the defining characteristic. Choruses must be singable and melodic. Screamed sections carry aggression.
 - **Avoid**: No vocal contrast (clean/screamed dynamic defines the genre). Ignoring melody in choruses. Missing the breakdown.
+- **Density/pacing**: moderate-high density · 8-13 syl/line · max 2-3 topics/verse · typical BPM 100-150. Screamed verses / clean choruses. Breakdown sections need chant-friendly phrases. Syllable density varies by section.
 
 ## Subgenres & Styles
 

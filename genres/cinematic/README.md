@@ -44,6 +44,7 @@ The democratization of orchestral sample libraries and digital production has ex
 - **Verse structure**: No standard — follows the visual narrative or emotional arc of the scene.
 - **Key rule**: Music serves the image/emotion. Vocals (if present) are atmospheric texture or emotional punctuation.
 - **Avoid**: Dense lyrics that compete with orchestration. Pop song structure. Lyrics that distract from the visual narrative.
+- **Density/pacing**: low-moderate density · 6-12 syl/line · max 1-2 topics/verse · typical BPM 60-120. Orchestral arrangements need vocal space. Dramatic dynamics. Words are sparse but weighty. Film-score pacing.
 
 ## Subgenres & Styles
 

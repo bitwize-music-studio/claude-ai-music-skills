@@ -45,6 +45,7 @@ Classical music's influence extends far beyond the concert hall. Its harmonic la
 - **Verse structure**: Through-composed or strophic depending on form. Text serves the musical composition.
 - **Key rule**: Words serve the music, not vice versa. Text painting (musical expression of word meaning) is paramount.
 - **Avoid**: Pop song conventions. Simple repetitive structures. Ignoring classical prosody.
+- **Density/pacing**: low density · varies syl/line · max 1-2 topics/verse · typical BPM 40-120. Instrument-dominated. Vocal pieces (art song, opera) follow strict prosody. Libretto conventions apply. Space for musical expression.
 
 ## Subgenres & Styles
 

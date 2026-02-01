@@ -24,6 +24,7 @@ Opera demands extraordinary performers: singers who combine the projection to fi
 - **Verse structure**: Recitative (speech-like) and aria (melodic) sections alternate. Dramatic arc drives structure.
 - **Key rule**: Dramatic narrative — characters, conflict, emotional arc. Vocal range and power determine phrasing. Libretto serves the story.
 - **Avoid**: Pop conventions. Casual language. Ignoring the dramatic structure of opera.
+- **Density/pacing**: low density · varies syl/line · max 1-2 topics/verse · typical BPM 40-120. Vocal technique demands elongated syllables. Libretto economy — fewer words, more expression. Dramatic pauses essential.
 
 ## Subgenres & Styles
 

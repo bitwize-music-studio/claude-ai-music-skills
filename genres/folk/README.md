@@ -23,6 +23,7 @@ Contemporary folk spans a vast spectrum: from traditionalists preserving centuri
 - **Verse structure**: 4-line quatrains (ballad meter: 8/6/8/6 syllables). Verse-only (strophic) form common — same melody, different lyrics each verse, with refrain line.
 - **Key rule**: Linear narrative progression. Each verse develops the story. Character-focused, historical events, travel, lost love. Simplicity of language paramount.
 - **Avoid**: Flowery or complex vocabulary. Abstract lyrics without grounding. Breaking the ballad meter inconsistently.
+- **Density/pacing**: high density · 10-16 syl/line · max 2-4 topics/verse · typical BPM 80-110. Traditional folk storytelling handles topic-dense verses. Listeners expect narrative complexity. Acoustic setting makes every word audible.
 
 ## Subgenres & Styles
 

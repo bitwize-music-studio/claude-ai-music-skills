@@ -23,6 +23,7 @@ Beyond Bristol, trip-hop's influence spread globally and evolved through various
 - **Verse structure**: Full verses with laid-back, spoken-word delivery. Often without traditional choruses. 4–8 lines.
 - **Key rule**: Urban life, introspection, social commentary. Whispered, abstract, remote from braggadocio. Moody atmospheres.
 - **Avoid**: Upbeat energy. Conventional pop structures. Literal or surface-level lyrics.
+- **Density/pacing**: moderate density · 8-12 syl/line · max 2-3 topics/verse · typical BPM 80-100. Cinematic, moody. More lyrical space than other electronic genres. Storytelling over dark, atmospheric beats.
 
 ## Subgenres & Styles
 

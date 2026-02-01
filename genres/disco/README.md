@@ -47,6 +47,7 @@ Nu-disco emerged in the early 2000s as producers like Lindstrom, Todd Terje, and
 - **Verse structure**: Verse-chorus with extended dance breaks. Chorus is king — repetitive and singable.
 - **Key rule**: Dance floor energy. Love, celebration, freedom, nightlife. Lyrics serve the groove.
 - **Avoid**: Heavy themes. Complex structures. Anything that kills the party.
+- **Density/pacing**: low-moderate density · 6-9 syl/line · max 1 topics/verse · typical BPM 110-130. Four-on-the-floor demands dancefloor clarity. Repetitive hooks. Verse-to-chorus energy builds. Simple, euphoric.
 
 ## Subgenres and Styles
 

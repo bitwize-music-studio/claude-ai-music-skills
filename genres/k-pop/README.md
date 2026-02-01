@@ -51,6 +51,7 @@ K-Pop (Korean Pop) is a global entertainment phenomenon rooted in South Korean p
 - **Verse structure**: Faster tempo, shorter sections, more phrase repetition than Western pop. Tight 8–16 bar sections.
 - **Key rule**: Title/hook always in English. Simple, chantable English choruses. Korean verses for emotional detail.
 - **Avoid**: Complex English vocabulary in hooks. Ignoring code-switching conventions.
+- **Density/pacing**: high density · 8-12 syl/line · max 2-3 topics/verse · typical BPM 120-140. Shorter sections with more repetition. Rhythmic delivery, often bilingual. Rapid section changes keep density feeling lighter.
 
 ## Subgenres & Styles
 

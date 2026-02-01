@@ -53,6 +53,7 @@ The genre's influence extends far beyond its commercial heyday. Post-punk reviva
 - **Verse structure**: Verses 4–6 lines, choruses 4–6 lines. Synth-driven arrangements influence phrasing.
 - **Key rule**: Wit, irony, and art-school intelligence. Post-punk sensibility with pop accessibility.
 - **Avoid**: Earnest rock sincerity without ironic distance. Overly complex vocals fighting synth textures.
+- **Density/pacing**: moderate density · 7-10 syl/line · max 1-2 topics/verse · typical BPM 100-140. Synth-driven, quirky phrasing. Catchy over complex. Angular melodies prefer clean syllable placement.
 
 ## Subgenres & Styles
 

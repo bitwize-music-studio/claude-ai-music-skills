@@ -23,6 +23,7 @@ Today, house music stands as the foundational genre of global dance culture, wit
 - **Verse structure**: No traditional verses. Single repeated phrases or very short vocal sections (4–12 words).
 - **Key rule**: Groove lock — vocals must serve the rhythm, not compete with it. Uplifting, soulful, or funky tone.
 - **Avoid**: Walls of lyrics. Complex rhyme schemes. Anything that breaks the groove.
+- **Density/pacing**: low density · 5-8 syl/line · max 1 topics/verse · typical BPM 120-130. Repetitive vocal phrases over groove. Single ideas looped. Dancefloor clarity — simple, catchy, memorable.
 
 ## Subgenres & Styles
 

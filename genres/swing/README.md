@@ -45,6 +45,7 @@ The 2000s-2010s saw electro-swing emerge, primarily from European producers. Aus
 - **Verse structure**: 32-bar form typical. Phrasing matters more than range — anticipation and lag in delivery.
 - **Key rule**: Conversational feel, like telling a bold secret. Dynamic shading and tiny articulations. Lyrics must breathe — room for syncopation.
 - **Avoid**: Stiff, metronomic delivery. Lyrics that don't allow phrasing flexibility. Simple predictable patterns.
+- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 120-180. Swung rhythm affects syllable placement. Conversational, witty phrasing. Singable melodies over jazz harmonies.
 
 ## Subgenres & Styles
 

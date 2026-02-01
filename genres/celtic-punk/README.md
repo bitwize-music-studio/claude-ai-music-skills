@@ -56,6 +56,7 @@ Celtic punk's themes reflect its working-class roots and immigrant heritage: Iri
 - **Verse structure**: 4–8 lines. Story-driven, often character-based. Blends folk narrative with punk directness.
 - **Key rule**: Heritage, history, rebellion, and identity. Folk storytelling meets punk urgency.
 - **Avoid**: Stereotypical Irish cliches (drunken brawler tropes). Appropriating culture without understanding.
+- **Density/pacing**: moderate density · 7-11 syl/line · max 1-2 topics/verse · typical BPM 130-170. Folk storytelling at punk tempo. Singalong choruses need clear syllables. Instrumental breaks (tin whistle, mandolin) need space.
 
 ## Subgenres & Styles
 

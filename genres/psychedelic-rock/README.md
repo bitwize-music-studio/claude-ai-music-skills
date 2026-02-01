@@ -48,6 +48,7 @@ Neo-psychedelia emerged in the 1980s and continues thriving today, reinterpretin
 - **Verse structure**: Flexible — can be extended, non-linear, or through-composed. No strict limits.
 - **Key rule**: Surreal imagery, altered states, cosmic themes. Lyrics can be impressionistic sound-paintings.
 - **Avoid**: Literal, grounded narratives. Conventional pop structure unless intentionally subverted.
+- **Density/pacing**: moderate-high density · 6-11 syl/line · max 3-5 topics/verse · typical BPM 80-130. Surreal imagery allows topic shifts. Stream-of-consciousness acceptable if mood-unified. Space for instrumental passages.
 
 ## Subgenres & Styles
 

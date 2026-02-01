@@ -60,6 +60,7 @@ Beyond Norway, black metal rapidly globalized while fragmenting into diverse sub
 - **Verse structure**: Variable — through-composed structures common. No pop conventions required.
 - **Key rule**: Nature imagery (forests, mountains, winter), mythology, paganism, anti-religious themes. Archaic or folkloric vocabulary. Transporting the listener to another world.
 - **Avoid**: Modern/mundane imagery. Pop song structures. Literal or prosaic language.
+- **Density/pacing**: moderate-high density · 8-14 syl/line · max 2-4 topics/verse · typical BPM 130-200. Atmospheric passages alternate with blasts. Shrieked vocals obscure syllables — keep imagery vivid despite delivery.
 
 ## Subgenres & Styles
 

@@ -23,6 +23,7 @@ The mid-2000s saw grime struggle against industry skepticism and a UK garage sce
 - **Verse structure**: 8-bar, 16-bar, or 32-bar patterns ("nu shape"). Drums/lyrics/melody change every 8 bars.
 - **Key rule**: 8-bar changes are the heartbeat of grime. Regional British accents and slang are essential.
 - **Avoid**: Slow delivery, American slang, ignoring the 8-bar structure.
+- **Density/pacing**: high density · 10-14 syl/line · max 2-3 topics/verse · typical BPM 140. UK tempo locked at ~140 BPM. Rapid-fire delivery expected. Syllable density similar to battle rap but with melodic hooks.
 
 ## Subgenres & Styles
 

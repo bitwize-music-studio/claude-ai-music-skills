@@ -25,6 +25,7 @@ Post-rock's evolution has taken it from underground art-rock circles to mainstre
 - **Verse structure**: No verse-chorus structure. Vocals (if any) float over long instrumental passages.
 - **Key rule**: Mood and atmosphere over lyrics. Vocals are texture, not the focal point.
 - **Avoid**: Conventional song structures. Narrative lyrics. Treating vocals as the primary element.
+- **Density/pacing**: low density · 4-8 syl/line · max 1-2 topics/verse · typical BPM 80-140. Primarily instrumental. When vocals appear, sparse and atmospheric. Let the build-ups speak.
 
 ## Subgenres & Styles
 

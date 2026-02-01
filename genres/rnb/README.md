@@ -28,6 +28,7 @@ Throughout its evolution, R&B has remained the voice of Black American experienc
 - **Verse structure**: Verses 6–8 lines. Chorus-dominant structure — chorus gets most time allocation.
 - **Key rule**: Leave space for vocal runs and melisma. Don't overload lines with dense wordplay — singers need room for ornamentation. Intimate, specific details over generic emotion.
 - **Avoid**: Dense wordplay that fights vocal interpretation. Greeting card sentiments. Technique overshadowing emotion.
+- **Density/pacing**: moderate density · 8-12 syl/line · max 2-3 topics/verse · typical BPM 60-100. Melisma spreads syllables across beats. Leave room for vocal runs and ad-libs. Groove > density.
 
 ## Subgenres & Styles
 

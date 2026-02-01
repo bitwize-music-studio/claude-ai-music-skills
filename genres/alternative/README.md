@@ -48,6 +48,7 @@ Today, alternative rock encompasses an extraordinary range of sounds united by a
 - **Verse structure**: Standard 4–8 line verses, but unconventional structures welcomed.
 - **Key rule**: Rejection of mainstream norms. Introspective, thought-provoking. Flexibility for both straightforward storytelling and abstract, image-driven approaches.
 - **Avoid**: Generic rock cliches. Overly conventional structures when the genre invites experimentation.
+- **Density/pacing**: moderate-high density · 7-11 syl/line · max 2-4 topics/verse · typical BPM 100-140. Emotional dynamics drive density — quiet verses, loud choruses. Variable pacing acceptable.
 
 ## Subgenres & Styles
 

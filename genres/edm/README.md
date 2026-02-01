@@ -23,6 +23,7 @@ From intimate underground warehouse parties to massive festival stages accommoda
 - **Verse structure**: Short vocal hooks (4–8 words) designed for build-up and drop sections. No traditional verse structure.
 - **Key rule**: Energy and singability. Hooks must work in a festival/club context. Build-drop-build structure.
 - **Avoid**: Dense lyrics. Complex narratives. Anything that competes with the production.
+- **Density/pacing**: low density · 5-8 syl/line · max 1 topics/verse · typical BPM 126-132. Festival-oriented. Big vocal hooks, minimal verses. Build-drop structure governs everything. Anthemic simplicity.
 
 ## Subgenres & Styles
 

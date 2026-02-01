@@ -25,6 +25,7 @@ What unifies all jazz is the centrality of improvisation—the spontaneous creat
 - **Verse structure**: 8-bar sections in AABA form. A sections repeat melodically but lyrics differ each time.
 - **Key rule**: Conversational yet musical phrasing. Swing feel requires phrasing behind or ahead of the beat — lyrics must allow flexibility. Scat sections marked as [Scat] or with written syllables.
 - **Avoid**: Simple, predictable end rhymes (too basic for jazz). Stiff, on-the-beat phrasing. Overly narrative lyrics.
+- **Density/pacing**: moderate-high density · 8-14 syl/line · max 2-4 topics/verse · typical BPM 60-200. Highly variable by style. Bebop phrasing can be dense; ballads are sparse. Match density to the rhythm section's energy.
 
 ## Subgenres & Styles
 
