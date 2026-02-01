@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-02-01
+
+### Added
+- **Section length guardrails by genre** — per-section line limits for 12 genre families (all 67 genres) to prevent Suno from rushing, compressing, or skipping lyrics. Covers Hip-Hop, Pop, Rock, Punk, Metal, Country/Folk, Electronic, Ambient, R&B, Jazz, Reggae, and Ballad.
+- **Section length enforcement rules** — hard limits that must be trimmed before presenting drafts (hip-hop verse max 8 lines, any chorus max 6 lines, electronic verse max 6 lines, punk kept tight)
+- **Section length added to quality checks** — now check #7 in both lyric-writer Automatic Quality Check and CLAUDE.md master workflow, plus added to Lyric Pitfalls Checklist
+
 ## [0.23.0] - 2026-01-31
 
 ### Added
