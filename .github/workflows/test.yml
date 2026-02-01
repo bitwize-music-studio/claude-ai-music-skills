@@ -132,7 +132,7 @@ jobs:
 
     - name: Run tests
       run: |
-        python -m pytest tools/state/tests/ tools/shared/tests/ -v --tb=short
+        python -m pytest tools/state/tests/ tools/shared/tests/ tools/release/tests/ -v --tb=short
 
   lint:
     name: Lint

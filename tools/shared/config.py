@@ -1,8 +1,8 @@
-"""Configuration loading for bitwize-music tools."""
+"""Configuration loading and validation for bitwize-music tools."""
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 try:
     import yaml
@@ -48,3 +48,53 @@ def load_config(
             import sys
             sys.exit(1)
         return fallback
+
+
+def validate_config(config: Dict[str, Any]) -> List[str]:
+    """Validate config structure and required fields.
+
+    Args:
+        config: Parsed config dict from load_config().
+
+    Returns:
+        List of error strings. Empty list means valid.
+    """
+    errors: List[str] = []
+
+    if not isinstance(config, dict):
+        return ["Config is not a dict"]
+
+    # Required: artist.name
+    artist = config.get('artist')
+    if not isinstance(artist, dict):
+        errors.append("Missing 'artist' section")
+    elif not isinstance(artist.get('name'), str) or not artist['name'].strip():
+        errors.append("'artist.name' must be a non-empty string")
+
+    # Required: paths.content_root, paths.audio_root
+    paths = config.get('paths')
+    if not isinstance(paths, dict):
+        errors.append("Missing 'paths' section")
+    else:
+        for field in ('content_root', 'audio_root'):
+            val = paths.get(field)
+            if not isinstance(val, str) or not val.strip():
+                errors.append(f"'paths.{field}' must be a non-empty string")
+
+        # Optional fields — validated only if present
+        for field in ('documents_root',):
+            val = paths.get(field)
+            if val is not None and (not isinstance(val, str) or not val.strip()):
+                errors.append(f"'paths.{field}' must be a non-empty string if set")
+
+    # Optional: generation.service
+    generation = config.get('generation')
+    if generation is not None:
+        if not isinstance(generation, dict):
+            errors.append("'generation' must be a dict if set")
+        else:
+            service = generation.get('service')
+            if service is not None and (not isinstance(service, str) or not service.strip()):
+                errors.append("'generation.service' must be a non-empty string if set")
+
+    return errors

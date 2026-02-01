@@ -17,7 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import pytest
 import yaml
 import tools.shared.config as config_module
-from tools.shared.config import load_config
+from tools.shared.config import load_config, validate_config
 
 
 class TestLoadConfig:
@@ -88,6 +88,122 @@ class TestLoadConfig:
         """CONFIG_PATH points to ~/.bitwize-music/config.yaml."""
         expected = Path.home() / ".bitwize-music" / "config.yaml"
         assert config_module.CONFIG_PATH == expected
+
+
+class TestValidateConfig:
+    """Tests for validate_config()."""
+
+    def _valid_config(self):
+        return {
+            'artist': {'name': 'bitwize'},
+            'paths': {
+                'content_root': '~/bitwize-music',
+                'audio_root': '~/bitwize-music/audio',
+            },
+        }
+
+    def test_valid_config_returns_empty(self):
+        """Valid config produces no errors."""
+        assert validate_config(self._valid_config()) == []
+
+    def test_valid_config_with_optional_fields(self):
+        """Config with all optional fields is valid."""
+        config = self._valid_config()
+        config['paths']['documents_root'] = '~/docs'
+        config['generation'] = {'service': 'suno'}
+        assert validate_config(config) == []
+
+    def test_not_a_dict(self):
+        """Non-dict input returns error."""
+        errors = validate_config("not a dict")
+        assert len(errors) == 1
+        assert "not a dict" in errors[0]
+
+    def test_missing_artist_section(self):
+        """Missing artist section is an error."""
+        config = self._valid_config()
+        del config['artist']
+        errors = validate_config(config)
+        assert any("artist" in e for e in errors)
+
+    def test_empty_artist_name(self):
+        """Empty artist.name is an error."""
+        config = self._valid_config()
+        config['artist']['name'] = '  '
+        errors = validate_config(config)
+        assert any("artist.name" in e for e in errors)
+
+    def test_missing_paths_section(self):
+        """Missing paths section is an error."""
+        config = self._valid_config()
+        del config['paths']
+        errors = validate_config(config)
+        assert any("paths" in e for e in errors)
+
+    def test_missing_content_root(self):
+        """Missing paths.content_root is an error."""
+        config = self._valid_config()
+        del config['paths']['content_root']
+        errors = validate_config(config)
+        assert any("content_root" in e for e in errors)
+
+    def test_missing_audio_root(self):
+        """Missing paths.audio_root is an error."""
+        config = self._valid_config()
+        del config['paths']['audio_root']
+        errors = validate_config(config)
+        assert any("audio_root" in e for e in errors)
+
+    def test_empty_content_root(self):
+        """Empty paths.content_root is an error."""
+        config = self._valid_config()
+        config['paths']['content_root'] = ''
+        errors = validate_config(config)
+        assert any("content_root" in e for e in errors)
+
+    def test_optional_documents_root_empty_is_error(self):
+        """Empty documents_root (when present) is an error."""
+        config = self._valid_config()
+        config['paths']['documents_root'] = ''
+        errors = validate_config(config)
+        assert any("documents_root" in e for e in errors)
+
+    def test_optional_documents_root_absent_is_ok(self):
+        """Missing documents_root is fine (optional)."""
+        config = self._valid_config()
+        assert validate_config(config) == []
+
+    def test_generation_not_dict(self):
+        """Non-dict generation section is an error."""
+        config = self._valid_config()
+        config['generation'] = 'suno'
+        errors = validate_config(config)
+        assert any("generation" in e for e in errors)
+
+    def test_generation_service_empty(self):
+        """Empty generation.service is an error."""
+        config = self._valid_config()
+        config['generation'] = {'service': ''}
+        errors = validate_config(config)
+        assert any("generation.service" in e for e in errors)
+
+    def test_generation_service_absent_is_ok(self):
+        """Missing generation.service is fine (optional)."""
+        config = self._valid_config()
+        config['generation'] = {}
+        assert validate_config(config) == []
+
+    def test_artist_name_not_string(self):
+        """Non-string artist.name is an error."""
+        config = self._valid_config()
+        config['artist']['name'] = 123
+        errors = validate_config(config)
+        assert any("artist.name" in e for e in errors)
+
+    def test_multiple_errors_reported(self):
+        """Multiple issues produce multiple errors."""
+        errors = validate_config({})
+        assert len(errors) >= 2  # Missing artist and paths at minimum
 
 
 class TestLoadConfigYamlMissing:

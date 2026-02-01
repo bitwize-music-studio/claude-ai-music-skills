@@ -38,29 +38,18 @@ jobs:
           echo "Tag v${{ steps.version.outputs.version }} does not exist, proceeding with release"
         fi
 
+    - name: Set up Python
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
     - name: Extract release notes from CHANGELOG
       id: changelog
       if: steps.check_tag.outputs.exists == 'false'
       run: |
         VERSION="${{ steps.version.outputs.version }}"
-
-        # Extract everything between [VERSION] and the next ## heading
-        NOTES=$(awk -v ver="$VERSION" '
-          $0 ~ "## \\[" ver "\\]" { found=1; next }
-          found && /^## \[/ { exit }
-          found { print }
-        ' CHANGELOG.md | head -c 65000)
-
-        # Trim leading/trailing whitespace
-        NOTES=$(echo "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-
-        # If empty or only whitespace, use default message
-        if [ -z "$NOTES" ]; then
-          NOTES="Release $VERSION"
-        fi
-
-        # Save to file to preserve formatting
-        echo "$NOTES" > /tmp/release_notes.md
+        python tools/release/extract_changelog.py "$VERSION" CHANGELOG.md > /tmp/release_notes.md
         echo "Release notes extracted from [$VERSION] section"
 
     - name: Create GitHub Release

@@ -44,7 +44,7 @@ except ImportError:
     sys.exit(1)
 
 from tools.shared.colors import Colors
-from tools.shared.config import CONFIG_PATH
+from tools.shared.config import CONFIG_PATH, validate_config
 from tools.shared.logging_config import setup_logging
 from tools.state.parsers import parse_album_readme, parse_ideas_file, parse_track_file
 
@@ -613,6 +613,12 @@ def cmd_rebuild(args):
         logger.error("Config not found at %s", CONFIG_FILE)
         logger.error("Run /bitwize-music:configure to set up.")
         return 1
+
+    config_errors = validate_config(config)
+    if config_errors:
+        logger.warning("Config validation warnings:")
+        for err in config_errors:
+            logger.warning("  - %s", err)
 
     state = build_state(config)
 
