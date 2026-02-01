@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-02-01
+
+### Added
+- **Pronunciation Table Enforcement rule** — every entry in a track's Pronunciation Notes table must be applied as phonetic spelling in Suno lyrics. The table is a checklist of required substitutions, not documentation. Added full process, verification format, common failures, and anti-pattern examples to lyric-writer SKILL.md. Added to quality check #3 and pitfalls checklist.
+
 ## [0.32.0] - 2026-02-01
 
 ### Changed

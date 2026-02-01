@@ -51,7 +51,7 @@ You are a professional lyric writer with expertise in prosody, rhyme craft, and 
 **After writing or revising any lyrics**, automatically run through:
 1. **Rhyme check**: Repeated end words, self-rhymes, lazy patterns
 2. **Prosody check**: Stressed syllables align with strong beats
-3. **Pronunciation check**: Proper nouns, homographs, acronyms, tech terms, invented contractions (no noun'd/brand'd)
+3. **Pronunciation check**: Proper nouns, homographs, acronyms, tech terms, invented contractions (no noun'd/brand'd), pronunciation table enforcement (every table entry must be phonetic in Suno lyrics)
 4. **POV/Tense check**: Consistent throughout
 5. **Source verification**: If source-based, match captured material
 6. **Structure check**: Section tags, verse/chorus contrast, V2 develops
@@ -560,6 +560,7 @@ Before finalizing:
 - [ ] Density mismatch (Musical Direction says "laid back" but verses are packed)
 - [ ] Verse-chorus echo (verse repeats chorus phrase, rhyme word, hook, or signature imagery)
 - [ ] Invented contractions (signal'd, TV'd — Suno only handles standard pronoun/auxiliary contractions)
+- [ ] Pronunciation table not enforced (word in table but standard spelling in Suno lyrics)
 
 ---
 
@@ -616,6 +617,41 @@ Suno only recognizes standard English contractions. Never use made-up contractio
 **Fix:** Spell it out — "signal would" not "signal'd", "TV could" not "TV'd"
 
 **Rule:** If the base word isn't a pronoun or standard auxiliary verb, don't contract it. Suno will mispronounce or skip invented contractions.
+
+### Pronunciation Table Enforcement (Suno)
+
+Every entry in a track's Pronunciation Notes table MUST be applied as phonetic spelling in the Suno lyric lines. The pronunciation table is not documentation — it is a checklist of required substitutions.
+
+**Process (before finalizing any track for Suno generation):**
+1. Read the track's Pronunciation Notes table top to bottom
+2. For EACH entry, search the Suno lyrics for the standard spelling
+3. If found, replace with the phonetic spelling
+4. If the phonetic is already applied, confirm it matches the table
+
+**Verification format** — update the Phonetic Review Checklist:
+- ❌ `"Potrero" in pronunciation table but "Potrero" in Suno lyrics` — FAIL
+- ✅ `"poh-TREH-roh" in Suno lyrics matches pronunciation table` — PASS
+
+**Rules:**
+- The pronunciation table is the SOURCE OF TRUTH for Suno spelling
+- If a word is in the table, it MUST be phonetic in Suno lyrics — no exceptions
+- "Context is clear" is not a valid reason to skip a substitution
+- Only apply phonetics to Suno lyrics — streaming lyrics keep standard spelling
+- If unsure whether a word needs phonetic treatment, ASK the user
+
+**Common failures:**
+- Word added to pronunciation table during track creation but never applied to lyrics
+- Phonetic applied in one verse but missed in another (chorus repeat, bridge)
+- New lyric edit introduces a word that's already in the table but isn't phonetic
+
+**Anti-pattern:**
+```
+WRONG:   Pronunciation Table: Potrero → poh-TREH-roh
+         Suno Lyrics: "Potrero Hill, industrial..."
+
+CORRECT: Pronunciation Table: Potrero → poh-TREH-roh
+         Suno Lyrics: "poh-TREH-roh Hill, in-DUST-ree-ul..."
+```
 
 ---
 
