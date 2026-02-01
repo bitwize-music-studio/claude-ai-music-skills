@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-02-01
+
+### Added
+- **Strict homograph handling for Suno pronunciation** — "context is clear" is never acceptable for homographs. Hard process: identify, ASK user (never guess), fix with phonetic spelling in Suno lyrics only, document in track pronunciation table.
+- **Full homograph table** — live, read, lead, wound, close, bass, tear, wind with both pronunciations and phonetic spellings
+
 ## [0.25.0] - 2026-02-01
 
 ### Added
