@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-02-01
+
+### Changed
+- **Density/pacing reframed as Suno verse length limits** — replaced abstract syllable-density metrics with practical line counts per verse by genre and BPM. All 67 genre READMEs updated to `Density/pacing (Suno)` with default lines/verse, max safe limits, and BPM-aware guidance.
+- **New BPM-aware fallback table** — universal verse length limits when genre README doesn't specify (4 lines at <80 BPM, 6 at 94-110, 6-8 at 110-140)
+- **Default 4 lines/verse** unless genre and tempo justify more — shifted from permissive 8-line defaults to conservative 4-line baseline
+- **Red flag: 8-line verse at BPM under 100** — now flagged as too dense for Suno
+- **Streaming lyrics exception** documented — distributor text can have longer blocks but breaks must match Suno structure
+- **Quality check #10 now hard fail** — trim or split any verse over the genre's Suno limit before presenting
+
 ## [0.28.0] - 2026-02-01
 
 ### Added
