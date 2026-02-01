@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-02-01
+
+### Changed
+- **CLAUDE.md deduplicated and trimmed to under 40KB** — consolidated 4 checkpoint sections into single table, slimmed Model Strategy to table with doc reference, condensed Lessons Learned, removed redundant sections (Quick Reference, Using Skills for Research, standalone Watch Your Rhymes, CORRECT APPROACH block). No information lost — all content consolidated or referenced elsewhere.
+
 ## [0.31.0] - 2026-02-01
 
 ### Changed
