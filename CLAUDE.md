@@ -349,7 +349,8 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
 4. **POV/Tense check**: Consistent point of view and tense throughout
 5. **Source verification**: If source-based, verify lyrics match captured source material
 6. **Structure check**: Section tags present, verse/chorus contrast, V2 develops (not twins V1)
-7. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
+7. **Section length check**: Count lines per section, compare against genre limits in `/skills/lyric-writer/SKILL.md`. **Hard fail** — trim any section exceeding its genre max before presenting.
+8. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
 
 Report any violations found. Don't wait to be asked.
 
