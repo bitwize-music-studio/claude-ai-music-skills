@@ -25,8 +25,8 @@ Audio files MUST go to:
 
 | Type | Path Structure | Example |
 |------|----------------|---------|
-| Audio | `{audio_root}/{artist}/{album}/` | `~/music/audio/bitwize/shell-no/` |
-| Content | `{content_root}/artists/{artist}/albums/{genre}/{album}/` | `~/music/artists/bitwize/albums/electronic/shell-no/` |
+| Audio | `{audio_root}/{artist}/{album}/` | `~/music/audio/bitwize/sample-album/` |
+| Content | `{content_root}/artists/{artist}/albums/{genre}/{album}/` | `~/music/artists/bitwize/albums/electronic/sample-album/` |
 
 Note: Audio path is flattened (no genre folder), but ALWAYS includes artist.
 
@@ -37,7 +37,7 @@ Note: Audio path is flattened (no genre folder), but ALWAYS includes artist.
 **Recommended**: Use `/bitwize-music:import-audio` skill:
 
 ```
-/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav shell-no
+/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav sample-album
 ```
 
 The skill automatically:
@@ -70,23 +70,23 @@ artist:
 
 **Command:**
 ```
-/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav shell-no
+/bitwize-music:import-audio ~/Downloads/03-t-day-beach.wav sample-album
 ```
 
 **Result:**
 ```
 Moved: ~/Downloads/03-t-day-beach.wav
-   To: ~/bitwize-music/audio/bitwize/shell-no/03-t-day-beach.wav
+   To: ~/bitwize-music/audio/bitwize/sample-album/03-t-day-beach.wav
 ```
 
 ### Correct vs Incorrect Paths
 
 | Status | Path |
 |--------|------|
-| CORRECT | `~/bitwize-music/audio/bitwize/shell-no/03-track.wav` |
-| WRONG | `~/bitwize-music/audio/shell-no/03-track.wav` |
-| WRONG | `~/bitwize-music/artists/bitwize/albums/electronic/shell-no/03-track.wav` |
-| WRONG | `./audio/shell-no/03-track.wav` |
+| CORRECT | `~/bitwize-music/audio/bitwize/sample-album/03-track.wav` |
+| WRONG | `~/bitwize-music/audio/sample-album/03-track.wav` |
+| WRONG | `~/bitwize-music/artists/bitwize/albums/electronic/sample-album/03-track.wav` |
+| WRONG | `./audio/sample-album/03-track.wav` |
 
 ## Common Mistakes
 
@@ -97,13 +97,13 @@ Moved: ~/Downloads/03-t-day-beach.wav
 Wrong:
 ```
 {audio_root}/{album}/file.wav
-~/bitwize-music/audio/shell-no/03-track.wav
+~/bitwize-music/audio/sample-album/03-track.wav
 ```
 
 Correct:
 ```
 {audio_root}/{artist}/{album}/file.wav
-~/bitwize-music/audio/bitwize/shell-no/03-track.wav
+~/bitwize-music/audio/bitwize/sample-album/03-track.wav
 ```
 
 **Why it matters:** Mastering scripts and other tools expect the artist folder. Missing it breaks the workflow.
@@ -113,7 +113,7 @@ Correct:
 Wrong:
 ```bash
 # Assuming paths
-mv file.wav ~/music-projects/audio/bitwize/shell-no/
+mv file.wav ~/music-projects/audio/bitwize/sample-album/
 ```
 
 Correct:
@@ -143,12 +143,12 @@ Correct:
 
 Wrong:
 ```bash
-mv ~/Downloads/track.wav ./shell-no/
+mv ~/Downloads/track.wav ./sample-album/
 ```
 
 Correct:
 ```
-/bitwize-music:import-audio ~/Downloads/track.wav shell-no
+/bitwize-music:import-audio ~/Downloads/track.wav sample-album
 ```
 
 **Why it matters:** The skill reads config fresh, ensuring correct paths even after context changes.
@@ -196,9 +196,9 @@ Warning: File already exists at destination.
 For multiple files from the same album:
 
 ```
-/bitwize-music:import-audio ~/Downloads/01-track.wav shell-no
-/bitwize-music:import-audio ~/Downloads/02-track.wav shell-no
-/bitwize-music:import-audio ~/Downloads/03-track.wav shell-no
+/bitwize-music:import-audio ~/Downloads/01-track.wav sample-album
+/bitwize-music:import-audio ~/Downloads/02-track.wav sample-album
+/bitwize-music:import-audio ~/Downloads/03-track.wav sample-album
 ```
 
-Or tell Claude: "Import all WAV files from Downloads to shell-no album"
+Or tell Claude: "Import all WAV files from Downloads to sample-album album"

@@ -33,7 +33,7 @@ Since Claude Code cannot directly generate images:
 Once user has generated and downloaded the image, use the `/bitwize-music:import-art` skill:
 
 ```
-/bitwize-music:import-art ~/Downloads/album-art.jpg shell-no
+/bitwize-music:import-art ~/Downloads/album-art.jpg sample-album
 ```
 
 The skill:

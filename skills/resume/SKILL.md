@@ -42,7 +42,7 @@ Read `~/.bitwize-music/cache/state.json` to get album and track data.
 
 Search `state.albums` keys for the album name:
 - Case-insensitive match
-- Match variations: "shell-no", "shell_no", "shell no" should all match the same slug
+- Match variations: "sample-album", "sample_album", "sample album" should all match the same slug
 
 **If no matches found**:
 - Tell user: "Album '[name]' not found"
@@ -237,7 +237,7 @@ Did you mean one of these? Or use /bitwize-music:new-album to create a new album
 
 - **Always read config first** - Never assume paths
 - **Use Glob tool** - Don't use bash find/ls
-- **Case-insensitive matching** - "Shell-No" should match "shell-no"
+- **Case-insensitive matching** - "Sample-Album" should match "sample-album"
 - **Handle missing albums gracefully** - List what exists, don't error
 - **Be specific about next steps** - Don't just say "continue working", say exactly what to do
 - **Include full paths** - User needs to know where files are located

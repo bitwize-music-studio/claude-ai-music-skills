@@ -30,7 +30,7 @@ See `../../skills/sheet-music-publisher/REQUIREMENTS.md` for detailed setup inst
 **Usage**:
 ```bash
 # By album name (reads config)
-python3 transcribe.py shell-no
+python3 transcribe.py sample-album
 
 # By path
 python3 transcribe.py /path/to/mastered/
@@ -39,11 +39,11 @@ python3 transcribe.py /path/to/mastered/
 python3 transcribe.py track.wav
 
 # Options
-python3 transcribe.py shell-no --pdf-only      # Skip MusicXML
-python3 transcribe.py shell-no --xml-only      # Skip PDF
-python3 transcribe.py shell-no --midi          # Also generate MIDI
-python3 transcribe.py shell-no --treble        # Treble clef only
-python3 transcribe.py shell-no --dry-run       # Preview only
+python3 transcribe.py sample-album --pdf-only      # Skip MusicXML
+python3 transcribe.py sample-album --xml-only      # Skip PDF
+python3 transcribe.py sample-album --midi          # Also generate MIDI
+python3 transcribe.py sample-album --treble        # Treble clef only
+python3 transcribe.py sample-album --dry-run       # Preview only
 ```
 
 **Output**:
@@ -121,7 +121,7 @@ python3 create_songbook.py /path/to/sheet-music/ \
 
 # Full options
 python3 create_songbook.py /path/to/sheet-music/ \
-  --title "Shell No Songbook" \
+  --title "Sample Album Songbook" \
   --artist "bitwize" \
   --cover /path/to/album.png \
   --website "bitwizemusic.com" \
@@ -158,7 +158,7 @@ python3 create_songbook.py /path/to/sheet-music/ \
 
 **Output Location**: `{source_dir}/{Title}.pdf`
 
-Example: `/path/to/sheet-music/Shell_No_Songbook.pdf`
+Example: `/path/to/sheet-music/Sample_Album_Songbook.pdf`
 
 ---
 
@@ -166,27 +166,27 @@ Example: `/path/to/sheet-music/Shell_No_Songbook.pdf`
 
 ### Step 1: Transcribe
 ```bash
-python3 transcribe.py shell-no
-# Output: 10 PDFs + 10 XMLs in {audio_root}/bitwize/shell-no/sheet-music/
+python3 transcribe.py sample-album
+# Output: 10 PDFs + 10 XMLs in {audio_root}/bitwize/sample-album/sheet-music/
 ```
 
 ### Step 2: Polish (Optional)
 ```bash
 # Open XMLs in MuseScore, manually fix errors, add dynamics
-open -a "MuseScore 4" {audio_root}/bitwize/shell-no/sheet-music/*.xml
+open -a "MuseScore 4" {audio_root}/bitwize/sample-album/sheet-music/*.xml
 ```
 
 ### Step 3: Clean Titles
 ```bash
-python3 fix_titles.py {audio_root}/bitwize/shell-no/sheet-music/
+python3 fix_titles.py {audio_root}/bitwize/sample-album/sheet-music/
 # Updates XML titles, re-exports PDFs
 ```
 
 ### Step 4: Create Songbook
 ```bash
-python3 create_songbook.py {audio_root}/bitwize/shell-no/sheet-music/ \
-  --title "Shell No Songbook"
-# Output: Shell_No_Songbook.pdf
+python3 create_songbook.py {audio_root}/bitwize/sample-album/sheet-music/ \
+  --title "Sample Album Songbook"
+# Output: Sample_Album_Songbook.pdf
 ```
 
 ---
@@ -225,7 +225,7 @@ These scripts are called by the `/bitwize-music:sheet-music-publisher` skill, wh
 ├── 02-run-away.xml
 ├── 03-t-day-beach.pdf
 ├── 03-t-day-beach.xml
-└── Shell_No_Songbook.pdf  (combined)
+└── Sample_Album_Songbook.pdf  (combined)
 ```
 
 **Key points**:
@@ -292,12 +292,12 @@ python3 transcribe.py temp-transcribe/
 
 ### Custom Output Location
 ```bash
-python3 transcribe.py shell-no --output /custom/output/path/
+python3 transcribe.py sample-album --output /custom/output/path/
 ```
 
 ### Generate Only MusicXML (Skip PDF)
 ```bash
-python3 transcribe.py shell-no --xml-only
+python3 transcribe.py sample-album --xml-only
 # Faster, if you plan to edit everything in MuseScore anyway
 ```
 

@@ -233,7 +233,7 @@ Merges with base pronunciation guide for artist-specific terms.
 | Word | Standard | Phonetic | Notes |
 |------|----------|----------|-------|
 | BitWize | bitwize | Bit-Wize | Artist name |
-| ShellNo | shellno | Shell-No | Album title |
+| SampleAlbum | samplealbum | Sample-Album | Album title |
 
 ## Album-Specific Names
 | Word | Standard | Phonetic | Notes |
