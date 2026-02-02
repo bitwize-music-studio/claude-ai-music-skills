@@ -1,22 +1,31 @@
 # Custom Mastering Presets
 #
-# Override default genre presets for mastering.
-# Values are in dB unless noted.
+# Override or add genre presets for mastering.
+# These merge on top of the built-in presets in tools/mastering/genre-presets.yaml.
+# Only specify fields you want to change — unset fields inherit from built-in.
+#
+# Fields per genre:
+#   target_lufs  - Loudness target in LUFS (e.g., -14.0)
+#   cut_highmid  - EQ cut in dB at 3.5kHz (negative = cut, 0 = none)
+#   cut_highs    - High shelf cut in dB at 8kHz (negative = cut, 0 = none)
 
 genres:
-  # Example: darker electronic with more sub bass
+  # Example: override rock to be less aggressive
+  # rock:
+  #   cut_highmid: -1.5        # Less cut than default -2.5
+
+  # Example: add a custom genre
   # dark-electronic:
-  #   cut_highmid: -3      # More aggressive high-mid cut
-  #   boost_sub: 2         # Extra sub bass
-  #   target_lufs: -12     # Louder master
+  #   target_lufs: -12.0
+  #   cut_highmid: -3.0
+  #   cut_highs: -1.0
 
-  # Example: ambient with more dynamics
+  # Example: ambient with even more dynamics
   # ambient:
-  #   cut_highmid: -1      # Gentle cut
-  #   boost_sub: 0         # Natural bass
-  #   target_lufs: -16     # Quieter, more dynamic range
+  #   target_lufs: -18.0       # Override default -16
 
-# Default settings (applied to all genres unless overridden)
-defaults:
-  # target_lufs: -14       # Streaming standard
-  # true_peak: -1.0        # dBTP ceiling
+# Default settings (applied when no genre is specified)
+# defaults:
+#   target_lufs: -14.0         # Streaming standard
+#   cut_highmid: 0
+#   cut_highs: 0

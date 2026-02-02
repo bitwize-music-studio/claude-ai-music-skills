@@ -39,9 +39,6 @@ def analyze_track(filepath):
     peak_linear = np.max(np.abs(data))
     peak_db = 20 * np.log10(peak_linear) if peak_linear > 0 else -np.inf
 
-    # True peak (oversampled)
-    true_peak_db = peak_db  # Simplified; proper true peak needs oversampling
-
     # Dynamic range (difference between peak and RMS)
     rms = np.sqrt(np.mean(data**2))
     rms_db = 20 * np.log10(rms) if rms > 0 else -np.inf
@@ -71,7 +68,7 @@ def analyze_track(filepath):
     for band_name, (low, high) in bands.items():
         mask = (freqs >= low) & (freqs < high)
         energy = np.sum(psd[mask])
-        band_energy[band_name] = (energy / total_energy) * 100  # Percentage
+        band_energy[band_name] = (energy / total_energy) * 100 if total_energy > 0 else 0.0
 
     # Tinniness indicator: ratio of high_mid to mid energy
     tinniness_ratio = band_energy['high_mid'] / band_energy['mid'] if band_energy['mid'] > 0 else 0
