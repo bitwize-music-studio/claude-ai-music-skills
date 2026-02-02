@@ -47,7 +47,7 @@ When adding a new skill, you MUST update all of these files:
 - [ ] Update workflow diagram in `CLAUDE.md` (if part of main workflow)
 - [ ] Add to Album Completion Checklist in `CLAUDE.md` (if part of release)
 - [ ] Add reference docs in `/reference/` if complex
-- [ ] Update `README.md` if user-facing feature
+- [ ] Update `README.md` Skills Reference tables (add to appropriate section: Core Production, Research, Quality Control, Release, or Setup & Maintenance)
 
 **Testing:**
 - [ ] Run `/bitwize-music:test all` to ensure no regressions
