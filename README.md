@@ -33,10 +33,15 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.33** | Pronunciation table enforcement — table entries must be applied to Suno lyrics |
+| **0.29** | Suno verse length limits by genre and BPM across all 67 genres |
+| **0.25** | Genre-specific lyric conventions (rhyme schemes, structures) for all 67 genres |
+| **0.21** | 46 artist deep-dives, genre keyword indexes for lazy-loading |
+| **0.20** | Python logging, progress bars, concurrent processing, 180 tests at 91% coverage |
+| **0.18** | State cache layer — fast session startup (2-3 file reads vs 50-220) |
+| **0.17** | Test automation, genre INDEX, model strategy docs, 64 quick-start guides |
+| **0.16** | All 64 genre docs enhanced to Gold standard |
 | **0.14** | Cloud uploader for R2/S3, promo video generation for social media |
-| **0.13** | Promo director skill with 9 visualization styles |
-| **0.12** | Resume skill, troubleshooting guide, common mistakes docs |
-| **0.11** | Help skill for quick reference |
 
 ---
 
@@ -393,14 +398,18 @@ For documentary or true-story albums:
 
 | Skill | Description |
 |-------|-------------|
-| `/bitwize-music:lyric-reviewer` | QC gate before Suno - 9-point checklist |
+| `/bitwize-music:lyric-reviewer` | QC gate before Suno - 12-point checklist |
 | `/bitwize-music:explicit-checker` | Scan lyrics for explicit content |
+| `/bitwize-music:validate-album` | Validate album structure, file locations, content integrity |
 
-### Release
+### Release & Distribution
 
 | Skill | Description |
 |-------|-------------|
 | `/bitwize-music:mastering-engineer` | Audio mastering for streaming |
+| `/bitwize-music:promo-director` | Generate promo videos for social media |
+| `/bitwize-music:cloud-uploader` | Upload promo videos to Cloudflare R2 or AWS S3 |
+| `/bitwize-music:sheet-music-publisher` | Convert audio to sheet music, create songbooks |
 | `/bitwize-music:release-director` | QA, distribution prep |
 
 ### Setup & Maintenance
@@ -408,7 +417,13 @@ For documentary or true-story albums:
 | Skill | Description |
 |-------|-------------|
 | `/bitwize-music:resume` | Resume work on an album - finds album, shows status and next steps |
+| `/bitwize-music:tutorial` | Interactive guided album creation and getting started |
+| `/bitwize-music:album-ideas` | Track and manage album ideas — brainstorming, planning, status |
+| `/bitwize-music:new-album` | Create album directory structure with templates |
 | `/bitwize-music:configure` | Set up or edit plugin configuration |
+| `/bitwize-music:import-audio` | Move audio files to correct album location |
+| `/bitwize-music:import-track` | Move track .md files to correct album location |
+| `/bitwize-music:import-art` | Place album art in audio and content locations |
 | `/bitwize-music:clipboard` | Copy track content to clipboard (macOS/Linux/WSL) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity |
 | `/bitwize-music:skill-model-updater` | Update Claude model references |
@@ -423,9 +438,9 @@ Skills use different Claude models optimized for quality vs cost. On Claude Code
 
 | Model | When Used | Skills |
 |-------|-----------|--------|
-| **Opus 4.5** | Critical creative outputs | `/bitwize-music:lyric-writer` (core lyrics)<br>`/bitwize-music:suno-engineer` (music prompts)<br>`/bitwize-music:researchers-legal` (complex legal synthesis)<br>`/bitwize-music:researchers-verifier` (quality control) |
-| **Sonnet 4.5** | Most tasks | `/bitwize-music:album-conceptualizer`<br>`/bitwize-music:researcher` (coordination)<br>Most other creative and reasoning skills |
-| **Haiku 4.5** | Pattern matching only | `/bitwize-music:pronunciation-specialist` (scanning) |
+| **Opus 4.5** | Critical creative outputs (6 skills) | `/bitwize-music:lyric-writer`, `/bitwize-music:suno-engineer`, `/bitwize-music:album-conceptualizer`, `/bitwize-music:lyric-reviewer`, `/bitwize-music:researchers-legal`, `/bitwize-music:researchers-verifier` |
+| **Sonnet 4.5** | Reasoning and coordination (21 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
+| **Haiku 4.5** | Rule-based operations (11 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
 
 **Why different models?**
 - **Opus** for lyrics and Suno prompts because these define the final music output
