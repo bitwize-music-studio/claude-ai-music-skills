@@ -13,11 +13,17 @@ import sys
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 import soundfile as sf
 import pyloudnorm as pyln
 from scipy import signal
+
+try:
+    import yaml
+except ImportError:
+    yaml = None
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -29,107 +35,86 @@ from tools.shared.progress import ProgressBar
 
 logger = logging.getLogger(__name__)
 
-# Genre presets: (target_lufs, cut_highmid, cut_highs)
-# - target_lufs: Loudness target (streaming standard is -14, dynamic genres use -16 to -18)
-# - cut_highmid: EQ cut at 3.5kHz to tame harshness (negative values = cut)
-# - cut_highs: High shelf cut at 8kHz for overly bright mixes
-GENRE_PRESETS = {
-    # === Pop / Mainstream ===
-    'pop':              (-14.0, -1.0, 0),
-    'k-pop':            (-14.0, -1.0, 0),
-    'hyperpop':         (-14.0, -1.5, 0),
+# Built-in presets file (ships with plugin)
+_BUILTIN_PRESETS_FILE = Path(__file__).parent / "genre-presets.yaml"
 
-    # === Hip-Hop / Rap ===
-    'hip-hop':          (-14.0, -1.0, 0),
-    'hiphop':           (-14.0, -1.0, 0),
-    'rap':              (-14.0, -1.0, 0),
-    'trap':             (-14.0, -1.0, 0),
-    'drill':            (-14.0, -1.0, 0),
-    'phonk':            (-14.0, -1.5, 0),
-    'grime':            (-14.0, -1.5, 0),
-    'nerdcore':         (-14.0, -1.0, 0),
+# User override location
+_CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 
-    # === R&B / Soul / Funk ===
-    'r&b':              (-14.0, -1.5, 0),
-    'rnb':              (-14.0, -1.5, 0),
-    'soul':             (-14.0, -1.5, 0),
-    'funk':             (-14.0, -1.5, 0),
-    'disco':            (-14.0, -1.0, 0),
-    'gospel':           (-14.0, -1.5, 0),
 
-    # === Rock ===
-    'rock':             (-14.0, -2.5, 0),
-    'indie-rock':       (-14.0, -2.0, 0),
-    'alternative':      (-14.0, -2.0, 0),
-    'grunge':           (-14.0, -2.5, 0),
-    'garage-rock':      (-14.0, -2.0, 0),
-    'surf-rock':        (-14.0, -1.5, 0),
-    'psychedelic-rock': (-16.0, -1.5, 0),
-    'progressive-rock': (-16.0, -1.5, 0),
-    'post-rock':        (-16.0, -1.5, 0),
+def _load_yaml_file(path: Path) -> dict:
+    """Load a YAML file, returning empty dict on failure."""
+    if not path.exists():
+        return {}
+    if yaml is None:
+        logger.debug("PyYAML not installed, cannot load %s", path)
+        return {}
+    try:
+        with open(path) as f:
+            return yaml.safe_load(f) or {}
+    except (yaml.YAMLError, OSError) as e:
+        logger.warning("Cannot read %s: %s", path, e)
+        return {}
 
-    # === Punk ===
-    'punk':             (-14.0, -2.0, 0),
-    'hardcore-punk':    (-14.0, -2.5, 0),
-    'ska-punk':         (-14.0, -2.0, 0),
-    'celtic-punk':      (-14.0, -2.0, 0),
-    'emo':              (-14.0, -2.0, 0),
 
-    # === Metal ===
-    'metal':            (-14.0, -3.0, 0),
-    'thrash-metal':     (-14.0, -3.0, 0),
-    'black-metal':      (-14.0, -3.0, -1.0),
-    'doom-metal':       (-14.0, -2.5, 0),
-    'metalcore':        (-14.0, -3.0, 0),
-    'industrial':       (-14.0, -2.5, 0),
+def _get_overrides_path() -> Optional[Path]:
+    """Resolve the user's overrides directory from config."""
+    config = _load_yaml_file(_CONFIG_PATH)
+    if not config:
+        return None
+    overrides_raw = config.get('paths', {}).get('overrides', '')
+    if overrides_raw:
+        return Path(os.path.expanduser(overrides_raw))
+    content_root = config.get('paths', {}).get('content_root', '')
+    if content_root:
+        return Path(os.path.expanduser(content_root)) / 'overrides'
+    return None
 
-    # === Electronic / Dance ===
-    'electronic':       (-14.0, -1.0, 0),
-    'edm':              (-14.0, -1.0, 0),
-    'house':            (-14.0, -1.0, 0),
-    'techno':           (-14.0, -1.0, 0),
-    'trance':           (-14.0, -1.0, 0),
-    'drum-and-bass':    (-14.0, -1.5, 0),
-    'dubstep':          (-14.0, -1.5, 0),
-    'synthwave':        (-14.0, -1.5, 0),
-    'new-wave':         (-14.0, -1.5, 0),
-    'dancehall':        (-14.0, -1.0, 0),
 
-    # === Ambient / Chill / Atmospheric ===
-    'ambient':          (-16.0, -1.0, 0),
-    'lo-fi':            (-14.0, -1.0, 0),
-    'lofi':             (-14.0, -1.0, 0),
-    'chillwave':        (-16.0, -1.0, 0),
-    'trip-hop':         (-14.0, -1.5, 0),
-    'vaporwave':        (-16.0, -1.0, 0),
-    'shoegaze':         (-16.0, -1.5, 0),
+def load_genre_presets() -> dict:
+    """Load genre presets from YAML, merging built-in with user overrides.
 
-    # === Folk / Country / Americana ===
-    'folk':             (-14.0, -2.0, 0),
-    'country':          (-14.0, -2.0, 0),
-    'americana':        (-14.0, -2.0, 0),
-    'bluegrass':        (-14.0, -1.5, 0),
-    'indie-folk':       (-14.0, -2.0, 0),
+    Returns:
+        Dict mapping genre name to (target_lufs, cut_highmid, cut_highs) tuples.
+    """
+    # Load built-in presets
+    builtin = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+    builtin_genres = builtin.get('genres', {})
+    defaults = builtin.get('defaults', {})
 
-    # === Jazz / Blues ===
-    'jazz':             (-16.0, 0, 0),
-    'blues':            (-14.0, -1.5, 0),
-    'swing':            (-14.0, -1.0, 0),
-    'bossa-nova':       (-16.0, 0, 0),
+    # Load user overrides
+    overrides_dir = _get_overrides_path()
+    override_genres = {}
+    if overrides_dir:
+        override_file = overrides_dir / 'mastering-presets.yaml'
+        override_data = _load_yaml_file(override_file)
+        override_genres = override_data.get('genres', {})
+        override_defaults = override_data.get('defaults', {})
+        if override_defaults:
+            defaults.update(override_defaults)
 
-    # === Classical / Cinematic ===
-    'classical':        (-18.0, 0, 0),
-    'opera':            (-18.0, 0, 0),
-    'cinematic':        (-16.0, 0, 0),
+    default_lufs = float(defaults.get('target_lufs', -14.0))
+    default_highmid = float(defaults.get('cut_highmid', 0))
+    default_highs = float(defaults.get('cut_highs', 0))
 
-    # === Latin / World ===
-    'latin':            (-14.0, -1.0, 0),
-    'afrobeats':        (-14.0, -1.0, 0),
-    'reggae':           (-14.0, -1.5, 0),
+    # Merge: built-in genres + override genres (override wins per-field)
+    all_genre_names = set(builtin_genres.keys()) | set(override_genres.keys())
+    presets = {}
+    for genre in all_genre_names:
+        base = builtin_genres.get(genre, {})
+        over = override_genres.get(genre, {})
+        merged = {**base, **over}
+        presets[genre] = (
+            float(merged.get('target_lufs', default_lufs)),
+            float(merged.get('cut_highmid', default_highmid)),
+            float(merged.get('cut_highs', default_highs)),
+        )
 
-    # === Legacy aliases ===
-    'indie':            (-14.0, -2.0, 0),
-}
+    return presets
+
+
+# Load presets at import time (fast — just two small YAML reads)
+GENRE_PRESETS = load_genre_presets()
 
 def apply_eq(data, rate, freq, gain_db, q=1.0):
     """Apply parametric EQ to audio data.
@@ -141,6 +126,14 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
         gain_db: Gain in dB (negative for cut)
         q: Q factor (higher = narrower)
     """
+    nyquist = rate / 2
+    if not (20 <= freq < nyquist):
+        logger.warning("EQ freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        return data
+    if q <= 0:
+        logger.warning("EQ Q factor must be positive (got %.4f), skipping", q)
+        return data
+
     # Convert to filter parameters
     A = 10 ** (gain_db / 40)
     w0 = 2 * np.pi * freq / rate
@@ -158,6 +151,12 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
     b = np.array([b0/a0, b1/a0, b2/a0])
     a = np.array([1, a1/a0, a2/a0])
 
+    # Verify filter stability (all poles inside unit circle)
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable EQ filter at %.1f Hz (gain=%.1f dB, Q=%.2f), skipping", freq, gain_db, q)
+        return data
+
     # Apply filter to each channel
     if len(data.shape) == 1:
         return signal.lfilter(b, a, data)
@@ -169,6 +168,11 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
 
 def apply_high_shelf(data, rate, freq, gain_db):
     """Apply high shelf EQ."""
+    nyquist = rate / 2
+    if not (20 <= freq < nyquist):
+        logger.warning("High shelf freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        return data
+
     A = 10 ** (gain_db / 40)
     w0 = 2 * np.pi * freq / rate
     alpha = np.sin(w0) / 2 * np.sqrt(2)
@@ -185,6 +189,12 @@ def apply_high_shelf(data, rate, freq, gain_db):
 
     b = np.array([b0/a0, b1/a0, b2/a0])
     a = np.array([1, a1/a0, a2/a0])
+
+    # Verify filter stability (all poles inside unit circle)
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable high shelf filter at %.1f Hz (gain=%.1f dB), skipping", freq, gain_db)
+        return data
 
     if len(data.shape) == 1:
         return signal.lfilter(b, a, data)

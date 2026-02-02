@@ -113,26 +113,32 @@ jobs:
         "
 
   test:
-    name: Unit Tests
+    name: Unit Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
 
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
+        pip install -r requirements-mastering.txt
 
     - name: Run tests
       run: |
-        python -m pytest tools/state/tests/ tools/shared/tests/ -v --tb=short
+        python -m pytest tools/state/tests/ tools/shared/tests/ tools/mastering/tests/ -v --tb=short
 
   lint:
     name: Lint
@@ -156,8 +162,35 @@ jobs:
       run: |
         ruff check tools/
 
+    - name: Run bandit security linter
+      run: |
+        bandit -r tools/ -ll -q -s B108
+
     - name: Validation summary
       run: |
         echo "================================"
         echo "All lint checks passed!"
         echo "================================"
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install pip-audit
+      run: |
+        python -m pip install --upgrade pip
+        pip install pip-audit
+
+    - name: Audit dependencies
+      run: |
+        pip-audit -r requirements.txt -r requirements-test.txt
