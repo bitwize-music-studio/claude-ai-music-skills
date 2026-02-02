@@ -6,7 +6,7 @@
 |-----------|--------|
 | **Track #** | 04 |
 | **Title** | Kernel Panic |
-| **Album** | [Shell No](../README.md) |
+| **Album** | [Sample Album](../README.md) |
 | **Status** | Not Started |
 | **Suno Link** | — |
 | **Stems** | No |

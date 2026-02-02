@@ -77,7 +77,7 @@ class TestParseAlbumReadme:
         result = parse_album_readme(path)
 
         assert '_error' not in result
-        assert result['title'] == 'Shell No'
+        assert result['title'] == 'Sample Album'
         assert result['status'] == 'In Progress'
         assert result['explicit'] is True
         assert result['track_count'] == 8
