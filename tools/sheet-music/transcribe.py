@@ -20,13 +20,13 @@ Options:
 
 Examples:
     # By album name (reads config)
-    python3 transcribe.py shell-no
+    python3 transcribe.py sample-album
 
     # By path (direct)
     python3 transcribe.py /path/to/mastered/
 
     # Options
-    python3 transcribe.py shell-no --pdf-only
+    python3 transcribe.py sample-album --pdf-only
     python3 transcribe.py /path/to/mastered/ --midi --dry-run
 """
 
@@ -147,6 +147,13 @@ def resolve_album_path(album_name):
             logger.warning("Treating as direct path instead.")
             return None
 
+        # Validate resolved path stays within audio_root (prevent path traversal)
+        try:
+            album_path.resolve().relative_to(audio_root.resolve())
+        except ValueError:
+            logger.error("Album path resolves outside audio_root (possible path traversal): %s", album_path)
+            return None
+
         return album_path
 
     except KeyError as e:
@@ -241,10 +248,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s shell-no                    # By album name (reads config)
+  %(prog)s sample-album                    # By album name (reads config)
   %(prog)s /path/to/mastered/          # By path
   %(prog)s track.wav --pdf-only        # Single file, PDF only
-  %(prog)s shell-no --midi --dry-run   # Preview with MIDI
+  %(prog)s sample-album --midi --dry-run   # Preview with MIDI
         """
     )
 

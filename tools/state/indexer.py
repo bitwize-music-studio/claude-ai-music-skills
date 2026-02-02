@@ -25,6 +25,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -424,23 +425,36 @@ def write_state(state: Dict[str, Any]):
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-    tmp_path = STATE_FILE.with_suffix('.tmp')
     lock_fd = None
+    tmp_fd = None
+    tmp_path = None
     try:
         lock_fd = open(LOCK_FILE, 'w')
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-        with open(tmp_path, 'w') as f:
-            json.dump(state, f, indent=2, default=str)
-            f.write('\n')
+        # Use tempfile for unpredictable filename in the same directory
+        tmp_fd = tempfile.NamedTemporaryFile(
+            mode='w', dir=CACHE_DIR, suffix='.tmp',
+            prefix='.state_', delete=False
+        )
+        tmp_path = Path(tmp_fd.name)
+        json.dump(state, tmp_fd, indent=2, default=str)
+        tmp_fd.write('\n')
+        tmp_fd.flush()
+        os.fsync(tmp_fd.fileno())
+        tmp_fd.close()
+        tmp_fd = None
         os.replace(str(tmp_path), str(STATE_FILE))
     except OSError as e:
         logger.error("Cannot write state file: %s", e)
         # Clean up temp file
-        try:
-            tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
+        if tmp_fd is not None:
+            tmp_fd.close()
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
         raise
     finally:
         if lock_fd is not None:
