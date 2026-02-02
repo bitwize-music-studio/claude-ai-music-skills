@@ -80,6 +80,7 @@ This plugin uses [Semantic Versioning](https://semver.org/) with [Conventional C
    - Add new `[Unreleased]` section above it
    - Update version in `.claude-plugin/plugin.json`
    - Update version in `.claude-plugin/marketplace.json` (must match plugin.json)
+   - Update "What's New" table in `README.md` if this is a notable release (new feature, major change). Keep ~9 rows max, drop oldest entry when adding new.
 3. Commit: `chore: release 0.x.0`
 4. Push to main → **Automated workflow**:
    - Creates git tag `v0.x.0`
