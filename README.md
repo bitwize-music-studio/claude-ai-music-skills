@@ -157,40 +157,6 @@ New to the plugin? Follow these steps to get up and running:
 
 ---
 
-## Quick Start
-
-### 1. Configure the Plugin
-
-```bash
-# Create config directory
-mkdir -p ~/.bitwize-music
-
-# Copy config template
-cp config/config.example.yaml ~/.bitwize-music/config.yaml
-
-# Edit with your settings
-nano ~/.bitwize-music/config.yaml  # or your preferred editor
-```
-
-Key settings in `~/.bitwize-music/config.yaml`:
-- `artist.name` - Your artist/project name
-- `paths.content_root` - Where your albums live (e.g., `~/music-projects`)
-- `paths.audio_root` - Where mastered audio goes
-
-### 2. Start Claude Code
-
-```bash
-claude
-```
-
-### 3. Create Your First Album
-
-Just say: **"Let's plan a new album"**
-
-Claude will walk you through the 7 planning phases before any writing begins.
-
----
-
 ## How It Works
 
 ### The Workflow
@@ -439,13 +405,13 @@ Skills use different Claude models optimized for quality vs cost. On Claude Code
 | Model | When Used | Skills |
 |-------|-----------|--------|
 | **Opus 4.5** | Critical creative outputs (6 skills) | `/bitwize-music:lyric-writer`, `/bitwize-music:suno-engineer`, `/bitwize-music:album-conceptualizer`, `/bitwize-music:lyric-reviewer`, `/bitwize-music:researchers-legal`, `/bitwize-music:researchers-verifier` |
-| **Sonnet 4.5** | Reasoning and coordination (21 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
-| **Haiku 4.5** | Rule-based operations (11 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
+| **Sonnet 4.5** | Reasoning and coordination (22 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
+| **Haiku 4.5** | Rule-based operations (10 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
 
 **Why different models?**
-- **Opus** for lyrics and Suno prompts because these define the final music output
-- **Sonnet** for planning, research, and most tasks - excellent quality at lower cost
-- **Haiku** only for simple pattern matching where speed matters more than creativity
+- **Opus** for lyrics, Suno prompts, album concepts, lyric review, and legal/verification research — these define the final music and have high error cost
+- **Sonnet** for planning, research coordination, and most tasks — excellent quality at lower cost
+- **Haiku** for mechanical operations (imports, validation, clipboard) where speed matters more than creativity
 
 **Checking models:** Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. The updater can automatically update model references when new versions release.
 
@@ -453,24 +419,23 @@ Skills use different Claude models optimized for quality vs cost. On Claude Code
 
 ## Tools
 
-### Audio Mastering (`tools/mastering/`)
+All in `tools/`. Python 3.8+ required for optional tools.
 
-Python scripts for preparing audio for streaming platforms:
-
-| Script | Purpose |
-|--------|---------|
-| `analyze_tracks.py` | LUFS/dynamics analysis |
-| `master_tracks.py` | Automated mastering with genre presets |
-| `fix_dynamic_track.py` | Fix high-dynamic-range tracks |
-| `reference_master.py` | Match loudness to reference track |
-
-**Targets:** -14 LUFS, -1.0 dBTP (streaming standard)
+| Directory | Purpose | Key Scripts |
+|-----------|---------|-------------|
+| `mastering/` | Audio mastering for streaming | `master_tracks.py` (genre presets, -14 LUFS), `analyze_tracks.py`, `reference_master.py` |
+| `promotion/` | Social media promo videos | `generate_promo_video.py`, `generate_album_sampler.py` |
+| `cloud/` | Cloud storage uploads | `upload_to_cloud.py` (R2/S3) |
+| `sheet-music/` | Sheet music generation | `transcribe.py` |
+| `state/` | State cache for fast session startup | `indexer.py` (rebuild, update, validate, session) |
+| `tests/` | Automated test suite | `run_tests.py` (180 tests, 91% coverage) |
+| `shared/` | Common utilities | `logging_config.py`, `progress.py` |
 
 ---
 
 ## Reference Documentation
 
-All in `reference/`:
+All in `reference/` (46+ files). Key references:
 
 | Path | Contents |
 |------|----------|
@@ -480,6 +445,11 @@ All in `reference/`:
 | `suno/genre-list.md` | 500+ genre tags |
 | `suno/voice-tags.md` | Vocal style tags |
 | `mastering/mastering-workflow.md` | Full mastering guide |
+| `model-strategy.md` | Skill-to-model assignments and rationale |
+| `workflows/` | Checkpoint scripts, album planning, source verification, error recovery |
+| `promotion/` | Promo video workflow, social media specs |
+| `release/` | Platform comparison, distributor guide, metadata |
+| `quick-start/` | First album, true-story album, bulk releases |
 
 ---
 
@@ -492,6 +462,8 @@ Copy these for new content:
 | `templates/track.md` | Track structure with Suno inputs |
 | `templates/album.md` | Album planning template |
 | `templates/artist.md` | Artist profile |
+| `templates/genre.md` | Genre documentation |
+| `templates/ideas.md` | Album ideas tracking |
 | `templates/research.md` | Research documentation |
 | `templates/sources.md` | Citation tracking |
 
