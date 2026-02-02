@@ -6,6 +6,23 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-02-02
+
+### Added
+- **Python version matrix** — CI tests now run across Python 3.9, 3.10, 3.11, 3.12 with pip caching
+- **Security scanning** — bandit static analysis in lint job, pip-audit dependency audit as new security job
+- **Mastering tests in CI** — 47 mastering tests now run in the test pipeline alongside state/shared tests
+
+### Fixed
+- **Path traversal prevention** — upload_to_cloud.py and transcribe.py validate resolved paths stay within expected roots
+- **Atomic state writes** — indexer.py uses tempfile + fsync to prevent corruption on crash
+- **Python 3.9 compatibility** — `Path | None` → `Optional[Path]` in master_tracks.py
+- **analyze_tracks divide-by-zero** — guard total_energy division in spectral analysis
+- **Model updater safety** — validates model ID date format and skips downgrades
+
+### Changed
+- **Documentation sanitized** — replaced real album names with generic examples across 19 files
+
 ## [0.33.0] - 2026-02-01
 
 ### Added
