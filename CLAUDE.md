@@ -450,8 +450,8 @@ Skills are optimized for quality where it matters most:
 | Tier | Model | When to Use | Examples |
 |------|-------|-------------|----------|
 | **Opus 4.5** | `claude-opus-4-5-20251101` | Music-defining output, high error cost (6 skills) | lyric-writer, suno-engineer, album-conceptualizer, lyric-reviewer, researchers-legal, researchers-verifier |
-| **Sonnet 4.5** | `claude-sonnet-4-5-20250929` | Reasoning and coordination (21 skills) | researcher, pronunciation-specialist, explicit-checker |
-| **Haiku 4.5** | `claude-haiku-4-5-20251001` | Rule-based operations (11 skills) | validate-album, test, imports, clipboard |
+| **Sonnet 4.5** | `claude-sonnet-4-5-20250929` | Reasoning and coordination (22 skills) | researcher, pronunciation-specialist, explicit-checker |
+| **Haiku 4.5** | `claude-haiku-4-5-20251001` | Rule-based operations (10 skills) | validate-album, test, imports, clipboard |
 
 **Full skill-to-model mapping**: See `/reference/model-strategy.md`
 
