@@ -181,24 +181,9 @@ Documents: ~/bitwize-music/documents/bitwize/sample-album/     ← includes arti
 
 ## Music Generation Service
 
-The workflow currently supports:
-- **Suno** (default) - Full support
+Currently supports **Suno** (default). To configure: Set `generation.service` in `~/.bitwize-music/config.yaml`.
 
-Future services (not yet implemented):
-- Udio
-- (others as added)
-
-To configure: Set `generation.service` in `~/.bitwize-music/config.yaml`. If unset, defaults to `suno`.
-
-**Service-specific content:**
-- Skills: `/bitwize-music:suno-engineer` (Suno), future: `/bitwize-music:udio-engineer`, etc.
-- Reference docs: `/reference/suno/` (Suno), future: `/reference/udio/`, etc.
-- Template sections: Marked with `<!-- SERVICE: suno -->` comments
-
-**Finding service-specific sections:**
-```bash
-grep -r "<!-- SERVICE:" templates/
-```
+**Service-specific content:** Skills (`/bitwize-music:suno-engineer`), reference docs (`/reference/suno/`), template sections (marked with `<!-- SERVICE: suno -->`).
 
 ## Session Start
 
@@ -297,21 +282,7 @@ You are a co-producer, editor, and creative partner. Push back when ideas don't 
 
 ### Automatic Lyrics Review
 
-**After writing or revising any lyrics**, automatically run through:
-1. **Rhyme check**: Repeated end words, self-rhymes, lazy/predictable patterns
-2. **Prosody check**: Stressed syllables align with strong beats (see `/skills/lyric-writer/SKILL.md`)
-3. **Pronunciation check**: Apply all rules from the Pronunciation section below (proper nouns, homographs, phonetic spelling, acronyms, tech terms, numbers, no invented contractions, pronunciation table enforcement)
-4. **POV/Tense check**: Consistent point of view and tense throughout
-5. **Source verification**: If source-based, verify lyrics match captured source material
-6. **Structure check**: Section tags present, verse/chorus contrast, V2 develops (not twins V1)
-7. **Section length check**: Count lines per section, compare against genre limits in `/skills/lyric-writer/SKILL.md`. **Hard fail** — trim any section exceeding its genre max before presenting.
-8. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see `/skills/lyric-writer/SKILL.md` Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse.
-9. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
-10. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Flag any verse exceeding the genre's max lines/verse. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse over the limit before presenting.
-11. **Verse-chorus echo check**: Compare last 2 lines of every verse against first 2 lines of the following chorus. Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery. Check ALL verse-to-chorus and bridge-to-chorus transitions. The chorus is the payoff — the verse should set it up, not pre-deliver it.
-12. **Pitfalls check**: Run through Lyric Pitfalls Checklist (see `/skills/lyric-writer/SKILL.md`)
-
-Report any violations found. Don't wait to be asked.
+**After writing or revising any lyrics**, run the 12-point quality checklist in `/skills/lyric-writer/SKILL.md` (Automatic Quality Check section). Covers: rhyme, prosody, pronunciation, POV/tense, sources, structure, section length, rhyme scheme, flow, density, verse-chorus echo, pitfalls. Report violations without being asked.
 
 ### Working On a Track
 
@@ -362,55 +333,13 @@ See `/skills/lyric-writer/SKILL.md` for full homograph table and process.
 
 ## Skills (Slash Commands)
 
-Specialized skills are available as slash commands. Type `/` to see the menu.
+Specialized skills are available as slash commands. Type `/` to see the menu, or see `/reference/SKILL_INDEX.md` for:
+- Decision tree ("I need to..." → skill)
+- Alphabetical reference (38 skills)
+- Skill prerequisites and sequences
+- Model assignments (Opus/Sonnet/Haiku)
 
-| Skill | When to Use |
-|-------|-------------|
-| `/bitwize-music:resume` | Find an album and resume work where you left off - shows status and next steps |
-| `/bitwize-music:tutorial` | Interactive guided album creation, session resume, getting started |
-| `/bitwize-music:album-ideas` | Track and manage album ideas - brainstorming, planning, status tracking |
-| `/bitwize-music:lyric-writer` | Writing/reviewing lyrics, fixing prosody issues |
-| `/bitwize-music:researcher` | Source verification, fact-checking, coordinates specialized researchers |
-| `/bitwize-music:document-hunter` | Automated document search/download from free public archives (Playwright) |
-| `/bitwize-music:album-conceptualizer` | Album concepts, tracklist architecture |
-| `/bitwize-music:album-art-director` | Album artwork concepts, visual prompts for AI art generation |
-| `/bitwize-music:suno-engineer` | Technical Suno prompting, genre selection |
-| `/bitwize-music:explicit-checker` | Scan lyrics for explicit content, verify flags match content |
-| `/bitwize-music:pronunciation-specialist` | Scan lyrics for risky words, prevent Suno mispronunciations |
-| `/bitwize-music:lyric-reviewer` | QC gate before Suno generation - 9-point checklist, auto-fix pronunciation |
-| `/bitwize-music:mastering-engineer` | Audio mastering guidance, loudness optimization, platform delivery |
-| `/bitwize-music:promo-director` | Generate promo videos for social media from mastered audio |
-| `/bitwize-music:cloud-uploader` | Upload promo videos to Cloudflare R2 or AWS S3 |
-| `/bitwize-music:sheet-music-publisher` | Convert audio to sheet music, create songbooks |
-| `/bitwize-music:import-audio` | Move audio files to correct album location (always reads config) |
-| `/bitwize-music:import-track` | Move track .md files to correct album location (always reads config) |
-| `/bitwize-music:import-art` | Place album art in both audio and content locations (always reads config) |
-| `/bitwize-music:clipboard` | Copy track content (lyrics, style prompts) to system clipboard - works on macOS/Linux/WSL |
-| `/bitwize-music:new-album` | Create album directory structure with templates (always reads config) |
-| `/bitwize-music:release-director` | Album release coordination, QA, distribution, platform uploads |
-| `/bitwize-music:validate-album` | Validate album structure, file locations, catch path issues |
-| `/bitwize-music:configure` | Set up or edit plugin configuration (~/.bitwize-music/config.yaml) |
-| `/bitwize-music:test` | Run automated tests to validate plugin integrity (`/bitwize-music:test e2e` for full E2E test) |
-| `/bitwize-music:skill-model-updater` | Update model references in skills when new Claude models are released |
-| `/bitwize-music:help` | Show available skills, common workflows, and quick reference |
-| `/bitwize-music:about` | About bitwize and this plugin |
-
-### Specialized Researchers
-
-For deep research, `/bitwize-music:researcher` coordinates specialists:
-
-| Skill | Domain |
-|-------|--------|
-| `/bitwize-music:researchers-legal` | Court documents, indictments, plea agreements, sentencing |
-| `/bitwize-music:researchers-gov` | DOJ/FBI/SEC press releases, agency statements |
-| `/bitwize-music:researchers-tech` | Project histories, changelogs, developer interviews |
-| `/bitwize-music:researchers-journalism` | Investigative articles, interviews, coverage |
-| `/bitwize-music:researchers-security` | Malware analysis, CVEs, attribution reports, hacker communities |
-| `/bitwize-music:researchers-financial` | SEC filings, earnings calls, analyst reports, market data |
-| `/bitwize-music:researchers-historical` | Archives, contemporary accounts, timeline reconstruction |
-| `/bitwize-music:researchers-biographical` | Personal backgrounds, interviews, motivations, humanizing details |
-| `/bitwize-music:researchers-primary-source` | Subject's own words: tweets, blogs, forums, chat logs |
-| `/bitwize-music:researchers-verifier` | Quality control, citation validation, fact-checking before human review |
+**Key skills**: `/resume` (continue work), `/lyric-writer` (write lyrics), `/suno-engineer` (prompts), `/researcher` (sources), `/mastering-engineer` (audio), `/release-director` (publish).
 
 ### How to Invoke
 
@@ -484,12 +413,9 @@ claude-ai-music-skills/           # {plugin_root}
 │       └── artists/              # Artist deep-dive reference files
 │           ├── INDEX.md          # Quick-reference: Suno keywords + links to deep-dives
 │           └── [artist].md
-├── reference/                    # Reference documentation
-│   ├── suno/
-│   └── mastering/
-└── config/                       # User config (gitignored)
-    ├── paths.yaml
-    └── artist.md
+└── reference/                    # Reference documentation
+    ├── suno/
+    └── mastering/
 ```
 
 ### Content Files (`{content_root}`)
@@ -666,40 +592,11 @@ All checkpoint message templates: See `/reference/workflows/checkpoint-scripts.m
 
 ## Status Tracking
 
-### Track Statuses
+Track statuses: `Not Started` → `Sources Pending` → `Sources Verified` → `In Progress` → `Generated` → `Final`
 
-| Status | Meaning |
-|--------|---------|
-| `Not Started` | Concept only |
-| `Sources Pending` | Has sources, awaiting human verification |
-| `Sources Verified` | Ready for production |
-| `In Progress` | Currently generating |
-| `Generated` | Has acceptable output |
-| `Final` | Complete, locked |
+Album statuses: `Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
 
-### Album Statuses
-
-| Status | Meaning |
-|--------|---------|
-| `Concept` | Planning phase |
-| `Research Complete` | Sources gathered, awaiting verification |
-| `Sources Verified` | All sources verified |
-| `In Progress` | Tracks being created |
-| `Complete` | All tracks Final |
-| `Released` | Live on platforms (`release_date` set in frontmatter) |
-
----
-
-## Generation Log
-
-Every track file includes:
-
-| # | Date | Model | Result | Notes | Rating |
-|---|------|-------|--------|-------|--------|
-| 1 | 2025-12-03 | V5 | [Listen](url) | First attempt | — |
-| 2 | 2025-12-03 | V5 | [Listen](url) | Boosted vocals | ✓ |
-
-When you find a keeper: Set Status to `Generated`, add Suno Link.
+**Full details**: See `/reference/workflows/status-tracking.md`
 
 ---
 
@@ -836,15 +733,7 @@ All Suno-specific documentation in `/reference/suno/`:
 
 ## Distribution Guidelines
 
-### Streaming Lyrics Format
+**Streaming Lyrics**: Just lyrics (no section labels), capitalize first letter, no end punctuation, write out repeats.
 
-Fill in "Streaming Lyrics" section in each track file before distributor upload. Format: just lyrics (no section labels/vocalist names), capitalize first letter of lines, no end punctuation, write out repeats fully.
-
-### Explicit Content
-
-Use explicit flag when lyrics contain: fuck, shit, bitch, cunt, cock, dick, pussy, asshole, whore, slut, goddamn, or variations. Clean words (no flag needed): damn, hell, crap, ass, bastard, piss.
-
-**Check with Grep**: Use pattern `\b(fuck|shit|bitch|cunt|cock|dick|pussy|asshole|whore|slut)\b` on track files.
-
-**Full guidelines**: See `/reference/distribution.md` for complete formatting rules and explicit word lists.
+**Explicit Content**: Use `/bitwize-music:explicit-checker` or see `/reference/distribution.md` for word lists and rules.
 

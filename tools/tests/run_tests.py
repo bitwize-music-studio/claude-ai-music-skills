@@ -431,25 +431,28 @@ class PluginTestRunner:
                     fix_hint="Add requirements: section listing external dependencies"
                 )
 
-        # Test: All skills documented in CLAUDE.md
-        self.log("Checking CLAUDE.md skill documentation...")
-        claude_content = self.get_claude_md()
+        # Test: All skills documented in SKILL_INDEX.md
+        self.log("Checking SKILL_INDEX.md skill documentation...")
+        skill_index_file = self.plugin_root / "reference" / "SKILL_INDEX.md"
+        skill_index_content = ""
+        if skill_index_file.exists():
+            skill_index_content = skill_index_file.read_text()
         skip_skills = {'help', 'about', 'configure', 'test'}  # System skills
 
         for skill_name in skills:
             if skill_name in skip_skills:
                 continue
-            skill_pattern = f"/bitwize-music:{skill_name}"
-            if skill_pattern in claude_content:
-                self._add_test(category, f"Documented in CLAUDE.md: {skill_name}", TestResult.OK)
+            # Check for skill in SKILL_INDEX.md (format: `skill-name` or /skill-name)
+            if f"`{skill_name}`" in skill_index_content or f"/{skill_name}" in skill_index_content:
+                self._add_test(category, f"Documented in SKILL_INDEX.md: {skill_name}", TestResult.OK)
             else:
                 self._add_test(
                     category,
-                    f"Documented in CLAUDE.md: {skill_name}",
+                    f"Documented in SKILL_INDEX.md: {skill_name}",
                     TestResult.FAIL,
-                    "Skill not found in CLAUDE.md",
-                    "CLAUDE.md",
-                    fix_hint=f"Add {skill_pattern} to the skills table in CLAUDE.md"
+                    "Skill not found in SKILL_INDEX.md",
+                    "reference/SKILL_INDEX.md",
+                    fix_hint=f"Add {skill_name} to the skill index in reference/SKILL_INDEX.md"
                 )
 
         # Print results
