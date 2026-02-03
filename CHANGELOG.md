@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.34.1] - 2026-02-03
+
+### Fixed
+- **Mastering summary crash** — `master_tracks.py` summary section crashed with `TypeError` when unpacking `(name, dict)` tuples as plain dicts
+- **Album sampler crossfade offsets** — `concatenate_with_crossfade` hardcoded 12-second clip duration instead of using actual `--clip-duration` value, causing audio gaps/overlaps
+- **ffprobe crash on failure** — `get_audio_duration` in promo video and album sampler tools now checks `returncode` before parsing output
+- **CI expression injection** — moved all `${{ steps.*.outputs.* }}` interpolations in `auto-release.yml` and `model-updater.yml` into `env:` blocks to prevent shell injection via crafted inputs
+- **Broad `git add -A` in model-updater** — replaced with targeted file additions to prevent accidental staging of temp files
+- **`echo -e` portability** — replaced with `printf '%b'` in model-updater workflow
+- **Release notes `echo` fragility** — replaced with `printf '%s\n'` in auto-release to avoid flag interpretation
+
 ## [0.34.0] - 2026-02-02
 
 ### Added

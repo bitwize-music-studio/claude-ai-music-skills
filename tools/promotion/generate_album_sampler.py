@@ -120,6 +120,8 @@ def get_audio_duration(audio_path: Path) -> float:
         '-of', 'default=noprint_wrappers=1:nokey=1',
         str(audio_path)
     ], capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(f"ffprobe failed for {audio_path}: {result.stderr.strip()}")
     return float(result.stdout.strip())
 
 
@@ -276,7 +278,8 @@ def generate_clip(
 def concatenate_with_crossfade(
     clip_paths: List[Path],
     output_path: Path,
-    crossfade: float = 0.5
+    crossfade: float = 0.5,
+    clip_duration: int = DEFAULT_CLIP_DURATION
 ) -> bool:
     """Concatenate clips with audio and video crossfades."""
 
@@ -305,7 +308,7 @@ def concatenate_with_crossfade(
     # Build crossfade chain with cumulative offsets
     current_v = "v0"
     current_a = "a0"
-    cumulative_offset = 12 - crossfade  # First crossfade starts at 11.5s
+    cumulative_offset = clip_duration - crossfade
 
     for i in range(1, n):
         next_v = f"v{i}"
@@ -322,7 +325,7 @@ def concatenate_with_crossfade(
 
         current_v = out_v
         current_a = out_a
-        cumulative_offset += 12 - crossfade  # Add 11.5s for next clip
+        cumulative_offset += clip_duration - crossfade
 
     filter_complex = ";".join(video_filters_fixed + audio_filters_fixed)
 
@@ -433,7 +436,7 @@ def generate_album_sampler(
 
         # Concatenate all clips
         logger.info("Concatenating %d clips with %ss crossfades...", len(clip_paths), crossfade)
-        success = concatenate_with_crossfade(clip_paths, output_path, crossfade)
+        success = concatenate_with_crossfade(clip_paths, output_path, crossfade, clip_duration)
 
         if success:
             # Get final duration

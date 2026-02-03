@@ -501,8 +501,8 @@ Examples:
         return
 
     # Summary
-    gains = [r['gain_applied'] for r in results]
-    finals = [r['final_lufs'] for r in results]
+    gains = [result['gain_applied'] for _, result in results]
+    finals = [result['final_lufs'] for _, result in results]
 
     print()
     print("SUMMARY:")
