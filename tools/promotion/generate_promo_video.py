@@ -160,6 +160,8 @@ def get_audio_duration(audio_path: Path) -> float:
         '-of', 'default=noprint_wrappers=1:nokey=1',
         str(audio_path)
     ], capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError(f"ffprobe failed for {audio_path}: {result.stderr.strip()}")
     return float(result.stdout.strip())
 
 

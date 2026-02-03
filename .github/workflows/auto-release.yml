@@ -29,21 +29,23 @@ jobs:
 
     - name: Check if tag exists
       id: check_tag
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
-        if git rev-parse "v${{ steps.version.outputs.version }}" >/dev/null 2>&1; then
+        if git rev-parse "v$VERSION" >/dev/null 2>&1; then
           echo "exists=true" >> $GITHUB_OUTPUT
-          echo "Tag v${{ steps.version.outputs.version }} already exists, skipping release"
+          echo "Tag v$VERSION already exists, skipping release"
         else
           echo "exists=false" >> $GITHUB_OUTPUT
-          echo "Tag v${{ steps.version.outputs.version }} does not exist, proceeding with release"
+          echo "Tag v$VERSION does not exist, proceeding with release"
         fi
 
     - name: Extract release notes from CHANGELOG
       id: changelog
       if: steps.check_tag.outputs.exists == 'false'
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
-        VERSION="${{ steps.version.outputs.version }}"
-
         # Extract everything between [VERSION] and the next ## heading
         NOTES=$(awk -v ver="$VERSION" '
           $0 ~ "## \\[" ver "\\]" { found=1; next }
@@ -52,7 +54,7 @@ jobs:
         ' CHANGELOG.md | head -c 65000)
 
         # Trim leading/trailing whitespace
-        NOTES=$(echo "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        NOTES=$(printf '%s' "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
         # If empty or only whitespace, use default message
         if [ -z "$NOTES" ]; then
@@ -60,32 +62,34 @@ jobs:
         fi
 
         # Save to file to preserve formatting
-        echo "$NOTES" > /tmp/release_notes.md
+        printf '%s\n' "$NOTES" > /tmp/release_notes.md
         echo "Release notes extracted from [$VERSION] section"
 
     - name: Create GitHub Release
       if: steps.check_tag.outputs.exists == 'false'
       env:
         GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ steps.version.outputs.version }}
+        TAG: ${{ steps.version.outputs.tag }}
       run: |
         # Determine if pre-release (0.x.x versions)
-        if [[ "${{ steps.version.outputs.version }}" =~ ^0\. ]]; then
+        if [[ "$VERSION" =~ ^0\. ]]; then
           PRERELEASE="--prerelease"
         else
           PRERELEASE=""
         fi
 
         gh release create \
-          "${{ steps.version.outputs.tag }}" \
-          --title "${{ steps.version.outputs.version }}" \
+          "$TAG" \
+          --title "$VERSION" \
           --notes-file /tmp/release_notes.md \
           $PRERELEASE
 
     - name: Verify CHANGELOG was updated
       if: steps.check_tag.outputs.exists == 'false'
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
       run: |
-        VERSION="${{ steps.version.outputs.version }}"
-
         # Check if this version exists in CHANGELOG
         if grep -q "## \[$VERSION\]" CHANGELOG.md; then
           echo "[OK] CHANGELOG.md contains release notes for version $VERSION"
