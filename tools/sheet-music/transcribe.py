@@ -35,7 +35,11 @@ import os
 import platform
 import subprocess
 import sys
-import yaml
+try:
+    import yaml
+except ImportError:
+    print("ERROR: pyyaml required. Install: pip install pyyaml")
+    sys.exit(1)
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -88,7 +92,7 @@ def find_anthemscore():
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except:
+    except (FileNotFoundError, subprocess.SubprocessError):
         pass
 
     return None
@@ -346,7 +350,7 @@ Examples:
                     audio_root = Path(config['paths']['audio_root']).expanduser()
                     artist = config['artist']['name']
                     logger.error("  2. Album path: %s/%s/%s", audio_root, artist, args.source)
-                except:
+                except (KeyError, TypeError):
                     pass
             sys.exit(1)
 

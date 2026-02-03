@@ -43,6 +43,8 @@ When adding a new skill, you MUST update all of these files:
 - [ ] Update `CHANGELOG.md` under "Unreleased" → "Added"
 
 **Recommended:**
+- [ ] Add entry to `reference/SKILL_INDEX.md` (alphabetical table + decision tree + skill categories)
+- [ ] Add entry to `reference/model-strategy.md` under appropriate model tier
 - [ ] Add quick tip to `skills/help/SKILL.md` Quick Tips section (if relevant)
 - [ ] Update workflow diagram in `CLAUDE.md` (if part of main workflow)
 - [ ] Add to Album Completion Checklist in `CLAUDE.md` (if part of release)
@@ -114,9 +116,9 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 | `docs:` | None | Documentation only |
 | `chore:` | None | Maintenance |
 
-### 5. Update Version Files (if applicable)
+### 5. Update Version Files (at release time)
 
-For `feat:` or `fix:` commits, update version numbers:
+Version bumps are done when preparing a release, not on every individual commit. When ready to release:
 
 **Files to update (BOTH must match):**
 1. `.claude-plugin/plugin.json`

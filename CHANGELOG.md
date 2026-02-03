@@ -6,6 +6,29 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-02-03
+
+### Added
+- **`tools/shared/media_utils.py`** — shared module for color extraction, audio analysis, and ffmpeg helpers (extracted from promotion tools)
+- **`tools/shared/text_utils.py`** — shared module for track naming utilities (extracted from sheet-music tools)
+
+### Fixed
+- **Bare `except:` clauses** — replaced 6 instances across sheet-music tools with specific exception types (`FileNotFoundError`, `subprocess.SubprocessError`, `TypeError`, etc.)
+- **Unguarded `import yaml`** — added `try/except ImportError` with helpful message in `create_songbook.py` and `transcribe.py` to match project convention
+- **Dead code** — removed unused `above_thresh`/`mask` duplication in `master_tracks.py:soft_clip()`, removed unused `BG_COLOR`/`WAVEFORM_COLOR` constants from promotion tools
+- **Unused import** — removed `ProgressBar` import from `reference_master.py`
+- **Resource leak** — `generate_album_sampler.py` now uses `Image.open()` as context manager
+- **Broad exception handling** — narrowed `except Exception` to specific types in `create_songbook.py`
+
+### Changed
+- **Deduplicated promotion tools** — extracted 7 functions from `generate_promo_video.py` and `generate_album_sampler.py` into `tools/shared/media_utils.py` (-274 lines)
+- **Deduplicated mastering tools** — `fix_dynamic_track.py` now imports `apply_eq` and `soft_clip` from `master_tracks.py` (gains safety guards: Nyquist, Q factor, stability checks)
+- **Deduplicated sheet-music tools** — `strip_track_number` extracted to `tools/shared/text_utils.py`
+- **PR template** — fixed Co-Authored-By from "Claude Sonnet 4.5" to "Claude Opus 4.5"
+- **Skill counts** — fixed Sonnet (21→22) and Haiku (11→10) counts in `model-strategy.md` and `SKILL_INDEX.md`
+- **README.md** — fixed stale `paths.yaml` reference to `~/.bitwize-music/config.yaml`, removed false `content_root` default claim
+- **CONTRIBUTING.md** — added `SKILL_INDEX.md` and `model-strategy.md` to new skill checklist, clarified version bumps happen at release time
+
 ## [0.34.1] - 2026-02-03
 
 ### Fixed

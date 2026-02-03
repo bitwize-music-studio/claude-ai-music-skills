@@ -19,7 +19,11 @@ import logging
 import os
 import re
 import sys
-import yaml
+try:
+    import yaml
+except ImportError:
+    print("ERROR: pyyaml required. Install: pip install pyyaml")
+    sys.exit(1)
 from pathlib import Path
 from datetime import datetime
 
@@ -33,17 +37,7 @@ from tools.shared.logging_config import setup_logging
 logger = logging.getLogger(__name__)
 
 
-def strip_track_number(name):
-    """Remove track number prefix from filename.
-
-    Handles patterns like:
-    - "01 - Track Name"
-    - "01-Track Name"
-    - "1 - Track Name"
-    - "01. Track Name"
-    """
-    pattern = r'^\d+\s*[-.\s]+\s*'
-    return re.sub(pattern, '', name)
+from tools.shared.text_utils import strip_track_number  # noqa: E402
 
 
 try:
@@ -93,7 +87,7 @@ def get_website_from_config():
                     url = url.rstrip('/')
                     return url
         return None
-    except Exception:
+    except (KeyError, TypeError, AttributeError):
         return None
 
 
@@ -472,7 +466,7 @@ def main():
         try:
             page_size = config.get('sheet_music', {}).get('page_size', 'letter')
             logger.info("Using page size from config: %s", page_size)
-        except:
+        except (TypeError, AttributeError):
             page_size = 'letter'
     elif not page_size:
         page_size = 'letter'
@@ -484,7 +478,7 @@ def main():
             section_headers = config.get('sheet_music', {}).get('section_headers', False)
             if section_headers:
                 logger.info("Using section headers from config: %s", section_headers)
-        except:
+        except (TypeError, AttributeError):
             pass
 
     # Auto-detect cover art

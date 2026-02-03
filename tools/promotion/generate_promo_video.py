@@ -33,8 +33,7 @@ import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional, Tuple
-import colorsys
+from typing import Optional
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -47,6 +46,14 @@ from tools.shared.config import load_config as _load_config
 from tools.shared.progress import ProgressBar
 from tools.shared.fonts import find_font
 from tools.shared.logging_config import setup_logging
+from tools.shared.media_utils import (
+    extract_dominant_color,
+    get_complementary_color,
+    get_analogous_colors,
+    rgb_to_hex,
+    check_ffmpeg as _check_ffmpeg,
+    find_best_segment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,68 +65,6 @@ def load_config() -> dict:
     return _load_config(fallback=_DEFAULT_CONFIG) or _DEFAULT_CONFIG
 
 
-def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
-    """Extract the dominant color from an image using PIL."""
-    try:
-        from PIL import Image
-        from collections import Counter
-        with Image.open(image_path) as img:
-            img = img.convert('RGB')
-            img = img.resize((100, 100))  # Resize for speed
-
-            # Get all pixels and find most common
-            pixels = list(img.getdata())
-
-        # Filter out very dark and very light pixels
-        filtered = [p for p in pixels if 30 < sum(p)/3 < 225]
-        if not filtered:
-            filtered = pixels
-
-        # Quantize to reduce color space
-        quantized = [(r//32*32, g//32*32, b//32*32) for r, g, b in filtered]
-        most_common = Counter(quantized).most_common(5)
-
-        # Pick the most saturated of the top colors
-        best_color = max(most_common, key=lambda x: max(x[0]) - min(x[0]))[0]
-        return best_color
-    except Exception as e:
-        logger.debug("Color extraction failed: %s, using default cyan", e)
-        return (0, 255, 255)
-
-
-def get_complementary_color(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
-    """Get complementary color with boosted visibility."""
-    r, g, b = [x / 255.0 for x in rgb]
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    h = (h + 0.5) % 1.0  # Rotate 180°
-    l = max(l, 0.6)  # Ensure visible
-    s = max(s, 0.8)  # Vibrant
-    r, g, b = colorsys.hls_to_rgb(h, l, s)
-    return (int(r * 255), int(g * 255), int(b * 255))
-
-
-def get_analogous_colors(rgb: Tuple[int, int, int]) -> Tuple[Tuple[int, int, int], Tuple[int, int, int]]:
-    """Get two analogous colors (30 degrees on each side)."""
-    r, g, b = [x / 255.0 for x in rgb]
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-
-    h1 = (h + 0.083) % 1.0  # +30 degrees
-    h2 = (h - 0.083) % 1.0  # -30 degrees
-
-    r1, g1, b1 = colorsys.hls_to_rgb(h1, l, s)
-    r2, g2, b2 = colorsys.hls_to_rgb(h2, l, s)
-
-    return (
-        (int(r1 * 255), int(g1 * 255), int(b1 * 255)),
-        (int(r2 * 255), int(g2 * 255), int(b2 * 255))
-    )
-
-
-def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
-    """Convert RGB tuple to hex string for ffmpeg."""
-    return f"0x{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-
-
 # Video settings
 WIDTH = 1080
 HEIGHT = 1920
@@ -127,8 +72,6 @@ FPS = 30
 DEFAULT_DURATION = 15  # seconds
 
 # Colors
-BG_COLOR = "#0a0a0a"  # Near black
-WAVEFORM_COLOR = "#ffffff"  # White
 TEXT_COLOR = "#ffffff"
 
 # Font settings
@@ -137,92 +80,8 @@ ARTIST_FONT_SIZE = 48
 
 
 def check_ffmpeg():
-    """Verify ffmpeg is installed with required filters."""
-    try:
-        result = subprocess.run(
-            ['ffmpeg', '-filters'],
-            capture_output=True, text=True
-        )
-        if 'showwaves' not in result.stdout:
-            logger.warning("ffmpeg showwaves filter not found. Visualization may not work.")
-            return False
-        return True
-    except FileNotFoundError:
-        logger.error("ffmpeg not found. Install with: brew install ffmpeg")
-        sys.exit(1)
-
-
-def get_audio_duration(audio_path: Path) -> float:
-    """Get duration of audio file in seconds."""
-    result = subprocess.run([
-        'ffprobe', '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        str(audio_path)
-    ], capture_output=True, text=True)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise RuntimeError(f"ffprobe failed for {audio_path}: {result.stderr.strip()}")
-    return float(result.stdout.strip())
-
-
-def find_best_segment(audio_path: Path, duration: int = 15) -> float:
-    """
-    Find the best 15-second segment by analyzing audio energy.
-    Uses librosa to find the most energetic section (usually chorus).
-    Falls back to 20% into track if librosa unavailable.
-    Returns the start time in seconds.
-    """
-    total_duration = get_audio_duration(audio_path)
-
-    if total_duration <= duration:
-        return 0
-
-    max_start = total_duration - duration
-
-    # Try librosa energy analysis
-    try:
-        import librosa
-        import numpy as np
-
-        logger.info("Analyzing audio for most energetic segment...")
-
-        # Load audio (mono, 22050 Hz is fine for energy analysis)
-        y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
-
-        # Compute RMS energy over time
-        hop_length = 512
-        rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
-
-        # Convert to time
-        times = librosa.times_like(rms, sr=sr, hop_length=hop_length)
-
-        # Find the window with highest average energy
-        window_samples = int(duration * sr / hop_length)
-        best_start = 0
-        best_energy = 0
-
-        for i in range(len(rms) - window_samples):
-            window_energy = np.mean(rms[i:i + window_samples])
-            if window_energy > best_energy:
-                best_energy = window_energy
-                best_start = times[i]
-
-        # Clamp to valid range
-        best_start = min(best_start, max_start)
-        best_start = max(best_start, 0)
-
-        logger.info("Found energetic segment at %.1fs", best_start)
-        return best_start
-
-    except ImportError:
-        logger.warning("librosa not installed, using fallback (20%% into track)")
-        logger.info("For energy analysis, set up venv:")
-        logger.info("  source ~/.bitwize-music/promotion-env/bin/activate")
-        logger.info("  pip install librosa numpy")
-        return min(total_duration * 0.2, max_start)
-    except Exception as e:
-        logger.warning("Energy analysis failed: %s, using fallback", e)
-        return min(total_duration * 0.2, max_start)
+    """Verify ffmpeg is installed with showwaves filter."""
+    return _check_ffmpeg(require_showwaves=True)
 
 
 def generate_waveform_video(

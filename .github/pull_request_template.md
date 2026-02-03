@@ -16,7 +16,7 @@
 
 - [ ] I have read the [CONTRIBUTING.md](../CONTRIBUTING.md) guidelines
 - [ ] My commit message follows [Conventional Commits](https://conventionalcommits.org/)
-- [ ] I included the co-author line: `Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>`
+- [ ] I included the co-author line: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
 - [ ] I have run `/bitwize-music:test` and all relevant tests pass
 - [ ] I have updated CHANGELOG.md under "Unreleased" section
 

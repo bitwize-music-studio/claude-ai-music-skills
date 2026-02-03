@@ -21,8 +21,7 @@ import subprocess
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Optional, Tuple, List
-import colorsys
+from typing import Optional, List
 import re
 
 # Ensure project root is on sys.path
@@ -36,6 +35,14 @@ from tools.shared.config import load_config as _load_config
 from tools.shared.fonts import find_font
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
+from tools.shared.media_utils import (
+    extract_dominant_color,
+    get_complementary_color,
+    rgb_to_hex,
+    check_ffmpeg,
+    get_audio_duration,
+    find_best_segment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,110 +62,11 @@ DEFAULT_CLIP_DURATION = 12  # seconds per track
 DEFAULT_CROSSFADE = 0.5  # seconds
 
 # Colors
-BG_COLOR = "#0a0a0a"
 TEXT_COLOR = "#ffffff"
 
 # Font settings
 TITLE_FONT_SIZE = 64
 ARTIST_FONT_SIZE = 48
-
-
-def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
-    """Extract the dominant color from an image using PIL."""
-    try:
-        from PIL import Image
-        img = Image.open(image_path)
-        img = img.convert('RGB')
-        img = img.resize((100, 100))
-
-        pixels = list(img.getdata())
-        filtered = [p for p in pixels if 30 < sum(p)/3 < 225]
-        if not filtered:
-            filtered = pixels
-
-        from collections import Counter
-        quantized = [(r//32*32, g//32*32, b//32*32) for r, g, b in filtered]
-        most_common = Counter(quantized).most_common(5)
-        best_color = max(most_common, key=lambda x: max(x[0]) - min(x[0]))[0]
-        return best_color
-    except Exception as e:
-        logger.debug("Color extraction failed: %s, using default cyan", e)
-        return (0, 255, 255)
-
-
-def get_complementary_color(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
-    """Get complementary color with boosted visibility."""
-    r, g, b = [x / 255.0 for x in rgb]
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
-    h = (h + 0.5) % 1.0
-    l = max(l, 0.6)
-    s = max(s, 0.8)
-    r, g, b = colorsys.hls_to_rgb(h, l, s)
-    return (int(r * 255), int(g * 255), int(b * 255))
-
-
-def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
-    """Convert RGB tuple to hex string for ffmpeg."""
-    return f"0x{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
-
-
-def check_ffmpeg():
-    """Verify ffmpeg is installed."""
-    try:
-        subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
-        return True
-    except FileNotFoundError:
-        logger.error("ffmpeg not found. Install with: brew install ffmpeg")
-        sys.exit(1)
-
-
-def get_audio_duration(audio_path: Path) -> float:
-    """Get duration of audio file in seconds."""
-    result = subprocess.run([
-        'ffprobe', '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        str(audio_path)
-    ], capture_output=True, text=True)
-    if result.returncode != 0 or not result.stdout.strip():
-        raise RuntimeError(f"ffprobe failed for {audio_path}: {result.stderr.strip()}")
-    return float(result.stdout.strip())
-
-
-def find_best_segment(audio_path: Path, duration: int = 12) -> float:
-    """Find the best segment by analyzing audio energy."""
-    total_duration = get_audio_duration(audio_path)
-
-    if total_duration <= duration:
-        return 0
-
-    max_start = total_duration - duration
-
-    try:
-        import librosa
-        import numpy as np
-
-        y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
-        hop_length = 512
-        rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
-        times = librosa.times_like(rms, sr=sr, hop_length=hop_length)
-
-        window_samples = int(duration * sr / hop_length)
-        best_start = 0
-        best_energy = 0
-
-        for i in range(len(rms) - window_samples):
-            window_energy = np.mean(rms[i:i + window_samples])
-            if window_energy > best_energy:
-                best_energy = window_energy
-                best_start = times[i]
-
-        return min(max(best_start, 0), max_start)
-
-    except ImportError:
-        return min(total_duration * 0.2, max_start)
-    except Exception:
-        return min(total_duration * 0.2, max_start)
 
 
 def get_track_title(filename: str) -> str:

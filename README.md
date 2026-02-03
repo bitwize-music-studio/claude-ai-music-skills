@@ -197,7 +197,7 @@ When you say "let's write the lyrics for track 1", Claude automatically applies 
 
 ### File Structure
 
-The plugin separates **plugin files** (skills, templates, reference docs) from **your content** (albums, artists). Your content lives in `{content_root}` (configured in `paths.yaml`).
+The plugin separates **plugin files** (skills, templates, reference docs) from **your content** (albums, artists). Your content lives in `{content_root}` (configured in `~/.bitwize-music/config.yaml`).
 
 ```
 {content_root}/                  # Your workspace
@@ -213,7 +213,7 @@ The plugin separates **plugin files** (skills, templates, reference docs) from *
             └── ...
 ```
 
-By default, `content_root: "."` keeps everything in the plugin folder (with `artists/` gitignored). Set it to a separate path to keep your content completely independent.
+Set `content_root` in your config to point to your workspace. You can keep it in the plugin folder (with `artists/` gitignored) or set a separate path to keep content independent.
 
 Each track file contains:
 - Concept and narrative role
