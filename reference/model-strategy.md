@@ -73,7 +73,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.5 Skills (21 skills)
+## Sonnet 4.5 Skills (22 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -145,7 +145,7 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ---
 
-## Haiku 4.5 Skills (11 skills)
+## Haiku 4.5 Skills (10 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 

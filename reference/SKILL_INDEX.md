@@ -246,7 +246,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 21 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 22 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -265,7 +265,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/sheet-music-publisher` - Transcription workflow
 - `/tutorial` - Interactive guided creation
 
-### Haiku 4.5 (Pattern Matching — 11 skills)
+### Haiku 4.5 (Pattern Matching — 10 skills)
 - `/about` - Static information
 - `/clipboard` - Copy to clipboard
 - `/help` - Display information

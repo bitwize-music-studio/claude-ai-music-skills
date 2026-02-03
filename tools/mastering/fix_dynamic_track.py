@@ -6,7 +6,6 @@ import sys
 import numpy as np
 import soundfile as sf
 import pyloudnorm as pyln
-from scipy import signal
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -15,6 +14,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.shared.logging_config import setup_logging
+from tools.mastering.master_tracks import apply_eq, soft_clip
 
 logger = logging.getLogger(__name__)
 
@@ -51,36 +51,6 @@ def gentle_compress(data, threshold_db=-10, ratio=3.0, attack_ms=10, release_ms=
     if len(data.shape) > 1:
         return data * gain[:, np.newaxis]
     return data * gain
-
-def apply_eq(data, rate, freq, gain_db, q=1.0):
-    """Apply parametric EQ."""
-    A = 10 ** (gain_db / 40)
-    w0 = 2 * np.pi * freq / rate
-    alpha = np.sin(w0) / (2 * q)
-
-    b0 = 1 + alpha * A
-    b1 = -2 * np.cos(w0)
-    b2 = 1 - alpha * A
-    a0 = 1 + alpha / A
-    a1 = -2 * np.cos(w0)
-    a2 = 1 - alpha / A
-
-    b = np.array([b0/a0, b1/a0, b2/a0])
-    a = np.array([1, a1/a0, a2/a0])
-
-    if len(data.shape) == 1:
-        return signal.lfilter(b, a, data)
-    result = np.zeros_like(data)
-    for ch in range(data.shape[1]):
-        result[:, ch] = signal.lfilter(b, a, data[:, ch])
-    return result
-
-def soft_clip(data, threshold=0.95):
-    """Soft clipping limiter."""
-    result = data.copy()
-    mask = np.abs(data) > threshold
-    result[mask] = np.sign(data[mask]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[mask]) - threshold) / (1 - threshold)))
-    return result
 
 def main():
     setup_logging(__name__)

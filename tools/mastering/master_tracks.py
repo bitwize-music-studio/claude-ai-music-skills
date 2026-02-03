@@ -213,8 +213,7 @@ def soft_clip(data, threshold=0.95):
 
     result = data.copy()
     # Apply soft saturation above threshold
-    mask = np.abs(data) > threshold
-    result[mask] = np.sign(data[mask]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[mask]) - threshold) / (1 - threshold)))
+    result[above_thresh] = np.sign(data[above_thresh]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[above_thresh]) - threshold) / (1 - threshold)))
     return result
 
 def limit_peaks(data, ceiling_db=-1.0):

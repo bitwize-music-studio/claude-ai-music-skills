@@ -34,17 +34,7 @@ from tools.shared.logging_config import setup_logging
 logger = logging.getLogger(__name__)
 
 
-def strip_track_number(name):
-    """Remove track number prefix from title.
-
-    Handles patterns like:
-    - "01 - Track Name"
-    - "01-Track Name"
-    - "1 - Track Name"
-    - "01. Track Name"
-    """
-    pattern = r'^\d+\s*[-.\s]+\s*'
-    return re.sub(pattern, '', name)
+from tools.shared.text_utils import strip_track_number  # noqa: E402
 
 
 def fix_xml_title(xml_path, dry_run=False):
@@ -115,7 +105,7 @@ def find_musescore():
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout.strip().split('\n')[0]
-    except:
+    except (FileNotFoundError, subprocess.SubprocessError):
         pass
 
     # Try alternative names
@@ -124,7 +114,7 @@ def find_musescore():
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
             return result.stdout.strip().split('\n')[0]
-    except:
+    except (FileNotFoundError, subprocess.SubprocessError):
         pass
 
     return None
