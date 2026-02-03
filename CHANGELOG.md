@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-02-03
+
+### Added
+- **CI: CLAUDE.md size check** — validates CLAUDE.md stays under 40K characters (matches pre-commit hook)
+- **CI: Skill frontmatter validation** — validates required fields (name, description, model) and model ID format pattern
+- **Reference: status-tracking.md** — new reference doc for track/album status workflows (split from CLAUDE.md)
+
+### Changed
+- **CLAUDE.md trimmed** — reduced from 40.2K to 33.2K chars by moving skills table to SKILL_INDEX.md, lyrics checklist to lyric-writer SKILL.md, and status tracking to reference file
+- **Model validation uses pattern** — skill frontmatter check now uses regex `^claude-(opus|sonnet|haiku)-\d+-\d+-\d{8}$` instead of hardcoded model IDs, allowing new model versions without updating checks
+- **Plugin tests check SKILL_INDEX.md** — skill documentation test now checks SKILL_INDEX.md instead of CLAUDE.md (since skills table was moved there)
+
 ## [0.35.0] - 2026-02-03
 
 ### Added

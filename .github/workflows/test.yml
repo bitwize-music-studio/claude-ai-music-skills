@@ -89,27 +89,91 @@ jobs:
         print('[OK] Versions match')
         "
 
-    - name: Check SKILL.md structure
+    - name: Check SKILL.md structure and frontmatter
       run: |
         python -c "
         import os
         import sys
+        import yaml
+        import re
+
+        REQUIRED_FIELDS = ['name', 'description', 'model']
+        # Pattern: claude-{tier}-{major}-{minor}-{date} e.g. claude-opus-4-5-20251101
+        MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+-\d+-\d{8}$'
 
         skill_dirs = [d for d in os.listdir('skills') if os.path.isdir(f'skills/{d}')]
 
         missing_skill_md = []
+        frontmatter_errors = []
+
         for skill_dir in skill_dirs:
             skill_md_path = f'skills/{skill_dir}/SKILL.md'
             if not os.path.exists(skill_md_path):
                 missing_skill_md.append(skill_md_path)
+                continue
+
+            # Check frontmatter
+            with open(skill_md_path, 'r') as f:
+                content = f.read()
+
+            # Extract YAML frontmatter
+            match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+            if not match:
+                frontmatter_errors.append(f'{skill_md_path}: missing YAML frontmatter')
+                continue
+
+            try:
+                frontmatter = yaml.safe_load(match.group(1))
+            except yaml.YAMLError as e:
+                frontmatter_errors.append(f'{skill_md_path}: invalid YAML - {e}')
+                continue
+
+            # Check required fields
+            for field in REQUIRED_FIELDS:
+                if field not in frontmatter:
+                    frontmatter_errors.append(f'{skill_md_path}: missing required field \"{field}\"')
+
+            # Validate model format (allows new versions without updating check)
+            if 'model' in frontmatter and not re.match(MODEL_PATTERN, frontmatter['model']):
+                frontmatter_errors.append(f'{skill_md_path}: invalid model format \"{frontmatter[\"model\"]}\"')
 
         if missing_skill_md:
             print('[FAIL] Missing SKILL.md files:')
             for path in missing_skill_md:
                 print(f'  - {path}')
+
+        if frontmatter_errors:
+            print('[FAIL] Frontmatter errors:')
+            for error in frontmatter_errors:
+                print(f'  - {error}')
+
+        if missing_skill_md or frontmatter_errors:
             sys.exit(1)
 
-        print(f'[OK] All {len(skill_dirs)} skills have SKILL.md')
+        print(f'[OK] All {len(skill_dirs)} skills have valid SKILL.md with required frontmatter')
+        "
+
+    - name: Check CLAUDE.md size
+      run: |
+        python -c "
+        import sys
+
+        MAX_CHARS = 40000
+
+        with open('CLAUDE.md', 'r', encoding='utf-8') as f:
+            content = f.read()
+            char_count = len(content)
+
+        size_k = char_count / 1000
+        print(f'CLAUDE.md: {size_k:.1f}K chars (max {MAX_CHARS // 1000}K)')
+
+        if char_count > MAX_CHARS:
+            print(f'[FAIL] CLAUDE.md exceeds {MAX_CHARS // 1000}K character limit')
+            print(f'  Current: {char_count} chars')
+            print(f'  Over by: {char_count - MAX_CHARS} chars')
+            sys.exit(1)
+
+        print('[OK] CLAUDE.md size within limit')
         "
 
   test:
