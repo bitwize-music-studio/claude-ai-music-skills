@@ -218,11 +218,11 @@ python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/ \
 | Field | Example |
 |-------|---------|
 | Language | English |
-| Book Title | Shell No Songbook |
+| Book Title | Sample Album Songbook |
 | Subtitle | Piano Arrangements |
 | Author | bitwize |
 | Contributors | (leave blank or add "Music by bitwize") |
-| Description | Piano arrangements of the album "Shell No" by bitwize. Includes [track count] tracks transcribed for solo piano. |
+| Description | Piano arrangements of the album "Sample Album" by bitwize. Includes [track count] tracks transcribed for solo piano. |
 | Keywords | piano sheet music, songbook, [artist], [genre] |
 | Categories | Music > Songbooks, Music > Piano |
 

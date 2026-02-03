@@ -33,6 +33,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.34** | Python 3.9–3.12 CI matrix, bandit/pip-audit security scanning, path traversal fixes |
 | **0.33** | Pronunciation table enforcement — table entries must be applied to Suno lyrics |
 | **0.29** | Suno verse length limits by genre and BPM across all 67 genres |
 | **0.25** | Genre-specific lyric conventions (rhyme schemes, structures) for all 67 genres |
@@ -41,7 +42,6 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 | **0.18** | State cache layer — fast session startup (2-3 file reads vs 50-220) |
 | **0.17** | Test automation, genre INDEX, model strategy docs, 64 quick-start guides |
 | **0.16** | All 64 genre docs enhanced to Gold standard |
-| **0.14** | Cloud uploader for R2/S3, promo video generation for social media |
 
 ---
 

@@ -170,11 +170,11 @@ paths:
   audio_root: ~/bitwize-music/audio
 ```
 
-For album "shell-no" by artist "bitwize":
+For album "sample-album" by artist "bitwize":
 ```
-Content:   ~/bitwize-music/artists/bitwize/albums/electronic/shell-no/
-Audio:     ~/bitwize-music/audio/bitwize/shell-no/         ← includes artist!
-Documents: ~/bitwize-music/documents/bitwize/shell-no/     ← includes artist!
+Content:   ~/bitwize-music/artists/bitwize/albums/electronic/sample-album/
+Audio:     ~/bitwize-music/audio/bitwize/sample-album/         ← includes artist!
+Documents: ~/bitwize-music/documents/bitwize/sample-album/     ← includes artist!
 ```
 
 **Common mistake**: Putting audio directly under `{audio_root}/[album]/` without the artist folder.

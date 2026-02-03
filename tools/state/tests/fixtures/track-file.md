@@ -6,7 +6,7 @@
 |-----------|--------|
 | **Track #** | 01 |
 | **Title** | Boot Sequence |
-| **Album** | [Shell No](../README.md) |
+| **Album** | [Sample Album](../README.md) |
 | **Status** | Final |
 | **Suno Link** | [Listen](https://suno.com/song/abc123) |
 | **Stems** | No |

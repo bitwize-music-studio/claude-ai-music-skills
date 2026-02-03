@@ -405,7 +405,7 @@ Verify CLAUDE.md documents the directory structure:
 ### TEST: Audio path structure has concrete example (regression)
 Read CLAUDE.md "Mirrored structure" section.
 Verify it includes:
-1. A concrete example with actual paths (e.g., `~/bitwize-music/audio/bitwize/shell-no/`)
+1. A concrete example with actual paths (e.g., `~/bitwize-music/audio/bitwize/sample-album/`)
 2. The phrase "includes artist!" to emphasize artist folder is required
 3. A "Common mistake" warning about missing artist folder
 

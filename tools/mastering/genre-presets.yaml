@@ -1,0 +1,322 @@
+# Genre-Specific Mastering Presets
+#
+# Each genre defines:
+#   target_lufs  - Loudness target (streaming standard: -14, dynamic genres: -16 to -18)
+#   cut_highmid  - EQ cut in dB at 3.5kHz to tame harshness (negative = cut, 0 = none)
+#   cut_highs    - High shelf cut in dB at 8kHz for overly bright mixes (negative = cut, 0 = none)
+#
+# Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
+# User overrides merge on top of these defaults (genre-level).
+
+# Default settings applied when no genre is specified
+defaults:
+  target_lufs: -14.0
+  cut_highmid: 0
+  cut_highs: 0
+
+genres:
+  # === Pop / Mainstream ===
+  pop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  k-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  hyperpop:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Hip-Hop / Rap ===
+  hip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  hiphop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  trap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  drill:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  phonk:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  grime:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  nerdcore:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
+  # === R&B / Soul / Funk ===
+  r&b:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  rnb:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  soul:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  funk:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  disco:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  gospel:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Rock ===
+  rock:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  indie-rock:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  alternative:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  grunge:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  garage-rock:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  surf-rock:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  psychedelic-rock:
+    target_lufs: -16.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  progressive-rock:
+    target_lufs: -16.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  post-rock:
+    target_lufs: -16.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Punk ===
+  punk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  hardcore-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  ska-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  celtic-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  emo:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+
+  # === Metal ===
+  metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: 0
+  thrash-metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: 0
+  black-metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: -1.0
+  doom-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  metalcore:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: 0
+  industrial:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+
+  # === Electronic / Dance ===
+  electronic:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  edm:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  house:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  techno:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  trance:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  drum-and-bass:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  dubstep:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  synthwave:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  new-wave:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  dancehall:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
+  # === Ambient / Chill / Atmospheric ===
+  ambient:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  lo-fi:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  lofi:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  chillwave:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  trip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  vaporwave:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  shoegaze:
+    target_lufs: -16.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Folk / Country / Americana ===
+  folk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  country:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  americana:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  bluegrass:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  indie-folk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+
+  # === Jazz / Blues ===
+  jazz:
+    target_lufs: -16.0
+    cut_highmid: 0
+    cut_highs: 0
+  blues:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  swing:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  bossa-nova:
+    target_lufs: -16.0
+    cut_highmid: 0
+    cut_highs: 0
+
+  # === Classical / Cinematic ===
+  classical:
+    target_lufs: -18.0
+    cut_highmid: 0
+    cut_highs: 0
+  opera:
+    target_lufs: -18.0
+    cut_highmid: 0
+    cut_highs: 0
+  cinematic:
+    target_lufs: -16.0
+    cut_highmid: 0
+    cut_highs: 0
+
+  # === Latin / World ===
+  latin:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  afrobeats:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  reggae:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Legacy aliases ===
+  indie:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0

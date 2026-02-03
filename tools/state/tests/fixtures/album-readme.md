@@ -1,5 +1,5 @@
 ---
-title: "Shell No"
+title: "Sample Album"
 release_date: ""
 genres: ["electronic", "documentary"]
 tags: ["tech", "linux", "true-story"]
@@ -8,14 +8,14 @@ soundcloud_url: ""
 spotify_url: ""
 ---
 
-# Shell No
+# Sample Album
 
 ## Album Details
 
 | Attribute | Detail |
 |-----------|--------|
 | **Artist** | [bitwize](../../../README.md) |
-| **Album** | Shell No |
+| **Album** | Sample Album |
 | **Genre** | [Electronic](/genres/electronic/README.md) / Synthwave |
 | **Tracks** | 8 |
 | **Status** | In Progress |

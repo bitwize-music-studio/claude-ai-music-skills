@@ -135,7 +135,7 @@ class TestBuildState:
         assert 'test-album' in albums
 
         album = albums['test-album']
-        assert album['title'] == 'Shell No'
+        assert album['title'] == 'Sample Album'
         assert album['status'] == 'In Progress'
         assert album['genre'] == 'electronic'
         assert album['explicit'] is True

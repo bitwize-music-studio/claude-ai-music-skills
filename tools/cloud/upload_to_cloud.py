@@ -143,6 +143,15 @@ def get_bucket_name(config: Dict[str, Any]) -> str:
     return bucket
 
 
+def _is_within(child: Path, parent: Path) -> bool:
+    """Check that child path is within parent directory (prevents path traversal)."""
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override: Optional[str] = None) -> Path:
     """Find the album directory in audio_root.
 
@@ -163,18 +172,18 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     # Try standard flat path: {audio_root}/{artist}/{album}
     album_path = audio_root / artist / album_name
     checked.append(str(album_path))
-    if album_path.exists():
+    if album_path.exists() and _is_within(album_path, audio_root):
         return album_path
 
     # Try direct path (override already includes artist)
     album_path_direct = audio_root / album_name
     checked.append(str(album_path_direct))
-    if album_path_direct.exists():
+    if album_path_direct.exists() and _is_within(album_path_direct, audio_root):
         return album_path_direct
 
     # Glob search as fallback (handles genre folders, mirrored structures)
     matches = sorted(audio_root.rglob(album_name))
-    album_matches = [m for m in matches if m.is_dir()]
+    album_matches = [m for m in matches if m.is_dir() and _is_within(m, audio_root)]
     if len(album_matches) == 1:
         return album_matches[0]
     elif len(album_matches) > 1:

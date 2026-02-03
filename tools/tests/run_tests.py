@@ -676,12 +676,14 @@ class PluginTestRunner:
                     continue
                 if 'suno.com' in link_target:
                     continue
+                # Skip links with bracket placeholders like [artist], [genre]
+                if '[' in link_target:
+                    continue
+
                 # Skip template placeholder paths (e.g., ../../../README.md, tracks/01-track-name.md)
                 if '/templates/' in str(file_path):
                     # In templates, many links are placeholders for users to fill in
                     if link_target.startswith(('../', 'tracks/', '/genres/', 'albums/', 'artists/')):
-                        continue
-                    if '[' in link_target:  # Placeholder like [genre]
                         continue
                     # Skip common placeholder names
                     if any(placeholder in link_target.lower() for placeholder in

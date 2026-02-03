@@ -77,7 +77,7 @@ Your custom pronunciations are merged with the base guide. If the same word appe
 | Category | Examples |
 |----------|----------|
 | Artist names | `bitwize` -> `bit-wize` |
-| Album titles | `shellno` -> `shell-no` |
+| Album titles | `samplealbum` -> `sample-album` |
 | Character names | `Larocca` -> `Luh-rock-uh` |
 | Location names | `Sinaloa` -> `Sin-ah-lo-ah` |
 | Genre jargon | Custom terms for your style |

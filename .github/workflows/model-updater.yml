@@ -63,6 +63,38 @@ jobs:
           echo "  Sonnet: $SONNET"
           echo "  Haiku: $HAIKU"
 
+          # Validate model ID format: must end with 8-digit date in reasonable range
+          validate_model_date() {
+            local MODEL_ID="$1"
+            local LABEL="$2"
+            local DATE_SUFFIX=$(echo "$MODEL_ID" | grep -oE '[0-9]{8}$')
+            if [ -z "$DATE_SUFFIX" ]; then
+              echo "::error::$LABEL model ID '$MODEL_ID' missing 8-digit date suffix"
+              return 1
+            fi
+            local YEAR=${DATE_SUFFIX:0:4}
+            local MONTH=${DATE_SUFFIX:4:2}
+            local DAY=${DATE_SUFFIX:6:2}
+            # Date must be between 2024 and 2030, valid month/day
+            if [ "$YEAR" -lt 2024 ] || [ "$YEAR" -gt 2030 ]; then
+              echo "::error::$LABEL model date year $YEAR out of range (2024-2030)"
+              return 1
+            fi
+            if [ "$MONTH" -lt 1 ] || [ "$MONTH" -gt 12 ]; then
+              echo "::error::$LABEL model date month $MONTH invalid"
+              return 1
+            fi
+            if [ "$DAY" -lt 1 ] || [ "$DAY" -gt 31 ]; then
+              echo "::error::$LABEL model date day $DAY invalid"
+              return 1
+            fi
+            return 0
+          }
+
+          validate_model_date "$OPUS" "Opus" && \
+          validate_model_date "$SONNET" "Sonnet" && \
+          validate_model_date "$HAIKU" "Haiku" || exit 1
+
           echo "opus=$OPUS" >> $GITHUB_OUTPUT
           echo "sonnet=$SONNET" >> $GITHUB_OUTPUT
           echo "haiku=$HAIKU" >> $GITHUB_OUTPUT
@@ -94,6 +126,13 @@ jobs:
             fi
 
             if [ "$CURRENT_MODEL" != "$TARGET" ]; then
+              # Sanity check: new model date should not be older than current
+              CURRENT_DATE=$(echo "$CURRENT_MODEL" | grep -oE '[0-9]{8}$')
+              TARGET_DATE=$(echo "$TARGET" | grep -oE '[0-9]{8}$')
+              if [ -n "$CURRENT_DATE" ] && [ -n "$TARGET_DATE" ] && [ "$TARGET_DATE" -lt "$CURRENT_DATE" ]; then
+                echo "[WARN] $SKILL_NAME: target $TARGET is older than current $CURRENT_MODEL, skipping"
+                continue
+              fi
               echo "[UPDATE] $SKILL_NAME: $CURRENT_MODEL -> $TARGET"
               UPDATES_NEEDED=true
               OUTDATED_SKILLS="$OUTDATED_SKILLS$SKILL_NAME:$CURRENT_MODEL:$TARGET\n"
