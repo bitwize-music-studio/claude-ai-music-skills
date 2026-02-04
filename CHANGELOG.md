@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Changed
+- **CI: SHA-pinned action references** — all workflow `uses:` directives now reference exact commit SHAs instead of mutable version tags (checkout v4.3.1, setup-python v5.6.0)
+- **CI: fork PR protection** — `test` and `lint` jobs skip for fork PRs to prevent untrusted code execution via modified requirements/test files
+- **CI: security gates tests** — unit tests now depend on `security` job (pip-audit) completing first
+
 ## [0.37.0] - 2026-02-04
 
 ### Added
