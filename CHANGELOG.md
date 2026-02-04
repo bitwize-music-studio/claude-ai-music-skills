@@ -6,10 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-02-04
+
 ### Changed
 - **CI: SHA-pinned action references** — all workflow `uses:` directives now reference exact commit SHAs instead of mutable version tags (checkout v4.3.1, setup-python v5.6.0)
 - **CI: fork PR protection** — `test` and `lint` jobs skip for fork PRs to prevent untrusted code execution via modified requirements/test files
 - **CI: security gates tests** — unit tests now depend on `security` job (pip-audit) completing first
+- **CI: explicit read-only permissions** — all non-release workflows now declare `permissions: { contents: read }`
+- **CI: GITHUB_OUTPUT delimiter syntax** — all output variables use heredoc delimiters to prevent injection via newlines
+- **CI: dead code fix** — model-updater curl error message now reachable under `set -e`
+- **CI: fixed-string grep** — auto-release uses `grep -qF` so semver dots aren't regex wildcards
+- **CI: heredoc replaced with printf** — model-updater PR body uses `printf %s` instead of unquoted heredoc for variable expansion
 
 ## [0.37.0] - 2026-02-04
 
