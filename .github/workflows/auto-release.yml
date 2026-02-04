@@ -23,8 +23,14 @@ jobs:
       id: version
       run: |
         VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+        {
+          echo "version<<GHEOF"
+          echo "$VERSION"
+          echo "GHEOF"
+          echo "tag<<GHEOF"
+          echo "v$VERSION"
+          echo "GHEOF"
+        } >> $GITHUB_OUTPUT
         echo "Detected version: $VERSION"
 
     - name: Check if tag exists
