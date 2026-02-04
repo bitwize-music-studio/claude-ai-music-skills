@@ -31,6 +31,7 @@ Usage:
     python upload_to_cloud.py my-album --audio-root /path/to/audio
 """
 
+import os
 import sys
 import argparse
 import time
@@ -180,6 +181,11 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     checked.append(str(album_path_direct))
     if album_path_direct.exists() and _is_within(album_path_direct, audio_root):
         return album_path_direct
+
+    # Validate album_name before glob search (prevent path traversal and glob injection)
+    if os.sep in album_name or '/' in album_name or any(c in album_name for c in '*?[]'):
+        logger.error("Album name '%s' contains invalid characters (path separators or glob patterns)", album_name)
+        sys.exit(1)
 
     # Glob search as fallback (handles genre folders, mirrored structures)
     matches = sorted(audio_root.rglob(album_name))

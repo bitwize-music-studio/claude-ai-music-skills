@@ -120,17 +120,25 @@ genres:
 
 **Find plugin directory** (version-independent):
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 MASTERING_DIR="$PLUGIN_DIR/tools/mastering"
 ```
 
 This finds the latest installed version automatically.
 
-### Step 1: Analyze Tracks
+### Step 1: Pre-Flight Check
+
+Before mastering, verify:
+1. **Audio folder exists** — confirm the path is valid
+2. **WAV files present** — check for at least one `.wav` file in the folder
+3. If no WAV files found, report: "No WAV files in [path]. Download tracks from Suno as WAV (highest quality) first."
+4. If folder contains only MP3s, warn: "MP3 files found but mastering requires WAV. Re-download from Suno as WAV."
+
+### Step 2: Analyze Tracks
 
 ```bash
 # Find plugin directory
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 
 # Analyze tracks in audio folder
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder
@@ -152,7 +160,7 @@ python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/bi
 - True peak >0.0 dBTP (clipping)
 - LUFS <-20 or >-8 (too quiet or too loud)
 
-### Step 2: Choose Settings
+### Step 3: Choose Settings
 
 **Standard (most cases)**:
 ```bash
@@ -169,7 +177,7 @@ python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --g
 python3 "$PLUGIN_DIR/tools/mastering/reference_master.py" /path/to/audio/folder --reference reference_track.wav
 ```
 
-### Step 3: Dry Run (Preview)
+### Step 4: Dry Run (Preview)
 
 ```bash
 python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --dry-run --cut-highmid -2
@@ -177,7 +185,7 @@ python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --d
 
 Shows what will happen without modifying files.
 
-### Step 4: Master
+### Step 5: Master
 
 ```bash
 python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --cut-highmid -2
@@ -185,7 +193,7 @@ python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --c
 
 Creates `mastered/` subdirectory in audio folder with processed files.
 
-### Step 5: Verify
+### Step 6: Verify
 
 ```bash
 # Analyze the mastered output
@@ -230,7 +238,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 source ~/.bitwize-music/mastering-env/bin/activate
 
 # Find plugin directory (version-independent)
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 
 # Set audio path
 AUDIO_DIR="/path/to/audio/folder"
@@ -308,7 +316,7 @@ python3 analyze_tracks.py
 
 **Right:**
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
 ```
 
@@ -326,7 +334,7 @@ cd ~/.claude/plugins/cache/bitwize-music/bitwize-music/0.12.0/tools/mastering
 
 **Right:**
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "0.*" | sort -V | tail -1)
+PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
 cd "$PLUGIN_DIR/tools/mastering"
 ```
 

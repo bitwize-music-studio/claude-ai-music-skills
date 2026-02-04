@@ -95,6 +95,26 @@ jobs:
           validate_model_date "$SONNET" "Sonnet" && \
           validate_model_date "$HAIKU" "Haiku" || exit 1
 
+          # Validate model IDs contain only safe characters (a-z, 0-9, hyphens)
+          validate_model_chars() {
+            local MODEL_ID="$1"
+            local LABEL="$2"
+            if ! echo "$MODEL_ID" | grep -qE '^[a-z0-9-]+$'; then
+              echo "::error::$LABEL model ID contains unexpected characters: $MODEL_ID"
+              return 1
+            fi
+            local LEN=${#MODEL_ID}
+            if [ "$LEN" -lt 20 ] || [ "$LEN" -gt 50 ]; then
+              echo "::error::$LABEL model ID has unexpected length ($LEN): $MODEL_ID"
+              return 1
+            fi
+            return 0
+          }
+
+          validate_model_chars "$OPUS" "Opus" && \
+          validate_model_chars "$SONNET" "Sonnet" && \
+          validate_model_chars "$HAIKU" "Haiku" || exit 1
+
           echo "opus=$OPUS" >> $GITHUB_OUTPUT
           echo "sonnet=$SONNET" >> $GITHUB_OUTPUT
           echo "haiku=$HAIKU" >> $GITHUB_OUTPUT

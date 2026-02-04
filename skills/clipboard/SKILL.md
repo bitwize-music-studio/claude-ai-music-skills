@@ -149,10 +149,10 @@ Use the detected platform's clipboard command:
 | Linux (xclip) | `xclip -selection clipboard` |
 | Linux (xsel) | `xsel --clipboard --input` |
 
-Example:
+Example (use `printf '%s'` to safely handle special characters in lyrics):
 ```bash
-echo "content" | pbcopy  # macOS
-echo "content" | xclip -selection clipboard  # Linux
+printf '%s' "$content" | pbcopy  # macOS
+printf '%s' "$content" | xclip -selection clipboard  # Linux
 ```
 
 ## Step 7: Confirm

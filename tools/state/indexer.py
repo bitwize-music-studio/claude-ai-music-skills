@@ -424,6 +424,8 @@ def write_state(state: Dict[str, Any]):
     writes to a temp file and renames for atomicity.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    # Restrict cache directory to owner-only access
+    os.chmod(str(CACHE_DIR), 0o700)
 
     lock_fd = None
     tmp_fd = None
@@ -438,6 +440,8 @@ def write_state(state: Dict[str, Any]):
             prefix='.state_', delete=False
         )
         tmp_path = Path(tmp_fd.name)
+        # Restrict temp file to owner-only access
+        os.chmod(tmp_fd.name, 0o600)
         json.dump(state, tmp_fd, indent=2, default=str)
         tmp_fd.write('\n')
         tmp_fd.flush()
@@ -701,6 +705,15 @@ def cmd_validate(args):
     return 0
 
 
+def _validate_session_value(value: str, field: str, max_len: int = 256) -> Optional[str]:
+    """Validate a session context value. Returns error message or None."""
+    if len(value) > max_len:
+        return f"{field} too long ({len(value)} chars, max {max_len})"
+    if '\x00' in value:
+        return f"{field} contains null bytes"
+    return None
+
+
 def cmd_session(args):
     """Update session context in state.json."""
     state = read_state()
@@ -719,6 +732,14 @@ def cmd_session(args):
             'updated_at': None,
         }
     else:
+        for field, value in [('album', args.album), ('track', args.track),
+                             ('phase', args.phase), ('add_action', args.add_action)]:
+            if value is not None:
+                err = _validate_session_value(value, field)
+                if err:
+                    logger.error("Invalid session value: %s", err)
+                    return 1
+
         if args.album is not None:
             session['last_album'] = args.album
         if args.track is not None:
@@ -727,6 +748,9 @@ def cmd_session(args):
             session['last_phase'] = args.phase
         if args.add_action:
             actions = session.get('pending_actions', [])
+            if len(actions) >= 100:
+                logger.error("Too many pending actions (max 100). Use --clear to reset.")
+                return 1
             actions.append(args.add_action)
             session['pending_actions'] = actions
 

@@ -959,7 +959,7 @@ Verify it documents:
 
 ---
 
-## 9. CONSISTENCY TESTS (`/test consistency`)
+## 10. CONSISTENCY TESTS (`/test consistency`)
 
 Cross-reference and consistency checks.
 
@@ -1036,7 +1036,7 @@ This test was added after an accidental skill.json was found in the resume skill
 
 ---
 
-## 10. TERMINOLOGY TESTS (`/test terminology`)
+## 11. TERMINOLOGY TESTS (`/test terminology`)
 
 Consistent language across docs.
 
@@ -1068,7 +1068,7 @@ Brand should always be "bitwize-music" (lowercase with hyphen).
 
 ---
 
-## 11. BEHAVIOR TESTS (`/test behavior`)
+## 12. BEHAVIOR TESTS (`/test behavior`)
 
 Scenario-based tests verifying correct instructions.
 
@@ -1104,7 +1104,7 @@ Verify it lists all check types:
 
 ---
 
-## 12. QUALITY TESTS (`/test quality`)
+## 13. QUALITY TESTS (`/test quality`)
 
 Code quality and best practices.
 
@@ -1204,7 +1204,7 @@ Read CLAUDE.md and verify these sections exist:
 
 ---
 
-## 13. E2E TESTS (`/test e2e`)
+## 14. E2E TESTS (`/test e2e`)
 
 End-to-end integration test that creates a test album and exercises the full workflow.
 

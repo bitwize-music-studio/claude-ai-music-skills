@@ -128,10 +128,7 @@ spotify_url: ""  # Fill in when released (optional)
 
 ### Source Verification Status
 
-| Track | Sources Captured | Human Verified | Legal Cleared |
-|-------|------------------|----------------|---------------|
-| 01 - [Title] | ☐ | ☐ | ☐ |
-| 02 - [Title] | ☐ | ☐ | ☐ |
+Source verification is tracked per-track in each track file's `Sources Verified` field (single source of truth). Use `/bitwize-music:resume` or `/bitwize-music:validate-album` to see verification status across all tracks.
 
 ### Legal Notes
 
@@ -159,6 +156,14 @@ Dialogue and internal thoughts are dramatized for artistic purposes."]
 ```
 
 **Note**: Artist name should always appear in the bottom right. Preserve the artist's preferred casing/spelling.
+
+### File Naming Convention
+
+Save generated album art using `/bitwize-music:import-art` or manually to these locations:
+- **Audio directory**: `{audio_root}/{artist}/{album}/album.png` (used by promo videos, SoundCloud)
+- **Content directory**: `{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.png` (tracked in git)
+
+Format: PNG preferred, JPEG acceptable. Resolution: at least 3000x3000 for distribution, 1500x1500 minimum.
 
 ## SoundCloud
 

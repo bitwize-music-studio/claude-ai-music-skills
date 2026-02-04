@@ -6,6 +6,53 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-02-04
+
+### Added
+- **Security: temp file cleanup** — atexit handlers and `0o600` permissions on temp files in promo video generators
+- **Security: path traversal validation** — `Path.relative_to()` containment checks in mastering tools
+- **Security: state cache permissions** — `0o700` on cache directory, `0o600` on temp files in indexer
+- **Security: album name validation** — character validation before `rglob` in cloud uploader prevents glob injection
+- **Security: CI model-updater hardening** — character whitelist and length validation on fetched model IDs
+- **Security: session input validation** — length limits, null byte checks, action count cap in state indexer
+- **Mastering: pre-flight check** — new Step 1 verifies WAV files exist before mastering workflow
+- **Album-conceptualizer: type decision criteria** — guidance for choosing between Documentary, Character Study, Thematic
+- **Album-conceptualizer: energy mapping example** — concrete visual example and pacing problems checklist
+- **Resume: Research Phase** — suggests `/researcher` and `/document-hunter` for documentary albums
+- **Checkpoint scripts: required actions** — action checklists before each checkpoint message template
+- **Source verification: human checklist** — 6 concrete items for verifying sources (URL, quotes, dates, context, etc.)
+- **Pronunciation guide: enforcement workflow** — full table enforcement process, verification format, rules
+- **Researcher: evidence chain format** — example documentation format for connecting sources
+
+### Changed
+- **Lyric-reviewer: homograph handling unified** — now verifies decisions from lyric-writer instead of independently re-determining pronunciation (fixes contradiction)
+- **Lyric-reviewer: 13-point checklist** — added section length, rhyme scheme, density/pacing, verse-chorus echo checks (was 9)
+- **Suno-engineer: parenthetical contradictions fixed** — removed instructions to use parentheticals in lyrics box (Suno sings them)
+- **Suno-engineer: genre specificity guidance** — added 2-3 descriptor limit with "too much" anti-pattern example
+- **Suno-engineer: album context lookup** — explicit instructions for finding album README from track path
+- **Bass homograph standardized** — `bayss` (music) across lyric-writer, lyric-reviewer, pronunciation-specialist
+- **New-album: documentary parsing** — documents both 2-arg and 3-arg formats, always asks about true-story status
+- **Pronunciation-specialist: standard Override Support section** — restructured to match pattern used by other skills
+- **Researcher: state cache + Glob approach** — replaced `find`/`cat` commands with state cache lookup per CLAUDE.md
+- **Researcher: smart album detection** — checks for single in-progress album before asking user
+- **Mastering-engineer: version-safe plugin detection** — `[0-9]*` pattern replaces `0.*` (works post-1.0)
+- **Mastering-engineer: step renumbering** — 6 steps with new pre-flight check
+- **Lyric-writer: trim strategy** — specific guidance on what to cut when sections exceed limits
+- **Lyric-writer: pronunciation check split** — table enforcement elevated from parenthetical to explicit sub-item
+- **Lyric-writer: twin verses example** — concrete before/after showing reworded vs developing V2
+- **Track template: pronunciation enforcement note** — bold warning that table is mandatory checklist, not documentation
+- **Track template: keeper marker documented** — explains ✓ in Generation Log Rating column
+- **Album template: verification deduplication** — removed per-track table, points to track files as single source of truth
+- **Album template: art filename convention** — documents expected filenames and locations for album art
+- **Suno LUFS targets clarified** — renamed section, added note these are Suno outputs not mastering targets
+- **Style Prompt terminology standardized** — consistent "Style Prompt" (content) vs "Style Box" (UI) across Suno docs
+- **Test skill: section renumbering** — fixed duplicate section 9, renumbered 10-14
+- **Resume: plugin root resolution** — explains how to find plugin directory when state cache needs rebuild
+- **Clipboard: shell-safe example** — `printf '%s'` replaces `echo` for lyrics with special characters
+- **Cross-references added** — release-procedures→distribution.md, error-recovery→mastering-workflow.md
+- **Homograph drift prevention** — canonical source notes added to all 3 skills with homograph tables
+- **Researcher sub-skills: override inheritance** — all 10 sub-skills now reference parent override preferences
+
 ## [0.36.0] - 2026-02-03
 
 ### Added

@@ -258,6 +258,37 @@ Add words that make the pronunciation obvious.
 
 Sometimes the mispronunciation isn't jarring enough to matter, or there's no good fix. Document the risk and move on.
 
+## Pronunciation Table Enforcement Workflow
+
+The Pronunciation Notes table in each track file is a **mandatory checklist**, not passive documentation. Every entry MUST be applied as phonetic spelling in the Suno Lyrics Box.
+
+### Process
+
+1. **Before finalizing any track**: Read the Pronunciation Notes table top to bottom
+2. **For each entry**: Search the Suno Lyrics Box for the standard spelling
+3. **Replace** with the phonetic version from the table
+4. **Verify** every occurrence is fixed — check all verses, choruses, bridges, and outros
+5. **Common failure**: Word added to table but never applied to lyrics, or phonetic in one verse but missed in chorus/bridge
+
+### Verification Format
+
+After applying all phonetics, document verification:
+
+```markdown
+| Word | Standard | Phonetic | Applied? |
+|------|----------|----------|----------|
+| Ramos | Ramos | Rah-mohs | ✓ All 4 occurrences |
+| live | live | lyve | ✓ V1, V2, Chorus |
+| FBI | FBI | F-B-I | ✓ Bridge |
+```
+
+### Rules
+
+- The table is the source of truth — if it says phonetic, the Suno lyrics MUST use phonetic
+- Streaming/distributor lyrics always keep standard English spelling
+- When adding a new word to the table, immediately apply it to all Suno lyrics
+- Run this check as the final step before generation, after all other edits are complete
+
 ## Quick Reference Card
 
 ```
@@ -331,8 +362,8 @@ When in doubt:
   - Applies rules from this guide during review process
 
 - **`/bitwize-music:lyric-reviewer`** - Pre-generation QC gate
-  - 9-point checklist includes pronunciation check
-  - Auto-fixes pronunciation issues before Suno generation
+  - 13-point checklist includes pronunciation verification
+  - Verifies homograph decisions and phonetic spelling application before Suno generation
 
 ## See Also
 

@@ -2,6 +2,19 @@
 
 This document contains detailed procedures for handling human verification of source material in documentary/true-story albums.
 
+## What to Verify (Checklist for Humans)
+
+For each source cited in a track, verify:
+
+1. **URL is accessible** — the link loads and points to the claimed source (not a 404 or paywall-only page)
+2. **Quotes are accurate** — any quoted text appears verbatim in the source (not paraphrased, truncated, or taken out of context)
+3. **Dates match** — dates, years, and timelines cited in the track match the source
+4. **Names and facts match** — names, places, dollar amounts, and other specific claims are correct per the source
+5. **Context is preserved** — the source material is not misrepresented (e.g., a quote isn't attributed to the wrong person, a conditional statement isn't presented as definitive)
+6. **No fabrication** — nothing in the track's "Quotes & Attribution" section is invented or conflated from multiple sources without notation
+
+If any item fails, note the specific issue and report it for correction before marking as verified.
+
 ## When to Stop and Request Verification
 
 ### Trigger 1: After Adding Sources to Track

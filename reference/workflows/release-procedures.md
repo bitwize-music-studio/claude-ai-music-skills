@@ -76,7 +76,7 @@ Ensure all items in Album Completion Checklist are done:
 - All tracks Final with Suno Links
 - Album art generated and saved
 - Audio mastered
-- Streaming Lyrics filled in each track (if using distributor)
+- Streaming Lyrics filled in each track (if using distributor — see [distribution.md](../distribution.md) for format rules)
 
 ### 2. Update Album README
 

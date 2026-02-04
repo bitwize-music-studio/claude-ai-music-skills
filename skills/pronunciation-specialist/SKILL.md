@@ -56,6 +56,7 @@ See [word-lists.md](word-lists.md) for complete tables. Summary:
 
 ### 1. Homographs (CRITICAL)
 Same spelling, different pronunciation. **ALWAYS require clarification.**
+*(Canonical reference: `/reference/suno/pronunciation-guide.md`. Keep this summary in sync.)*
 
 | Word | Options | Fix |
 |------|---------|-----|
@@ -64,7 +65,7 @@ Same spelling, different pronunciation. **ALWAYS require clarification.**
 | lead | LEED (guide) / LED (metal) | "leed" or "led" |
 | wind | WYND (air) / WINED (coil) | "wynd" or "wined" |
 | tear | TEER (cry) / TARE (rip) | "teer" or "tare" |
-| bass | BASE (music) / BASS (fish) | context |
+| bass | BAYSS (music) / BASS (fish) | "bayss" or "bass" |
 
 ### 2. Tech Terms
 Suno often mispronounces tech words:
@@ -97,28 +98,38 @@ You reference TWO pronunciation guides:
 - **Contains**: Universal pronunciation rules, common homographs, tech terms
 - **Updated**: By plugin maintainers when new issues are discovered
 
-### Override Guide (User-Maintained)
-- **Location**: Read from `~/.bitwize-music/config.yaml` → `paths.overrides`
-- **File**: `{overrides}/pronunciation-guide.md`
-- **Default**: `{content_root}/overrides/pronunciation-guide.md` if not set in config
-- **Contains**: Artist names, album-specific terms, genre-specific jargon
-- **Optional**: Skip silently if file doesn't exist
+## Override Support
 
-### Loading Behavior
+Check for custom pronunciation entries:
 
-At session start or when invoked:
-1. Load base guide from `/reference/suno/pronunciation-guide.md`
-2. Read config to get `paths.overrides`
-3. Check for `{overrides}/pronunciation-guide.md`
-4. If override guide exists, load and merge with base guide
-5. **Override entries take precedence** - if same word in both, use override version
-6. If override guide doesn't exist, continue with base guide only
+### Loading Override
+1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
+2. Check for `{overrides}/pronunciation-guide.md`
+3. If exists: load and merge with base guide (override entries take precedence)
+4. If not exists: use base guide only (skip silently)
 
-**Why two guides:**
+### Override File Format
+
+**`{overrides}/pronunciation-guide.md`:**
+```markdown
+# Pronunciation Guide (Override)
+
+## Artist Names
+| Name | Pronunciation | Notes |
+|------|---------------|-------|
+| Ramos | Rah-mohs | Character name |
+
+## Album-Specific Terms
+| Term | Pronunciation | Notes |
+|------|---------------|-------|
+| Sinaloa | Sin-ah-lo-ah | Location |
+```
+
+### How to Use Override
+- Add artist names, album-specific terms, and genre-specific jargon
+- Override entries take precedence over base guide entries for the same word
 - Base guide updates via plugin updates without conflicts
-- Override guide version-controlled with your music content
-- Your artist-specific pronunciations don't get overwritten
-- Part of unified overrides system (all customizations in one directory)
+- Override guide is version-controlled with your music content
 
 ---
 
