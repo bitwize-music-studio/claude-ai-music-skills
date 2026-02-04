@@ -35,9 +35,7 @@ jobs:
         run: |
           # Fetch the models documentation page
           DOCS_URL="https://platform.claude.com/docs/en/docs/about-claude/models"
-          PAGE=$(curl -sL "$DOCS_URL" --fail)
-
-          if [ $? -ne 0 ]; then
+          if ! PAGE=$(curl -sL "$DOCS_URL" --fail); then
             echo "::error::Failed to fetch Anthropic docs page"
             exit 1
           fi
@@ -115,9 +113,17 @@ jobs:
           validate_model_chars "$SONNET" "Sonnet" && \
           validate_model_chars "$HAIKU" "Haiku" || exit 1
 
-          echo "opus=$OPUS" >> $GITHUB_OUTPUT
-          echo "sonnet=$SONNET" >> $GITHUB_OUTPUT
-          echo "haiku=$HAIKU" >> $GITHUB_OUTPUT
+          {
+            echo "opus<<GHEOF"
+            echo "$OPUS"
+            echo "GHEOF"
+            echo "sonnet<<GHEOF"
+            echo "$SONNET"
+            echo "GHEOF"
+            echo "haiku<<GHEOF"
+            echo "$HAIKU"
+            echo "GHEOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Check current models in skills
         id: check
@@ -218,8 +224,14 @@ jobs:
           jq ".version = \"$NEW_VERSION\"" .claude-plugin/plugin.json > /tmp/plugin.json && mv /tmp/plugin.json .claude-plugin/plugin.json
           jq ".plugins[0].version = \"$NEW_VERSION\"" .claude-plugin/marketplace.json > /tmp/marketplace.json && mv /tmp/marketplace.json .claude-plugin/marketplace.json
 
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "old_version=$CURRENT" >> $GITHUB_OUTPUT
+          {
+            echo "new_version<<GHEOF"
+            echo "$NEW_VERSION"
+            echo "GHEOF"
+            echo "old_version<<GHEOF"
+            echo "$CURRENT"
+            echo "GHEOF"
+          } >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG.md
         if: steps.check.outputs.updates_needed == 'true' && github.event.inputs.dry_run != 'true'

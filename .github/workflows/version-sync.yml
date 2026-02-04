@@ -6,6 +6,9 @@ on:
       - '.claude-plugin/plugin.json'
       - '.claude-plugin/marketplace.json'
 
+permissions:
+  contents: read
+
 jobs:
   check-version-sync:
     runs-on: ubuntu-latest

@@ -97,7 +97,7 @@ jobs:
         VERSION: ${{ steps.version.outputs.version }}
       run: |
         # Check if this version exists in CHANGELOG
-        if grep -q "## \[$VERSION\]" CHANGELOG.md; then
+        if grep -qF "## [$VERSION]" CHANGELOG.md; then
           echo "[OK] CHANGELOG.md contains release notes for version $VERSION"
         else
           echo "[WARN] CHANGELOG.md does not contain section for version $VERSION"
