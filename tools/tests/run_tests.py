@@ -443,13 +443,11 @@ class PluginTestRunner:
                 'agent title (# heading)',
                 'Top-level heading identifying the agent',
                 [r'^# .+'],
-                True,  # warn_only
             ),
             (
                 'task description',
                 'Describes what the skill does (## Your Task, ## Purpose, ## Instructions)',
                 [r'^## Your Task', r'^## Purpose', r'^## Instructions'],
-                False,
             ),
             (
                 'procedural content',
@@ -459,7 +457,6 @@ class PluginTestRunner:
                  r'^## Domain Expertise', r'^## Key Skills',
                  r'^## Output Format', r'^## Instructions',
                  r'^## \d+\. '],  # numbered sections like "## 1. CONFIG TESTS"
-                False,
             ),
             (
                 'closing guidance',
@@ -467,7 +464,6 @@ class PluginTestRunner:
                 [r'^## Remember', r'^## Important Notes', r'^## Common Mistakes',
                  r'^## Implementation Notes', r'^## Error Handling',
                  r'^## Troubleshooting', r'^## Adding New Tests'],
-                False,
             ),
         ]
 
@@ -476,7 +472,7 @@ class PluginTestRunner:
                 continue
             content = frontmatter.get('_content', '')
 
-            for check_name, desc, patterns, warn_only in required_structure:
+            for check_name, desc, patterns in required_structure:
                 found = any(
                     re.search(p, content, re.MULTILINE) for p in patterns
                 )
@@ -490,7 +486,7 @@ class PluginTestRunner:
                     self._add_test(
                         category,
                         f"Has {check_name}: {skill_name}",
-                        TestResult.WARN if warn_only else TestResult.FAIL,
+                        TestResult.FAIL,
                         f"Missing section ({desc})",
                         frontmatter.get('_path', ''),
                         fix_hint=f"Add one of the accepted headings for {check_name}"

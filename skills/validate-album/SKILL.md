@@ -10,6 +10,8 @@ allowed-tools:
   - Grep
 ---
 
+# Album Validator Agent
+
 ## Your Task
 
 **Input**: $ARGUMENTS (album name, e.g., `sample-album`)
