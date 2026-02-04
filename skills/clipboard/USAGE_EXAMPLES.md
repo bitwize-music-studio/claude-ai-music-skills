@@ -144,4 +144,4 @@ Very long lyrics may hit shell limits. The skill handles this internally, but if
 ## See Also
 
 - [SKILL.md](SKILL.md) - Full skill documentation
-- [/reference/suno/v5-best-practices.md](/reference/suno/v5-best-practices.md) - Suno prompting guide
+- [${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md](${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md) - Suno prompting guide

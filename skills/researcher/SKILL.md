@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: "Investigative-grade research: primary source analysis, cross-verification, trial-level depth"
+description: Conducts investigative-grade research with primary source analysis, cross-verification, and trial-level depth. Use when an album needs factual research, source material, or verification of claims.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
 allowed-tools:
@@ -273,7 +273,7 @@ These specialists have `user-invocable: false` - you coordinate them, users don'
    - If multiple match or none, ask: "Which album is this research for?"
 
 3. **If state cache is missing or stale:**
-   - Try rebuilding: `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - Try rebuilding: `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py rebuild`
    - If rebuild fails, fall back to config + Glob:
      - Read `~/.bitwize-music/config.yaml` — extract `paths.content_root` and `artist.name`
      - Glob: `{content_root}/artists/{artist}/albums/*/*/README.md`

@@ -1,6 +1,6 @@
 ---
 name: help
-description: Show available skills, common workflows, and quick reference
+description: Shows available skills, common workflows, and quick reference for the plugin. Use when the user asks for help, what skills are available, or how to do something.
 model: claude-haiku-4-5-20251001
 allowed-tools: []
 ---
@@ -116,11 +116,11 @@ Display this help information to the user in a clear, organized format.
 
 - **CLAUDE.md** - Main workflow instructions
 - **README.md** - Project overview
-- `/reference/suno/` - Suno V5 guides, pronunciation, tips
-- `/reference/workflows/` - Detailed workflow procedures
-- `/reference/mastering/` - Audio mastering documentation
-- `/templates/` - Templates for new content
-- `/skills/[skill-name]/SKILL.md` - Individual skill documentation
+- `${CLAUDE_PLUGIN_ROOT}/reference/suno/` - Suno V5 guides, pronunciation, tips
+- `${CLAUDE_PLUGIN_ROOT}/reference/workflows/` - Detailed workflow procedures
+- `${CLAUDE_PLUGIN_ROOT}/reference/mastering/` - Audio mastering documentation
+- `${CLAUDE_PLUGIN_ROOT}/templates/` - Templates for new content
+- `${CLAUDE_PLUGIN_ROOT}/skills/[skill-name]/SKILL.md` - Individual skill documentation
 
 ---
 

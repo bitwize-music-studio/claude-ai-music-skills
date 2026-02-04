@@ -1,6 +1,6 @@
 ---
 name: about
-description: About bitwize and this plugin
+description: Provides information about the bitwize-music plugin and its creator. Use when the user asks about the plugin, its purpose, or capabilities.
 model: claude-haiku-4-5-20251001
 allowed-tools: []
 ---

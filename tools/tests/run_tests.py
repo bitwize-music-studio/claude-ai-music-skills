@@ -463,7 +463,8 @@ class PluginTestRunner:
                 'Summary, rules, or reference sections',
                 [r'^## Remember', r'^## Important Notes', r'^## Common Mistakes',
                  r'^## Implementation Notes', r'^## Error Handling',
-                 r'^## Troubleshooting', r'^## Adding New Tests'],
+                 r'^## Troubleshooting', r'^## Adding New Tests',
+                 r'^## Technical Reference', r'^## Model Recommendation'],
             ),
         ]
 
@@ -809,8 +810,8 @@ class PluginTestRunner:
 
         # Test: No deprecated terminology
         self.log("Checking for deprecated terminology...")
-        # Exclude test skill (it documents deprecated terms for test purposes)
-        excluded_files = {'skills/test/SKILL.md'}
+        # Exclude test skill files (they document deprecated terms for test purposes)
+        excluded_files = {'skills/test/SKILL.md', 'skills/test/test-definitions.md'}
         for term, replacement in self.DEPRECATED_TERMS.items():
             found_in = []
             for file_path in files_to_check:

@@ -1,6 +1,6 @@
 ---
 name: mastering-engineer
-description: Audio mastering guidance, loudness optimization, platform delivery specs
+description: Guides audio mastering for streaming platforms including loudness optimization and tonal balance. Use when the user has approved tracks and wants to master audio files.
 argument-hint: <folder-path or "master for [platform]">
 model: claude-sonnet-4-5-20250929
 allowed-tools:
@@ -118,13 +118,11 @@ genres:
 
 **CRITICAL**: Mastering scripts live in the plugin directory and should **never be copied** to audio folders.
 
-**Find plugin directory** (version-independent):
+**Plugin directory**:
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 MASTERING_DIR="$PLUGIN_DIR/tools/mastering"
 ```
-
-This finds the latest installed version automatically.
 
 ### Step 1: Pre-Flight Check
 
@@ -138,7 +136,7 @@ Before mastering, verify:
 
 ```bash
 # Find plugin directory
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 
 # Analyze tracks in audio folder
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder
@@ -212,7 +210,7 @@ python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder/ma
 
 ### Available Tools
 
-Located in `/tools/mastering/`:
+Located in `${CLAUDE_PLUGIN_ROOT}/tools/mastering/`:
 
 | Tool | Purpose |
 |------|---------|
@@ -238,7 +236,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 source ~/.bitwize-music/mastering-env/bin/activate
 
 # Find plugin directory (version-independent)
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 
 # Set audio path
 AUDIO_DIR="/path/to/audio/folder"
@@ -316,7 +314,7 @@ python3 analyze_tracks.py
 
 **Right:**
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
 ```
 
@@ -334,7 +332,7 @@ cd ~/.claude/plugins/cache/bitwize-music/bitwize-music/0.12.0/tools/mastering
 
 **Right:**
 ```bash
-PLUGIN_DIR=$(find ~/.claude/plugins/cache/bitwize-music/bitwize-music -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
 cd "$PLUGIN_DIR/tools/mastering"
 ```
 

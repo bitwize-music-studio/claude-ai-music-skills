@@ -1,6 +1,6 @@
 ---
 name: suno-engineer
-description: Technical Suno V5 prompting, genre selection, style prompt construction
+description: Constructs technical Suno V5 style prompts, selects genres, and optimizes generation settings. Use when creating or refining Suno prompts for track generation.
 argument-hint: <track-file-path or "create prompt for [concept]">
 model: claude-opus-4-5-20251101
 allowed-tools:
@@ -177,7 +177,7 @@ Combine up to 3 genres for unique sound:
 - "Country with electronic elements"
 - "Indie folk meets trip-hop"
 
-**See `/reference/suno/genre-list.md` for 500+ genres**
+**See `${CLAUDE_PLUGIN_ROOT}/reference/suno/genre-list.md` for 500+ genres**
 **See [genre-practices.md](genre-practices.md) for detailed genre strategies**
 
 ---
@@ -198,7 +198,7 @@ Combine up to 3 genres for unique sound:
 
 ### Mispronunciation
 **Fix**: Use phonetic spelling in Lyrics Box
-- See `/reference/suno/pronunciation-guide.md`
+- See `${CLAUDE_PLUGIN_ROOT}/reference/suno/pronunciation-guide.md`
 
 ---
 
@@ -233,7 +233,7 @@ Mention in style prompt: "Dual vocalists, male and female, trading verses"
 
 ## Reference Files
 
-All detailed Suno documentation in `/reference/suno/`:
+All detailed Suno documentation in `${CLAUDE_PLUGIN_ROOT}/reference/suno/`:
 
 | File | Contents |
 |------|----------|
@@ -426,9 +426,9 @@ When you discover new Suno behavior or techniques, **update the reference docume
 
 | File | Update When |
 |------|-------------|
-| `/reference/suno/v5-best-practices.md` | New prompting techniques |
-| `/reference/suno/tips-and-tricks.md` | Workarounds, discoveries |
-| `/reference/suno/CHANGELOG.md` | Any Suno update |
+| `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` | New prompting techniques |
+| `${CLAUDE_PLUGIN_ROOT}/reference/suno/tips-and-tricks.md` | Workarounds, discoveries |
+| `${CLAUDE_PLUGIN_ROOT}/reference/suno/CHANGELOG.md` | Any Suno update |
 
 ---
 

@@ -1,8 +1,9 @@
 ---
 name: validate-album
-description: "Validate album structure, file locations, and content integrity"
+description: Validates album directory structure, file locations, and content integrity. Use before release or whenever the user wants to check an album's structural health.
 argument-hint: <album-name>
 model: claude-haiku-4-5-20251001
+context: fork
 allowed-tools:
   - Read
   - Bash

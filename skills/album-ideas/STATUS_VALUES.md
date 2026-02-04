@@ -136,4 +136,4 @@ Status sync between IDEAS.md and album README is manual - the two files track di
 ## See Also
 
 - [SKILL.md](SKILL.md) - Full skill documentation
-- [/templates/ideas.md](/templates/ideas.md) - IDEAS.md template
+- [${CLAUDE_PLUGIN_ROOT}/templates/ideas.md](${CLAUDE_PLUGIN_ROOT}/templates/ideas.md) - IDEAS.md template

@@ -1,8 +1,9 @@
 ---
 name: document-hunter
-description: Automated browser-based document search and retrieval from free public sources
+description: Searches and retrieves documents from free public sources using automated browser navigation. Use when research needs primary source documents like court filings, government reports, or public records.
 argument-hint: <case-name or "auto-search [album-path]">
 model: claude-sonnet-4-5-20250929
+context: fork
 allowed-tools:
   - Bash
   - Write
@@ -167,7 +168,7 @@ The RECAP browser extension crowdsources PACER documents.
 - When anyone views a PACER document, RECAP uploads it to CourtListener
 - You can then download for free
 
-**Location**: `/tools/extensions/recap-extension/`
+**Location**: `${CLAUDE_PLUGIN_ROOT}/tools/extensions/recap-extension/`
 
 **Setup**:
 ```bash

@@ -1,9 +1,10 @@
 ---
 name: researchers-journalism
-description: Investigative articles, interviews, news coverage
+description: Researches investigative articles, interviews, and news coverage. Use when research needs journalistic sources for cross-referencing or additional context.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
 user-invocable: false
+context: fork
 allowed-tools:
   - Read
   - Edit
@@ -30,7 +31,7 @@ When invoked:
 
 You are an investigative journalism specialist for documentary music projects. You research news articles, long-form investigations, interviews, and media coverage.
 
-**Parent agent**: See `/skills/researcher/SKILL.md` for core principles and standards.
+**Parent agent**: See `${CLAUDE_PLUGIN_ROOT}/skills/researcher/SKILL.md` for core principles and standards.
 **Override preferences**: If `{overrides}/research-preferences.md` exists, apply those standards (minimum sources, depth, etc.) to your domain-specific research.
 
 ---

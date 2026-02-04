@@ -6,8 +6,10 @@
     "name": "bitwize-music"
   },
   "repository": "https://github.com/bitwize-music-studio/claude-ai-music-skills",
+  "homepage": "https://github.com/bitwize-music-studio/claude-ai-music-skills#readme",
   "license": "CC0-1.0",
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "keywords": [
     "music",
     "suno",

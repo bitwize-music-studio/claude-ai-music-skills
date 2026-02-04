@@ -1,6 +1,6 @@
 ---
 name: new-album
-description: Create a new album with correct directory structure and templates
+description: Creates a new album with the correct directory structure and templates. Use IMMEDIATELY when the user says 'make a new album' or similar, before any discussion.
 argument-hint: <album-name> <genre>
 model: claude-haiku-4-5-20251001
 allowed-tools:
@@ -134,13 +134,13 @@ This creates:
 Copy templates from plugin directory:
 
 ```bash
-cp {plugin_root}/templates/album.md {album_path}/README.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/album.md {album_path}/README.md
 ```
 
 For documentary/true-story albums (ask user):
 ```bash
-cp {plugin_root}/templates/research.md {album_path}/RESEARCH.md
-cp {plugin_root}/templates/sources.md {album_path}/SOURCES.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/research.md {album_path}/RESEARCH.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/sources.md {album_path}/SOURCES.md
 ```
 
 ## Step 8: Confirm
@@ -187,7 +187,7 @@ Error: Album already exists at {album_path}
 **Templates not found:**
 ```
 Error: Templates not found. Is the plugin installed correctly?
-Expected at: {plugin_root}/templates/
+Expected at: ${CLAUDE_PLUGIN_ROOT}/templates/
 ```
 
 ---
@@ -237,8 +237,8 @@ If user mentions this is a documentary or true-story album:
 
 Also copy research templates:
 ```bash
-cp {plugin_root}/templates/research.md {album_path}/RESEARCH.md
-cp {plugin_root}/templates/sources.md {album_path}/SOURCES.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/research.md {album_path}/RESEARCH.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/sources.md {album_path}/SOURCES.md
 ```
 
 Report:
