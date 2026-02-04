@@ -42,24 +42,30 @@ V5 listens differently and needs less instruction. Write new prompts and experim
 
 ## Prompt Construction
 
-### Keep It Simple
+### Keep It Simple — Avoid Prompt Fatigue
 
-V5 is literal. Complex descriptions confuse it.
+V5 is literal. Complex descriptions confuse it. The **sweet spot is 4–7 descriptors** — fewer than 4 lacks direction, more than 7 causes "prompt fatigue" where V5 dilutes or ignores tags.
 
 ```
-❌ Bad:
+❌ Bad (prompt fatigue — too many tags):
 "Ethereal indie folk with vintage analog warmth and melancholic
-undertones reminiscent of early morning mist"
+undertones, finger-picked acoustic, tape hiss, lo-fi, intimate,
+breathy, whispery, nostalgic, contemplative, minimalist production"
 
-✅ Good:
-"Sad indie folk, acoustic, gentle"
+❌ Bad (too vague):
+"Nice upbeat music"
+
+✅ Good (4-7 descriptors):
+"Sad indie folk, acoustic, gentle, breathy female vocal, intimate"
 ```
+
+**Rule of thumb**: If your prompt has 8+ comma-separated descriptors, cut it. V5 understands context and fills in gaps intelligently.
 
 ### The Four-Part Anatomy
 
 ```
 1. Genre + Era + Influences
-   "90s alt-rock with Britpop undertones; Oasis meets The Verve"
+   "90s alt-rock with Britpop undertones"
 
 2. Tempo/BPM + Key (optional)
    "120 BPM, A minor"
@@ -69,6 +75,19 @@ undertones reminiscent of early morning mist"
 
 4. Production & Mix Notes
    "Analog glue compression; tape saturation; lead vocal upfront"
+```
+
+### Alternative: Top-Loaded Palette Formula
+
+A simpler approach that front-loads the most impactful elements:
+
+```
+[Mood] + [Energy] + [2 Instruments] + [Vocal Identity]
+```
+
+**Example**:
+```
+Melancholic, slow-burn, piano and strings, female alto with subtle vibrato
 ```
 
 ---
@@ -200,8 +219,12 @@ lofi effects rain, ambient thunder
 
 ### Syllable Control
 
-- Specify ranges: "Verse lines: 8–10 syllables each"
+- **Verse lines**: 7–9 syllables per line for best vocal lock-in
+- **Chorus lines**: 10–12 syllables per line
+- **Overall range**: 6–12 syllables per line
 - Use hyphens for sustained notes: `lo-ove`, `sooo-long`
+- Writing `Loooove` or `Ohhhh` creates sustained notes and vocal emphasis
+- ALL CAPS can create a shouting effect: `NEVER AGAIN`
 - Punctuation signals phrasing: commas = pauses, ellipses = trailing
 
 ### Prevent Lyric Alterations
@@ -231,6 +254,101 @@ V5 handles exclusions reliably.
 ❌ Bad (over-specified):
 "No drums, no bass, no synths, no reverb, no distortion, no..."
 ```
+
+---
+
+## Bar Count Targeting
+
+V5 supports targeting specific bar counts per section using numbers after section tags:
+
+```
+[INTRO 4] [VERSE 1 8] [PRE 4] [CHORUS 8] [VERSE 2 8] [PRE 4] [CHORUS 8] [BRIDGE 8] [CHORUS 8] [OUTRO 4]
+```
+
+The numbers represent target bar counts for each section. This gives you finer control over song structure and pacing beyond just section tags.
+
+**Notes**:
+- Results are approximate — Suno treats these as targets, not guarantees
+- Combine with explicit section tags in the lyrics box for best results
+- Works well for controlling intro/outro length
+
+---
+
+## Creative Sliders
+
+V5 includes sliders in the generation interface that affect output:
+
+| Slider | Effect | Guidance |
+|--------|--------|----------|
+| **Weirdness** | Higher = more experimental and unexpected choices | Raise to explore; lower for predictable, hooky results |
+| **Style Influence** | Higher = tighter adherence to style prompt | Raise for genre purity; lower for looser fusions |
+| **Audio Influence** | Controls how much uploaded audio shapes the output | Appears only when audio is uploaded |
+
+**Tips**:
+- Start with default values and adjust after hearing the first generation
+- High Weirdness + specific genre tag = interesting results within a genre
+- Low Style Influence is useful when you want the AI to surprise you
+
+---
+
+## Personas
+
+**Available to**: Pro and Premier subscribers
+
+Personas let you save the "essence" of a generated song — vocals, style, vibe — and reuse it across different songs. This is the most reliable way to maintain vocal consistency across an album.
+
+### Creating a Persona
+
+1. Generate a song with vocals you like
+2. Save the song's vocal identity as a Persona
+3. Apply the Persona to future generations
+
+### Best Practices
+
+- **Keep prompts simple when using Personas** (1–2 genres). The Persona carries the vocal identity, so you don't need to re-describe the voice.
+- **Personas can be dominant** — if your style prompt fights the Persona, the Persona usually wins. Work with it, not against it.
+- **Voice Personas lock in a specific AI singer** independent of musical style. You can move a Persona across genres (e.g., same singer doing folk and electronic).
+
+### Limitations
+
+- 200 free songs with Personas per billing cycle; then 10 credits per song
+- December 2025 update made Personas more dominant in the mix — adjust style prompts if the Persona is overpowering other elements
+
+---
+
+## Song Editor
+
+V5 includes a section-level Song Editor that lets you modify individual parts of a generated song without regenerating the whole track.
+
+### Capabilities
+
+| Action | Description |
+|--------|-------------|
+| **Remake** | Regenerate a section with the same prompt |
+| **Rewrite** | Change lyrics/melody for a section while preserving role and intent |
+| **Extend** | Append bars at the tail of a section |
+| **Reorder** | Move sections around in the arrangement |
+| **Delete** | Remove weak sections; transitions are engine-handled |
+
+### Workflow
+
+1. Generate a full song
+2. Identify sections that need improvement
+3. Use Remake/Rewrite on individual sections
+4. Extend 1–2 bars into/out of a chorus for smooth transitions
+5. Delete weak regions — the engine handles transition smoothing
+
+**Note**: Keep extensions to 2–3 times max per song. Extending too many times causes uneven lyrics, weaker vocals, and quality drops.
+
+---
+
+## Token Biases Warning
+
+Suno's model has known token biases — it gravitates toward certain words when generating or interpreting lyrics. These are model preferences, not creative choices:
+
+**Common bias words**: Neon, Echo, Ghost, Silver, Shadow, Whisper, Crystal, Velvet
+
+If you find these words appearing in your generations when you didn't write them, it's the model defaulting to its favorites. Use the "Do not change any words. Sing exactly as written." instruction to prevent unwanted substitutions.
 
 ---
 
@@ -344,6 +462,21 @@ Suno Studio is a generative audio workstation that combines AI music generation 
 - Niche subgenres (metalcore, extreme styles) may miss hallmarks
 - Extreme cross-style fusions → muddy results
 - Quality may degrade past 6-7 minutes
+- **V4.5 may produce better results for heavy genres** (metal, hardcore) — consider testing both if V5 output sounds thin
+
+---
+
+## Ownership & Licensing (Post-November 2025)
+
+Following the Warner Music Group partnership (November 2025):
+
+- Subscribers get **"commercial use rights"** but are **"generally not considered the owner"** of generated content
+- Suno will **not take a revenue share** from monetization
+- Artists/songwriters retain full control over name/image/likeness/voice use
+- New models trained on **licensed WMG catalog** are planned for 2026
+- Current models will be **deprecated** when licensed models launch — download your catalog
+
+**Action item**: Download all important generations now. Current-model content may become inaccessible when licensed models roll out.
 
 ---
 
@@ -404,3 +537,11 @@ crisp, warm, bright, deep, spacious
 - [10 Suno v5 Prompt Patterns That Never Miss](https://plainenglish.io/blog/i-made-10-suno-v5-prompt-patterns-that-never-miss)
 - [Negative Prompting in Suno v5](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/negative-prompting-suno-v5-guide)
 - [How to Instruct Suno v5 with Lyrics](https://www.cometapi.com/how-to-instruct-suno-v5-with-lyrics/)
+- [How to Write Effective Prompts for Suno Music (2026)](https://www.soundverse.ai/blog/article/how-to-write-effective-prompts-for-suno-music-1128)
+- [Suno V5 Secrets: Crafting AI-Generated Songs](https://iflow.bot/suno-v5-secrets-crafting-ai-generated-songs/)
+- [Suno V5 Playbook: Complete Guide](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-v5-playbook-complete-guide)
+- [Song Editor in Suno V5: Composer's Workflow](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/song-editor-in-suno-v5-workflow)
+- [Introducing Personas — Suno Blog](https://suno.com/blog/personas)
+- [Suno AI Personas Update (Dec 2025)](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-ai-personas-update-dec-2025-what-changed-how-to-use-it)
+- [Suno Previews 2026 Changes Under Warner Music Deal](https://www.digitalmusicnews.com/2025/12/22/suno-warner-music-deal-changes/)
+- [WMG and Suno Partnership Announcement](https://www.prnewswire.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017.html)

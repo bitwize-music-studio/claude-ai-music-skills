@@ -9,6 +9,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ### Added
 - **Plugin tests: SKILL.md structure validation** — checks all skills have required sections (task description, procedural content, closing guidance, agent title). Accepts common alternatives (## Workflow, ## Step 1, ## Commands, ## Domain Expertise, etc.). Runs as part of pre-commit check #11.
 - **CI: plugin tests job** — runs full `run_tests.py` suite (449 tests) in CI, guarded against fork PRs
+- **Suno: v5-best-practices.md updates** — Personas workflow, Song Editor, bar count targeting, Creative Sliders, prompt fatigue warning (4-7 descriptor sweet spot), token biases, WMG ownership/licensing, V4.5 comparison note
+- **Suno: tips-and-tricks.md updates** — Personas+Covers combo, Song Editor reference, Creative Sliders, catalog protection warning
+- **Suno: voice-tags.md updates** — V5 Voice Gender selector, sustained notes technique, emotion arc mapping
+- **Suno: structure-tags.md updates** — bar count targeting syntax, performance cues rule, V5 reliability improvements
+- **Suno: pronunciation-guide.md updates** — V5 context sensitivity note, IPA not supported, numbers guidance, multilingual track isolation
+- **Suno: instrumental-tags.md updates** — Producer's Prompt narrative approach, tag soup warning
 
 ## [0.37.1] - 2026-02-04
 

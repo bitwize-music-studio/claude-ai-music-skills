@@ -2,7 +2,13 @@
 
 Complete reference for vocal manipulation tags in Suno.
 
-> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it.
+> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (see [v5-best-practices.md](v5-best-practices.md#personas)).
+
+## V5 Voice Gender Selector
+
+V5 has a dedicated **Voice Gender** selector in Advanced Options (male/female). This provides the most reliable gender control — more consistent than style prompt descriptions alone.
+
+You can still control gender via style prompt ("male baritone") or Personas, but the Advanced Options selector is the baseline.
 
 ## Vocal Style Tags
 
@@ -104,16 +110,42 @@ Genres focused on vocal performances:
 - Vocal Jazz
 - Vocaloid
 
+## Sustained Notes & Emphasis
+
+Control vocal delivery with text formatting:
+
+| Technique | Example | Effect |
+|-----------|---------|--------|
+| **Extended vowels** | `Loooove`, `Ohhhh` | Sustained notes, vocal emphasis |
+| **Hyphens** | `lo-ove`, `sooo-long` | Extended vowels with syllable guidance |
+| **ALL CAPS** | `NEVER AGAIN` | Shouting/screaming effect |
+
+**Note**: ALL CAPS can be unpredictable — test with a short generation first.
+
+## Emotion Arc Mapping
+
+V5 supports mapping different emotional qualities to different sections:
+
+```
+Vocal: female alto, breathy, intimate, close-mic.
+Performance: whispered verse with micro-pauses at line ends, minimal vibrato;
+chorus slightly wider and warmer with gentle vibrato on sustained notes;
+bridge raw and exposed, single-take feel.
+```
+
+This lets you create an **emotional arc** across the song rather than a flat vocal performance throughout.
+
 ## Advanced Vocal Workflow
 
 For best results with specific vocals:
 
-1. **Upload a vocal sample** from Splice or record your own
-2. **Extend** the song with different lyrics
-3. Or use **Cover** to reimagine in different style
-4. Apply **voice tags** to manipulate the sound
-5. **Layer** more styles by repeating with different prompts
-6. Get **stems** and delete unwanted vocals
+1. **Use Personas** (Pro/Premier) for the most consistent vocal identity across tracks
+2. **Upload a vocal sample** from Splice or record your own
+3. **Extend** the song with different lyrics
+4. Or use **Cover** to reimagine in different style
+5. Apply **voice tags** to manipulate the sound
+6. **Layer** more styles by repeating with different prompts
+7. Get **stems** and delete unwanted vocals
 
 ## Combining Tags
 

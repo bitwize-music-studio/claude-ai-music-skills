@@ -128,15 +128,86 @@ As part of the Warner Music Group partnership, download policies changed:
 | **Premier** | Unlimited downloads in Suno Studio |
 
 **Key Points**:
-- All generations remain accessible in your library
+- All generations remain accessible in your library (for now — see Catalog Protection Warning above)
 - Paid accounts have monthly download quotas
 - Premier users maintain unlimited downloads via Suno Studio
-- New models trained on licensed WMG catalog (opt-in artists)
+- New models trained on licensed WMG catalog planned for 2026
+- Ownership revised: subscribers get "commercial use rights" but are "generally not considered the owner"
+- Suno will not take a revenue share from monetization
 
 **Workaround for Pro users**:
-- Prioritize which tracks to download
+- Prioritize which tracks to download within your monthly quota
 - Use Suno Studio for unlimited downloads (upgrade to Premier)
 - Stream from library without downloading
+
+---
+
+## Personas for Vocal Consistency
+
+Personas (Pro/Premier) save a song's vocal identity for reuse across tracks — the most reliable way to maintain a consistent voice across an album.
+
+### Creating and Using Personas
+
+1. **Generate** a track with the vocal style you want
+2. **Save as Persona** from the song's menu
+3. **Apply** the Persona when generating new songs — it carries the vocal character
+4. Keep style prompts **simple** (1–2 genres) when using Personas; the Persona handles vocal identity
+
+### Combining Personas with Covers
+
+A powerful technique for remixing:
+
+1. Generate a song with a Persona
+2. Use **Cover** to transform into a different genre
+3. The Persona's vocal identity carries through the genre shift
+4. Layer multiple Covers for complex genre-bending results
+
+**Note**: December 2025 update made Personas more dominant in the mix. If results sound overprocessed, simplify your style prompt or lower Style Influence.
+
+---
+
+## Song Editor (V5)
+
+Edit individual sections without regenerating the entire track:
+
+| Action | What It Does |
+|--------|-------------|
+| **Remake** | Regenerate one section with the same prompt |
+| **Rewrite** | Change lyrics/melody for one section |
+| **Extend** | Add bars at the end of a section |
+| **Reorder** | Rearrange sections in the timeline |
+| **Delete** | Remove a section (transitions auto-handled) |
+
+**Tips**:
+- Extend 1–2 bars into/out of a chorus for smooth transitions
+- Keep total extensions to 2–3 times max per song to avoid quality degradation
+- Section rewrite preserves the role/intent while changing content
+
+See [v5-best-practices.md](v5-best-practices.md) for the full Song Editor workflow.
+
+---
+
+## Creative Sliders
+
+Quick reference for V5's generation sliders:
+
+- **Weirdness**: Higher = more experimental. Lower = predictable hooks.
+- **Style Influence**: Higher = tighter genre adherence. Lower = looser fusion.
+- **Audio Influence**: Controls uploaded audio's weight (only visible with uploads).
+
+Start with defaults, adjust after hearing the first generation.
+
+---
+
+## Catalog Protection Warning
+
+**Current models will be deprecated** when Suno launches licensed models (trained on WMG catalog) in 2026. Download all important generations now — content created on current models may become inaccessible.
+
+**Action items**:
+- Download WAV files for all tracks you want to keep
+- Premier users: use Suno Studio for unlimited downloads
+- Pro users: prioritize downloads within your monthly quota
+- Keep local backups of all generated content
 
 ---
 
