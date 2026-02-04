@@ -431,6 +431,71 @@ class PluginTestRunner:
                     fix_hint="Add requirements: section listing external dependencies"
                 )
 
+        # Test: All skills have required sections
+        self.log("Checking SKILL.md required sections...")
+        # System skills with non-standard structure (help text, not agent workflows)
+        system_skills = {'about', 'help'}
+
+        # Required structural elements with accepted alternatives
+        # Each tuple: (check_name, description, list of regex patterns to match)
+        required_structure = [
+            (
+                'agent title (# heading)',
+                'Top-level heading identifying the agent',
+                [r'^# .+'],
+                True,  # warn_only
+            ),
+            (
+                'task description',
+                'Describes what the skill does (## Your Task, ## Purpose, ## Instructions)',
+                [r'^## Your Task', r'^## Purpose', r'^## Instructions'],
+                False,
+            ),
+            (
+                'procedural content',
+                'Step-by-step process or domain expertise sections',
+                [r'^## .*Workflow', r'^## Step 1', r'^## Commands',
+                 r'^## Research Process', r'^## The \d+-Point Checklist',
+                 r'^## Domain Expertise', r'^## Key Skills',
+                 r'^## Output Format', r'^## Instructions',
+                 r'^## \d+\. '],  # numbered sections like "## 1. CONFIG TESTS"
+                False,
+            ),
+            (
+                'closing guidance',
+                'Summary, rules, or reference sections',
+                [r'^## Remember', r'^## Important Notes', r'^## Common Mistakes',
+                 r'^## Implementation Notes', r'^## Error Handling',
+                 r'^## Troubleshooting', r'^## Adding New Tests'],
+                False,
+            ),
+        ]
+
+        for skill_name, frontmatter in skills.items():
+            if '_error' in frontmatter or skill_name in system_skills:
+                continue
+            content = frontmatter.get('_content', '')
+
+            for check_name, desc, patterns, warn_only in required_structure:
+                found = any(
+                    re.search(p, content, re.MULTILINE) for p in patterns
+                )
+                if found:
+                    self._add_test(
+                        category,
+                        f"Has {check_name}: {skill_name}",
+                        TestResult.OK
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        f"Has {check_name}: {skill_name}",
+                        TestResult.WARN if warn_only else TestResult.FAIL,
+                        f"Missing section ({desc})",
+                        frontmatter.get('_path', ''),
+                        fix_hint=f"Add one of the accepted headings for {check_name}"
+                    )
+
         # Test: All skills documented in SKILL_INDEX.md
         self.log("Checking SKILL_INDEX.md skill documentation...")
         skill_index_file = self.plugin_root / "reference" / "SKILL_INDEX.md"
