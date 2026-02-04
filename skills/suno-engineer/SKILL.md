@@ -17,9 +17,10 @@ allowed-tools:
 **Input**: $ARGUMENTS
 
 When invoked with a track file:
-1. Read the track file and any related album/artist context
-2. Construct optimal Suno V5 style prompt and settings
-3. Update the track file's Suno Inputs section
+1. Read the track file
+2. Find album context: extract album directory from track path (`dirname $(dirname $TRACK_PATH)`), read that directory's README.md for album-level genre/theme/style. If README missing, use only track-level context.
+3. Construct optimal Suno V5 style prompt and settings
+4. Update the track file's Suno Inputs section
 
 When invoked with a concept:
 1. Design complete Suno prompting strategy
@@ -143,7 +144,7 @@ Chorus lyrics here
 
 **Rules**:
 - Use section tags for every section
-- Parenthetical directions for instrumental parts
+- Section tags only for instrumental parts (no parentheticals — Suno sings them)
 - Clean lyrics only (no vocalist names, no extra instructions)
 - Phonetic spelling for pronunciation issues
 
@@ -161,11 +162,14 @@ clean electric guitar, driving bassline, tight drums. Modern production, dynamic
 
 ## Genre Selection
 
-More specific = better results.
+More specific = better results, but stop at 2-3 genre descriptors. Over-specification (5+ genre terms) dilutes rather than clarifies.
+
+**Pattern**: `[Primary genre] + [1-2 subgenre modifiers] + [1 key instrument/technique]`
 
 **Generic**: "Rock"
 **Better**: "Alternative rock"
-**Best**: "Midwest emo, math rock influences, clean guitar, intricate picking"
+**Best**: "Midwest emo, math rock influences, clean guitar"
+**Too much**: "Midwest emo, math rock, post-rock, shoegaze, ambient, clean guitar, intricate picking, reverb-heavy" — Suno can't honor all of these simultaneously
 
 ### Genre Mixing
 Combine up to 3 genres for unique sound:
@@ -207,10 +211,11 @@ Combine up to 3 genres for unique sound:
 4. Max total length: 8 minutes
 
 ### Instrumental Sections
-Use parenthetical directions:
+Use descriptive section tags only (no parentheticals — Suno will sing them as words):
 ```
+[Guitar Solo]
 [Instrumental Break]
-(Guitar solo, 16 bars)
+[Drum Break]
 ```
 
 ### Voice Switching

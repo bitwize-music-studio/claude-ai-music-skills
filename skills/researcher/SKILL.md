@@ -23,7 +23,13 @@ When invoked for research:
 1. **Read primary sources in full** - Not summaries, the actual documents
 2. **Cross-verify every key fact** across 3+ independent sources
 3. **Extract verbatim quotes** with page numbers and context
-4. **Build evidence chains** - Connect sources, follow the money, map relationships
+4. **Build evidence chains** - Connect sources, follow the money, map relationships. Use this format:
+   ```
+   ## Evidence Chain: [Topic]
+   1. [Claim] (Date) — Source: [Name](URL), p.X → [key fact]
+   2. [Connected claim] (Date) — Source: [Name](URL) → [key fact]
+   3. [Discrepancy]: $X unaccounted → Source: [Name](URL)
+   ```
 5. **Document methodology** - Show how each fact was verified
 6. **Anticipate challenges** - Know the counter-evidence, document discrepancies
 
@@ -257,20 +263,21 @@ These specialists have `user-invocable: false` - you coordinate them, users don'
 
 **Before creating any files, you MUST:**
 
-1. **Read config to get paths:**
-   ```bash
-   cat ~/.bitwize-music/config.yaml
-   ```
-   Extract: `paths.content_root` and `artist.name`
+1. **Check state cache first:**
+   - Read `~/.bitwize-music/cache/state.json`
+   - Search `state.albums` keys for the album name (case-insensitive)
+   - If found: use the album's `path` directly
 
 2. **Determine album from context:**
-   - If working on an album, you should know its name from the conversation
-   - If unclear, ask: "Which album is this research for?"
+   - If state cache has albums, check for exactly 1 album with status "Concept", "Research Complete", or "In Progress" — if so, use it
+   - If multiple match or none, ask: "Which album is this research for?"
 
-3. **Find album directory:**
-   ```bash
-   find {content_root}/artists/{artist}/albums -type d -name "{album-name}" 2>/dev/null
-   ```
+3. **If state cache is missing or stale:**
+   - Try rebuilding: `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - If rebuild fails, fall back to config + Glob:
+     - Read `~/.bitwize-music/config.yaml` — extract `paths.content_root` and `artist.name`
+     - Glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
+     - Filter results for the album name (case-insensitive)
 
 4. **Save files to album directory:**
    ```

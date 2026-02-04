@@ -120,6 +120,15 @@ See [album-types.md](album-types.md) for detailed planning approaches.
 | **Character Study** | Deep dive into a person | Aspects, time periods, through-line |
 | **Collection** | Standalone songs, loose connection | Unifying element, flow |
 
+### Choosing Between Similar Types
+
+When a concept could fit multiple types, use these criteria:
+
+- **Documentary vs Character Study**: Does the album focus on **events and timeline** (Documentary) or on **a person's inner life, growth, and contradictions** (Character Study)? An album about a hacker's arrest → Documentary. An album exploring what made them who they are → Character Study.
+- **Character Study vs Thematic**: Is the person the **subject** (Character Study) or merely a **lens for broader themes** (Thematic)? An album about Snowden's choices → Character Study. An album about surveillance using Snowden as one example → Thematic.
+- **Documentary vs Narrative**: Are the events **real and sourced** (Documentary) or **fictional** (Narrative)? Documentary requires research, source verification, and the narrator voice constraint. Narrative has creative freedom.
+- **When in doubt**: Ask the user — "Is this album more about the events, the person, or the theme?" Their answer determines the type.
+
 ---
 
 ## Tracklist Architecture
@@ -149,10 +158,31 @@ See [album-types.md](album-types.md) for detailed planning approaches.
 ## Pacing & Dynamics
 
 ### Energy Mapping
-Map album energy as a curve with peaks and valleys.
+Map album energy as a curve with peaks and valleys. Present to user for review.
 
-**Avoid**: Flatline energy (all medium)
-**Aim for**: Builds and releases
+**Example** (10-track album):
+```
+01 (Intro):  ▂▂▂ Low, atmospheric
+02:          ▅▅▅ Building
+03:          ▇▇▇ Peak (first single)
+04:          ▄▄▄ Mid-energy
+05:          ▂▂▂ Valley (breather)
+06:          ▆▆▆ Building again
+07:          ████ Peak (centerpiece)
+08:          ▅▅▅ Sustained
+09:          ▃▃▃ Wind down
+10 (Outro):  ▂▂▂ Resolution
+```
+
+**Avoid**: Flatline energy (all medium), all peaks clustered at start/end, three slow songs in a row, no contrast between adjacent tracks
+**Aim for**: Build → Peak → Valley → Build → Peak → Resolution
+
+### Pacing Problems Checklist
+- Three or more songs at the same energy level in a row
+- Adjacent tracks within 10 BPM of each other (no contrast)
+- All high-energy tracks clustered together
+- Emotional tone doesn't evolve across the album
+- Fix: swap track positions, suggest tempo changes, identify which track needs rewriting for contrast
 
 ### Tempo Variation
 Don't cluster all fast or all slow songs.

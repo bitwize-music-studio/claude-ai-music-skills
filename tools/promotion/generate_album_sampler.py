@@ -14,6 +14,7 @@ Usage:
     python generate_album_sampler.py /path/to/mastered --clip-duration 10
 """
 
+import atexit
 import os
 import sys
 import argparse
@@ -45,6 +46,21 @@ from tools.shared.media_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Safety-net cleanup for temp files left behind on abnormal exit
+_temp_files_to_cleanup: list = []
+
+
+def _cleanup_temp_files():
+    for path in _temp_files_to_cleanup:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+    _temp_files_to_cleanup.clear()
+
+
+atexit.register(_cleanup_temp_files)
 
 _DEFAULT_CONFIG = {"artist": {"name": "bitwize"}}
 
@@ -98,14 +114,18 @@ def generate_clip(
     # This avoids all escaping issues with drawtext's text= parameter,
     # preventing injection of ffmpeg filter directives through track titles.
     title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    os.chmod(title_file.name, 0o600)
     title_file.write(title)
     title_file.close()
     title_file_path = title_file.name
+    _temp_files_to_cleanup.append(title_file_path)
 
     artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    os.chmod(artist_file.name, 0o600)
     artist_file.write(artist_name)
     artist_file.close()
     artist_file_path = artist_file.name
+    _temp_files_to_cleanup.append(artist_file_path)
 
     viz_height = 600
 
@@ -175,11 +195,15 @@ def generate_clip(
     except Exception:
         return False
     finally:
-        # Clean up temp text files
+        # Clean up temp text files (also remove from atexit list)
         for tmp in (title_file_path, artist_file_path):
             try:
                 os.unlink(tmp)
             except OSError:
+                pass
+            try:
+                _temp_files_to_cleanup.remove(tmp)
+            except ValueError:
                 pass
 
 

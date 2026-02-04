@@ -33,7 +33,9 @@ When this skill is invoked with an album name:
 Read `~/.bitwize-music/cache/state.json` to get album and track data.
 
 **If state.json is missing or corrupted**:
+- Resolve `{plugin_root}`: find the plugin installation directory (typically the repo root containing `tools/state/indexer.py`, or search `~/.claude/plugins/cache/bitwize-music/bitwize-music` for latest version directory)
 - Run: `python3 {plugin_root}/tools/state/indexer.py rebuild`
+- If rebuild fails, fall back to manual Glob scan: read config, glob `{content_root}/artists/{artist}/albums/*/*/README.md`
 - Then read the newly created state.json
 
 **If state.json exists**: Use it directly (much faster than scanning files).
@@ -135,6 +137,11 @@ Based on the phase, suggest concrete next steps:
 **Planning Phase**:
 - "Let's fill in the album concept and tracklist"
 - "Run the 7 Planning Phases to finalize details"
+
+**Research Phase** (documentary/true-story albums):
+- "This is a documentary album — let's gather sources before writing"
+- "Use `/bitwize-music:researcher` to coordinate research across domains"
+- "Use `/bitwize-music:document-hunter` for automated free source searching"
 
 **Writing Phase**:
 - "Which track should we write next?"

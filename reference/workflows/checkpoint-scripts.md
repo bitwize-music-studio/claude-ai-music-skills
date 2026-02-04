@@ -9,6 +9,13 @@ This document contains the detailed example messages for workflow checkpoints. C
 
 **Trigger**: When all track lyrics are written for an album
 
+**Required Actions (before presenting to user):**
+1. Review all track statuses — confirm every track has lyrics written
+2. Verify Suno Style Box and Lyrics Box are filled in each track
+3. Run `/bitwize-music:explicit-checker` on all tracks
+4. Verify phonetic review: pronunciation tables complete, phonetic spellings applied in Suno lyrics
+5. For source-based albums: confirm all sources are `✅ Verified`
+
 **Say to user:**
 ```
 ✅ ALL LYRICS COMPLETE
@@ -31,6 +38,12 @@ Proceed to generation?
 ## Album Generation Complete Checkpoint
 
 **Trigger**: When all tracks marked `Generated` with Suno Links
+
+**Required Actions (before presenting to user):**
+1. Verify every track has status `Generated`
+2. Confirm Suno Links are present in each track file
+3. Check Generation Log in each track — at least one keeper (✓) per track
+4. List all tracks with their status and links for the user
 
 **Say to user:**
 ```
@@ -61,6 +74,11 @@ After QA, tell me:
 
 **Trigger**: User says "album approved" after QA review
 
+**Required Actions (before presenting to user):**
+1. Update all track statuses from `Generated` to `Final`
+2. Update album status to `Complete`
+3. Verify WAV files are downloaded from Suno (ask user if not confirmed)
+
 **Say to user:**
 ```
 ✅ ALBUM APPROVED FOR MASTERING
@@ -79,6 +97,13 @@ I'll set up mastering workflow once files are ready.
 ## Ready to Release Checkpoint
 
 **Trigger**: After mastering complete and album art generated
+
+**Required Actions (before presenting to user):**
+1. Review full Album Completion Checklist (see CLAUDE.md) — verify all items checked
+2. Confirm mastered audio meets targets (-14 LUFS, -1.0 dBTP)
+3. Confirm album art is generated and saved
+4. Verify streaming lyrics are filled in each track (if using distributor)
+5. For source-based albums: confirm RESEARCH.md, SOURCES.md complete, all sources verified
 
 **Say to user:**
 ```

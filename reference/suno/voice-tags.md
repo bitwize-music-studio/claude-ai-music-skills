@@ -144,7 +144,7 @@ Creating alien, robot, or creature voices requires **overloading the style promp
 
 ### Robot/Synthetic Voices
 
-**Style Box**:
+**Style Prompt**:
 ```
 metallic, autotuned, monotone, robotic, synthetic voice
 ```

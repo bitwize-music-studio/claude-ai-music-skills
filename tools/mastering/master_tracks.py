@@ -406,7 +406,16 @@ Examples:
         logger.error("Directory not found: %s", input_dir)
         sys.exit(1)
 
-    output_dir = input_dir / args.output_dir
+    output_dir = (input_dir / args.output_dir).resolve()
+
+    # Prevent path traversal: output must stay within input directory
+    try:
+        output_dir.relative_to(input_dir)
+    except ValueError:
+        logger.error("Output directory must be within input directory")
+        logger.error("  Output: %s", output_dir)
+        logger.error("  Input:  %s", input_dir)
+        sys.exit(1)
 
     if not args.dry_run:
         output_dir.mkdir(exist_ok=True)

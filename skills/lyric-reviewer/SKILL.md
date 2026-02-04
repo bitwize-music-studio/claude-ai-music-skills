@@ -57,7 +57,7 @@ lyric-writer → lyric-reviewer → suno-engineer
 
 ---
 
-## The 9-Point Checklist
+## The 13-Point Checklist
 
 ### 1. Rhyme Check
 - Repeated end words, self-rhymes, predictable patterns
@@ -98,6 +98,26 @@ lyric-writer → lyric-reviewer → suno-engineer
 - **Warning**: Over genre target range, or more than 3 verses without explicit request
 - **Critical**: Over 500 words (non-hip-hop) or 700 words (hip-hop)
 
+### 10. Section Length Check
+- Count lines per section, compare against genre limits (see lyric-writer Section Length Limits)
+- **Hard fail**: Any section exceeding its genre max must be flagged for trimming
+
+### 11. Rhyme Scheme Check
+- Verify rhyme scheme matches the genre (see lyric-writer Default Rhyme Schemes by Genre)
+- No orphan lines, no random scheme switches mid-verse
+- **Warning**: Inconsistent scheme within a section, orphan unrhymed line
+
+### 12. Density/Pacing Check
+- Verse line count vs genre README's `Density/pacing (Suno)` default
+- Cross-reference BPM/mood from Musical Direction
+- **Hard fail**: Any verse exceeding the genre's max line count
+
+### 13. Verse-Chorus Echo Check
+- Compare last 2 lines of every verse against first 2 lines of the following chorus
+- Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery
+- Check ALL verse-to-chorus and bridge-to-chorus transitions
+- **Warning**: Shared phrases or rhyme words bleeding across section boundaries
+
 See [checklist-reference.md](checklist-reference.md) for detailed criteria.
 
 ---
@@ -122,21 +142,22 @@ See [checklist-reference.md](checklist-reference.md) for detailed criteria.
 - Documentary issues
 - Flow/phrasing
 
-### Homograph Detection & Auto-Fix (MANDATORY)
+### Homograph Verification (MANDATORY)
+
+The lyric-writer asks the user to resolve homographs during writing. Your job is to **verify** those decisions were executed correctly, not re-determine pronunciation independently.
 
 When you detect a homograph (live, read, lead, wind, tear, bass, bow, etc.):
 
-1. **DO NOT** ask the user which option they prefer
-2. **DO NOT** offer to change the lyric to avoid the word
-3. Determine correct pronunciation from context
-4. Create phonetic spelling (e.g., "live" → "liv" for verb)
-5. Apply to Suno Lyrics Box ONLY (streaming lyrics keep standard spelling)
-6. Add to Pronunciation Notes table
-7. Report as "Auto-Fix Applied"
+1. **Check** if the word has an entry in the Pronunciation Notes table
+2. **If resolved**: Verify the phonetic spelling from the table is applied in the Suno Lyrics Box (not just documented)
+3. **If missing**: Flag as "Unresolved homograph — needs user decision" (do NOT guess the pronunciation)
+4. Verify streaming lyrics keep standard spelling (phonetics are Suno-only)
+5. Report each homograph as "Verified ✓" or "Unresolved — ask user"
 
-**Anti-pattern**: Offering the user "Option A: keep it, Option B: change the lyric" is WRONG. The answer is ALWAYS phonetic spelling.
+**Anti-pattern**: Determining pronunciation from context is WRONG. Suno cannot infer from context. Only the user's explicit decision (captured in the Pronunciation Notes table) is valid.
 
 #### Common Homograph Fixes
+*(Canonical reference: `/reference/suno/pronunciation-guide.md`. Keep this table in sync.)*
 
 | Word | Context A | Spelling | Context B | Spelling |
 |------|-----------|----------|-----------|----------|
@@ -145,7 +166,7 @@ When you detect a homograph (live, read, lead, wind, tear, bass, bow, etc.):
 | lead | verb (to lead) | leed | noun (metal) | led |
 | wind | noun (air) | wind | verb (to wind) | wynd |
 | tear | noun (crying) | teer | verb (to rip) | tare |
-| bass | noun (fish) | bass | noun (music) | base |
+| bass | noun (fish) | bass | noun (music) | bayss |
 | bow | noun (ribbon) | boh | verb (to bow) | bow |
 | close | verb (to close) | cloze | adjective (near) | close |
 

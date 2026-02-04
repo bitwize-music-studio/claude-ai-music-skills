@@ -42,7 +42,7 @@ This document covers edge cases and recovery procedures for common workflow issu
 
 **Symptoms**: Audio sounds distorted, clipped, wrong loudness, or different from expected.
 
-**Prevention**: Always run preview (dry-run) before mastering. Check LUFS/dBTP after mastering.
+**Prevention**: Always run preview (dry-run) before mastering. Check LUFS/dBTP after mastering. See [mastering-workflow.md](../mastering/mastering-workflow.md) for dry-run procedures and settings.
 
 **Recovery Steps**:
 1. Rename bad masters: `track.wav` → `track-BAD.wav`

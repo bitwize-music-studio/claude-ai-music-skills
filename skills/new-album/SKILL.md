@@ -23,12 +23,15 @@ You create the complete album directory structure based on config.
 
 ## Step 1: Parse Arguments
 
-Expected format: `<album-name> <genre>`
+Expected formats:
+- `<album-name> <genre>` — standard album
+- `<album-name> documentary <genre>` — true-story/documentary album (creates RESEARCH.md + SOURCES.md)
 
 Examples:
 - `sample-album electronic`
 - `my-new-album hip-hop`
 - `protest-songs folk`
+- `the-heist documentary hip-hop`
 
 Valid genres (primary categories):
 - `hip-hop`
@@ -37,11 +40,22 @@ Valid genres (primary categories):
 - `folk`
 - `rock`
 
+**Parsing logic:**
+1. If 3 arguments and second is `documentary`: album = arg1, genre = arg3, documentary = true
+2. If 2 arguments: album = arg1, genre = arg2, documentary = false
+3. If 2 arguments and neither matches a valid genre: ask for clarification
+4. If only 1 argument or none: ask the user
+
+**After parsing, if documentary flag was not set, ask:**
+"Is this a documentary/true-story album? (This adds research and sources templates.)"
+
 If arguments are missing, ask:
 ```
 Usage: /new-album <album-name> <genre>
+       /new-album <album-name> documentary <genre>
 
 Example: /new-album sample-album electronic
+         /new-album the-heist documentary hip-hop
 
 Valid genres: hip-hop, electronic, country, folk, rock
 ```

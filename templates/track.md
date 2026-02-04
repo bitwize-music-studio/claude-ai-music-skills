@@ -162,6 +162,8 @@ Blank lines between sections only]
 
 ## Pronunciation Notes
 
+**This table is a mandatory checklist, not passive documentation.** Every entry below MUST be applied as phonetic spelling in the Suno Lyrics Box. Before finalizing: read each row, search the Suno lyrics for the standard spelling, and confirm the phonetic version is used.
+
 | Word/Phrase | Pronunciation | Reason |
 |-------------|---------------|--------|
 | — | — | — |
@@ -185,6 +187,8 @@ Blank lines between sections only]
 <!-- /SERVICE: suno -->
 
 ## Generation Log
+
+Mark keepers with ✓ in the Rating column. Checkpoint verification looks for at least one ✓ per track.
 
 | # | Date | Model | Result | Notes | Rating |
 |---|------|-------|--------|-------|--------|

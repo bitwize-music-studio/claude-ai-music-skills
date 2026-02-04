@@ -63,6 +63,17 @@ def main():
     input_file = sys.argv[1]
     output_file = sys.argv[2] if len(sys.argv) > 2 else f"mastered/{Path(input_file).name}"
 
+    # Prevent path traversal: output must stay within input file's parent directory
+    input_dir = Path(input_file).resolve().parent
+    output_path = Path(output_file).resolve()
+    try:
+        output_path.relative_to(input_dir)
+    except ValueError:
+        logger.error("Output path must be within input directory")
+        logger.error("  Output: %s", output_path)
+        logger.error("  Input dir: %s", input_dir)
+        sys.exit(1)
+
     logger.info("Processing %s...", input_file)
 
     # Ensure output directory exists

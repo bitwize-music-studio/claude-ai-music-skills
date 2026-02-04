@@ -176,7 +176,7 @@ Then suddenly [laughter] breaks the silence
 
 ### Atmospheric Effects
 
-For environmental sounds (rain, wind, fire), mention in **both** lyrics and style box:
+For environmental sounds (rain, wind, fire), mention in **both** the Lyrics Box and Style Prompt:
 
 **Lyrics Box**:
 ```
@@ -185,7 +185,7 @@ Rain falling on the window
 Thunder in the distance
 ```
 
-**Style Box**:
+**Style Prompt**:
 ```
 lofi effects rain, ambient thunder
 ```
@@ -193,10 +193,10 @@ lofi effects rain, ambient thunder
 **Why Both?**: Repetition strengthens AI recognition of desired atmosphere
 
 **Common Atmospheres**:
-- `rain` + "lofi effects rain" (style box)
-- `wind` + "ambient wind textures" (style box)
-- `fire` + "crackling fire ambience" (style box)
-- `ocean` + "ocean waves background" (style box)
+- `rain` + "lofi effects rain" (style prompt)
+- `wind` + "ambient wind textures" (style prompt)
+- `fire` + "crackling fire ambience" (style prompt)
+- `ocean` + "ocean waves background" (style prompt)
 
 ### Syllable Control
 
@@ -246,13 +246,15 @@ V5 handles exclusions reliably.
 
 ---
 
-## Mix & Master Targets
+## Suno Output Loudness (Pre-Mastering)
 
-| Genre | LUFS Target |
-|-------|-------------|
-| Pop/EDM | -9 to -7 |
-| Lo-Fi | -12 to -11 |
-| Podcast/Spoken | -16 to -14 |
+These are typical loudness levels Suno generates — **not** final mastering targets. For streaming platform delivery, master all tracks to **-14 LUFS / -1.0 dBTP** regardless of genre. See `/reference/mastering/mastering-workflow.md` for mastering procedures.
+
+| Genre | Typical Suno Output |
+|-------|---------------------|
+| Pop/EDM | -9 to -7 LUFS |
+| Lo-Fi | -12 to -11 LUFS |
+| Podcast/Spoken | -16 to -14 LUFS |
 
 ---
 
@@ -373,7 +375,7 @@ crisp, warm, bright, deep, spacious
 
 - **`/bitwize-music:suno-engineer`** - Technical Suno V5 prompting expert
   - Uses this guide as reference
-  - Constructs style boxes and genre tags
+  - Constructs style prompts and genre tags
   - Optimizes prompts for best generation results
 
 - **`/bitwize-music:lyric-writer`** - Lyric writing with Suno formatting
