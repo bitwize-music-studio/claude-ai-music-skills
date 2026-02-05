@@ -191,7 +191,7 @@ def search_courtlistener(page, case_number, output_dir):
 
 The RECAP browser extension crowdsources PACER documents to CourtListener.
 
-**Location**: `/tools/extensions/recap-extension/`
+**Location**: `${CLAUDE_PLUGIN_ROOT}/tools/extensions/recap-extension/`
 
 **Setup**:
 ```bash

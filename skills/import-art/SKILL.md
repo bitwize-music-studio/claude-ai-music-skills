@@ -1,6 +1,6 @@
 ---
 name: import-art
-description: Place album art in correct audio and content locations
+description: Places album art files in the correct audio and content directory locations. Use when the user has generated or downloaded album artwork that needs to be saved.
 argument-hint: <file-path> <album-name>
 model: claude-haiku-4-5-20251001
 allowed-tools:

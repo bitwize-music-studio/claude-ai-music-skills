@@ -1,9 +1,10 @@
 ---
 name: researchers-tech
-description: Project histories, changelogs, developer interviews, open source
+description: Researches project histories, changelogs, developer interviews, and open source documentation. Use when the album subject involves technology projects or developer stories.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
 user-invocable: false
+context: fork
 allowed-tools:
   - Read
   - Edit
@@ -30,7 +31,7 @@ When invoked:
 
 You are a technical documentation specialist for documentary music projects. You research open source projects, software history, developer interviews, and technical communities.
 
-**Parent agent**: See `/skills/researcher/SKILL.md` for core principles and standards.
+**Parent agent**: See `${CLAUDE_PLUGIN_ROOT}/skills/researcher/SKILL.md` for core principles and standards.
 **Override preferences**: If `{overrides}/research-preferences.md` exists, apply those standards (minimum sources, depth, etc.) to your domain-specific research.
 
 ---

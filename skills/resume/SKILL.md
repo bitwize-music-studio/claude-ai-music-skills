@@ -1,6 +1,6 @@
 ---
 name: resume
-description: Find an album and resume work where you left off
+description: Finds an album by name and shows detailed status with next steps. Use when the user mentions an album name or wants to continue previous work.
 argument-hint: <album-name>
 model: claude-sonnet-4-5-20250929
 allowed-tools:
@@ -33,8 +33,8 @@ When this skill is invoked with an album name:
 Read `~/.bitwize-music/cache/state.json` to get album and track data.
 
 **If state.json is missing or corrupted**:
-- Resolve `{plugin_root}`: find the plugin installation directory (typically the repo root containing `tools/state/indexer.py`, or search `~/.claude/plugins/cache/bitwize-music/bitwize-music` for latest version directory)
-- Run: `python3 {plugin_root}/tools/state/indexer.py rebuild`
+- Resolve `${CLAUDE_PLUGIN_ROOT}`: find the plugin installation directory (typically the repo root containing `tools/state/indexer.py`, or search `~/.claude/plugins/cache/bitwize-music/bitwize-music` for latest version directory)
+- Run: `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py rebuild`
 - If rebuild fails, fall back to manual Glob scan: read config, glob `{content_root}/artists/{artist}/albums/*/*/README.md`
 - Then read the newly created state.json
 
@@ -72,14 +72,14 @@ Count tracks by status from `album.tracks`:
 ### Step 4: Staleness Check (Optional)
 
 Spot-check one track file's mtime against `track.mtime` in state. If stale:
-- Run `python3 {plugin_root}/tools/state/indexer.py update`
+- Run `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py update`
 - Re-read state.json
 
 ### Step 5: Update Session Context
 
 After finding the album, update session context using the CLI command:
 ```bash
-python3 {plugin_root}/tools/state/indexer.py session --album <album-slug> --phase <phase>
+python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py session --album <album-slug> --phase <phase>
 ```
 
 Optional flags:

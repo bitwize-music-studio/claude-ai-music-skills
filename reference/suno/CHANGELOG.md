@@ -4,6 +4,54 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-02-04 - V5 Best Practices Research Update
+
+### Features
+- **Personas**: Documented creation workflow, best practices, Persona+Cover combinations, December 2025 dominance update
+- **Song Editor**: Section-level editing (remake, rewrite, extend, reorder, delete) without full regeneration
+- **Bar Count Targeting**: Syntax for targeting specific bar counts per section (e.g., `[VERSE 1 8]`)
+- **Creative Sliders**: Weirdness, Style Influence, Audio Influence — documented usage guidance
+
+### Community Tips
+- **Prompt fatigue / tag soup**: V5 dilutes attention with 8+ descriptors; sweet spot is 4–7
+- **Top-Loaded Palette formula**: `[Mood] + [Energy] + [2 Instruments] + [Vocal Identity]`
+- **Token biases**: Suno gravitates toward Neon, Echo, Ghost, Silver, Shadow — model preference, not creative choice
+- **Producer's Prompt approach**: Narrative descriptions outperform flat tag lists in V5
+- **Sustained notes**: `Loooove`, `Ohhhh` for vocal emphasis; ALL CAPS for shouting
+- **Emotion arc mapping**: Different vocal qualities per section for dynamic performance
+- **Language isolation**: One language per section for multilingual tracks prevents drift
+- **Numbers**: Spell out numbers for reliable pronunciation
+
+### Changes
+- **V4.5 comparison note**: V4.5 may produce better results for heavy genres (metal, hardcore)
+- **Ownership clarification**: Post-WMG deal — "commercial use rights" but not ownership; model deprecation planned for 2026
+- **Catalog protection warning**: Download important generations before licensed models launch
+- **V5 Voice Gender selector**: Advanced Options selector documented as most reliable gender control
+- **IPA not supported**: Confirmed IPA is not natively supported by Suno
+- **V5 context sensitivity**: Improved but phonetic spelling still required for homographs
+
+### Documentation
+- Updated v5-best-practices.md: Personas, Song Editor, bar count targeting, Creative Sliders, prompt fatigue, token biases, ownership/licensing, V4.5 comparison
+- Updated tips-and-tricks.md: Personas workflow, Covers+Personas, Song Editor, Creative Sliders, catalog protection, expanded WMG context
+- Updated voice-tags.md: Voice Gender selector, sustained notes, ALL CAPS, emotion arc mapping, Personas reference
+- Updated structure-tags.md: Bar count targeting, performance cues rule, V5 reliability improvements
+- Updated pronunciation-guide.md: V5 context sensitivity, IPA note, numbers guidance, multilingual track isolation
+- Updated instrumental-tags.md: Producer's Prompt approach, tag soup warning, punctuation solo trick
+
+**Sources**:
+- https://suno.com/blog/personas (official - Personas)
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-ai-personas-update-dec-2025-what-changed-how-to-use-it
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/song-editor-in-suno-v5-workflow
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-v5-playbook-complete-guide
+- https://www.soundverse.ai/blog/article/how-to-write-effective-prompts-for-suno-music-1128
+- https://www.jgbeatslab.com/ai-music-lab-blog/suno-v5-vs-v3-prompting-guide
+- https://www.digitalmusicnews.com/2025/12/22/suno-warner-music-deal-changes/
+- https://www.prnewswire.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017.html
+- https://hookgenius.app/learn/fix-suno-pronunciation/
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-v5-multilingual-english-pronunciation-guide
+
+---
+
 ## 2026-01-07 - Suno Studio, WMG Partnership, and Community Tips
 
 ### Official Features

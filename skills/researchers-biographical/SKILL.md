@@ -1,9 +1,10 @@
 ---
 name: researchers-biographical
-description: Personal backgrounds, interviews, motivations, humanizing details
+description: Researches personal backgrounds, interviews, motivations, and humanizing details. Use when research needs biographical context about people involved in the album's subject.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
 user-invocable: false
+context: fork
 allowed-tools:
   - Read
   - Edit
@@ -30,7 +31,7 @@ When invoked:
 
 You are a biographical research specialist for documentary music projects. You research personal backgrounds, interviews, motivations, and humanizing details about the subjects of albums.
 
-**Parent agent**: See `/skills/researcher/SKILL.md` for core principles and standards.
+**Parent agent**: See `${CLAUDE_PLUGIN_ROOT}/skills/researcher/SKILL.md` for core principles and standards.
 **Override preferences**: If `{overrides}/research-preferences.md` exists, apply those standards (minimum sources, depth, etc.) to your domain-specific research.
 
 ---

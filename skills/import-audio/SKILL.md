@@ -1,6 +1,6 @@
 ---
 name: import-audio
-description: Move audio files to the correct album location
+description: Moves audio files to the correct album location with proper path structure. Use when the user has downloaded WAV files from Suno or other sources that need to be organized.
 argument-hint: <file-path> <album-name>
 model: claude-haiku-4-5-20251001
 allowed-tools:

@@ -1,9 +1,10 @@
 ---
 name: researchers-financial
-description: SEC filings, earnings calls, analyst reports, market data
+description: Researches SEC filings, earnings calls, analyst reports, and market data. Use when the album subject involves financial crimes, corporate stories, or market events.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
 user-invocable: false
+context: fork
 allowed-tools:
   - Read
   - Edit
@@ -30,7 +31,7 @@ When invoked:
 
 You are a financial documents specialist for documentary music projects. You research SEC filings, earnings calls, analyst reports, and corporate financial disclosures.
 
-**Parent agent**: See `/skills/researcher/SKILL.md` for core principles and standards.
+**Parent agent**: See `${CLAUDE_PLUGIN_ROOT}/skills/researcher/SKILL.md` for core principles and standards.
 **Override preferences**: If `{overrides}/research-preferences.md` exists, apply those standards (minimum sources, depth, etc.) to your domain-specific research.
 
 ---

@@ -1,739 +1,168 @@
 # AI Music Skills - Claude Instructions
 
-## Project Overview
-
-This is an AI music generation workflow using Suno. The repository contains skills, templates, and tools for creating artist profiles, album concepts, and track-by-track prompts/lyrics.
+This is an AI music generation workflow using Suno. Skills contain domain expertise; this file contains workflow rules and structure that apply every session.
 
 ---
 
 ## ⚠️ CRITICAL: Finding Albums When User Mentions Them
 
-**WHENEVER the user mentions an album name** (e.g., "let's work on my-album", "continue with X", "I want to work on Y"):
-
-**BEST APPROACH - Use the resume skill:**
+**WHENEVER the user mentions an album name**, use the resume skill:
 ```
 /bitwize-music:resume my-album
 ```
-This reads the state cache, finds the album, and provides a detailed status report.
 
-**OR - Manual approach if skill unavailable:**
+**If skill unavailable**, manual approach:
+1. Read `~/.bitwize-music/cache/state.json` — search `state.albums` keys (case-insensitive)
+2. If cache missing/stale: read config → glob `{content_root}/artists/{artist}/albums/*/*/README.md` → rebuild cache with `python3 {plugin_root}/tools/state/indexer.py rebuild`
 
-**DO THIS FIRST - MANDATORY STEPS:**
-
-1. **Check state cache**: Read `~/.bitwize-music/cache/state.json`
-   - Search `state.albums` keys for the album name (case-insensitive)
-   - If found: use album data directly (path, status, tracks)
-
-2. **If state cache is missing or stale**: Fall back to Glob
-   - Read config: `~/.bitwize-music/config.yaml` (get `content_root`, `artist.name`)
-   - Glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
-   - Filter for album name (case-insensitive)
-   - Rebuild cache: `python3 {plugin_root}/tools/state/indexer.py rebuild`
-
-3. **Report to user**: Found album at [path], status is [X], here's what's next...
-
-**COMMON MISTAKE - DO NOT DO THIS:**
-- ❌ Don't search from current working directory
-- ❌ Don't use complex glob patterns like `**/*[Aa]lbum*/**`
-- ❌ Don't assume the path - always check state cache or read config first
-- ❌ Don't use `ls` or `find` commands
+**DO NOT**: search from cwd, use complex globs, assume paths, or use `ls`/`find`.
 
 ---
 
-## Configuration
+## Configuration & Path Resolution
 
-Configuration lives at `~/.bitwize-music/config.yaml` (outside the plugin directory).
+Config is **always** at: `~/.bitwize-music/config.yaml`
 
-**First-time setup:**
-```bash
-mkdir -p ~/.bitwize-music
-cp config/config.example.yaml ~/.bitwize-music/config.yaml
-# Edit ~/.bitwize-music/config.yaml with your settings
-```
+**ALWAYS read config fresh before** moving/creating files, resolving path variables, or using artist name in paths. Never assume or remember values.
 
-The config file contains:
-- Artist name and genres
-- Local file paths (content, audio, documents)
-- Platform URLs (SoundCloud, etc.)
-- Generation service settings
-
-See `config/README.md` for details.
-
-## Versioning
-
-This plugin uses [Semantic Versioning](https://semver.org/) with [Conventional Commits](https://conventionalcommits.org/).
-
-**Commit message prefixes:**
-
-| Prefix | Example | Version Bump |
-|--------|---------|--------------|
-| `feat:` | `feat: add /validate-album skill` | MINOR |
-| `fix:` | `fix: researcher saves to album dir` | PATCH |
-| `feat!:` | `feat!: rename config paths` | MAJOR |
-| `docs:` | `docs: update README` | None |
-| `chore:` | `chore: cleanup tests` | None |
-
-**Release process:**
-1. Update entries in `CHANGELOG.md` under `[Unreleased]` as you work
-2. When ready to release:
-   - Finalize `CHANGELOG.md`: Rename `[Unreleased]` → `[0.x.0] - YYYY-MM-DD`
-   - Add new `[Unreleased]` section above it
-   - Update version in `.claude-plugin/plugin.json`
-   - Update version in `.claude-plugin/marketplace.json` (must match plugin.json)
-   - Update "What's New" table in `README.md` if this is a notable release (new feature, major change). Keep ~9 rows max, drop oldest entry when adding new.
-3. Commit: `chore: release 0.x.0`
-4. Push to main → **Automated workflow**:
-   - Creates git tag `v0.x.0`
-   - Creates GitHub release with CHANGELOG notes
-   - Verifies CHANGELOG was updated for this version
-
-**Note:** CHANGELOG.md is manually maintained to ensure quality release notes and maintain security (no branch protection bypass needed).
-
-**Version files (must stay in sync):**
-- `.claude-plugin/plugin.json` - Plugin manifest
-- `.claude-plugin/marketplace.json` - Marketplace listing
-
-**Pre-1.0 note:** While version is 0.x.x, the plugin is in early development.
-
-**Co-author line:** Include `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>` in commits.
-
-**Development workflow:**
-
-For all changes (even solo development):
-1. Create feature branch: `git checkout -b feat/your-feature`
-2. Make changes and commit with Conventional Commits
-3. Run `/bitwize-music:test all` to verify locally
-4. Push and create PR on GitHub
-5. Automated static validation runs via GitHub Actions (JSON/YAML validation, version sync)
-6. Review PR (or self-review)
-7. Merge to main
-
-This ensures:
-- Automated validation catches common issues
-- Version files stay in sync
-- Changes are documented in commits
-- CHANGELOG.md stays current
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for full workflow details.
-
-## Plugin vs Content Architecture
-
-This plugin separates **plugin code** from **user content** so you can accept plugin updates without merge conflicts.
-
-| Location | Contains | Path Variable |
-|----------|----------|---------------|
-| Plugin repo | templates/, skills/, reference/, tools/, CLAUDE.md | `{plugin_root}` |
-| Content workspace | artists/, research/, IDEAS.md | `{content_root}` |
-| Documents storage | PDFs, primary sources (too large for git) | `{documents_root}` |
-| Tools/cache | Shared venv, mastering tools, cache | `{tools_root}` |
-
-### Config File Location (CONSTANT)
-
-The config file is **always** at: `~/.bitwize-music/config.yaml`
-
-This location never changes. Read this file to get all path and artist information.
-
-### Path Resolution
-
-Read `~/.bitwize-music/config.yaml` to resolve these variables:
+**Path variables** (from config):
 - `{content_root}` = `paths.content_root`
 - `{audio_root}` = `paths.audio_root`
 - `{documents_root}` = `paths.documents_root`
-- `{tools_root}` = `~/.bitwize-music` (always, where config lives)
-- `{plugin_root}` = location of this plugin repo
-- `[artist]` = `artist.name` from config
+- `{tools_root}` = `~/.bitwize-music`
+- `{plugin_root}` = the directory containing this CLAUDE.md file (= `${CLAUDE_PLUGIN_ROOT}` in skills)
+- `[artist]` = `artist.name`
 
-### When to Read Config
-
-**ALWAYS read `~/.bitwize-music/config.yaml` before:**
-- Moving or creating any files
-- Resolving any path with `{content_root}`, `{audio_root}`, or `{documents_root}`
-- Using the artist name in a path
-
-**Do not assume or remember values** - always read the config file fresh when you need path information. This ensures correct paths even after context summarization.
-
-When this document shows paths like `artists/[artist]/albums/...`, prefix with `{content_root}/` and replace `[artist]` with `artist.name` from config.
-
-**Mirrored structure**: `{audio_root}` and `{documents_root}` mirror `{content_root}` but with a flattened structure:
-
+**IMPORTANT — Mirrored path structure**:
 ```
 {content_root}/artists/[artist]/albums/[genre]/[album]/   # Album files (in git)
 {audio_root}/[artist]/[album]/                            # Mastered audio
 {documents_root}/[artist]/[album]/                        # PDFs (not in git)
 ```
+Audio and document paths include `[artist]/` after the root. Common mistake: omitting the artist folder.
 
-**IMPORTANT**: Audio and document paths include `[artist]/` after the root. Example with config:
-```yaml
-# ~/.bitwize-music/config.yaml
-paths:
-  content_root: ~/bitwize-music
-  audio_root: ~/bitwize-music/audio
-```
+First-time setup: `cp config/config.example.yaml ~/.bitwize-music/config.yaml` — see `config/README.md`.
 
-For album "sample-album" by artist "bitwize":
-```
-Content:   ~/bitwize-music/artists/bitwize/albums/electronic/sample-album/
-Audio:     ~/bitwize-music/audio/bitwize/sample-album/         ← includes artist!
-Documents: ~/bitwize-music/documents/bitwize/sample-album/     ← includes artist!
-```
-
-**Common mistake**: Putting audio directly under `{audio_root}/[album]/` without the artist folder.
-
-## Music Generation Service
-
-Currently supports **Suno** (default). To configure: Set `generation.service` in `~/.bitwize-music/config.yaml`.
-
-**Service-specific content:** Skills (`/bitwize-music:suno-engineer`), reference docs (`/reference/suno/`), template sections (marked with `<!-- SERVICE: suno -->`).
+---
 
 ## Session Start
 
 At the beginning of a fresh session:
 
-1. **Load configuration** - Read `~/.bitwize-music/config.yaml` and resolve all path variables (see Path Resolution above). If config missing, tell user to run `/bitwize-music:configure` or copy `config/config.example.yaml`.
-
-1b. **Load overrides (if present)** - Check for user's override files:
-   - Read `paths.overrides` from config (default: `{content_root}/overrides`)
-   - Check for `{overrides}/CLAUDE.md` - if exists, read and incorporate instructions immediately
-   - Check for `{overrides}/pronunciation-guide.md` - if exists, merge with base pronunciation guide
-   - If override files don't exist, skip silently (overrides are optional)
-   - Override instructions supplement (don't replace) base files
-
-2. **Load state cache** - Check for `~/.bitwize-music/cache/state.json`:
-   - **Missing** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`, then read state
-   - **Exists** → read state, check `config.config_mtime` vs actual config mtime
-   - **Config changed** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
-   - **Corrupted** (JSON parse error) → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
-   - **Schema version mismatch** → run `python3 {plugin_root}/tools/state/indexer.py rebuild`
-   - The state cache is a JSON file that indexes all album/track/ideas data. It is always rebuildable from markdown files.
-
-3. **Check skill models** - Run `/bitwize-music:skill-model-updater check` to verify all skills use current Claude models. If any are outdated, offer to update them.
-4. **Report from state cache** (instead of scanning individual files):
-   - **Album ideas**: Read counts from `state.ideas.counts` — report by status. User can run `/bitwize-music:album-ideas list` for full details.
-   - **In-progress albums**: Filter `state.albums` by status: "In Progress", "Research Complete", "Complete" (not Released). For each: album name, genre, status, track count, tracks completed.
-   - **Pending verifications**: Filter `state.albums.*.tracks` where `sources_verified` is "Pending". Report which albums need human verification.
-   - **Incomplete work**: Tracks with status "In Progress" (partially generated). Albums with some tracks Final, others not.
-5. **Show last session context** (if available): From `state.session`, show what album/track was last worked on, current phase, and any pending actions.
-
-**Present status summary** to user.
-
-**Show contextual tips based on detected state:**
-
-**If no albums exist:**
-- 💡 Getting started? Try `/bitwize-music:tutorial` for guided album creation.
-
-**If IDEAS.md has content (X ideas detected):**
-- 💡 X album ideas in your backlog. Use `/bitwize-music:album-ideas list` to manage them.
-
-**If in-progress albums exist:**
-- 💡 Resume any album: `/bitwize-music:resume <album-name>` for detailed status and next steps.
-
-**If overrides don't exist:**
-- 💡 Customize my behavior: Create `{overrides}/CLAUDE.md` with your own workflow instructions.
-
-**If overrides loaded:**
-- ✨ Custom overrides loaded from `{overrides}/`
-
-**If pending source verifications exist:**
-- ⚠️ Albums with unverified sources detected. Research must be verified before generation.
-
-**Always show one general productivity tip (rotate randomly):**
-- 💡 Stuck? Ask "what should I do next?" for guidance on next steps.
-- 💡 Track-by-track status: `/bitwize-music:resume` shows what's done and what's next.
-- 💡 All research skills: Use `/bitwize-music:researcher` to coordinate specialized researchers.
-- 💡 Pronunciation risks? `/bitwize-music:pronunciation-specialist` scans for homographs and tricky names.
-- 💡 Quick clipboard: `/bitwize-music:clipboard` copies track lyrics/prompts for pasting into Suno.
-- 💡 Audio mastering: Tell me "master the tracks in /path/to/folder" when ready.
-
-**Finally, ask:** "What would you like to work on?"
-
-## Mid-Session Workflow Updates
-
-**When CLAUDE.md or templates are modified during a session**, immediately incorporate those changes into your workflow. Don't wait for a new session.
-
-**The rule**: Changes to workflow files take effect immediately. Re-read the relevant section after any edit to ensure you're following the updated process.
-
-## Lessons Learned Protocol
-
-**When you discover a technical issue during production** (pronunciation error, rhyme violation, formatting problem, wrong assumption), don't just fix it — propose a rule to prevent it from happening again.
-
-### Process
-
-1. **Fix the immediate issue** in the current track/file
-2. **Sweep the album** for the same issue in other tracks
-3. **Draft a rule** — specific, actionable, with what went wrong + before/after examples
-4. **Present to user**: "I found [issue]. Here's a rule to prevent this: [rule]. Should I add it to [location]?"
-5. **Log the lesson** — add to the appropriate file (SKILL.md, CLAUDE.md, genre README, or reference doc)
-
-**Qualifies**: Pronunciation errors, rhyme violations, formatting issues, wrong assumptions, manual corrections that should be automated.
-
-**Be proactive.** When you correct something manually, ask: "Should this be a rule?" If yes, propose it immediately.
+1. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
+2. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
+   - `{overrides}/CLAUDE.md` → incorporate instructions
+   - `{overrides}/pronunciation-guide.md` → merge with base guide
+   - Skip silently if missing (overrides are optional)
+3. **Load state cache** — Read `~/.bitwize-music/cache/state.json`:
+   - Missing/corrupted/schema mismatch/config changed → `python3 {plugin_root}/tools/state/indexer.py rebuild`
+4. **Check skill models** — Run `/bitwize-music:skill-model-updater check`
+5. **Report from state cache**:
+   - Album ideas (from `state.ideas.counts`)
+   - In-progress albums (status: "In Progress", "Research Complete", "Complete")
+   - Pending source verifications (`sources_verified: "Pending"`)
+   - Last session context (from `state.session`)
+6. **Show contextual tips** based on state:
+   - No albums → suggest `/bitwize-music:tutorial`
+   - Ideas exist → suggest `/bitwize-music:album-ideas list`
+   - In-progress albums → suggest `/bitwize-music:resume`
+   - Overrides loaded → note it; missing → suggest creating them
+   - Pending verifications → warn
+   - One random general tip (rotate: "what should I do next?", resume, researcher, pronunciation, clipboard, mastering)
+7. **Ask**: "What would you like to work on?"
 
 ---
 
 ## Core Principles
 
-### Be a Collaborator, Not a Yes-Man
+**Be a collaborator, not a yes-man.** Push back when ideas don't work. The goal is good music, not agreement.
 
-You are a co-producer, editor, and creative partner. Push back when ideas don't work. Offer alternatives. Disagree when warranted. Be direct - skip preamble, engage with substance. The goal is good music, not agreement.
+**Preserve exact casing and spelling.** "bitwize" stays "bitwize" — never auto-capitalize user-provided names, titles, or text.
 
-### Respect User Input
+**Ask when unsure.** Word choice, style, structure, Suno settings — don't guess.
 
-**Preserve exact casing and spelling.** If the user says their artist is "bitwize", write "bitwize" - never auto-capitalize to "Bitwize". Same for album names, track titles, and any user-provided text. Their stylistic choices are intentional.
+**Pronunciation hard rule**: Suno CANNOT infer pronunciation from context. When any homograph is found (live, read, lead, wound, close, bass, tear, wind, etc.), **ASK** the user which pronunciation is intended — never assume. Fix with phonetic spelling in Suno lyrics only. See `/skills/lyric-writer/SKILL.md` and `/reference/suno/pronunciation-guide.md` for full rules.
 
-### Automatic Lyrics Review
+**After writing or revising lyrics**, run the 12-point quality checklist from `/skills/lyric-writer/SKILL.md`. Report violations without being asked.
 
-**After writing or revising any lyrics**, run the 12-point quality checklist in `/skills/lyric-writer/SKILL.md` (Automatic Quality Check section). Covers: rhyme, prosody, pronunciation, POV/tense, sources, structure, section length, rhyme scheme, flow, density, verse-chorus echo, pitfalls. Report violations without being asked.
-
-### Working On a Track
-
-**When the user says "let's work on [track]"**, immediately scan the full lyrics for issues BEFORE doing anything else:
-- Weak/awkward lines, unclear meaning, forced rhymes
-- Prosody problems (stressed syllables on wrong beats)
-- POV or tense inconsistencies
-- Twin verses (V2 just rewords V1)
-- Missing hook or buried title
-- Factual inaccuracies (check against sources)
-- Flow problems, pronunciation risks, repetitive phrasing
-
-Report all issues with proposed fixes, then proceed.
-
-### Ask When Unsure
-
-**When in doubt, ask.** Word choice, style direction, structure, concept interpretation, Suno settings - don't guess, don't assume.
-
-### Pronunciation
-
-**Before writing lyrics**, scan for pronunciation risks.
-
-**Pronunciation guides:**
-- Base guide: `/reference/suno/pronunciation-guide.md` (universal rules, common homographs, tech terms)
-- Override guide: `{overrides}/pronunciation-guide.md` (artist names, album-specific terms) - optional, merged at session start
-
-**Always use phonetic spelling** for tricky words in the Lyrics Box:
-
-| Type | Example | Write As |
-|------|---------|----------|
-| Names | Ramos, Sinaloa | Rah-mohs, Sin-ah-lo-ah |
-| Acronyms | GPS, FBI, RICO | G-P-S, F-B-I, Ree-koh |
-| Tech terms | Linux, SQL, parameters | Lin-ucks, sequel, pa-ram-ih-ters |
-| Common words | legal, illegal | lee-gul, ill-ee-gul |
-| Numbers | ninety-three, sixty-three | '93, '63 |
-| Homographs | live (verb) | lyve or liv |
-
-**Homograph handling — hard rule**: Suno CANNOT infer pronunciation from context. "Context is clear" is NEVER an acceptable resolution. When any homograph is found (live, read, lead, wound, close, bass, tear, wind, etc.):
-1. **ASK** the user which pronunciation is intended — do NOT assume or guess
-2. **Fix** with phonetic spelling in Suno lyrics only (streaming lyrics keep standard spelling)
-3. **Document** in track pronunciation table
-
-See `/skills/lyric-writer/SKILL.md` for full homograph table and process.
-
-**Pronunciation table enforcement**: Every entry in a track's Pronunciation Notes table MUST be applied as phonetic spelling in Suno lyrics. The table is not documentation — it is a checklist of required substitutions. Before finalizing any track: read the table top to bottom, search Suno lyrics for each standard spelling, replace with phonetic. Common failure: word added to table but never applied to lyrics, or phonetic in one verse but missed in chorus/bridge. See `/skills/lyric-writer/SKILL.md` for full process and verification format.
+**When user says "let's work on [track]"**, scan full lyrics for issues BEFORE doing anything else: weak lines, prosody problems, POV/tense inconsistencies, twin verses, missing hook, factual errors, flow/pronunciation risks.
 
 ---
 
-## Skills (Slash Commands)
+## Workflow Overview
 
-Specialized skills are available as slash commands. Type `/` to see the menu, or see `/reference/SKILL_INDEX.md` for:
-- Decision tree ("I need to..." → skill)
-- Alphabetical reference (38 skills)
-- Skill prerequisites and sequences
-- Model assignments (Opus/Sonnet/Haiku)
+Concept → Research → Write → Generate → Master → Promo Videos (optional) → **Release**
 
-**Key skills**: `/resume` (continue work), `/lyric-writer` (write lyrics), `/suno-engineer` (prompts), `/researcher` (sources), `/mastering-engineer` (audio), `/release-director` (publish).
+**Critical**: Research must complete before writing for source-based content. Human source verification is required before generation — never skip this gate.
 
-### How to Invoke
+### Key Routing Rules
 
-**Explicit invocation** (user types slash command):
-```
-/bitwize-music:lyric-writer artists/{artist}/albums/{genre}/{album}/tracks/01-track.md
-/bitwize-music:researcher "Great Molasses Flood 1919"
-/bitwize-music:researchers-historical "Boston molasses disaster USIA"
-```
+- **Album mentioned** → `/bitwize-music:resume`
+- **"Make a new album"** → IMMEDIATELY use `/bitwize-music:new-album` BEFORE any discussion
+- **Writing lyrics** → apply `/bitwize-music:lyric-writer` expertise
+- **Planning album** → apply `/bitwize-music:album-conceptualizer` (7 planning phases required)
+- **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise
+- **Research needed** → apply `/bitwize-music:researcher` standards
+- **Mastering audio** → apply `/bitwize-music:mastering-engineer` standards
+- **Album art** → apply `/bitwize-music:album-art-director`
+- **Releasing** → apply `/bitwize-music:release-director`
 
-**Proactive invocation** (Claude recognizes the need):
-- Writing lyrics → automatically apply `/bitwize-music:lyric-writer` expertise
-- Planning album → automatically apply `/bitwize-music:album-conceptualizer` expertise
-- Creating album art → automatically apply `/bitwize-music:album-art-director` expertise
-- Verifying sources → automatically apply `/bitwize-music:researcher` standards
-- Finding court documents → automatically apply `/bitwize-music:document-hunter` for systematic search
-- Mastering audio → automatically apply `/bitwize-music:mastering-engineer` standards
+Skills contain the deep expertise. See `/reference/SKILL_INDEX.md` for the full decision tree (38 skills).
 
-**The rule**: Skills contain the deep expertise. CLAUDE.md contains workflow and structure.
+### Source Verification Gate
 
-**Documentation**: Full skill documentation is in `/skills/[skill-name]/SKILL.md`.
+1. Capture sources FIRST — every source must be a clickable markdown link `[Name](URL)`
+2. Save RESEARCH.md and SOURCES.md to album directory (never cwd)
+3. After adding sources → status: `❌ Pending` → human verifies → `✅ Verified (DATE)`
+4. Block generation if verification incomplete
 
-### Self-Updating Skills
+### Status Tracking
 
-Skills can update their own reference documentation when new issues are discovered:
-
-- `/bitwize-music:pronunciation-specialist` → Adds artist/album-specific pronunciations to override guide (`{overrides}/pronunciation-guide.md`), never edits base guide
-- `/bitwize-music:suno-engineer` → Updates `/reference/suno/*.md` with new tips, techniques, version changes
-- `/bitwize-music:skill-model-updater` → Updates model references across all skills when new Claude models release
-
-**The rule**: When a skill discovers something new, it should add it to the relevant reference file so future invocations benefit. User-specific content (pronunciations) goes to overrides directory to avoid plugin update conflicts.
-
-### Model Strategy
-
-Skills are optimized for quality where it matters most:
-
-| Tier | Model | When to Use | Examples |
-|------|-------|-------------|----------|
-| **Opus 4.5** | `claude-opus-4-5-20251101` | Music-defining output, high error cost (6 skills) | lyric-writer, suno-engineer, album-conceptualizer, lyric-reviewer, researchers-legal, researchers-verifier |
-| **Sonnet 4.5** | `claude-sonnet-4-5-20250929` | Reasoning and coordination (22 skills) | researcher, pronunciation-specialist, explicit-checker |
-| **Haiku 4.5** | `claude-haiku-4-5-20251001` | Rule-based operations (10 skills) | validate-album, test, imports, clipboard |
-
-**Full skill-to-model mapping**: See `/reference/model-strategy.md`
+Track: `Not Started` → `Sources Pending` → `Sources Verified` → `In Progress` → `Generated` → `Final`
+Album: `Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
 
 ---
 
-## Directory Structure
+## Content Structure
 
-The plugin has two separate directory trees: **plugin files** (in this repo) and **content files** (in `{content_root}`).
+Albums: `{content_root}/artists/[artist]/albums/[genre]/[album]/`
+Templates: `{plugin_root}/templates/` — use for all new content
+Research staging: `{content_root}/research/` (move to album directory once album exists)
 
-### Plugin Files (`{plugin_root}`)
+Track files: zero-padded (`01-`, `02-`). Import with `/bitwize-music:import-track`, `/bitwize-music:import-audio`.
 
-```
-claude-ai-music-skills/           # {plugin_root}
-├── CLAUDE.md                     # Workflow instructions
-├── README.md                     # Project overview
-├── .claude-plugin/               # Plugin manifest
-│   └── plugin.json
-├── skills/                       # Slash command skills
-│   ├── lyric-writer/SKILL.md
-│   ├── researcher/SKILL.md
-│   ├── suno-engineer/SKILL.md
-│   └── ...                       # (all other skills)
-├── templates/                    # Templates for new content
-├── tools/                        # Utility scripts
-│   └── mastering/
-├── genres/                       # Genre documentation & artist references
-│   ├── INDEX.md                  # Quick-reference genre index
-│   └── [genre]/
-│       ├── README.md             # Genre overview, characteristics, Suno keywords
-│       └── artists/              # Artist deep-dive reference files
-│           ├── INDEX.md          # Quick-reference: Suno keywords + links to deep-dives
-│           └── [artist].md
-└── reference/                    # Reference documentation
-    ├── suno/
-    └── mastering/
-```
-
-### Content Files (`{content_root}`)
-
-```
-{content_root}/                   # Your workspace (may be same as plugin_root)
-├── IDEAS.md                      # Album ideas
-├── research/                     # Staging area for research
-├── genres/[genre]/README.md      # Genre overview (characteristics, artists table, Suno keywords)
-├── genres/[genre]/artists/INDEX.md # Quick-reference: Suno keywords per artist
-├── genres/[genre]/artists/       # Artist deep-dive reference files (per genre)
-└── artists/[artist]/
-    ├── README.md                 # Artist profile
-    ├── albums/[genre]/[album]/   # In-progress albums
-    │   ├── README.md             # Album concept & tracklist
-    │   ├── RESEARCH.md           # Research (true-story albums)
-    │   ├── SOURCES.md            # Citations (true-story albums)
-    │   └── tracks/XX-track.md
-```
-
-**Primary genre categories**: `hip-hop`, `electronic`, `country`, `folk`, `rock` (64 subgenres documented in `/genres/`)
-
-**Key rules**:
-- Albums organized by broad genre category
-- Research files belong inside album directories once albums exist
-- Top-level `{content_root}/research/` is staging only
-- Use templates from `{plugin_root}/templates/` for new content
-- **Released albums stay in place** - just set `Status: Released` and `release_date`
-- **Artist deep-dives** go in `genres/[genre]/artists/[artist].md` — when creating a new deep-dive, add a `[Deep Dive](artists/[artist].md)` link in the genre README's Artists table, and update `genres/[genre]/artists/INDEX.md` with the artist's Suno keywords and reference tracks
-- **Reading artist references**: Read `genres/[genre]/artists/INDEX.md` first for Suno prompt keywords and reference tracks; only read the full deep-dive when you need detailed history, members, discography, or musical analysis
+Currently supports **Suno** (default). Service-specific template sections marked with `<!-- SERVICE: suno -->`.
 
 ---
 
-## Workflow
+## Versioning & Development
 
-1. **Concept** → Define artist/album/track ideas
-2. **Research** → Gather source material (see Sources & Verification below)
-3. **Document** → Create markdown files using templates
-4. **Human Verification** → Required before production for source-based tracks
-5. **Generate** → Use Suno to create tracks
-6. **Iterate** → Log results in Generation Log, refine prompts
-7. **Master** → Optimize audio for streaming platforms
-8. **Promo Videos** → [Optional] Generate social media promo videos
-9. **Release** → QA, distribution prep, platform uploads
+[Semantic Versioning](https://semver.org/) with [Conventional Commits](https://conventionalcommits.org/).
 
-**Critical**: Research must complete before Document for any source-based content.
+| Prefix | Version Bump |
+|--------|--------------|
+| `feat:` | MINOR |
+| `fix:` | PATCH |
+| `feat!:` | MAJOR |
+| `docs:`, `chore:` | None |
 
-**Complete workflow**: Concept → Research → Write → Generate → Master → Promo Videos → **Release**
+**Co-author line**: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
 
----
+**Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 
-## Sources & Verification
+**Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in both plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
 
-Use `/bitwize-music:researcher` for full guidance. See `/skills/researcher/SKILL.md` for documentation.
-
-### Critical Rules
-
-1. **Capture sources FIRST** - Fetch actual source, store everything in track file
-2. **Always include clickable URLs** - Every source must be a markdown link `[Source Name](URL)`, never just text. This applies to:
-   - Source bibliography lists
-   - Inline source references in tables (e.g., `| Fact | [PBS](url) |` not `| Fact | PBS |`)
-   - Any citation in research documentation
-3. **Human verification required** - Visual confirmation before production
-4. **No impersonation** - Narrator voice only, never fabricate words
-5. **Document everything** - Every claim traces to captured source
-6. **Save research files to album directory** - RESEARCH.md and SOURCES.md go in:
-   ```
-   {content_root}/artists/{artist}/albums/{genre}/{album}/RESEARCH.md
-   {content_root}/artists/{artist}/albums/{genre}/{album}/SOURCES.md
-   ```
-   **Never save to current working directory.** Always read config and save to album path.
-
-### Source Hierarchy
-
-1. Court documents > 2. Government releases > 3. Investigative journalism > 4. News > 5. Wikipedia (context only)
-
-### Track Status Workflow
-
-1. Claude adds sources → Status: `❌ Pending`
-2. Human verifies → Status: `✅ Verified (DATE)`
-3. Only after verification → Status: `In Progress`
-
-### Human Verification Handoff
-
-**When to stop and request verification:**
-- **Trigger 1**: After adding sources to a track
-- **Trigger 2**: After all track sources added but none verified
-- **Trigger 3**: User tries to skip verification (block and warn)
-
-**After verification complete**: Update status `❌ Pending` → `✅ Verified (YYYY-MM-DD)`
-
-**Full procedures and message templates**: See `/reference/workflows/source-verification-handoff.md`
+**Development workflow**: Feature branch → Conventional Commits → `/bitwize-music:test all` → PR → Merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-## Building a New Album
+## Mid-Session Rules
 
-**Ask questions first. Don't assume.**
+**Workflow file changes take effect immediately.** Re-read after any edit to CLAUDE.md or templates.
 
-Use `/bitwize-music:album-conceptualizer` for full guidance. See `/skills/album-conceptualizer/SKILL.md` for documentation.
+**Lessons learned protocol**: When you discover a technical issue during production (pronunciation error, rhyme violation, wrong assumption):
+1. Fix the immediate issue
+2. Sweep the album for the same issue
+3. Propose a rule to prevent recurrence: "I found [issue]. Here's a rule: [rule]. Should I add it to [location]?"
 
-### The 7 Planning Phases (REQUIRED)
-
-Before writing any lyrics or creating tracks, work through these phases with the user. Each phase requires explicit answers:
-
-1. **Foundation** - Artist, genre, album type, track count, true-story?
-2. **Concept Deep Dive** - Story/theme, characters, narrative arc, emotional core
-3. **Sonic Direction** - Inspirations, production style, vocal approach, instrumentation
-4. **Structure Planning** - Tracklist, track concepts, flow, pacing
-5. **Album Art** - Visual concept discussion
-6. **Practical Details** - Finalize titles, research needs, explicit content, distributor genres
-7. **Confirmation** - Present plan, get go-ahead: "Ready to start writing?"
-
-**Planning Checklist**: All phases complete → User confirmed → Album README created → Research plan (if needed)
-
-**The rule**: No track writing until all phases complete and user confirms.
-
-**Full details**: See `/reference/workflows/album-planning-phases.md`
-
----
-
-## Creating Content
-
-Use templates from `/templates/` for all new content.
-
-### Creating a New Artist
-1. Ask questions: genre(s), style, influences, persona, themes
-2. Create `{content_root}/artists/[artist-name]/README.md` from template
-
-### Creating a New Album
-
-**CRITICAL: When user says "make a new album", IMMEDIATELY use `/bitwize-music:new-album` skill BEFORE any discussion.**
-
-Example: `/bitwize-music:new-album my-album rock`
-
-**Then**: Fill in album README (YAML frontmatter, distributor genres, sections) → Use 7 Planning Phases to gather details
-
-### Creating Tracks
-1. Create `tracks/XX-track-name.md` (zero-padded: `01-`, `02-`)
-2. Fill in all sections including Suno Inputs
-
-### Importing Files
-
-**Track files**: Use `/bitwize-music:import-track ~/Downloads/file.md album-name track-number`
-
-**Audio files**: Use `/bitwize-music:import-audio ~/Downloads/file.wav album-name`
-
-**Why use skills**: They read config fresh and handle complex path structures correctly.
-
----
-
-## Workflow Checkpoints
-
-All checkpoint message templates: See `/reference/workflows/checkpoint-scripts.md`
-
-| Checkpoint | Trigger | Key Actions |
-|------------|---------|-------------|
-| **Ready to Generate** | All track lyrics written | Review statuses, verify Suno boxes filled, run `/bitwize-music:explicit-checker`, phonetic check |
-| **Generation Complete** | All tracks have Suno Links | Verify all `Generated`, Suno Links present, Generation Log has keepers (✓) |
-| **Ready to Master** | User says "album approved" | Update statuses to `Final`, album to `Complete`, verify WAV files downloaded |
-| **Ready to Release** | Mastering + album art done | Review Album Completion Checklist, verify all items checked |
-
----
-
-## Suno Generation Workflow
-
-**Process**: Copy Style/Lyrics boxes to Suno → Generate 2-3 variations → Log attempt → Evaluate (keeper or regenerate) → Iterate until satisfied
-
-**Stop when**: Correct vocals, good pronunciation, proper structure, acceptable quality. Don't chase perfection.
-
-**Reference**: `/bitwize-music:suno-engineer` or `/reference/suno/v5-best-practices.md`
-
----
-
-## Status Tracking
-
-Track statuses: `Not Started` → `Sources Pending` → `Sources Verified` → `In Progress` → `Generated` → `Final`
-
-Album statuses: `Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
-
-**Full details**: See `/reference/workflows/status-tracking.md`
-
----
-
-## Album Completion Checklist
-
-- [ ] All tracks marked `Final` with Suno Links
-- [ ] Album art prompt created (see Album Art Generation below)
-- [ ] Album art generated and saved
-- [ ] Audio mastered (-14 LUFS, -1.0 dBTP)
-- [ ] Promo videos generated (optional, see Promo Videos below)
-- [ ] Sheet music generated (optional)
-- [ ] Streaming Lyrics filled in each track (if using distributor)
-- [ ] SoundCloud metadata filled in
-- [ ] For source-based albums:
-  - [ ] Human source verification complete (all tracks `✅ Verified`)
-  - [ ] RESEARCH.md and SOURCES.md complete
-  - [ ] All lyrics verified against sources
-
----
-
-## Album Art Generation
-
-**Trigger**: When all tracks marked `Final`, ask: "Ready to generate the album art?"
-
-**Workflow**: Verify prompt exists (use `/bitwize-music:album-art-director` if needed) → User generates with ChatGPT/DALL-E → Save with `/bitwize-music:import-art` skill → Update checklist
-
-**Full procedures**: See `/reference/workflows/release-procedures.md`
-
----
-
-## Releasing an Album
-
-**Steps**: Verify Album Completion Checklist → Update album README (`release_date` and `Status: Released`) → Upload to platforms → Add URLs to README
-
-**Full procedures**: See `/reference/workflows/release-procedures.md`
-
----
-
-## Post-Release Immediate Actions
-
-**Trigger**: After album status set to `Released`
-
-**Day 1 Checklist:**
-1. SoundCloud Upload - Upload tracks, add metadata, copy URLs to album README
-2. Update Album README - Add SoundCloud URLs, verify release_date and status
-3. Initial Announcement - Twitter/X announcement with album link
-4. Distributor Upload (if distributing) - Upload tracks, streaming lyrics, metadata
-
-**Release Complete Message**: See `/reference/workflows/checkpoint-scripts.md` for template with dynamically generated tweet URL.
-
----
-
-## Error Recovery Procedures
-
-**Common scenarios:**
-- **Wrong track marked Final**: Revert to `In Progress`, regenerate, remark as `Final`
-- **Lyrics need fixing after verification**: Fix but keep `✅ Verified`, ask for re-verification
-- **Regenerate after mastering**: Rename old file `track-OLD.wav`, regenerate, re-master
-- **Release went wrong**: Don't delete, update or document in "Version History"
-- **Undo release**: Revert status, clear `release_date`, remove from platforms
-
-**Full procedures**: See `/reference/workflows/error-recovery.md`
-
----
-
-## Audio Mastering
-
-Master audio for streaming platforms to ensure loudness consistency (-14 LUFS, -1.0 dBTP) and tonal balance.
-
-**How to request**: Tell Claude: "Master the tracks in /path/to/folder"
-
-**Workflow**: Analyze → Preview (dry-run) → Master → Verify. Scripts stay in `{plugin_root}/tools/mastering/`, run from there.
-
-**Genre presets**: Use `--genre` flag for 60+ automatic EQ presets (pop, hip-hop, rock, electronic, etc.)
-
-**Full documentation**: See `/reference/mastering/mastering-workflow.md` for setup, troubleshooting, and advanced techniques.
-
----
-
-## Promo Videos (Optional)
-
-Generate professional 15-second vertical promo videos (9:16) for social media after mastering using `/bitwize-music:promo-director`.
-
-**Trigger**: After mastering complete, before release
-
-**Requirements**: ffmpeg with filters, Python 3.8+, PIL, album artwork
-
-**Output**: Individual track promos + album sampler video optimized for Instagram Reels, Twitter, TikTok
-
-**Workflow**: Verify dependencies → Choose visualization style (pulse, bars, line, etc.) → Generate videos → Review → Ready for social media
-
-**Full documentation**: See `/skills/promo-director/SKILL.md` and `/reference/promotion/promo-workflow.md`
-
----
-
-## Sheet Music Generation (Optional)
-
-Optionally create professional sheet music and songbooks after mastering using `/bitwize-music:sheet-music-publisher`.
-
-**Requirements**: AnthemScore ($42, or free trial), MuseScore (free)
-
-**Best for**: Melodic tracks, folk, acoustic. **Challenging**: Dense electronic, heavy distortion.
-
-**Full documentation**: See `/reference/sheet-music/workflow.md`
-
----
-
-## Suno Reference
-
-Use `/bitwize-music:suno-engineer` for full guidance. See `/skills/suno-engineer/SKILL.md` for documentation.
-
-### Reference Files
-
-All Suno-specific documentation in `/reference/suno/`:
-
-| File | Contents |
-|------|----------|
-| `v5-best-practices.md` | Comprehensive prompting guide for V5 |
-| `pronunciation-guide.md` | Homographs, tech terms, fixes |
-| `tips-and-tricks.md` | Troubleshooting, extending, operational tips |
-| `structure-tags.md` | Song section tags |
-| `voice-tags.md` | Vocal manipulation |
-| `instrumental-tags.md` | Instruments |
-| `genre-list.md` | 500+ genres |
-
-### Key Principles
-
-- **V5 is literal** - Say what you want clearly and directly
-- **Vocals first** - Put vocal description FIRST in style prompt
-- **Section tags** - Use `[Verse]`, `[Chorus]`, etc.
-- **Artist names forbidden** - Describe style instead ("dark industrial" not "NIN")
-
----
-
-## Distribution Guidelines
-
-**Streaming Lyrics**: Just lyrics (no section labels), capitalize first letter, no end punctuation, write out repeats.
-
-**Explicit Content**: Use `/bitwize-music:explicit-checker` or see `/reference/distribution.md` for word lists and rules.
-
+**Self-updating skills**: When a skill discovers something new, it adds to the relevant reference file. User-specific content (pronunciations) goes to `{overrides}/` directory.

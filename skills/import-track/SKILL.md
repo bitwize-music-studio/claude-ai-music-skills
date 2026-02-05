@@ -1,6 +1,6 @@
 ---
 name: import-track
-description: Move track markdown files to the correct album location
+description: Moves track markdown files to the correct album location. Use when the user has track files in Downloads or other locations that need to be placed in an album.
 argument-hint: <file-path> <album-name> [track-number]
 model: claude-haiku-4-5-20251001
 allowed-tools:

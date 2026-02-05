@@ -1,0 +1,22 @@
+{
+  "description": "Bitwize Music plugin hooks for quality enforcement",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/validate_track.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/check_version_sync.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

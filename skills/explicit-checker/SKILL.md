@@ -1,6 +1,6 @@
 ---
 name: explicit-checker
-description: Scan lyrics for explicit content, verify explicit flags match actual content
+description: Scans lyrics for explicit content and verifies that explicit flags match actual content. Use before Suno generation or release to ensure accurate content ratings.
 argument-hint: <album-path or track-path>
 model: claude-sonnet-4-5-20250929
 allowed-tools:

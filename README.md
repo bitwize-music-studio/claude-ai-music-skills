@@ -49,7 +49,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 Want to know how this project came together? Read the full story:
 
-https://www.bitwizemusic.com/behind-the-music/
+**[The Story Behind bitwize-music](https://www.bitwizemusic.com/behind-the-music/)**
 
 ---
 

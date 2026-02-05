@@ -146,13 +146,47 @@ Final chorus...
 [Big Finish]
 ```
 
+## Bar Count Targeting (V5)
+
+V5 supports targeting specific bar counts per section by adding numbers after tags:
+
+```
+[INTRO 4] [VERSE 1 8] [PRE 4] [CHORUS 8] [VERSE 2 8] [PRE 4] [CHORUS 8] [BRIDGE 8] [CHORUS 8] [OUTRO 4]
+```
+
+Numbers represent target bar counts. Results are approximate — Suno treats them as guidance, not strict limits. Useful for controlling intro/outro length and balancing section proportions.
+
+---
+
+## Performance Cues
+
+Add **1–3 performance cues per section** to influence delivery without overloading:
+
+```
+[Verse 1 - quiet, intimate]
+Lyrics here...
+
+[Chorus - building, anthemic]
+Lyrics here...
+
+[Bridge - raw, exposed]
+Lyrics here...
+```
+
+**Rule**: More than 3 cues per section causes noise. Keep it focused.
+
+---
+
 ## Tag Reliability Notes
+
+V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsistent in earlier versions now produce more predictable results.
 
 ### Reliable Tags
 - `[Verse]`, `[Verse 1]`, etc.
 - `[Chorus]`
 - `[End]`
 - `[Fade Out]`
+- `[Pre-Chorus]` (improved in V5)
 
 ### Moderately Reliable
 - `[Bridge]`

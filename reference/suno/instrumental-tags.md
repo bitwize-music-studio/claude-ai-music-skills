@@ -183,10 +183,37 @@ EDM build-up, increasing tension, white noise sweep, pitch-rising synth
 [Bass Drop]
 ```
 
+## The Producer's Prompt Approach
+
+V5 responds better to **narrative-style descriptions** than flat tag lists. Describe the arrangement like you're talking to a session musician:
+
+```
+❌ Tag soup (V3/V4 style):
+[Genre: Southern Rock], [Tempo: 110 BPM], [Instrumentation: Slide Guitar, Heavy Drums]
+
+✅ Producer's Prompt (V5 style):
+Start with a lonely, overdriven slide guitar intro.
+Build into a heavy, stomping drum groove for the verse.
+```
+
+**Why**: V5 understands context and fills in gaps intelligently. Flat tag lists cause "prompt fatigue" — the model dilutes attention across too many directives.
+
+### Arrangement Strategies
+
+| Pattern | Technique |
+|---------|-----------|
+| **Live band sim** | Tag rhythm guitar, lead guitar, bass, drums separately |
+| **EDM drops** | Pad build → drop to drums + bass → full stack return |
+| **Branding** | Keep 1–2 signature instruments across album tracks for sonic consistency |
+
+---
+
 ## Tips
 
-1. **One tag at a time** works best
-2. **Experiment with commas** to combine elements
+1. **One tag at a time** works best for instrumental sections
+2. **Comma-separated combinations** can work but are less predictable
 3. **Match instruments to genre** in Style prompt
 4. **Use descriptive tags** like `[melodic interlude]` vs just `[Interlude]`
-5. **Genre context matters** - a fiddle works better in Country than Hip-Hop (unless that's what you want!)
+5. **Genre context matters** — a fiddle works better in Country than Hip-Hop (unless that's what you want!)
+6. **Avoid tag soup** — V5 gets "prompt fatigue" with too many bracket tags. Keep it to 2–3 instrument cues per section
+7. **Punctuation lines can trigger solos**: `!!! --- !!!` between section tags sometimes forces instrumental solos

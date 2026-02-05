@@ -1,6 +1,6 @@
 ---
 name: cloud-uploader
-description: Upload promo videos and content to Cloudflare R2 or AWS S3
+description: Uploads promo videos and content to Cloudflare R2 or AWS S3. Use when the user wants to host promo content for social media or distribution.
 model: claude-sonnet-4-5-20250929
 allowed-tools:
   - Read
@@ -64,7 +64,7 @@ cloud:
     bucket: "promo-videos"
 ```
 
-See `/reference/cloud/setup-guide.md` for detailed setup instructions.
+See `${CLAUDE_PLUGIN_ROOT}/reference/cloud/setup-guide.md` for detailed setup instructions.
 
 ### Required Files
 
@@ -77,7 +77,7 @@ See `/reference/cloud/setup-guide.md` for detailed setup instructions.
 ```bash
 python3 -m venv ~/.bitwize-music/cloud-env
 source ~/.bitwize-music/cloud-env/bin/activate
-pip install -r {plugin_root}/requirements-cloud.txt
+pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements-cloud.txt
 ```
 
 **Always use the venv** — activate it before running the upload script.
@@ -114,7 +114,7 @@ Generate with: /bitwize-music:promo-director {album}
 Always activate the venv and preview first:
 ```bash
 source ~/.bitwize-music/cloud-env/bin/activate
-cd {plugin_root}
+cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/cloud/upload_to_cloud.py {album} --dry-run
 ```
 
@@ -128,7 +128,7 @@ Output shows:
 
 **Upload all (promos + sampler):**
 ```bash
-cd {plugin_root}
+cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/cloud/upload_to_cloud.py {album}
 ```
 
@@ -246,7 +246,7 @@ Files are organized in the bucket as:
 
 **"Cloud uploads not enabled"**
 - Add `cloud.enabled: true` to config
-- See `/reference/cloud/setup-guide.md`
+- See `${CLAUDE_PLUGIN_ROOT}/reference/cloud/setup-guide.md`
 
 **"Credentials not configured"**
 - Add credentials to config file
@@ -329,9 +329,9 @@ Ready for release workflow: /bitwize-music:release-director {album}
 
 ## Related Documentation
 
-- `/reference/cloud/setup-guide.md` - Detailed setup instructions
-- `/skills/promo-director/SKILL.md` - Generate promo videos
-- `/skills/release-director/SKILL.md` - Release workflow
+- `${CLAUDE_PLUGIN_ROOT}/reference/cloud/setup-guide.md` - Detailed setup instructions
+- `${CLAUDE_PLUGIN_ROOT}/skills/promo-director/SKILL.md` - Generate promo videos
+- `${CLAUDE_PLUGIN_ROOT}/skills/release-director/SKILL.md` - Release workflow
 
 ## Model Recommendation
 

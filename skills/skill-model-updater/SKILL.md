@@ -1,6 +1,6 @@
 ---
 name: skill-model-updater
-description: Update model references in skill files when new Claude models are released
+description: Updates model references across all skill files when new Claude models are released. Use when Anthropic releases new Claude models to keep skills current.
 argument-hint: <"check" | "update" | "update --dry-run">
 model: claude-haiku-4-5-20251001
 allowed-tools:
@@ -176,7 +176,7 @@ When Anthropic releases new models:
 2. **Review changes** - Verify discovered models are correct
 3. **Run update** - `/skill-model-updater update` to propagate changes
 
-**Note**: Tier assignments are documented in `/reference/model-strategy.md`. This skill preserves existing tiers - it only updates version numbers.
+**Note**: Tier assignments are documented in `${CLAUDE_PLUGIN_ROOT}/reference/model-strategy.md`. This skill preserves existing tiers - it only updates version numbers.
 
 ---
 
@@ -235,4 +235,4 @@ If a SKILL.md has malformed frontmatter:
 - **Check before update** - Always know what will change
 - **Tiers are auto-detected** - Skill reads existing model field to determine tier (opus/sonnet/haiku)
 - **Shorthand is safe** - `opus`, `sonnet`, `haiku` always resolve to current versions
-- **Tier rationale** - See `/reference/model-strategy.md` for why each skill uses its tier
+- **Tier rationale** - See `${CLAUDE_PLUGIN_ROOT}/reference/model-strategy.md` for why each skill uses its tier
