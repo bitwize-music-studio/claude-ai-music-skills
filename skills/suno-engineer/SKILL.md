@@ -2,7 +2,7 @@
 name: suno-engineer
 description: Constructs technical Suno V5 style prompts, selects genres, and optimizes generation settings. Use when creating or refining Suno prompts for track generation.
 argument-hint: <track-file-path or "create prompt for [concept]">
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 allowed-tools:
   - Read
   - Edit

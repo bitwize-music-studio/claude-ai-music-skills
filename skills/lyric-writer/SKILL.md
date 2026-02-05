@@ -2,7 +2,7 @@
 name: lyric-writer
 description: Writes or reviews lyrics with professional prosody, rhyme craft, and quality checks. Use when writing new lyrics, revising existing lyrics, or when the user says 'let's work on a track.'
 argument-hint: <track-file-path or "write lyrics for [concept]">
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 allowed-tools:
   - Read
   - Edit
@@ -28,8 +28,9 @@ When invoked with a concept:
 
 ## Supporting Files
 
-- **[documentary-standards.md](documentary-standards.md)** - Legal standards for true crime/documentary lyrics
+- **[examples.md](examples.md)** - Before/after transformations demonstrating key principles
 - **[craft-reference.md](craft-reference.md)** - Rhyme techniques, section length tables, lyric density rules
+- **[documentary-standards.md](documentary-standards.md)** - Legal standards for true crime/documentary lyrics
 
 ---
 
