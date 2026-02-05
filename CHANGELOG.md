@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.2] - 2026-02-05
+
+### Changed
+- **Setup skill simplified** — only recommends unified venv approach, removed confusing system-wide install options
+- **Setup checks venv** — verifies ~/.bitwize-music/venv contents instead of system Python packages
+- **No optional components** — all dependencies install together, clearer messaging
+
 ## [0.41.1] - 2026-02-05
 
 ### Fixed
