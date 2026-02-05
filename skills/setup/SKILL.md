@@ -48,25 +48,28 @@ uname -s
 
 **IMPORTANT:** Run these checks **sequentially**, not in parallel. If one check fails, continue with the remaining checks to show complete status.
 
-Based on user's request (or check all if no argument):
-
-### Check All Components
+**CRITICAL:** Always check the venv, not system Python!
 
 ```bash
-# MCP Server
-python3 -c "import mcp; print('✅ mcp installed')" 2>&1 || echo "❌ mcp not installed"
+# Set venv path
+VENV_PYTHON=~/.bitwize-music/venv/bin/python3
 
-# Audio Mastering
-python3 -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
+# Check if venv exists
+if [ -f "$VENV_PYTHON" ]; then
+    echo "✅ Venv exists at ~/.bitwize-music/venv"
 
-# Cloud Uploads
-python3 -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
-
-# Document Hunter
-python3 -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
+    # Check each component in the venv
+    $VENV_PYTHON -c "import mcp; print('✅ mcp installed')" 2>&1 || echo "❌ mcp not installed"
+    $VENV_PYTHON -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
+    $VENV_PYTHON -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
+    $VENV_PYTHON -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
+else
+    echo "❌ Venv not found at ~/.bitwize-music/venv"
+    echo "   Run: python3 -m venv ~/.bitwize-music/venv"
+fi
 ```
 
-All components are installed together via requirements.txt.
+All components are installed together in the venv via requirements.txt.
 
 ---
 
