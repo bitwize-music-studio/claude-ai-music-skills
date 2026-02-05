@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.3] - 2026-02-05
+
+### Fixed
+- **MCP server startup** — .mcp.json now uses venv Python (`~/.bitwize-music/venv/bin/python3`) instead of system Python, fixing server initialization failures
+
 ## [0.41.2] - 2026-02-05
 
 ### Changed
