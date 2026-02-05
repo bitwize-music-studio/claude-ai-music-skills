@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-02-05
+
 ### Added
 - **Setup skill** — `/bitwize-music:setup` detects Python environment, checks dependencies, and provides installation commands specific to your system (externally-managed vs user-managed Python)
 - **Session start setup check** — automatic MCP dependency verification on session start with immediate setup guidance if missing
