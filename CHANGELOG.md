@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.4] - 2026-02-05
+
+### Fixed
+- **MCP server environment** — .mcp.json now explicitly passes CLAUDE_PLUGIN_ROOT env variable to server process, fixing "missing env variable" startup failures
+
 ## [0.41.3] - 2026-02-05
 
 ### Fixed
