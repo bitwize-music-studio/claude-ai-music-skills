@@ -2,7 +2,7 @@
 name: lyric-reviewer
 description: Reviews lyrics against a quality checklist before Suno generation. Use before generating tracks to catch rhyme, prosody, pronunciation, and structural issues.
 argument-hint: <track-path | album-path | --fix>
-model: claude-opus-4-5-20251101
+model: claude-opus-4-6
 allowed-tools:
   - Read
   - Edit

@@ -93,8 +93,8 @@ class PluginTestRunner:
     # Required frontmatter fields for SKILL.md files
     REQUIRED_SKILL_FIELDS = {'name', 'description', 'model'}
 
-    # Valid model patterns
-    MODEL_PATTERN = re.compile(r'^claude-(opus|sonnet|haiku)-[0-9]+-[0-9]+-[0-9]{8}$')
+    # Valid model patterns - supports claude-opus-4-6 and claude-opus-4-5-20251101
+    MODEL_PATTERN = re.compile(r'^claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?$')
 
     # Skills that require external dependencies
     SKILLS_WITH_REQUIREMENTS = {
@@ -407,7 +407,7 @@ class PluginTestRunner:
                     TestResult.FAIL,
                     f"Invalid model: {model}",
                     frontmatter.get('_path', ''),
-                    fix_hint="Use format: claude-(opus|sonnet|haiku)-X-X-YYYYMMDD"
+                    fix_hint="Use format: claude-(opus|sonnet|haiku)-X or claude-(opus|sonnet|haiku)-X-X-YYYYMMDD"
                 )
 
         # Test: Skills with external deps have requirements field

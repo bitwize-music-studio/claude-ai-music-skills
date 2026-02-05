@@ -101,8 +101,8 @@ jobs:
         import re
 
         REQUIRED_FIELDS = ['name', 'description', 'model']
-        # Pattern: claude-{tier}-{major}-{minor}-{date} e.g. claude-opus-4-5-20251101
-        MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+-\d+-\d{8}$'
+        # Pattern: claude-{tier}-{major}[-{minor}][-{date}] e.g. claude-opus-4-6 or claude-opus-4-5-20251101
+        MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+(-\d+)?(-\d{8})?$'
 
         skill_dirs = [d for d in os.listdir('skills') if os.path.isdir(f'skills/{d}')]
 
