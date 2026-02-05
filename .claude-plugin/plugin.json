@@ -10,6 +10,7 @@
   "license": "CC0-1.0",
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
   "keywords": [
     "music",
     "suno",

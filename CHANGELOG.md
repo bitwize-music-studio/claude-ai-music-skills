@@ -7,6 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- **MCP server: bitwize-music-state** — bundled MCP server exposing state cache as tools for instant structured responses. Wraps `tools/state/indexer.py` with 9 tools: `find_album`, `list_albums`, `get_track`, `get_session`, `update_session`, `rebuild_state`, `get_config`, `get_ideas`, `get_pending_verifications`. In-memory caching with lazy loading and staleness detection. Server auto-starts when plugin enabled via `.mcp.json`. Requires Python 3.10+, `mcp[cli]>=1.2.0`.
 - **Plugin tests: SKILL.md structure validation** — checks all skills have required sections (task description, procedural content, closing guidance, agent title). Accepts common alternatives (## Workflow, ## Step 1, ## Commands, ## Domain Expertise, etc.). Runs as part of pre-commit check #11.
 - **CI: plugin tests job** — runs full `run_tests.py` suite (449 tests) in CI, guarded against fork PRs
 - **Suno: v5-best-practices.md updates** — Personas workflow, Song Editor, bar count targeting, Creative Sliders, prompt fatigue warning (4-7 descriptor sweet spot), token biases, WMG ownership/licensing, V4.5 comparison note
