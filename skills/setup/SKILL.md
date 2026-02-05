@@ -50,27 +50,23 @@ uname -s
 
 Based on user's request (or check all if no argument):
 
-### MCP Server (required for fast state queries)
+### Check All Components
 
 ```bash
+# MCP Server
 python3 -c "import mcp; print('✅ mcp installed')" 2>&1 || echo "❌ mcp not installed"
-python3 -c "import yaml; print('✅ pyyaml installed')" 2>&1 || echo "❌ pyyaml not installed"
-```
 
-### Mastering Tools (optional)
-
-```bash
+# Audio Mastering
 python3 -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
-python3 -c "import pyloudnorm; print('✅ pyloudnorm installed')" 2>&1 || echo "❌ pyloudnorm not installed"
-python3 -c "import scipy; print('✅ scipy installed')" 2>&1 || echo "❌ scipy not installed"
-```
 
-### Document Hunter (optional)
+# Cloud Uploads
+python3 -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
 
-```bash
+# Document Hunter
 python3 -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
-command -v playwright >/dev/null 2>&1 && echo "✅ playwright CLI: installed" || echo "❌ playwright CLI: not installed"
 ```
+
+All components are installed together via requirements.txt.
 
 ---
 
@@ -123,8 +119,9 @@ Present a clear, simple installation guide:
 After user reports they've installed, re-run the checks from Step 2 and confirm:
 
 ✅ **MCP server**: Ready
-✅ **Mastering tools**: [Ready | Not installed (optional)]
-✅ **Document hunter**: [Ready | Not installed (optional)]
+✅ **Audio mastering**: Ready
+✅ **Cloud uploads**: Ready
+✅ **Document hunter**: Ready
 
 **Next steps**: Run `/bitwize-music:configure` to set up your workspace paths.
 
@@ -142,31 +139,32 @@ Use clear sections with checkboxes for status:
 - System: Linux
 
 ### Component Status
-- [❌] MCP server (required)
-- [✅] Mastering tools
+- [❌] MCP server
+- [❌] Audio mastering
+- [❌] Cloud uploads
 - [❌] Document hunter
 
 ### Installation
 
-Run these commands to set up the unified venv:
+Run these commands to install all plugin dependencies:
 
 ```bash
-# Create venv
+# Create unified venv
 python3 -m venv ~/.bitwize-music/venv
 
-# Install everything
+# Install ALL dependencies
 ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
 
-# Set up browser for document hunting
+# Set up browser
 ~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
 **After installation:**
 1. Restart Claude Code
-2. MCP server will automatically use the venv
+2. All components will work automatically
 3. Run `/bitwize-music:setup` to verify
 
-The plugin automatically detects `~/.bitwize-music/venv` — no configuration needed!
+The plugin automatically detects `~/.bitwize-music/venv` — everything just works!
 ```
 
 ---
