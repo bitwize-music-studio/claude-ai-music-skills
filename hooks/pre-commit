@@ -1,0 +1,270 @@
+#!/bin/bash
+# Pre-commit hook: validate before committing
+# Bypass with: git commit --no-verify
+
+set -e
+
+echo "=== Pre-commit checks ==="
+echo ""
+
+# 1. Ruff linter
+echo "[1/11] Running ruff linter..."
+if command -v ruff &> /dev/null; then
+    ruff check tools/
+    echo "      ✓ Lint passed"
+else
+    echo "      ⚠ ruff not installed, skipping (pip install ruff)"
+fi
+echo ""
+
+# 2. JSON/YAML validation
+echo "[2/11] Validating JSON/YAML configs..."
+python3 -c "
+import json
+import sys
+
+try:
+    import yaml
+    has_yaml = True
+except ImportError:
+    has_yaml = False
+    print('      ⚠ pyyaml not installed, skipping YAML check')
+
+# Validate plugin.json
+try:
+    with open('.claude-plugin/plugin.json') as f:
+        json.load(f)
+except Exception as e:
+    print(f'      ✗ plugin.json invalid: {e}')
+    sys.exit(1)
+
+# Validate marketplace.json
+try:
+    with open('.claude-plugin/marketplace.json') as f:
+        json.load(f)
+except Exception as e:
+    print(f'      ✗ marketplace.json invalid: {e}')
+    sys.exit(1)
+
+# Validate config.example.yaml
+if has_yaml:
+    try:
+        with open('config/config.example.yaml') as f:
+            yaml.safe_load(f)
+    except Exception as e:
+        print(f'      ✗ config.example.yaml invalid: {e}')
+        sys.exit(1)
+
+print('      ✓ Config files valid')
+"
+echo ""
+
+# 3. CLAUDE.md size check (characters, not bytes - better approximates tokens)
+echo "[3/11] Checking CLAUDE.md size..."
+MAX_CHARS=40000  # 40K characters
+CLAUDE_CHARS=$(wc -m < CLAUDE.md 2>/dev/null || echo 0)
+if [ "$CLAUDE_CHARS" -gt "$MAX_CHARS" ]; then
+    SIZE_K=$(echo "scale=1; $CLAUDE_CHARS / 1000" | bc)
+    echo "      ✗ CLAUDE.md is ${SIZE_K}K chars (max 40.0K)"
+    exit 1
+else
+    SIZE_K=$(echo "scale=1; $CLAUDE_CHARS / 1000" | bc)
+    echo "      ✓ CLAUDE.md is ${SIZE_K}K chars (max 40.0K)"
+fi
+echo ""
+
+# 4. Version sync check
+echo "[4/11] Checking version sync..."
+python3 -c "
+import json
+import sys
+
+with open('.claude-plugin/plugin.json') as f:
+    plugin_version = json.load(f)['version']
+
+with open('.claude-plugin/marketplace.json') as f:
+    marketplace_version = json.load(f)['plugins'][0]['version']
+
+if plugin_version != marketplace_version:
+    print(f'      ✗ Version mismatch!')
+    print(f'        plugin.json:      {plugin_version}')
+    print(f'        marketplace.json: {marketplace_version}')
+    sys.exit(1)
+
+print(f'      ✓ Versions match ({plugin_version})')
+"
+echo ""
+
+# 5. Skill frontmatter validation
+echo "[5/11] Validating skill frontmatter..."
+python3 -c "
+import os
+import sys
+import re
+
+try:
+    import yaml
+except ImportError:
+    print('      ⚠ pyyaml not installed, skipping')
+    sys.exit(0)
+
+REQUIRED_FIELDS = ['name', 'description', 'model']
+# Pattern: claude-{tier}-{major}-{minor}[-{date}] e.g. claude-opus-4-6 or claude-opus-4-5-20251101
+MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+(-\d+)?(-\d{8})?$'
+
+errors = []
+skill_count = 0
+
+for skill_dir in os.listdir('skills'):
+    skill_path = f'skills/{skill_dir}/SKILL.md'
+    if not os.path.isdir(f'skills/{skill_dir}') or not os.path.exists(skill_path):
+        continue
+
+    skill_count += 1
+    with open(skill_path, 'r') as f:
+        content = f.read()
+
+    match = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+    if not match:
+        errors.append(f'{skill_dir}: missing frontmatter')
+        continue
+
+    try:
+        fm = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as e:
+        errors.append(f'{skill_dir}: invalid YAML')
+        continue
+
+    for field in REQUIRED_FIELDS:
+        if field not in fm:
+            errors.append(f'{skill_dir}: missing \"{field}\"')
+
+    if 'model' in fm and not re.match(MODEL_PATTERN, fm['model']):
+        errors.append(f'{skill_dir}: invalid model format \"{fm[\"model\"]}\"')
+
+if errors:
+    print('      ✗ Frontmatter errors:')
+    for e in errors:
+        print(f'        - {e}')
+    sys.exit(1)
+
+print(f'      ✓ All {skill_count} skills have valid frontmatter')
+"
+echo ""
+
+# 6. CHANGELOG format check
+echo "[6/11] Checking CHANGELOG format..."
+if [ -f "CHANGELOG.md" ]; then
+    if grep -q "\[Unreleased\]" CHANGELOG.md; then
+        echo "      ✓ CHANGELOG has [Unreleased] section"
+    else
+        echo "      ✗ CHANGELOG.md missing [Unreleased] section"
+        echo "      Add '## [Unreleased]' section at top of changelog"
+        exit 1
+    fi
+else
+    echo "      ⚠ CHANGELOG.md not found, skipping"
+fi
+echo ""
+
+# 7. Merge conflict markers check
+echo "[7/11] Checking for merge conflict markers..."
+CONFLICT_FILES=$(git diff --cached --name-only | xargs grep -l "^<<<<<<< \|^=======$\|^>>>>>>> " 2>/dev/null || true)
+if [ -n "$CONFLICT_FILES" ]; then
+    echo "      ✗ Merge conflict markers found in:"
+    echo "$CONFLICT_FILES" | while read -r file; do
+        echo "        - $file"
+    done
+    exit 1
+else
+    echo "      ✓ No merge conflict markers"
+fi
+echo ""
+
+# 8. Large file check
+echo "[8/11] Checking for large files..."
+MAX_SIZE=500000  # 500KB
+LARGE_FILES=""
+for file in $(git diff --cached --name-only); do
+    if [ -f "$file" ]; then
+        size=$(wc -c < "$file" 2>/dev/null || echo 0)
+        if [ "$size" -gt "$MAX_SIZE" ]; then
+            size_kb=$((size / 1024))
+            LARGE_FILES="$LARGE_FILES\n        - $file (${size_kb}KB)"
+        fi
+    fi
+done
+if [ -n "$LARGE_FILES" ]; then
+    echo "      ✗ Large files (>500KB) found:"
+    echo -e "$LARGE_FILES"
+    echo "      Use .gitignore or git-lfs for large files"
+    exit 1
+else
+    echo "      ✓ No large files"
+fi
+echo ""
+
+# 9. Security scan (bandit + pip-audit)
+echo "[9/11] Running security scan..."
+
+# Check code with bandit
+if command -v bandit &> /dev/null; then
+    # -r recursive, -ll medium+ severity, -q quiet, -s B108 skip hardcoded /tmp
+    if ! bandit -r tools/ -ll -q -s B108 2>/dev/null; then
+        echo "      ✗ Security issues found in code"
+        echo "      Run 'bandit -r tools/ -ll -s B108' for details"
+        exit 1
+    fi
+else
+    echo "      ⚠ bandit not installed, skipping code scan (pip install bandit)"
+fi
+
+# Check dependencies with pip-audit
+if command -v pip-audit &> /dev/null; then
+    if [ -f "requirements.txt" ]; then
+        if pip-audit -r requirements.txt -q 2>/dev/null; then
+            echo "      ✓ Security scan passed"
+        else
+            echo "      ✗ Known vulnerabilities in dependencies"
+            echo "      Run 'pip-audit -r requirements.txt' for details"
+            exit 1
+        fi
+    else
+        echo "      ✓ Security scan passed (no requirements.txt)"
+    fi
+else
+    echo "      ⚠ pip-audit not installed, skipping dependency scan (pip install pip-audit)"
+fi
+echo ""
+
+# 10. Unit tests
+echo "[10/11] Running unit tests..."
+if command -v pytest &> /dev/null || python3 -c "import pytest" 2>/dev/null; then
+    if python3 -m pytest tools/state/tests/ tools/shared/tests/ tools/mastering/tests/ -q --tb=line 2>/dev/null; then
+        echo "      ✓ Unit tests passed"
+    else
+        echo "      ✗ Unit tests failed"
+        echo "      Run 'pytest tools/*/tests/ -v' for details"
+        exit 1
+    fi
+else
+    echo "      ⚠ pytest not installed, skipping (pip install pytest)"
+fi
+echo ""
+
+# 11. Plugin validation tests
+echo "[11/11] Running plugin tests..."
+if [ -f "tools/tests/run_tests.py" ]; then
+    if python3 tools/tests/run_tests.py --no-color 2>/dev/null | grep -q "All tests passed"; then
+        echo "      ✓ Plugin tests passed"
+    else
+        echo "      ✗ Plugin tests failed"
+        echo "      Run 'python3 tools/tests/run_tests.py' for details"
+        exit 1
+    fi
+else
+    echo "      ⚠ Plugin test runner not found, skipping"
+fi
+echo ""
+
+echo "=== All checks passed ==="
