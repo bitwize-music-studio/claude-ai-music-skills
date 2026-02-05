@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-02-05
+
+### Fixed
+- **Setup skill** — runs dependency checks sequentially to prevent sibling tool call cancellation, removes incorrect mcp.__version__ access
+- **Pre-commit hook** — pip-audit check now correctly captures exit code and handles errors properly
+
 ## [0.41.0] - 2026-02-05
 
 ### Added
