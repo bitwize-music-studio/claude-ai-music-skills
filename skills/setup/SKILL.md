@@ -46,28 +46,30 @@ uname -s
 
 ## Step 2: Check Component Status
 
+**IMPORTANT:** Run these checks **sequentially**, not in parallel. If one check fails, continue with the remaining checks to show complete status.
+
 Based on user's request (or check all if no argument):
 
 ### MCP Server (required for fast state queries)
 
 ```bash
-python3 -c "import mcp; print(f'mcp version: {mcp.__version__}')" 2>&1
-python3 -c "import yaml; print('pyyaml: installed')" 2>&1
+python3 -c "import mcp; print('✅ mcp installed')" 2>&1 || echo "❌ mcp not installed"
+python3 -c "import yaml; print('✅ pyyaml installed')" 2>&1 || echo "❌ pyyaml not installed"
 ```
 
 ### Mastering Tools (optional)
 
 ```bash
-python3 -c "import matchering; print('matchering: installed')" 2>&1
-python3 -c "import pyloudnorm; print('pyloudnorm: installed')" 2>&1
-python3 -c "import scipy; print('scipy: installed')" 2>&1
+python3 -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
+python3 -c "import pyloudnorm; print('✅ pyloudnorm installed')" 2>&1 || echo "❌ pyloudnorm not installed"
+python3 -c "import scipy; print('✅ scipy installed')" 2>&1 || echo "❌ scipy not installed"
 ```
 
 ### Document Hunter (optional)
 
 ```bash
-python3 -c "from playwright.sync_api import sync_playwright; print('playwright: installed')" 2>&1
-command -v playwright >/dev/null 2>&1 && echo "playwright CLI: installed" || echo "playwright CLI: not installed"
+python3 -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
+command -v playwright >/dev/null 2>&1 && echo "✅ playwright CLI: installed" || echo "❌ playwright CLI: not installed"
 ```
 
 ---
