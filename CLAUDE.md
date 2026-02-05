@@ -49,27 +49,34 @@ First-time setup: `cp config/config.example.yaml ~/.bitwize-music/config.yaml` �
 
 At the beginning of a fresh session:
 
-1. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
-2. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
+1. **Verify setup** — Quick dependency check:
+   ```bash
+   python3 -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing"
+   ```
+   - If MCP missing → **Stop immediately** and suggest: `/bitwize-music:setup mcp`
+   - If config missing → suggest: `/bitwize-music:configure`
+   - Don't proceed with session start until setup is complete
+2. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
+3. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
    - `{overrides}/CLAUDE.md` → incorporate instructions
    - `{overrides}/pronunciation-guide.md` → merge with base guide
    - Skip silently if missing (overrides are optional)
-3. **Load state cache** — Read `~/.bitwize-music/cache/state.json`:
+4. **Load state cache** — Read `~/.bitwize-music/cache/state.json`:
    - Missing/corrupted/schema mismatch/config changed → `python3 {plugin_root}/tools/state/indexer.py rebuild`
-4. **Check skill models** — Run `/bitwize-music:skill-model-updater check`
-5. **Report from state cache**:
+5. **Check skill models** — Run `/bitwize-music:skill-model-updater check`
+6. **Report from state cache**:
    - Album ideas (from `state.ideas.counts`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (`sources_verified: "Pending"`)
    - Last session context (from `state.session`)
-6. **Show contextual tips** based on state:
+7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`
    - In-progress albums → suggest `/bitwize-music:resume`
    - Overrides loaded → note it; missing → suggest creating them
    - Pending verifications → warn
    - One random general tip (rotate: "what should I do next?", resume, researcher, pronunciation, clipboard, mastering)
-7. **Ask**: "What would you like to work on?"
+8. **Ask**: "What would you like to work on?"
 
 ---
 

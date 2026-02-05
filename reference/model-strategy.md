@@ -145,7 +145,7 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ---
 
-## Haiku 4.5 Skills (10 skills)
+## Haiku 4.5 Skills (11 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 
@@ -169,6 +169,9 @@ These skills perform simple, rule-based operations with no creative judgment.
 
 ### new-album
 **Why Haiku**: Creates album directory structure from templates. Follows a template exactly: create folders, copy files, replace placeholders. No creative decisions.
+
+### setup
+**Why Haiku**: Detects Python environment and checks for installed dependencies. Rule-based checks: run commands, parse output, show appropriate installation instructions. No judgment - just environment detection and templated guidance.
 
 ### skill-model-updater
 **Why Haiku**: Updates model references when new Claude versions release. Pattern matching and replacement: find old model ID, replace with new. No judgment about which model to use (that's documented separately).

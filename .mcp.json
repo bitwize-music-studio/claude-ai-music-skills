@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "bitwize-music-state": {
+    "bitwize-music-mcp": {
       "command": "python3",
       "args": ["${CLAUDE_PLUGIN_ROOT}/servers/state-server/server.py"],
       "env": {

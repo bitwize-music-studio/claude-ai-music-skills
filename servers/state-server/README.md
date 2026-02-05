@@ -1,10 +1,12 @@
-# bitwize-music-state MCP Server
+# bitwize-music MCP Server
 
 MCP (Model Context Protocol) server providing direct access to the bitwize-music state cache.
 
 ## Overview
 
 This server wraps the existing `tools/state/indexer.py` functionality, exposing it as MCP tools. Instead of shelling out to Python and reading JSON files, Claude can call these tools directly for instant structured responses.
+
+The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools can be added to this same server.
 
 ## Requirements
 
@@ -14,15 +16,29 @@ This server wraps the existing `tools/state/indexer.py` functionality, exposing 
 
 ## Installation
 
+**On systems with externally-managed Python (Ubuntu/Debian):**
+
+```bash
+# Option 1: User install (recommended)
+pip install --user "mcp[cli]>=1.2.0" pyyaml
+
+# Option 2: Using pipx
+pipx install mcp
+pipx inject mcp pyyaml
+
+# Option 3: Virtual environment (if you prefer isolation)
+python3 -m venv ~/.mcp-env
+~/.mcp-env/bin/pip install -r requirements-mcp.txt
+# Then update .mcp.json to use ~/.mcp-env/bin/python3
+```
+
+**On other systems:**
+
 ```bash
 pip install -r requirements-mcp.txt
 ```
 
-Or install dependencies directly:
-
-```bash
-pip install "mcp[cli]>=1.2.0" pyyaml
-```
+After installing, **restart Claude Code** to reload the plugin.
 
 ## Tools Available
 

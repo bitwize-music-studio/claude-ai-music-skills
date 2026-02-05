@@ -49,7 +49,26 @@ logger = logging.getLogger("bitwize-music-state")
 try:
     from mcp.server.fastmcp import FastMCP
 except ImportError:
-    logger.error("MCP SDK not installed. Install with: pip install 'mcp[cli]'")
+    print("=" * 70, file=sys.stderr)
+    print("ERROR: MCP SDK not installed", file=sys.stderr)
+    print("=" * 70, file=sys.stderr)
+    print("", file=sys.stderr)
+    print("The bitwize-music MCP server requires the MCP SDK.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Install with ONE of these methods:", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  1. User install (recommended):", file=sys.stderr)
+    print("     pip install --user 'mcp[cli]>=1.2.0' pyyaml", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  2. Using pipx:", file=sys.stderr)
+    print("     pipx install mcp", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  3. Virtual environment:", file=sys.stderr)
+    print("     python3 -m venv ~/.mcp-env", file=sys.stderr)
+    print("     ~/.mcp-env/bin/pip install 'mcp[cli]>=1.2.0' pyyaml", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("After installing, restart Claude Code to reload the plugin.", file=sys.stderr)
+    print("=" * 70, file=sys.stderr)
     sys.exit(1)
 
 # Import from plugin's tools
@@ -64,7 +83,7 @@ from tools.state.indexer import (
 )
 
 # Initialize FastMCP server
-mcp = FastMCP("bitwize-music-state")
+mcp = FastMCP("bitwize-music-mcp")
 
 
 class StateCache:

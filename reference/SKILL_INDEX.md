@@ -9,6 +9,7 @@ Quick-reference guide for finding the right skill for any task.
 ### Getting Started
 | I need to... | Use this skill |
 |--------------|----------------|
+| ...install dependencies and verify setup | `/setup` |
 | ...set up the plugin for the first time | `/configure` |
 | ...learn how to use this plugin | `/tutorial` |
 | ...see what skills are available | `/help` |

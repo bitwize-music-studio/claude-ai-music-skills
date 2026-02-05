@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Setup skill** — `/bitwize-music:setup` detects Python environment, checks dependencies, and provides installation commands specific to your system (externally-managed vs user-managed Python)
+- **Session start setup check** — automatic MCP dependency verification on session start with immediate setup guidance if missing
+
+### Changed
+- **MCP server naming** — renamed `bitwize-music-state` → `bitwize-music-mcp` to support future MCP tools beyond state cache
+- **MCP error handling** — improved dependency error message with user-install, pipx, and venv instructions for externally-managed Python environments
+- **MCP documentation** — added setup instructions to README and server README for Ubuntu/Debian systems
+
 ## [0.38.0] - 2026-02-05
 
 ### Added

@@ -8,14 +8,14 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 > If you run into issues, feel free to [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) or just fix it yourself and submit a PR.
 
 > [!WARNING]
-> **Claude Code Max plan recommended** ($200/month). This plugin uses 38 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
+> **Claude Code Max plan recommended** ($200/month). This plugin uses 39 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
 
 ## What Is This?
 
-This is a collection of **38 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
+This is a collection of **39 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
 
 **What you get:**
 - Structured workflow from idea to released album
@@ -33,6 +33,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.38** | MCP server for instant state queries, Claude 4.6 upgrade, lyric writer examples |
 | **0.37** | Security hardening (6 fixes), prompt quality improvements across 30+ skill/reference files |
 | **0.34** | Python 3.9–3.12 CI matrix, bandit/pip-audit security scanning, path traversal fixes |
 | **0.33** | Pronunciation table enforcement — table entries must be applied to Suno lyrics |
@@ -79,6 +80,10 @@ Not required, but I'd love to hear what you create with this. Drop a tweet with 
 - Claude Code
 - That's it
 
+**MCP server** (fast state queries, auto-enabled):
+- Python 3.10+
+- `mcp[cli]>=1.2.0`, `pyyaml` — install with: `pip install --user "mcp[cli]>=1.2.0" pyyaml`
+
 **Audio mastering** (optional):
 - Python 3.8+
 - pip packages: `matchering`, `pyloudnorm`, `scipy`, `numpy`, `soundfile`
@@ -89,7 +94,8 @@ Not required, but I'd love to hear what you create with this. Drop a tweet with 
 
 **Install all optional dependencies at once:**
 ```bash
-pip install -r requirements.txt
+pip install --user -r requirements.txt
+pip install --user -r requirements-mcp.txt
 playwright install chromium
 ```
 
@@ -107,14 +113,14 @@ New to the plugin? Follow these steps to get up and running:
   /plugin install bitwize-music@claude-ai-music-skills
   ```
 
-- [ ] **Create config directory**
+- [ ] **Run setup assistant** (detects your environment and installs dependencies)
   ```bash
-  mkdir -p ~/.bitwize-music
+  /bitwize-music:setup
   ```
 
-- [ ] **Copy config template**
+- [ ] **Configure your workspace**
   ```bash
-  cp config/config.example.yaml ~/.bitwize-music/config.yaml
+  /bitwize-music:configure
   ```
 
 - [ ] **Edit config with your settings**
