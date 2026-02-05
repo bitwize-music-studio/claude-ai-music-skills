@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-02-05
+
+### Added
+- **Pre-commit dependency security scan** — pip-audit automatically checks requirements.txt for known vulnerabilities before commit
+- **Hook installation guide** — README and install script in hooks/ directory for easy setup
+
+### Fixed
+- **Security vulnerabilities** — updated mcp (1.2.0 → 1.23.0) and pypdf (4.3.1 → 6.6.2) to resolve 10 CVEs
+
 ## [0.40.0] - 2026-02-05
 
 ### Added
