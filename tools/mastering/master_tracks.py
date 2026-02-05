@@ -423,7 +423,7 @@ Examples:
     # Find wav files (case-insensitive for cross-platform compatibility)
     wav_files = sorted([f for f in input_dir.iterdir()
                        if f.suffix.lower() == '.wav'
-                       and 'mastering-env' not in str(f)])
+                       and 'venv' not in str(f)])
 
     # Build EQ settings
     eq_settings = []

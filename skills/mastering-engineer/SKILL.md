@@ -222,8 +222,8 @@ Located in `${CLAUDE_PLUGIN_ROOT}/tools/mastering/`:
 ```bash
 # Create shared venv in {tools_root}
 mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
 pip install matchering pyloudnorm scipy numpy soundfile
 ```
 
@@ -233,7 +233,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 
 ```bash
 # Activate venv
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 
 # Find plugin directory (version-independent)
 PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
@@ -362,7 +362,7 @@ python3 analyze_tracks.py  # Missing dependencies
 
 **Right:**
 ```bash
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
 deactivate
 ```

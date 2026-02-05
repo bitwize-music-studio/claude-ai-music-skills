@@ -19,14 +19,20 @@ The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools
 **Recommended: Virtual environment (all systems)**
 
 ```bash
-# Create venv at standard location
-python3 -m venv ~/.bitwize-music/mcp-env
+# Create shared venv for all plugin tools
+python3 -m venv ~/.bitwize-music/venv
 
-# Install dependencies
-~/.bitwize-music/mcp-env/bin/pip install -r requirements-mcp.txt
+# Install MCP server (required)
+~/.bitwize-music/venv/bin/pip install -r requirements.txt
+
+# Optional: Install additional tools
+~/.bitwize-music/venv/bin/pip install -r requirements.txt          # Mastering
+~/.bitwize-music/venv/bin/pip install -r requirements.txt    # Cloud uploads
+~/.bitwize-music/venv/bin/pip install playwright                   # Document hunter
+~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
-The MCP server automatically detects and uses `~/.bitwize-music/mcp-env` if it exists. No manual configuration needed.
+The MCP server automatically detects and uses `~/.bitwize-music/venv` if it exists. No manual configuration needed.
 
 **Alternative: User install (externally-managed Python)**
 
@@ -37,7 +43,7 @@ pip install --user "mcp[cli]>=1.2.0" pyyaml
 **Alternative: System install (user-managed Python)**
 
 ```bash
-pip install -r requirements-mcp.txt
+pip install -r requirements.txt
 ```
 
 After installing, **restart Claude Code** to reload the plugin.

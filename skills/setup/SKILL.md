@@ -81,19 +81,24 @@ Based on environment detection and missing components, provide **specific comman
 **Recommended approach: Virtual environment (automatic detection)**
 
 ```bash
-# Create venv for MCP server
-python3 -m venv ~/.bitwize-music/mcp-env
-~/.bitwize-music/mcp-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements-mcp.txt
+# Create shared venv for all plugin tools
+python3 -m venv ~/.bitwize-music/venv
+
+# Install MCP server (required)
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
 
 # Optional: Mastering tools
-~/.bitwize-music/mcp-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+
+# Optional: Cloud uploads
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
 
 # Optional: Document hunter
-~/.bitwize-music/mcp-env/bin/pip install playwright
-~/.bitwize-music/mcp-env/bin/playwright install chromium
+~/.bitwize-music/venv/bin/pip install playwright
+~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
-The MCP server will automatically detect and use this venv. No manual configuration needed.
+All plugin tools automatically detect and use `~/.bitwize-music/venv`. No manual configuration needed.
 
 **Alternative: User install**
 

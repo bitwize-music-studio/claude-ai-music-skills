@@ -109,7 +109,7 @@ Examples:
     else:
         # Batch mode - process all WAVs in current directory
         wav_files = sorted([f for f in Path('.').glob('*.wav')
-                           if 'mastering-env' not in str(f)
+                           if 'venv' not in str(f)
                            and f != reference_path])
 
         if not wav_files:

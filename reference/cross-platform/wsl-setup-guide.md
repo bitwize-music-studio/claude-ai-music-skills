@@ -53,8 +53,8 @@ sudo apt install python3-pip -y
 ```bash
 # Create virtual environment
 mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
 
 # Install Python packages
 pip install matchering pyloudnorm scipy numpy soundfile
@@ -167,7 +167,7 @@ wsl --shutdown  # Run in PowerShell
 cp /mnt/c/Users/Name/Downloads/*.wav ~/bitwize-music/audio/artist/album/
 
 # Work on them in WSL
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 tools/mastering/master_tracks.py ~/bitwize-music/audio/artist/album/
 ```
 
@@ -288,7 +288,7 @@ wsl --shutdown
 
 - [ ] WSL2 installed with Ubuntu 22.04+
 - [ ] Python 3.8+ and pip installed
-- [ ] Virtual environment created at `~/.bitwize-music/mastering-env/`
+- [ ] Virtual environment created at `~/.bitwize-music/venv/`
 - [ ] Audio dependencies installed (matchering, pyloudnorm, etc.)
 - [ ] libsndfile1 installed for audio processing
 - [ ] ffmpeg installed for promo videos

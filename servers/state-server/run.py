@@ -3,7 +3,7 @@
 Cross-platform wrapper for MCP server that uses venv if available.
 
 Priority order:
-1. ~/.bitwize-music/mcp-env/bin/python3 (or python.exe on Windows)
+1. ~/.bitwize-music/venv/bin/python3 (or python.exe on Windows)
 2. python3 (system/user install)
 
 Works on Linux, macOS, Windows, and WSL.
@@ -19,7 +19,7 @@ SERVER_PY = SCRIPT_DIR / "server.py"
 
 # Check for venv (platform-specific paths)
 HOME = Path.home()
-VENV_DIR = HOME / ".bitwize-music" / "mcp-env"
+VENV_DIR = HOME / ".bitwize-music" / "venv"
 
 if sys.platform == "win32":
     # Windows: Scripts/python.exe

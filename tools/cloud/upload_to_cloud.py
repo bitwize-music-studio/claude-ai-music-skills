@@ -10,8 +10,8 @@ Requirements:
     - Cloud credentials configured in ~/.bitwize-music/config.yaml
 
 Setup:
-    python3 -m venv ~/.bitwize-music/cloud-env
-    source ~/.bitwize-music/cloud-env/bin/activate
+    python3 -m venv ~/.bitwize-music/venv
+    source ~/.bitwize-music/venv/bin/activate
     pip install boto3 pyyaml
 
 Usage:
@@ -44,8 +44,8 @@ try:
 except ImportError:
     print("Error: pyyaml not installed.")
     print("Set up venv:")
-    print("  python3 -m venv ~/.bitwize-music/cloud-env")
-    print("  source ~/.bitwize-music/cloud-env/bin/activate")
+    print("  python3 -m venv ~/.bitwize-music/venv")
+    print("  source ~/.bitwize-music/venv/bin/activate")
     print("  pip install boto3 pyyaml")
     sys.exit(1)
 
@@ -55,8 +55,8 @@ try:
 except ImportError:
     print("Error: boto3 not installed.")
     print("Set up venv:")
-    print("  python3 -m venv ~/.bitwize-music/cloud-env")
-    print("  source ~/.bitwize-music/cloud-env/bin/activate")
+    print("  python3 -m venv ~/.bitwize-music/venv")
+    print("  source ~/.bitwize-music/venv/bin/activate")
     print("  pip install boto3 pyyaml")
     sys.exit(1)
 

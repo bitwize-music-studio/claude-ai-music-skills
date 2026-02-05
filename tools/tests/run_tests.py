@@ -1111,7 +1111,7 @@ class PluginTestRunner:
         # Test: .gitignore has required entries
         self.log("Checking .gitignore entries...")
         gitignore_path = self.plugin_root / ".gitignore"
-        required_ignores = ['artists/', 'research/', '*.pdf', 'mastering-env/']
+        required_ignores = ['artists/', 'research/', '*.pdf', 'venv/']
 
         if gitignore_path.exists():
             gitignore_content = gitignore_path.read_text()

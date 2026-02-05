@@ -38,7 +38,7 @@ Complete these before starting the mastering process.
 
 ```bash
 # Verify environment
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 -c "import pyloudnorm; print('Ready')"
 ```
 

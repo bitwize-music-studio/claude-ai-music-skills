@@ -75,12 +75,14 @@ See `${CLAUDE_PLUGIN_ROOT}/reference/cloud/setup-guide.md` for detailed setup in
 ### Python Dependencies
 
 ```bash
-python3 -m venv ~/.bitwize-music/cloud-env
-source ~/.bitwize-music/cloud-env/bin/activate
-pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements-cloud.txt
+# If using the shared venv (recommended)
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+
+# Or install separately
+pip install boto3
 ```
 
-**Always use the venv** — activate it before running the upload script.
+The upload script uses `~/.bitwize-music/venv` if available, otherwise falls back to system Python.
 
 ## Workflow
 
@@ -111,12 +113,13 @@ Generate with: /bitwize-music:promo-director {album}
 
 ### 2. Preview Upload (Dry Run)
 
-Always activate the venv and preview first:
+Preview first:
 ```bash
-source ~/.bitwize-music/cloud-env/bin/activate
 cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/cloud/upload_to_cloud.py {album} --dry-run
 ```
+
+The script automatically uses `~/.bitwize-music/venv` if available.
 
 Output shows:
 - Provider and bucket

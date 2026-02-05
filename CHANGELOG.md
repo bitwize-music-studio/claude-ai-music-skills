@@ -9,13 +9,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [0.40.0] - 2026-02-05
 
 ### Added
-- **Cross-platform venv support for MCP server** — automatic detection of `~/.bitwize-music/mcp-env` venv with fallback to system Python. Works on Linux, macOS, Windows, and WSL without requiring `--break-system-packages` on externally-managed Python systems.
+- **Unified venv for all plugin tools** — single `~/.bitwize-music/venv` for MCP server, mastering, cloud uploads, and document hunting. Automatic detection with fallback to system Python. Works on Linux, macOS, Windows, and WSL.
 - **MCP server wrapper script** — `servers/state-server/run.py` handles platform-specific venv paths (Windows: `Scripts/python.exe`, Unix: `bin/python3`)
+- **Single requirements.txt** — consolidated all dependencies into one file with clear sections for each feature
 
 ### Changed
 - **MCP server environment variable convention** — server now checks `CLAUDE_PLUGIN_ROOT` first (standard), then `PLUGIN_ROOT` (legacy), then derives from file location
-- **Setup skill installation method** — venv at `~/.bitwize-music/mcp-env` is now the recommended approach for externally-managed Python systems
+- **Installation simplified** — one venv setup installs everything: `python3 -m venv ~/.bitwize-music/venv && pip install -r requirements.txt`
 - **MCP .mcp.json** — simplified configuration by removing redundant `PLUGIN_ROOT` env variable
+
+### Removed
+- **Separate requirements files** — removed `requirements-mcp.txt` and `requirements-cloud.txt` in favor of unified `requirements.txt`
+- **Multiple venvs** — no longer need separate `mcp-env`, `cloud-env`, or `mastering-env` directories
 
 ## [0.39.0] - 2026-02-05
 
@@ -338,7 +343,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   - `requirements-mastering.txt` - Audio mastering (matchering, pyloudnorm, scipy, numpy, soundfile)
   - `requirements-promo.txt` - Promo videos (pillow, librosa)
   - `requirements-sheet-music.txt` - Sheet music (pypdf, reportlab, pyyaml)
-  - `requirements-cloud.txt` - Cloud uploads (boto3)
+  - `requirements.txt` - Cloud uploads (boto3)
   - `requirements-research.txt` - Document hunting (playwright)
 - **Model tier consistency test** in `run_tests.py` - Validates SKILL.md model assignments match model-strategy.md, reports tier distribution, detects `disable-model-invocation` flags
 - **Cross-references** added to reference docs (v5-best-practices, distribution, pronunciation-guide, checkpoint-scripts) linking related skills and docs

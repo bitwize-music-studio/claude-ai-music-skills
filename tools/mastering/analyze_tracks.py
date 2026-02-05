@@ -115,7 +115,7 @@ def main():
     print("=" * 80)
     print()
 
-    filterable = [f for f in wav_files if 'mastering-env' not in str(f)]
+    filterable = [f for f in wav_files if 'venv' not in str(f)]
     workers = args.jobs if args.jobs > 0 else os.cpu_count()
     progress = ProgressBar(len(filterable), prefix="Analyzing")
 

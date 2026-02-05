@@ -96,7 +96,7 @@ Not required, but I'd love to hear what you create with this. Drop a tweet with 
 **Install all optional dependencies at once:**
 ```bash
 pip install --user -r requirements.txt
-pip install --user -r requirements-mcp.txt
+pip install --user -r requirements.txt
 playwright install chromium
 ```
 

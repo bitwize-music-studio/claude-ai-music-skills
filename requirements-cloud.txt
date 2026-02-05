@@ -1,2 +1,0 @@
-# Cloud Uploads (required for /bitwize-music:cloud-uploader)
-boto3>=1.28.0

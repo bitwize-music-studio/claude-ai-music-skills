@@ -1,6 +1,0 @@
-# MCP server dependencies
-# Install: pip install -r requirements-mcp.txt
-# Required: Python 3.10+
-
-mcp[cli]>=1.2.0
-pyyaml>=6.0

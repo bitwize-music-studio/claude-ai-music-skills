@@ -47,8 +47,8 @@ This document defines the automated mastering workflow for preparing audio track
 ```bash
 # Create shared virtual environment
 mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
 
 # Install Python audio libraries
 pip install matchering pyloudnorm scipy numpy soundfile
@@ -83,7 +83,7 @@ target-folder/                # Your album's WAV folder ({audio_root}/{artist}/{
 Run the analysis script for accurate measurements:
 
 ```bash
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/
 ```
 
@@ -112,7 +112,7 @@ After analysis, categorize tracks:
 ### Standard Mastering Command
 
 ```bash
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --genre country
 ```
 
@@ -419,12 +419,12 @@ python3 reference_master.py --reference pro_track.wav --target single_track.wav
 ```bash
 # One-time setup (shared venv)
 mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
 pip install matchering pyloudnorm scipy numpy soundfile
 
 # For each album - run from anywhere, scripts stay in plugin:
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 
 # Analyze tracks (pass audio folder path)
 python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/
@@ -457,8 +457,8 @@ ls {audio_root}/{artist}/{album}/mastered/
 ### "externally-managed-environment" error
 Use a virtual environment:
 ```bash
-python3 -m venv ~/.bitwize-music/mastering-env
-source ~/.bitwize-music/mastering-env/bin/activate
+python3 -m venv ~/.bitwize-music/venv
+source ~/.bitwize-music/venv/bin/activate
 ```
 
 ### Very slow processing

@@ -15,7 +15,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **Override** | User-created file that customizes plugin behavior without modifying plugin files. Survives plugin updates. | `{overrides}/CLAUDE.md`, `{overrides}/pronunciation-guide.md` |
 | **Plugin Root** | Directory where the plugin code lives. Contains skills, templates, reference docs, and tools. | `~/.claude/plugins/bitwize-music` |
 | **Skill** | A slash command that invokes specialized functionality. Each skill has its own SKILL.md documentation. | `/bitwize-music:lyric-writer`, `/bitwize-music:researcher` |
-| **Tools Root** | Directory for shared tools, virtual environments, and cache. Always at `~/.bitwize-music`. | `~/.bitwize-music/mastering-env/` |
+| **Tools Root** | Directory for shared tools, virtual environments, and cache. Always at `~/.bitwize-music`. | `~/.bitwize-music/venv/` |
 
 ---
 

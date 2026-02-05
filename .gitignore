@@ -9,7 +9,7 @@ IDEAS.md
 *.pyc
 __pycache__/
 .venv/
-mastering-env/
+venv/
 mastered/
 *.wav
 *.mp3

@@ -715,7 +715,7 @@ Verify it includes:
 
 ### TEST: Shared venv path documented correctly
 Search for mastering venv references.
-All should point to `~/.bitwize-music/mastering-env` (not per-folder venv).
+All should point to `~/.bitwize-music/venv` (not per-folder venv).
 
 ### TEST: Target loudness documented
 Read CLAUDE.md mastering section or reference/mastering/.

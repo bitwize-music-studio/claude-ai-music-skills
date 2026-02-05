@@ -60,7 +60,7 @@ True Peak at -1.0 dBTP → Safe headroom → Clean playback
 Our analysis script provides all essential metrics:
 
 ```bash
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 {plugin_root}/tools/mastering/analyze_tracks.py /path/to/audio/
 ```
 
@@ -221,7 +221,7 @@ Website: [hofa-plugins.de](https://hofa-plugins.de/plugins/4u-meter/)
 
 ```bash
 # Activate environment
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 
 # Analyze a folder
 python3 {plugin_root}/tools/mastering/analyze_tracks.py /path/to/mastered/
@@ -291,7 +291,7 @@ Range: < 1 dB across album  (consistent)
 
 ```bash
 # Full verification command
-source ~/.bitwize-music/mastering-env/bin/activate
+source ~/.bitwize-music/venv/bin/activate
 python3 {plugin_root}/tools/mastering/analyze_tracks.py /path/to/mastered/
 
 # Expected: All tracks show "OK" status
