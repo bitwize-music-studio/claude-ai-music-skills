@@ -74,78 +74,44 @@ command -v playwright >/dev/null 2>&1 && echo "✅ playwright CLI: installed" ||
 
 ---
 
-## Step 3: Show Installation Recommendations
+## Step 3: Show Installation Commands
 
-Based on environment detection and missing components, provide **specific commands** for the user's system.
-
-### For Externally-Managed Python (Ubuntu/Debian)
-
-**Recommended approach: Virtual environment (automatic detection)**
+**Always use the unified venv approach** — it works on all platforms and is automatically detected by the plugin.
 
 ```bash
-# Create shared venv for all plugin tools
+# Create unified venv (if it doesn't exist)
 python3 -m venv ~/.bitwize-music/venv
 
-# Install MCP server (required)
+# Install ALL plugin dependencies
 ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
 
-# Optional: Mastering tools
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-
-# Optional: Cloud uploads
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-
-# Optional: Document hunter
-~/.bitwize-music/venv/bin/pip install playwright
+# Set up document hunter browser
 ~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
-All plugin tools automatically detect and use `~/.bitwize-music/venv`. No manual configuration needed.
+**That's it!** The plugin automatically detects and uses `~/.bitwize-music/venv`. No configuration needed.
 
-**Alternative: User install**
-
-```bash
-pip install --user "mcp[cli]>=1.2.0" pyyaml
-pip install --user matchering pyloudnorm scipy numpy soundfile
-pip install --user playwright
-playwright install chromium
-```
-
-**Alternative: pipx (if installed)**
-
-```bash
-pipx install mcp
-pipx inject mcp pyyaml
-```
-
-### For User-Managed Python (macOS, other systems)
-
-```bash
-# MCP server
-pip install "mcp[cli]>=1.2.0" pyyaml
-
-# Mastering tools
-pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-
-# Document hunter
-pip install playwright
-playwright install chromium
-```
+**Works on:**
+- ✅ Linux (externally-managed Python)
+- ✅ macOS
+- ✅ Windows (WSL)
+- ✅ All other systems
 
 ---
 
 ## Step 4: Installation Guide
 
-Present the recommendations as a **numbered checklist**:
+Present a clear, simple installation guide:
 
-1. **Environment detected**: [externally-managed | user-managed]
-2. **Missing components**: [list what's missing]
-3. **Recommended installation method**: [user install | pipx | venv | direct pip]
-4. **Commands to run**:
+1. **Environment detected**: [Python version, Platform]
+2. **Missing components**: [list what needs to be installed]
+3. **Installation commands**:
    ```bash
-   [show specific commands for their system]
+   python3 -m venv ~/.bitwize-music/venv
+   ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+   ~/.bitwize-music/venv/bin/playwright install chromium
    ```
-5. **After installation**:
+4. **After installation**:
    - Restart Claude Code to reload the plugin
    - MCP server should show as running in `/plugin` status
    - Run `/bitwize-music:setup` again to verify
@@ -173,29 +139,34 @@ Use clear sections with checkboxes for status:
 
 ### Environment
 - Python: 3.12.3
-- System: Linux (externally-managed)
-- Install method: User install recommended
+- System: Linux
 
 ### Component Status
 - [❌] MCP server (required)
 - [✅] Mastering tools
 - [❌] Document hunter
 
-### Installation Commands
+### Installation
 
-Run these commands to install missing components:
+Run these commands to set up the unified venv:
 
 ```bash
-pip install --user "mcp[cli]>=1.2.0" pyyaml
-pip install --user playwright
-playwright install chromium
+# Create venv
+python3 -m venv ~/.bitwize-music/venv
+
+# Install everything
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+
+# Set up browser for document hunting
+~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
-After installation:
+**After installation:**
 1. Restart Claude Code
-2. Run `/bitwize-music:setup` to verify
+2. MCP server will automatically use the venv
+3. Run `/bitwize-music:setup` to verify
 
-Need help? See: ${CLAUDE_PLUGIN_ROOT}/servers/state-server/README.md
+The plugin automatically detects `~/.bitwize-music/venv` — no configuration needed!
 ```
 
 ---
