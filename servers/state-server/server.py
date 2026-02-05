@@ -29,8 +29,11 @@ from pathlib import Path
 from typing import Optional
 
 # Derive plugin root from environment or file location
+# Check CLAUDE_PLUGIN_ROOT first (standard env var), then PLUGIN_ROOT (legacy), then derive from file
 PLUGIN_ROOT = Path(
-    os.environ.get("PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent)
+    os.environ.get("CLAUDE_PLUGIN_ROOT") or
+    os.environ.get("PLUGIN_ROOT") or
+    Path(__file__).resolve().parent.parent.parent
 )
 
 # Add plugin root to sys.path for tools.* imports

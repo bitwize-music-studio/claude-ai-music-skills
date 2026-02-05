@@ -78,16 +78,28 @@ Based on environment detection and missing components, provide **specific comman
 
 ### For Externally-Managed Python (Ubuntu/Debian)
 
-**Recommended approach: User install**
+**Recommended approach: Virtual environment (automatic detection)**
 
 ```bash
-# MCP server
+# Create venv for MCP server
+python3 -m venv ~/.bitwize-music/mcp-env
+~/.bitwize-music/mcp-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements-mcp.txt
+
+# Optional: Mastering tools
+~/.bitwize-music/mcp-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+
+# Optional: Document hunter
+~/.bitwize-music/mcp-env/bin/pip install playwright
+~/.bitwize-music/mcp-env/bin/playwright install chromium
+```
+
+The MCP server will automatically detect and use this venv. No manual configuration needed.
+
+**Alternative: User install**
+
+```bash
 pip install --user "mcp[cli]>=1.2.0" pyyaml
-
-# Mastering tools
 pip install --user matchering pyloudnorm scipy numpy soundfile
-
-# Document hunter
 pip install --user playwright
 playwright install chromium
 ```
@@ -97,17 +109,6 @@ playwright install chromium
 ```bash
 pipx install mcp
 pipx inject mcp pyyaml
-```
-
-**Alternative: Virtual environment**
-
-```bash
-python3 -m venv ~/.bitwize-music-env
-~/.bitwize-music-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements-mcp.txt
-~/.bitwize-music-env/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-
-# Then update .mcp.json to use venv Python:
-# "command": "~/.bitwize-music-env/bin/python3"
 ```
 
 ### For User-Managed Python (macOS, other systems)

@@ -16,23 +16,25 @@ The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools
 
 ## Installation
 
-**On systems with externally-managed Python (Ubuntu/Debian):**
+**Recommended: Virtual environment (all systems)**
 
 ```bash
-# Option 1: User install (recommended)
-pip install --user "mcp[cli]>=1.2.0" pyyaml
+# Create venv at standard location
+python3 -m venv ~/.bitwize-music/mcp-env
 
-# Option 2: Using pipx
-pipx install mcp
-pipx inject mcp pyyaml
-
-# Option 3: Virtual environment (if you prefer isolation)
-python3 -m venv ~/.mcp-env
-~/.mcp-env/bin/pip install -r requirements-mcp.txt
-# Then update .mcp.json to use ~/.mcp-env/bin/python3
+# Install dependencies
+~/.bitwize-music/mcp-env/bin/pip install -r requirements-mcp.txt
 ```
 
-**On other systems:**
+The MCP server automatically detects and uses `~/.bitwize-music/mcp-env` if it exists. No manual configuration needed.
+
+**Alternative: User install (externally-managed Python)**
+
+```bash
+pip install --user "mcp[cli]>=1.2.0" pyyaml
+```
+
+**Alternative: System install (user-managed Python)**
 
 ```bash
 pip install -r requirements-mcp.txt
