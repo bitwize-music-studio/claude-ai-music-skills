@@ -222,11 +222,16 @@ fi
 # Check dependencies with pip-audit
 if command -v pip-audit &> /dev/null; then
     if [ -f "requirements.txt" ]; then
-        if pip-audit -r requirements.txt -q 2>/dev/null; then
+        # Run pip-audit and capture output
+        AUDIT_OUTPUT=$(pip-audit -r requirements.txt 2>&1)
+        AUDIT_EXIT=$?
+
+        if [ $AUDIT_EXIT -eq 0 ]; then
             echo "      ✓ Security scan passed"
         else
             echo "      ✗ Known vulnerabilities in dependencies"
-            echo "      Run 'pip-audit -r requirements.txt' for details"
+            echo "$AUDIT_OUTPUT" | grep -E "Name|Version|ID|Fix"
+            echo "      Run 'pip-audit -r requirements.txt' for full details"
             exit 1
         fi
     else
