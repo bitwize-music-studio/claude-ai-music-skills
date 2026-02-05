@@ -28,8 +28,9 @@ When invoked with a concept:
 
 ## Supporting Files
 
-- **[documentary-standards.md](documentary-standards.md)** - Legal standards for true crime/documentary lyrics
+- **[examples.md](examples.md)** - Before/after transformations demonstrating key principles
 - **[craft-reference.md](craft-reference.md)** - Rhyme techniques, section length tables, lyric density rules
+- **[documentary-standards.md](documentary-standards.md)** - Legal standards for true crime/documentary lyrics
 
 ---
 

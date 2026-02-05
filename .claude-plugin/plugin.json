@@ -1,7 +1,7 @@
 {
   "name": "bitwize-music",
   "description": "AI music generation workflow for Suno - album concepts, lyrics, prompts, mastering, release",
-  "version": "0.37.1",
+  "version": "0.38.0",
   "author": {
     "name": "bitwize-music"
   },
@@ -9,7 +9,6 @@
   "homepage": "https://github.com/bitwize-music-studio/claude-ai-music-skills#readme",
   "license": "CC0-1.0",
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json",
   "keywords": [
     "music",
