@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "bitwize-music-mcp": {
-      "command": "python3",
+      "command": "/home/bender/.bitwize-music/venv/bin/python3",
       "args": ["${CLAUDE_PLUGIN_ROOT}/servers/state-server/run.py"]
     }
   }
