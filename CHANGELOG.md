@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-02-05
+
+### Added
+- **Cross-platform venv support for MCP server** — automatic detection of `~/.bitwize-music/mcp-env` venv with fallback to system Python. Works on Linux, macOS, Windows, and WSL without requiring `--break-system-packages` on externally-managed Python systems.
+- **MCP server wrapper script** — `servers/state-server/run.py` handles platform-specific venv paths (Windows: `Scripts/python.exe`, Unix: `bin/python3`)
+
+### Changed
+- **MCP server environment variable convention** — server now checks `CLAUDE_PLUGIN_ROOT` first (standard), then `PLUGIN_ROOT` (legacy), then derives from file location
+- **Setup skill installation method** — venv at `~/.bitwize-music/mcp-env` is now the recommended approach for externally-managed Python systems
+- **MCP .mcp.json** — simplified configuration by removing redundant `PLUGIN_ROOT` env variable
+
 ## [0.39.0] - 2026-02-05
 
 ### Added
