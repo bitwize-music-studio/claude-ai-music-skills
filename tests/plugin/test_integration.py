@@ -68,7 +68,7 @@ class TestLyricWorkflowChain:
         reviewer_content = reviewer.get('_content', '')
 
         writer_match = re.search(
-            r'(\d+)-[Pp]oint.*(?:[Cc]hecklist|[Qq]uality [Cc]heck)', writer_content
+            r'(?:(\d+)-[Pp]oint.*(?:[Cc]hecklist|[Qq]uality [Cc]heck)|[Qq]uality [Cc]heck \((\d+)-[Pp]oint\))', writer_content
         )
         reviewer_match = re.search(
             r'(\d+)-[Pp]oint.*[Cc]hecklist', reviewer_content
@@ -77,7 +77,7 @@ class TestLyricWorkflowChain:
         if not writer_match or not reviewer_match:
             pytest.skip("Could not find checklist counts")
 
-        writer_count = int(writer_match.group(1))
+        writer_count = int(writer_match.group(1) or writer_match.group(2))
         reviewer_count = int(reviewer_match.group(1))
         assert reviewer_count >= writer_count, (
             f"Reviewer ({reviewer_count}-point) should cover >= writer ({writer_count}-point)"

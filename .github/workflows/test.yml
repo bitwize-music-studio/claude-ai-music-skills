@@ -205,9 +205,17 @@ jobs:
         pip install -r requirements-test.txt
         pip install -r requirements-mastering.txt
 
-    - name: Run tests
+    - name: Run tests with coverage
       run: |
-        python -m pytest tests/ -v --tb=short
+        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html
+
+    - name: Upload coverage report
+      if: matrix.python-version == '3.11'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+      with:
+        name: coverage-report
+        path: coverage-html/
+        retention-days: 14
 
   lint:
     name: Lint

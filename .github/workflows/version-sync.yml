@@ -5,6 +5,8 @@ on:
     paths:
       - '.claude-plugin/plugin.json'
       - '.claude-plugin/marketplace.json'
+      - 'README.md'
+      - 'skills/*/SKILL.md'
 
 permissions:
   contents: read
@@ -39,3 +41,33 @@ jobs:
 
         echo ""
         echo "[OK] Version files are in sync: $PLUGIN_VERSION"
+
+    - name: Verify README badges match
+      run: |
+        PLUGIN_VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
+        SKILL_COUNT=$(find skills -maxdepth 1 -mindepth 1 -type d | wc -l)
+        ERRORS=0
+
+        # Check version badge
+        if grep -qF "badge/version-${PLUGIN_VERSION}-blue" README.md; then
+          echo "[OK] Version badge matches: $PLUGIN_VERSION"
+        else
+          README_BADGE=$(grep -oP 'badge/version-\K[^-]+' README.md || echo "not found")
+          echo "[FAIL] Version badge ($README_BADGE) does not match plugin.json ($PLUGIN_VERSION)"
+          echo "  Update README.md: badge/version-${PLUGIN_VERSION}-blue"
+          ERRORS=$((ERRORS + 1))
+        fi
+
+        # Check skills badge
+        if grep -qF "badge/skills-${SKILL_COUNT}-green" README.md; then
+          echo "[OK] Skills badge matches: $SKILL_COUNT"
+        else
+          README_SKILLS=$(grep -oP 'badge/skills-\K[0-9]+' README.md || echo "not found")
+          echo "[FAIL] Skills badge ($README_SKILLS) does not match actual count ($SKILL_COUNT)"
+          echo "  Update README.md: badge/skills-${SKILL_COUNT}-green"
+          ERRORS=$((ERRORS + 1))
+        fi
+
+        if [ "$ERRORS" -gt 0 ]; then
+          exit 1
+        fi
