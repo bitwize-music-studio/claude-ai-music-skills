@@ -130,38 +130,75 @@ Present a clear status report:
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 8: Offer Specific Next Actions
+### Step 8: Recommend the Single Best Next Action
 
-Based on the phase, suggest concrete next steps:
+Pick ONE clear recommendation from the decision tree below. Don't list 5 options — pick the best one, include the skill name, and be specific about which track.
 
-**Planning Phase**:
-- "Let's fill in the album concept and tracklist"
-- "Run the 7 Planning Phases to finalize details"
+**Decision Tree** (evaluate top-to-bottom, first match wins):
 
-**Research Phase** (documentary/true-story albums):
-- "This is a documentary album — let's gather sources before writing"
-- "Use `/bitwize-music:researcher` to coordinate research across domains"
-- "Use `/bitwize-music:document-hunter` for automated free source searching"
+```
+Album Status = "Concept"
+  → "Define the album concept. Run /bitwize-music:album-conceptualizer"
 
-**Writing Phase**:
-- "Which track should we write next?"
-- "Track X needs lyrics - shall we work on that?"
+Album Status = "Research Complete"
+  → Any tracks Sources Pending?
+    YES → "Sources need verification. Run /bitwize-music:verify-sources [album]"
+    NO  → "Ready to write! Pick a track and use /bitwize-music:lyric-writer"
 
-**Verification Phase**:
-- "Tracks X, Y, Z need source verification"
-- "Please review and verify sources before we proceed"
+Album has tracks with "Not Started"
+  → "Write lyrics for [first not-started track]. Use /bitwize-music:lyric-writer"
 
-**Ready to Generate Phase**:
-- "All lyrics complete! Ready to generate on Suno?"
-- "Shall I run the Ready to Generate checkpoint?"
+Album has tracks with "In Progress" (lyrics partially written)
+  → "Finish lyrics for [first in-progress track]. Use /bitwize-music:lyric-writer"
 
-**Generating Phase**:
-- "Tracks X, Y need generation on Suno"
-- "Have you generated any new tracks? Let me know URLs to log"
+Album has tracks with "Sources Pending"
+  → "Verify sources for [track]. Run /bitwize-music:verify-sources [album]"
 
-**Mastering Phase**:
-- "All tracks generated! Ready to master?"
-- "Do you have WAV files downloaded from Suno?"
+All tracks have lyrics, none generated
+  → "All lyrics complete! Run /bitwize-music:pre-generation-check then generate on Suno."
+
+Some tracks generated, some not
+  → "Generate [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"
+
+All tracks generated
+  → "All tracks generated! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+
+Album Status = "Complete"
+  → "Album is complete! Release with /bitwize-music:release-director"
+
+Album Status = "Released"
+  → "This album is released! Consider /bitwize-music:promo-director for promotional content"
+  → Also suggest: "Start a new album? Check /bitwize-music:album-ideas list"
+```
+
+**Format the recommendation as:**
+```
+RECOMMENDED NEXT ACTION:
+  [Clear, specific instruction with skill name and track name]
+
+WHY:
+  [One sentence explaining why this is the right next step]
+```
+
+### When No Album Specified (No Arguments)
+
+If invoked without an album name:
+1. Check session context (`state.session.last_album`) — resume that album
+2. If no session context, find all in-progress albums
+3. Prioritize: closest to completion > unblocked work > last worked on
+4. If no albums exist, suggest `/bitwize-music:new-album`
+
+Present a multi-album summary if multiple are in progress:
+```
+You have X albums. Here's the most actionable:
+
+PRIORITY 1: [album-name] ([genre])
+  Status: [status] | Progress: [X/Y tracks]
+  → [Recommended action]
+
+Also in progress:
+  - [album-2] — [brief status]
+```
 
 ---
 

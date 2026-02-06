@@ -62,7 +62,7 @@ lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer 
 
 ---
 
-## The 13-Point Checklist
+## The 14-Point Checklist
 
 ### 1. Rhyme Check
 - Repeated end words, self-rhymes, predictable patterns

@@ -104,6 +104,28 @@ Overwrite? (The original was not moved)
 
 ---
 
+## MP3 Files
+
+Suno allows downloading in both WAV and MP3 formats. **Always prefer WAV** for mastering quality.
+
+**If the user provides an MP3 file:**
+
+1. Accept the MP3 and import it normally (same path logic)
+2. Warn the user:
+```
+Note: This is an MP3 file. For best mastering results, download the WAV
+version from Suno instead. MP3 compression removes audio data that can't
+be recovered during mastering.
+
+If WAV isn't available, this MP3 will work but mastering quality may be limited.
+```
+
+3. Import the file to the same destination path as WAV files
+
+**Supported formats:** WAV (preferred), MP3, FLAC, OGG, M4A
+
+---
+
 ## Examples
 
 ```
