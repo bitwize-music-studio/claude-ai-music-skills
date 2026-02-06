@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.5] - 2026-02-06
+
+### Fixed
+- **MCP server config portability** — .mcp.json now uses `${HOME}` and `${CLAUDE_PLUGIN_ROOT}` environment variables instead of hardcoded absolute paths, making the config portable across different installations
+
 ## [0.41.4] - 2026-02-05
 
 ### Fixed
