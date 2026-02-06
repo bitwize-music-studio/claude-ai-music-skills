@@ -27,6 +27,7 @@ Tools exposed:
     list_track_files    - List track files with status filtering
     extract_section     - Extract a section from a track markdown file
     update_track_field  - Update a metadata field in a track file
+    get_album_progress  - Get album progress breakdown with phase detection
 """
 import json
 import logging
@@ -268,6 +269,9 @@ def _safe_json(data: Any) -> str:
 async def find_album(name: str) -> str:
     """Find an album by name with fuzzy matching.
 
+    Auto-rebuilds state cache if empty or missing, so callers never need
+    fallback glob logic.
+
     Args:
         name: Album name, slug, or partial match (e.g., "my-album", "my album", "My Album")
 
@@ -277,8 +281,19 @@ async def find_album(name: str) -> str:
     state = cache.get_state()
     albums = state.get("albums", {})
 
+    # Auto-rebuild if state is empty or missing albums
     if not albums:
-        return _safe_json({"found": False, "error": "No albums in state cache"})
+        logger.info("find_album: no albums in cache, attempting auto-rebuild")
+        rebuilt = cache.rebuild()
+        if "error" not in rebuilt:
+            state = rebuilt
+            albums = state.get("albums", {})
+        if not albums:
+            return _safe_json({
+                "found": False,
+                "error": "No albums found (state rebuilt but still empty)",
+                "rebuilt": True,
+            })
 
     normalized = _normalize_slug(name)
 
@@ -1161,6 +1176,119 @@ async def update_track_field(
         "field": table_key,
         "value": value,
         "track": parsed,
+    })
+
+
+# Phase detection logic matching resume skill's decision tree
+_PHASE_RULES = [
+    # (condition_fn, phase_name)
+    # Evaluated top-to-bottom, first match wins
+]
+
+
+def _detect_phase(album: dict) -> str:
+    """Detect the current workflow phase for an album.
+
+    Matches the decision tree from the resume skill.
+    """
+    status = album.get("status", "Unknown")
+    tracks = album.get("tracks", {})
+
+    if status == "Released":
+        return "Released"
+    if status == "Complete":
+        return "Ready to Release"
+
+    track_statuses = [t.get("status", "Unknown") for t in tracks.values()]
+    sources = [t.get("sources_verified", "N/A") for t in tracks.values()]
+
+    if status == "Concept" or not track_statuses:
+        return "Planning"
+
+    # Count by status
+    not_started = sum(1 for s in track_statuses if s == "Not Started")
+    in_progress = sum(1 for s in track_statuses if s == "In Progress")
+    generated = sum(1 for s in track_statuses if s == "Generated")
+    final = sum(1 for s in track_statuses if s == "Final")
+    total = len(track_statuses)
+    sources_pending = sum(1 for s in sources if s.lower() == "pending")
+
+    if sources_pending > 0:
+        return "Source Verification"
+    if not_started > 0 or in_progress > 0:
+        return "Writing"
+    if generated == 0 and final == 0:
+        return "Ready to Generate"
+    if generated > 0 and (generated + final) < total:
+        return "Generating"
+    if generated > 0 and final == 0:
+        return "Mastering"
+    if final == total:
+        return "Ready to Release"
+
+    return "In Progress"
+
+
+@mcp.tool()
+async def get_album_progress(album_slug: str) -> str:
+    """Get album progress breakdown with completion stats and phase detection.
+
+    Provides a single-call summary of album state: track counts by status,
+    completion percentage, and detected workflow phase. Eliminates duplicate
+    progress calculation in album-dashboard and resume skills.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with progress data or error
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    track_count = len(tracks)
+
+    # Count by status
+    status_counts = {}
+    for track in tracks.values():
+        s = track.get("status", "Unknown")
+        status_counts[s] = status_counts.get(s, 0) + 1
+
+    completed_statuses = {"Final", "Generated"}
+    tracks_completed = sum(
+        count for s, count in status_counts.items() if s in completed_statuses
+    )
+
+    completion_pct = round((tracks_completed / track_count * 100), 1) if track_count > 0 else 0.0
+
+    # Detect phase
+    phase = _detect_phase(album)
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "album_title": album.get("title", normalized),
+        "album_status": album.get("status", "Unknown"),
+        "genre": album.get("genre", ""),
+        "phase": phase,
+        "track_count": track_count,
+        "tracks_completed": tracks_completed,
+        "completion_percentage": completion_pct,
+        "tracks_by_status": status_counts,
+        "sources_pending": sum(
+            1 for t in tracks.values()
+            if t.get("sources_verified", "").lower() == "pending"
+        ),
     })
 
 

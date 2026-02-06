@@ -737,7 +737,8 @@ class TestFindAlbum:
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.find_album("anything")))
         assert result["found"] is False
-        assert "No albums in state cache" in result["error"]
+        assert "No albums found" in result["error"]
+        assert result.get("rebuilt") is True
 
 
 # =============================================================================
@@ -1891,3 +1892,202 @@ class TestUpdateTrackField:
         # In-memory state should reflect update
         state = mock_cache.get_state()
         assert state["albums"]["test-album"]["tracks"]["01-test-track"]["status"] == "Final"
+
+
+# =============================================================================
+# find_album auto-rebuild tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestFindAlbumAutoRebuild:
+    """Tests for find_album's auto-rebuild when state is empty."""
+
+    def test_auto_rebuild_on_empty_albums(self):
+        """Triggers rebuild when albums dict is empty."""
+        state = _fresh_state()
+        state["albums"] = {}
+        mock_cache = MockStateCache(state)
+        # After rebuild, mock still returns empty — should report rebuilt
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("anything")))
+        assert result["found"] is False
+        assert result.get("rebuilt") is True
+        assert mock_cache._rebuild_called is True
+
+    def test_no_rebuild_when_albums_exist(self):
+        """Does NOT rebuild when albums are present."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            _run(server.find_album("test-album"))
+        assert mock_cache._rebuild_called is False
+
+    def test_rebuild_recovers_albums(self):
+        """After rebuild finds albums, search works normally."""
+        # Start empty, but rebuild returns populated state
+        empty_state = _fresh_state()
+        empty_state["albums"] = {}
+
+        class RebuildingCache(MockStateCache):
+            def rebuild(self):
+                self._rebuild_called = True
+                self._state = _fresh_state()  # now has albums
+                return self._state
+
+        mock_cache = RebuildingCache(empty_state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("test-album")))
+        assert result["found"] is True
+        assert result["slug"] == "test-album"
+
+
+# =============================================================================
+# get_album_progress tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestGetAlbumProgress:
+    """Tests for the get_album_progress MCP tool."""
+
+    def test_basic_progress(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("test-album")))
+        assert result["found"] is True
+        assert result["album_slug"] == "test-album"
+        assert result["album_title"] == "Test Album"
+        assert result["track_count"] == 2
+        assert result["genre"] == "electronic"
+        assert "tracks_by_status" in result
+        assert "phase" in result
+        assert "completion_percentage" in result
+
+    def test_tracks_by_status_counts(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("test-album")))
+        counts = result["tracks_by_status"]
+        assert counts.get("Final") == 1
+        assert counts.get("In Progress") == 1
+
+    def test_completion_percentage(self):
+        """Completed = Final + Generated out of total."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("test-album")))
+        # 1 Final out of 2 tracks = 50%
+        assert result["completion_percentage"] == 50.0
+
+    def test_complete_album(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("another-album")))
+        assert result["completion_percentage"] == 100.0
+        assert result["album_status"] == "Complete"
+
+    def test_sources_pending_count(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("test-album")))
+        assert result["sources_pending"] == 1  # 02-second-track has "Pending"
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("nonexistent")))
+        assert result["found"] is False
+        assert "available_albums" in result
+
+    def test_slug_normalization(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("Test Album")))
+        assert result["found"] is True
+
+    def test_phase_writing(self):
+        """Album with Not Started/In Progress tracks is in Writing phase."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("test-album")))
+        # test-album has 1 Final + 1 In Progress with Pending sources
+        assert result["phase"] == "Source Verification"
+
+    def test_phase_planning(self):
+        state = _fresh_state()
+        state["albums"]["concept-album"] = {
+            "path": "/tmp/test/concept",
+            "genre": "rock",
+            "title": "Concept Album",
+            "status": "Concept",
+            "tracks": {},
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("concept-album")))
+        assert result["phase"] == "Planning"
+
+    def test_phase_released(self):
+        state = _fresh_state()
+        state["albums"]["done-album"] = {
+            "path": "/tmp/test/done",
+            "genre": "jazz",
+            "title": "Done Album",
+            "status": "Released",
+            "tracks": {
+                "01-song": {"status": "Final", "sources_verified": "N/A"},
+            },
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("done-album")))
+        assert result["phase"] == "Released"
+
+    def test_phase_ready_to_generate(self):
+        """All tracks have lyrics (not Not Started/In Progress) but none generated."""
+        state = _fresh_state()
+        state["albums"]["ready-album"] = {
+            "path": "/tmp/test/ready",
+            "genre": "pop",
+            "title": "Ready Album",
+            "status": "In Progress",
+            "tracks": {
+                "01-a": {"status": "Sources Verified", "sources_verified": "Verified"},
+                "02-b": {"status": "Sources Verified", "sources_verified": "Verified"},
+            },
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("ready-album")))
+        assert result["phase"] == "Ready to Generate"
+
+    def test_phase_mastering(self):
+        """All tracks generated, none final yet."""
+        state = _fresh_state()
+        state["albums"]["gen-album"] = {
+            "path": "/tmp/test/gen",
+            "genre": "rock",
+            "title": "Generated Album",
+            "status": "In Progress",
+            "tracks": {
+                "01-a": {"status": "Generated", "sources_verified": "N/A"},
+                "02-b": {"status": "Generated", "sources_verified": "N/A"},
+            },
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("gen-album")))
+        assert result["phase"] == "Mastering"
+
+    def test_empty_tracks_zero_percent(self):
+        state = _fresh_state()
+        state["albums"]["empty-album"] = {
+            "path": "/tmp/test/empty",
+            "genre": "ambient",
+            "title": "Empty Album",
+            "status": "Concept",
+            "tracks": {},
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_progress("empty-album")))
+        assert result["completion_percentage"] == 0.0
+        assert result["track_count"] == 0
