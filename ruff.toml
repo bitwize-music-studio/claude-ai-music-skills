@@ -22,9 +22,7 @@ fixable = ["F541", "F401", "W"]
 
 [lint.per-file-ignores]
 # Test files can have unused imports for fixtures
-"tools/state/tests/*.py" = ["F401", "F811"]
-# run_tests.py uses bare excepts for resilient validation
-"tools/tests/run_tests.py" = ["E722"]
+"tests/unit/**/*.py" = ["F401", "F811"]
 # Sheet music tools use bare excepts for defensive capability detection
 # and import page sizes for availability checks
 "tools/sheet-music/*.py" = ["E722", "F401"]

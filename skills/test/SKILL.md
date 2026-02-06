@@ -27,28 +27,25 @@ You are the plugin's automated test runner. Execute each test, track pass/fail, 
 
 ## Quick Automated Tests (`/test quick`)
 
-For fast automated validation, run the Python test runner:
+For fast automated validation, run the pytest suite:
 
 ```bash
-python3 tools/tests/run_tests.py
+python3 -m pytest tests/ -v
 ```
 
 This covers:
-- **skills** - YAML frontmatter validation, required fields, model references
-- **templates** - Required templates exist, template structure
-- **references** - Suno reference docs, mastering docs
-- **links** - Internal markdown link validation
-- **terminology** - Deprecated terms, path variable consistency
-- **consistency** - Skill count, version sync, .gitignore entries
-- **config** - Config file structure and documentation
+- **plugin tests** (`tests/plugin/`) - Frontmatter, templates, references, links, terminology, consistency, config, state, genres, integration
+- **unit tests** (`tests/unit/`) - State parsers/indexer, shared utilities, mastering functions
 
 Run specific categories:
 ```bash
-python3 tools/tests/run_tests.py skills templates
-python3 tools/tests/run_tests.py --verbose  # Debug mode
+python3 -m pytest tests/plugin/test_skills.py -v       # Skills only
+python3 -m pytest tests/plugin/ -v                      # All plugin tests
+python3 -m pytest tests/unit/ -v                        # All unit tests
+python3 -m pytest tests/ -m "not slow" -v               # Skip slow tests
 ```
 
-The Python runner is faster and catches common issues. For deep behavioral tests, use the full test suite below.
+Pytest catches common issues fast. For deep behavioral tests, use the full test suite below.
 
 ## Output Format
 
@@ -118,32 +115,35 @@ Read that file before running tests to understand what each test checks.
 | `/test quality` | Code quality checks |
 | `/test e2e` | End-to-end integration test |
 
-## Quick Tests via Python Runner
+## Quick Tests via Pytest
 
-For rapid validation during development, use the Python test runner directly:
+For rapid validation during development, use pytest directly:
 
 ```bash
-# Run all automated tests
-python3 tools/tests/run_tests.py
+# Run all tests
+python3 -m pytest tests/ -v
 
-# Run specific categories
-python3 tools/tests/run_tests.py skills templates
+# Run specific test modules
+python3 -m pytest tests/plugin/test_skills.py tests/plugin/test_templates.py -v
 
-# Verbose mode for debugging
-python3 tools/tests/run_tests.py --verbose
+# Verbose with short tracebacks
+python3 -m pytest tests/ -v --tb=short
 
-# No color output (for CI/logs)
-python3 tools/tests/run_tests.py --no-color
+# Quiet mode (for CI/logs)
+python3 -m pytest tests/ -q --tb=line
 ```
 
-Categories available in Python runner:
-- `skills` - Frontmatter, required fields, model validation
-- `templates` - Template existence and structure
-- `references` - Reference doc existence
-- `links` - Internal markdown links
-- `terminology` - Deprecated terms check
-- `consistency` - Version sync, skill counts
-- `config` - Config file validation
+Test modules in `tests/plugin/`:
+- `test_skills.py` - Frontmatter, required fields, model validation
+- `test_templates.py` - Template existence and structure
+- `test_references.py` - Reference doc existence
+- `test_links.py` - Internal markdown links
+- `test_terminology.py` - Deprecated terms check
+- `test_consistency.py` - Version sync, skill counts
+- `test_config.py` - Config file validation
+- `test_state.py` - State cache tool validation
+- `test_genres.py` - Genre directory cross-reference
+- `test_integration.py` - Cross-skill prerequisite chains
 
 ## Adding New Tests
 

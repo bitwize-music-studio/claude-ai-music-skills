@@ -8,7 +8,7 @@ echo "=== Pre-commit checks ==="
 echo ""
 
 # 1. Ruff linter
-echo "[1/11] Running ruff linter..."
+echo "[1/10] Running ruff linter..."
 if command -v ruff &> /dev/null; then
     ruff check tools/
     echo "      ✓ Lint passed"
@@ -18,7 +18,7 @@ fi
 echo ""
 
 # 2. JSON/YAML validation
-echo "[2/11] Validating JSON/YAML configs..."
+echo "[2/10] Validating JSON/YAML configs..."
 python3 -c "
 import json
 import sys
@@ -60,7 +60,7 @@ print('      ✓ Config files valid')
 echo ""
 
 # 3. CLAUDE.md size check (characters, not bytes - better approximates tokens)
-echo "[3/11] Checking CLAUDE.md size..."
+echo "[3/10] Checking CLAUDE.md size..."
 MAX_CHARS=40000  # 40K characters
 CLAUDE_CHARS=$(wc -m < CLAUDE.md 2>/dev/null || echo 0)
 if [ "$CLAUDE_CHARS" -gt "$MAX_CHARS" ]; then
@@ -74,7 +74,7 @@ fi
 echo ""
 
 # 4. Version sync check
-echo "[4/11] Checking version sync..."
+echo "[4/10] Checking version sync..."
 python3 -c "
 import json
 import sys
@@ -96,7 +96,7 @@ print(f'      ✓ Versions match ({plugin_version})')
 echo ""
 
 # 5. Skill frontmatter validation
-echo "[5/11] Validating skill frontmatter..."
+echo "[5/10] Validating skill frontmatter..."
 python3 -c "
 import os
 import sys
@@ -153,7 +153,7 @@ print(f'      ✓ All {skill_count} skills have valid frontmatter')
 echo ""
 
 # 6. CHANGELOG format check
-echo "[6/11] Checking CHANGELOG format..."
+echo "[6/10] Checking CHANGELOG format..."
 if [ -f "CHANGELOG.md" ]; then
     if grep -q "\[Unreleased\]" CHANGELOG.md; then
         echo "      ✓ CHANGELOG has [Unreleased] section"
@@ -168,7 +168,7 @@ fi
 echo ""
 
 # 7. Merge conflict markers check
-echo "[7/11] Checking for merge conflict markers..."
+echo "[7/10] Checking for merge conflict markers..."
 CONFLICT_FILES=$(git diff --cached --name-only | xargs grep -l "^<<<<<<< \|^=======$\|^>>>>>>> " 2>/dev/null || true)
 if [ -n "$CONFLICT_FILES" ]; then
     echo "      ✗ Merge conflict markers found in:"
@@ -182,7 +182,7 @@ fi
 echo ""
 
 # 8. Large file check
-echo "[8/11] Checking for large files..."
+echo "[8/10] Checking for large files..."
 MAX_SIZE=500000  # 500KB
 LARGE_FILES=""
 for file in $(git diff --cached --name-only); do
@@ -205,7 +205,7 @@ fi
 echo ""
 
 # 9. Security scan (bandit + pip-audit)
-echo "[9/11] Running security scan..."
+echo "[9/10] Running security scan..."
 
 # Check code with bandit
 if command -v bandit &> /dev/null; then
@@ -242,33 +242,18 @@ else
 fi
 echo ""
 
-# 10. Unit tests
-echo "[10/11] Running unit tests..."
+# 10. All tests (plugin + unit)
+echo "[10/10] Running tests..."
 if command -v pytest &> /dev/null || python3 -c "import pytest" 2>/dev/null; then
-    if python3 -m pytest tools/state/tests/ tools/shared/tests/ tools/mastering/tests/ -q --tb=line 2>/dev/null; then
-        echo "      ✓ Unit tests passed"
+    if python3 -m pytest tests/ -q --tb=line 2>/dev/null; then
+        echo "      ✓ Tests passed"
     else
-        echo "      ✗ Unit tests failed"
-        echo "      Run 'pytest tools/*/tests/ -v' for details"
+        echo "      ✗ Tests failed"
+        echo "      Run 'python3 -m pytest tests/ -v' for details"
         exit 1
     fi
 else
     echo "      ⚠ pytest not installed, skipping (pip install pytest)"
-fi
-echo ""
-
-# 11. Plugin validation tests
-echo "[11/11] Running plugin tests..."
-if [ -f "tools/tests/run_tests.py" ]; then
-    if python3 tools/tests/run_tests.py --no-color 2>/dev/null | grep -q "All tests passed"; then
-        echo "      ✓ Plugin tests passed"
-    else
-        echo "      ✗ Plugin tests failed"
-        echo "      Run 'python3 tools/tests/run_tests.py' for details"
-        exit 1
-    fi
-else
-    echo "      ⚠ Plugin test runner not found, skipping"
 fi
 echo ""
 
