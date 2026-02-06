@@ -51,18 +51,26 @@ Extract:
 
 ## Step 3: Find Album and Determine Genre
 
-Search for the album directory to find its genre:
+Search for the album directory using the Glob tool to find its genre:
 
-```bash
-find {content_root}/artists/{artist}/albums -type d -name "{album-name}" 2>/dev/null
+```
+Glob: {content_root}/artists/{artist}/albums/*/{album-name}/README.md
 ```
 
-If album not found:
+The genre is extracted from the path: `albums/{genre}/{album-name}/README.md`
+
+If album not found, list available albums:
+
+```
+Glob: {content_root}/artists/{artist}/albums/*/*/README.md
+```
+
+If no match:
 ```
 Error: Album "{album-name}" not found.
 
 Available albums:
-[list albums found in artists/{artist}/albums/]
+[list album directory names from glob results]
 
 Create album first with: /new-album {album-name} <genre>
 ```
@@ -184,13 +192,12 @@ find . -name "README.md" -path "*albums/$album_name*"
 ```
 
 **Right:**
-```bash
-# Search from content_root
-content_root=$(yq '.paths.content_root' ~/.bitwize-music/config.yaml)
-find "$content_root" -name "README.md" -path "*albums/$album_name*"
+```
+# Use Glob tool from content_root
+Glob: {content_root}/artists/{artist}/albums/*/{album_name}/README.md
 ```
 
-**Why it matters:** Album might not be in current working directory.
+**Why it matters:** Album might not be in current working directory. Always use the Glob tool (not `find` or `ls`) to search for files.
 
 ### ❌ Don't: Forget the tracks/ subdirectory
 
@@ -211,16 +218,15 @@ find "$content_root" -name "README.md" -path "*albums/$album_name*"
 ### ❌ Don't: Use hardcoded artist name
 
 **Wrong:**
-```bash
+```
 # Assuming artist is bitwize
-find ~/music-projects/artists/bitwize/albums -name "README.md"
+Glob: ~/music-projects/artists/bitwize/albums/*/*/README.md
 ```
 
 **Right:**
-```bash
-# Read artist.name from config
-artist=$(yq '.artist.name' ~/.bitwize-music/config.yaml)
-find "$content_root/artists/$artist/albums" -name "README.md"
+```
+# Read artist.name from config first, then use it
+Glob: {content_root}/artists/{artist}/albums/*/*/README.md
 ```
 
 ### ❌ Don't: Skip track number validation
@@ -251,9 +257,9 @@ mv track.md ~/music-projects/artists/bitwize/albums/electronic/sample-album/trac
 ```
 
 **Right:**
-```bash
-# Search for album across all genres
-find "$content_root/artists/$artist/albums" -type d -name "$album_name"
+```
+# Search for album across all genres using Glob
+Glob: {content_root}/artists/{artist}/albums/*/{album_name}/README.md
 # Album might be in hip-hop, electronic, folk, etc.
 ```
 

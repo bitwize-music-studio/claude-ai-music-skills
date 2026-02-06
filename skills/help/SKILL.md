@@ -47,9 +47,10 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:researchers-verifier` - Quality control, citation validation
 
 **Quality Control**
-- `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (9-point checklist)
+- `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (14-point checklist)
 - `/bitwize-music:pronunciation-specialist` - Scan for pronunciation risks
 - `/bitwize-music:explicit-checker` - Verify explicit content flags
+- `/bitwize-music:pre-generation-check` - Final pre-generation checkpoint (6 gates)
 - `/bitwize-music:validate-album` - Validate album structure and paths
 
 **Production & Release**
@@ -65,6 +66,11 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:import-audio` - Move audio files to album location
 - `/bitwize-music:import-art` - Place album art in correct locations
 - `/bitwize-music:clipboard` - Copy track lyrics/prompts to clipboard
+
+**Workflow & Status**
+- `/bitwize-music:session-start` - Run session startup procedure
+- `/bitwize-music:next-step` - Get recommended next action
+- `/bitwize-music:album-dashboard` - Visual album progress dashboard
 
 **System & Maintenance**
 - `/bitwize-music:configure` - Edit plugin configuration

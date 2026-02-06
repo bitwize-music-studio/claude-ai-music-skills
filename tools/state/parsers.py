@@ -18,6 +18,17 @@ try:
 except ImportError:
     yaml = None
 
+# =============================================================================
+# Pre-compiled regex patterns (F2: avoid recompilation on every call)
+# =============================================================================
+_RE_HEADING_H1 = re.compile(r'^#\s+(.+)$', re.MULTILINE)
+_RE_TRACKLIST_SECTION = re.compile(r'^##\s+Tracklist', re.MULTILINE)
+_RE_TRACK_NUMBER = re.compile(r'^\d+$')
+_RE_MARKDOWN_LINK = re.compile(r'\[([^\]]+)\]')
+_RE_DIGIT_EXTRACT = re.compile(r'(\d+)')
+_RE_IDEAS_SECTION = re.compile(r'^##\s+Ideas\b', re.MULTILINE)
+_RE_IDEAS_SPLIT = re.compile(r'^###\s+', re.MULTILINE)
+
 
 def parse_frontmatter(text: str) -> Dict[str, Any]:
     """Parse YAML frontmatter from markdown content.
@@ -54,6 +65,9 @@ def parse_frontmatter(text: str) -> Dict[str, Any]:
         return {'_error': f'Invalid YAML: {e}'}
 
 
+_table_value_cache: Dict[str, re.Pattern] = {}
+
+
 def _extract_table_value(text: str, key: str) -> Optional[str]:
     """Extract a value from a markdown table row matching | **Key** | Value |.
 
@@ -64,12 +78,13 @@ def _extract_table_value(text: str, key: str) -> Optional[str]:
     Returns:
         The value string, stripped, or None if not found.
     """
-    # Match: | **Key** | Value | (with optional whitespace)
-    pattern = re.compile(
-        r'^\|\s*\*\*' + re.escape(key) + r'\*\*\s*\|\s*(.*?)\s*\|',
-        re.MULTILINE
-    )
-    match = pattern.search(text)
+    # Use cached compiled pattern for each key
+    if key not in _table_value_cache:
+        _table_value_cache[key] = re.compile(
+            r'^\|\s*\*\*' + re.escape(key) + r'\*\*\s*\|\s*(.*?)\s*\|',
+            re.MULTILINE
+        )
+    match = _table_value_cache[key].search(text)
     if match:
         return match.group(1).strip()
     return None
@@ -172,7 +187,7 @@ def parse_album_readme(path: Path) -> Dict[str, Any]:
 
 def _extract_heading(text: str) -> str:
     """Extract first H1 heading from markdown."""
-    match = re.search(r'^#\s+(.+)$', text, re.MULTILINE)
+    match = _RE_HEADING_H1.search(text)
     return match.group(1).strip() if match else ''
 
 
@@ -189,7 +204,7 @@ def _parse_track_count(raw: Optional[str]) -> int:
     """Parse track count from string like '12' or '[Number]'."""
     if not raw:
         return 0
-    match = re.search(r'(\d+)', raw)
+    match = _RE_DIGIT_EXTRACT.search(raw)
     return int(match.group(1)) if match else 0
 
 
@@ -209,7 +224,7 @@ def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
     tracks = []
 
     # Find the Tracklist section
-    tracklist_match = re.search(r'^##\s+Tracklist', text, re.MULTILINE)
+    tracklist_match = _RE_TRACKLIST_SECTION.search(text)
     if not tracklist_match:
         return tracks
 
@@ -242,14 +257,14 @@ def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
 
         # First column must be a track number (digits only)
         num = cols[0].strip()
-        if not re.match(r'^\d+$', num):
+        if not _RE_TRACK_NUMBER.match(num):
             continue
 
         title_raw = cols[1]
         status = cols[-1]
 
         # Extract title from markdown link if present
-        link_match = re.search(r'\[([^\]]+)\]', title_raw)
+        link_match = _RE_MARKDOWN_LINK.search(title_raw)
         title = link_match.group(1) if link_match else title_raw.strip()
 
         tracks.append({
@@ -354,12 +369,12 @@ def parse_ideas_file(path: Path) -> Dict[str, Any]:
     # Split into sections by ### headings (idea entries)
     # Skip template section and preamble
     ideas_section = text
-    ideas_marker = re.search(r'^##\s+Ideas\b', text, re.MULTILINE)
+    ideas_marker = _RE_IDEAS_SECTION.search(text)
     if ideas_marker:
         ideas_section = text[ideas_marker.end():]
 
     # Find each idea entry (### heading)
-    idea_blocks = re.split(r'^###\s+', ideas_section, flags=re.MULTILINE)
+    idea_blocks = _RE_IDEAS_SPLIT.split(ideas_section)
 
     for block in idea_blocks[1:]:  # Skip content before first ###
         lines = block.strip().split('\n')
@@ -400,10 +415,16 @@ def parse_ideas_file(path: Path) -> Dict[str, Any]:
     }
 
 
+_bold_field_cache: Dict[str, re.Pattern] = {}
+
+
 def _extract_bold_field(text: str, key: str) -> Optional[str]:
     """Extract value from **Key**: Value pattern in text."""
-    pattern = re.compile(r'\*\*' + re.escape(key) + r'\*\*\s*:\s*(.+)', re.IGNORECASE)
-    match = pattern.search(text)
+    if key not in _bold_field_cache:
+        _bold_field_cache[key] = re.compile(
+            r'\*\*' + re.escape(key) + r'\*\*\s*:\s*(.+)', re.IGNORECASE
+        )
+    match = _bold_field_cache[key].search(text)
     if match:
         return match.group(1).strip()
     return None

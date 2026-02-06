@@ -208,6 +208,8 @@ class PluginTestRunner:
             'consistency': self.test_consistency,
             'config': self.test_config,
             'state': self.test_state,
+            'genres': self.test_genres,
+            'integration': self.test_integration,
         }
 
         if categories:
@@ -1401,6 +1403,318 @@ class PluginTestRunner:
         self._print_category_summary(category)
         self.categories.append(category)
 
+    def test_genres(self):
+        """Test genre directory structure against genre-list.md and INDEX.md."""
+        category = TestCategory(name="Genres")
+        self._print_category_header("Genres")
+
+        genres_dir = self.plugin_root / "genres"
+        genre_list_file = self.plugin_root / "reference" / "suno" / "genre-list.md"
+        genre_index_file = genres_dir / "INDEX.md"
+
+        # Test: genres/ directory exists
+        if not genres_dir.exists():
+            self._add_test(
+                category, "Genres directory exists", TestResult.FAIL,
+                "genres/ directory missing", str(self.plugin_root)
+            )
+            for test in category.tests:
+                self._print_test_result(test)
+            self._print_category_summary(category)
+            self.categories.append(category)
+            return
+
+        self._add_test(category, "Genres directory exists", TestResult.OK)
+
+        # Collect actual genre directories (dirs with README.md)
+        actual_genres = set()
+        for entry in sorted(genres_dir.iterdir()):
+            if entry.is_dir() and not entry.name.startswith('.') and (entry / "README.md").exists():
+                actual_genres.add(entry.name)
+
+        self._add_test(
+            category,
+            f"Genre directories found ({len(actual_genres)})",
+            TestResult.OK
+        )
+
+        # Test: INDEX.md exists and references all genre dirs
+        self.log("Checking INDEX.md references...")
+        if genre_index_file.exists():
+            self._add_test(category, "genres/INDEX.md exists", TestResult.OK)
+            index_content = genre_index_file.read_text()
+
+            # Extract genre slugs referenced in INDEX.md (links like genre-name/README.md)
+            index_refs = set(re.findall(r'\(([a-z0-9-]+)/README\.md\)', index_content))
+
+            # Check: every actual genre dir is in INDEX.md
+            for genre in sorted(actual_genres):
+                if genre in index_refs:
+                    self._add_test(category, f"Genre in INDEX.md: {genre}", TestResult.OK)
+                else:
+                    self._add_test(
+                        category,
+                        f"Genre in INDEX.md: {genre}",
+                        TestResult.FAIL,
+                        "Genre directory exists but not listed in INDEX.md",
+                        "genres/INDEX.md",
+                        fix_hint=f"Add {genre} to genres/INDEX.md"
+                    )
+
+            # Check: every INDEX.md reference has a directory
+            for ref in sorted(index_refs):
+                if ref not in actual_genres:
+                    self._add_test(
+                        category,
+                        f"INDEX.md ref has directory: {ref}",
+                        TestResult.FAIL,
+                        f"INDEX.md references {ref}/ but directory missing",
+                        "genres/INDEX.md",
+                        fix_hint=f"Create genres/{ref}/README.md or remove from INDEX.md"
+                    )
+        else:
+            self._add_test(
+                category, "genres/INDEX.md exists", TestResult.FAIL,
+                "Missing genre index file", str(genres_dir)
+            )
+
+        # Test: genre-list.md exists
+        self.log("Checking genre-list.md...")
+        if genre_list_file.exists():
+            self._add_test(category, "reference/suno/genre-list.md exists", TestResult.OK)
+        else:
+            self._add_test(
+                category, "reference/suno/genre-list.md exists", TestResult.WARN,
+                "Suno genre list not found — skipping cross-reference",
+                "reference/suno/"
+            )
+
+        # Test: Each genre directory has a well-formed README.md
+        self.log("Checking genre README structure...")
+        for genre in sorted(actual_genres):
+            readme = genres_dir / genre / "README.md"
+            content = readme.read_text()
+
+            # Must have a top-level heading
+            if re.search(r'^# .+', content, re.MULTILINE):
+                self._add_test(category, f"Genre README has heading: {genre}", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    f"Genre README has heading: {genre}",
+                    TestResult.FAIL,
+                    "Missing top-level heading",
+                    str(readme)
+                )
+
+        # Print results
+        for test in category.tests:
+            self._print_test_result(test)
+
+        self._print_category_summary(category)
+        self.categories.append(category)
+
+    def test_integration(self):
+        """Test cross-skill integration: prerequisite chains and handoff consistency."""
+        category = TestCategory(name="Integration")
+        self._print_category_header("Integration")
+
+        skills = self.get_skills()
+
+        # Test: Skills with prerequisites reference valid skill names
+        self.log("Checking prerequisite references...")
+        for skill_name, frontmatter in skills.items():
+            if '_error' in frontmatter:
+                continue
+            prereqs = frontmatter.get('prerequisites', [])
+            if not prereqs:
+                continue
+
+            for prereq in prereqs:
+                if prereq in skills:
+                    self._add_test(
+                        category,
+                        f"Valid prerequisite: {skill_name} -> {prereq}",
+                        TestResult.OK
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        f"Valid prerequisite: {skill_name} -> {prereq}",
+                        TestResult.FAIL,
+                        f"Prerequisite '{prereq}' is not a known skill",
+                        frontmatter.get('_path', ''),
+                        fix_hint=f"Fix prerequisite name or create skills/{prereq}/SKILL.md"
+                    )
+
+        # Test: No circular prerequisites
+        self.log("Checking for circular prerequisites...")
+        # Build adjacency: skill -> list of prereqs
+        prereq_graph: Dict[str, List[str]] = {}
+        for skill_name, frontmatter in skills.items():
+            if '_error' in frontmatter:
+                continue
+            prereqs = frontmatter.get('prerequisites', [])
+            if prereqs:
+                prereq_graph[skill_name] = prereqs
+
+        def has_cycle(node: str, visited: set, stack: set) -> bool:
+            visited.add(node)
+            stack.add(node)
+            for dep in prereq_graph.get(node, []):
+                if dep in stack:
+                    return True
+                if dep not in visited and has_cycle(dep, visited, stack):
+                    return True
+            stack.discard(node)
+            return False
+
+        cycle_found = False
+        visited: set = set()
+        for node in prereq_graph:
+            if node not in visited:
+                if has_cycle(node, visited, set()):
+                    cycle_found = True
+                    break
+
+        if not cycle_found:
+            self._add_test(category, "No circular prerequisites", TestResult.OK)
+        else:
+            self._add_test(
+                category,
+                "No circular prerequisites",
+                TestResult.FAIL,
+                "Circular dependency detected in skill prerequisites",
+                fix_hint="Check prerequisites fields for cycles"
+            )
+
+        # Test: Lyric workflow chain consistency
+        # lyric-writer checklist count matches lyric-reviewer checklist count reference
+        self.log("Checking lyric workflow chain...")
+        writer = skills.get('lyric-writer', {})
+        reviewer = skills.get('lyric-reviewer', {})
+
+        if '_error' not in writer and '_error' not in reviewer:
+            writer_content = writer.get('_content', '')
+            reviewer_content = reviewer.get('_content', '')
+
+            # Writer should mention its checklist count
+            writer_count_match = re.search(
+                r'(\d+)-[Pp]oint.*(?:[Cc]hecklist|[Qq]uality [Cc]heck)', writer_content
+            )
+            reviewer_count_match = re.search(
+                r'(\d+)-[Pp]oint.*[Cc]hecklist', reviewer_content
+            )
+
+            if writer_count_match and reviewer_count_match:
+                writer_count = int(writer_count_match.group(1))
+                reviewer_count = int(reviewer_count_match.group(1))
+                # Reviewer should have >= writer's count (it may add extra gates)
+                if reviewer_count >= writer_count:
+                    self._add_test(
+                        category,
+                        f"Reviewer checklist ({reviewer_count}) >= writer checklist ({writer_count})",
+                        TestResult.OK
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        "Reviewer checklist covers writer items",
+                        TestResult.WARN,
+                        f"Writer has {writer_count}-point, reviewer has {reviewer_count}-point",
+                        fix_hint="Reviewer should check at least everything writer checks"
+                    )
+
+        # Test: pre-generation-check references all QC skills
+        self.log("Checking pre-generation-check coverage...")
+        pregen = skills.get('pre-generation-check', {})
+        if '_error' not in pregen:
+            pregen_content = pregen.get('_content', '')
+            expected_refs = ['lyric-writer', 'lyric-reviewer', 'pronunciation-specialist', 'suno-engineer']
+            for ref_skill in expected_refs:
+                if ref_skill in pregen_content:
+                    self._add_test(
+                        category,
+                        f"Pre-gen check references: {ref_skill}",
+                        TestResult.OK
+                    )
+                else:
+                    self._add_test(
+                        category,
+                        f"Pre-gen check references: {ref_skill}",
+                        TestResult.WARN,
+                        f"pre-generation-check should reference {ref_skill}",
+                        pregen.get('_path', '')
+                    )
+
+        # Test: artist-blocklist.md exists and is referenced by suno-engineer and lyric-reviewer
+        self.log("Checking artist blocklist cross-references...")
+        blocklist_path = self.plugin_root / "reference" / "suno" / "artist-blocklist.md"
+        if blocklist_path.exists():
+            self._add_test(category, "Artist blocklist file exists", TestResult.OK)
+
+            suno_eng = skills.get('suno-engineer', {})
+            if '_error' not in suno_eng and 'artist-blocklist' in suno_eng.get('_content', ''):
+                self._add_test(category, "suno-engineer references artist blocklist", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    "suno-engineer references artist blocklist",
+                    TestResult.WARN,
+                    "suno-engineer should reference artist-blocklist.md"
+                )
+
+            if '_error' not in reviewer and 'artist-blocklist' in reviewer.get('_content', ''):
+                self._add_test(category, "lyric-reviewer references artist blocklist", TestResult.OK)
+            else:
+                self._add_test(
+                    category,
+                    "lyric-reviewer references artist blocklist",
+                    TestResult.WARN,
+                    "lyric-reviewer should reference artist-blocklist.md"
+                )
+        else:
+            self._add_test(
+                category,
+                "Artist blocklist file exists",
+                TestResult.WARN,
+                "reference/suno/artist-blocklist.md not found"
+            )
+
+        # Test: Homograph flow documented consistently across writer/specialist/reviewer
+        self.log("Checking homograph flow consistency...")
+        specialist = skills.get('pronunciation-specialist', {})
+        homograph_skills = {
+            'lyric-writer': ('FLAGS', writer),
+            'pronunciation-specialist': ('RESOLVES', specialist),
+            'lyric-reviewer': ('VERIFIES', reviewer),
+        }
+        for skill_name, (role, fm) in homograph_skills.items():
+            if '_error' in fm:
+                continue
+            content = fm.get('_content', '')
+            if role.lower() in content.lower():
+                self._add_test(
+                    category,
+                    f"Homograph flow role documented: {skill_name} ({role})",
+                    TestResult.OK
+                )
+            else:
+                self._add_test(
+                    category,
+                    f"Homograph flow role documented: {skill_name} ({role})",
+                    TestResult.WARN,
+                    f"{skill_name} should document its '{role}' role in homograph flow",
+                    fm.get('_path', '')
+                )
+
+        # Print results
+        for test in category.tests:
+            self._print_test_result(test)
+
+        self._print_category_summary(category)
+        self.categories.append(category)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -1422,6 +1736,8 @@ Categories:
     consistency  - Cross-reference checks
     config       - Configuration files
     state        - State cache tool validation
+    genres       - Genre directory vs documentation cross-reference
+    integration  - Cross-skill prerequisite and handoff validation
         """
     )
     parser.add_argument(

@@ -3,6 +3,8 @@ name: album-conceptualizer
 description: Designs album concepts, tracklist architecture, and thematic planning through 7 structured phases. Use when planning a new album or reworking an existing album concept.
 argument-hint: <"plan album about [topic]" or album-path>
 model: claude-opus-4-6
+prerequisites:
+  - new-album
 allowed-tools:
   - Read
   - Edit
