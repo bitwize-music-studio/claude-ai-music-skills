@@ -59,7 +59,7 @@ Want to know how this project came together? Read the full story:
 
 Not required, but I'd love to hear what you create with this. Drop a tweet with your album:
 
-**[@bitwizemusic](https://x.com/bitwizemusic) #ClaudeCode #SunoAI #AIMusic**
+**#ClaudeCode #SunoAI #AIMusic [@bitwizemusic](https://x.com/bitwizemusic)**
 
 ---
 
