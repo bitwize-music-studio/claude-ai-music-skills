@@ -41,18 +41,28 @@ jobs:
           fi
 
           # Extract model IDs from the page
-          # Pattern: claude-[tier]-[version]-[8-digit-date]
-          # Sort by date and take latest for each tier
-          OPUS=$(echo "$PAGE" | grep -oE 'claude-opus-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
-          SONNET=$(echo "$PAGE" | grep -oE 'claude-sonnet-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
-          HAIKU=$(echo "$PAGE" | grep -oE 'claude-haiku-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+          # Try dated format first (claude-[tier]-[version]-[8-digit-date])
+          # Fall back to non-dated format (claude-[tier]-[version])
+          OPUS_DATED=$(echo "$PAGE" | grep -oE 'claude-opus-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+          SONNET_DATED=$(echo "$PAGE" | grep -oE 'claude-sonnet-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+          HAIKU_DATED=$(echo "$PAGE" | grep -oE 'claude-haiku-[0-9]+-[0-9]+-[0-9]{8}' | sort -t'-' -k5 -n | tail -1)
+
+          # Fallback to non-dated format
+          OPUS_NONDATED=$(echo "$PAGE" | grep -oE 'claude-opus-[0-9]+-[0-9]+' | grep -vE '[0-9]{8}' | sort -V | tail -1)
+          SONNET_NONDATED=$(echo "$PAGE" | grep -oE 'claude-sonnet-[0-9]+-[0-9]+' | grep -vE '[0-9]{8}' | sort -V | tail -1)
+          HAIKU_NONDATED=$(echo "$PAGE" | grep -oE 'claude-haiku-[0-9]+-[0-9]+' | grep -vE '[0-9]{8}' | sort -V | tail -1)
+
+          # Prefer dated, fall back to non-dated
+          OPUS="${OPUS_DATED:-$OPUS_NONDATED}"
+          SONNET="${SONNET_DATED:-$SONNET_NONDATED}"
+          HAIKU="${HAIKU_DATED:-$HAIKU_NONDATED}"
 
           # Validate we found all models
           if [ -z "$OPUS" ] || [ -z "$SONNET" ] || [ -z "$HAIKU" ]; then
             echo "::error::Could not extract all model IDs from docs"
-            echo "  Opus: ${OPUS:-NOT FOUND}"
-            echo "  Sonnet: ${SONNET:-NOT FOUND}"
-            echo "  Haiku: ${HAIKU:-NOT FOUND}"
+            echo "  Opus: ${OPUS:-NOT FOUND} (dated: $OPUS_DATED, non-dated: $OPUS_NONDATED)"
+            echo "  Sonnet: ${SONNET:-NOT FOUND} (dated: $SONNET_DATED, non-dated: $SONNET_NONDATED)"
+            echo "  Haiku: ${HAIKU:-NOT FOUND} (dated: $HAIKU_DATED, non-dated: $HAIKU_NONDATED)"
             exit 1
           fi
 
@@ -61,15 +71,19 @@ jobs:
           echo "  Sonnet: $SONNET"
           echo "  Haiku: $HAIKU"
 
-          # Validate model ID format: must end with 8-digit date in reasonable range
+          # Validate model ID format: if dated, validate date; if not, skip date validation
           validate_model_date() {
             local MODEL_ID="$1"
             local LABEL="$2"
             local DATE_SUFFIX=$(echo "$MODEL_ID" | grep -oE '[0-9]{8}$')
+
+            # If no date suffix, skip date validation (non-dated format is valid)
             if [ -z "$DATE_SUFFIX" ]; then
-              echo "::error::$LABEL model ID '$MODEL_ID' missing 8-digit date suffix"
-              return 1
+              echo "  $LABEL: non-dated format (OK)"
+              return 0
             fi
+
+            # Validate dated format
             local YEAR=${DATE_SUFFIX:0:4}
             local MONTH=${DATE_SUFFIX:4:2}
             local DAY=${DATE_SUFFIX:6:2}
@@ -86,6 +100,7 @@ jobs:
               echo "::error::$LABEL model date day $DAY invalid"
               return 1
             fi
+            echo "  $LABEL: dated format validated (OK)"
             return 0
           }
 
@@ -102,7 +117,7 @@ jobs:
               return 1
             fi
             local LEN=${#MODEL_ID}
-            if [ "$LEN" -lt 20 ] || [ "$LEN" -gt 50 ]; then
+            if [ "$LEN" -lt 15 ] || [ "$LEN" -gt 50 ]; then
               echo "::error::$LABEL model ID has unexpected length ($LEN): $MODEL_ID"
               return 1
             fi
@@ -153,13 +168,34 @@ jobs:
             fi
 
             if [ "$CURRENT_MODEL" != "$TARGET" ]; then
-              # Sanity check: new model date should not be older than current
-              CURRENT_DATE=$(echo "$CURRENT_MODEL" | grep -oE '[0-9]{8}$')
-              TARGET_DATE=$(echo "$TARGET" | grep -oE '[0-9]{8}$')
-              if [ -n "$CURRENT_DATE" ] && [ -n "$TARGET_DATE" ] && [ "$TARGET_DATE" -lt "$CURRENT_DATE" ]; then
-                echo "[WARN] $SKILL_NAME: target $TARGET is older than current $CURRENT_MODEL, skipping"
+              # Extract version numbers (e.g., "4-5" or "4-6" from model IDs)
+              CURRENT_VERSION=$(echo "$CURRENT_MODEL" | sed -E 's/claude-(opus|sonnet|haiku)-([0-9]+-[0-9]+).*/\2/')
+              TARGET_VERSION=$(echo "$TARGET" | sed -E 's/claude-(opus|sonnet|haiku)-([0-9]+-[0-9]+).*/\2/')
+
+              # Compare versions (convert "4-5" to "4.5" for comparison, then to integer like 405 and 406)
+              CURRENT_VER_INT=$(echo "$CURRENT_VERSION" | tr -d '-')
+              TARGET_VER_INT=$(echo "$TARGET_VERSION" | tr -d '-')
+
+              # Skip if target version is lower than current version
+              if [ "$TARGET_VER_INT" -lt "$CURRENT_VER_INT" ]; then
+                echo "[SKIP] $SKILL_NAME: target $TARGET (v$TARGET_VERSION) is older than current $CURRENT_MODEL (v$CURRENT_VERSION)"
                 continue
               fi
+
+              # If versions are equal, check dates (if both have them)
+              if [ "$CURRENT_VERSION" = "$TARGET_VERSION" ]; then
+                CURRENT_DATE=$(echo "$CURRENT_MODEL" | grep -oE '[0-9]{8}$')
+                TARGET_DATE=$(echo "$TARGET" | grep -oE '[0-9]{8}$')
+
+                # Only compare dates if both models have date suffixes
+                if [ -n "$CURRENT_DATE" ] && [ -n "$TARGET_DATE" ]; then
+                  if [ "$TARGET_DATE" -lt "$CURRENT_DATE" ]; then
+                    echo "[SKIP] $SKILL_NAME: target $TARGET is older than current $CURRENT_MODEL"
+                    continue
+                  fi
+                fi
+              fi
+
               echo "[UPDATE] $SKILL_NAME: $CURRENT_MODEL -> $TARGET"
               UPDATES_NEEDED=true
               OUTDATED_SKILLS="$OUTDATED_SKILLS$SKILL_NAME:$CURRENT_MODEL:$TARGET\n"
