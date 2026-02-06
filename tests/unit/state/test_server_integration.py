@@ -111,7 +111,7 @@ explicit: false
 | **Artist** | test-artist |
 | **Album** | Integration Test Album |
 | **Genre** | Electronic |
-| **Tracks** | 2 |
+| **Tracks** | 3 |
 | **Status** | In Progress |
 | **Explicit** | No |
 | **Concept** | Testing the full pipeline |
@@ -209,6 +209,46 @@ Make sure every link is right you know
 | — | — | — |
 """
 
+TRACK_03_PRONUNCIATION = """\
+# Third Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Track #** | 03 |
+| **Title** | Third Track |
+| **Status** | In Progress |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+
+## Suno Inputs
+
+### Style Box
+```
+electronic, 100 BPM, dreamy, pad-heavy
+```
+
+### Lyrics Box
+```
+[Verse 1]
+I will reed the book tonight
+The bass hits hard through LED light
+
+[Chorus]
+Close your eyes and feel the beat
+REED the signs beneath your feet
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| read | reed | Past tense "read" should sound like "reed" |
+| bass | bayss | Musical bass, not fish |
+"""
+
 SOURCES_MD = """\
 # Integration Test Album - Sources
 
@@ -217,6 +257,46 @@ SOURCES_MD = """\
 |----------|-----|
 | [Wikipedia Test](https://en.wikipedia.org/wiki/Test) | Main reference |
 | [Example Doc](https://example.com/doc) | Supporting source |
+"""
+
+IDEAS_MD = """\
+# Album Ideas
+
+---
+
+## Ideas
+
+### Cyberpunk Dreams
+
+**Genre**: electronic
+**Type**: Thematic
+**Tracks**: 8
+
+**Concept**: A journey through neon-lit cityscapes.
+
+**Status**: Pending
+
+### Outlaw Stories
+
+**Genre**: country
+**Type**: Documentary
+**Tracks**: 10
+
+**Concept**: True stories of modern outlaws.
+
+**Status**: In Progress
+"""
+
+EXPLICIT_WORDS_OVERRIDE = """\
+# Explicit Words Override
+
+## Additional Explicit Words
+
+- heck (mild but flagged for kids content)
+
+## Not Explicit (Override Base)
+
+- damn (acceptable in our style)
 """
 
 
@@ -253,7 +333,17 @@ def content_dir(tmp_path):
     (album_dir / "README.md").write_text(ALBUM_README)
     (tracks_dir / "01-first-track.md").write_text(TRACK_01)
     (tracks_dir / "02-second-track.md").write_text(TRACK_02)
+    (tracks_dir / "03-third-track.md").write_text(TRACK_03_PRONUNCIATION)
     (album_dir / "SOURCES.md").write_text(SOURCES_MD)
+
+    # IDEAS.md at content root
+    (content_root / "IDEAS.md").write_text(IDEAS_MD)
+
+    # Overrides directory
+    overrides_dir = content_root / "overrides"
+    overrides_dir.mkdir(parents=True)
+    (overrides_dir / "CLAUDE.md").write_text("# Custom Rules\n\n- Always use dark themes\n")
+    (overrides_dir / "explicit-words.md").write_text(EXPLICIT_WORDS_OVERRIDE)
 
     # Audio directory (with artist folder)
     audio_album = audio_root / "test-artist" / "integration-test-album"
@@ -270,6 +360,7 @@ def content_dir(tmp_path):
         "audio_root": audio_root,
         "album_dir": album_dir,
         "tracks_dir": tracks_dir,
+        "overrides_dir": overrides_dir,
     }
 
 
@@ -348,6 +439,7 @@ class TestStateRebuildPipeline:
         tracks = state["albums"]["integration-test-album"]["tracks"]
         assert "01-first-track" in tracks
         assert "02-second-track" in tracks
+        assert "03-third-track" in tracks
         assert tracks["01-first-track"]["status"] == "Final"
         assert tracks["01-first-track"]["has_suno_link"] is True
         assert tracks["02-second-track"]["status"] == "In Progress"
@@ -460,9 +552,9 @@ class TestToolsWithRealState:
         """Progress calculation against real track statuses."""
         result = json.loads(_run(server.get_album_progress("integration-test-album")))
         assert result["found"] is True
-        assert result["track_count"] == 2
+        assert result["track_count"] == 3
         assert result["tracks_completed"] == 1  # 01 is Final
-        assert result["completion_percentage"] == 50
+        assert result["completion_percentage"] == pytest.approx(33.3, abs=0.1)
 
     def test_validate_album_structure(self, integration_env):
         """Structural validation against real directories."""
@@ -619,3 +711,331 @@ class TestUpdateTrackFieldEndToEnd:
             "integration-test-album", "02-second-track"
         )))
         assert result["track"]["status"] == "Final"
+
+
+@pytest.mark.integration
+class TestRemainingToolsCoverage:
+    """Integration tests for remaining MCP tools not covered above."""
+
+    # --- list_tracks ---
+
+    def test_list_tracks(self, integration_env):
+        """list_tracks returns all real tracks with metadata."""
+        result = json.loads(_run(server.list_tracks("integration-test-album")))
+        assert result["found"] is True
+        assert result["track_count"] == 3
+        slugs = [t["slug"] for t in result["tracks"]]
+        assert "01-first-track" in slugs
+        assert "02-second-track" in slugs
+        assert "03-third-track" in slugs
+        # Verify metadata flows through
+        t01 = next(t for t in result["tracks"] if t["slug"] == "01-first-track")
+        assert t01["status"] == "Final"
+        assert t01["has_suno_link"] is True
+
+    # --- get_session ---
+
+    def test_get_session(self, integration_env):
+        """get_session returns session from real state."""
+        result = json.loads(_run(server.get_session()))
+        assert "session" in result
+        session = result["session"]
+        # Fresh state has empty session fields
+        assert "last_album" in session or session == {}
+
+    # --- update_session ---
+
+    def test_update_session(self, integration_env):
+        """update_session writes and returns updated session."""
+        result = json.loads(_run(server.update_session(
+            album="integration-test-album",
+            track="01-first-track",
+            phase="Generating",
+        )))
+        session = result["session"]
+        assert session["last_album"] == "integration-test-album"
+        assert session["last_track"] == "01-first-track"
+        assert session["last_phase"] == "Generating"
+
+    def test_update_session_with_action(self, integration_env):
+        """update_session appends pending actions."""
+        _run(server.update_session(action="Review lyrics"))
+        result = json.loads(_run(server.get_session()))
+        assert "Review lyrics" in result["session"].get("pending_actions", [])
+
+    def test_update_session_clear(self, integration_env):
+        """update_session clear=True resets session data."""
+        _run(server.update_session(album="integration-test-album", phase="Writing"))
+        result = json.loads(_run(server.update_session(clear=True)))
+        session = result["session"]
+        assert not session.get("last_album")  # None or ""
+        assert not session.get("last_phase")  # None or ""
+
+    # --- rebuild_state ---
+
+    def test_rebuild_state(self, integration_env):
+        """rebuild_state tool returns correct counts from real files."""
+        result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert result["albums"] == 1
+        assert result["tracks"] == 3
+        assert result["ideas"] == 2  # Cyberpunk Dreams + Outlaw Stories
+
+    # --- get_config ---
+
+    def test_get_config(self, integration_env):
+        """get_config returns real config from state."""
+        result = json.loads(_run(server.get_config()))
+        config = result["config"]
+        assert config["content_root"] == str(integration_env["content_root"])
+        assert config["audio_root"] == str(integration_env["audio_root"])
+        assert config["artist_name"] == "test-artist"
+
+    # --- get_ideas ---
+
+    def test_get_ideas(self, integration_env):
+        """get_ideas returns ideas parsed from real IDEAS.md."""
+        result = json.loads(_run(server.get_ideas()))
+        assert result["total"] == 2
+        titles = [i.get("title", "") for i in result["items"]]
+        assert "Cyberpunk Dreams" in titles
+        assert "Outlaw Stories" in titles
+
+    def test_get_ideas_with_filter(self, integration_env):
+        """get_ideas status_filter works against real data."""
+        result = json.loads(_run(server.get_ideas(status_filter="Pending")))
+        assert result["total"] == 1
+        assert result["items"][0]["title"] == "Cyberpunk Dreams"
+
+    # --- resolve_path ---
+
+    def test_resolve_path_content(self, integration_env):
+        """resolve_path content resolves using real config + state genre."""
+        result = json.loads(_run(server.resolve_path("content", "integration-test-album")))
+        expected = str(
+            integration_env["content_root"] / "artists" / "test-artist"
+            / "albums" / "electronic" / "integration-test-album"
+        )
+        assert result["path"] == expected
+        assert result["genre"] == "electronic"
+
+    def test_resolve_path_audio(self, integration_env):
+        """resolve_path audio resolves using real config."""
+        result = json.loads(_run(server.resolve_path("audio", "integration-test-album")))
+        expected = str(
+            integration_env["audio_root"] / "test-artist" / "integration-test-album"
+        )
+        assert result["path"] == expected
+
+    def test_resolve_path_tracks(self, integration_env):
+        """resolve_path tracks includes /tracks suffix."""
+        result = json.loads(_run(server.resolve_path("tracks", "integration-test-album")))
+        assert result["path"].endswith("/tracks")
+
+    def test_resolve_path_overrides(self, integration_env):
+        """resolve_path overrides resolves from config."""
+        result = json.loads(_run(server.resolve_path("overrides", "")))
+        assert "overrides" in result["path"]
+
+    # --- resolve_track_file ---
+
+    def test_resolve_track_file(self, integration_env):
+        """resolve_track_file returns real path and metadata."""
+        result = json.loads(_run(server.resolve_track_file(
+            "integration-test-album", "01-first-track"
+        )))
+        assert result["found"] is True
+        assert result["track_slug"] == "01-first-track"
+        path = Path(result["path"])
+        assert path.exists()
+        assert path.name == "01-first-track.md"
+
+    def test_resolve_track_file_prefix(self, integration_env):
+        """resolve_track_file prefix match resolves to real file."""
+        result = json.loads(_run(server.resolve_track_file(
+            "integration-test-album", "02"
+        )))
+        assert result["found"] is True
+        assert result["track_slug"] == "02-second-track"
+        assert Path(result["path"]).exists()
+
+    # --- list_track_files ---
+
+    def test_list_track_files(self, integration_env):
+        """list_track_files returns tracks with real file paths."""
+        result = json.loads(_run(server.list_track_files("integration-test-album")))
+        assert result["found"] is True
+        assert result["track_count"] == 3
+        for t in result["tracks"]:
+            assert Path(t["path"]).exists(), f"Track path should exist: {t['path']}"
+
+    def test_list_track_files_with_filter(self, integration_env):
+        """list_track_files status filter works against real data."""
+        result = json.loads(_run(server.list_track_files(
+            "integration-test-album", status_filter="Final"
+        )))
+        assert result["track_count"] == 1
+        assert result["tracks"][0]["slug"] == "01-first-track"
+        assert result["total_tracks"] == 3  # total unfiltered
+
+    # --- load_override ---
+
+    def test_load_override(self, integration_env):
+        """load_override reads a real override file from disk."""
+        result = json.loads(_run(server.load_override("CLAUDE.md")))
+        assert result["found"] is True
+        assert "Custom Rules" in result["content"]
+        assert "dark themes" in result["content"]
+        assert result["size"] > 0
+
+    def test_load_override_missing(self, integration_env):
+        """load_override returns found=false for nonexistent file."""
+        result = json.loads(_run(server.load_override("nonexistent.md")))
+        assert result["found"] is False
+
+    # --- get_reference ---
+
+    def test_get_reference_full_file(self, integration_env):
+        """get_reference reads a real plugin reference file."""
+        result = json.loads(_run(server.get_reference("suno/pronunciation-guide")))
+        assert result["found"] is True
+        assert result["size"] > 0
+        assert "pronunciation" in result["content"].lower()
+
+    def test_get_reference_with_section(self, integration_env):
+        """get_reference extracts a section from a real reference file."""
+        result = json.loads(_run(server.get_reference("suno/genre-list")))
+        assert result["found"] is True
+        # genre-list.md should have content
+        assert len(result["content"]) > 0
+
+    def test_get_reference_missing(self, integration_env):
+        """get_reference returns error for nonexistent file."""
+        result = json.loads(_run(server.get_reference("nonexistent/file")))
+        assert "error" in result
+
+    # --- scan_artist_names ---
+
+    def test_scan_artist_names_clean(self, integration_env, monkeypatch):
+        """scan_artist_names on clean text with real blocklist."""
+        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        result = json.loads(_run(server.scan_artist_names(
+            "electronic synth-driven ambient pads"
+        )))
+        assert result["clean"] is True
+        assert result["count"] == 0
+
+    def test_scan_artist_names_finds_match(self, integration_env, monkeypatch):
+        """scan_artist_names detects a real artist name from the blocklist."""
+        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        # Load the real blocklist to find an artist name to test with
+        blocklist = server._load_artist_blocklist()
+        if blocklist:
+            artist_name = blocklist[0]["name"]
+            result = json.loads(_run(server.scan_artist_names(
+                f"This sounds like {artist_name} style"
+            )))
+            assert result["clean"] is False
+            assert result["count"] >= 1
+            found_names = [f["name"] for f in result["found"]]
+            assert artist_name in found_names
+
+    # --- check_pronunciation_enforcement ---
+
+    def test_check_pronunciation_enforcement_empty_table(self, integration_env):
+        """check_pronunciation_enforcement on track with empty pronunciation table."""
+        result = json.loads(_run(server.check_pronunciation_enforcement(
+            "integration-test-album", "01-first-track"
+        )))
+        assert result["found"] is True
+        assert result["all_applied"] is True
+        assert result["unapplied_count"] == 0
+
+    def test_check_pronunciation_enforcement_with_entries(self, integration_env):
+        """check_pronunciation_enforcement checks real pronunciation entries."""
+        result = json.loads(_run(server.check_pronunciation_enforcement(
+            "integration-test-album", "03-third-track"
+        )))
+        assert result["found"] is True
+        assert len(result["entries"]) == 2
+        # "reed" should be found in lyrics (it appears as "reed")
+        reed_entry = next(e for e in result["entries"] if e["word"] == "read")
+        assert reed_entry["phonetic"] == "reed"
+        assert reed_entry["applied"] is True
+        assert reed_entry["occurrences"] >= 1
+        # "bayss" should NOT be found in lyrics (lyrics say "bass" not "bayss")
+        bass_entry = next(e for e in result["entries"] if e["word"] == "bass")
+        assert bass_entry["phonetic"] == "bayss"
+        assert bass_entry["applied"] is False
+        assert result["all_applied"] is False
+        assert result["unapplied_count"] == 1
+
+    # --- check_explicit_content ---
+
+    def test_check_explicit_content_clean(self, integration_env, monkeypatch):
+        """check_explicit_content on clean lyrics with real word list."""
+        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        result = json.loads(_run(server.check_explicit_content(
+            "Testing the pipeline one two three\nMaking sure everything works"
+        )))
+        assert result["has_explicit"] is False
+        assert result["total_count"] == 0
+
+    def test_check_explicit_content_finds_words(self, integration_env, monkeypatch):
+        """check_explicit_content detects explicit words from base list."""
+        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        result = json.loads(_run(server.check_explicit_content(
+            "What the fuck is going on\nThis shit is real"
+        )))
+        assert result["has_explicit"] is True
+        assert result["unique_words"] == 2
+        found_words = [f["word"] for f in result["found"]]
+        assert "fuck" in found_words
+        assert "shit" in found_words
+
+    def test_check_explicit_content_respects_overrides(self, integration_env, monkeypatch):
+        """check_explicit_content merges user override additions."""
+        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        # "heck" was added via explicit-words.md override
+        result = json.loads(_run(server.check_explicit_content(
+            "What the heck is happening"
+        )))
+        assert result["has_explicit"] is True
+        found_words = [f["word"] for f in result["found"]]
+        assert "heck" in found_words
+
+    # --- create_album_structure ---
+
+    def test_create_album_structure(self, integration_env):
+        """create_album_structure creates real directories and copies templates."""
+        result = json.loads(_run(server.create_album_structure(
+            "new-test-album", "hip-hop"
+        )))
+        assert result["created"] is True
+        album_path = Path(result["path"])
+        assert album_path.exists()
+        assert (album_path / "tracks").is_dir()
+        assert "README.md" in result["files"]
+        assert (album_path / "README.md").exists()
+
+    def test_create_album_structure_documentary(self, integration_env):
+        """create_album_structure with documentary=True includes research templates."""
+        result = json.loads(_run(server.create_album_structure(
+            "documentary-album", "electronic", documentary=True
+        )))
+        assert result["created"] is True
+        assert result["documentary"] is True
+        album_path = Path(result["path"])
+        # Documentary albums get RESEARCH.md and SOURCES.md
+        if "RESEARCH.md" in result["files"]:
+            assert (album_path / "RESEARCH.md").exists()
+        if "SOURCES.md" in result["files"]:
+            assert (album_path / "SOURCES.md").exists()
+
+    def test_create_album_structure_already_exists(self, integration_env):
+        """create_album_structure returns error for existing album directory."""
+        result = json.loads(_run(server.create_album_structure(
+            "integration-test-album", "electronic"
+        )))
+        assert result["created"] is False
+        assert "already exists" in result["error"]
