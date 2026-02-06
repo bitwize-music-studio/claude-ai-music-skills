@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.41.6] - 2026-02-06
+
+### Fixed
+- **Tweet template DM issue** — moved @bitwizemusic after hashtags in tweet templates so tweets are public instead of becoming DMs
+
 ## [0.41.5] - 2026-02-06
 
 ### Fixed
