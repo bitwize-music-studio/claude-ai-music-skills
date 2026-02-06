@@ -72,10 +72,10 @@ At the beginning of a fresh session:
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`
-   - In-progress albums → suggest `/bitwize-music:resume`
-   - Overrides loaded → note it; missing → suggest creating them
-   - Pending verifications → warn
-   - One random general tip (rotate: "what should I do next?", resume, researcher, pronunciation, clipboard, mastering)
+   - In-progress albums → suggest `/bitwize-music:resume [album-name]`
+   - Overrides loaded → note it; missing → suggest creating them (see `config/README.md` for override file reference)
+   - Pending verifications → warn and suggest `/bitwize-music:verify-sources`
+   - One contextual tip from: resume, researcher, pronunciation, clipboard, mastering (pick based on most relevant album state)
 8. **Ask**: "What would you like to work on?"
 
 ---
@@ -114,19 +114,42 @@ Concept → Research → Write → Generate → Master → Promo Videos (optiona
 - **Album art** → apply `/bitwize-music:album-art-director`
 - **Releasing** → apply `/bitwize-music:release-director`
 
-Skills contain the deep expertise. See `/reference/SKILL_INDEX.md` for the full decision tree (38 skills).
+- **Verifying sources** → `/bitwize-music:verify-sources` (human verification gate)
+
+Skills contain the deep expertise. See `/reference/SKILL_INDEX.md` for the full decision tree.
 
 ### Source Verification Gate
 
 1. Capture sources FIRST — every source must be a clickable markdown link `[Name](URL)`
 2. Save RESEARCH.md and SOURCES.md to album directory (never cwd)
-3. After adding sources → status: `❌ Pending` → human verifies → `✅ Verified (DATE)`
-4. Block generation if verification incomplete
+3. After adding sources → status: `❌ Pending` → human verifies via `/bitwize-music:verify-sources` → `✅ Verified (DATE)`
+4. Block generation if verification incomplete — `/bitwize-music:pre-generation-check` enforces this
 
 ### Status Tracking
 
-Track: `Not Started` → `Sources Pending` → `Sources Verified` → `In Progress` → `Generated` → `Final`
-Album: `Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
+**Track statuses** (in order):
+`Not Started` → `Sources Pending` → `Sources Verified` → `In Progress` → `Generated` → `Final`
+
+- `Not Started`: No work begun on this track
+- `Sources Pending`: Sources gathered, awaiting human verification
+- `Sources Verified`: Human confirmed all sources via `/bitwize-music:verify-sources`
+- `In Progress`: Lyrics being written or revised
+- `Generated`: Track generated on Suno, audio exists
+- `Final`: Approved and ready for mastering
+
+**Album statuses** (in order):
+`Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
+
+- `Concept`: Initial planning, album README created
+- `Research Complete`: All research done, sources gathered (documentary albums)
+- `Sources Verified`: Human verified all track sources
+- `In Progress`: Active writing/generation work
+- `Complete`: All tracks Final, ready for mastering/release
+- `Released`: Published to streaming platforms
+
+**Transition rules**: Album status advances when ALL tracks reach the corresponding level. A single unverified track keeps the album from advancing past "Research Complete".
+
+See `/reference/state-schema.md` for the full state cache schema.
 
 ---
 
@@ -153,7 +176,7 @@ Currently supports **Suno** (default). Service-specific template sections marked
 | `feat!:` | MAJOR |
 | `docs:`, `chore:` | None |
 
-**Co-author line**: `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
+**Co-author line**: `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`
 
 **Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 

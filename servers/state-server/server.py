@@ -108,13 +108,16 @@ class StateCache:
         """Get state, loading from disk if needed or stale."""
         with self._lock:
             if self._is_stale() or self._state is None:
+                logger.debug("State cache miss, loading from disk")
                 self._load_from_disk()
             return self._state or {}
 
     def rebuild(self) -> dict:
         """Force full rebuild from markdown files."""
+        logger.info("Starting full state rebuild")
         config = read_config()
         if config is None:
+            logger.error("Config not found at %s", CONFIG_FILE)
             return {"error": f"Config not found at {CONFIG_FILE}"}
 
         # Preserve session from existing state
@@ -132,6 +135,14 @@ class StateCache:
         with self._lock:
             self._state = state
             self._update_mtimes()
+
+        album_count = len(state.get("albums", {}))
+        track_count = sum(
+            len(a.get("tracks", {})) for a in state.get("albums", {}).values()
+        )
+        logger.info(
+            "State rebuilt: %d albums, %d tracks", album_count, track_count
+        )
         return state
 
     def update_session(self, **kwargs) -> dict:
@@ -145,13 +156,16 @@ class StateCache:
 
         state = self.get_state()
         if not state:
+            logger.warning("Cannot update session: no state available")
             return {"error": "No state available"}
         if "error" in state:
+            logger.warning("Cannot update session: state has error")
             return {"error": f"State has error: {state['error']}"}
 
         session = state.get("session", {})
 
         if kwargs.get("clear"):
+            logger.info("Clearing session data")
             session = {
                 "last_album": None,
                 "last_track": None,
@@ -162,6 +176,7 @@ class StateCache:
         else:
             if kwargs.get("album") is not None:
                 session["last_album"] = kwargs["album"]
+                logger.debug("Session album set to: %s", kwargs["album"])
             if kwargs.get("track") is not None:
                 session["last_track"] = kwargs["track"]
             if kwargs.get("phase") is not None:
@@ -183,12 +198,15 @@ class StateCache:
             if STATE_FILE.exists():
                 current_state_mtime = STATE_FILE.stat().st_mtime
                 if current_state_mtime != self._state_mtime:
+                    logger.debug("State file mtime changed, cache is stale")
                     return True
             if CONFIG_FILE.exists():
                 current_config_mtime = CONFIG_FILE.stat().st_mtime
                 if current_config_mtime != self._config_mtime:
+                    logger.debug("Config file mtime changed, cache is stale")
                     return True
-        except OSError:
+        except OSError as e:
+            logger.debug("Staleness check OSError: %s", e)
             return True
         return False
 
@@ -198,6 +216,9 @@ class StateCache:
         self._update_mtimes()
         if self._state is None:
             logger.warning("No state file found, will need rebuild")
+        else:
+            album_count = len(self._state.get("albums", {}))
+            logger.debug("Loaded state from disk: %d albums", album_count)
 
     def _update_mtimes(self):
         """Update cached mtime values."""

@@ -2,8 +2,19 @@
 # bitwize-music Plugin Configuration
 # =============================================================================
 #
-# This file configures the AI music generation workflow. Copy it to your
-# user config directory and customize the values.
+# QUICK START — Only 3 required fields:
+#
+#   artist:
+#     name: "your-artist-name"
+#   paths:
+#     content_root: "~/music-projects"
+#     audio_root: "~/music-projects/audio"
+#     documents_root: "~/music-projects/documents"
+#
+# That's it! Everything else below is optional. Copy this file to
+# ~/.bitwize-music/config.yaml and fill in the 3 fields above.
+#
+# =============================================================================
 #
 # SETUP:
 #   mkdir -p ~/.bitwize-music
@@ -213,28 +224,9 @@ paths:
   # overrides [optional]
   # ---------------------------
   # Directory for override files that customize skills and workflows.
-  # Lets you personalize behavior without editing plugin files.
-  #
   # Default (if omitted): {content_root}/overrides
   #
-  # Override files you can create:
-  #   - CLAUDE.md               # Custom workflow instructions
-  #   - pronunciation-guide.md  # Artist/album-specific pronunciations
-  #   - explicit-words.md       # Custom explicit word list
-  #   - lyric-writing-guide.md  # Your lyric writing preferences
-  #   - suno-preferences.md     # Preferred Suno settings
-  #   - mastering-presets.yaml  # Custom EQ presets
-  #
-  # How it works:
-  #   1. Skills check this directory for their override file
-  #   2. If found, merge with (or replace) base behavior
-  #   3. If not found, use defaults (no error)
-  #
-  # Example override files in: config/overrides.example/
-  #
-  # Alternative locations:
-  #   overrides: "~/.bitwize-music/overrides"   # Next to config
-  #   overrides: "~/music-projects/overrides"   # With content (default)
+  # See config/README.md for the full list of override files and examples.
   #
   overrides: "~/music-projects/overrides"
 
