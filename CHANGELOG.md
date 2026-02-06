@@ -6,6 +6,20 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-02-06
+
+### Added
+- **MCP server expanded to 30 tools** — 21 new tools across path resolution, content extraction, text analysis, validation, and album operations
+- **3 content analysis tools** — `check_explicit_content`, `extract_links`, `get_lyrics_stats` for pre-generation checks
+- **10 content/validation tools** — `extract_section`, `update_track_field`, `format_for_clipboard`, `validate_album_structure`, `get_album_full`, `search`, `check_pronunciation_enforcement`, `load_override`, `get_reference`, `create_album_structure`
+- **8 path/query tools** — `resolve_path`, `resolve_track_file`, `list_track_files`, `list_tracks`, `get_album_progress`, `run_pre_generation_gates`, `scan_artist_names`, `check_homographs`
+- **160 integration tests** — full end-to-end pipeline tests (real files → indexer → state.json → StateCache → MCP tool), 5+ per tool
+- **309 MCP unit tests** — edge cases, error paths, word boundaries, path traversal protection
+
+### Changed
+- **MCP server renamed** — `state-server` → `bitwize-music-server` to reflect expanded scope
+- **Test suite at 843 tests** — up from 494 in 0.42.0
+
 ## [0.42.0] - 2026-02-06
 
 ### Added

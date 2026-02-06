@@ -35,6 +35,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.43** | MCP server expanded to 30 tools, 160 integration tests, 843 total tests |
 | **0.39** | Setup skill with auto dependency detection, improved MCP error handling |
 | **0.38** | MCP server for instant state queries, Claude 4.6 upgrade, lyric writer examples |
 | **0.37** | Security hardening (6 fixes), prompt quality improvements across 30+ skill/reference files |
