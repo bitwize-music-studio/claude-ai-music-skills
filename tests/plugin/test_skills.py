@@ -118,11 +118,8 @@ class TestRequirements:
                     f"{skill_name} uses {', '.join(expected_deps[:3])}... but has no requirements field"
                 )
         # This is a warning-level check, not a hard fail
-        if warnings:
-            pytest.warns(UserWarning, match="requirements")  # noqa: not needed, soft check
-        # Actually just assert since we want this to pass/fail cleanly
-        # The original test used WARN, so we keep it as a soft check
-        assert True  # requirements field is advisory
+        # requirements field is advisory (original was WARN level)
+        assert True
 
 
 class TestSkillSections:

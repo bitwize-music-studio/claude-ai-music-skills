@@ -47,18 +47,10 @@ class TestStateTestFiles:
 
     @pytest.mark.parametrize("test_file", ['test_parsers.py', 'test_indexer.py'])
     def test_state_test_exists(self, project_root, test_file):
-        # Check both old and new locations
-        old_path = project_root / "tools" / "state" / "tests" / test_file
-        new_path = project_root / "tests" / "unit" / "state" / test_file
-        assert old_path.exists() or new_path.exists(), (
-            f"Missing state test: {test_file}"
-        )
+        path = project_root / "tests" / "unit" / "state" / test_file
+        assert path.exists(), f"Missing state test: {test_file}"
 
     @pytest.mark.parametrize("fixture", ['album-readme.md', 'track-file.md', 'ideas.md'])
     def test_fixture_exists(self, project_root, fixture):
-        # Check both old and new locations
-        old_path = project_root / "tools" / "state" / "tests" / "fixtures" / fixture
-        new_path = project_root / "tests" / "unit" / "state" / "fixtures" / fixture
-        assert old_path.exists() or new_path.exists(), (
-            f"Missing test fixture: {fixture}"
-        )
+        path = project_root / "tests" / "unit" / "state" / "fixtures" / fixture
+        assert path.exists(), f"Missing test fixture: {fixture}"

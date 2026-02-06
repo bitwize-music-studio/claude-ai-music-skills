@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
-import yaml
 
 # Ensure project root is on sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

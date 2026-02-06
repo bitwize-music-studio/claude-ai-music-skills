@@ -22,7 +22,7 @@ class TestPrerequisites:
                     invalid.append(f"{skill_name} -> {prereq}")
 
         assert not invalid, (
-            f"Invalid prerequisite references:\n" + "\n".join(invalid)
+            "Invalid prerequisite references:\n" + "\n".join(invalid)
         )
 
     def test_no_circular_prerequisites(self, all_skill_frontmatter):
