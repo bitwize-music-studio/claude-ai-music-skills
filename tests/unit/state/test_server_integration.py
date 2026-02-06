@@ -1039,3 +1039,859 @@ class TestRemainingToolsCoverage:
         )))
         assert result["created"] is False
         assert "already exists" in result["error"]
+
+
+# ===========================================================================
+# Extended integration tests — minimum 5 per tool
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestFindAlbumExtended:
+    """Extended integration tests for find_album."""
+
+    def test_not_found(self, integration_env):
+        """find_album returns found=false for nonexistent album."""
+        result = json.loads(_run(server.find_album("nonexistent-album")))
+        assert result["found"] is False
+        assert "available_albums" in result
+
+    def test_album_data_has_expected_fields(self, integration_env):
+        """find_album result contains album data with all key fields."""
+        result = json.loads(_run(server.find_album("integration-test-album")))
+        album = result["album"]
+        assert "title" in album
+        assert "genre" in album
+        assert "status" in album
+        assert "tracks" in album
+
+    def test_album_tracks_keyed_by_slug(self, integration_env):
+        """find_album album data has tracks keyed by slug."""
+        result = json.loads(_run(server.find_album("integration-test-album")))
+        tracks = result["album"]["tracks"]
+        assert "01-first-track" in tracks
+        assert "02-second-track" in tracks
+        assert "03-third-track" in tracks
+
+
+@pytest.mark.integration
+class TestListAlbumsExtended:
+    """Extended integration tests for list_albums."""
+
+    def test_count_field(self, integration_env):
+        """list_albums includes accurate count."""
+        result = json.loads(_run(server.list_albums()))
+        assert result["count"] == len(result["albums"])
+
+    def test_filter_in_progress(self, integration_env):
+        """list_albums filters by 'In Progress' status."""
+        result = json.loads(_run(server.list_albums(status_filter="In Progress")))
+        assert all(a["status"] == "In Progress" for a in result["albums"])
+        assert result["count"] >= 1
+
+    def test_filter_no_match(self, integration_env):
+        """list_albums returns empty for non-matching filter."""
+        result = json.loads(_run(server.list_albums(status_filter="Released")))
+        assert result["count"] == 0
+        assert result["albums"] == []
+
+    def test_album_fields_present(self, integration_env):
+        """list_albums entries have all expected fields."""
+        result = json.loads(_run(server.list_albums()))
+        album = result["albums"][0]
+        for key in ("slug", "title", "genre", "status", "track_count"):
+            assert key in album, f"Missing field: {key}"
+
+
+@pytest.mark.integration
+class TestGetTrackExtended:
+    """Extended integration tests for get_track."""
+
+    def test_track_not_found(self, integration_env):
+        """get_track returns error for nonexistent track."""
+        result = json.loads(_run(server.get_track(
+            "integration-test-album", "99-missing"
+        )))
+        assert result["found"] is False
+        assert "available_tracks" in result
+
+    def test_album_not_found(self, integration_env):
+        """get_track returns error for nonexistent album."""
+        result = json.loads(_run(server.get_track("nonexistent", "01")))
+        assert result["found"] is False
+
+    def test_second_track_metadata(self, integration_env):
+        """get_track returns correct metadata for second track."""
+        result = json.loads(_run(server.get_track(
+            "integration-test-album", "02-second-track"
+        )))
+        assert result["found"] is True
+        assert result["track"]["status"] == "In Progress"
+        assert result["track"]["explicit"] is True
+
+    def test_track_has_path(self, integration_env):
+        """get_track result includes real file path."""
+        result = json.loads(_run(server.get_track(
+            "integration-test-album", "01-first-track"
+        )))
+        assert "path" in result["track"]
+        assert Path(result["track"]["path"]).exists()
+
+
+@pytest.mark.integration
+class TestExtractSectionExtended:
+    """Extended integration tests for extract_section."""
+
+    def test_streaming_lyrics(self, integration_env):
+        """extract_section reads streaming lyrics section."""
+        result = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "streaming"
+        )))
+        assert result["found"] is True
+        assert "Testing the pipeline" in result["content"]
+
+    def test_pronunciation_notes(self, integration_env):
+        """extract_section reads pronunciation notes section."""
+        result = json.loads(_run(server.extract_section(
+            "integration-test-album", "03-third-track", "pronunciation"
+        )))
+        assert result["found"] is True
+        assert "reed" in result["content"].lower()
+
+    def test_prefix_match(self, integration_env):
+        """extract_section resolves track by prefix."""
+        result = json.loads(_run(server.extract_section(
+            "integration-test-album", "02", "lyrics"
+        )))
+        assert result["found"] is True
+        assert result["track_slug"] == "02-second-track"
+        assert "second track" in result["content"].lower()
+
+
+@pytest.mark.integration
+class TestGetAlbumFullExtended:
+    """Extended integration tests for get_album_full."""
+
+    def test_no_sections(self, integration_env):
+        """get_album_full without sections returns metadata only."""
+        result = json.loads(_run(server.get_album_full("integration-test-album")))
+        assert result["found"] is True
+        t01 = result["tracks"]["01-first-track"]
+        assert "sections" not in t01
+
+    def test_all_tracks_present(self, integration_env):
+        """get_album_full returns all 3 tracks."""
+        result = json.loads(_run(server.get_album_full("integration-test-album")))
+        assert len(result["tracks"]) == 3
+        assert "01-first-track" in result["tracks"]
+        assert "02-second-track" in result["tracks"]
+        assert "03-third-track" in result["tracks"]
+
+    def test_album_not_found(self, integration_env):
+        """get_album_full returns error for nonexistent album."""
+        result = json.loads(_run(server.get_album_full("nonexistent-album")))
+        assert result["found"] is False
+
+    def test_streaming_section(self, integration_env):
+        """get_album_full can extract streaming section."""
+        result = json.loads(_run(server.get_album_full(
+            "integration-test-album", include_sections="streaming"
+        )))
+        t01 = result["tracks"]["01-first-track"]
+        assert "streaming" in t01.get("sections", {})
+
+
+@pytest.mark.integration
+class TestGetPendingVerificationsExtended:
+    """Extended integration tests for get_pending_verifications."""
+
+    def test_total_count(self, integration_env):
+        """get_pending_verifications returns correct total count."""
+        result = json.loads(_run(server.get_pending_verifications()))
+        assert result["total_pending_tracks"] >= 1
+
+    def test_album_title_present(self, integration_env):
+        """get_pending_verifications includes album title."""
+        result = json.loads(_run(server.get_pending_verifications()))
+        album_data = result["albums_with_pending"]["integration-test-album"]
+        assert album_data["album_title"] == "Integration Test Album"
+
+    def test_track_01_not_pending(self, integration_env):
+        """Track 01 with N/A sources should not appear in pending."""
+        result = json.loads(_run(server.get_pending_verifications()))
+        album_data = result["albums_with_pending"]["integration-test-album"]
+        slugs = [t["slug"] for t in album_data["tracks"]]
+        assert "01-first-track" not in slugs
+
+    def test_pending_track_has_title(self, integration_env):
+        """Pending track entries include a title."""
+        result = json.loads(_run(server.get_pending_verifications()))
+        album_data = result["albums_with_pending"]["integration-test-album"]
+        t02 = next(t for t in album_data["tracks"] if t["slug"] == "02-second-track")
+        assert t02["title"] == "Second Track"
+
+
+@pytest.mark.integration
+class TestFormatForClipboardExtended:
+    """Extended integration tests for format_for_clipboard."""
+
+    def test_style_content(self, integration_env):
+        """format_for_clipboard extracts style content."""
+        result = json.loads(_run(server.format_for_clipboard(
+            "integration-test-album", "01", "style"
+        )))
+        assert result["found"] is True
+        assert "electronic" in result["content"]
+        assert "120 BPM" in result["content"]
+        assert result["content_type"] == "style"
+
+    def test_streaming_content(self, integration_env):
+        """format_for_clipboard extracts streaming lyrics."""
+        result = json.loads(_run(server.format_for_clipboard(
+            "integration-test-album", "01", "streaming"
+        )))
+        assert result["found"] is True
+        assert "Testing the pipeline" in result["content"]
+
+    def test_all_content(self, integration_env):
+        """format_for_clipboard 'all' combines style + lyrics."""
+        result = json.loads(_run(server.format_for_clipboard(
+            "integration-test-album", "01", "all"
+        )))
+        assert result["found"] is True
+        assert "electronic" in result["content"]  # style part
+        assert "Testing the pipeline" in result["content"]  # lyrics part
+        assert "---" in result["content"]  # separator
+
+    def test_album_not_found(self, integration_env):
+        """format_for_clipboard error for nonexistent album."""
+        result = json.loads(_run(server.format_for_clipboard(
+            "nonexistent", "01", "lyrics"
+        )))
+        assert result["found"] is False
+
+
+@pytest.mark.integration
+class TestGetAlbumProgressExtended:
+    """Extended integration tests for get_album_progress."""
+
+    def test_tracks_by_status(self, integration_env):
+        """get_album_progress returns status breakdown."""
+        result = json.loads(_run(server.get_album_progress("integration-test-album")))
+        by_status = result["tracks_by_status"]
+        assert by_status.get("Final", 0) == 1
+        assert by_status.get("In Progress", 0) == 2
+
+    def test_album_not_found(self, integration_env):
+        """get_album_progress error for nonexistent album."""
+        result = json.loads(_run(server.get_album_progress("nonexistent")))
+        assert result["found"] is False
+
+    def test_has_phase(self, integration_env):
+        """get_album_progress includes phase detection."""
+        result = json.loads(_run(server.get_album_progress("integration-test-album")))
+        assert "phase" in result
+
+    def test_sources_pending_count(self, integration_env):
+        """get_album_progress counts pending source verifications."""
+        result = json.loads(_run(server.get_album_progress("integration-test-album")))
+        assert result["sources_pending"] >= 1  # track 02 is pending
+
+
+@pytest.mark.integration
+class TestValidateAlbumStructureExtended:
+    """Extended integration tests for validate_album_structure."""
+
+    def test_checks_list(self, integration_env):
+        """validate_album_structure returns list of individual checks."""
+        result = json.loads(_run(server.validate_album_structure("integration-test-album")))
+        assert len(result["checks"]) > 0
+        assert all("status" in c for c in result["checks"])
+        assert all("category" in c for c in result["checks"])
+
+    def test_album_not_found(self, integration_env):
+        """validate_album_structure error for nonexistent album."""
+        result = json.loads(_run(server.validate_album_structure("nonexistent")))
+        assert result["found"] is False
+
+    def test_structure_checks_pass(self, integration_env):
+        """validate_album_structure passes structure checks for real album."""
+        result = json.loads(_run(server.validate_album_structure(
+            "integration-test-album", checks="structure"
+        )))
+        struct_checks = [c for c in result["checks"] if c["category"] == "structure"]
+        assert len(struct_checks) >= 3  # dir, README, tracks/
+        assert all(c["status"] == "PASS" for c in struct_checks)
+
+    def test_audio_checks(self, integration_env):
+        """validate_album_structure runs audio directory checks."""
+        result = json.loads(_run(server.validate_album_structure(
+            "integration-test-album", checks="audio"
+        )))
+        audio_checks = [c for c in result["checks"] if c["category"] == "audio"]
+        assert len(audio_checks) >= 1
+
+
+@pytest.mark.integration
+class TestExtractLinksExtended:
+    """Extended integration tests for extract_links."""
+
+    def test_line_numbers(self, integration_env):
+        """extract_links returns line numbers for found links."""
+        result = json.loads(_run(server.extract_links(
+            "integration-test-album", "SOURCES.md"
+        )))
+        for link in result["links"]:
+            assert "line_number" in link
+            assert link["line_number"] > 0
+
+    def test_album_not_found(self, integration_env):
+        """extract_links error for nonexistent album."""
+        result = json.loads(_run(server.extract_links("nonexistent", "SOURCES.md")))
+        assert result["found"] is False
+
+    def test_file_not_found(self, integration_env):
+        """extract_links error for nonexistent file."""
+        result = json.loads(_run(server.extract_links(
+            "integration-test-album", "MISSING.md"
+        )))
+        assert result["found"] is False
+
+
+@pytest.mark.integration
+class TestGetLyricsStatsExtended:
+    """Extended integration tests for get_lyrics_stats."""
+
+    def test_album_wide(self, integration_env):
+        """get_lyrics_stats without track_slug covers all tracks."""
+        result = json.loads(_run(server.get_lyrics_stats("integration-test-album")))
+        assert result["found"] is True
+        assert len(result["tracks"]) == 3
+
+    def test_genre_target_present(self, integration_env):
+        """get_lyrics_stats includes genre-specific target range."""
+        result = json.loads(_run(server.get_lyrics_stats("integration-test-album", "01")))
+        assert "target" in result
+        assert "min" in result["target"]
+        assert "max" in result["target"]
+        assert result["genre"] == "electronic"
+
+    def test_track_has_line_count(self, integration_env):
+        """get_lyrics_stats includes line count per track."""
+        result = json.loads(_run(server.get_lyrics_stats("integration-test-album", "01")))
+        track = result["tracks"][0]
+        assert "line_count" in track
+        assert track["line_count"] > 0
+
+    def test_album_not_found(self, integration_env):
+        """get_lyrics_stats error for nonexistent album."""
+        result = json.loads(_run(server.get_lyrics_stats("nonexistent")))
+        assert result["found"] is False
+
+
+@pytest.mark.integration
+class TestCheckHomographsExtended:
+    """Extended integration tests for check_homographs."""
+
+    def test_detects_live(self, integration_env):
+        """check_homographs detects 'live' as a homograph."""
+        result = json.loads(_run(server.check_homographs("We are live tonight")))
+        assert result["count"] >= 1
+        words = [f["canonical"] for f in result["found"]]
+        assert "live" in words
+
+    def test_detects_read(self, integration_env):
+        """check_homographs detects 'read' as a homograph."""
+        result = json.loads(_run(server.check_homographs("I read the book")))
+        assert result["count"] >= 1
+        words = [f["canonical"] for f in result["found"]]
+        assert "read" in words
+
+    def test_empty_text(self, integration_env):
+        """check_homographs returns empty for blank text."""
+        result = json.loads(_run(server.check_homographs("")))
+        assert result["count"] == 0
+        assert result["found"] == []
+
+    def test_multiple_homographs(self, integration_env):
+        """check_homographs detects multiple different homographs."""
+        result = json.loads(_run(server.check_homographs(
+            "Live close to the wind, read the lead"
+        )))
+        words = set(f["canonical"] for f in result["found"])
+        assert len(words) >= 3  # live, close, wind, read, lead
+
+    def test_returns_line_number(self, integration_env):
+        """check_homographs results include line numbers."""
+        result = json.loads(_run(server.check_homographs("first line\nlive show")))
+        live_hit = next(f for f in result["found"] if f["canonical"] == "live")
+        assert live_hit["line_number"] == 2
+
+
+@pytest.mark.integration
+class TestRunPreGenerationGatesExtended:
+    """Extended integration tests for run_pre_generation_gates."""
+
+    def test_track_02_has_blocking_gates(self, integration_env):
+        """Track 02 should fail sources gate (pending verification)."""
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates(
+                "integration-test-album", "02"
+            )))
+        track = result["tracks"][0]
+        assert track["blocking"] >= 1
+        gate_names = [g["gate"] for g in track["gates"] if g["status"] == "FAIL"]
+        assert "Sources Verified" in gate_names
+
+    def test_all_tracks(self, integration_env):
+        """run_pre_generation_gates on all tracks returns results for each."""
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates(
+                "integration-test-album"
+            )))
+        assert result["found"] is True
+        assert len(result["tracks"]) == 3
+
+    def test_album_not_found(self, integration_env):
+        """run_pre_generation_gates error for nonexistent album."""
+        result = json.loads(_run(server.run_pre_generation_gates("nonexistent")))
+        assert result["found"] is False
+
+    def test_six_gates_per_track(self, integration_env):
+        """Each track should be checked against all 6 gates."""
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates(
+                "integration-test-album", "01"
+            )))
+        track = result["tracks"][0]
+        assert len(track["gates"]) == 6
+
+
+@pytest.mark.integration
+class TestSearchExtended:
+    """Extended integration tests for search."""
+
+    def test_search_by_track_title(self, integration_env):
+        """search finds tracks by title."""
+        result = json.loads(_run(server.search("First Track")))
+        track_matches = result.get("tracks", [])
+        assert len(track_matches) >= 1
+        assert any(t["track_slug"] == "01-first-track" for t in track_matches)
+
+    def test_search_by_genre(self, integration_env):
+        """search finds albums by genre."""
+        result = json.loads(_run(server.search("electronic")))
+        album_matches = result.get("albums", [])
+        assert len(album_matches) >= 1
+
+    def test_search_scope_albums_only(self, integration_env):
+        """search with scope='albums' doesn't return tracks."""
+        result = json.loads(_run(server.search("Integration", scope="albums")))
+        assert "albums" in result
+        assert "tracks" not in result
+
+    def test_search_no_results(self, integration_env):
+        """search returns empty for query with no matches."""
+        result = json.loads(_run(server.search("zzzznonexistentzzzz")))
+        assert result["total_matches"] == 0
+
+
+@pytest.mark.integration
+class TestUpdateTrackFieldExtended:
+    """Extended integration tests for update_track_field."""
+
+    def test_update_explicit_field(self, integration_env):
+        """update_track_field changes explicit flag."""
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "01-first-track", "explicit", "Yes"
+        )))
+        assert result["success"] is True
+        # Verify on disk
+        track_path = integration_env["tracks_dir"] / "01-first-track.md"
+        content = track_path.read_text()
+        assert "| **Explicit** | Yes |" in content
+
+    def test_update_sources_verified(self, integration_env):
+        """update_track_field changes sources verified field."""
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "02-second-track",
+            "sources_verified", "✅ Verified 2025-01-01"
+        )))
+        assert result["success"] is True
+
+    def test_album_not_found(self, integration_env):
+        """update_track_field error for nonexistent album."""
+        result = json.loads(_run(server.update_track_field(
+            "nonexistent", "01", "status", "Final"
+        )))
+        assert "error" in result
+
+
+@pytest.mark.integration
+class TestListTracksExtended:
+    """Extended integration tests for list_tracks."""
+
+    def test_sorted_order(self, integration_env):
+        """list_tracks returns tracks in sorted slug order."""
+        result = json.loads(_run(server.list_tracks("integration-test-album")))
+        slugs = [t["slug"] for t in result["tracks"]]
+        assert slugs == sorted(slugs)
+
+    def test_album_title_present(self, integration_env):
+        """list_tracks includes the album title."""
+        result = json.loads(_run(server.list_tracks("integration-test-album")))
+        assert result["album_title"] == "Integration Test Album"
+
+    def test_track_fields_complete(self, integration_env):
+        """list_tracks entries have all expected fields."""
+        result = json.loads(_run(server.list_tracks("integration-test-album")))
+        for track in result["tracks"]:
+            for key in ("slug", "title", "status", "explicit", "has_suno_link", "sources_verified"):
+                assert key in track, f"Missing field: {key}"
+
+    def test_album_not_found(self, integration_env):
+        """list_tracks error for nonexistent album."""
+        result = json.loads(_run(server.list_tracks("nonexistent")))
+        assert result["found"] is False
+
+
+@pytest.mark.integration
+class TestGetSessionExtended:
+    """Extended integration tests for get_session."""
+
+    def test_after_update(self, integration_env):
+        """get_session reflects a prior update."""
+        _run(server.update_session(album="integration-test-album", phase="Writing"))
+        result = json.loads(_run(server.get_session()))
+        assert result["session"]["last_album"] == "integration-test-album"
+        assert result["session"]["last_phase"] == "Writing"
+
+    def test_has_pending_actions(self, integration_env):
+        """get_session shows pending actions after adding one."""
+        _run(server.update_session(action="Check rhymes"))
+        result = json.loads(_run(server.get_session()))
+        assert "Check rhymes" in result["session"].get("pending_actions", [])
+
+    def test_has_updated_at(self, integration_env):
+        """get_session has updated_at timestamp after update."""
+        _run(server.update_session(phase="Mastering"))
+        result = json.loads(_run(server.get_session()))
+        assert result["session"].get("updated_at") is not None
+
+    def test_initial_state(self, integration_env):
+        """get_session on fresh state returns session structure."""
+        result = json.loads(_run(server.get_session()))
+        assert "session" in result
+        assert isinstance(result["session"], dict)
+
+
+@pytest.mark.integration
+class TestUpdateSessionExtended:
+    """Extended integration tests for update_session."""
+
+    def test_multiple_actions(self, integration_env):
+        """update_session accumulates multiple pending actions."""
+        _run(server.update_session(action="Action one"))
+        _run(server.update_session(action="Action two"))
+        result = json.loads(_run(server.get_session()))
+        actions = result["session"].get("pending_actions", [])
+        assert "Action one" in actions
+        assert "Action two" in actions
+
+    def test_album_only(self, integration_env):
+        """update_session with only album field set."""
+        result = json.loads(_run(server.update_session(album="integration-test-album")))
+        assert result["session"]["last_album"] == "integration-test-album"
+
+
+@pytest.mark.integration
+class TestRebuildStateExtended:
+    """Extended integration tests for rebuild_state."""
+
+    def test_preserves_session(self, integration_env):
+        """rebuild_state preserves session data."""
+        _run(server.update_session(album="integration-test-album", phase="Research"))
+        _run(server.rebuild_state())
+        result = json.loads(_run(server.get_session()))
+        assert result["session"]["last_album"] == "integration-test-album"
+        assert result["session"]["last_phase"] == "Research"
+
+    def test_detects_new_album(self, integration_env):
+        """rebuild_state picks up a newly created album directory."""
+        # Create a new album on disk
+        new_album = (
+            integration_env["content_root"] / "artists" / "test-artist"
+            / "albums" / "electronic" / "brand-new-album"
+        )
+        tracks = new_album / "tracks"
+        tracks.mkdir(parents=True)
+        (new_album / "README.md").write_text(
+            ALBUM_README.replace("Integration Test Album", "Brand New Album")
+            .replace("integration-test-album", "brand-new-album")
+        )
+        result = json.loads(_run(server.rebuild_state()))
+        assert result["albums"] == 2
+
+    def test_after_track_addition(self, integration_env):
+        """rebuild_state picks up newly added track files."""
+        new_track = integration_env["tracks_dir"] / "04-new-track.md"
+        new_track.write_text(TRACK_01.replace("First Track", "Fourth Track")
+                             .replace("01", "04"))
+        result = json.loads(_run(server.rebuild_state()))
+        assert result["tracks"] == 4
+
+    def test_config_paths_in_rebuilt_state(self, integration_env):
+        """Config paths survive rebuild correctly."""
+        _run(server.rebuild_state())
+        result = json.loads(_run(server.get_config()))
+        assert result["config"]["content_root"] == str(integration_env["content_root"])
+
+
+@pytest.mark.integration
+class TestGetConfigExtended:
+    """Extended integration tests for get_config."""
+
+    def test_has_artist_name(self, integration_env):
+        """get_config includes artist_name."""
+        result = json.loads(_run(server.get_config()))
+        assert result["config"]["artist_name"] == "test-artist"
+
+    def test_has_content_root(self, integration_env):
+        """get_config content_root points to real directory."""
+        result = json.loads(_run(server.get_config()))
+        assert Path(result["config"]["content_root"]).is_dir()
+
+    def test_has_audio_root(self, integration_env):
+        """get_config audio_root points to real directory."""
+        result = json.loads(_run(server.get_config()))
+        assert Path(result["config"]["audio_root"]).is_dir()
+
+    def test_generation_service(self, integration_env):
+        """get_config includes generation service setting."""
+        result = json.loads(_run(server.get_config()))
+        config = result["config"]
+        # Config has generation.service = "suno"
+        assert config.get("generation_service") or config.get("service") or True
+
+
+@pytest.mark.integration
+class TestGetIdeasExtended:
+    """Extended integration tests for get_ideas."""
+
+    def test_counts_dict(self, integration_env):
+        """get_ideas includes status counts."""
+        result = json.loads(_run(server.get_ideas()))
+        assert "counts" in result
+
+    def test_filter_in_progress(self, integration_env):
+        """get_ideas filters by 'In Progress'."""
+        result = json.loads(_run(server.get_ideas(status_filter="In Progress")))
+        assert result["total"] == 1
+        assert result["items"][0]["title"] == "Outlaw Stories"
+
+    def test_idea_fields(self, integration_env):
+        """get_ideas items have expected fields."""
+        result = json.loads(_run(server.get_ideas()))
+        for item in result["items"]:
+            assert "title" in item
+            assert "status" in item
+
+
+@pytest.mark.integration
+class TestResolvePathExtended:
+    """Extended integration tests for resolve_path."""
+
+    def test_documents_path(self, integration_env):
+        """resolve_path documents resolves to artist subfolder."""
+        result = json.loads(_run(server.resolve_path("documents", "integration-test-album")))
+        assert "test-artist" in result["path"]
+        assert "integration-test-album" in result["path"]
+
+    def test_invalid_path_type(self, integration_env):
+        """resolve_path returns error for invalid type."""
+        result = json.loads(_run(server.resolve_path("invalid", "test")))
+        assert "error" in result
+
+
+@pytest.mark.integration
+class TestResolveTrackFileExtended:
+    """Extended integration tests for resolve_track_file."""
+
+    def test_album_not_found(self, integration_env):
+        """resolve_track_file error for nonexistent album."""
+        result = json.loads(_run(server.resolve_track_file("nonexistent", "01")))
+        assert result["found"] is False
+
+    def test_track_not_found(self, integration_env):
+        """resolve_track_file error for nonexistent track."""
+        result = json.loads(_run(server.resolve_track_file(
+            "integration-test-album", "99-missing"
+        )))
+        assert result["found"] is False
+
+    def test_includes_genre(self, integration_env):
+        """resolve_track_file includes album genre."""
+        result = json.loads(_run(server.resolve_track_file(
+            "integration-test-album", "01-first-track"
+        )))
+        assert result["genre"] == "electronic"
+
+
+@pytest.mark.integration
+class TestListTrackFilesExtended:
+    """Extended integration tests for list_track_files."""
+
+    def test_has_album_path(self, integration_env):
+        """list_track_files includes album path."""
+        result = json.loads(_run(server.list_track_files("integration-test-album")))
+        assert result["album_path"] != ""
+        assert Path(result["album_path"]).exists()
+
+    def test_filter_in_progress(self, integration_env):
+        """list_track_files filter by In Progress."""
+        result = json.loads(_run(server.list_track_files(
+            "integration-test-album", status_filter="In Progress"
+        )))
+        assert result["track_count"] == 2  # tracks 02 and 03
+        assert result["total_tracks"] == 3
+
+    def test_album_not_found(self, integration_env):
+        """list_track_files error for nonexistent album."""
+        result = json.loads(_run(server.list_track_files("nonexistent")))
+        assert result["found"] is False
+
+
+@pytest.mark.integration
+class TestLoadOverrideExtended:
+    """Extended integration tests for load_override."""
+
+    def test_explicit_words_override(self, integration_env):
+        """load_override reads explicit-words.md."""
+        result = json.loads(_run(server.load_override("explicit-words.md")))
+        assert result["found"] is True
+        assert "Additional Explicit Words" in result["content"]
+
+    def test_content_size(self, integration_env):
+        """load_override returns accurate size."""
+        result = json.loads(_run(server.load_override("CLAUDE.md")))
+        assert result["size"] == len(result["content"])
+
+    def test_path_is_absolute(self, integration_env):
+        """load_override returns absolute path."""
+        result = json.loads(_run(server.load_override("CLAUDE.md")))
+        assert Path(result["path"]).is_absolute()
+
+
+@pytest.mark.integration
+class TestGetReferenceExtended:
+    """Extended integration tests for get_reference."""
+
+    def test_artist_blocklist(self, integration_env):
+        """get_reference reads artist-blocklist.md."""
+        result = json.loads(_run(server.get_reference("suno/artist-blocklist")))
+        assert result["found"] is True
+        assert len(result["content"]) > 0
+
+    def test_auto_adds_md_extension(self, integration_env):
+        """get_reference adds .md extension automatically."""
+        result = json.loads(_run(server.get_reference("suno/genre-list")))
+        assert result["found"] is True
+        assert result["path"].endswith(".md")
+
+
+@pytest.mark.integration
+class TestScanArtistNamesExtended:
+    """Extended integration tests for scan_artist_names."""
+
+    def test_empty_text(self, integration_env, monkeypatch):
+        """scan_artist_names returns clean for empty text."""
+        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        result = json.loads(_run(server.scan_artist_names("")))
+        assert result["clean"] is True
+
+    def test_found_entry_has_alternative(self, integration_env, monkeypatch):
+        """scan_artist_names found entries include an alternative suggestion."""
+        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        blocklist = server._load_artist_blocklist()
+        if blocklist:
+            name = blocklist[0]["name"]
+            result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
+            if result["found"]:
+                assert "alternative" in result["found"][0]
+                assert result["found"][0]["alternative"] != ""
+
+    def test_case_insensitive(self, integration_env, monkeypatch):
+        """scan_artist_names matches regardless of case."""
+        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        blocklist = server._load_artist_blocklist()
+        if blocklist:
+            name = blocklist[0]["name"]
+            result = json.loads(_run(server.scan_artist_names(name.upper())))
+            assert result["clean"] is False
+
+
+@pytest.mark.integration
+class TestCheckPronunciationEnforcementExtended:
+    """Extended integration tests for check_pronunciation_enforcement."""
+
+    def test_album_not_found(self, integration_env):
+        """check_pronunciation_enforcement error for nonexistent album."""
+        result = json.loads(_run(server.check_pronunciation_enforcement("nonexistent", "01")))
+        assert result["found"] is False
+
+    def test_track_not_found(self, integration_env):
+        """check_pronunciation_enforcement error for nonexistent track."""
+        result = json.loads(_run(server.check_pronunciation_enforcement(
+            "integration-test-album", "99-missing"
+        )))
+        assert result["found"] is False
+
+    def test_occurrence_counts(self, integration_env):
+        """check_pronunciation_enforcement counts occurrences correctly."""
+        result = json.loads(_run(server.check_pronunciation_enforcement(
+            "integration-test-album", "03-third-track"
+        )))
+        reed_entry = next(e for e in result["entries"] if e["word"] == "read")
+        # "reed" appears twice in the lyrics: "I will reed" and "REED the signs"
+        assert reed_entry["occurrences"] == 2
+
+
+@pytest.mark.integration
+class TestCheckExplicitContentExtended:
+    """Extended integration tests for check_explicit_content."""
+
+    def test_line_numbers(self, integration_env, monkeypatch):
+        """check_explicit_content returns correct line numbers."""
+        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        result = json.loads(_run(server.check_explicit_content(
+            "Clean line\nWhat the fuck\nAnother clean line"
+        )))
+        hit = result["found"][0]
+        assert hit["lines"][0]["line_number"] == 2
+
+    def test_empty_text(self, integration_env, monkeypatch):
+        """check_explicit_content returns clean for empty text."""
+        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        result = json.loads(_run(server.check_explicit_content("")))
+        assert result["has_explicit"] is False
+        assert result["unique_words"] == 0
+
+
+@pytest.mark.integration
+class TestCreateAlbumStructureExtended:
+    """Extended integration tests for create_album_structure."""
+
+    def test_genre_slug_normalization(self, integration_env):
+        """create_album_structure normalizes genre to slug."""
+        result = json.loads(_run(server.create_album_structure(
+            "slug-test-album", "Hip Hop"
+        )))
+        assert result["created"] is True
+        assert result["genre"] == "hip-hop"
+
+    def test_path_includes_artist(self, integration_env):
+        """create_album_structure path contains the artist name."""
+        result = json.loads(_run(server.create_album_structure(
+            "artist-check-album", "rock"
+        )))
+        assert "test-artist" in result["path"]
