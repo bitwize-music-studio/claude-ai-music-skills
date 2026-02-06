@@ -3,7 +3,7 @@
     "bitwize-music-mcp": {
       "type": "stdio",
       "command": "${HOME}/.bitwize-music/venv/bin/python3",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/state-server/run.py"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/bitwize-music-server/run.py"]
     }
   }
 }

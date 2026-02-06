@@ -35,7 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # module so the import succeeds regardless.
 # ---------------------------------------------------------------------------
 
-SERVER_PATH = PROJECT_ROOT / "servers" / "state-server" / "server.py"
+SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 
 # Check if the real MCP SDK is available; if not, create a minimal mock.
 _mcp_was_mocked = False

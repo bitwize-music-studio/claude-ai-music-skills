@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-MCP server for bitwize-music state cache.
+MCP server for bitwize-music plugin.
 
-Provides structured access to album, track, session, and config data
-without shelling out to Python or reading JSON files manually.
+Provides structured access to albums, tracks, sessions, config, paths,
+and track content without shelling out to Python or reading files manually.
 
 Transport: stdio
 
 Usage:
-    python3 servers/state-server/server.py
+    python3 servers/bitwize-music-server/server.py
 
 Tools exposed:
     find_album          - Find album by name (fuzzy match)

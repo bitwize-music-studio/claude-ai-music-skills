@@ -1,10 +1,10 @@
 # bitwize-music MCP Server
 
-MCP (Model Context Protocol) server providing direct access to the bitwize-music state cache.
+MCP (Model Context Protocol) server for the bitwize-music plugin.
 
 ## Overview
 
-This server wraps the existing `tools/state/indexer.py` functionality, exposing it as MCP tools. Instead of shelling out to Python and reading JSON files, Claude can call these tools directly for instant structured responses.
+This server provides structured access to albums, tracks, sessions, config, paths, and track content. Instead of shelling out to Python, reading JSON files, or globbing for files, skills call these tools directly for instant structured responses.
 
 The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools can be added to this same server.
 
@@ -48,19 +48,36 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available
+## Tools Available (17)
 
+### Albums & Tracks
 | Tool | Description |
 |------|-------------|
-| `find_album(name)` | Find album by name with fuzzy matching |
+| `find_album(name)` | Find album by name with fuzzy matching (auto-rebuilds if stale) |
 | `list_albums(status_filter?)` | List all albums with summary info |
 | `get_track(album_slug, track_slug)` | Get specific track details |
+| `list_tracks(album_slug)` | List all tracks for an album |
+| `get_album_progress(album_slug)` | Progress breakdown with phase detection |
+| `get_pending_verifications()` | Get tracks needing source verification |
+| `search(query, scope?)` | Full-text search across albums/tracks/ideas |
+
+### Paths & Files
+| Tool | Description |
+|------|-------------|
+| `resolve_path(path_type, album_slug, genre?)` | Resolve content/audio/documents/tracks/overrides path |
+| `resolve_track_file(album_slug, track_slug)` | Find track file path with metadata |
+| `list_track_files(album_slug, status_filter?)` | List tracks with file paths and status filtering |
+| `extract_section(album_slug, track_slug, section)` | Extract section from track markdown (lyrics, style, etc.) |
+| `update_track_field(album_slug, track_slug, field, value)` | Update metadata field in track file |
+
+### Session & Config
+| Tool | Description |
+|------|-------------|
 | `get_session()` | Get current session context |
 | `update_session(album?, track?, phase?, action?, clear?)` | Update session context |
-| `rebuild_state()` | Force full rebuild from markdown files |
 | `get_config()` | Get resolved configuration paths |
 | `get_ideas(status_filter?)` | Get album ideas with counts |
-| `get_pending_verifications()` | Get tracks needing source verification |
+| `rebuild_state()` | Force full rebuild from markdown files |
 
 ## Usage
 
@@ -70,7 +87,7 @@ The server starts automatically when the plugin is enabled. It uses stdio transp
 
 ```bash
 # From plugin root
-python3 servers/state-server/server.py
+python3 servers/bitwize-music-server/server.py
 ```
 
 The server reads JSON-RPC requests from stdin and writes responses to stdout.
