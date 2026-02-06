@@ -1295,3 +1295,249 @@ class TestStateCacheUpdateMtimes:
             cache._update_mtimes()
         assert cache._state_mtime == 0.0
         assert cache._config_mtime == 0.0
+
+
+# =============================================================================
+# resolve_path tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestResolvePath:
+    """Tests for the resolve_path MCP tool."""
+
+    def test_audio_path(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("audio", "test-album")))
+        assert "path" in result
+        assert result["path"] == "/tmp/test/audio/test-artist/test-album"
+        assert result["path_type"] == "audio"
+
+    def test_documents_path(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("documents", "test-album")))
+        assert result["path"] == "/tmp/test/docs/test-artist/test-album"
+
+    def test_content_path_with_genre(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("content", "test-album", genre="electronic")))
+        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert result["genre"] == "electronic"
+
+    def test_content_path_genre_from_state(self):
+        """Genre is looked up from state cache when not provided."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("content", "test-album")))
+        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert result["genre"] == "electronic"
+
+    def test_content_path_genre_required_not_found(self):
+        """Error when genre not provided and album not in state."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("content", "unknown-album")))
+        assert "error" in result
+        assert "Genre required" in result["error"]
+
+    def test_tracks_path(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("tracks", "test-album")))
+        assert result["path"].endswith("/tracks")
+        assert "electronic" in result["path"]
+
+    def test_overrides_path(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("overrides", "")))
+        assert result["path_type"] == "overrides"
+        assert result["path"].endswith("/overrides")
+
+    def test_overrides_explicit_config(self):
+        """Overrides path uses config value when set."""
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = "/custom/overrides"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("overrides", "")))
+        assert result["path"] == "/custom/overrides"
+
+    def test_invalid_path_type(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("invalid", "test-album")))
+        assert "error" in result
+        assert "Invalid path_type" in result["error"]
+
+    def test_no_config(self):
+        """Error when state has no config."""
+        state = _fresh_state()
+        state["config"] = {}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("audio", "test-album")))
+        assert "error" in result
+
+    def test_slug_normalization(self):
+        """Album slug with spaces is normalized."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("audio", "test album")))
+        assert "test-album" in result["path"]
+
+
+# =============================================================================
+# resolve_track_file tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestResolveTrackFile:
+    """Tests for the resolve_track_file MCP tool."""
+
+    def test_exact_match(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test-album", "01-first-track")))
+        assert result["found"] is True
+        assert result["track_slug"] == "01-first-track"
+        assert result["path"] == "/tmp/test/.../01-first-track.md"
+        assert result["genre"] == "electronic"
+        assert "track" in result
+
+    def test_prefix_match(self):
+        """Track number prefix matches the full slug."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test-album", "01")))
+        assert result["found"] is True
+        assert result["track_slug"] == "01-first-track"
+
+    def test_prefix_match_with_hyphen(self):
+        """Track number with trailing content still matches."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test-album", "02")))
+        assert result["found"] is True
+        assert result["track_slug"] == "02-second-track"
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("nonexistent", "01")))
+        assert result["found"] is False
+        assert "available_albums" in result
+
+    def test_track_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test-album", "99-missing")))
+        assert result["found"] is False
+        assert "available_tracks" in result
+
+    def test_includes_album_path(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test-album", "01-first-track")))
+        assert result["album_path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+
+    def test_slug_normalization(self):
+        """Spaces and underscores in input are normalized."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("test album", "01 first track")))
+        assert result["found"] is True
+
+    def test_multiple_prefix_matches(self):
+        """Ambiguous prefix returns error with matches."""
+        state = _fresh_state()
+        state["albums"]["prefix-album"] = {
+            "path": "/tmp/test/prefix-album",
+            "genre": "rock",
+            "title": "Prefix Album",
+            "status": "In Progress",
+            "tracks": {
+                "01-a-track": {"path": "/tmp/01-a.md", "title": "A", "status": "Not Started"},
+                "01-b-track": {"path": "/tmp/01-b.md", "title": "B", "status": "Not Started"},
+            },
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_track_file("prefix-album", "01")))
+        assert result["found"] is False
+        assert "Multiple tracks" in result["error"]
+        assert len(result["matches"]) == 2
+
+
+# =============================================================================
+# list_track_files tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestListTrackFiles:
+    """Tests for the list_track_files MCP tool."""
+
+    def test_all_tracks(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album")))
+        assert result["found"] is True
+        assert result["track_count"] == 2
+        assert result["total_tracks"] == 2
+        assert result["genre"] == "electronic"
+        assert result["album_path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+
+    def test_tracks_include_paths(self):
+        """Each track includes its file path."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album")))
+        for track in result["tracks"]:
+            assert "path" in track
+            assert track["path"] != ""
+
+    def test_status_filter(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album", status_filter="Final")))
+        assert result["track_count"] == 1
+        assert result["total_tracks"] == 2
+        assert result["tracks"][0]["slug"] == "01-first-track"
+
+    def test_status_filter_case_insensitive(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album", status_filter="final")))
+        assert result["track_count"] == 1
+
+    def test_status_filter_no_match(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album", status_filter="Generated")))
+        assert result["track_count"] == 0
+        assert result["total_tracks"] == 2
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("nonexistent")))
+        assert result["found"] is False
+        assert "available_albums" in result
+
+    def test_tracks_sorted_by_slug(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album")))
+        slugs = [t["slug"] for t in result["tracks"]]
+        assert slugs == sorted(slugs)
+
+    def test_track_fields_present(self):
+        """Each track has all expected fields."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_track_files("test-album")))
+        expected_fields = {"slug", "title", "status", "path", "explicit", "has_suno_link", "sources_verified"}
+        for track in result["tracks"]:
+            assert expected_fields.issubset(track.keys())

@@ -22,6 +22,9 @@ Tools exposed:
     get_config          - Get resolved config
     get_ideas           - Get ideas with counts
     get_pending_verifications - Get tracks needing verification
+    resolve_path        - Resolve content/audio/documents path for an album
+    resolve_track_file  - Find a track file path with metadata
+    list_track_files    - List track files with status filtering
 """
 import json
 import logging
@@ -631,6 +634,212 @@ async def get_pending_verifications() -> str:
     return _safe_json({
         "albums_with_pending": pending,
         "total_pending_tracks": sum(len(a["tracks"]) for a in pending.values()),
+    })
+
+
+@mcp.tool()
+async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
+    """Resolve the full filesystem path for an album's content, audio, or documents directory.
+
+    Uses config and state cache to construct the correct mirrored path structure:
+        content:   {content_root}/artists/{artist}/albums/{genre}/{album}/
+        audio:     {audio_root}/{artist}/{album}/
+        documents: {documents_root}/{artist}/{album}/
+        tracks:    {content_root}/artists/{artist}/albums/{genre}/{album}/tracks/
+        overrides: {overrides_path} or {content_root}/overrides/
+
+    Args:
+        path_type: One of "content", "audio", "documents", "tracks", "overrides"
+        album_slug: Album slug (e.g., "my-album"). Ignored for "overrides".
+        genre: Genre slug. Required for "content" and "tracks". If omitted, looked up from state cache.
+
+    Returns:
+        JSON with resolved path or error
+    """
+    if path_type not in ("content", "audio", "documents", "tracks", "overrides"):
+        return _safe_json({
+            "error": f"Invalid path_type '{path_type}'. Must be 'content', 'audio', 'documents', 'tracks', or 'overrides'.",
+        })
+
+    state = cache.get_state()
+    config = state.get("config", {})
+
+    if not config:
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
+
+    # Overrides doesn't need album info
+    if path_type == "overrides":
+        overrides = config.get("overrides_dir", "")
+        if overrides:
+            return _safe_json({"path": overrides, "path_type": path_type})
+        content_root = config.get("content_root", "")
+        return _safe_json({
+            "path": str(Path(content_root) / "overrides"),
+            "path_type": path_type,
+        })
+
+    artist = config.get("artist_name", "")
+    if not artist:
+        return _safe_json({"error": "No artist_name in config."})
+
+    normalized = _normalize_slug(album_slug)
+
+    # For content/tracks, we need genre — try state cache if not provided
+    if path_type in ("content", "tracks") and not genre:
+        albums = state.get("albums", {})
+        album_data = albums.get(normalized, {})
+        genre = album_data.get("genre", "")
+        if not genre:
+            return _safe_json({
+                "error": f"Genre required for '{path_type}' path. Provide genre parameter or ensure album '{album_slug}' exists in state.",
+            })
+
+    content_root = config.get("content_root", "")
+    audio_root = config.get("audio_root", "")
+    documents_root = config.get("documents_root", "")
+
+    if path_type == "content":
+        resolved = str(Path(content_root) / "artists" / artist / "albums" / genre / normalized)
+    elif path_type == "tracks":
+        resolved = str(Path(content_root) / "artists" / artist / "albums" / genre / normalized / "tracks")
+    elif path_type == "audio":
+        resolved = str(Path(audio_root) / artist / normalized)
+    else:  # documents
+        resolved = str(Path(documents_root) / artist / normalized)
+
+    return _safe_json({
+        "path": resolved,
+        "path_type": path_type,
+        "album_slug": normalized,
+        "genre": genre,
+    })
+
+
+@mcp.tool()
+async def resolve_track_file(album_slug: str, track_slug: str) -> str:
+    """Find a track's file path and return its full metadata from state cache.
+
+    More complete than get_track — includes the resolved file path and album context.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+
+    Returns:
+        JSON with track path, metadata, and album context
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    normalized_track = _normalize_slug(track_slug)
+
+    # Exact match first
+    if normalized_track in tracks:
+        track = tracks[normalized_track]
+        return _safe_json({
+            "found": True,
+            "album_slug": normalized_album,
+            "track_slug": normalized_track,
+            "path": track.get("path", ""),
+            "album_path": album.get("path", ""),
+            "genre": album.get("genre", ""),
+            "track": track,
+        })
+
+    # Prefix match — allow "01" to match "01-track-name"
+    prefix_matches = {
+        slug: data for slug, data in tracks.items()
+        if slug.startswith(normalized_track)
+    }
+
+    if len(prefix_matches) == 1:
+        slug = next(iter(prefix_matches))
+        track = prefix_matches[slug]
+        return _safe_json({
+            "found": True,
+            "album_slug": normalized_album,
+            "track_slug": slug,
+            "path": track.get("path", ""),
+            "album_path": album.get("path", ""),
+            "genre": album.get("genre", ""),
+            "track": track,
+        })
+    elif len(prefix_matches) > 1:
+        return _safe_json({
+            "found": False,
+            "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+            "matches": list(prefix_matches.keys()),
+        })
+
+    return _safe_json({
+        "found": False,
+        "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+        "available_tracks": list(tracks.keys()),
+    })
+
+
+@mcp.tool()
+async def list_track_files(album_slug: str, status_filter: str = "") -> str:
+    """List all tracks for an album with file paths and optional status filtering.
+
+    Unlike list_tracks, includes file paths and supports filtering by status.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        status_filter: Optional status filter (e.g., "Not Started", "In Progress", "Generated", "Final")
+
+    Returns:
+        JSON with track list including paths, or error if album not found
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    track_list = []
+    for slug, track in sorted(tracks.items()):
+        status = track.get("status", "Unknown")
+
+        if status_filter and status.lower() != status_filter.lower():
+            continue
+
+        track_list.append({
+            "slug": slug,
+            "title": track.get("title", slug),
+            "status": status,
+            "path": track.get("path", ""),
+            "explicit": track.get("explicit", False),
+            "has_suno_link": track.get("has_suno_link", False),
+            "sources_verified": track.get("sources_verified", "N/A"),
+        })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "album_title": album.get("title", normalized),
+        "album_path": album.get("path", ""),
+        "genre": album.get("genre", ""),
+        "tracks": track_list,
+        "track_count": len(track_list),
+        "total_tracks": len(tracks),
     })
 
 
