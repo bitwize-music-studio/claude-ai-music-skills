@@ -48,7 +48,7 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available (17)
+## Tools Available (27)
 
 ### Albums & Tracks
 | Tool | Description |
@@ -58,6 +58,7 @@ After installing, **restart Claude Code** to reload the plugin.
 | `get_track(album_slug, track_slug)` | Get specific track details |
 | `list_tracks(album_slug)` | List all tracks for an album |
 | `get_album_progress(album_slug)` | Progress breakdown with phase detection |
+| `get_album_full(album_slug, include_sections?)` | Combined album + track content query (eliminates N+1) |
 | `get_pending_verifications()` | Get tracks needing source verification |
 | `search(query, scope?)` | Full-text search across albums/tracks/ideas |
 
@@ -69,6 +70,23 @@ After installing, **restart Claude Code** to reload the plugin.
 | `list_track_files(album_slug, status_filter?)` | List tracks with file paths and status filtering |
 | `extract_section(album_slug, track_slug, section)` | Extract section from track markdown (lyrics, style, etc.) |
 | `update_track_field(album_slug, track_slug, field, value)` | Update metadata field in track file |
+| `load_override(override_name)` | Load user override file by name from overrides directory |
+| `get_reference(name, section?)` | Read plugin reference file with optional section extraction |
+| `format_for_clipboard(album_slug, track_slug, content_type)` | Extract and format track content for clipboard |
+
+### Text Analysis
+| Tool | Description |
+|------|-------------|
+| `check_homographs(text)` | Scan lyrics for homograph pronunciation risks |
+| `scan_artist_names(text)` | Check text against artist name blocklist |
+| `check_pronunciation_enforcement(album_slug, track_slug)` | Verify pronunciation notes applied in lyrics |
+
+### Validation & Structure
+| Tool | Description |
+|------|-------------|
+| `validate_album_structure(album_slug, checks?)` | Structural validation of album directories and files |
+| `create_album_structure(album_slug, genre, documentary?)` | Create new album directory with templates |
+| `run_pre_generation_gates(album_slug, track_slug?)` | Run all 6 pre-generation validation gates |
 
 ### Session & Config
 | Tool | Description |

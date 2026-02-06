@@ -28,11 +28,22 @@ Tools exposed:
     extract_section     - Extract a section from a track markdown file
     update_track_field  - Update a metadata field in a track file
     get_album_progress  - Get album progress breakdown with phase detection
+    load_override       - Load user override file by name
+    get_reference       - Read plugin reference file
+    format_for_clipboard - Extract and format track content for clipboard
+    check_homographs    - Scan text for homograph pronunciation risks
+    scan_artist_names   - Check text against artist name blocklist
+    check_pronunciation_enforcement - Verify pronunciation notes applied in lyrics
+    get_album_full      - Combined album + track sections query
+    validate_album_structure - Structural validation of album directories
+    create_album_structure - Create album directory with templates
+    run_pre_generation_gates - Run all 6 pre-generation validation gates
 """
 import json
 import logging
 import os
 import re
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -1289,6 +1300,1176 @@ async def get_album_progress(album_slug: str) -> str:
             1 for t in tracks.values()
             if t.get("sources_verified", "").lower() == "pending"
         ),
+    })
+
+
+# =============================================================================
+# Content & Override Tools
+# =============================================================================
+
+
+@mcp.tool()
+async def load_override(override_name: str) -> str:
+    """Load a user override file by name from the overrides directory.
+
+    Override files customize skill behavior per-user. This tool resolves the
+    overrides directory from config and reads the named file if it exists.
+
+    Args:
+        override_name: Override filename (e.g., "pronunciation-guide.md",
+                       "lyric-writing-guide.md", "CLAUDE.md",
+                       "suno-preferences.md", "mastering-presets.yaml")
+
+    Returns:
+        JSON with {found: bool, content: str, path: str} or {found: false}
+    """
+    state = cache.get_state()
+    config = state.get("config", {})
+
+    if not config:
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
+
+    # Resolve overrides directory
+    overrides_dir = config.get("overrides_dir", "")
+    if not overrides_dir:
+        content_root = config.get("content_root", "")
+        overrides_dir = str(Path(content_root) / "overrides")
+
+    override_path = Path(overrides_dir) / override_name
+    if not override_path.exists():
+        return _safe_json({
+            "found": False,
+            "override_name": override_name,
+            "overrides_dir": overrides_dir,
+        })
+
+    try:
+        content = override_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read override file: {e}"})
+
+    return _safe_json({
+        "found": True,
+        "override_name": override_name,
+        "path": str(override_path),
+        "content": content,
+        "size": len(content),
+    })
+
+
+@mcp.tool()
+async def get_reference(name: str, section: str = "") -> str:
+    """Read a plugin reference file with optional section extraction.
+
+    Reference files contain shared knowledge (pronunciation guide, artist
+    blocklist, genre list, etc.). This keeps large reference files out of
+    the LLM context when only a section is needed.
+
+    Args:
+        name: Reference path relative to plugin root's reference/ directory
+              (e.g., "suno/pronunciation-guide", "suno/artist-blocklist",
+               "suno/genre-list", "suno/v5-best-practices")
+              Extension .md is added automatically if missing.
+        section: Optional heading to extract (returns full file if empty)
+
+    Returns:
+        JSON with {content: str, path: str, section?: str}
+    """
+    # Normalize name
+    ref_name = name.strip()
+    if not ref_name.endswith(".md"):
+        ref_name += ".md"
+
+    ref_path = PLUGIN_ROOT / "reference" / ref_name
+    if not ref_path.exists():
+        return _safe_json({
+            "error": f"Reference file not found: reference/{ref_name}",
+            "path": str(ref_path),
+        })
+
+    try:
+        content = ref_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read reference file: {e}"})
+
+    # Extract section if requested
+    if section:
+        extracted = _extract_markdown_section(content, section)
+        if extracted is None:
+            return _safe_json({
+                "error": f"Section '{section}' not found in reference/{ref_name}",
+                "path": str(ref_path),
+            })
+        return _safe_json({
+            "found": True,
+            "path": str(ref_path),
+            "section": section,
+            "content": extracted,
+        })
+
+    return _safe_json({
+        "found": True,
+        "path": str(ref_path),
+        "content": content,
+        "size": len(content),
+    })
+
+
+@mcp.tool()
+async def format_for_clipboard(
+    album_slug: str,
+    track_slug: str,
+    content_type: str,
+) -> str:
+    """Extract and format track content ready for clipboard copy.
+
+    Combines find-track + extract-section + format into one call.
+    The skill still handles the actual clipboard command (pbcopy/xclip).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+        content_type: What to extract:
+            "lyrics" — Suno Lyrics Box content
+            "style" — Suno Style Box content
+            "streaming" or "streaming-lyrics" — Streaming platform lyrics
+            "all" — Style Box + separator + Lyrics Box
+
+    Returns:
+        JSON with {content: str, content_type: str, track_slug: str}
+    """
+    valid_types = {"lyrics", "style", "streaming", "streaming-lyrics", "all"}
+    if content_type not in valid_types:
+        return _safe_json({
+            "error": f"Invalid content_type '{content_type}'. Options: {', '.join(sorted(valid_types))}",
+        })
+
+    # Resolve track file
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    normalized_track = _normalize_slug(track_slug)
+    track_data = tracks.get(normalized_track)
+    matched_slug = normalized_track
+
+    if not track_data:
+        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
+        if len(prefix_matches) == 1:
+            matched_slug = next(iter(prefix_matches))
+            track_data = prefix_matches[matched_slug]
+        elif len(prefix_matches) > 1:
+            return _safe_json({
+                "found": False,
+                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "found": False,
+                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+                "available_tracks": list(tracks.keys()),
+            })
+
+    track_path = track_data.get("path", "")
+    if not track_path:
+        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+
+    try:
+        text = Path(track_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read track file: {e}"})
+
+    def _get_section_content(heading_name):
+        """Extract code block content from a section."""
+        section_text = _extract_markdown_section(text, heading_name)
+        if section_text is None:
+            return None
+        code = _extract_code_block(section_text)
+        return code if code is not None else section_text
+
+    if content_type == "style":
+        content = _get_section_content("Style Box")
+    elif content_type == "lyrics":
+        content = _get_section_content("Lyrics Box")
+    elif content_type in ("streaming", "streaming-lyrics"):
+        content = _get_section_content("Streaming Lyrics")
+    elif content_type == "all":
+        style = _get_section_content("Style Box")
+        lyrics = _get_section_content("Lyrics Box")
+        if style is None and lyrics is None:
+            content = None
+        else:
+            parts = []
+            if style:
+                parts.append(style)
+            if lyrics:
+                parts.append(lyrics)
+            content = "\n\n---\n\n".join(parts)
+    else:
+        content = None
+
+    if content is None:
+        return _safe_json({
+            "found": False,
+            "error": f"Content type '{content_type}' not found in track",
+            "track_slug": matched_slug,
+        })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "track_slug": matched_slug,
+        "content_type": content_type,
+        "content": content,
+    })
+
+
+# =============================================================================
+# Text Analysis Tools
+# =============================================================================
+
+# High-risk homographs that always require user clarification.
+# Loaded from the pronunciation guide but kept as a compiled set for fast scanning.
+_HIGH_RISK_HOMOGRAPHS = {
+    "live": [
+        {"pron_a": "LIV (live performance)", "pron_b": "LYVE (alive, living)"},
+    ],
+    "read": [
+        {"pron_a": "REED (present tense)", "pron_b": "RED (past tense)"},
+    ],
+    "lead": [
+        {"pron_a": "LEED (guide)", "pron_b": "LED (the metal)"},
+    ],
+    "wind": [
+        {"pron_a": "WIND (breeze)", "pron_b": "WYND (turn, coil)"},
+    ],
+    "close": [
+        {"pron_a": "KLOHS (near)", "pron_b": "KLOHZ (shut)"},
+    ],
+    "tear": [
+        {"pron_a": "TEER (from crying)", "pron_b": "TAIR (rip)"},
+    ],
+    "bow": [
+        {"pron_a": "BOH (ribbon, weapon)", "pron_b": "BOW (bend, ship front)"},
+    ],
+    "bass": [
+        {"pron_a": "BAYSS (instrument)", "pron_b": "BASS (the fish)"},
+    ],
+    "row": [
+        {"pron_a": "ROH (line, propel boat)", "pron_b": "ROW (argument)"},
+    ],
+    "sow": [
+        {"pron_a": "SOH (plant seeds)", "pron_b": "SOW (female pig)"},
+    ],
+    "wound": [
+        {"pron_a": "WOOND (injury)", "pron_b": "WOWND (coiled)"},
+    ],
+    "minute": [
+        {"pron_a": "MIN-it (60 seconds)", "pron_b": "my-NOOT (tiny)"},
+    ],
+    "resume": [
+        {"pron_a": "ri-ZOOM (continue)", "pron_b": "REZ-oo-may (CV)"},
+    ],
+    "object": [
+        {"pron_a": "OB-jekt (thing)", "pron_b": "ob-JEKT (protest)"},
+    ],
+    "project": [
+        {"pron_a": "PROJ-ekt (plan)", "pron_b": "pro-JEKT (throw)"},
+    ],
+    "record": [
+        {"pron_a": "REK-ord (noun)", "pron_b": "ri-KORD (verb)"},
+    ],
+    "present": [
+        {"pron_a": "PREZ-ent (gift, here)", "pron_b": "pri-ZENT (give)"},
+    ],
+    "content": [
+        {"pron_a": "KON-tent (stuff)", "pron_b": "kon-TENT (satisfied)"},
+    ],
+    "desert": [
+        {"pron_a": "DEZ-ert (sandy place)", "pron_b": "di-ZURT (abandon)"},
+    ],
+    "refuse": [
+        {"pron_a": "REF-yoos (garbage)", "pron_b": "ri-FYOOZ (decline)"},
+    ],
+}
+
+# Pre-compiled word boundary patterns for homograph scanning
+_HOMOGRAPH_PATTERNS = {
+    word: re.compile(r'\b' + re.escape(word) + r'\b', re.IGNORECASE)
+    for word in _HIGH_RISK_HOMOGRAPHS
+}
+
+
+@mcp.tool()
+async def check_homographs(text: str) -> str:
+    """Scan text for homograph words that Suno cannot disambiguate.
+
+    Checks against the high-risk homograph list from the pronunciation guide.
+    Returns found words with line numbers and pronunciation options.
+
+    Args:
+        text: Lyrics text to scan
+
+    Returns:
+        JSON with {found: [{word, line, line_number, options}], count: int}
+    """
+    if not text.strip():
+        return _safe_json({"found": [], "count": 0})
+
+    results = []
+    lines = text.split("\n")
+
+    for line_num, line in enumerate(lines, 1):
+        # Skip section tags like [Verse 1], [Chorus], etc.
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            continue
+
+        for word, pattern in _HOMOGRAPH_PATTERNS.items():
+            for match in pattern.finditer(line):
+                results.append({
+                    "word": match.group(0),
+                    "canonical": word,
+                    "line": stripped,
+                    "line_number": line_num,
+                    "column": match.start(),
+                    "options": _HIGH_RISK_HOMOGRAPHS[word],
+                })
+
+    return _safe_json({"found": results, "count": len(results)})
+
+
+# Artist blocklist cache — loaded lazily from reference file
+_artist_blocklist_cache: Optional[list] = None
+_artist_blocklist_lock = threading.Lock()
+
+
+def _load_artist_blocklist() -> list:
+    """Load and parse the artist blocklist from the reference file.
+
+    Returns a list of dicts: [{name: str, alternative: str, genre: str}]
+    """
+    global _artist_blocklist_cache
+    with _artist_blocklist_lock:
+        if _artist_blocklist_cache is not None:
+            return _artist_blocklist_cache
+
+        blocklist_path = PLUGIN_ROOT / "reference" / "suno" / "artist-blocklist.md"
+        entries = []
+
+        if not blocklist_path.exists():
+            logger.warning("Artist blocklist not found at %s", blocklist_path)
+            _artist_blocklist_cache = entries
+            return entries
+
+        try:
+            text = blocklist_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            logger.error("Cannot read artist blocklist: %s", e)
+            _artist_blocklist_cache = entries
+            return entries
+
+        current_genre = ""
+        # Parse table rows: | Don't Say | Say Instead |
+        for line in text.split("\n"):
+            # Detect genre headings
+            heading_match = re.match(r'^###\s+(.+)', line)
+            if heading_match:
+                current_genre = heading_match.group(1).strip()
+                continue
+
+            # Parse table rows (skip header/separator rows)
+            if line.startswith("|") and "---" not in line and "Don't Say" not in line:
+                parts = [p.strip() for p in line.split("|")]
+                # parts[0] is empty (before first |), parts[-1] is empty (after last |)
+                if len(parts) >= 4:
+                    name = parts[1].strip()
+                    alternative = parts[2].strip()
+                    if name and name != "Don't Say":
+                        entries.append({
+                            "name": name,
+                            "alternative": alternative,
+                            "genre": current_genre,
+                        })
+
+        _artist_blocklist_cache = entries
+        logger.info("Loaded artist blocklist: %d entries", len(entries))
+        return entries
+
+
+@mcp.tool()
+async def scan_artist_names(text: str) -> str:
+    """Scan text for real artist/band names from the blocklist.
+
+    Checks style prompts or lyrics against the artist blocklist. Found names
+    should be replaced with sonic descriptions.
+
+    Args:
+        text: Style prompt or lyrics to scan
+
+    Returns:
+        JSON with {clean: bool, found: [{name, alternative, genre}], count: int}
+    """
+    if not text.strip():
+        return _safe_json({"clean": True, "found": [], "count": 0})
+
+    blocklist = _load_artist_blocklist()
+    text_lower = text.lower()
+    found = []
+
+    for entry in blocklist:
+        name = entry["name"]
+        # Case-insensitive whole-word search
+        pattern = re.compile(r'\b' + re.escape(name) + r'\b', re.IGNORECASE)
+        if pattern.search(text_lower):
+            found.append({
+                "name": name,
+                "alternative": entry["alternative"],
+                "genre": entry["genre"],
+            })
+
+    return _safe_json({
+        "clean": len(found) == 0,
+        "found": found,
+        "count": len(found),
+    })
+
+
+@mcp.tool()
+async def check_pronunciation_enforcement(
+    album_slug: str,
+    track_slug: str,
+) -> str:
+    """Verify that all Pronunciation Notes entries are applied in the Suno lyrics.
+
+    Reads the track's Pronunciation Notes table and Lyrics Box, then checks
+    that each phonetic entry appears in the lyrics.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+
+    Returns:
+        JSON with {entries: [{word, phonetic, applied, occurrences}],
+                   all_applied: bool, unapplied_count: int}
+    """
+    # Resolve track file
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+        })
+
+    tracks = album.get("tracks", {})
+    normalized_track = _normalize_slug(track_slug)
+    track_data = tracks.get(normalized_track)
+    matched_slug = normalized_track
+
+    if not track_data:
+        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
+        if len(prefix_matches) == 1:
+            matched_slug = next(iter(prefix_matches))
+            track_data = prefix_matches[matched_slug]
+        elif len(prefix_matches) > 1:
+            return _safe_json({
+                "found": False,
+                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "found": False,
+                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+            })
+
+    track_path = track_data.get("path", "")
+    if not track_path:
+        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+
+    try:
+        text = Path(track_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read track file: {e}"})
+
+    # Extract Pronunciation Notes table
+    pron_section = _extract_markdown_section(text, "Pronunciation Notes")
+    if pron_section is None:
+        return _safe_json({
+            "found": True,
+            "track_slug": matched_slug,
+            "entries": [],
+            "all_applied": True,
+            "unapplied_count": 0,
+            "note": "No Pronunciation Notes section found",
+        })
+
+    # Parse the pronunciation table: | Word/Phrase | Pronunciation | Reason |
+    entries = []
+    for line in pron_section.split("\n"):
+        if not line.startswith("|") or "---" in line or "Word" in line:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 4:
+            word = parts[1].strip()
+            phonetic = parts[2].strip()
+            if word and word != "—" and phonetic and phonetic != "—":
+                entries.append({"word": word, "phonetic": phonetic})
+
+    if not entries:
+        return _safe_json({
+            "found": True,
+            "track_slug": matched_slug,
+            "entries": [],
+            "all_applied": True,
+            "unapplied_count": 0,
+            "note": "Pronunciation table is empty",
+        })
+
+    # Extract Lyrics Box content
+    lyrics_section = _extract_markdown_section(text, "Lyrics Box")
+    lyrics_content = ""
+    if lyrics_section:
+        code = _extract_code_block(lyrics_section)
+        lyrics_content = code if code else lyrics_section
+
+    # Check each pronunciation entry
+    results = []
+    unapplied = 0
+    for entry in entries:
+        phonetic = entry["phonetic"]
+        # Check if the phonetic version appears in lyrics (case-insensitive)
+        occurrences = len(re.findall(
+            re.escape(phonetic), lyrics_content, re.IGNORECASE
+        ))
+        applied = occurrences > 0
+        if not applied:
+            unapplied += 1
+        results.append({
+            "word": entry["word"],
+            "phonetic": phonetic,
+            "applied": applied,
+            "occurrences": occurrences,
+        })
+
+    return _safe_json({
+        "found": True,
+        "track_slug": matched_slug,
+        "entries": results,
+        "all_applied": unapplied == 0,
+        "unapplied_count": unapplied,
+    })
+
+
+# =============================================================================
+# Album Operation Tools
+# =============================================================================
+
+
+@mcp.tool()
+async def get_album_full(
+    album_slug: str,
+    include_sections: str = "",
+) -> str:
+    """Get full album data including track content sections in one call.
+
+    Combines find_album + extract_section for all tracks, eliminating N+1
+    queries. Without include_sections, returns the same as find_album.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        include_sections: Comma-separated section names to extract from each track
+                         (e.g., "lyrics,style,pronunciation,streaming")
+                         Empty = metadata only (no file reads)
+
+    Returns:
+        JSON with album data + embedded track sections
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized = _normalize_slug(album_slug)
+
+    # Try exact then fuzzy match
+    album = albums.get(normalized)
+    matched_slug = normalized
+    if not album:
+        matches = {s: d for s, d in albums.items() if normalized in s or s in normalized}
+        if len(matches) == 1:
+            matched_slug = next(iter(matches))
+            album = matches[matched_slug]
+        elif len(matches) > 1:
+            return _safe_json({
+                "found": False,
+                "error": f"Multiple albums match '{album_slug}': {', '.join(matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "found": False,
+                "error": f"Album '{album_slug}' not found",
+                "available_albums": list(albums.keys()),
+            })
+
+    result = {
+        "found": True,
+        "slug": matched_slug,
+        "album": {
+            "title": album.get("title", matched_slug),
+            "status": album.get("status", "Unknown"),
+            "genre": album.get("genre", ""),
+            "path": album.get("path", ""),
+            "track_count": album.get("track_count", 0),
+            "tracks_completed": album.get("tracks_completed", 0),
+        },
+        "tracks": {},
+    }
+
+    # Parse requested sections
+    sections = []
+    if include_sections:
+        sections = [s.strip().lower() for s in include_sections.split(",") if s.strip()]
+
+    tracks = album.get("tracks", {})
+    for track_slug_key, track in sorted(tracks.items()):
+        track_entry = {
+            "title": track.get("title", track_slug_key),
+            "status": track.get("status", "Unknown"),
+            "explicit": track.get("explicit", False),
+            "has_suno_link": track.get("has_suno_link", False),
+            "sources_verified": track.get("sources_verified", "N/A"),
+            "path": track.get("path", ""),
+        }
+
+        # Read sections from disk if requested
+        if sections and track.get("path"):
+            try:
+                file_text = Path(track["path"]).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                file_text = None
+
+            if file_text:
+                track_entry["sections"] = {}
+                for sec in sections:
+                    heading = _SECTION_NAMES.get(sec)
+                    if not heading:
+                        continue
+                    sec_content = _extract_markdown_section(file_text, heading)
+                    if sec_content is not None:
+                        # For code-block sections, extract just the code block
+                        code_block_sections = {"Style Box", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
+                        if heading in code_block_sections:
+                            code = _extract_code_block(sec_content)
+                            if code is not None:
+                                sec_content = code
+                        track_entry["sections"][sec] = sec_content
+
+        result["tracks"][track_slug_key] = track_entry
+
+    return _safe_json(result)
+
+
+@mcp.tool()
+async def validate_album_structure(
+    album_slug: str,
+    checks: str = "all",
+) -> str:
+    """Run structural validation on an album's files and directories.
+
+    Checks directory structure, required files, audio placement, and track
+    content integrity. Returns structured results with actionable fix commands.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        checks: Comma-separated checks to run: "structure", "audio", "art",
+                "tracks", "all" (default)
+
+    Returns:
+        JSON with {passed, failed, warnings, skipped, issues[], checks[]}
+    """
+    state = cache.get_state()
+    config = state.get("config", {})
+    albums = state.get("albums", {})
+
+    if not config:
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
+
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    # Parse check types
+    check_set = set()
+    for c in checks.split(","):
+        c = c.strip().lower()
+        if c == "all":
+            check_set = {"structure", "audio", "art", "tracks"}
+            break
+        if c in ("structure", "audio", "art", "tracks"):
+            check_set.add(c)
+    if not check_set:
+        check_set = {"structure", "audio", "art", "tracks"}
+
+    content_root = config.get("content_root", "")
+    audio_root = config.get("audio_root", "")
+    artist = config.get("artist_name", "")
+    genre = album.get("genre", "")
+    album_path = album.get("path", "")
+    audio_path = str(Path(audio_root) / artist / normalized)
+
+    passed = 0
+    failed = 0
+    warnings = 0
+    skipped = 0
+    results = []
+    issues = []
+
+    def _pass(category, msg):
+        nonlocal passed
+        passed += 1
+        results.append({"status": "PASS", "category": category, "message": msg})
+
+    def _fail(category, msg, fix=""):
+        nonlocal failed
+        failed += 1
+        results.append({"status": "FAIL", "category": category, "message": msg})
+        if fix:
+            issues.append({"message": msg, "fix": fix})
+
+    def _warn(category, msg):
+        nonlocal warnings
+        warnings += 1
+        results.append({"status": "WARN", "category": category, "message": msg})
+
+    def _skip(category, msg):
+        nonlocal skipped
+        skipped += 1
+        results.append({"status": "SKIP", "category": category, "message": msg})
+
+    # --- Structure checks ---
+    if "structure" in check_set:
+        ap = Path(album_path)
+        if ap.is_dir():
+            _pass("structure", f"Album directory exists: {album_path}")
+        else:
+            _fail("structure", f"Album directory missing: {album_path}")
+
+        readme = ap / "README.md"
+        if readme.exists():
+            _pass("structure", "README.md exists")
+        else:
+            _fail("structure", "README.md missing")
+
+        tracks_dir = ap / "tracks"
+        if tracks_dir.is_dir():
+            _pass("structure", "tracks/ directory exists")
+            track_files = list(tracks_dir.glob("*.md"))
+            if track_files:
+                _pass("structure", f"{len(track_files)} track files found")
+            else:
+                _warn("structure", "No track files found in tracks/")
+        else:
+            _fail("structure", "tracks/ directory missing",
+                  fix=f"mkdir -p {album_path}/tracks")
+
+    # --- Audio checks ---
+    if "audio" in check_set:
+        audio_p = Path(audio_path)
+        wrong_path = Path(audio_root) / normalized  # missing artist folder
+
+        if audio_p.is_dir():
+            _pass("audio", f"Audio directory exists: {audio_path}")
+            wav_files = list(audio_p.glob("*.wav"))
+            if wav_files:
+                _pass("audio", f"{len(wav_files)} WAV files found")
+            else:
+                _skip("audio", "No audio files yet")
+
+            mastered = audio_p / "mastered"
+            if mastered.is_dir():
+                _pass("audio", "mastered/ directory exists")
+            else:
+                _skip("audio", "Not mastered yet")
+        elif wrong_path.is_dir():
+            _fail("audio", "Audio in wrong location (missing artist folder)",
+                  fix=f"mv {wrong_path} {audio_path}")
+        else:
+            _skip("audio", "No audio directory yet")
+
+    # --- Art checks ---
+    if "art" in check_set:
+        audio_p = Path(audio_path)
+        ap = Path(album_path)
+
+        if (audio_p / "album.png").exists():
+            _pass("art", "album.png in audio folder")
+        else:
+            _skip("art", "No album art in audio folder yet")
+
+        art_files = list(ap.glob("album-art.*"))
+        if art_files:
+            _pass("art", f"Album art in content folder: {art_files[0].name}")
+        else:
+            _skip("art", "No album art in content folder yet")
+
+    # --- Track content checks ---
+    if "tracks" in check_set:
+        tracks = album.get("tracks", {})
+        for t_slug, t_data in sorted(tracks.items()):
+            status = t_data.get("status", "Unknown")
+            has_link = t_data.get("has_suno_link", False)
+            sources = t_data.get("sources_verified", "N/A")
+
+            track_issues = []
+            if status in ("Generated", "Final") and not has_link:
+                track_issues.append("Suno Link missing")
+            if sources.lower() == "pending":
+                track_issues.append("Sources not verified")
+
+            if track_issues:
+                _warn("tracks", f"{t_slug}: Status={status}, issues: {', '.join(track_issues)}")
+            else:
+                _pass("tracks", f"{t_slug}: Status={status}")
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "passed": passed,
+        "failed": failed,
+        "warnings": warnings,
+        "skipped": skipped,
+        "total": passed + failed + warnings + skipped,
+        "checks": results,
+        "issues": issues,
+    })
+
+
+@mcp.tool()
+async def create_album_structure(
+    album_slug: str,
+    genre: str,
+    documentary: bool = False,
+) -> str:
+    """Create a new album directory with templates.
+
+    Creates the content directory structure and copies templates. Does NOT
+    create audio or documents directories (those are created when needed).
+
+    Args:
+        album_slug: Album name as slug (e.g., "my-new-album")
+        genre: Primary genre (e.g., "hip-hop", "electronic", "country", "folk", "rock")
+        documentary: Whether to include research/sources templates
+
+    Returns:
+        JSON with {created: bool, path: str, files: [...]}
+    """
+    state = cache.get_state()
+    config = state.get("config", {})
+
+    if not config:
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
+
+    content_root = config.get("content_root", "")
+    artist = config.get("artist_name", "")
+
+    if not content_root or not artist:
+        return _safe_json({"error": "content_root or artist_name not configured"})
+
+    normalized = _normalize_slug(album_slug)
+    genre_slug = _normalize_slug(genre)
+
+    album_path = Path(content_root) / "artists" / artist / "albums" / genre_slug / normalized
+    tracks_path = album_path / "tracks"
+    templates_path = PLUGIN_ROOT / "templates"
+
+    # Check if already exists
+    if album_path.exists():
+        return _safe_json({
+            "created": False,
+            "error": f"Album directory already exists: {album_path}",
+            "path": str(album_path),
+        })
+
+    # Create directories
+    try:
+        tracks_path.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        return _safe_json({"error": f"Cannot create directory: {e}"})
+
+    # Copy templates
+    created_files = []
+
+    # Album README (always)
+    album_template = templates_path / "album.md"
+    readme_dest = album_path / "README.md"
+    if album_template.exists():
+        shutil.copy2(str(album_template), str(readme_dest))
+        created_files.append("README.md")
+
+    # Documentary templates
+    if documentary:
+        research_template = templates_path / "research.md"
+        sources_template = templates_path / "sources.md"
+
+        if research_template.exists():
+            shutil.copy2(str(research_template), str(album_path / "RESEARCH.md"))
+            created_files.append("RESEARCH.md")
+        if sources_template.exists():
+            shutil.copy2(str(sources_template), str(album_path / "SOURCES.md"))
+            created_files.append("SOURCES.md")
+
+    created_files.append("tracks/")
+
+    return _safe_json({
+        "created": True,
+        "path": str(album_path),
+        "tracks_path": str(tracks_path),
+        "genre": genre_slug,
+        "documentary": documentary,
+        "files": created_files,
+    })
+
+
+# =============================================================================
+# Pre-Generation Gates
+# =============================================================================
+
+
+@mcp.tool()
+async def run_pre_generation_gates(
+    album_slug: str,
+    track_slug: str = "",
+) -> str:
+    """Run all 6 pre-generation validation gates on a track or album.
+
+    Gates:
+        1. Sources Verified — sources_verified is not "Pending"
+        2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER]
+        3. Pronunciation Resolved — All Pronunciation Notes entries applied
+        4. Explicit Flag Set — Explicit field is "Yes" or "No"
+        5. Style Prompt Complete — Non-empty Style Box with content
+        6. Artist Names Cleared — No real artist names in Style Box
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Specific track slug/number (empty = all tracks)
+
+    Returns:
+        JSON with per-track gate results and verdicts
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    all_tracks = album.get("tracks", {})
+
+    # Determine which tracks to check
+    if track_slug:
+        normalized_track = _normalize_slug(track_slug)
+        track_data = all_tracks.get(normalized_track)
+        matched_slug = normalized_track
+
+        if not track_data:
+            prefix_matches = {s: d for s, d in all_tracks.items() if s.startswith(normalized_track)}
+            if len(prefix_matches) == 1:
+                matched_slug = next(iter(prefix_matches))
+                track_data = prefix_matches[matched_slug]
+            elif len(prefix_matches) > 1:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+                })
+            else:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+                })
+        tracks_to_check = {matched_slug: track_data}
+    else:
+        tracks_to_check = all_tracks
+
+    # Load artist blocklist for gate 6
+    blocklist = _load_artist_blocklist()
+
+    track_results = []
+    total_blocking = 0
+    total_warnings = 0
+
+    for t_slug, t_data in sorted(tracks_to_check.items()):
+        gates = []
+        blocking = 0
+        warning_count = 0
+
+        # Read track file if available
+        file_text = None
+        track_path = t_data.get("path", "")
+        if track_path:
+            try:
+                file_text = Path(track_path).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        # Gate 1: Sources Verified
+        sources = t_data.get("sources_verified", "N/A")
+        if sources.lower() == "pending":
+            gates.append({"gate": "Sources Verified", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": "Sources not yet verified by human"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Sources Verified", "status": "PASS",
+                          "detail": f"Status: {sources}"})
+
+        # Gate 2: Lyrics Reviewed
+        lyrics_content = None
+        if file_text:
+            lyrics_section = _extract_markdown_section(file_text, "Lyrics Box")
+            if lyrics_section:
+                lyrics_content = _extract_code_block(lyrics_section)
+
+        if not lyrics_content or not lyrics_content.strip():
+            gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": "Lyrics Box is empty"})
+            blocking += 1
+        elif re.search(r'\[TODO\]|\[PLACEHOLDER\]', lyrics_content, re.IGNORECASE):
+            gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": "Lyrics contain [TODO] or [PLACEHOLDER] markers"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Lyrics Reviewed", "status": "PASS",
+                          "detail": "Lyrics populated"})
+
+        # Gate 3: Pronunciation Resolved
+        if file_text:
+            pron_section = _extract_markdown_section(file_text, "Pronunciation Notes")
+            pron_entries = []
+            if pron_section:
+                for line in pron_section.split("\n"):
+                    if not line.startswith("|") or "---" in line or "Word" in line:
+                        continue
+                    parts = [p.strip() for p in line.split("|")]
+                    if len(parts) >= 4:
+                        word = parts[1].strip()
+                        phonetic = parts[2].strip()
+                        if word and word != "—" and phonetic and phonetic != "—":
+                            pron_entries.append({"word": word, "phonetic": phonetic})
+
+            if pron_entries and lyrics_content:
+                unapplied = []
+                for entry in pron_entries:
+                    if not re.search(re.escape(entry["phonetic"]), lyrics_content, re.IGNORECASE):
+                        unapplied.append(entry["word"])
+                if unapplied:
+                    gates.append({"gate": "Pronunciation Resolved", "status": "FAIL", "severity": "BLOCKING",
+                                  "detail": f"Unapplied: {', '.join(unapplied)}"})
+                    blocking += 1
+                else:
+                    gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
+                                  "detail": f"All {len(pron_entries)} entries applied"})
+            else:
+                gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
+                              "detail": "No pronunciation entries to check"})
+        else:
+            gates.append({"gate": "Pronunciation Resolved", "status": "SKIP",
+                          "detail": "Track file not readable"})
+
+        # Gate 4: Explicit Flag Set
+        explicit = t_data.get("explicit")
+        if explicit is None:
+            gates.append({"gate": "Explicit Flag Set", "status": "WARN", "severity": "WARNING",
+                          "detail": "Explicit field not set"})
+            warning_count += 1
+        else:
+            gates.append({"gate": "Explicit Flag Set", "status": "PASS",
+                          "detail": f"Explicit: {'Yes' if explicit else 'No'}"})
+
+        # Gate 5: Style Prompt Complete
+        style_content = None
+        if file_text:
+            style_section = _extract_markdown_section(file_text, "Style Box")
+            if style_section:
+                style_content = _extract_code_block(style_section)
+
+        if not style_content or not style_content.strip():
+            gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": "Style Box is empty"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Style Prompt Complete", "status": "PASS",
+                          "detail": f"Style prompt: {len(style_content)} chars"})
+
+        # Gate 6: Artist Names Cleared
+        if style_content:
+            found_artists = []
+            text_lower = style_content.lower()
+            for entry in blocklist:
+                pattern = re.compile(r'\b' + re.escape(entry["name"]) + r'\b', re.IGNORECASE)
+                if pattern.search(text_lower):
+                    found_artists.append(entry["name"])
+
+            if found_artists:
+                gates.append({"gate": "Artist Names Cleared", "status": "FAIL", "severity": "BLOCKING",
+                              "detail": f"Found: {', '.join(found_artists)}"})
+                blocking += 1
+            else:
+                gates.append({"gate": "Artist Names Cleared", "status": "PASS",
+                              "detail": "No blocked artist names found"})
+        else:
+            gates.append({"gate": "Artist Names Cleared", "status": "SKIP",
+                          "detail": "No style prompt to check"})
+
+        verdict = "READY" if blocking == 0 else "NOT READY"
+        total_blocking += blocking
+        total_warnings += warning_count
+
+        track_results.append({
+            "track_slug": t_slug,
+            "title": t_data.get("title", t_slug),
+            "verdict": verdict,
+            "blocking": blocking,
+            "warnings": warning_count,
+            "gates": gates,
+        })
+
+    if len(tracks_to_check) == 1:
+        album_verdict = track_results[0]["verdict"]
+    elif total_blocking == 0:
+        album_verdict = "ALL READY"
+    elif total_blocking < sum(t["blocking"] for t in track_results):
+        album_verdict = "PARTIAL"
+    else:
+        album_verdict = "NOT READY"
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "album_verdict": album_verdict,
+        "total_tracks": len(track_results),
+        "total_blocking": total_blocking,
+        "total_warnings": total_warnings,
+        "tracks": track_results,
     })
 
 

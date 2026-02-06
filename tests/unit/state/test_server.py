@@ -13,6 +13,7 @@ import copy
 import importlib
 import importlib.util
 import json
+import shutil
 import sys
 import threading
 import types
@@ -2091,3 +2092,913 @@ class TestGetAlbumProgress:
             result = json.loads(_run(server.get_album_progress("empty-album")))
         assert result["completion_percentage"] == 0.0
         assert result["track_count"] == 0
+
+
+# =============================================================================
+# load_override tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestLoadOverride:
+    """Tests for the load_override MCP tool."""
+
+    def test_found(self, tmp_path):
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        guide = override_dir / "pronunciation-guide.md"
+        guide.write_text("# My Custom Guide\nCustom content here.")
+
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = str(override_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.load_override("pronunciation-guide.md")))
+        assert result["found"] is True
+        assert "Custom content" in result["content"]
+        assert result["override_name"] == "pronunciation-guide.md"
+
+    def test_not_found(self, tmp_path):
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = str(override_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.load_override("nonexistent.md")))
+        assert result["found"] is False
+
+    def test_default_overrides_dir(self):
+        """Falls back to {content_root}/overrides when overrides_dir not set."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.load_override("anything.md")))
+        # /tmp/test/overrides won't exist, so should be not found
+        assert result["found"] is False
+        assert "/tmp/test/overrides" in result.get("overrides_dir", "")
+
+    def test_no_config(self):
+        state = {"albums": {}, "ideas": {}, "session": {}}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.load_override("anything.md")))
+        assert "error" in result
+
+    def test_returns_size(self, tmp_path):
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "test.md").write_text("Hello World")
+
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = str(override_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.load_override("test.md")))
+        assert result["size"] == len("Hello World")
+
+
+# =============================================================================
+# get_reference tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestGetReference:
+    """Tests for the get_reference MCP tool."""
+
+    def test_full_file(self, tmp_path):
+        ref_dir = tmp_path / "reference" / "suno"
+        ref_dir.mkdir(parents=True)
+        (ref_dir / "test-guide.md").write_text("# Test Guide\n\nContent here.")
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("suno/test-guide")))
+        assert result["found"] is True
+        assert "Test Guide" in result["content"]
+
+    def test_auto_adds_md_extension(self, tmp_path):
+        ref_dir = tmp_path / "reference" / "suno"
+        ref_dir.mkdir(parents=True)
+        (ref_dir / "guide.md").write_text("content")
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("suno/guide")))
+        assert result["found"] is True
+
+    def test_with_section(self, tmp_path):
+        ref_dir = tmp_path / "reference"
+        ref_dir.mkdir(parents=True)
+        (ref_dir / "guide.md").write_text(
+            "# Guide\n\n## Section A\nContent A\n\n## Section B\nContent B\n"
+        )
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("guide", section="Section A")))
+        assert result["found"] is True
+        assert "Content A" in result["content"]
+        assert "Content B" not in result["content"]
+
+    def test_section_not_found(self, tmp_path):
+        ref_dir = tmp_path / "reference"
+        ref_dir.mkdir(parents=True)
+        (ref_dir / "guide.md").write_text("# Guide\n\n## Section A\nContent")
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("guide", section="Missing")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_file_not_found(self, tmp_path):
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("suno/nonexistent")))
+        assert "error" in result
+
+    def test_returns_size(self, tmp_path):
+        ref_dir = tmp_path / "reference"
+        ref_dir.mkdir(parents=True)
+        content = "Hello World"
+        (ref_dir / "test.md").write_text(content)
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_reference("test")))
+        assert result["size"] == len(content)
+
+
+# =============================================================================
+# format_for_clipboard tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestFormatForClipboard:
+    """Tests for the format_for_clipboard MCP tool."""
+
+    def _make_cache_with_file(self, tmp_path):
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state)
+
+    def test_lyrics(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "lyrics")))
+        assert result["found"] is True
+        assert "[Verse 1]" in result["content"]
+        assert result["content_type"] == "lyrics"
+
+    def test_style(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
+        assert result["found"] is True
+        assert "electronic" in result["content"]
+
+    def test_streaming(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "streaming")))
+        assert result["found"] is True
+        assert "[Verse" not in result["content"]
+
+    def test_all_combined(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "all")))
+        assert result["found"] is True
+        assert "electronic" in result["content"]  # style
+        assert "[Verse 1]" in result["content"]  # lyrics
+        assert "---" in result["content"]  # separator
+
+    def test_invalid_type(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01", "invalid")))
+        assert "error" in result
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("nonexistent", "01", "lyrics")))
+        assert result["found"] is False
+
+    def test_prefix_match(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01", "style")))
+        # 01 should match 01-test-track (but also 01-first-track in SAMPLE_STATE)
+        # Since our mock adds 01-test-track alongside 01-first-track, "01" is ambiguous
+        # Let's use a unique prefix instead
+        pass
+
+    def test_unique_prefix(self, tmp_path):
+        track_file = tmp_path / "05-clip-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-clip-track"] = {
+            "path": str(track_file),
+            "title": "Clip Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "lyrics")))
+        assert result["found"] is True
+        assert result["track_slug"] == "05-clip-track"
+
+
+# =============================================================================
+# check_homographs tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestCheckHomographs:
+    """Tests for the check_homographs MCP tool."""
+
+    def test_finds_live(self):
+        text = "[Verse 1]\nWe live and breathe this code\nAlive in the machine"
+        result = json.loads(_run(server.check_homographs(text)))
+        assert result["count"] >= 1
+        words = [r["canonical"] for r in result["found"]]
+        assert "live" in words
+
+    def test_finds_multiple(self):
+        text = "Read the lead and close the record"
+        result = json.loads(_run(server.check_homographs(text)))
+        words = set(r["canonical"] for r in result["found"])
+        assert "read" in words
+        assert "lead" in words
+        assert "close" in words
+        assert "record" in words
+
+    def test_empty_text(self):
+        result = json.loads(_run(server.check_homographs("")))
+        assert result["count"] == 0
+        assert result["found"] == []
+
+    def test_no_homographs(self):
+        text = "The sun sets over the mountain\nBirds fly across the sky"
+        result = json.loads(_run(server.check_homographs(text)))
+        assert result["count"] == 0
+
+    def test_skips_section_tags(self):
+        text = "[Verse 1]\nlive and breathe\n[Chorus]\nstay alive"
+        result = json.loads(_run(server.check_homographs(text)))
+        # Should find "live" in verse but not scan [Verse 1] or [Chorus] lines
+        for r in result["found"]:
+            assert not r["line"].startswith("[")
+
+    def test_returns_line_numbers(self):
+        text = "Line one\nThe wind blows hard\nLine three"
+        result = json.loads(_run(server.check_homographs(text)))
+        assert result["count"] == 1
+        assert result["found"][0]["line_number"] == 2
+
+    def test_case_insensitive(self):
+        text = "LIVE performance tonight\nRead the book"
+        result = json.loads(_run(server.check_homographs(text)))
+        words = [r["canonical"] for r in result["found"]]
+        assert "live" in words
+        assert "read" in words
+
+    def test_includes_options(self):
+        text = "lead the way"
+        result = json.loads(_run(server.check_homographs(text)))
+        assert result["count"] == 1
+        entry = result["found"][0]
+        assert len(entry["options"]) > 0
+        assert "pron_a" in entry["options"][0]
+
+
+# =============================================================================
+# scan_artist_names tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestScanArtistNames:
+    """Tests for the scan_artist_names MCP tool."""
+
+    def test_finds_blocked_name(self):
+        # Ensure blocklist is loaded from real file
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.scan_artist_names("aggressive dubstep like Skrillex with heavy drops")))
+        assert result["clean"] is False
+        assert result["count"] >= 1
+        names = [r["name"] for r in result["found"]]
+        assert "Skrillex" in names
+
+    def test_clean_text(self):
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.scan_artist_names("aggressive dubstep, heavy drops, distorted bass")))
+        assert result["clean"] is True
+        assert result["count"] == 0
+
+    def test_empty_text(self):
+        result = json.loads(_run(server.scan_artist_names("")))
+        assert result["clean"] is True
+        assert result["count"] == 0
+
+    def test_returns_alternative(self):
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.scan_artist_names("sounds like Daft Punk")))
+        assert result["count"] >= 1
+        entry = result["found"][0]
+        assert "alternative" in entry
+        assert len(entry["alternative"]) > 0
+
+    def test_case_insensitive(self):
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.scan_artist_names("heavy like METALLICA")))
+        assert result["clean"] is False
+
+    def test_multiple_names(self):
+        with patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.scan_artist_names("mix of Eminem and Drake style")))
+        names = [r["name"] for r in result["found"]]
+        assert "Eminem" in names
+        assert "Drake" in names
+
+
+# =============================================================================
+# check_pronunciation_enforcement tool tests
+# =============================================================================
+
+_TRACK_WITH_PRONUNCIATION = """\
+# Test Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Explicit** | No |
+
+## Suno Inputs
+
+### Style Box
+```
+electronic, energetic
+```
+
+### Lyrics Box
+```
+[Verse 1]
+Rah-mohs walked the streets alone
+F-B-I came knocking at his door
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| Ramos | Rah-mohs | Spanish name |
+| FBI | F-B-I | Acronym |
+| Linux | Lin-ucks | Tech term |
+"""
+
+_TRACK_WITH_UNAPPLIED = """\
+# Test Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Explicit** | No |
+
+## Suno Inputs
+
+### Lyrics Box
+```
+[Verse 1]
+Ramos walked the streets alone
+FBI came knocking at his door
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| Ramos | Rah-mohs | Spanish name |
+| FBI | F-B-I | Acronym |
+"""
+
+
+@pytest.mark.unit
+class TestCheckPronunciationEnforcement:
+    """Tests for the check_pronunciation_enforcement MCP tool."""
+
+    def test_all_applied(self, tmp_path):
+        track_file = tmp_path / "05-pron-track.md"
+        track_file.write_text(_TRACK_WITH_PRONUNCIATION)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-pron-track"] = {
+            "path": str(track_file),
+            "title": "Pron Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-pron-track")))
+        assert result["found"] is True
+        # Rah-mohs and F-B-I are in lyrics, but Lin-ucks is not
+        unapplied = [e for e in result["entries"] if not e["applied"]]
+        assert len(unapplied) == 1
+        assert unapplied[0]["word"] == "Linux"
+
+    def test_unapplied_entries(self, tmp_path):
+        track_file = tmp_path / "05-unapplied.md"
+        track_file.write_text(_TRACK_WITH_UNAPPLIED)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-unapplied"] = {
+            "path": str(track_file),
+            "title": "Unapplied Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-unapplied")))
+        assert result["all_applied"] is False
+        assert result["unapplied_count"] == 2  # Both Rah-mohs and F-B-I not in lyrics
+
+    def test_empty_pronunciation_table(self, tmp_path):
+        track_file = tmp_path / "05-empty-pron.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)  # has pronunciation table with only "—" placeholder
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-empty-pron"] = {
+            "path": str(track_file),
+            "title": "Empty Pron",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-empty-pron")))
+        # The _SAMPLE_TRACK_MD has "pytest | PY-test" which IS a valid entry
+        assert result["found"] is True
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("nonexistent", "01")))
+        assert result["found"] is False
+
+    def test_prefix_match(self, tmp_path):
+        track_file = tmp_path / "05-pron-track.md"
+        track_file.write_text(_TRACK_WITH_PRONUNCIATION)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-pron-track"] = {
+            "path": str(track_file),
+            "title": "Pron Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05")))
+        assert result["found"] is True
+        assert result["track_slug"] == "05-pron-track"
+
+
+# =============================================================================
+# get_album_full tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestGetAlbumFull:
+    """Tests for the get_album_full MCP tool."""
+
+    def test_metadata_only(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album")))
+        assert result["found"] is True
+        assert result["slug"] == "test-album"
+        assert "tracks" in result
+        assert "01-first-track" in result["tracks"]
+
+    def test_with_sections(self, tmp_path):
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album", include_sections="lyrics,style")))
+
+        # The test-track should have sections extracted
+        test_track = result["tracks"].get("01-test-track", {})
+        assert "sections" in test_track
+        assert "lyrics" in test_track["sections"]
+        assert "[Verse 1]" in test_track["sections"]["lyrics"]
+        assert "style" in test_track["sections"]
+        assert "electronic" in test_track["sections"]["style"]
+
+    def test_fuzzy_match(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("another")))
+        assert result["found"] is True
+        assert result["slug"] == "another-album"
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("nonexistent")))
+        assert result["found"] is False
+
+    def test_multiple_matches(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("album")))
+        assert result["found"] is False
+        assert "Multiple albums" in result["error"]
+
+    def test_album_fields(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album")))
+        album = result["album"]
+        assert album["title"] == "Test Album"
+        assert album["status"] == "In Progress"
+        assert album["genre"] == "electronic"
+
+    def test_invalid_section_ignored(self, tmp_path):
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album", include_sections="lyrics,invalid-section")))
+        test_track = result["tracks"].get("01-test-track", {})
+        sections = test_track.get("sections", {})
+        assert "lyrics" in sections
+        assert "invalid-section" not in sections
+
+
+# =============================================================================
+# validate_album_structure tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestValidateAlbumStructure:
+    """Tests for the validate_album_structure MCP tool."""
+
+    def _make_album_on_disk(self, tmp_path):
+        """Create a real album directory structure for validation."""
+        content = tmp_path / "content"
+        audio = tmp_path / "audio"
+        album_dir = content / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        tracks_dir = album_dir / "tracks"
+        audio_dir = audio / "test-artist" / "test-album"
+
+        tracks_dir.mkdir(parents=True)
+        audio_dir.mkdir(parents=True)
+        (album_dir / "README.md").write_text("# Test Album")
+        (tracks_dir / "01-test.md").write_text(_SAMPLE_TRACK_MD)
+        (audio_dir / "01-test.wav").write_text("")  # dummy wav
+        (audio_dir / "album.png").write_text("")  # dummy art
+
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content)
+        state["config"]["audio_root"] = str(audio)
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        return MockStateCache(state), album_dir, audio_dir
+
+    def test_all_pass(self, tmp_path):
+        mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album")))
+        assert result["found"] is True
+        assert result["failed"] == 0
+        assert result["passed"] > 0
+
+    def test_missing_tracks_dir(self, tmp_path):
+        mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
+        shutil.rmtree(str(album_dir / "tracks"))
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
+        failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
+        assert any("tracks/ directory" in m for m in failed_msgs)
+
+    def test_audio_wrong_location(self, tmp_path):
+        mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
+        # Move audio to wrong location (missing artist folder)
+        wrong_dir = tmp_path / "audio" / "test-album"
+        shutil.rmtree(str(audio_dir))
+        shutil.rmtree(str(audio_dir.parent))  # remove test-artist
+        wrong_dir.mkdir(parents=True)
+        (wrong_dir / "01-test.wav").write_text("")
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="audio")))
+        failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
+        assert any("wrong location" in m for m in failed_msgs)
+        assert len(result["issues"]) > 0
+
+    def test_specific_checks(self, tmp_path):
+        mock_cache, _, _ = self._make_album_on_disk(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="art")))
+        categories = set(c["category"] for c in result["checks"])
+        assert "art" in categories
+        assert "structure" not in categories
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("nonexistent")))
+        assert result["found"] is False
+
+    def test_no_config(self):
+        state = {"albums": {}, "ideas": {}, "session": {}}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album")))
+        assert "error" in result
+
+    def test_track_validation(self, tmp_path):
+        mock_cache, _, _ = self._make_album_on_disk(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="tracks")))
+        track_checks = [c for c in result["checks"] if c["category"] == "tracks"]
+        assert len(track_checks) > 0
+
+
+# =============================================================================
+# create_album_structure tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestCreateAlbumStructure:
+    """Tests for the create_album_structure MCP tool."""
+
+    def _make_state_with_tmp(self, tmp_path):
+        content = tmp_path / "content"
+        content.mkdir()
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content)
+        return MockStateCache(state), content
+
+    def test_create_basic(self, tmp_path):
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("new-album", "electronic")))
+        assert result["created"] is True
+        assert "new-album" in result["path"]
+        assert "README.md" in result["files"]
+        assert "tracks/" in result["files"]
+        # Verify on disk
+        album_path = Path(result["path"])
+        assert album_path.exists()
+        assert (album_path / "tracks").is_dir()
+        assert (album_path / "README.md").exists()
+
+    def test_create_documentary(self, tmp_path):
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("doc-album", "hip-hop", documentary=True)))
+        assert result["created"] is True
+        assert result["documentary"] is True
+        assert "RESEARCH.md" in result["files"]
+        assert "SOURCES.md" in result["files"]
+
+    def test_already_exists(self, tmp_path):
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        # Create the dir first
+        album_dir = content / "artists" / "test-artist" / "albums" / "rock" / "existing"
+        album_dir.mkdir(parents=True)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("existing", "rock")))
+        assert result["created"] is False
+        assert "already exists" in result["error"]
+
+    def test_no_config(self):
+        state = {"albums": {}, "ideas": {}, "session": {}}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("test", "rock")))
+        assert "error" in result
+
+    def test_slug_normalization(self, tmp_path):
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("My New Album", "Hip Hop")))
+        assert result["created"] is True
+        assert "my-new-album" in result["path"]
+        assert result["genre"] == "hip-hop"
+
+
+# =============================================================================
+# run_pre_generation_gates tool tests
+# =============================================================================
+
+# Track file that passes all gates
+_TRACK_ALL_GATES_PASS = """\
+# Test Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Explicit** | No |
+| **Sources Verified** | ✅ Verified (2026-01-01) |
+
+## Suno Inputs
+
+### Style Box
+```
+electronic, 120 BPM, energetic, male vocals, synth-driven
+```
+
+### Lyrics Box
+```
+[Verse 1]
+Testing one two three
+This is a test for me
+
+[Chorus]
+We're testing all day long
+Testing in this song
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| — | — | — |
+"""
+
+# Track file that fails multiple gates
+_TRACK_GATES_FAIL = """\
+# Failing Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Sources Verified** | ❌ Pending |
+
+## Suno Inputs
+
+### Style Box
+```
+sounds like Eminem, aggressive rap
+```
+
+### Lyrics Box
+```
+[Verse 1]
+[TODO] write lyrics here
+Ramos walked the streets
+
+[PLACEHOLDER] chorus needed
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| Ramos | Rah-mohs | Spanish name |
+"""
+
+
+@pytest.mark.unit
+class TestRunPreGenerationGates:
+    """Tests for the run_pre_generation_gates MCP tool."""
+
+    def test_all_pass(self, tmp_path):
+        track_file = tmp_path / "05-passing.md"
+        track_file.write_text(_TRACK_ALL_GATES_PASS)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-passing"] = {
+            "path": str(track_file),
+            "title": "Passing Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Verified",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        # Reset blocklist cache so it loads from real file
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
+        assert result["found"] is True
+        track = result["tracks"][0]
+        assert track["verdict"] == "READY"
+        assert track["blocking"] == 0
+
+    def test_multiple_failures(self, tmp_path):
+        track_file = tmp_path / "05-failing.md"
+        track_file.write_text(_TRACK_GATES_FAIL)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-failing"] = {
+            "path": str(track_file),
+            "title": "Failing Track",
+            "status": "In Progress",
+            "explicit": None,  # Not set
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
+        track = result["tracks"][0]
+        assert track["verdict"] == "NOT READY"
+        assert track["blocking"] >= 3  # sources, TODO markers, pronunciation, artist names
+
+    def test_album_wide(self, tmp_path):
+        """Test running gates on all tracks in an album."""
+        pass_file = tmp_path / "05-pass.md"
+        pass_file.write_text(_TRACK_ALL_GATES_PASS)
+        fail_file = tmp_path / "06-fail.md"
+        fail_file.write_text(_TRACK_GATES_FAIL)
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-pass"] = {
+            "path": str(pass_file), "title": "Pass", "status": "In Progress",
+            "explicit": False, "sources_verified": "Verified",
+        }
+        state["albums"]["test-album"]["tracks"]["06-fail"] = {
+            "path": str(fail_file), "title": "Fail", "status": "In Progress",
+            "explicit": None, "sources_verified": "Pending",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album")))
+        # Should have results for all tracks (the original 2 + our 2)
+        assert result["total_tracks"] >= 2
+        assert result["total_blocking"] >= 1
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.run_pre_generation_gates("nonexistent")))
+        assert result["found"] is False
+
+    def test_track_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "99")))
+        assert result["found"] is False
+
+    def test_gate_details(self, tmp_path):
+        """Each gate returns structured data."""
+        track_file = tmp_path / "05-detail.md"
+        track_file.write_text(_TRACK_ALL_GATES_PASS)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-detail"] = {
+            "path": str(track_file), "title": "Detail Track",
+            "status": "In Progress", "explicit": False,
+            "sources_verified": "Verified",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
+        gates = result["tracks"][0]["gates"]
+        gate_names = [g["gate"] for g in gates]
+        assert "Sources Verified" in gate_names
+        assert "Lyrics Reviewed" in gate_names
+        assert "Pronunciation Resolved" in gate_names
+        assert "Explicit Flag Set" in gate_names
+        assert "Style Prompt Complete" in gate_names
+        assert "Artist Names Cleared" in gate_names
+        assert len(gates) == 6
