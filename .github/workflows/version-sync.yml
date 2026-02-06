@@ -7,6 +7,7 @@ on:
       - '.claude-plugin/marketplace.json'
       - 'README.md'
       - 'skills/*/SKILL.md'
+      - 'tests/**'
 
 permissions:
   contents: read
@@ -65,6 +66,16 @@ jobs:
           README_SKILLS=$(grep -oP 'badge/skills-\K[0-9]+' README.md || echo "not found")
           echo "[FAIL] Skills badge ($README_SKILLS) does not match actual count ($SKILL_COUNT)"
           echo "  Update README.md: badge/skills-${SKILL_COUNT}-green"
+          ERRORS=$((ERRORS + 1))
+        fi
+
+        # Check test badge exists and has a numeric value
+        if grep -qP 'badge/tests-\d+-brightgreen' README.md; then
+          TEST_COUNT=$(grep -oP 'badge/tests-\K\d+' README.md)
+          echo "[OK] Test badge present: $TEST_COUNT"
+        else
+          echo "[FAIL] Test count badge missing or malformed in README.md"
+          echo "  Expected: ![Tests](https://img.shields.io/badge/tests-COUNT-brightgreen)"
           ERRORS=$((ERRORS + 1))
         fi
 

@@ -209,6 +209,28 @@ jobs:
       run: |
         python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html
 
+    - name: Verify test count badge
+      if: matrix.python-version == '3.11'
+      run: |
+        ACTUAL_COUNT=$(python -m pytest tests/ --co -q 2>/dev/null | tail -1 | grep -oP '^\d+')
+        BADGE_COUNT=$(grep -oP 'badge/tests-\K\d+' README.md)
+
+        echo "Actual test count:  $ACTUAL_COUNT"
+        echo "README badge count: $BADGE_COUNT"
+
+        if [ "$ACTUAL_COUNT" != "$BADGE_COUNT" ]; then
+          echo ""
+          echo "[FAIL] Test count badge is out of date!"
+          echo "  README says: $BADGE_COUNT tests"
+          echo "  Actual:      $ACTUAL_COUNT tests"
+          echo ""
+          echo "Update README.md badge to:"
+          echo "  ![Tests](https://img.shields.io/badge/tests-${ACTUAL_COUNT}-brightgreen)"
+          exit 1
+        fi
+
+        echo "[OK] Test count badge matches: $ACTUAL_COUNT"
+
     - name: Upload coverage report
       if: matrix.python-version == '3.11'
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
