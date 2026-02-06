@@ -22,7 +22,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...plan album concept and tracklist | `/album-conceptualizer` |
 | ...continue working on an existing album | `/resume <album-name>` |
 | ...see album progress at a glance | `/album-dashboard <album-name>` |
-| ...know what to do next | `/next-step [album-name]` |
+| ...know what to do next | `/resume [album-name]` (includes next-step advice) |
 | ...check if album structure is correct | `/validate-album <album-name>` |
 | ...release my finished album | `/release-director` |
 
@@ -34,6 +34,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...run full QC before Suno generation | `/lyric-reviewer` |
 | ...run final pre-generation checkpoint | `/pre-generation-check` |
 | ...check if explicit flag is needed | `/explicit-checker` |
+| ...verify sources before generation | `/verify-sources <album-name>` |
 
 ### Suno Generation
 | I need to... | Use this skill |
@@ -81,7 +82,7 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...start a fresh session | `/session-start` |
-| ...get recommended next action | `/next-step [album-name]` |
+| ...get recommended next action | `/resume [album-name]` |
 | ...see album progress dashboard | `/album-dashboard <album-name>` |
 
 ### Maintenance
@@ -114,7 +115,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
-| [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action | Workflow guidance when unsure what to do |
+| [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action (also available via `/resume`) | Workflow guidance when unsure what to do |
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
@@ -138,6 +139,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`test`](/skills/test/SKILL.md) | Run automated tests to validate plugin integrity | Verifying plugin works correctly |
 | [`tutorial`](/skills/tutorial/SKILL.md) | Interactive guided album creation | Learning the workflow step-by-step |
 | [`validate-album`](/skills/validate-album/SKILL.md) | Validate album structure, file locations | Catching path issues before they cause problems |
+| [`verify-sources`](/skills/verify-sources/SKILL.md) | Human source verification gate with timestamps | Verifying sources before generation |
 
 ---
 
@@ -188,7 +190,7 @@ What to have ready before using each skill:
         -> /document-hunter (find court docs)
         -> /researchers-legal, /researchers-gov, etc. (specialized research)
         -> /researchers-verifier (verify citations)
-    -> [Human Source Verification]
+    -> /verify-sources (human source verification)
     -> /lyric-writer (write lyrics from sources)
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
