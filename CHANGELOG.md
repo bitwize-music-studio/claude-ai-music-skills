@@ -6,6 +6,30 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-02-06
+
+### Added
+- **verify-sources skill** — new `/verify-sources` skill for human source verification workflow
+- **State schema documentation** — formal `reference/state-schema.md` documenting state.json structure
+- **Path resolver utility** — `tools/shared/paths.py` eliminates manual path construction
+- **222 new unit tests** — indexer (121), MCP server (90), path resolver (11); suite now at 494
+- **Coverage reporting** — pytest-cov with HTML artifact upload in CI
+- **README badges** — version and skills count badges with CI sync validation
+- **Badge sync in CI** — version-sync workflow now validates README badges match actual values
+
+### Fixed
+- **Resume skill** — merged next-step decision tree into resume (Step 8) for single-skill navigation
+- **Lyric reviewer checklist** — heading corrected from 13-Point to 14-Point (matches actual items)
+- **Lyric workflow test** — regex now matches writer's `Quality Check (N-Point)` format
+- **README/CLAUDE.md alignment** — fixed trigger phrases, co-author line, status definitions
+- **Import-audio** — added MP3 file handling guidance and supported formats list
+
+### Changed
+- **MCP server logging** — structured logging throughout StateCache for debugging
+- **Config quick-start** — added 3-field quick-start block to config.example.yaml
+- **Overrides docs** — consolidated to single source of truth in config/README.md
+- **SKILL_INDEX** — updated navigation references, added verify-sources
+
 ## [0.41.6] - 2026-02-06
 
 ### Fixed
