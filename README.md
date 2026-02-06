@@ -12,7 +12,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.43.0-blue)
+![Version](https://img.shields.io/badge/version-0.43.1-blue)
 ![Skills](https://img.shields.io/badge/skills-44-green)
 ![Tests](https://img.shields.io/badge/tests-843-brightgreen)
 
@@ -416,12 +416,12 @@ Skills use different Claude models optimized for quality vs cost. On Claude Code
 
 | Model | When Used | Skills |
 |-------|-----------|--------|
-| **Opus 4.5** | Critical creative outputs (6 skills) | `/bitwize-music:lyric-writer`, `/bitwize-music:suno-engineer`, `/bitwize-music:album-conceptualizer`, `/bitwize-music:lyric-reviewer`, `/bitwize-music:researchers-legal`, `/bitwize-music:researchers-verifier` |
-| **Sonnet 4.5** | Reasoning and coordination (22 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
-| **Haiku 4.5** | Rule-based operations (10 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
+| **Opus 4.6** | Critical creative outputs (6 skills) | `/bitwize-music:lyric-writer`, `/bitwize-music:suno-engineer`, `/bitwize-music:album-conceptualizer`, `/bitwize-music:lyric-reviewer`, `/bitwize-music:researchers-legal`, `/bitwize-music:researchers-verifier` |
+| **Sonnet 4.5** | Reasoning and coordination (24 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
+| **Haiku 4.5** | Rule-based operations (14 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
 
 **Why different models?**
-- **Opus** for lyrics, Suno prompts, album concepts, lyric review, and legal/verification research — these define the final music and have high error cost
+- **Opus 4.6** for lyrics, Suno prompts, album concepts, lyric review, and legal/verification research — these define the final music and have high error cost
 - **Sonnet** for planning, research coordination, and most tasks — excellent quality at lower cost
 - **Haiku** for mechanical operations (imports, validation, clipboard) where speed matters more than creativity
 

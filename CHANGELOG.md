@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-02-06
+
+### Added
+- **Test count badge validation** — CI step in `test.yml` verifies README badge matches actual pytest count
+- **Pre-commit hook check 11/11** — local badge sync validation before commit
+- **Version-sync workflow** now triggers on `tests/**` changes and validates test badge presence
+
+### Fixed
+- **README model strategy** — updated Opus 4.5 → Opus 4.6, corrected skill counts (24 Sonnet, 14 Haiku)
+
 ## [0.43.0] - 2026-02-06
 
 ### Added
