@@ -1541,3 +1541,353 @@ class TestListTrackFiles:
         expected_fields = {"slug", "title", "status", "path", "explicit", "has_suno_link", "sources_verified"}
         for track in result["tracks"]:
             assert expected_fields.issubset(track.keys())
+
+
+# =============================================================================
+# extract_section tool tests
+# =============================================================================
+
+# Sample track markdown content for testing
+_SAMPLE_TRACK_MD = """\
+# Test Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Track #** | 01 |
+| **Title** | Test Track |
+| **Status** | In Progress |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | ❌ Pending |
+
+## Concept
+
+This track tells the story of a test that never ends.
+
+## Musical Direction
+
+- **Tempo**: 120 BPM
+- **Feel**: Energetic
+- **Instrumentation**: Synths, drums
+
+## Suno Inputs
+
+### Style Box
+*Copy this into Suno's "Style of Music" field:*
+
+```
+electronic, 120 BPM, energetic, male vocals, synth-driven
+```
+
+### Lyrics Box
+*Copy this into Suno's "Lyrics" field:*
+
+```
+[Verse 1]
+Testing one two three
+This is a test for me
+
+[Chorus]
+We're testing all day long
+Testing in this song
+```
+
+## Streaming Lyrics
+
+```
+Testing one two three
+This is a test for me
+
+We're testing all day long
+Testing in this song
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| pytest | PY-test | Technical term |
+
+## Production Notes
+
+- Keep the energy high throughout
+- Layer synths for a wall of sound
+"""
+
+
+@pytest.mark.unit
+class TestExtractSection:
+    """Tests for the extract_section MCP tool."""
+
+    def _make_cache_with_file(self, tmp_path):
+        """Create a mock cache with a real track file on disk."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state)
+
+    def test_extract_style_box(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "style")))
+        assert result["found"] is True
+        assert "electronic" in result["content"]
+        assert "120 BPM" in result["content"]
+        assert result["section"] == "Style Box"
+
+    def test_extract_lyrics_box(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "lyrics")))
+        assert result["found"] is True
+        assert "[Verse 1]" in result["content"]
+        assert "[Chorus]" in result["content"]
+
+    def test_extract_streaming_lyrics(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "streaming")))
+        assert result["found"] is True
+        assert "Testing one two three" in result["content"]
+        # Streaming lyrics should NOT have section tags
+        assert "[Verse" not in result["content"]
+
+    def test_extract_concept(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "concept")))
+        assert result["found"] is True
+        assert "test that never ends" in result["content"]
+
+    def test_extract_pronunciation(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "pronunciation")))
+        assert result["found"] is True
+        assert "pytest" in result["content"]
+        assert "PY-test" in result["content"]
+
+    def test_extract_musical_direction(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "musical-direction")))
+        assert result["found"] is True
+        assert "120 BPM" in result["content"]
+
+    def test_extract_production_notes(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "production-notes")))
+        assert result["found"] is True
+        assert "energy high" in result["content"]
+
+    def test_code_block_sections_return_raw(self, tmp_path):
+        """Code block sections include raw_content with full section."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "style")))
+        assert result["raw_content"] is not None
+        assert "Copy this" in result["raw_content"]
+
+    def test_non_code_block_sections_no_raw(self, tmp_path):
+        """Non-code-block sections don't set raw_content."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "concept")))
+        assert result["raw_content"] is None
+
+    def test_unknown_section(self, tmp_path):
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "nonexistent")))
+        assert "error" in result
+        assert "Unknown section" in result["error"]
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("nonexistent", "01", "lyrics")))
+        assert result["found"] is False
+
+    def test_track_prefix_match(self, tmp_path):
+        """Track number prefix resolves correctly when unambiguous."""
+        track_file = tmp_path / "05-unique-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-unique-track"] = {
+            "path": str(track_file),
+            "title": "Unique Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "05", "concept")))
+        assert result["found"] is True
+        assert result["track_slug"] == "05-unique-track"
+
+    def test_missing_section_in_file(self, tmp_path):
+        """Section that exists in schema but not in file."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "source")))
+        assert result["found"] is False
+        assert "not found in track file" in result["error"]
+
+
+# =============================================================================
+# update_track_field tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestUpdateTrackField:
+    """Tests for the update_track_field MCP tool."""
+
+    def _make_cache_with_file(self, tmp_path):
+        """Create a mock cache with a real track file on disk."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state), track_file
+
+    def test_update_status(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert result["success"] is True
+        assert result["field"] == "Status"
+        assert result["value"] == "Generated"
+        # Verify file was actually modified
+        content = track_file.read_text()
+        assert "| **Status** | Generated |" in content
+
+    def test_update_explicit(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "explicit", "Yes"
+            )))
+        assert result["success"] is True
+        content = track_file.read_text()
+        assert "| **Explicit** | Yes |" in content
+
+    def test_update_sources_verified(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified", "✅ Verified (2026-02-06)"
+            )))
+        assert result["success"] is True
+        content = track_file.read_text()
+        assert "✅ Verified (2026-02-06)" in content
+
+    def test_update_with_prefix_match(self, tmp_path):
+        """Track number prefix works for updates too."""
+        track_file = tmp_path / "05-unique-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-unique-track"] = {
+            "path": str(track_file),
+            "title": "Unique Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "05", "status", "Final"
+            )))
+        assert result["success"] is True
+        assert result["track_slug"] == "05-unique-track"
+
+    def test_update_preserves_other_fields(self, tmp_path):
+        """Updating one field doesn't affect others."""
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Final"))
+        content = track_file.read_text()
+        assert "| **Explicit** | No |" in content
+        assert "| **Title** | Test Track |" in content
+
+    def test_unknown_field(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-first-track", "invalid_field", "value"
+            )))
+        assert "error" in result
+        assert "Unknown field" in result["error"]
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "nonexistent", "01", "status", "Final"
+            )))
+        assert result["found"] is False
+
+    def test_track_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "99-missing", "status", "Final"
+            )))
+        assert result["found"] is False
+
+    def test_returns_parsed_track(self, tmp_path):
+        """Result includes re-parsed track metadata."""
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert result["track"]["status"] == "Generated"
+
+    def test_state_cache_updated(self, tmp_path):
+        """State cache is updated in memory after field change."""
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Final"))
+        # write_state should have been called to persist
+        mock_write.assert_called_once()
+        # In-memory state should reflect update
+        state = mock_cache.get_state()
+        assert state["albums"]["test-album"]["tracks"]["01-test-track"]["status"] == "Final"

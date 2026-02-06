@@ -25,10 +25,13 @@ Tools exposed:
     resolve_path        - Resolve content/audio/documents path for an album
     resolve_track_file  - Find a track file path with metadata
     list_track_files    - List track files with status filtering
+    extract_section     - Extract a section from a track markdown file
+    update_track_field  - Update a metadata field in a track file
 """
 import json
 import logging
 import os
+import re
 import sys
 import threading
 from pathlib import Path
@@ -90,6 +93,7 @@ from tools.state.indexer import (
     STATE_FILE,
     CONFIG_FILE,
 )
+from tools.state.parsers import parse_track_file
 
 # Initialize FastMCP server
 mcp = FastMCP("bitwize-music-mcp")
@@ -840,6 +844,323 @@ async def list_track_files(album_slug: str, status_filter: str = "") -> str:
         "tracks": track_list,
         "track_count": len(track_list),
         "total_tracks": len(tracks),
+    })
+
+
+# Pre-compiled patterns for section extraction
+_RE_SECTION = re.compile(r'^(#{1,3})\s+(.+)$', re.MULTILINE)
+_RE_CODE_BLOCK = re.compile(r'```\n?(.*?)```', re.DOTALL)
+
+# Map user-friendly section names to markdown headings
+_SECTION_NAMES = {
+    "style": "Style Box",
+    "style-box": "Style Box",
+    "lyrics": "Lyrics Box",
+    "lyrics-box": "Lyrics Box",
+    "streaming": "Streaming Lyrics",
+    "streaming-lyrics": "Streaming Lyrics",
+    "pronunciation": "Pronunciation Notes",
+    "pronunciation-notes": "Pronunciation Notes",
+    "concept": "Concept",
+    "source": "Source",
+    "original-quote": "Original Quote",
+    "musical-direction": "Musical Direction",
+    "production-notes": "Production Notes",
+    "generation-log": "Generation Log",
+    "phonetic-review": "Phonetic Review Checklist",
+}
+
+# Fields that can be updated in the track details table
+_UPDATABLE_FIELDS = {
+    "status": "Status",
+    "explicit": "Explicit",
+    "suno-link": "Suno Link",
+    "suno_link": "Suno Link",
+    "sources-verified": "Sources Verified",
+    "sources_verified": "Sources Verified",
+    "stems": "Stems",
+    "pov": "POV",
+}
+
+
+def _extract_markdown_section(text: str, heading: str) -> Optional[str]:
+    """Extract content under a specific markdown heading.
+
+    Returns the text between the target heading and the next heading
+    of equal or higher level, or end of file.
+    """
+    matches = list(_RE_SECTION.finditer(text))
+    target_idx = None
+    target_level = None
+
+    for i, m in enumerate(matches):
+        level = len(m.group(1))  # number of # chars
+        title = m.group(2).strip()
+        if title.lower() == heading.lower():
+            target_idx = i
+            target_level = level
+            break
+
+    if target_idx is None:
+        return None
+
+    start = matches[target_idx].end()
+
+    # Find next heading at same or higher level
+    for m in matches[target_idx + 1:]:
+        level = len(m.group(1))
+        if level <= target_level:
+            end = m.start()
+            return text[start:end].strip()
+
+    # No next heading — return rest of file
+    return text[start:].strip()
+
+
+def _extract_code_block(section_text: str) -> Optional[str]:
+    """Extract the first code block from section text."""
+    match = _RE_CODE_BLOCK.search(section_text)
+    if match:
+        return match.group(1).strip()
+    return None
+
+
+@mcp.tool()
+async def extract_section(album_slug: str, track_slug: str, section: str) -> str:
+    """Extract a specific section from a track's markdown file.
+
+    Reads the track file from disk and returns the content under the
+    specified heading. For sections with code blocks (lyrics, style, streaming),
+    returns just the code block content.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+        section: Section to extract. Options:
+            "style" or "style-box" — Suno style prompt
+            "lyrics" or "lyrics-box" — Suno lyrics
+            "streaming" or "streaming-lyrics" — Streaming platform lyrics
+            "pronunciation" or "pronunciation-notes" — Pronunciation table
+            "concept" — Track concept description
+            "source" — Source material
+            "original-quote" — Original quote text
+            "musical-direction" — Tempo, feel, instrumentation
+            "production-notes" — Technical production notes
+            "generation-log" — Generation attempt history
+            "phonetic-review" — Phonetic review checklist
+
+    Returns:
+        JSON with section content or error
+    """
+    # Resolve the heading name
+    section_key = section.lower().strip()
+    heading = _SECTION_NAMES.get(section_key)
+    if not heading:
+        return _safe_json({
+            "error": f"Unknown section '{section}'. Valid options: {', '.join(sorted(_SECTION_NAMES.keys()))}",
+        })
+
+    # Find the track file path via state cache
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    normalized_track = _normalize_slug(track_slug)
+
+    # Exact or prefix match
+    track_data = tracks.get(normalized_track)
+    matched_slug = normalized_track
+    if not track_data:
+        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
+        if len(prefix_matches) == 1:
+            matched_slug = next(iter(prefix_matches))
+            track_data = prefix_matches[matched_slug]
+        elif len(prefix_matches) > 1:
+            return _safe_json({
+                "found": False,
+                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "found": False,
+                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+                "available_tracks": list(tracks.keys()),
+            })
+
+    track_path = track_data.get("path", "")
+    if not track_path:
+        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+
+    # Read the file
+    path = Path(track_path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read track file: {e}"})
+
+    # Extract the section
+    content = _extract_markdown_section(text, heading)
+    if content is None:
+        return _safe_json({
+            "found": False,
+            "error": f"Section '{heading}' not found in track file",
+            "track_slug": matched_slug,
+        })
+
+    # For code-block sections, extract just the code block
+    code_block_sections = {"Style Box", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
+    code_content = None
+    if heading in code_block_sections:
+        code_content = _extract_code_block(content)
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "track_slug": matched_slug,
+        "section": heading,
+        "content": code_content if code_content is not None else content,
+        "raw_content": content if code_content is not None else None,
+    })
+
+
+# Pre-compiled pattern for table field updates
+_RE_TABLE_ROW = None  # built dynamically per field
+
+
+@mcp.tool()
+async def update_track_field(
+    album_slug: str,
+    track_slug: str,
+    field: str,
+    value: str,
+) -> str:
+    """Update a metadata field in a track's markdown file.
+
+    Modifies the track's details table (| **Key** | Value |) and rebuilds
+    the state cache to reflect the change.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+        field: Field to update. Options:
+            "status" — Track status (Not Started, In Progress, Generated, Final)
+            "explicit" — Explicit flag (Yes, No)
+            "suno-link" or "suno_link" — Suno generation link
+            "sources-verified" or "sources_verified" — Verification status
+            "stems" — Stems available (Yes, No)
+            "pov" — Point of view
+        value: New value for the field
+
+    Returns:
+        JSON with update result or error
+    """
+    # Validate field
+    field_key = field.lower().strip()
+    table_key = _UPDATABLE_FIELDS.get(field_key)
+    if not table_key:
+        return _safe_json({
+            "error": f"Unknown field '{field}'. Valid options: {', '.join(sorted(_UPDATABLE_FIELDS.keys()))}",
+        })
+
+    # Find track path via state cache
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+        })
+
+    tracks = album.get("tracks", {})
+    normalized_track = _normalize_slug(track_slug)
+
+    # Exact or prefix match
+    track_data = tracks.get(normalized_track)
+    matched_slug = normalized_track
+    if not track_data:
+        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
+        if len(prefix_matches) == 1:
+            matched_slug = next(iter(prefix_matches))
+            track_data = prefix_matches[matched_slug]
+        elif len(prefix_matches) > 1:
+            return _safe_json({
+                "found": False,
+                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "found": False,
+                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+            })
+
+    track_path = track_data.get("path", "")
+    if not track_path:
+        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+
+    # Read the file
+    path = Path(track_path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read track file: {e}"})
+
+    # Find and replace the table row: | **Key** | old_value |
+    pattern = re.compile(
+        r'^(\|\s*\*\*' + re.escape(table_key) + r'\*\*\s*\|)\s*.*?\s*\|',
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if not match:
+        return _safe_json({
+            "error": f"Field '{table_key}' not found in track file table",
+            "track_slug": matched_slug,
+        })
+
+    old_value = text[match.start():match.end()]
+    new_row = f"{match.group(1)} {value} |"
+    updated_text = text[:match.start()] + new_row + text[match.end():]
+
+    # Write back
+    try:
+        path.write_text(updated_text, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write track file: {e}"})
+
+    logger.info("Updated %s.%s field '%s' to '%s'", normalized_album, matched_slug, table_key, value)
+
+    # Re-parse the track to get updated metadata
+    parsed = parse_track_file(path)
+
+    # Update state cache in memory
+    if matched_slug in tracks:
+        tracks[matched_slug].update({
+            "status": parsed.get("status", tracks[matched_slug].get("status")),
+            "explicit": parsed.get("explicit", tracks[matched_slug].get("explicit")),
+            "has_suno_link": parsed.get("has_suno_link", tracks[matched_slug].get("has_suno_link")),
+            "sources_verified": parsed.get("sources_verified", tracks[matched_slug].get("sources_verified")),
+            "mtime": path.stat().st_mtime,
+        })
+        write_state(state)
+
+    return _safe_json({
+        "success": True,
+        "album_slug": normalized_album,
+        "track_slug": matched_slug,
+        "field": table_key,
+        "value": value,
+        "track": parsed,
     })
 
 
