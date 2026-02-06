@@ -20,15 +20,22 @@ Usage (either form works):
 
 import argparse
 import copy
+import errno
 import fcntl
 import json
 import logging
 import os
 import sys
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Lock timeout in seconds (prevents indefinite blocking)
+LOCK_TIMEOUT_SECONDS = 10
+# Stale lock threshold in seconds (locks older than this are considered abandoned)
+STALE_LOCK_SECONDS = 60
 
 # Ensure project root is on sys.path so this file works both as:
 #   python3 tools/state/indexer.py rebuild
@@ -294,12 +301,32 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
     state['config'] = config_section
     state['generated_at'] = datetime.now(timezone.utc).isoformat()
 
-    # Check if config changed (triggers full album rescan)
-    old_config_mtime = existing_state.get('config', {}).get('config_mtime', 0)
+    # Check if config changed — smart rescan based on which fields changed
+    old_config = existing_state.get('config', {})
+    old_config_mtime = old_config.get('config_mtime', 0)
     if config_section['config_mtime'] != old_config_mtime:
-        # Config changed, do full rescan
-        state['albums'] = scan_albums(content_root, artist_name)
-        state['ideas'] = scan_ideas(config, content_root)
+        # Determine which config fields changed to decide rescan scope
+        path_fields_changed = (
+            config_section.get('content_root') != old_config.get('content_root') or
+            config_section.get('artist_name') != old_config.get('artist_name')
+        )
+        ideas_path_changed = (
+            path_fields_changed or
+            config.get('paths', {}).get('ideas_file') !=
+            existing_state.get('_ideas_file_raw')
+        )
+
+        if path_fields_changed:
+            # Content root or artist name changed — full album rescan required
+            state['albums'] = scan_albums(content_root, artist_name)
+        # else: only non-path config changed (urls, generation, etc.) — keep albums
+
+        if ideas_path_changed:
+            state['ideas'] = scan_ideas(config, content_root)
+        # else: ideas path unchanged — keep ideas
+
+        # Store ideas_file_raw for future comparison
+        state['_ideas_file_raw'] = config.get('paths', {}).get('ideas_file', '')
         return state
 
     # Incremental album update
@@ -322,14 +349,24 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
             except OSError:
                 continue  # File removed between glob and stat
             if existing_album and existing_album.get('readme_mtime') == readme_mtime:
-                # README unchanged, check individual tracks
+                # README unchanged, check individual tracks only
                 _update_tracks_incremental(existing_album, album_dir)
             else:
-                # README changed or new album, full rescan of this album
+                # README changed or new album — re-parse album-level data
                 album_data = parse_album_readme(readme_path)
                 if '_error' not in album_data:
-                    tracks = scan_tracks(album_dir)
                     genre = album_dir.parent.name
+
+                    # Preserve existing tracks and update incrementally
+                    # (README change doesn't mean track files changed)
+                    if existing_album and existing_album.get('tracks'):
+                        tracks = existing_album['tracks']
+                        _update_tracks_incremental(
+                            {'tracks': tracks}, album_dir
+                        )
+                    else:
+                        tracks = scan_tracks(album_dir)
+
                     existing_albums[slug] = {
                         'path': str(album_dir),
                         'genre': genre,
@@ -417,11 +454,57 @@ def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
     )
 
 
+def _acquire_lock_with_timeout(lock_fd, timeout: int = LOCK_TIMEOUT_SECONDS):
+    """Acquire an exclusive file lock with timeout and stale lock recovery.
+
+    Args:
+        lock_fd: Open file descriptor for the lock file.
+        timeout: Maximum seconds to wait for the lock.
+
+    Raises:
+        TimeoutError: If lock cannot be acquired within timeout.
+    """
+    deadline = time.monotonic() + timeout
+
+    while True:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return  # Lock acquired
+        except OSError as e:
+            if e.errno not in (errno.EACCES, errno.EAGAIN):
+                raise  # Unexpected error
+
+        # Check for stale lock
+        try:
+            lock_age = time.time() - LOCK_FILE.stat().st_mtime
+            if lock_age > STALE_LOCK_SECONDS:
+                logger.warning(
+                    "Stale lock detected (%.0fs old), recovering", lock_age
+                )
+                # Touch the lock file to reset mtime, then retry
+                LOCK_FILE.touch()
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    return
+                except OSError:
+                    pass  # Still held, continue waiting
+        except OSError:
+            pass  # Lock file may have been removed
+
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Could not acquire state lock within {timeout}s. "
+                f"Lock file: {LOCK_FILE}"
+            )
+
+        time.sleep(0.1)
+
+
 def write_state(state: Dict[str, Any]):
     """Write state to cache file atomically with file locking.
 
-    Acquires an exclusive lock to prevent concurrent writes, then
-    writes to a temp file and renames for atomicity.
+    Acquires an exclusive lock (with timeout) to prevent concurrent writes,
+    then writes to a temp file and renames for atomicity.
     """
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     # Restrict cache directory to owner-only access
@@ -432,7 +515,7 @@ def write_state(state: Dict[str, Any]):
     tmp_path = None
     try:
         lock_fd = open(LOCK_FILE, 'w')
-        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        _acquire_lock_with_timeout(lock_fd)
 
         # Use tempfile for unpredictable filename in the same directory
         tmp_fd = tempfile.NamedTemporaryFile(
@@ -449,7 +532,7 @@ def write_state(state: Dict[str, Any]):
         tmp_fd.close()
         tmp_fd = None
         os.replace(str(tmp_path), str(STATE_FILE))
-    except OSError as e:
+    except (OSError, TimeoutError) as e:
         logger.error("Cannot write state file: %s", e)
         # Clean up temp file
         if tmp_fd is not None:

@@ -215,7 +215,7 @@ paths:
   # Directory for override files that customize skills and workflows.
   # Lets you personalize behavior without editing plugin files.
   #
-  # Default: {content_root}/overrides
+  # Default (if omitted): {content_root}/overrides
   #
   # Override files you can create:
   #   - CLAUDE.md               # Custom workflow instructions
@@ -244,7 +244,7 @@ paths:
   # File for tracking album concepts before creating album directories.
   # Managed by /bitwize-music:album-ideas skill.
   #
-  # Default: {content_root}/IDEAS.md
+  # Default (if omitted): {content_root}/IDEAS.md
   #
   # If the file doesn't exist, the skill creates it with a template.
   # Great for capturing inspiration before committing to a full album.
@@ -302,9 +302,11 @@ urls:
 
 generation:
   # ---------------------------
-  # service
+  # service [optional]
   # ---------------------------
   # Which AI music generation service to use.
+  #
+  # Default (if omitted): suno
   #
   # Currently supported:
   #   suno    - Suno V5 (default, recommended)
@@ -337,9 +339,11 @@ generation:
 
 # promotion:
   # ---------------------------
-  # default_style
+  # default_style [optional]
   # ---------------------------
   # Visualization style for audio waveform display.
+  #
+  # Default (if omitted): "pulse"
   #
   # Options and recommended genres:
   #   pulse      - Pulsing circle (electronic, hip-hop)
@@ -355,9 +359,11 @@ generation:
   # default_style: "pulse"
 
   # ---------------------------
-  # duration
+  # duration [optional]
   # ---------------------------
   # Video duration in seconds.
+  #
+  # Default (if omitted): 15
   #
   # Platform recommendations:
   #   15  - Instagram Reels, Twitter (optimal)
@@ -367,18 +373,22 @@ generation:
   # duration: 15
 
   # ---------------------------
-  # include_sampler
+  # include_sampler [optional]
   # ---------------------------
   # Generate an album sampler video (clips from all tracks).
   # Great for album announcements.
   #
+  # Default (if omitted): false
+  #
   # include_sampler: true
 
   # ---------------------------
-  # sampler_clip_duration
+  # sampler_clip_duration [optional]
   # ---------------------------
   # Seconds per track in the sampler video.
   # Keep short to fit more tracks (Twitter limit: 140s).
+  #
+  # Default (if omitted): 12
   #
   # sampler_clip_duration: 12
 
@@ -461,11 +471,13 @@ sheet_music:
   # provider: "r2"
 
   # ---------------------------
-  # public_read
+  # public_read [optional]
   # ---------------------------
   # Make uploaded files publicly accessible via URL.
   # Set true for sharing promo videos on social media.
   # Set false for private storage (requires signed URLs).
+  #
+  # Default (if omitted): false
   #
   # public_read: false
 

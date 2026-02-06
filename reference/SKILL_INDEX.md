@@ -21,6 +21,8 @@ Quick-reference guide for finding the right skill for any task.
 | ...start a new album | `/new-album <name> <genre>` |
 | ...plan album concept and tracklist | `/album-conceptualizer` |
 | ...continue working on an existing album | `/resume <album-name>` |
+| ...see album progress at a glance | `/album-dashboard <album-name>` |
+| ...know what to do next | `/next-step [album-name]` |
 | ...check if album structure is correct | `/validate-album <album-name>` |
 | ...release my finished album | `/release-director` |
 
@@ -30,6 +32,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...write lyrics for a track | `/lyric-writer` |
 | ...check lyrics for pronunciation risks | `/pronunciation-specialist` |
 | ...run full QC before Suno generation | `/lyric-reviewer` |
+| ...run final pre-generation checkpoint | `/pre-generation-check` |
 | ...check if explicit flag is needed | `/explicit-checker` |
 
 ### Suno Generation
@@ -74,6 +77,13 @@ Quick-reference guide for finding the right skill for any task.
 |--------------|----------------|
 | ...track album ideas for later | `/album-ideas` |
 
+### Session & Workflow
+| I need to... | Use this skill |
+|--------------|----------------|
+| ...start a fresh session | `/session-start` |
+| ...get recommended next action | `/next-step [album-name]` |
+| ...see album progress dashboard | `/album-dashboard <album-name>` |
+
 ### Maintenance
 | I need to... | Use this skill |
 |--------------|----------------|
@@ -89,6 +99,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`about`](/skills/about/SKILL.md) | About bitwize and this plugin | Learning about the plugin creator |
 | [`album-art-director`](/skills/album-art-director/SKILL.md) | Visual concepts for album artwork and AI art prompts | Creating album cover concepts for DALL-E/ChatGPT |
 | [`album-conceptualizer`](/skills/album-conceptualizer/SKILL.md) | Album concepts, tracklist architecture, thematic planning | Planning a new album's structure and narrative |
+| [`album-dashboard`](/skills/album-dashboard/SKILL.md) | Visual album progress dashboard with completion percentages | Quick overview of album progress by phase |
 | [`album-ideas`](/skills/album-ideas/SKILL.md) | Track and manage album ideas | Brainstorming and planning future albums |
 | [`clipboard`](/skills/clipboard/SKILL.md) | Copy track content to system clipboard | Quickly copying lyrics/prompts for Suno |
 | [`cloud-uploader`](/skills/cloud-uploader/SKILL.md) | Upload promo videos to Cloudflare R2 or AWS S3 | Hosting promo videos for social sharing |
@@ -99,11 +110,13 @@ Quick-reference guide for finding the right skill for any task.
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
 | [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
-| [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (9-point checklist) | Final quality check before generating |
+| [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
+| [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action | Workflow guidance when unsure what to do |
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
+| [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
 | [`researcher`](/skills/researcher/SKILL.md) | Investigative-grade research and source verification | Coordinating research for true-story albums |
@@ -118,6 +131,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`researchers-tech`](/skills/researchers-tech/SKILL.md) | Project histories, changelogs, developer interviews | Researching technology and open source history |
 | [`researchers-verifier`](/skills/researchers-verifier/SKILL.md) | Quality control, citation validation, fact-checking | Verifying research before human review |
 | [`resume`](/skills/resume/SKILL.md) | Find album and resume work where you left off | Continuing work on an existing album |
+| [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
 | [`skill-model-updater`](/skills/skill-model-updater/SKILL.md) | Update model references when new Claude models release | Keeping skills on current Claude models |
 | [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno V5 prompting, genre selection | Crafting optimal Suno style prompts |
@@ -137,6 +151,7 @@ What to have ready before using each skill:
 | `/lyric-writer` | Track concept defined, sources captured (if documentary) |
 | `/pronunciation-specialist` | Lyrics written |
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
+| `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created |
 | `/suno-engineer` | Lyrics finalized, sources verified (if documentary) |
 | `/mastering-engineer` | WAV files downloaded from Suno |
 | `/promo-director` | Mastered audio + album artwork |
@@ -158,6 +173,7 @@ What to have ready before using each skill:
     -> /lyric-writer (for each track)
     -> /pronunciation-specialist (scan for risks)
     -> /lyric-reviewer (final QC)
+    -> /pre-generation-check (validate all gates)
     -> /suno-engineer (create prompts)
     -> [Generate in Suno]
     -> /mastering-engineer (master audio)
@@ -247,7 +263,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 22 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 24 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -263,17 +279,21 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-historical`, `/researchers-journalism`, `/researchers-primary-source` - Specialized research
 - `/researchers-security`, `/researchers-tech` - Specialized research
 - `/resume` - Status reporting
+- `/session-start` - Session startup procedure
 - `/sheet-music-publisher` - Transcription workflow
 - `/tutorial` - Interactive guided creation
 
-### Haiku 4.5 (Pattern Matching — 10 skills)
+### Haiku 4.5 (Pattern Matching — 14 skills)
 - `/about` - Static information
+- `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
 - `/help` - Display information
 - `/import-art` - File operations
 - `/import-audio` - File operations
 - `/import-track` - File operations
 - `/new-album` - Directory creation
+- `/next-step` - Workflow routing
+- `/pre-generation-check` - Gate validation
 - `/skill-model-updater` - Pattern replacement
 - `/test` - Run predefined checks
 - `/validate-album` - Structure validation

@@ -73,7 +73,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.5 Skills (22 skills)
+## Sonnet 4.5 Skills (23 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -140,12 +140,15 @@ These skills require reasoning and moderate creativity but follow established pa
 ### sheet-music-publisher
 **Why Sonnet**: Coordinates transcription workflow with tool-specific guidance. Technical process requiring troubleshooting knowledge. Not creative output, but needs to explain and adapt.
 
+### session-start
+**Why Sonnet**: Runs the 8-step session startup procedure. Requires reading config, loading overrides, interpreting state cache, and producing contextual tips. Judgment needed to identify relevant status and recommendations.
+
 ### tutorial
 **Why Sonnet**: Interactive guided album creation. Must be conversational, adaptive, and educational. Follows the 7-phase workflow but needs to meet users where they are.
 
 ---
 
-## Haiku 4.5 Skills (11 skills)
+## Haiku 4.5 Skills (14 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 
@@ -178,6 +181,15 @@ These skills perform simple, rule-based operations with no creative judgment.
 
 ### test
 **Why Haiku**: Runs predefined test suites. Executes checks and reports pass/fail. Tests are already defined - this just runs them and formats output.
+
+### album-dashboard
+**Why Haiku**: Generates a progress dashboard with completion percentages per phase. Counting tracks, checking fields, formatting output. Arithmetic and pattern matching, no judgment.
+
+### next-step
+**Why Haiku**: Analyzes album state and recommends the next action. Follows a decision tree: check status fields, match to the workflow sequence, output the recommendation. Rule-based routing.
+
+### pre-generation-check
+**Why Haiku**: Validates 6 pre-generation gates (sources, lyrics, pronunciation, explicit, style prompt, artist names). Each gate is a binary check — field present or not. No interpretation needed.
 
 ### validate-album
 **Why Haiku**: Validates album structure against expected format. Checklist validation with binary pass/fail for each item. No interpretation - either the file exists or it doesn't.

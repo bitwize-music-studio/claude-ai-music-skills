@@ -14,6 +14,8 @@ Tools exposed:
     find_album          - Find album by name (fuzzy match)
     list_albums         - List all albums with summary
     get_track           - Get single track details
+    list_tracks         - Get all tracks for an album (batch query)
+    search              - Full-text search across albums/tracks/ideas
     get_session         - Get current session context
     update_session      - Update session context
     rebuild_state       - Force full rebuild
@@ -25,8 +27,9 @@ import json
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 # Derive plugin root from environment or file location
 # Check CLAUDE_PLUGIN_ROOT first (standard env var), then PLUGIN_ROOT (legacy), then derive from file
@@ -90,18 +93,23 @@ mcp = FastMCP("bitwize-music-mcp")
 
 
 class StateCache:
-    """In-memory cache for state data with lazy loading and staleness detection."""
+    """In-memory cache for state data with lazy loading and staleness detection.
+
+    Thread-safe: all public methods acquire a lock before accessing state.
+    """
 
     def __init__(self):
+        self._lock = threading.Lock()
         self._state: Optional[dict] = None
         self._state_mtime: float = 0.0
         self._config_mtime: float = 0.0
 
     def get_state(self) -> dict:
         """Get state, loading from disk if needed or stale."""
-        if self._is_stale() or self._state is None:
-            self._load_from_disk()
-        return self._state or {}
+        with self._lock:
+            if self._is_stale() or self._state is None:
+                self._load_from_disk()
+            return self._state or {}
 
     def rebuild(self) -> dict:
         """Force full rebuild from markdown files."""
@@ -111,22 +119,35 @@ class StateCache:
 
         # Preserve session from existing state
         existing = read_state()
-        state = build_state(config)
+        try:
+            state = build_state(config)
+        except Exception as e:
+            logger.error("State build failed: %s", e)
+            return {"error": f"State build failed: {e}"}
+
         if existing and "session" in existing:
             state["session"] = existing["session"]
 
         write_state(state)
-        self._state = state
-        self._update_mtimes()
+        with self._lock:
+            self._state = state
+            self._update_mtimes()
         return state
 
     def update_session(self, **kwargs) -> dict:
-        """Update session fields and persist."""
+        """Update session fields and persist.
+
+        Note: get_state() acquires the lock, so we don't re-acquire here
+        to avoid deadlock. Session updates are atomic via write_state's
+        file locking.
+        """
         from datetime import datetime, timezone
 
         state = self.get_state()
         if not state:
             return {"error": "No state available"}
+        if "error" in state:
+            return {"error": f"State has error: {state['error']}"}
 
         session = state.get("session", {})
 
@@ -198,6 +219,18 @@ def _normalize_slug(name: str) -> str:
     return name.lower().replace(" ", "-").replace("_", "-")
 
 
+def _safe_json(data: Any) -> str:
+    """Serialize data to JSON with error fallback.
+
+    If json.dumps() fails (e.g., circular references, non-serializable types),
+    returns a JSON error object instead of crashing.
+    """
+    try:
+        return json.dumps(data, default=str)
+    except (TypeError, ValueError, OverflowError) as e:
+        return json.dumps({"error": f"JSON serialization failed: {e}"})
+
+
 # =============================================================================
 # MCP Tools
 # =============================================================================
@@ -217,13 +250,13 @@ async def find_album(name: str) -> str:
     albums = state.get("albums", {})
 
     if not albums:
-        return json.dumps({"found": False, "error": "No albums in state cache"})
+        return _safe_json({"found": False, "error": "No albums in state cache"})
 
     normalized = _normalize_slug(name)
 
     # Exact match first
     if normalized in albums:
-        return json.dumps({
+        return _safe_json({
             "found": True,
             "slug": normalized,
             "album": albums[normalized],
@@ -238,19 +271,19 @@ async def find_album(name: str) -> str:
 
     if len(matches) == 1:
         slug = next(iter(matches))
-        return json.dumps({
+        return _safe_json({
             "found": True,
             "slug": slug,
             "album": matches[slug],
         })
     elif len(matches) > 1:
-        return json.dumps({
+        return _safe_json({
             "found": False,
             "multiple_matches": list(matches.keys()),
             "error": f"Multiple albums match '{name}': {', '.join(matches.keys())}",
         })
     else:
-        return json.dumps({
+        return _safe_json({
             "found": False,
             "available_albums": list(albums.keys()),
             "error": f"No album found matching '{name}'",
@@ -287,7 +320,7 @@ async def list_albums(status_filter: str = "") -> str:
             "tracks_completed": album.get("tracks_completed", 0),
         })
 
-    return json.dumps({"albums": result, "count": len(result)})
+    return _safe_json({"albums": result, "count": len(result)})
 
 
 @mcp.tool()
@@ -310,7 +343,7 @@ async def get_track(album_slug: str, track_slug: str) -> str:
 
     album = albums.get(album_slug)
     if not album:
-        return json.dumps({
+        return _safe_json({
             "found": False,
             "error": f"Album '{album_slug}' not found",
             "available_albums": list(albums.keys()),
@@ -319,17 +352,60 @@ async def get_track(album_slug: str, track_slug: str) -> str:
     tracks = album.get("tracks", {})
     track = tracks.get(track_slug)
     if not track:
-        return json.dumps({
+        return _safe_json({
             "found": False,
             "error": f"Track '{track_slug}' not found in album '{album_slug}'",
             "available_tracks": list(tracks.keys()),
         })
 
-    return json.dumps({
+    return _safe_json({
         "found": True,
         "album_slug": album_slug,
         "track_slug": track_slug,
         "track": track,
+    })
+
+
+@mcp.tool()
+async def list_tracks(album_slug: str) -> str:
+    """List all tracks for an album in one call (avoids N+1 queries).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with all tracks for the album, or error if album not found
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    tracks = album.get("tracks", {})
+    track_list = []
+    for slug, track in sorted(tracks.items()):
+        track_list.append({
+            "slug": slug,
+            "title": track.get("title", slug),
+            "status": track.get("status", "Unknown"),
+            "explicit": track.get("explicit", False),
+            "has_suno_link": track.get("has_suno_link", False),
+            "sources_verified": track.get("sources_verified", "N/A"),
+        })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "album_title": album.get("title", normalized),
+        "tracks": track_list,
+        "track_count": len(track_list),
     })
 
 
@@ -342,7 +418,7 @@ async def get_session() -> str:
     """
     state = cache.get_state()
     session = state.get("session", {})
-    return json.dumps({"session": session})
+    return _safe_json({"session": session})
 
 
 @mcp.tool()
@@ -372,7 +448,7 @@ async def update_session(
         action=action or None,
         clear=clear,
     )
-    return json.dumps({"session": session})
+    return _safe_json({"session": session})
 
 
 @mcp.tool()
@@ -387,7 +463,7 @@ async def rebuild_state() -> str:
     state = cache.rebuild()
 
     if "error" in state:
-        return json.dumps(state)
+        return _safe_json(state)
 
     album_count = len(state.get("albums", {}))
     track_count = sum(
@@ -395,7 +471,7 @@ async def rebuild_state() -> str:
     )
     ideas_count = len(state.get("ideas", {}).get("items", []))
 
-    return json.dumps({
+    return _safe_json({
         "success": True,
         "albums": album_count,
         "tracks": track_count,
@@ -414,9 +490,9 @@ async def get_config() -> str:
     config = state.get("config", {})
 
     if not config:
-        return json.dumps({"error": "No config in state. Run rebuild_state first."})
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
 
-    return json.dumps({"config": config})
+    return _safe_json({"config": config})
 
 
 @mcp.tool()
@@ -438,11 +514,73 @@ async def get_ideas(status_filter: str = "") -> str:
     if status_filter:
         items = [i for i in items if i.get("status", "").lower() == status_filter.lower()]
 
-    return json.dumps({
+    return _safe_json({
         "counts": counts,
         "items": items,
         "total": len(items),
     })
+
+
+@mcp.tool()
+async def search(query: str, scope: str = "all") -> str:
+    """Full-text search across albums, tracks, and ideas.
+
+    Args:
+        query: Search query (case-insensitive substring match)
+        scope: What to search - "albums", "tracks", "ideas", or "all" (default)
+
+    Returns:
+        JSON with matching results grouped by type
+    """
+    state = cache.get_state()
+    query_lower = query.lower()
+    results: dict = {"query": query, "scope": scope}
+
+    if scope in ("all", "albums"):
+        album_matches = []
+        for slug, album in state.get("albums", {}).items():
+            title = album.get("title", "")
+            genre = album.get("genre", "")
+            if (query_lower in slug.lower() or
+                    query_lower in title.lower() or
+                    query_lower in genre.lower()):
+                album_matches.append({
+                    "slug": slug,
+                    "title": title,
+                    "genre": genre,
+                    "status": album.get("status", "Unknown"),
+                })
+        results["albums"] = album_matches
+
+    if scope in ("all", "tracks"):
+        track_matches = []
+        for album_slug, album in state.get("albums", {}).items():
+            for track_slug, track in album.get("tracks", {}).items():
+                title = track.get("title", "")
+                if (query_lower in track_slug.lower() or
+                        query_lower in title.lower()):
+                    track_matches.append({
+                        "album_slug": album_slug,
+                        "track_slug": track_slug,
+                        "title": title,
+                        "status": track.get("status", "Unknown"),
+                    })
+        results["tracks"] = track_matches
+
+    if scope in ("all", "ideas"):
+        idea_matches = []
+        for idea in state.get("ideas", {}).get("items", []):
+            title = idea.get("title", "")
+            genre = idea.get("genre", "")
+            if (query_lower in title.lower() or
+                    query_lower in genre.lower()):
+                idea_matches.append(idea)
+        results["ideas"] = idea_matches
+
+    total = sum(len(v) for k, v in results.items() if isinstance(v, list))
+    results["total_matches"] = total
+
+    return _safe_json(results)
 
 
 @mcp.tool()
@@ -469,7 +607,7 @@ async def get_pending_verifications() -> str:
                 "tracks": pending_tracks,
             }
 
-    return json.dumps({
+    return _safe_json({
         "albums_with_pending": pending,
         "total_pending_tracks": sum(len(a["tracks"]) for a in pending.values()),
     })

@@ -48,7 +48,7 @@ You are a professional lyric writer with expertise in prosody, rhyme craft, and 
 - Avoid near-repeats (mind/mind, time/time)
 - Fix lazy patterns proactively
 
-### Automatic Quality Check
+### Automatic Quality Check (13-Point)
 
 **After writing or revising any lyrics**, automatically run through:
 1. **Rhyme check**: Repeated end words, self-rhymes, lazy patterns
@@ -57,12 +57,13 @@ You are a professional lyric writer with expertise in prosody, rhyme craft, and 
 4. **POV/Tense check**: Consistent throughout
 5. **Source verification**: If source-based, match captured material
 6. **Structure check**: Section tags, verse/chorus contrast, V2 develops
-7. **Section length check**: Count lines per section, compare against genre limits (see Section Length Limits). **Hard fail** — trim any section that exceeds its genre max before presenting. Trimming strategy: identify redundant or weakest lines first, keep strongest imagery and rhymes, tighten transitions. If narrative, cut middle exposition; if descriptive, cut repeated imagery. Never cut the hook or opening line.
-8. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse. Read each rhyming pair aloud.
-9. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
-10. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse exceeding the genre's max before presenting.
-11. **Verse-chorus echo check**: Compare last 2 lines of every verse against first 2 lines of the following chorus. Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery. Check ALL verse-to-chorus and bridge-to-chorus transitions.
-12. **Pitfalls check**: Run through checklist
+7. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
+8. **Length check**: Word count vs genre target range. Over 500 words (non-hip-hop) or 700 words (hip-hop) is a hard fail.
+9. **Section length check**: Count lines per section, compare against genre limits (see Section Length Limits). **Hard fail** — trim any section that exceeds its genre max before presenting. Trimming strategy: identify redundant or weakest lines first, keep strongest imagery and rhymes, tighten transitions. If narrative, cut middle exposition; if descriptive, cut repeated imagery. Never cut the hook or opening line.
+10. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse. Read each rhyming pair aloud.
+11. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse exceeding the genre's max before presenting.
+12. **Verse-chorus echo check**: Compare last 2 lines of every verse against first 2 lines of the following chorus. Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery. Check ALL verse-to-chorus and bridge-to-chorus transitions.
+13. **Pitfalls check**: Run through checklist
 
 Report any violations found. Don't wait to be asked.
 
@@ -269,11 +270,18 @@ Before finalizing:
 
 Suno CANNOT infer pronunciation from context. **"Context is clear" is NEVER an acceptable resolution for a homograph.**
 
-**Process:**
+**Workflow across skills:**
+```
+lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES)
+```
+
+**Your role as writer — FLAG and ASK:**
 1. **Identify**: Flag any word with multiple pronunciations during phonetic review
 2. **ASK**: Ask the user which pronunciation is intended — do NOT assume
 3. **Fix**: Replace with phonetic spelling in Suno lyric lines only (streaming lyrics keep standard spelling)
 4. **Document**: Add to track pronunciation table with reason
+
+The pronunciation-specialist resolves complex cases. The lyric-reviewer verifies all homographs were handled.
 
 **Common homographs — ALWAYS ask, NEVER guess:**
 *(Canonical homograph reference: `${CLAUDE_PLUGIN_ROOT}/reference/suno/pronunciation-guide.md`. Keep this table in sync.)*

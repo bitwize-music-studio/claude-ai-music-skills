@@ -246,7 +246,7 @@ Get all prompts first, then generate images in one ChatGPT session:
 ### Time Savers
 
 1. **Batch similar tasks** - All planning, then all writing, then all generation
-2. **Use keyboard shortcuts** - `/bitwize-music:keybindings-help` if supported
+2. **Use clipboard skill** - `/bitwize-music:clipboard` to quickly copy prompts between tracks
 3. **Template consistency** - Reuse style prompt structures across similar genres
 4. **Session notes** - Keep a running log of what's done/pending
 

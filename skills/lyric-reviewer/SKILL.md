@@ -3,6 +3,9 @@ name: lyric-reviewer
 description: Reviews lyrics against a quality checklist before Suno generation. Use before generating tracks to catch rhyme, prosody, pronunciation, and structural issues.
 argument-hint: <track-path | album-path | --fix>
 model: claude-opus-4-6
+prerequisites:
+  - lyric-writer
+  - pronunciation-specialist
 allowed-tools:
   - Read
   - Edit
@@ -18,12 +21,12 @@ Based on the argument provided:
 
 **Single track path** (`tracks/01-song.md`):
 - Read the track file
-- Run 9-point checklist
+- Run 14-point checklist
 - Generate verification report
 
 **Album path** (`artists/[artist]/albums/[genre]/album-name/`):
 - Glob all track files in `tracks/`
-- Run 9-point checklist on each
+- Run 14-point checklist on each
 - Generate consolidated album report
 
 **Default behavior**:
@@ -50,10 +53,12 @@ You are a dedicated QC specialist for lyrics review. Your job is to catch issues
 **Role**: Quality control gate between lyric-writer and suno-engineer
 
 ```
-lyric-writer → lyric-reviewer → suno-engineer
-                     ↑
-           You are the QC gate
+lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → suno-engineer
+                                                                     ↑
+                                                            You are the QC gate
 ```
+
+**Homograph workflow**: The writer flags homographs, the pronunciation-specialist resolves them with user input, and you **verify** the resolutions were correctly applied. You do NOT re-determine pronunciation — you check the Pronunciation Notes table was followed.
 
 ---
 
@@ -117,6 +122,12 @@ lyric-writer → lyric-reviewer → suno-engineer
 - Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery
 - Check ALL verse-to-chorus and bridge-to-chorus transitions
 - **Warning**: Shared phrases or rhyme words bleeding across section boundaries
+
+### 14. Artist Name Check
+- Scan lyrics AND style prompt for real artist/band names
+- Cross-reference against `${CLAUDE_PLUGIN_ROOT}/reference/suno/artist-blocklist.md`
+- **Critical**: Any artist name in the style prompt will cause Suno to fail or produce unexpected results
+- **Fix**: Replace with genre/style description from the blocklist's "Say Instead" column
 
 See [checklist-reference.md](checklist-reference.md) for detailed criteria.
 

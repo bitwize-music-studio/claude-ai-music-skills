@@ -3,6 +3,8 @@ name: researcher
 description: Conducts investigative-grade research with primary source analysis, cross-verification, and trial-level depth. Use when an album needs factual research, source material, or verification of claims.
 argument-hint: <"research [topic]" or track-path to verify>
 model: claude-sonnet-4-5-20250929
+prerequisites:
+  - album-conceptualizer
 allowed-tools:
   - Read
   - Edit

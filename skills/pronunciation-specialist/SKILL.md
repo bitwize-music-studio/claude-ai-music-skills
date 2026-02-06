@@ -3,6 +3,8 @@ name: pronunciation-specialist
 description: Scans lyrics for pronunciation risks and prevents Suno mispronunciations. Use when writing lyrics with proper nouns, technical terms, homographs, or non-English words.
 argument-hint: <track-file-path or paste lyrics to scan>
 model: claude-sonnet-4-5-20250929
+prerequisites:
+  - lyric-writer
 allowed-tools:
   - Read
   - Edit
@@ -43,10 +45,15 @@ Scan lyrics for pronunciation risks, suggest phonetic spellings, prevent Suno mi
 **Always invoke between lyric-writer and suno-engineer:**
 
 ```
-lyric-writer -> pronunciation-specialist -> suno-engineer
-                       |
-              Scan, flag, fix risky words
+lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → suno-engineer
+                                    |
+                       Scan, resolve, fix risky words
 ```
+
+**Your role — RESOLVE:**
+- The lyric-writer flags potential pronunciation risks and asks about homographs
+- You do the deep scan, resolve ambiguities with the user, and apply all phonetic fixes
+- The lyric-reviewer then verifies all resolutions were correctly applied
 
 ---
 

@@ -3,6 +3,8 @@ name: release-director
 description: Coordinates album release including QA, distribution prep, and platform uploads. Use when mastering and album art are complete and the user is ready to release.
 argument-hint: <album-path or "release [album]">
 model: claude-sonnet-4-5-20250929
+prerequisites:
+  - mastering-engineer
 allowed-tools:
   - Read
   - Edit

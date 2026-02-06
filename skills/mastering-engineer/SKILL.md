@@ -3,6 +3,8 @@ name: mastering-engineer
 description: Guides audio mastering for streaming platforms including loudness optimization and tonal balance. Use when the user has approved tracks and wants to master audio files.
 argument-hint: <folder-path or "master for [platform]">
 model: claude-sonnet-4-5-20250929
+prerequisites:
+  - suno-engineer
 allowed-tools:
   - Read
   - Edit
