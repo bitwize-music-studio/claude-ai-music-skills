@@ -3398,3 +3398,384 @@ class TestRunPreGenerationGates:
         assert result["total_blocking"] >= 1
         # Should be PARTIAL since one passes and one fails
         assert result["album_verdict"] in ("PARTIAL", "NOT READY")
+
+
+# =============================================================================
+# check_explicit_content tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestCheckExplicitContent:
+    """Tests for the check_explicit_content MCP tool."""
+
+    def test_finds_explicit_words(self):
+        text = "[Verse 1]\nWhat the fuck is going on\nThis shit is broken"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        assert result["has_explicit"] is True
+        words = [r["word"] for r in result["found"]]
+        assert "fuck" in words
+        assert "shit" in words
+
+    def test_clean_text(self):
+        text = "[Verse 1]\nThe sun is shining bright\nBirds sing along"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        assert result["has_explicit"] is False
+        assert result["total_count"] == 0
+
+    def test_empty_text(self):
+        result = json.loads(_run(server.check_explicit_content("")))
+        assert result["has_explicit"] is False
+
+    def test_counts_occurrences(self):
+        text = "Fuck this, fuck that, everything is fucked"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        # "fuck" x2 + "fucked" x1 = at least 3 total
+        assert result["total_count"] >= 3
+
+    def test_case_insensitive(self):
+        text = "SHIT happens\nWhat the FUCK"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        assert result["has_explicit"] is True
+        assert result["unique_words"] >= 2
+
+    def test_word_boundary_no_partial(self):
+        """Should not match 'bass' in 'bassist' or 'hit' in 'shitty' incorrectly."""
+        text = "The classic hit song played on the radio"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        assert result["has_explicit"] is False
+
+    def test_skips_section_tags(self):
+        text = "[Fuck]\nClean lyrics here"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        # [Fuck] is a section tag, should be skipped
+        assert result["has_explicit"] is False
+
+    def test_returns_line_numbers(self):
+        text = "Line one is clean\nThis line has shit in it\nLine three clean"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        assert result["found"][0]["lines"][0]["line_number"] == 2
+
+    def test_override_adds_words(self, tmp_path):
+        """User override can add custom explicit words."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "explicit-words.md").write_text(
+            "# Custom\n\n## Additional Explicit Words\n\n- customword\n- badterm\n"
+        )
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = str(override_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content("This has a customword")))
+        assert result["has_explicit"] is True
+        assert result["found"][0]["word"] == "customword"
+
+    def test_override_removes_words(self, tmp_path):
+        """User override can remove base words."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "explicit-words.md").write_text(
+            "# Custom\n\n## Not Explicit (Override Base)\n\n- damn (period dialogue)\n- shit\n"
+        )
+        state = _fresh_state()
+        state["config"]["overrides_dir"] = str(override_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content("This is shit")))
+        # "shit" was removed from the list
+        assert result["has_explicit"] is False
+
+    def test_multiple_lines_same_word(self):
+        """Same word on multiple lines gets consolidated."""
+        text = "Fuck on line one\nAnother fuck on line two"
+        with patch.object(server, "_explicit_word_cache", None):
+            result = json.loads(_run(server.check_explicit_content(text)))
+        fuck_entry = next(r for r in result["found"] if r["word"] == "fuck")
+        assert fuck_entry["count"] == 2
+        assert len(fuck_entry["lines"]) == 2
+
+
+# =============================================================================
+# extract_links tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestExtractLinks:
+    """Tests for the extract_links MCP tool."""
+
+    def test_sources_md(self, tmp_path):
+        """Extract links from SOURCES.md."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "SOURCES.md").write_text(
+            "# Sources\n\n"
+            "- [FBI Press Release](https://fbi.gov/news/123)\n"
+            "- [Court Filing](https://pacer.gov/doc/456)\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
+        assert result["found"] is True
+        assert result["count"] == 2
+        assert result["links"][0]["text"] == "FBI Press Release"
+        assert "fbi.gov" in result["links"][0]["url"]
+
+    def test_research_md(self, tmp_path):
+        """Extract links from RESEARCH.md."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "RESEARCH.md").write_text(
+            "# Research\n\n[Source A](https://example.com/a)\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "RESEARCH.md")))
+        assert result["count"] == 1
+
+    def test_track_file(self, tmp_path):
+        """Extract links from a track file by slug."""
+        track_file = tmp_path / "05-track.md"
+        track_file.write_text(
+            "# Track\n\n## Source\n[Wikipedia](https://en.wikipedia.org/test)\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-track"] = {
+            "path": str(track_file), "title": "Track", "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "05-track")))
+        assert result["found"] is True
+        assert result["count"] == 1
+        assert result["links"][0]["text"] == "Wikipedia"
+
+    def test_no_links(self, tmp_path):
+        """File with no markdown links returns empty list."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "SOURCES.md").write_text("# Sources\n\nNo links here.\n")
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
+        assert result["found"] is True
+        assert result["count"] == 0
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("nonexistent")))
+        assert result["found"] is False
+
+    def test_file_not_found(self):
+        """File that doesn't exist in album dir returns error."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "NONEXISTENT.md")))
+        assert result["found"] is False
+
+    def test_returns_line_numbers(self, tmp_path):
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "SOURCES.md").write_text(
+            "# Sources\n\n\n[Link1](https://a.com)\n\n[Link2](https://b.com)\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
+        assert result["links"][0]["line_number"] == 4
+        assert result["links"][1]["line_number"] == 6
+
+    def test_prefix_match_track(self, tmp_path):
+        """Track slug prefix resolves to full track."""
+        track_file = tmp_path / "05-my-track.md"
+        track_file.write_text("# Track\n[Link](https://example.com)\n")
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-my-track"] = {
+            "path": str(track_file), "title": "My Track", "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "05")))
+        assert result["found"] is True
+        assert result["count"] == 1
+
+    def test_multiple_links_per_line(self, tmp_path):
+        """Multiple links on one line are all captured."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        (album_dir / "SOURCES.md").write_text(
+            "See [A](https://a.com) and [B](https://b.com) for details.\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
+        assert result["count"] == 2
+
+
+# =============================================================================
+# get_lyrics_stats tool tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestGetLyricsStats:
+    """Tests for the get_lyrics_stats MCP tool."""
+
+    def test_single_track(self, tmp_path):
+        """Stats for a single track with known word count."""
+        track_file = tmp_path / "05-stats.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-stats"] = {
+            "path": str(track_file), "title": "Stats Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
+        assert result["found"] is True
+        track = result["tracks"][0]
+        assert track["word_count"] > 0
+        assert track["char_count"] > 0
+        assert track["section_count"] == 2  # [Verse 1] and [Chorus]
+        assert "status" in track
+
+    def test_genre_target(self):
+        """Result includes genre-appropriate word count targets."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album")))
+        assert result["genre"] == "electronic"
+        assert "target" in result
+        assert "min" in result["target"]
+        assert "max" in result["target"]
+
+    def test_album_wide(self, tmp_path):
+        """Stats for all tracks in an album."""
+        track_file = tmp_path / "05-all.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-all"] = {
+            "path": str(track_file), "title": "All Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album")))
+        # Should have results for all tracks (original 2 + ours)
+        assert len(result["tracks"]) >= 3
+
+    def test_empty_lyrics(self, tmp_path):
+        """Track with no Lyrics Box section gets EMPTY status."""
+        track_file = tmp_path / "05-empty.md"
+        track_file.write_text("# Track\n\n## Suno Inputs\n\n### Style Box\n```\nrock\n```\n")
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-empty"] = {
+            "path": str(track_file), "title": "Empty Track",
+            "status": "Not Started",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
+        assert result["tracks"][0]["status"] == "EMPTY"
+        assert result["tracks"][0]["word_count"] == 0
+
+    def test_over_target_status(self, tmp_path):
+        """Track over genre max gets OVER status."""
+        # Electronic target is 100-200. Create lyrics with >200 words.
+        long_lyrics = "\n".join(f"Word number {i} here today" for i in range(60))
+        track_file = tmp_path / "05-long.md"
+        track_file.write_text(
+            f"# Track\n\n## Suno Inputs\n\n### Lyrics Box\n```\n[Verse 1]\n{long_lyrics}\n```\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-long"] = {
+            "path": str(track_file), "title": "Long Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
+        track = result["tracks"][0]
+        assert track["status"] in ("OVER", "DANGER")
+        assert track["word_count"] > 200
+
+    def test_danger_zone(self, tmp_path):
+        """Track over 800 words gets DANGER status."""
+        huge_lyrics = "\n".join(f"Word number {i} goes here" for i in range(250))
+        track_file = tmp_path / "05-huge.md"
+        track_file.write_text(
+            f"# Track\n\n## Suno Inputs\n\n### Lyrics Box\n```\n[Verse 1]\n{huge_lyrics}\n```\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-huge"] = {
+            "path": str(track_file), "title": "Huge Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
+        track = result["tracks"][0]
+        assert track["status"] == "DANGER"
+        assert "800" in track["note"]
+
+    def test_album_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("nonexistent")))
+        assert result["found"] is False
+
+    def test_track_not_found(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "99")))
+        assert result["found"] is False
+
+    def test_track_no_path(self):
+        """Track with no file path gets an error entry."""
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-path"] = {
+            "title": "No Path", "status": "In Progress", "path": "",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05-no-path")))
+        assert "error" in result["tracks"][0]
+
+    def test_excludes_section_tags_from_count(self, tmp_path):
+        """Section tags like [Verse 1] are not counted as words."""
+        track_file = tmp_path / "05-tags.md"
+        track_file.write_text(
+            "# Track\n\n## Suno Inputs\n\n### Lyrics Box\n```\n"
+            "[Verse 1]\nOne two three\n[Chorus]\nFour five\n```\n"
+        )
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-tags"] = {
+            "path": str(track_file), "title": "Tags Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
+        track = result["tracks"][0]
+        assert track["word_count"] == 5  # "One two three" + "Four five"
+        assert track["section_count"] == 2  # [Verse 1] and [Chorus]
+        assert track["line_count"] == 2  # 2 content lines

@@ -1873,6 +1873,408 @@ async def check_pronunciation_enforcement(
     })
 
 
+# --- Explicit content scanning ---
+
+# Base explicit words from explicit-checker skill.  Override via
+# {overrides}/explicit-words.md (sections: "Additional Explicit Words",
+# "Not Explicit (Override Base)").
+_BASE_EXPLICIT_WORDS = {
+    "fuck", "fucking", "fucked", "fucker", "motherfuck", "motherfucker",
+    "shit", "shitting", "shitty", "bullshit",
+    "bitch", "bitches",
+    "cunt", "cock", "cocks",
+    "dick", "dicks",
+    "pussy", "pussies",
+    "asshole", "assholes",
+    "whore", "slut",
+    "goddamn", "goddammit",
+}
+
+_explicit_word_cache: Optional[set] = None
+_explicit_word_lock = threading.Lock()
+
+
+def _load_explicit_words() -> set:
+    """Load the explicit word set, merging base list with user overrides."""
+    global _explicit_word_cache
+    with _explicit_word_lock:
+        if _explicit_word_cache is not None:
+            return _explicit_word_cache
+
+        words = set(_BASE_EXPLICIT_WORDS)
+
+        # Try loading user overrides
+        try:
+            state = cache.get_state()
+            config = state.get("config", {})
+            overrides_dir = config.get("overrides_dir", "")
+            if not overrides_dir:
+                content_root = config.get("content_root", "")
+                overrides_dir = str(Path(content_root) / "overrides")
+
+            override_path = Path(overrides_dir) / "explicit-words.md"
+            if override_path.exists():
+                text = override_path.read_text(encoding="utf-8")
+
+                # Parse "Additional Explicit Words" section
+                add_section = _extract_markdown_section(text, "Additional Explicit Words")
+                if add_section:
+                    for line in add_section.split("\n"):
+                        line = line.strip()
+                        if line.startswith("- ") and line[2:].strip():
+                            word = line[2:].split("(")[0].strip().lower()
+                            if word:
+                                words.add(word)
+
+                # Parse "Not Explicit (Override Base)" section
+                remove_section = _extract_markdown_section(text, "Not Explicit (Override Base)")
+                if remove_section:
+                    for line in remove_section.split("\n"):
+                        line = line.strip()
+                        if line.startswith("- ") and line[2:].strip():
+                            word = line[2:].split("(")[0].strip().lower()
+                            words.discard(word)
+        except Exception:
+            pass  # Fall back to base list
+
+        _explicit_word_cache = words
+        return words
+
+
+@mcp.tool()
+async def check_explicit_content(text: str) -> str:
+    """Scan lyrics for explicit/profane words.
+
+    Uses the base explicit word list merged with user overrides from
+    {overrides}/explicit-words.md. Returns found words with line numbers
+    and occurrence counts.
+
+    Args:
+        text: Lyrics text to scan
+
+    Returns:
+        JSON with {has_explicit: bool, found: [{word, line, line_number, count}],
+                   total_count: int, unique_words: int}
+    """
+    if not text.strip():
+        return _safe_json({
+            "has_explicit": False, "found": [], "total_count": 0, "unique_words": 0,
+        })
+
+    words = _load_explicit_words()
+
+    # Build compiled patterns for each word
+    patterns = {
+        w: re.compile(r'\b' + re.escape(w) + r'\b', re.IGNORECASE)
+        for w in words
+    }
+
+    # Scan line by line
+    hits: dict = {}  # word -> {count, lines: [{line, line_number}]}
+    for line_num, line in enumerate(text.split("\n"), 1):
+        stripped = line.strip()
+        # Skip section tags
+        if stripped.startswith("[") and stripped.endswith("]"):
+            continue
+        for word, pattern in patterns.items():
+            matches = pattern.findall(line)
+            if matches:
+                if word not in hits:
+                    hits[word] = {"count": 0, "lines": []}
+                hits[word]["count"] += len(matches)
+                hits[word]["lines"].append({
+                    "line": stripped,
+                    "line_number": line_num,
+                })
+
+    found = []
+    total = 0
+    for word, data in sorted(hits.items()):
+        total += data["count"]
+        found.append({
+            "word": word,
+            "count": data["count"],
+            "lines": data["lines"],
+        })
+
+    return _safe_json({
+        "has_explicit": len(found) > 0,
+        "found": found,
+        "total_count": total,
+        "unique_words": len(found),
+    })
+
+
+# --- Link extraction ---
+
+_MARKDOWN_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+
+
+@mcp.tool()
+async def extract_links(
+    album_slug: str,
+    file_name: str = "SOURCES.md",
+) -> str:
+    """Extract markdown links from an album file.
+
+    Scans SOURCES.md, RESEARCH.md, or a track file for [text](url) links.
+    Useful for source verification workflows.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        file_name: File to scan — "SOURCES.md", "RESEARCH.md", "README.md",
+                   or a track slug like "01-track-name" (resolves to track file)
+
+    Returns:
+        JSON with {links: [{text, url, line_number}], count: int}
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    album_path = album.get("path", "")
+
+    # Determine file path
+    file_path = None
+    normalized_file = _normalize_slug(file_name)
+
+    # Check if it's a track slug
+    tracks = album.get("tracks", {})
+    track = tracks.get(normalized_file)
+    if not track:
+        # Try prefix match
+        prefix_matches = {s: d for s, d in tracks.items()
+                         if s.startswith(normalized_file)}
+        if len(prefix_matches) == 1:
+            track = next(iter(prefix_matches.values()))
+
+    if track:
+        file_path = track.get("path", "")
+    else:
+        # It's a file name in the album directory
+        candidate = Path(album_path) / file_name
+        if candidate.exists():
+            file_path = str(candidate)
+
+    if not file_path:
+        return _safe_json({
+            "found": False,
+            "error": f"File '{file_name}' not found in album '{album_slug}'",
+        })
+
+    try:
+        text = Path(file_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read file: {e}"})
+
+    links = []
+    for line_num, line in enumerate(text.split("\n"), 1):
+        for match in _MARKDOWN_LINK_RE.finditer(line):
+            links.append({
+                "text": match.group(1),
+                "url": match.group(2),
+                "line_number": line_num,
+            })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "file_name": file_name,
+        "file_path": file_path,
+        "links": links,
+        "count": len(links),
+    })
+
+
+# --- Lyrics stats ---
+
+# Genre word-count targets from craft-reference.md
+_GENRE_WORD_TARGETS = {
+    "pop":        {"min": 150, "max": 250},
+    "dance-pop":  {"min": 150, "max": 250},
+    "synth-pop":  {"min": 150, "max": 250},
+    "punk":       {"min": 150, "max": 250},
+    "pop-punk":   {"min": 150, "max": 250},
+    "rock":       {"min": 200, "max": 350},
+    "alt-rock":   {"min": 200, "max": 350},
+    "folk":       {"min": 200, "max": 350},
+    "country":    {"min": 200, "max": 350},
+    "americana":  {"min": 200, "max": 350},
+    "hip-hop":    {"min": 300, "max": 500},
+    "rap":        {"min": 300, "max": 500},
+    "ballad":     {"min": 200, "max": 300},
+    "electronic": {"min": 100, "max": 200},
+    "edm":        {"min": 100, "max": 200},
+    "ambient":    {"min": 50,  "max": 150},
+    "lo-fi":      {"min": 50,  "max": 150},
+}
+
+# Section tag pattern — these aren't "words" for counting
+_SECTION_TAG_RE = re.compile(r'^\[.*\]$')
+
+
+@mcp.tool()
+async def get_lyrics_stats(
+    album_slug: str,
+    track_slug: str = "",
+) -> str:
+    """Get word count, character count, and genre target comparison for lyrics.
+
+    Counts lyrics excluding section tags. Compares against genre-appropriate
+    word count targets from the craft reference. Flags tracks that are over
+    the 800-word danger zone (Suno rushes/compresses).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Specific track slug/number (empty = all tracks)
+
+    Returns:
+        JSON with per-track stats and genre targets
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    genre = album.get("genre", "").lower()
+    all_tracks = album.get("tracks", {})
+
+    # Determine which tracks
+    if track_slug:
+        normalized_track = _normalize_slug(track_slug)
+        track_data = all_tracks.get(normalized_track)
+        matched_slug = normalized_track
+
+        if not track_data:
+            prefix_matches = {s: d for s, d in all_tracks.items()
+                             if s.startswith(normalized_track)}
+            if len(prefix_matches) == 1:
+                matched_slug = next(iter(prefix_matches))
+                track_data = prefix_matches[matched_slug]
+            elif len(prefix_matches) > 1:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Multiple tracks match '{track_slug}': "
+                             f"{', '.join(prefix_matches.keys())}",
+                })
+            else:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+                })
+        tracks_to_check = {matched_slug: track_data}
+    else:
+        tracks_to_check = all_tracks
+
+    # Get genre target
+    target = _GENRE_WORD_TARGETS.get(genre, {"min": 150, "max": 350})
+
+    track_results = []
+    for t_slug, t_data in sorted(tracks_to_check.items()):
+        track_path = t_data.get("path", "")
+        if not track_path:
+            track_results.append({
+                "track_slug": t_slug,
+                "title": t_data.get("title", t_slug),
+                "error": "No file path",
+            })
+            continue
+
+        try:
+            text = Path(track_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            track_results.append({
+                "track_slug": t_slug,
+                "title": t_data.get("title", t_slug),
+                "error": "Cannot read file",
+            })
+            continue
+
+        # Extract Lyrics Box
+        lyrics_section = _extract_markdown_section(text, "Lyrics Box")
+        lyrics = ""
+        if lyrics_section:
+            code = _extract_code_block(lyrics_section)
+            lyrics = code if code else lyrics_section
+
+        if not lyrics.strip():
+            track_results.append({
+                "track_slug": t_slug,
+                "title": t_data.get("title", t_slug),
+                "word_count": 0,
+                "char_count": 0,
+                "line_count": 0,
+                "section_count": 0,
+                "status": "EMPTY",
+            })
+            continue
+
+        # Count words excluding section tags
+        words = []
+        section_count = 0
+        content_lines = 0
+        for line in lyrics.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if _SECTION_TAG_RE.match(stripped):
+                section_count += 1
+                continue
+            content_lines += 1
+            words.extend(stripped.split())
+
+        word_count = len(words)
+        char_count = len(lyrics.strip())
+
+        # Determine status
+        if word_count > 800:
+            status = "DANGER"
+            note = "Over 800 words — Suno will rush/compress/skip sections"
+        elif word_count > target["max"]:
+            status = "OVER"
+            note = f"Over target ({target['max']} max for {genre})"
+        elif word_count < target["min"]:
+            status = "UNDER"
+            note = f"Under target ({target['min']} min for {genre})"
+        else:
+            status = "OK"
+            note = f"Within target ({target['min']}–{target['max']} for {genre})"
+
+        track_results.append({
+            "track_slug": t_slug,
+            "title": t_data.get("title", t_slug),
+            "word_count": word_count,
+            "char_count": char_count,
+            "line_count": content_lines,
+            "section_count": section_count,
+            "status": status,
+            "note": note,
+        })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "genre": genre,
+        "target": target,
+        "tracks": track_results,
+    })
+
+
 # =============================================================================
 # Album Operation Tools
 # =============================================================================

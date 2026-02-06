@@ -48,7 +48,7 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available (27)
+## Tools Available (30)
 
 ### Albums & Tracks
 | Tool | Description |
@@ -73,13 +73,16 @@ After installing, **restart Claude Code** to reload the plugin.
 | `load_override(override_name)` | Load user override file by name from overrides directory |
 | `get_reference(name, section?)` | Read plugin reference file with optional section extraction |
 | `format_for_clipboard(album_slug, track_slug, content_type)` | Extract and format track content for clipboard |
+| `extract_links(album_slug, file_name?)` | Extract markdown links from SOURCES.md, RESEARCH.md, or track files |
 
 ### Text Analysis
 | Tool | Description |
 |------|-------------|
 | `check_homographs(text)` | Scan lyrics for homograph pronunciation risks |
 | `scan_artist_names(text)` | Check text against artist name blocklist |
+| `check_explicit_content(text)` | Scan lyrics for explicit/profane words with override support |
 | `check_pronunciation_enforcement(album_slug, track_slug)` | Verify pronunciation notes applied in lyrics |
+| `get_lyrics_stats(album_slug, track_slug?)` | Word/char counts with genre target comparison |
 
 ### Validation & Structure
 | Tool | Description |
