@@ -54,12 +54,17 @@ except ImportError:
 from tools.shared.colors import Colors
 from tools.shared.config import CONFIG_PATH
 from tools.shared.logging_config import setup_logging
-from tools.state.parsers import parse_album_readme, parse_ideas_file, parse_track_file
+from tools.state.parsers import (
+    parse_album_readme,
+    parse_ideas_file,
+    parse_skill_file,
+    parse_track_file,
+)
 
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.2.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
@@ -68,11 +73,53 @@ LOCK_FILE = CACHE_DIR / "state.lock"
 
 CONFIG_FILE = CONFIG_PATH
 
+def _read_plugin_version(plugin_root: Path) -> Optional[str]:
+    """Read plugin version from .claude-plugin/plugin.json.
+
+    Args:
+        plugin_root: Root directory of the plugin.
+
+    Returns:
+        Version string (e.g., "0.43.1"), or None if unreadable.
+    """
+    plugin_json = plugin_root / ".claude-plugin" / "plugin.json"
+    if not plugin_json.exists():
+        return None
+    try:
+        with open(plugin_json) as f:
+            data = json.load(f)
+        version = data.get('version')
+        return version if isinstance(version, str) else None
+    except (json.JSONDecodeError, OSError, KeyError) as e:
+        logger.warning("Cannot read plugin version: %s", e)
+        return None
+
+
+def _migrate_1_0_to_1_1(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Migrate state from 1.0.0 to 1.1.0: add skills section."""
+    if 'skills' not in state:
+        state['skills'] = {
+            'skills_root': '',
+            'skills_root_mtime': 0.0,
+            'count': 0,
+            'model_counts': {},
+            'items': {},
+        }
+    return state
+
+
+def _migrate_1_1_to_1_2(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Migrate state from 1.1.0 to 1.2.0: add plugin_version field."""
+    if 'plugin_version' not in state:
+        state['plugin_version'] = None
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: Dict[str, tuple] = {
-    # Future migrations go here:
-    # "1.0.0": (migrate_1_0_to_1_1, "1.1.0"),
+    "1.0.0": (_migrate_1_0_to_1_1, "1.1.0"),
+    "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
 }
 
 
@@ -111,10 +158,17 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
     artist = config.get('artist', {})
 
     content_root_raw = paths.get('content_root', '.')
+    content_root = str(resolve_path(content_root_raw))
+
+    # Resolve overrides directory (custom path or default to {content_root}/overrides)
+    overrides_raw = paths.get('overrides', '')
+    overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
+
     return {
-        'content_root': str(resolve_path(content_root_raw)),
+        'content_root': content_root,
         'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
         'documents_root': str(resolve_path(paths.get('documents_root', content_root_raw + '/documents'))),
+        'overrides_dir': overrides_dir,
         'artist_name': artist.get('name', ''),
         'config_mtime': get_config_mtime(),
     }
@@ -244,22 +298,80 @@ def scan_ideas(config: Dict[str, Any], content_root: Path) -> Dict[str, Any]:
             'items': [],
         }
 
+    try:
+        file_mtime = ideas_path.stat().st_mtime
+    except OSError:
+        file_mtime = 0.0
+
     return {
-        'file_mtime': ideas_path.stat().st_mtime,
+        'file_mtime': file_mtime,
         'counts': ideas_data.get('counts', {}),
         'items': ideas_data.get('items', []),
     }
 
 
-def build_state(config: Dict[str, Any]) -> Dict[str, Any]:
+def scan_skills(plugin_root: Path) -> Dict[str, Any]:
+    """Scan all skill SKILL.md files and build skills index.
+
+    Args:
+        plugin_root: Root of the plugin directory containing skills/.
+
+    Returns:
+        Dict with skills_root, skills_root_mtime, count, model_counts, items.
+    """
+    skills_dir = plugin_root / "skills"
+    result: Dict[str, Any] = {
+        'skills_root': str(skills_dir),
+        'skills_root_mtime': 0.0,
+        'count': 0,
+        'model_counts': {},
+        'items': {},
+    }
+
+    if not skills_dir.exists():
+        return result
+
+    try:
+        result['skills_root_mtime'] = skills_dir.stat().st_mtime
+    except OSError:
+        pass
+
+    model_counts: Dict[str, int] = {}
+    items: Dict[str, Dict[str, Any]] = {}
+
+    for skill_path in sorted(skills_dir.glob("*/SKILL.md")):
+        skill_data = parse_skill_file(skill_path)
+        if '_error' in skill_data:
+            logger.warning("Skipping skill %s: %s", skill_path, skill_data['_error'])
+            continue
+
+        name = skill_data['name']
+        items[name] = skill_data
+
+        tier = skill_data.get('model_tier', 'unknown')
+        model_counts[tier] = model_counts.get(tier, 0) + 1
+
+    result['items'] = items
+    result['count'] = len(items)
+    result['model_counts'] = model_counts
+    return result
+
+
+def build_state(config: Dict[str, Any],
+                plugin_root: Optional[Path] = None) -> Dict[str, Any]:
     """Build complete state from scratch.
 
     Args:
         config: Parsed config dict.
+        plugin_root: Plugin root directory for skill scanning.
+            Defaults to _PROJECT_ROOT.
 
     Returns:
         Complete state dict ready for JSON serialization.
     """
+    if plugin_root is None:
+        plugin_root = _PROJECT_ROOT
+
     config_section = build_config_section(config)
     content_root = Path(config_section['content_root'])
     artist_name = config_section['artist_name']
@@ -267,9 +379,11 @@ def build_state(config: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'version': CURRENT_VERSION,
         'generated_at': datetime.now(timezone.utc).isoformat(),
+        'plugin_version': _read_plugin_version(plugin_root),
         'config': config_section,
         'albums': scan_albums(content_root, artist_name),
         'ideas': scan_ideas(config, content_root),
+        'skills': scan_skills(plugin_root),
         'session': {
             'last_album': None,
             'last_track': None,
@@ -300,6 +414,9 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
     state = copy.deepcopy(existing_state)
     state['config'] = config_section
     state['generated_at'] = datetime.now(timezone.utc).isoformat()
+
+    # Update plugin_version from current plugin.json
+    state['plugin_version'] = _read_plugin_version(_PROJECT_ROOT)
 
     # Check if config changed — smart rescan based on which fields changed
     old_config = existing_state.get('config', {})
@@ -402,6 +519,22 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
     else:
         state['ideas'] = {'file_mtime': 0.0, 'counts': {}, 'items': []}
 
+    # Incremental skills update
+    existing_skills = state.get('skills', {})
+    skills_root = existing_skills.get('skills_root', '')
+    if skills_root:
+        skills_dir = Path(skills_root)
+        old_skills_mtime = existing_skills.get('skills_root_mtime', 0.0)
+        if skills_dir.exists():
+            try:
+                current_skills_mtime = skills_dir.stat().st_mtime
+            except OSError:
+                current_skills_mtime = 0.0
+            if current_skills_mtime != old_skills_mtime:
+                state['skills'] = scan_skills(skills_dir.parent)
+        # else: skills dir removed, keep existing (stale but harmless)
+    # If no skills_root stored, leave skills as-is (migration will have added empty)
+
     return state
 
 
@@ -447,7 +580,7 @@ def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
     album['tracks'] = existing_tracks
 
     # Recompute completed count
-    completed_statuses = {'Final', 'Generated', 'Complete'}
+    completed_statuses = {'Final', 'Generated'}
     album['tracks_completed'] = sum(
         1 for t in existing_tracks.values()
         if t.get('status') in completed_statuses
@@ -638,7 +771,7 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
         return ["State is not a dict"]
 
     # Required top-level keys
-    required_keys = {'version', 'generated_at', 'config', 'albums', 'ideas', 'session'}
+    required_keys = {'version', 'generated_at', 'plugin_version', 'config', 'albums', 'ideas', 'skills', 'session'}
     missing = required_keys - set(state.keys())
     if missing:
         errors.append(f"Missing top-level keys: {', '.join(missing)}")
@@ -650,10 +783,16 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
     elif not isinstance(version, str):
         errors.append(f"Version should be string, got {type(version).__name__}")
 
+    # Plugin version check (string or null)
+    if 'plugin_version' in state:
+        pv = state['plugin_version']
+        if pv is not None and not isinstance(pv, str):
+            errors.append(f"plugin_version should be string or null, got {type(pv).__name__}")
+
     # Config section
     config = state.get('config', {})
     if isinstance(config, dict):
-        for key in ('content_root', 'audio_root', 'artist_name', 'config_mtime'):
+        for key in ('content_root', 'audio_root', 'overrides_dir', 'artist_name', 'config_mtime'):
             if key not in config:
                 errors.append(f"Missing config.{key}")
     else:
@@ -693,6 +832,24 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
     else:
         errors.append("ideas should be a dict")
 
+    # Skills section
+    skills = state.get('skills', {})
+    if isinstance(skills, dict):
+        if 'count' not in skills:
+            errors.append("Missing skills.count")
+        if 'items' not in skills:
+            errors.append("Missing skills.items")
+        elif isinstance(skills.get('items'), dict):
+            for skill_name, skill in skills['items'].items():
+                if not isinstance(skill, dict):
+                    errors.append(f"Skill '{skill_name}' should be a dict")
+                    continue
+                for key in ('name', 'description', 'model_tier'):
+                    if key not in skill:
+                        errors.append(f"Skill '{skill_name}' missing '{key}'")
+    else:
+        errors.append("skills should be a dict")
+
     # Session section
     session = state.get('session', {})
     if not isinstance(session, dict):
@@ -729,11 +886,15 @@ def cmd_rebuild(args):
         len(a.get('tracks', {})) for a in state['albums'].values()
     )
     ideas_count = len(state.get('ideas', {}).get('items', []))
+    skills_count = state.get('skills', {}).get('count', 0)
 
+    plugin_version = state.get('plugin_version', '?')
     logger.info("State cache rebuilt")
+    print(f"  Plugin: {plugin_version or '?'}")
     print(f"  Albums: {album_count}")
     print(f"  Tracks: {track_count}")
     print(f"  Ideas: {ideas_count}")
+    print(f"  Skills: {skills_count}")
     print(f"  Saved to: {STATE_FILE}")
     return 0
 
@@ -901,7 +1062,8 @@ def cmd_show(args):
         return 1
 
     print(f"{Colors.BOLD}State Cache Summary{Colors.NC}")
-    print(f"  Version: {state.get('version', '?')}")
+    print(f"  Schema: {state.get('version', '?')}")
+    print(f"  Plugin: {state.get('plugin_version') or '?'}")
     print(f"  Generated: {state.get('generated_at', '?')}")
     print()
 
@@ -941,6 +1103,21 @@ def cmd_show(args):
             print(f"  {status}: {count}")
     else:
         print(f"{Colors.BOLD}Ideas:{Colors.NC} (none)")
+    print()
+
+    # Skills
+    skills = state.get('skills', {})
+    skills_count = skills.get('count', 0)
+    model_counts = skills.get('model_counts', {})
+    print(f"{Colors.BOLD}Skills ({skills_count}):{Colors.NC}")
+    if model_counts:
+        tier_parts = [f"{tier}: {count}" for tier, count in sorted(model_counts.items())]
+        print(f"  By model: {', '.join(tier_parts)}")
+    if args.verbose and skills.get('items'):
+        for name, skill in sorted(skills['items'].items()):
+            tier = skill.get('model_tier', '?')
+            invocable = '' if skill.get('user_invocable', True) else ' [internal]'
+            print(f"    {name} ({tier}){invocable}")
     print()
 
     # Session

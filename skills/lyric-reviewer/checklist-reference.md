@@ -1,4 +1,4 @@
-# 9-Point Checklist Reference
+# 14-Point Checklist Reference
 
 Detailed criteria for each lyric review checkpoint.
 
@@ -271,6 +271,101 @@ Detailed criteria for each lyric review checkpoint.
 - [✗] V1, V2, V3, V4 - 4 verses, user did not request extra
 - [⚠] 360 words (rock) - slightly over 200-350 target
 - [✓] 280 words (folk) - within 200-350 range
+```
+
+---
+
+## 10. Section Length Check
+
+**What to scan:**
+- Count lines per section (verse, chorus, bridge, etc.)
+- Compare against genre limits from lyric-writer Section Length Limits table
+
+**Severity:**
+- **Hard fail**: Any section exceeding its genre max must be flagged for trimming
+
+**Output format:**
+```
+### Section Length Check
+- [✗] V2: 10 lines (rock max = 8) - trim 2 lines
+- [✓] Chorus: 4 lines (within limit)
+```
+
+---
+
+## 11. Rhyme Scheme Check
+
+**What to scan:**
+- Verify rhyme scheme matches the genre (see lyric-writer Default Rhyme Schemes by Genre)
+- No orphan lines (unrhymed lines in a rhyming section)
+- No random scheme switches mid-verse
+
+**Severity:**
+- **Warning**: Inconsistent scheme within a section, orphan unrhymed line
+
+**Output format:**
+```
+### Rhyme Scheme Check
+- [✗] V1: ABAB expected (rock) but L3 doesn't rhyme with L1
+- [⚠] Bridge: Orphan line L2 has no rhyme partner
+- [✓] Chorus: AABB scheme consistent
+```
+
+---
+
+## 12. Density/Pacing Check
+
+**What to scan:**
+- Verse line count vs genre README's `Density/pacing (Suno)` default
+- Cross-reference BPM/mood from Musical Direction
+
+**Severity:**
+- **Hard fail**: Any verse exceeding the genre's max line count
+
+**Output format:**
+```
+### Density/Pacing Check
+- [✗] V2: 12 lines at 140 BPM - too dense, Suno will rush
+- [✓] V1: 6 lines at 140 BPM - appropriate density
+```
+
+---
+
+## 13. Verse-Chorus Echo Check
+
+**What to scan:**
+- Compare last 2 lines of every verse against first 2 lines of the following chorus
+- Flag exact phrases, shared rhyme words, restated hooks, or shared signature imagery
+- Check ALL verse-to-chorus and bridge-to-chorus transitions
+
+**Severity:**
+- **Warning**: Shared phrases or rhyme words bleeding across section boundaries
+
+**Output format:**
+```
+### Verse-Chorus Echo Check
+- [⚠] V1→Chorus: "burning down" appears in V1:L4 and Chorus:L1
+- [⚠] V2→Chorus: V2:L4 rhyme word "night" echoes Chorus:L2 "light"
+- [✓] Bridge→Chorus: No echo
+```
+
+---
+
+## 14. Artist Name Check
+
+**What to scan:**
+- Scan lyrics AND style prompt for real artist/band names
+- Cross-reference against `${CLAUDE_PLUGIN_ROOT}/reference/suno/artist-blocklist.md`
+
+**Severity:**
+- **Critical**: Any artist name in the style prompt will cause Suno to fail or produce unexpected results
+- **Fix**: Replace with genre/style description from the blocklist's "Say Instead" column
+
+**Output format:**
+```
+### Artist Name Check
+- [✗] CRITICAL: "Nirvana" in Style Box - replace with "90s grunge, distorted guitars"
+- [✓] Lyrics: No artist names found
 ```
 
 ---

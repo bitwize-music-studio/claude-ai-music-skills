@@ -156,7 +156,7 @@ Check for custom release preferences:
 6. **File Organization** - Correct structure, naming conventions
 7. **Documentation** - README complete, generation logs filled
 8. **Explicit Content** - Flagged correctly
-9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Run `/bitwize-music:promo-director` first if social media content is desired.
+9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Social media copy is a manual creative step — fill in the promo/ templates directly. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
 
 **QA Gate**: All checks must pass before proceeding
 
@@ -168,7 +168,7 @@ Check for custom release preferences:
 3. **Album art** - Verified 3000x3000px, correct format
 4. **Track order confirmation** - Final sequencing verified
 5. **Genre classification** - distributor primary/secondary/subgenre
-6. **Social media copy** (optional) - `promo/` files populated for target platforms (via `/bitwize-music:promo-director`)
+6. **Social media copy** (optional) - `promo/` files populated for target platforms (manual creative step; `/bitwize-music:promo-director` generates videos, not copy)
 
 ---
 

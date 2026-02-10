@@ -30,6 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from tools.state.indexer import (
     CURRENT_VERSION,
     _acquire_lock_with_timeout,
+    _read_plugin_version,
     _update_tracks_incremental,
     _validate_session_value,
     _version_compare,
@@ -42,6 +43,7 @@ from tools.state.indexer import (
     resolve_path,
     scan_albums,
     scan_ideas,
+    scan_skills,
     scan_tracks,
     validate_state,
     write_state,
@@ -59,15 +61,24 @@ def _make_minimal_state(**overrides):
     state = {
         'version': CURRENT_VERSION,
         'generated_at': '2026-01-01T00:00:00+00:00',
+        'plugin_version': None,
         'config': {
             'content_root': '/tmp/content',
             'audio_root': '/tmp/audio',
             'documents_root': '/tmp/documents',
+            'overrides_dir': '/tmp/content/overrides',
             'artist_name': 'testartist',
             'config_mtime': 1000.0,
         },
         'albums': {},
         'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+        'skills': {
+            'skills_root': '/tmp/skills',
+            'skills_root_mtime': 0.0,
+            'count': 0,
+            'model_counts': {},
+            'items': {},
+        },
         'session': {
             'last_album': None,
             'last_track': None,
@@ -78,6 +89,43 @@ def _make_minimal_state(**overrides):
     }
     state.update(overrides)
     return state
+
+
+def _make_skill_content(name="test-skill", description="A test skill.",
+                        model="claude-opus-4-6", allowed_tools=None,
+                        prerequisites=None, user_invocable=None,
+                        context=None, requirements=None):
+    """Return markdown content for a SKILL.md file."""
+    lines = [
+        "---",
+        f"name: {name}",
+        f"description: {description}",
+        f"model: {model}",
+    ]
+    if user_invocable is not None:
+        lines.append(f"user-invocable: {'true' if user_invocable else 'false'}")
+    if context is not None:
+        lines.append(f"context: {context}")
+    if allowed_tools is not None:
+        lines.append("allowed-tools:")
+        for tool in allowed_tools:
+            lines.append(f"  - {tool}")
+    else:
+        lines.append("allowed-tools: []")
+    if prerequisites is not None:
+        lines.append("prerequisites:")
+        for p in prerequisites:
+            lines.append(f"  - {p}")
+    if requirements is not None:
+        lines.append("requirements:")
+        lines.append("  python:")
+        for r in requirements:
+            lines.append(f"    - {r}")
+    lines.append("---")
+    lines.append("")
+    lines.append(f"# {name}")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _make_album_tree(content_root, artist, genre, album_slug,
@@ -429,10 +477,11 @@ class TestMigrateState:
         assert result is None
 
     def test_same_major_minor_difference_no_rebuild(self):
-        # Same major, different minor, no migration needed (no MIGRATIONS entries)
+        # Same major, migration chain applies 1.0.0 → 1.1.0 → 1.2.0
         state = {'version': '1.0.0'}
         result = migrate_state(state)
         assert result is not None
+        assert result['version'] == CURRENT_VERSION
 
 
 @pytest.mark.unit
@@ -1587,3 +1636,987 @@ class TestIncrementalUpdateConfigChange:
         updated = incremental_update(existing, config)
         assert '_ideas_file_raw' in updated
         assert updated['_ideas_file_raw'] == str(content_root / "custom-ideas.md")
+
+
+@pytest.mark.unit
+class TestScanSkills:
+    """Tests for scan_skills()."""
+
+    def test_no_skills_dir(self, tmp_path):
+        """Missing skills dir returns empty result."""
+        result = scan_skills(tmp_path)
+        assert result['count'] == 0
+        assert result['items'] == {}
+        assert result['model_counts'] == {}
+
+    def test_empty_skills_dir(self, tmp_path):
+        """Empty skills dir returns empty result."""
+        (tmp_path / "skills").mkdir()
+        result = scan_skills(tmp_path)
+        assert result['count'] == 0
+        assert result['items'] == {}
+
+    def test_single_skill(self, tmp_path):
+        """One valid skill is scanned correctly."""
+        skill_dir = tmp_path / "skills" / "my-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            _make_skill_content("my-skill", "Does things", "claude-opus-4-6"))
+        result = scan_skills(tmp_path)
+        assert result['count'] == 1
+        assert 'my-skill' in result['items']
+        assert result['items']['my-skill']['name'] == 'my-skill'
+        assert result['items']['my-skill']['model_tier'] == 'opus'
+
+    def test_mixed_tiers(self, tmp_path):
+        """Skills with different model tiers are counted correctly."""
+        for name, model in [("s1", "claude-opus-4-6"),
+                            ("s2", "claude-sonnet-4-5-20250929"),
+                            ("s3", "claude-haiku-4-5-20251001"),
+                            ("s4", "claude-sonnet-4-5-20250929")]:
+            skill_dir = tmp_path / "skills" / name
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                _make_skill_content(name, f"Skill {name}", model))
+
+        result = scan_skills(tmp_path)
+        assert result['count'] == 4
+        assert result['model_counts'] == {'opus': 1, 'sonnet': 2, 'haiku': 1}
+
+    def test_error_skill_skipped(self, tmp_path):
+        """Skills with parse errors are skipped without crashing."""
+        # Valid skill
+        valid_dir = tmp_path / "skills" / "valid"
+        valid_dir.mkdir(parents=True)
+        (valid_dir / "SKILL.md").write_text(
+            _make_skill_content("valid", "Valid skill", "claude-opus-4-6"))
+
+        # Broken skill (no frontmatter)
+        broken_dir = tmp_path / "skills" / "broken"
+        broken_dir.mkdir(parents=True)
+        (broken_dir / "SKILL.md").write_text("# No frontmatter\n\nJust text.\n")
+
+        result = scan_skills(tmp_path)
+        assert result['count'] == 1
+        assert 'valid' in result['items']
+        assert 'broken' not in result['items']
+
+    def test_mtime_stored(self, tmp_path):
+        """skills_root_mtime is populated from skills dir."""
+        skill_dir = tmp_path / "skills" / "test"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            _make_skill_content("test", "Test", "claude-opus-4-6"))
+
+        result = scan_skills(tmp_path)
+        assert result['skills_root_mtime'] > 0
+
+    def test_skills_root_path_stored(self, tmp_path):
+        """skills_root stores the skills directory path."""
+        (tmp_path / "skills").mkdir()
+        result = scan_skills(tmp_path)
+        assert result['skills_root'] == str(tmp_path / "skills")
+
+    def test_skill_with_optional_fields(self, tmp_path):
+        """Skills with prerequisites, requirements, context are parsed."""
+        skill_dir = tmp_path / "skills" / "complex"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            _make_skill_content("complex", "Complex skill",
+                                "claude-sonnet-4-5-20250929",
+                                allowed_tools=["Read", "Bash"],
+                                prerequisites=["lyric-writer"],
+                                user_invocable=False,
+                                context="fork",
+                                requirements=["playwright"]))
+
+        result = scan_skills(tmp_path)
+        skill = result['items']['complex']
+        assert skill['prerequisites'] == ['lyric-writer']
+        assert skill['user_invocable'] is False
+        assert skill['context'] == 'fork'
+        assert skill['requirements'] == {'python': ['playwright']}
+        assert skill['allowed_tools'] == ['Read', 'Bash']
+
+
+@pytest.mark.unit
+class TestValidateStateSkills:
+    """Tests for validate_state() skills section."""
+
+    def test_valid_state_with_skills(self):
+        state = _make_minimal_state()
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_missing_skills_key(self):
+        state = _make_minimal_state()
+        del state['skills']
+        errors = validate_state(state)
+        assert any('Missing top-level keys' in e for e in errors)
+        assert any('skills' in e for e in errors)
+
+    def test_skills_not_dict(self):
+        state = _make_minimal_state()
+        state['skills'] = "bad"
+        errors = validate_state(state)
+        assert any('skills should be a dict' in e for e in errors)
+
+    def test_skills_missing_count(self):
+        state = _make_minimal_state()
+        state['skills'] = {'items': {}}
+        errors = validate_state(state)
+        assert any('skills.count' in e for e in errors)
+
+    def test_skills_missing_items(self):
+        state = _make_minimal_state()
+        state['skills'] = {'count': 0}
+        errors = validate_state(state)
+        assert any('skills.items' in e for e in errors)
+
+    def test_skill_item_missing_required_fields(self):
+        state = _make_minimal_state()
+        state['skills']['items'] = {
+            'broken': {'name': 'broken'}
+        }
+        errors = validate_state(state)
+        assert any("Skill 'broken' missing 'description'" in e for e in errors)
+        assert any("Skill 'broken' missing 'model_tier'" in e for e in errors)
+
+    def test_skill_item_not_dict(self):
+        state = _make_minimal_state()
+        state['skills']['items'] = {'bad': "not a dict"}
+        errors = validate_state(state)
+        assert any("Skill 'bad' should be a dict" in e for e in errors)
+
+    def test_valid_state_with_full_skill(self):
+        state = _make_minimal_state()
+        state['skills'] = {
+            'skills_root': '/tmp/skills',
+            'skills_root_mtime': 100.0,
+            'count': 1,
+            'model_counts': {'opus': 1},
+            'items': {
+                'test-skill': {
+                    'name': 'test-skill',
+                    'description': 'A test skill.',
+                    'model': 'claude-opus-4-6',
+                    'model_tier': 'opus',
+                    'allowed_tools': [],
+                    'prerequisites': [],
+                    'requirements': {},
+                    'user_invocable': True,
+                    'context': None,
+                    'path': '/tmp/skills/test-skill/SKILL.md',
+                    'mtime': 100.0,
+                }
+            },
+        }
+        errors = validate_state(state)
+        assert errors == []
+
+
+@pytest.mark.unit
+class TestMigrate1_0To1_1:
+    """Tests for the 1.0.0 → 1.1.0 migration."""
+
+    def test_migration_adds_skills_section(self):
+        """State from v1.0.0 gets skills section via migration chain."""
+        state = {
+            'version': '1.0.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {},
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        result = migrate_state(state)
+        assert result is not None
+        # Full chain: 1.0.0 → 1.1.0 → 1.2.0
+        assert result['version'] == '1.2.0'
+        assert 'skills' in result
+        assert result['skills']['count'] == 0
+        assert result['skills']['items'] == {}
+        assert 'plugin_version' in result
+
+    def test_migration_preserves_existing_data(self):
+        """Migration preserves albums, session, etc."""
+        state = {
+            'version': '1.0.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {'my-album': {'path': '/tmp', 'genre': 'rock',
+                                     'title': 'My Album', 'status': 'Concept',
+                                     'tracks': {}}},
+            'ideas': {'counts': {'Pending': 1}, 'items': [{'title': 'Idea'}],
+                      'file_mtime': 50.0},
+            'session': {
+                'last_album': 'my-album',
+                'last_track': None,
+                'last_phase': 'Writing',
+                'pending_actions': [],
+                'updated_at': '2026-01-01',
+            },
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['albums']['my-album']['title'] == 'My Album'
+        assert result['session']['last_album'] == 'my-album'
+        assert result['ideas']['counts']['Pending'] == 1
+
+
+@pytest.mark.unit
+class TestBuildStateWithSkills:
+    """Tests for build_state() with plugin_root parameter."""
+
+    def test_build_state_includes_skills(self, tmp_path, monkeypatch):
+        """build_state scans skills when plugin_root is provided."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        # Create a skills directory
+        skill_dir = tmp_path / "skills" / "my-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            _make_skill_content("my-skill", "A skill", "claude-opus-4-6"))
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config, plugin_root=tmp_path)
+        assert 'skills' in state
+        assert state['skills']['count'] == 1
+        assert 'my-skill' in state['skills']['items']
+
+    def test_build_state_default_plugin_root(self, tmp_path, monkeypatch):
+        """build_state uses _PROJECT_ROOT by default."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config)
+        # Should have skills section (from real project root)
+        assert 'skills' in state
+        assert isinstance(state['skills']['items'], dict)
+
+
+@pytest.mark.unit
+class TestReadPluginVersion:
+    """Tests for _read_plugin_version()."""
+
+    def test_valid_plugin_json(self, tmp_path):
+        """Reads version from valid plugin.json."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test-plugin",
+            "version": "0.43.1",
+        }))
+        result = _read_plugin_version(tmp_path)
+        assert result == "0.43.1"
+
+    def test_missing_plugin_json(self, tmp_path):
+        """Returns None when plugin.json doesn't exist."""
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_malformed_json(self, tmp_path):
+        """Returns None for invalid JSON."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text("{invalid json")
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_no_version_key(self, tmp_path):
+        """Returns None when version key is missing."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test-plugin",
+        }))
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_version_not_string(self, tmp_path):
+        """Returns None when version is not a string."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test-plugin",
+            "version": 42,
+        }))
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_empty_string_version(self, tmp_path):
+        """Empty string version is returned as-is (valid string)."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test-plugin",
+            "version": "",
+        }))
+        result = _read_plugin_version(tmp_path)
+        assert result == ""
+
+    def test_version_is_list(self, tmp_path):
+        """Returns None when version is a list."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test-plugin",
+            "version": [1, 2, 3],
+        }))
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_permission_error(self, tmp_path):
+        """Returns None when file is unreadable."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        plugin_json = plugin_dir / "plugin.json"
+        plugin_json.write_text(json.dumps({"version": "1.0.0"}))
+        plugin_json.chmod(0o000)
+        result = _read_plugin_version(tmp_path)
+        plugin_json.chmod(0o644)  # Restore for cleanup
+        assert result is None
+
+    def test_reads_real_plugin_json(self):
+        """Reads the actual plugin.json from the project root."""
+        result = _read_plugin_version(PROJECT_ROOT)
+        assert result is not None
+        assert isinstance(result, str)
+        # Should be a semver-like string
+        parts = result.split('.')
+        assert len(parts) >= 2
+
+
+@pytest.mark.unit
+class TestBuildStatePluginVersion:
+    """Tests for plugin_version in build_state()."""
+
+    def test_build_state_includes_plugin_version(self, tmp_path, monkeypatch):
+        """build_state includes plugin_version from plugin.json."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        # Create plugin.json
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test",
+            "version": "1.2.3",
+        }))
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config, plugin_root=tmp_path)
+        assert state['plugin_version'] == '1.2.3'
+
+    def test_build_state_no_plugin_json(self, tmp_path, monkeypatch):
+        """build_state sets plugin_version to None when plugin.json missing."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        # No .claude-plugin directory
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config, plugin_root=tmp_path)
+        assert state['plugin_version'] is None
+
+    def test_build_state_plugin_version_validates(self, tmp_path, monkeypatch):
+        """build_state with plugin_version passes validation."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test",
+            "version": "0.44.0",
+        }))
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config, plugin_root=tmp_path)
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected validation errors: {errors}"
+
+
+@pytest.mark.unit
+class TestMigrate1_1To1_2:
+    """Tests for the 1.1.0 → 1.2.0 migration."""
+
+    def test_migration_adds_plugin_version(self):
+        """State from v1.1.0 gets plugin_version field via migration."""
+        state = {
+            'version': '1.1.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {},
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'skills': {
+                'skills_root': '/tmp/skills',
+                'skills_root_mtime': 0.0,
+                'count': 0,
+                'model_counts': {},
+                'items': {},
+            },
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == '1.2.0'
+        assert 'plugin_version' in result
+        assert result['plugin_version'] is None
+
+    def test_migration_preserves_existing_plugin_version(self):
+        """If plugin_version already exists, migration preserves it."""
+        state = {
+            'version': '1.1.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'plugin_version': '0.43.0',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {},
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'skills': {
+                'skills_root': '/tmp/skills',
+                'skills_root_mtime': 0.0,
+                'count': 0,
+                'model_counts': {},
+                'items': {},
+            },
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == '1.2.0'
+        assert result['plugin_version'] == '0.43.0'
+
+
+@pytest.mark.unit
+class TestValidateStatePluginVersion:
+    """Tests for plugin_version validation in validate_state()."""
+
+    def test_plugin_version_string_ok(self):
+        """String plugin_version is valid."""
+        state = _make_minimal_state(plugin_version='0.43.1')
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_plugin_version_null_ok(self):
+        """Null plugin_version is valid."""
+        state = _make_minimal_state(plugin_version=None)
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_plugin_version_wrong_type(self):
+        """Non-string, non-null plugin_version is invalid."""
+        state = _make_minimal_state(plugin_version=42)
+        errors = validate_state(state)
+        assert any('plugin_version' in e for e in errors)
+
+    def test_plugin_version_missing_key(self):
+        """Missing plugin_version key is caught as missing top-level key."""
+        state = _make_minimal_state()
+        del state['plugin_version']
+        errors = validate_state(state)
+        assert any('plugin_version' in e for e in errors)
+
+    def test_plugin_version_bool_invalid(self):
+        """Boolean plugin_version is invalid."""
+        state = _make_minimal_state(plugin_version=True)
+        errors = validate_state(state)
+        assert any('plugin_version' in e for e in errors)
+
+    def test_plugin_version_empty_string_ok(self):
+        """Empty string plugin_version is valid (string type)."""
+        state = _make_minimal_state(plugin_version='')
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+
+@pytest.mark.unit
+class TestFullMigrationChain:
+    """Tests for the complete migration chain 1.0.0 → 1.2.0."""
+
+    def test_1_0_to_1_2_adds_both_skills_and_plugin_version(self):
+        """Full chain from 1.0.0 adds skills AND plugin_version."""
+        state = {
+            'version': '1.0.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {},
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == '1.2.0'
+        # From 1.0→1.1 migration
+        assert 'skills' in result
+        assert result['skills']['count'] == 0
+        # From 1.1→1.2 migration
+        assert 'plugin_version' in result
+        assert result['plugin_version'] is None
+
+    def test_1_0_to_1_2_preserves_all_data(self):
+        """Full chain preserves albums, ideas, session through both migrations."""
+        state = {
+            'version': '1.0.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {'a': {'path': '/tmp', 'genre': 'rock',
+                              'title': 'A', 'status': 'Concept',
+                              'tracks': {}}},
+            'ideas': {'counts': {'Pending': 2}, 'items': [{'title': 'X'}],
+                      'file_mtime': 50.0},
+            'session': {
+                'last_album': 'a',
+                'last_track': '01-t',
+                'last_phase': 'Writing',
+                'pending_actions': ['review'],
+                'updated_at': '2026-01-01',
+            },
+        }
+        result = migrate_state(state)
+        assert result['albums']['a']['title'] == 'A'
+        assert result['ideas']['counts']['Pending'] == 2
+        assert result['session']['last_album'] == 'a'
+        assert result['session']['pending_actions'] == ['review']
+
+
+@pytest.mark.unit
+class TestIncrementalUpdatePluginVersion:
+    """Tests for plugin_version handling in incremental_update()."""
+
+    def test_plugin_version_updated_on_incremental(self, tmp_path, monkeypatch):
+        """incremental_update updates plugin_version from current plugin.json."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+        monkeypatch.setattr(indexer, '_PROJECT_ROOT', tmp_path)
+
+        # Create plugin.json at the mocked _PROJECT_ROOT
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test",
+            "version": "0.44.0",
+        }))
+
+        existing = _make_minimal_state()
+        existing['plugin_version'] = '0.43.0'
+        existing['config']['config_mtime'] = 100.0
+        existing['config']['content_root'] = str(content_root)
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+
+        updated = incremental_update(existing, config)
+        assert updated['plugin_version'] == '0.44.0'
+
+    def test_plugin_version_null_when_no_plugin_json(self, tmp_path, monkeypatch):
+        """incremental_update sets plugin_version to None when plugin.json missing."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+        monkeypatch.setattr(indexer, '_PROJECT_ROOT', tmp_path)
+        # No .claude-plugin directory at tmp_path
+
+        existing = _make_minimal_state()
+        existing['plugin_version'] = '0.43.0'
+        existing['config']['config_mtime'] = 100.0
+        existing['config']['content_root'] = str(content_root)
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+
+        updated = incremental_update(existing, config)
+        assert updated['plugin_version'] is None
+
+    def test_plugin_version_preserved_from_null(self, tmp_path, monkeypatch):
+        """incremental_update handles existing null plugin_version gracefully."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+        monkeypatch.setattr(indexer, '_PROJECT_ROOT', tmp_path)
+
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text(json.dumps({
+            "name": "test",
+            "version": "0.44.0",
+        }))
+
+        existing = _make_minimal_state()
+        existing['plugin_version'] = None
+        existing['config']['config_mtime'] = 100.0
+        existing['config']['content_root'] = str(content_root)
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+
+        updated = incremental_update(existing, config)
+        assert updated['plugin_version'] == '0.44.0'
+
+
+# =============================================================================
+# Edge case tests — bugs and boundary conditions found during code review
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestScanIdeasTOCTOU:
+    """Tests for TOCTOU race in scan_ideas — file deleted between exists() and stat()."""
+
+    def test_stat_after_delete(self, tmp_path):
+        """File deleted between parse and stat returns file_mtime=0.0.
+
+        The bug was an unguarded stat() call after exists(). Now wrapped
+        in try/except.
+        """
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        ideas_file = content_root / "IDEAS.md"
+        ideas_file.write_text("""## Ideas
+
+### Test Idea
+
+**Genre**: Rock
+**Status**: Pending
+""")
+
+        config = {'paths': {}}
+
+        # Patch stat to raise OSError (simulating file deletion)
+        original_stat = Path.stat
+
+        call_count = [0]
+
+        def stat_that_fails_on_ideas(self, *args, **kwargs):
+            if self.name == "IDEAS.md":
+                call_count[0] += 1
+                if call_count[0] > 1:
+                    raise OSError("File was deleted")
+            return original_stat(self, *args, **kwargs)
+
+        with patch.object(Path, 'stat', stat_that_fails_on_ideas):
+            result = scan_ideas(config, content_root)
+
+        # Should gracefully handle the missing file
+        assert result['file_mtime'] == 0.0
+        assert len(result['items']) == 1
+
+
+@pytest.mark.unit
+class TestMigrateStateChain:
+    """Tests for migration chain correctness."""
+
+    def test_full_chain_1_0_to_current(self):
+        """Migration from 1.0.0 applies both 1.0->1.1 and 1.1->1.2."""
+        state = {'version': '1.0.0', 'albums': {}}
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == CURRENT_VERSION
+        assert 'skills' in result
+        assert 'plugin_version' in result
+
+    def test_migration_preserves_existing_fields(self):
+        """Existing data survives migration chain."""
+        state = {
+            'version': '1.0.0',
+            'albums': {'my-album': {'title': 'Test'}},
+            'custom_field': 'preserved',
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['albums']['my-album']['title'] == 'Test'
+        assert result['custom_field'] == 'preserved'
+
+    def test_migration_1_0_adds_skills(self):
+        """1.0->1.1 migration adds skills with correct structure."""
+        state = {'version': '1.0.0'}
+        result = migrate_state(state)
+        assert result is not None
+        skills = result['skills']
+        assert 'items' in skills
+        assert 'count' in skills
+        assert 'model_counts' in skills
+        assert skills['count'] == 0
+
+    def test_migration_1_1_adds_plugin_version(self):
+        """1.1->1.2 migration adds plugin_version as None."""
+        state = {
+            'version': '1.1.0',
+            'skills': {'items': {}, 'count': 0, 'model_counts': {},
+                       'skills_root': '', 'skills_root_mtime': 0.0},
+        }
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == '1.2.0'
+        assert result['plugin_version'] is None
+
+    def test_migration_does_not_overwrite_existing_skills(self):
+        """1.0->1.1 migration does not clobber pre-existing skills."""
+        state = {
+            'version': '1.0.0',
+            'skills': {'items': {'custom-skill': {}}, 'count': 1,
+                       'model_counts': {'opus': 1},
+                       'skills_root': '/tmp', 'skills_root_mtime': 1.0},
+        }
+        result = migrate_state(state)
+        assert result is not None
+        # Pre-existing skills preserved (migration checks 'skills' not in state)
+        assert result['skills']['count'] == 1
+
+    def test_migration_failure_returns_none(self):
+        """Corrupted state during migration triggers rebuild (returns None)."""
+        import tools.state.indexer as indexer
+        # Temporarily replace the migration function to raise
+        original_fn, original_target = indexer.MIGRATIONS['1.0.0']
+
+        def bad_migration(state):
+            raise ValueError("Corrupted state")
+
+        try:
+            indexer.MIGRATIONS['1.0.0'] = (bad_migration, '1.1.0')
+            state = {'version': '1.0.0'}
+            result = migrate_state(state)
+            assert result is None
+        finally:
+            indexer.MIGRATIONS['1.0.0'] = (original_fn, original_target)
+
+
+@pytest.mark.unit
+class TestIncrementalUpdateTracksCompleted:
+    """Tests for tracks_completed recomputation during incremental updates."""
+
+    def test_tracks_completed_recomputed_on_readme_change(self, tmp_path, monkeypatch):
+        """When README changes, tracks_completed is recomputed from actual track data."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "my-album",
+                         tracks={
+                             "01-track.md": _make_track_content("Track One", "Final"),
+                             "02-track.md": _make_track_content("Track Two", "Generated"),
+                             "03-track.md": _make_track_content("Track Three", "Not Started"),
+                         })
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+
+        # Modify a track to become Final
+        time.sleep(0.05)
+        track_path = (content_root / "artists" / "testartist" / "albums" /
+                      "rock" / "my-album" / "tracks" / "03-track.md")
+        track_path.write_text(_make_track_content("Track Three", "Final"))
+
+        updated = incremental_update(existing, config)
+        album = updated['albums']['my-album']
+        # tracks_completed should include Final (2) + Generated (1) = 3
+        # _update_tracks_incremental counts Final+Generated+Complete
+        assert album['tracks_completed'] == 3
+
+    def test_tracks_completed_recomputed_on_track_change(self, tmp_path, monkeypatch):
+        """Track status change triggers tracks_completed recount."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "recount-album",
+                         tracks={
+                             "01-a.md": _make_track_content("A", "Not Started"),
+                         })
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['albums']['recount-album']['tracks_completed'] == 0
+
+        # Update track to Final
+        time.sleep(0.05)
+        track_path = (content_root / "artists" / "testartist" / "albums" /
+                      "rock" / "recount-album" / "tracks" / "01-a.md")
+        track_path.write_text(_make_track_content("A", "Final"))
+
+        updated = incremental_update(existing, config)
+        assert updated['albums']['recount-album']['tracks_completed'] == 1
+
+
+@pytest.mark.unit
+class TestBuildStateSessionPreservation:
+    """Tests that session is preserved across rebuilds."""
+
+    def test_build_state_has_empty_session(self, tmp_path, monkeypatch):
+        """Fresh build_state creates an empty session."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config)
+        assert state['session']['last_album'] is None
+        assert state['session']['pending_actions'] == []
+        assert state['session']['updated_at'] is None
+
+    def test_incremental_preserves_session(self, tmp_path, monkeypatch):
+        """incremental_update preserves session data (deep copy)."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        existing['session'] = {
+            'last_album': 'test-album',
+            'last_track': '01-track',
+            'last_phase': 'Mastering',
+            'pending_actions': ['verify sources', 'check lyrics'],
+            'updated_at': '2026-01-15T00:00:00Z',
+        }
+
+        updated = incremental_update(existing, config)
+        assert updated['session']['last_album'] == 'test-album'
+        assert updated['session']['last_phase'] == 'Mastering'
+        assert len(updated['session']['pending_actions']) == 2
+
+    def test_incremental_does_not_mutate_original(self, tmp_path, monkeypatch):
+        """incremental_update deep copies, so original state is not mutated."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        original_generated_at = existing['generated_at']
+
+        time.sleep(0.01)
+        updated = incremental_update(existing, config)
+
+        # Original should not have been mutated
+        assert existing['generated_at'] == original_generated_at
+        assert updated['generated_at'] != original_generated_at

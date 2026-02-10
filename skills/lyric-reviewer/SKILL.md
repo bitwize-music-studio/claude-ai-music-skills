@@ -42,7 +42,7 @@ Based on the argument provided:
 
 ## Supporting Files
 
-- **[checklist-reference.md](checklist-reference.md)** - Detailed 9-point checklist criteria
+- **[checklist-reference.md](checklist-reference.md)** - Detailed 14-point checklist criteria
 
 ---
 
@@ -285,6 +285,6 @@ Before marking "Ready for Suno":
 3. **Homographs are landmines** - live, read, lead, wind will mispronounce
 4. **Documentary = legal risk** - Take internal state claims seriously
 5. **Report format matters** - Structured output helps track issues across albums
-6. **Homographs are AUTO-FIX, not user choice** - Never ask "which option?" - detect it, fix it, report it as applied
+6. **Homographs need user decisions** - If a homograph is missing from the Pronunciation Notes table, flag it as "Unresolved — needs user decision" (do NOT guess or auto-fix)
 
 **Your deliverable**: Verification report with applied pronunciation fixes, remaining issues, and warnings.

@@ -36,9 +36,21 @@ Examples:
 Valid genres (primary categories):
 - `hip-hop`
 - `electronic`
-- `country`
-- `folk`
 - `rock`
+- `folk`
+- `country`
+- `pop`
+- `metal`
+- `jazz`
+- `rnb`
+- `classical`
+- `reggae`
+- `punk`
+- `indie-folk`
+- `blues`
+- `gospel`
+- `latin`
+- `k-pop`
 
 **Parsing logic:**
 1. If 3 arguments and second is `documentary`: album = arg1, genre = arg3, documentary = true
@@ -57,7 +69,7 @@ Usage: /new-album <album-name> <genre>
 Example: /new-album sample-album electronic
          /new-album the-heist documentary hip-hop
 
-Valid genres: hip-hop, electronic, country, folk, rock
+Valid genres: hip-hop, electronic, rock, folk, country, pop, metal, jazz, rnb, classical, reggae, punk, indie-folk, blues, gospel, latin, k-pop
 ```
 
 ## Step 2: Read Config (REQUIRED)
@@ -180,7 +192,7 @@ Run /configure to set up.
 ```
 Error: Invalid genre "{genre}"
 
-Valid genres: hip-hop, electronic, country, folk, rock
+Valid genres: hip-hop, electronic, rock, folk, country, pop, metal, jazz, rnb, classical, reggae, punk, indie-folk, blues, gospel, latin, k-pop
 ```
 
 **Album already exists:**
@@ -335,4 +347,4 @@ mkdir -p {content_root}/artists/$artist/albums/...
 /new-album my-album electronic      # house, techno go in electronic
 ```
 
-Valid primary genres: `hip-hop`, `electronic`, `country`, `folk`, `rock`
+Valid primary genres: `hip-hop`, `electronic`, `rock`, `folk`, `country`, `pop`, `metal`, `jazz`, `rnb`, `classical`, `reggae`, `punk`, `indie-folk`, `blues`, `gospel`, `latin`, `k-pop`
