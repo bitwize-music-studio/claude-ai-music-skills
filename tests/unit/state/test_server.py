@@ -8017,3 +8017,570 @@ class TestFindAlbumFuzzyMatch:
         # Actually "test" is in "test-album", "test-one", "test-two" but NOT "another-album"
         assert result["found"] is False
         assert "multiple_matches" in result
+
+
+# =============================================================================
+# Comprehensive edge case tests — Round 5 coverage audit
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestExtractSectionNewSectionNames:
+    """Tests for extract_section with newly added _SECTION_NAMES entries."""
+
+    def _make_track_with_sections(self, tmp_path, extra_sections=""):
+        """Create a track file with standard + extra sections."""
+        content = _SAMPLE_TRACK_MD + extra_sections
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(content)
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state)
+
+    def test_extract_mood_section(self, tmp_path):
+        """'mood' maps to 'Mood & Imagery' heading."""
+        extra = "\n## Mood & Imagery\n\nDark, atmospheric, digital noir\n"
+        mock_cache = self._make_track_with_sections(tmp_path, extra)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "mood")))
+        assert result["found"] is True
+        assert "Dark, atmospheric" in result["content"]
+        assert result["section"] == "Mood & Imagery"
+
+    def test_extract_mood_imagery_alias(self, tmp_path):
+        """'mood-imagery' also maps to 'Mood & Imagery' heading."""
+        extra = "\n## Mood & Imagery\n\nCyberpunk vibes\n"
+        mock_cache = self._make_track_with_sections(tmp_path, extra)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "mood-imagery")))
+        assert result["found"] is True
+        assert "Cyberpunk vibes" in result["content"]
+
+    def test_extract_lyrical_approach(self, tmp_path):
+        """'lyrical-approach' maps to 'Lyrical Approach' heading."""
+        extra = "\n## Lyrical Approach\n\nFirst person, stream of consciousness\n"
+        mock_cache = self._make_track_with_sections(tmp_path, extra)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "lyrical-approach")))
+        assert result["found"] is True
+        assert "First person" in result["content"]
+        assert result["section"] == "Lyrical Approach"
+
+    def test_extract_phonetic_review(self, tmp_path):
+        """'phonetic-review' maps to 'Phonetic Review Checklist' heading."""
+        extra = "\n## Phonetic Review Checklist\n\n- [x] No homographs\n- [x] No proper nouns\n"
+        mock_cache = self._make_track_with_sections(tmp_path, extra)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "phonetic-review")))
+        assert result["found"] is True
+        assert "No homographs" in result["content"]
+        assert result["section"] == "Phonetic Review Checklist"
+
+
+@pytest.mark.unit
+class TestExtractMarkdownSectionEdgeCasesRound5:
+    """Additional edge cases for _extract_markdown_section."""
+
+    def test_heading_at_absolute_eof_no_newline(self):
+        """Heading at very end of file with no trailing content."""
+        text = "## First\nContent\n\n## Last"
+        result = server._extract_markdown_section(text, "Last")
+        assert result == ""
+
+    def test_heading_at_eof_with_trailing_newline(self):
+        """Heading at end of file followed only by newlines."""
+        text = "## First\nContent\n\n## Last\n\n"
+        result = server._extract_markdown_section(text, "Last")
+        assert result == ""
+
+    def test_heading_with_ampersand(self):
+        """Heading containing '&' character matches correctly."""
+        text = "## Mood & Imagery\n\nDark vibes\n\n## Next\nContent"
+        result = server._extract_markdown_section(text, "Mood & Imagery")
+        assert result == "Dark vibes"
+
+    def test_heading_case_insensitive_with_special_chars(self):
+        """Case-insensitive match works with special characters."""
+        text = "## MOOD & IMAGERY\n\nLoud stuff\n\n## Next"
+        result = server._extract_markdown_section(text, "mood & imagery")
+        assert result == "Loud stuff"
+
+    def test_only_h3_heading(self):
+        """H3-only file works as heading target."""
+        text = "### Style Box\n```\nrock, 120 BPM\n```\n"
+        result = server._extract_markdown_section(text, "Style Box")
+        assert "rock, 120 BPM" in result
+
+    def test_h3_not_terminated_by_h3(self):
+        """H3 section is terminated by another H3 (same level)."""
+        text = "### Style Box\nstyle content\n\n### Lyrics Box\nlyrics content\n"
+        result = server._extract_markdown_section(text, "Style Box")
+        assert "style content" in result
+        assert "lyrics content" not in result
+
+
+@pytest.mark.unit
+class TestUpdateTrackFieldStatusValidation:
+    """Tests for update_track_field status validation edge cases."""
+
+    def test_invalid_status_rejected(self):
+        """Completely invalid status string is rejected."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-first-track", "status", "InvalidStatus"
+            )))
+        assert "error" in result
+        assert "Invalid track status" in result["error"]
+
+    def test_empty_status_rejected(self):
+        """Empty string as status value is rejected."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-first-track", "status", ""
+            )))
+        assert "error" in result
+        assert "Invalid track status" in result["error"]
+
+    def test_whitespace_padded_status_accepted(self):
+        """Status with whitespace padding is accepted (stripped before check)."""
+        # The validation does value.lower().strip(), so "  Final  " becomes "final"
+        mock_cache = MockStateCache()
+        state = mock_cache.get_state()
+        # Use a track that exists
+        mock_cache_with_file_state = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache_with_file_state):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-first-track", "status", "  Final  "
+            )))
+        # Should pass validation (whitespace stripped) but may fail on file write
+        # since the track path in SAMPLE_STATE doesn't exist on disk
+        assert "Invalid track status" not in result.get("error", "")
+
+    def test_mixed_case_status_accepted(self):
+        """Mixed case status like 'in progress' passes validation."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-first-track", "status", "in progress"
+            )))
+        # Passes status validation; may fail on file path
+        assert "Invalid track status" not in result.get("error", "")
+
+    def test_all_valid_statuses_accepted(self):
+        """All valid track statuses pass validation."""
+        valid = ["Not Started", "Sources Pending", "Sources Verified",
+                 "In Progress", "Generated", "Final"]
+        for status in valid:
+            mock_cache = MockStateCache()
+            with patch.object(server, "cache", mock_cache):
+                result = json.loads(_run(server.update_track_field(
+                    "test-album", "01-first-track", "status", status
+                )))
+            assert "Invalid track status" not in result.get("error", ""), \
+                f"Status '{status}' was incorrectly rejected"
+
+
+@pytest.mark.unit
+class TestSafeJsonEdgeCasesRound5:
+    """Additional edge cases for _safe_json."""
+
+    def test_non_serializable_type(self):
+        """Non-serializable type falls back to str() via default=str."""
+        data = {"value": set([1, 2, 3])}
+        result = server._safe_json(data)
+        parsed = json.loads(result)
+        # set is converted via str()
+        assert "value" in parsed
+
+    def test_none_value(self):
+        """None is valid JSON null."""
+        data = {"value": None}
+        result = json.loads(server._safe_json(data))
+        assert result["value"] is None
+
+    def test_empty_dict(self):
+        """Empty dict serializes correctly."""
+        result = json.loads(server._safe_json({}))
+        assert result == {}
+
+    def test_empty_list(self):
+        """Empty list serializes correctly."""
+        result = json.loads(server._safe_json([]))
+        assert result == []
+
+    def test_deeply_nested(self):
+        """Deeply nested structure serializes correctly."""
+        data = {"a": {"b": {"c": {"d": {"e": "deep"}}}}}
+        result = json.loads(server._safe_json(data))
+        assert result["a"]["b"]["c"]["d"]["e"] == "deep"
+
+    def test_path_object_via_default_str(self):
+        """Path objects are serialized via default=str."""
+        data = {"path": Path("/tmp/test")}
+        result = json.loads(server._safe_json(data))
+        assert "/tmp/test" in result["path"]
+
+
+@pytest.mark.unit
+class TestNormalizeSlugEdgeCasesRound5:
+    """Additional edge cases for _normalize_slug."""
+
+    def test_special_characters_preserved(self):
+        """Non-space, non-underscore special characters pass through."""
+        assert server._normalize_slug("my-album!") == "my-album!"
+
+    def test_dots_preserved(self):
+        """Dots in slugs are preserved."""
+        assert server._normalize_slug("v2.0-release") == "v2.0-release"
+
+    def test_numbers_only(self):
+        """All-numeric string is lowercased (no-op)."""
+        assert server._normalize_slug("12345") == "12345"
+
+    def test_unicode_preserved(self):
+        """Unicode characters are preserved and lowercased."""
+        assert server._normalize_slug("Café Beats") == "café-beats"
+
+    def test_tabs_not_converted(self):
+        """Tab characters are NOT converted to hyphens (only space and _)."""
+        result = server._normalize_slug("tab\there")
+        # Tabs are not in the replace chain
+        assert result == "tab\there"
+
+
+@pytest.mark.unit
+class TestListAlbumsEdgeCasesRound5:
+    """Additional edge cases for list_albums."""
+
+    def test_empty_state(self):
+        """Empty state with no albums returns count 0."""
+        state = _fresh_state()
+        state["albums"] = {}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums()))
+        assert result["count"] == 0
+        assert result["albums"] == []
+
+    def test_status_filter_case_insensitive(self):
+        """Status filter matching is case-insensitive."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums("in progress")))
+        # Should match "In Progress" status
+        assert result["count"] >= 1
+        for album in result["albums"]:
+            assert album["status"].lower() == "in progress"
+
+    def test_status_filter_no_match(self):
+        """Non-matching status filter returns empty list."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums("NonexistentStatus")))
+        assert result["count"] == 0
+        assert result["albums"] == []
+
+
+@pytest.mark.unit
+class TestFindAlbumEdgeCasesRound5:
+    """Additional edge cases for find_album."""
+
+    def test_empty_string_name(self):
+        """Empty string album name normalizes to empty, no exact match."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("")))
+        # Empty string won't match any slug exactly
+        # But it IS a substring of every slug, so it matches all
+        # Multiple matches -> found: False
+        assert result["found"] is False
+
+    def test_whitespace_only_name(self):
+        """Whitespace-only name normalizes to hyphens."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("   ")))
+        # "   " -> "---" after normalize_slug
+        # Won't match any slug
+        assert result["found"] is False
+
+
+@pytest.mark.unit
+class TestFormatForClipboardEdgeCasesRound5:
+    """Additional edge cases for format_for_clipboard."""
+
+    def test_streaming_lyrics_alias(self, tmp_path):
+        """'streaming-lyrics' content_type is accepted."""
+        track_file = tmp_path / "05-alias-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-alias-track"] = {
+            "path": str(track_file),
+            "title": "Alias Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "streaming-lyrics")))
+        assert result["found"] is True
+        assert result["content_type"] == "streaming-lyrics"
+
+    def test_file_deleted_after_cache(self, tmp_path):
+        """Track file deleted between cache load and read returns error."""
+        track_file = tmp_path / "05-gone-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-gone-track"] = {
+            "path": str(track_file),
+            "title": "Gone Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        # Delete the file
+        track_file.unlink()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "lyrics")))
+        assert "error" in result
+        assert "Cannot read" in result["error"]
+
+
+@pytest.mark.unit
+class TestDetectPhaseAdditionalRound5:
+    """Additional _detect_phase edge cases for comprehensive coverage."""
+
+    def test_single_track_not_started(self):
+        """Single not-started track = Writing phase."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "Not Started", "sources_verified": "N/A"},
+            },
+        }
+        assert server._detect_phase(album) == "Writing"
+
+    def test_single_track_in_progress(self):
+        """Single in-progress track = Writing phase."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "In Progress", "sources_verified": "N/A"},
+            },
+        }
+        assert server._detect_phase(album) == "Writing"
+
+    def test_single_track_generated(self):
+        """Single generated track = Mastering (all generated, none final)."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "Generated", "sources_verified": "N/A"},
+            },
+        }
+        assert server._detect_phase(album) == "Mastering"
+
+    def test_single_track_final(self):
+        """Single final track = Ready to Release."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "Final", "sources_verified": "N/A"},
+            },
+        }
+        assert server._detect_phase(album) == "Ready to Release"
+
+    def test_all_in_progress(self):
+        """All tracks in progress = Writing."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "In Progress", "sources_verified": "N/A"},
+                "02": {"status": "In Progress", "sources_verified": "N/A"},
+            },
+        }
+        assert server._detect_phase(album) == "Writing"
+
+    def test_research_complete_status(self):
+        """Album with Research Complete status."""
+        album = {"status": "Research Complete", "tracks": {}}
+        assert server._detect_phase(album) == "Planning"
+
+    def test_ready_to_write_all_sources_verified(self):
+        """All tracks 'Sources Verified' → Ready to Write."""
+        album = {
+            "status": "In Progress",
+            "tracks": {
+                "01": {"status": "Sources Verified", "sources_verified": "Verified"},
+                "02": {"status": "Sources Verified", "sources_verified": "Verified"},
+                "03": {"status": "Sources Verified", "sources_verified": "Verified"},
+            },
+        }
+        assert server._detect_phase(album) == "Ready to Write"
+
+
+@pytest.mark.unit
+class TestExtractCodeBlockEdgeCasesRound5:
+    """Additional edge cases for _extract_code_block."""
+
+    def test_no_code_block(self):
+        """Text without code block returns None."""
+        result = server._extract_code_block("Just plain text")
+        assert result is None
+
+    def test_empty_code_block(self):
+        """Empty code block returns empty string."""
+        result = server._extract_code_block("```\n```")
+        assert result == ""
+
+    def test_code_block_with_language_tag(self):
+        """Code block with language tag still extracts content."""
+        text = "```python\nprint('hello')\n```"
+        result = server._extract_code_block(text)
+        # The regex is ```\n?(.*?)``` so "python\nprint('hello')" matches
+        assert result is not None
+
+    def test_multiple_code_blocks_returns_first(self):
+        """Only the first code block is returned."""
+        text = "```\nfirst\n```\n\n```\nsecond\n```"
+        result = server._extract_code_block(text)
+        assert result == "first"
+
+
+@pytest.mark.unit
+class TestUpdateTrackFieldNonStatusFields:
+    """Tests for update_track_field with non-status fields (no validation)."""
+
+    def test_suno_link_hyphen_variant(self, tmp_path):
+        """Both 'suno-link' and 'suno_link' field names work."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "suno-link",
+                "[Listen](https://suno.com/song/abc)"
+            )))
+        assert result["success"] is True
+        content = track_file.read_text()
+        assert "[Listen](https://suno.com/song/abc)" in content
+
+    def test_sources_verified_hyphen_variant(self, tmp_path):
+        """Both 'sources-verified' and 'sources_verified' field names work."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources-verified",
+                "✅ Verified (2026-02-10)"
+            )))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestSectionNamesCompleteness:
+    """Verify all _SECTION_NAMES entries are valid and accessible."""
+
+    def test_all_section_keys_lowercase(self):
+        """All keys in _SECTION_NAMES are lowercase."""
+        for key in server._SECTION_NAMES:
+            assert key == key.lower(), f"Key '{key}' is not lowercase"
+
+    def test_all_section_values_nonempty(self):
+        """All values in _SECTION_NAMES are non-empty strings."""
+        for key, value in server._SECTION_NAMES.items():
+            assert isinstance(value, str) and value, \
+                f"Key '{key}' has invalid value: {value!r}"
+
+    def test_known_section_count(self):
+        """Verify expected number of section name entries."""
+        # As of Round 4 fix: 14 entries
+        # style, style-box, lyrics, lyrics-box, streaming, streaming-lyrics,
+        # pronunciation, pronunciation-notes, concept, source, original-quote,
+        # musical-direction, production-notes, generation-log,
+        # phonetic-review, mood, mood-imagery, lyrical-approach
+        assert len(server._SECTION_NAMES) == 18
+
+    def test_bidirectional_aliases_consistent(self):
+        """Aliases map to the same heading."""
+        assert server._SECTION_NAMES["style"] == server._SECTION_NAMES["style-box"]
+        assert server._SECTION_NAMES["lyrics"] == server._SECTION_NAMES["lyrics-box"]
+        assert server._SECTION_NAMES["streaming"] == server._SECTION_NAMES["streaming-lyrics"]
+        assert server._SECTION_NAMES["pronunciation"] == server._SECTION_NAMES["pronunciation-notes"]
+        assert server._SECTION_NAMES["mood"] == server._SECTION_NAMES["mood-imagery"]
+
+
+@pytest.mark.unit
+class TestUpdatableFieldsCompleteness:
+    """Verify _UPDATABLE_FIELDS entries."""
+
+    def test_all_updatable_keys_lowercase(self):
+        """All keys in _UPDATABLE_FIELDS are lowercase."""
+        for key in server._UPDATABLE_FIELDS:
+            assert key == key.lower(), f"Key '{key}' is not lowercase"
+
+    def test_suno_link_both_variants(self):
+        """Both suno-link and suno_link map to 'Suno Link'."""
+        assert server._UPDATABLE_FIELDS["suno-link"] == "Suno Link"
+        assert server._UPDATABLE_FIELDS["suno_link"] == "Suno Link"
+
+    def test_sources_verified_both_variants(self):
+        """Both sources-verified and sources_verified map to 'Sources Verified'."""
+        assert server._UPDATABLE_FIELDS["sources-verified"] == "Sources Verified"
+        assert server._UPDATABLE_FIELDS["sources_verified"] == "Sources Verified"
+
+
+@pytest.mark.unit
+class TestValidTrackStatuses:
+    """Verify _VALID_TRACK_STATUSES set is complete."""
+
+    def test_all_statuses_lowercase(self):
+        """All entries in _VALID_TRACK_STATUSES are lowercase."""
+        for status in server._VALID_TRACK_STATUSES:
+            assert status == status.lower(), f"Status '{status}' is not lowercase"
+
+    def test_expected_statuses_present(self):
+        """All expected statuses are in the set."""
+        expected = {"not started", "sources pending", "sources verified",
+                    "in progress", "generated", "final"}
+        assert server._VALID_TRACK_STATUSES == expected
+
+    def test_status_count(self):
+        """Exactly 6 valid track statuses."""
+        assert len(server._VALID_TRACK_STATUSES) == 6

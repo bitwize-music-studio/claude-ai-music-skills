@@ -468,7 +468,7 @@ def _derive_model_tier(model: str) -> str:
     Returns:
         Lowercase tier string ("opus", "sonnet", "haiku") or "unknown".
     """
-    if not model:
+    if not model or not isinstance(model, str):
         return 'unknown'
     lower = model.lower()
     for tier in _MODEL_TIER_KEYWORDS:

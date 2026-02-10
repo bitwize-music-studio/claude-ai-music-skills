@@ -1388,3 +1388,638 @@ suno_url: "https://suno.com/song/abc123"
         assert '_warning' in result
         assert result['title'] == 'My Track'
         assert result['status'] == 'In Progress'
+
+
+# =============================================================================
+# Comprehensive edge case tests — Round 5 coverage audit
+# =============================================================================
+
+
+class TestSourcesVerifiedEdgeCases:
+    """Additional edge cases for sources_verified field parsing."""
+
+    def test_verified_lowercase_no_emoji(self, tmp_path):
+        """'verified' (lowercase, no emoji, no date) is recognized."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Final |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | verified |
+""")
+        result = parse_track_file(track)
+        assert result['sources_verified'] == 'Verified'
+
+    def test_verified_with_extra_text(self, tmp_path):
+        """'verified by human' is recognized via startswith."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Final |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | Verified by human reviewer |
+""")
+        result = parse_track_file(track)
+        assert result['sources_verified'] == 'Verified'
+
+    def test_verified_with_malformed_date(self, tmp_path):
+        """Date regex doesn't match malformed date; returns plain 'Verified'."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Final |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | ✅ Verified (01-15-2026) |
+""")
+        result = parse_track_file(track)
+        # Date format is wrong (MM-DD-YYYY instead of YYYY-MM-DD), regex won't match
+        assert result['sources_verified'] == 'Verified'
+
+    def test_verified_with_partial_date(self, tmp_path):
+        """Partial date '(2026-01)' doesn't match YYYY-MM-DD format."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Final |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | ✅ Verified (2026-01) |
+""")
+        result = parse_track_file(track)
+        assert result['sources_verified'] == 'Verified'
+
+    def test_pending_capitalized_no_emoji(self, tmp_path):
+        """'Pending' (capitalized, no emoji) is recognized."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | Pending |
+""")
+        result = parse_track_file(track)
+        assert result['sources_verified'] == 'Pending'
+
+
+class TestSunoLinkEdgeCases:
+    """Edge cases for Suno Link parsing in parse_track_file."""
+
+    def test_suno_link_single_hyphen(self, tmp_path):
+        """Single hyphen '-' treated as empty (no suno link)."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | - |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+        result = parse_track_file(track)
+        assert result['has_suno_link'] is False
+
+    def test_suno_link_en_dash(self, tmp_path):
+        """En dash '–' treated as empty (no suno link)."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | \u2013 |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+        result = parse_track_file(track)
+        assert result['has_suno_link'] is False
+
+    def test_suno_link_em_dash(self, tmp_path):
+        """Em dash '—' treated as empty (no suno link)."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** | \u2014 |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+        result = parse_track_file(track)
+        assert result['has_suno_link'] is False
+
+    def test_suno_link_whitespace_only(self, tmp_path):
+        """Whitespace-only suno link treated as empty."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Not Started |
+| **Suno Link** |    |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+        result = parse_track_file(track)
+        assert result['has_suno_link'] is False
+
+    def test_suno_link_with_url(self, tmp_path):
+        """Plain URL is detected as having a suno link."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | Generated |
+| **Suno Link** | https://suno.com/song/abc123 |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+        result = parse_track_file(track)
+        assert result['has_suno_link'] is True
+
+
+class TestIdeasFileNoHeading:
+    """Edge cases for parse_ideas_file without expected headings."""
+
+    def test_no_ideas_heading(self, tmp_path):
+        """File without '## Ideas' heading still parses ### blocks."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""# My Ideas
+
+### Cool Album
+
+**Genre**: Rock
+**Status**: Pending
+
+### Another Album
+
+**Genre**: Jazz
+**Status**: In Progress
+""")
+        result = parse_ideas_file(ideas)
+        # Without "## Ideas" heading, the entire text is searched for ### blocks
+        assert len(result['items']) == 2
+        assert result['items'][0]['title'] == 'Cool Album'
+        assert result['items'][1]['title'] == 'Another Album'
+
+    def test_only_preamble_no_ideas(self, tmp_path):
+        """File with only preamble text and no ### blocks returns empty."""
+        ideas = tmp_path / "IDEAS.md"
+        ideas.write_text("""# Album Ideas
+
+This file contains album ideas. Use this template.
+""")
+        result = parse_ideas_file(ideas)
+        assert result['items'] == []
+        assert result['counts'] == {}
+
+
+class TestNormalizeStatusBoundary:
+    """Boundary conditions for _normalize_status."""
+
+    def test_whitespace_only_returns_empty_not_unknown(self):
+        """Whitespace-only input passes 'if not raw' but strips to empty string."""
+        # '   ' is truthy, so it passes the first guard
+        # After strip, it's '' which doesn't match any key or prefix
+        # Falls through to return '' (not 'Unknown')
+        assert _normalize_status('   ') == ''
+        assert _normalize_status('\t') == ''
+        assert _normalize_status('\n') == ''
+
+    def test_tab_separated_status(self):
+        """Status with tab characters is stripped properly."""
+        assert _normalize_status('\tFinal\t') == 'Final'
+
+    def test_mixed_case_all_statuses(self):
+        """Verify all canonical statuses work with varied casing."""
+        cases = {
+            'CONCEPT': 'Concept',
+            'In progress': 'In Progress',
+            'RESEARCH COMPLETE': 'Research Complete',
+            'SOURCES VERIFIED': 'Sources Verified',
+            'COMPLETE': 'Complete',
+            'RELEASED': 'Released',
+            'NOT STARTED': 'Not Started',
+            'SOURCES PENDING': 'Sources Pending',
+            'GENERATED': 'Generated',
+            'FINAL': 'Final',
+        }
+        for input_val, expected in cases.items():
+            assert _normalize_status(input_val) == expected, f"Failed for {input_val!r}"
+
+
+class TestParseSkillFileEdgeCases:
+    """Additional edge cases for parse_skill_file."""
+
+    def test_none_model_value(self, tmp_path):
+        """Model field set to YAML null produces empty string model."""
+        skill = tmp_path / "SKILL.md"
+        skill.write_text("""---
+name: null-model-skill
+description: Skill with null model.
+model: null
+allowed-tools: []
+---
+""")
+        result = parse_skill_file(skill)
+        assert '_error' not in result
+        # yaml.safe_load('null') returns None; model defaults via .get('model', '')
+        # But since None is present, it's used as-is (not the default '')
+        assert result['model'] is None or result['model'] == ''
+        assert result['model_tier'] == 'unknown'
+
+    def test_integer_model_value(self, tmp_path):
+        """Model field set to an integer is handled gracefully."""
+        skill = tmp_path / "SKILL.md"
+        skill.write_text("""---
+name: int-model-skill
+description: Skill with int model.
+model: 42
+allowed-tools: []
+---
+""")
+        result = parse_skill_file(skill)
+        assert '_error' not in result
+        assert result['model'] == 42
+        assert result['model_tier'] == 'unknown'
+
+    def test_empty_name_is_falsy(self, tmp_path):
+        """Empty string name is considered missing (falsy check)."""
+        skill = tmp_path / "SKILL.md"
+        skill.write_text("""---
+name: ""
+description: Has description.
+model: claude-opus-4-6
+allowed-tools: []
+---
+""")
+        result = parse_skill_file(skill)
+        assert '_error' in result
+        assert 'name' in result['_error']
+
+    def test_frontmatter_non_dict_returns_error(self, tmp_path):
+        """Frontmatter that parses to non-dict returns error."""
+        skill = tmp_path / "SKILL.md"
+        skill.write_text("""---
+- item1
+- item2
+---
+""")
+        result = parse_skill_file(skill)
+        assert '_error' in result
+        assert 'not a mapping' in result['_error']
+
+    def test_extra_frontmatter_keys_preserved(self, tmp_path):
+        """Unknown frontmatter keys are available in result via normalization."""
+        skill = tmp_path / "SKILL.md"
+        skill.write_text("""---
+name: extra-keys
+description: Has extra keys.
+model: claude-opus-4-6
+allowed-tools: []
+custom-field: custom-value
+---
+""")
+        result = parse_skill_file(skill)
+        assert '_error' not in result
+        # custom-field becomes custom_field after normalization
+        # but it's not explicitly returned in the result dict
+        # (only specific fields are extracted)
+        assert result['name'] == 'extra-keys'
+
+
+class TestTrackTitlePrecedenceComplete:
+    """Complete coverage of title extraction precedence chain."""
+
+    def test_table_title_beats_all(self, tmp_path):
+        """Table title takes precedence over frontmatter and heading."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "FM Title"
+---
+
+# Heading Title
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Table Title |
+| **Status** | In Progress |
+""")
+        result = parse_track_file(track)
+        assert result['title'] == 'Table Title'
+
+    def test_frontmatter_title_beats_heading(self, tmp_path):
+        """When no table title, frontmatter beats heading."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "FM Title"
+---
+
+# Heading Title
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+""")
+        result = parse_track_file(track)
+        assert result['title'] == 'FM Title'
+
+    def test_heading_is_last_fallback(self, tmp_path):
+        """When no table title and no frontmatter title, heading is used."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Heading Title
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+""")
+        result = parse_track_file(track)
+        assert result['title'] == 'Heading Title'
+
+    def test_frontmatter_template_placeholder_skipped(self, tmp_path):
+        """Frontmatter title '[Track Title]' is skipped as template."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "[Track Title]"
+---
+
+# Real Title
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Not Started |
+""")
+        result = parse_track_file(track)
+        assert result['title'] == 'Real Title'
+
+    def test_no_title_anywhere(self, tmp_path):
+        """No table title, no frontmatter, no heading returns empty string."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Not Started |
+""")
+        result = parse_track_file(track)
+        assert result['title'] == ''
+
+
+class TestExplicitFieldEdgeCases:
+    """Edge cases for explicit field extraction."""
+
+    def test_explicit_true_from_table(self, tmp_path):
+        """Table value 'true' is recognized as explicit."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | In Progress |
+| **Explicit** | true |
+""")
+        result = parse_track_file(track)
+        assert result['explicit'] is True
+
+    def test_explicit_yes_from_table(self, tmp_path):
+        """Table value 'Yes' is recognized as explicit."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | In Progress |
+| **Explicit** | Yes |
+""")
+        result = parse_track_file(track)
+        assert result['explicit'] is True
+
+    def test_explicit_no_from_table(self, tmp_path):
+        """Table value 'No' is not explicit."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | In Progress |
+| **Explicit** | No |
+""")
+        result = parse_track_file(track)
+        assert result['explicit'] is False
+
+    def test_explicit_random_string_not_explicit(self, tmp_path):
+        """Unrecognized string like 'maybe' is not explicit."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Title** | Test |
+| **Status** | In Progress |
+| **Explicit** | maybe |
+""")
+        result = parse_track_file(track)
+        assert result['explicit'] is False
+
+    def test_explicit_frontmatter_fallback_zero(self, tmp_path):
+        """Frontmatter explicit: 0 (falsy int) maps to False."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "Track"
+explicit: 0
+---
+
+# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+""")
+        result = parse_track_file(track)
+        assert result['explicit'] is False
+
+
+class TestSunoUrlFromFrontmatter:
+    """Edge cases for suno_url extraction from frontmatter."""
+
+    def test_empty_suno_url_not_included(self, tmp_path):
+        """Empty suno_url in frontmatter is not included in result."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "Track"
+suno_url: ""
+---
+
+# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Suno Link** | — |
+""")
+        result = parse_track_file(track)
+        assert 'suno_url' not in result
+
+    def test_whitespace_suno_url_not_included(self, tmp_path):
+        """Whitespace-only suno_url is not included in result."""
+        track = tmp_path / "01-track.md"
+        track.write_text("""---
+title: "Track"
+suno_url: "   "
+---
+
+# Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Suno Link** | — |
+""")
+        result = parse_track_file(track)
+        assert 'suno_url' not in result
+
+
+class TestAlbumGenreExtraction:
+    """Edge cases for genre extraction in parse_album_readme."""
+
+    def test_genre_from_frontmatter_empty_list(self, tmp_path):
+        """Empty genres list falls back to path extraction."""
+        album_dir = tmp_path / "artists" / "test" / "albums" / "hip-hop" / "my-album"
+        album_dir.mkdir(parents=True)
+        readme = album_dir / "README.md"
+        readme.write_text("""---
+title: "My Album"
+genres: []
+---
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 5 |
+""")
+        result = parse_album_readme(readme)
+        assert result['genre'] == 'hip-hop'
+
+    def test_genre_from_frontmatter_non_list(self, tmp_path):
+        """Non-list genres value falls back to path extraction."""
+        album_dir = tmp_path / "artists" / "test" / "albums" / "rock" / "my-album"
+        album_dir.mkdir(parents=True)
+        readme = album_dir / "README.md"
+        readme.write_text("""---
+title: "My Album"
+genres: "rock"
+---
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 5 |
+""")
+        result = parse_album_readme(readme)
+        # genres is a string, not a list — isinstance check fails, falls to path
+        assert result['genre'] == 'rock'
+
+
+class TestTracklistNumberPadding:
+    """Tests for track number zero-padding in tracklist parsing."""
+
+    def test_single_digit_padded(self):
+        """Single digit track number gets zero-padded to 2 digits."""
+        text = """## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+| 1 | First | Final |
+| 9 | Ninth | Not Started |
+"""
+        tracks = _parse_tracklist_table(text)
+        assert tracks[0]['number'] == '01'
+        assert tracks[1]['number'] == '09'
+
+    def test_double_digit_not_padded(self):
+        """Double digit track number stays as-is."""
+        text = """## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+| 10 | Tenth | Final |
+| 12 | Twelfth | Not Started |
+"""
+        tracks = _parse_tracklist_table(text)
+        assert tracks[0]['number'] == '10'
+        assert tracks[1]['number'] == '12'

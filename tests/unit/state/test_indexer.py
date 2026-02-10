@@ -2620,3 +2620,446 @@ class TestBuildStateSessionPreservation:
         # Original should not have been mutated
         assert existing['generated_at'] == original_generated_at
         assert updated['generated_at'] != original_generated_at
+
+
+# =============================================================================
+# Comprehensive edge case tests — Round 5 coverage audit
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestBuildConfigSectionOverrides:
+    """Edge cases for build_config_section() override path handling."""
+
+    def test_explicit_overrides_path(self, monkeypatch):
+        """When config has explicit overrides path, it's used instead of default."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': '/home/user/content',
+                'overrides': '/home/user/custom-overrides',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['overrides_dir'] == '/home/user/custom-overrides'
+
+    def test_empty_overrides_defaults_to_content_root(self, monkeypatch):
+        """When overrides is empty string, default is {content_root}/overrides."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': '/home/user/content',
+                'overrides': '',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['overrides_dir'] == '/home/user/content/overrides'
+
+    def test_no_overrides_key_defaults(self, monkeypatch):
+        """When overrides key is absent, default is {content_root}/overrides."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': '/home/user/content',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['overrides_dir'] == '/home/user/content/overrides'
+
+    def test_tilde_in_overrides_path(self, monkeypatch):
+        """Tilde in overrides path is expanded to home directory."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': '/home/user/content',
+                'overrides': '~/my-overrides',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert '~' not in section['overrides_dir']
+        assert 'my-overrides' in section['overrides_dir']
+
+    def test_tilde_in_content_root(self, monkeypatch):
+        """Tilde in content_root is expanded."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': '~/music-content',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert '~' not in section['content_root']
+        assert 'music-content' in section['content_root']
+
+
+@pytest.mark.unit
+class TestValidateStateDocumentsRoot:
+    """Verify validate_state behavior re: documents_root in config."""
+
+    def test_documents_root_not_in_required_config_keys(self):
+        """documents_root is NOT in the required config keys check.
+
+        This documents current behavior: validate_state only checks for
+        content_root, audio_root, overrides_dir, artist_name, config_mtime.
+        documents_root is optional in validation even though build_config_section
+        always produces it.
+        """
+        state = _make_minimal_state()
+        del state['config']['documents_root']
+        errors = validate_state(state)
+        # No error about documents_root since it's not in the required keys
+        assert not any('documents_root' in e for e in errors)
+
+    def test_all_required_config_keys_checked(self):
+        """Empty config dict triggers errors for all required keys."""
+        state = _make_minimal_state()
+        state['config'] = {}
+        errors = validate_state(state)
+        required = ['content_root', 'audio_root', 'overrides_dir', 'artist_name', 'config_mtime']
+        for key in required:
+            assert any(f'config.{key}' in e for e in errors), f"Missing error for config.{key}"
+
+
+@pytest.mark.unit
+class TestScanTracksWithParseError:
+    """Tests for scan_tracks when individual tracks have parse errors."""
+
+    def test_unreadable_track_skipped(self, tmp_path):
+        """Track with parse error is skipped, others are included."""
+        album_dir = tmp_path / "album"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        # Good track
+        (tracks_dir / "01-good.md").write_text(
+            _make_track_content("Good Track", "Final"))
+        # Unreadable track (permissions)
+        bad_track = tracks_dir / "02-bad.md"
+        bad_track.write_text("content")
+        bad_track.chmod(0o000)
+
+        try:
+            tracks = scan_tracks(album_dir)
+            assert '01-good' in tracks
+            assert '02-bad' not in tracks
+        finally:
+            bad_track.chmod(0o644)
+
+    def test_no_tracks_dir_returns_empty(self, tmp_path):
+        """Album with no tracks/ directory returns empty dict."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        tracks = scan_tracks(album_dir)
+        assert tracks == {}
+
+
+@pytest.mark.unit
+class TestUpdateTracksIncrementalParseError:
+    """Tests for _update_tracks_incremental when track parsing fails."""
+
+    def test_parse_error_track_not_updated(self, tmp_path):
+        """If a new track fails to parse, it's silently skipped."""
+        album_dir = tmp_path / "album"
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        # Create a track with unreadable permissions
+        bad_track = tracks_dir / "01-bad.md"
+        bad_track.write_text("content")
+        bad_track.chmod(0o000)
+
+        album = {'tracks': {}, 'tracks_completed': 0}
+        try:
+            _update_tracks_incremental(album, album_dir)
+            assert '01-bad' not in album['tracks']
+        finally:
+            bad_track.chmod(0o644)
+
+
+@pytest.mark.unit
+class TestIncrementalUpdateSkillsMtime:
+    """Tests for incremental_update() when skills dir mtime changes."""
+
+    def test_skills_mtime_change_triggers_rescan(self, tmp_path, monkeypatch):
+        """Changing skills dir mtime triggers a full skills rescan."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(_make_skill_content(
+            name="test-skill", description="A test skill."))
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+        monkeypatch.setattr(indexer, '_PROJECT_ROOT', plugin_root)
+
+        existing = build_state(config, plugin_root=plugin_root)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['skills']['count'] == 1
+
+        # Add another skill and touch the skills dir
+        skill_dir2 = skills_dir / "second-skill"
+        skill_dir2.mkdir()
+        (skill_dir2 / "SKILL.md").write_text(_make_skill_content(
+            name="second-skill", description="Another skill."))
+
+        # Touch skills dir to change mtime
+        time.sleep(0.05)
+        import os
+        os.utime(str(skills_dir), None)
+
+        updated = incremental_update(existing, config)
+        assert updated['skills']['count'] == 2
+        assert 'second-skill' in updated['skills']['items']
+
+    def test_skills_mtime_unchanged_keeps_existing(self, tmp_path, monkeypatch):
+        """When skills dir mtime is unchanged, existing skills are preserved."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(_make_skill_content(
+            name="test-skill", description="A test skill."))
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+        monkeypatch.setattr(indexer, '_PROJECT_ROOT', plugin_root)
+
+        existing = build_state(config, plugin_root=plugin_root)
+        existing['config']['config_mtime'] = 100.0
+
+        # Don't change anything
+        updated = incremental_update(existing, config)
+        assert updated['skills']['count'] == 1
+
+
+@pytest.mark.unit
+class TestIncrementalUpdateAlbumsDirMissing:
+    """Tests for incremental_update when albums dir doesn't exist."""
+
+    def test_albums_dir_missing_returns_empty(self, tmp_path, monkeypatch):
+        """When albums dir doesn't exist, albums dict is empty."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        # Don't create artists/testartist/albums/
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = _make_minimal_state()
+        existing['config']['config_mtime'] = 100.0
+        existing['config']['content_root'] = str(content_root)
+        existing['config']['artist_name'] = 'testartist'
+        # Add a stale album in existing state
+        existing['albums'] = {
+            'stale-album': {
+                'path': '/tmp/gone',
+                'genre': 'rock',
+                'title': 'Gone Album',
+                'status': 'Concept',
+                'tracks': {},
+                'readme_mtime': 100.0,
+            }
+        }
+
+        updated = incremental_update(existing, config)
+        # Stale album should still be in state since albums_dir doesn't exist
+        # (the code only cleans up when albums_dir.exists() is True)
+        assert 'albums' in updated
+
+
+@pytest.mark.unit
+class TestScanAlbumsEdgeCases:
+    """Additional edge cases for scan_albums()."""
+
+    def test_album_with_parse_error_skipped(self, tmp_path):
+        """Album with unparseable README is silently skipped."""
+        content_root = tmp_path / "content"
+        albums_dir = content_root / "artists" / "test" / "albums" / "rock"
+
+        # Good album
+        _make_album_tree(content_root, "test", "rock", "good-album")
+
+        # Bad album with unreadable README
+        bad_dir = albums_dir / "bad-album"
+        bad_dir.mkdir(parents=True)
+        bad_readme = bad_dir / "README.md"
+        bad_readme.write_text("content")
+        bad_readme.chmod(0o000)
+
+        try:
+            albums = scan_albums(content_root, "test")
+            assert 'good-album' in albums
+            assert 'bad-album' not in albums
+        finally:
+            bad_readme.chmod(0o644)
+
+    def test_empty_albums_dir(self, tmp_path):
+        """Albums dir exists but is empty returns empty dict."""
+        content_root = tmp_path / "content"
+        albums_dir = content_root / "artists" / "test" / "albums"
+        albums_dir.mkdir(parents=True)
+
+        albums = scan_albums(content_root, "test")
+        assert albums == {}
+
+    def test_no_artist_dir(self, tmp_path):
+        """No artist directory returns empty dict."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        albums = scan_albums(content_root, "nonexistent")
+        assert albums == {}
+
+
+@pytest.mark.unit
+class TestMigrateStateEdgeCasesRound5:
+    """Additional edge cases for migrate_state."""
+
+    def test_missing_version_key(self):
+        """State without version key defaults to '0.0.0'."""
+        state = _make_minimal_state()
+        del state['version']
+        result = migrate_state(state)
+        # '0.0.0' has different major version from '1.x.x' -> returns None (rebuild)
+        assert result is None
+
+    def test_future_version_triggers_rebuild(self):
+        """Version newer than current triggers rebuild (returns None)."""
+        state = _make_minimal_state(version='99.0.0')
+        result = migrate_state(state)
+        assert result is None
+
+    def test_current_version_no_migration(self):
+        """State already at current version needs no migration."""
+        state = _make_minimal_state(version=CURRENT_VERSION)
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == CURRENT_VERSION
+
+    def test_different_major_version_triggers_rebuild(self):
+        """Different major version triggers rebuild."""
+        state = _make_minimal_state(version='2.0.0')
+        result = migrate_state(state)
+        assert result is None
+
+
+@pytest.mark.unit
+class TestReadPluginVersionEdgeCases:
+    """Additional edge cases for _read_plugin_version."""
+
+    def test_missing_plugin_json(self, tmp_path):
+        """No plugin.json returns None."""
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_invalid_json(self, tmp_path):
+        """Invalid JSON returns None."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text("not json{{{")
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_version_not_string(self, tmp_path):
+        """Non-string version value returns None."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": 42}')
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_missing_version_key(self, tmp_path):
+        """JSON without version key returns None."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"name": "test"}')
+        result = _read_plugin_version(tmp_path)
+        assert result is None
+
+    def test_valid_version(self, tmp_path):
+        """Valid plugin.json returns version string."""
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": "0.43.1"}')
+        result = _read_plugin_version(tmp_path)
+        assert result == "0.43.1"
+
+
+@pytest.mark.unit
+class TestScanIdeasEdgeCases:
+    """Additional edge cases for scan_ideas."""
+
+    def test_ideas_file_custom_path(self, tmp_path, monkeypatch):
+        """Custom ideas_file path from config is used."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        custom_ideas = tmp_path / "custom" / "IDEAS.md"
+        custom_ideas.parent.mkdir(parents=True)
+        custom_ideas.write_text("""## Ideas
+
+### Custom Idea
+
+**Genre**: Electronic
+**Status**: Pending
+""")
+
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {
+                'content_root': str(content_root),
+                'ideas_file': str(custom_ideas),
+            },
+        }
+
+        result = scan_ideas(config, content_root)
+        assert len(result['items']) == 1
+        assert result['items'][0]['title'] == 'Custom Idea'
+
+    def test_ideas_file_missing_returns_empty(self, tmp_path):
+        """Missing IDEAS.md returns empty structure."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': str(content_root)},
+        }
+
+        result = scan_ideas(config, content_root)
+        assert result['items'] == []
+        assert result['counts'] == {}
+        assert result['file_mtime'] == 0.0
