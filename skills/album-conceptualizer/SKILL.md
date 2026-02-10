@@ -194,38 +194,80 @@ Balance heavy and light - serious → playful → serious creates palette cleans
 
 ---
 
-## Building the Album: Step-by-Step
+## Building the Album: The 7 Planning Phases
 
-### Phase 1: Foundation (Questions)
-1. **Type**: Documentary, narrative, thematic, character study, collection?
-2. **Scale**: EP (4-6), standard (8-12), double album (15+)?
-3. **Genre**: What sonic palette?
-4. **Theme/Story**: Central idea/event/character?
-5. **Audience**: Who is this for?
+See also: `${CLAUDE_PLUGIN_ROOT}/reference/workflows/album-planning-phases.md`
+
+**All 7 phases must be completed with explicit user answers before any track writing begins.**
+
+### Phase 1: Foundation
+
+1. **Artist**: Existing or new?
+2. **Genre**: What sonic palette? (Primary category: hip-hop, electronic, country, folk, rock)
+3. **Type**: Documentary, narrative, thematic, character study, collection?
+4. **Scale**: EP (4-6), standard (8-12), double album (15+)?
+5. **Theme/Story**: Central idea/event/character?
+6. **True-story?**: Determines research requirements (RESEARCH.md, SOURCES.md, source verification gate)
 
 ### Phase 2: Concept Deep Dive
+
 - **Documentary**: Research phase, key events, angle
 - **Narrative**: Character, plot, emotional arc
 - **Thematic**: Central theme, sub-themes, motifs
+- **All types**: Who are the key characters/subjects? What's the emotional core? Why this story?
 
-### Phase 3: Track Breakdown
+### Phase 3: Sonic Direction
+
+- What artists/albums inspire this sound?
+- Production style? (Dark/bright, minimal/dense, organic/synthetic)
+- Vocal approach? (Narrator, character voices, sung, rapped, mixed)
+- Instrumentation palette?
+- Mood/atmosphere?
+
+### Phase 4: Structure Planning
+
+**Track breakdown**:
 - How many tracks can tell this concept?
 - What does each track cover?
 - Working titles, core focus, connection to whole
 
-### Phase 4: Sequencing
+**Sequencing**:
 1. Lay out all tracks in rough order
-2. Check energy flow - map highs and lows
-3. Check thematic flow - does story/theme progress?
+2. Check energy flow — map highs and lows
+3. Check thematic flow — does story/theme progress?
 4. Identify opener and closer
 5. Place centerpiece (tracks 5-7)
 6. Adjust for pacing
 
-### Phase 5: Refinement
+**Refinement**:
 - Does every track earn its place?
 - Is anything redundant?
 - Are there gaps in the story/theme?
 - Does opener hook? Does closer satisfy?
+
+### Phase 5: Album Art
+
+Discuss visual concept early — actual generation happens later via `/bitwize-music:album-art-director`.
+
+- What imagery represents the album?
+- Color palette?
+- Mood/aesthetic?
+- Any symbolic elements?
+
+### Phase 6: Practical Details
+
+- Album title finalized?
+- Track titles finalized (or willing to adjust)?
+- Research needs identified? (Documentary albums: RESEARCH.md, SOURCES.md)
+- Explicit content expected?
+- Distributor genre categories?
+
+### Phase 7: Confirmation
+
+- Present complete plan to user
+- Get explicit go-ahead: **"Ready to start writing?"**
+- Document all answers in album README
+- **No track writing until user confirms**
 
 ---
 

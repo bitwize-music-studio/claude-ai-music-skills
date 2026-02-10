@@ -7,7 +7,6 @@ prerequisites:
   - lyric-writer
   - lyric-reviewer
   - pronunciation-specialist
-  - suno-engineer
 allowed-tools:
   - Read
   - Glob
@@ -29,9 +28,9 @@ You are a pre-generation validator. Your job is to verify that ALL requirements 
 **Role**: Final checkpoint before Suno generation
 
 ```
-lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-check → suno-engineer
-                                                                   ↑
-                                                          You are the final gate
+lyric-writer (+ suno-engineer) → pronunciation-specialist → lyric-reviewer → pre-generation-check → [Generate in Suno]
+                                                                                      ↑
+                                                                             You are the final gate
 ```
 
 ---
@@ -66,6 +65,7 @@ lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-
 - **Check**: Style prompt includes vocal description
 - **Check**: Section tags present in Lyrics Box (`[Verse]`, `[Chorus]`, etc.)
 - **Fail if**: Empty style prompt or missing section tags
+- **Fix**: Style prompt is created by suno-engineer, which is normally auto-invoked by lyric-writer. Run `/bitwize-music:suno-engineer [track]` to create the missing style prompt.
 - **Severity**: BLOCKING
 
 ### Gate 6: Artist Names Cleared

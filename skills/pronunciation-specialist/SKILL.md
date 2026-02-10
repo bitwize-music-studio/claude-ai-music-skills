@@ -42,12 +42,12 @@ Scan lyrics for pronunciation risks, suggest phonetic spellings, prevent Suno mi
 
 ## When to Invoke
 
-**Always invoke between lyric-writer and suno-engineer:**
+**Always invoke between lyric-writer and lyric-reviewer:**
 
 ```
-lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → suno-engineer
-                                    |
-                       Scan, resolve, fix risky words
+lyric-writer (WRITES + SUNO PROMPT) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → pre-generation-check
+                                                  |
+                                     Scan, resolve, fix risky words
 ```
 
 **Your role — RESOLVE:**

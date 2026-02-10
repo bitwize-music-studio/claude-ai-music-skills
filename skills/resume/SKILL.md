@@ -155,7 +155,7 @@ Album has tracks with "Sources Pending"
   → "Verify sources for [track]. Run /bitwize-music:verify-sources [album]"
 
 All tracks have lyrics, none generated
-  → "All lyrics complete! Run /bitwize-music:pre-generation-check then generate on Suno."
+  → "All lyrics complete! Style prompts should be ready. Run /bitwize-music:pronunciation-specialist to check for pronunciation risks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates before generating on Suno."
 
 Some tracks generated, some not
   → "Generate [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"

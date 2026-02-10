@@ -53,9 +53,9 @@ You are a dedicated QC specialist for lyrics review. Your job is to catch issues
 **Role**: Quality control gate between lyric-writer and suno-engineer
 
 ```
-lyric-writer (FLAGS) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → suno-engineer
-                                                                     ↑
-                                                            You are the QC gate
+lyric-writer (WRITES + SUNO PROMPT) → pronunciation-specialist (RESOLVES) → lyric-reviewer (VERIFIES) → pre-generation-check
+                                                                                    ↑
+                                                                           You are the QC gate
 ```
 
 **Homograph workflow**: The writer flags homographs, the pronunciation-specialist resolves them with user input, and you **verify** the resolutions were correctly applied. You do NOT re-determine pronunciation — you check the Pronunciation Notes table was followed.
@@ -265,10 +265,11 @@ Before marking "Ready for Suno":
 ## Integration Points
 
 ### Before This Skill
-- `lyric-writer` - creates/revises lyrics
+- `lyric-writer` - creates/revises lyrics and auto-invokes suno-engineer for style prompt
+- `pronunciation-specialist` - resolves pronunciation issues with phonetic fixes
 
 ### After This Skill
-- `suno-engineer` - generates with Suno
+- `pre-generation-check` - validates all gates before Suno generation
 
 ### Related Skills
 - `pronunciation-specialist` - deep pronunciation analysis

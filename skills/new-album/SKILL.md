@@ -121,12 +121,14 @@ To work on this album, just reference it by name.
 
 ```bash
 mkdir -p {album_path}/tracks
+mkdir -p {album_path}/promo
 ```
 
 This creates:
 ```
 {content_root}/artists/{artist}/albums/{genre}/{album-name}/
-└── tracks/
+├── tracks/
+└── promo/
 ```
 
 ## Step 7: Copy Templates
@@ -135,6 +137,7 @@ Copy templates from plugin directory:
 
 ```bash
 cp ${CLAUDE_PLUGIN_ROOT}/templates/album.md {album_path}/README.md
+cp ${CLAUDE_PLUGIN_ROOT}/templates/promo/*.md {album_path}/promo/
 ```
 
 For documentary/true-story albums (ask user):
@@ -153,11 +156,12 @@ Location: {album_path}
 Files created:
 - README.md (album template)
 - tracks/ (empty, ready for track files)
+- promo/ (social media copy templates)
 
 Next steps:
   Option 1 - Interactive (Recommended):
-    Tell me about your vision and I'll guide you through the 7 Planning Phases
-    to build your album concept together.
+    Run /bitwize-music:album-conceptualizer to design your album concept
+    through the 7 Planning Phases.
 
   Option 2 - Manual:
     1. Edit README.md with your album concept
@@ -217,8 +221,8 @@ Files created:
 
 Next steps:
   Option 1 - Interactive (Recommended):
-    Tell me about your vision and I'll guide you through the 7 Planning Phases
-    to build your album concept together.
+    Run /bitwize-music:album-conceptualizer to design your album concept
+    through the 7 Planning Phases.
 
   Option 2 - Manual:
     1. Edit README.md with your album concept

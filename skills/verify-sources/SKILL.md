@@ -119,8 +119,8 @@ Album: [title]
 Tracks verified: X/Y
 Date: YYYY-MM-DD
 
-All sources verified. This album is cleared for generation.
-Next step: /bitwize-music:pre-generation-check [album-name]
+All sources verified. This album is cleared for lyric writing.
+Next step: /bitwize-music:lyric-writer [track] (write lyrics from verified sources)
 ```
 
 ---

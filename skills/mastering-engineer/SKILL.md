@@ -4,7 +4,7 @@ description: Guides audio mastering for streaming platforms including loudness o
 argument-hint: <folder-path or "master for [platform]">
 model: claude-sonnet-4-5-20250929
 prerequisites:
-  - suno-engineer
+  - import-audio
 allowed-tools:
   - Read
   - Edit

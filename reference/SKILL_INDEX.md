@@ -34,7 +34,6 @@ Quick-reference guide for finding the right skill for any task.
 | ...run full QC before Suno generation | `/lyric-reviewer` |
 | ...run final pre-generation checkpoint | `/pre-generation-check` |
 | ...check if explicit flag is needed | `/explicit-checker` |
-| ...verify sources before generation | `/verify-sources <album-name>` |
 
 ### Suno Generation
 | I need to... | Use this skill |
@@ -56,6 +55,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...find subject's own words (tweets, blogs) | `/researchers-primary-source` |
 | ...find tech/security research | `/researchers-tech` or `/researchers-security` |
 | ...verify research quality | `/researchers-verifier` |
+| ...verify sources before writing | `/verify-sources <album-name>` |
 
 ### Production & Release
 | I need to... | Use this skill |
@@ -154,7 +154,7 @@ What to have ready before using each skill:
 | `/pronunciation-specialist` | Lyrics written |
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created |
-| `/suno-engineer` | Lyrics finalized, sources verified (if documentary) |
+| `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
 | `/mastering-engineer` | WAV files downloaded from Suno |
 | `/promo-director` | Mastered audio + album artwork |
 | `/cloud-uploader` | Promo videos generated |
@@ -172,11 +172,10 @@ What to have ready before using each skill:
 ```
 /new-album <name> <genre>
     -> /album-conceptualizer (plan concept, tracklist)
-    -> /lyric-writer (for each track)
+    -> /lyric-writer (for each track — auto-invokes /suno-engineer)
     -> /pronunciation-specialist (scan for risks)
     -> /lyric-reviewer (final QC)
     -> /pre-generation-check (validate all gates)
-    -> /suno-engineer (create prompts)
     -> [Generate in Suno]
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -191,10 +190,11 @@ What to have ready before using each skill:
         -> /researchers-legal, /researchers-gov, etc. (specialized research)
         -> /researchers-verifier (verify citations)
     -> /verify-sources (human source verification)
-    -> /lyric-writer (write lyrics from sources)
+    -> /lyric-writer (write lyrics from sources — auto-invokes /suno-engineer)
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
-    -> /suno-engineer -> [Generate] -> /mastering-engineer -> /release-director
+    -> /pre-generation-check (validate all gates)
+    -> [Generate in Suno] -> /mastering-engineer -> /release-director
 ```
 
 ### Resume Existing Work
@@ -229,6 +229,8 @@ Natural pairings that complement each other:
 | Primary Skill | Pairs Well With | Why |
 |---------------|-----------------|-----|
 | `/lyric-writer` | `/pronunciation-specialist` | Catch pronunciation issues immediately |
+| `/pronunciation-specialist` | `/lyric-reviewer` | Reviewer verifies pronunciation fixes applied correctly |
+| `/lyric-reviewer` | `/pre-generation-check` | Review must pass before generation gate |
 | `/researcher` | `/document-hunter` | Automate document acquisition |
 | `/suno-engineer` | `/clipboard` | Copy prompts directly to Suno |
 | `/mastering-engineer` | `/promo-director` | Promo videos need mastered audio |
@@ -245,9 +247,9 @@ Redundant or conflicting combinations:
 
 | Avoid Combining | Reason |
 |-----------------|--------|
-| `/lyric-writer` + `/lyric-reviewer` | Lyric-writer already includes quality checks |
+| `/lyric-writer` + `/lyric-reviewer` (simultaneously) | Run separately: writer first, reviewer after pronunciation pass |
 | Multiple researcher specialists at once | Use `/researcher` to coordinate them instead |
-| `/mastering-engineer` before `/suno-engineer` | Need to generate audio first |
+| `/mastering-engineer` before audio import | Need to generate on Suno and import audio first |
 | `/release-director` before `/mastering-engineer` | Audio must be mastered before release |
 | `/promo-director` before mastering | Promo videos need final mastered audio |
 
@@ -257,7 +259,7 @@ Redundant or conflicting combinations:
 
 Skills are assigned to models based on task complexity. See [model-strategy.md](model-strategy.md) for full rationale.
 
-### Opus 4.5 (Critical Creative Work — 6 skills)
+### Opus 4.6 (Critical Creative Work — 6 skills)
 - `/lyric-writer` - Core creative content
 - `/suno-engineer` - Music generation prompts
 - `/album-conceptualizer` - Album concept shapes everything downstream

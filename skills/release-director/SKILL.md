@@ -39,7 +39,7 @@ You orchestrate the complete album release workflow from "mastering complete" to
 
 **Not your role**: Mastering (mastering-engineer), promotion strategy, track creation (suno-engineer)
 
-**Workflow position**: mastering-engineer → **YOU** → promotion phase
+**Workflow position**: mastering-engineer → promo-director (optional) → **YOU** → post-release
 
 ---
 
@@ -156,6 +156,7 @@ Check for custom release preferences:
 6. **File Organization** - Correct structure, naming conventions
 7. **Documentation** - README complete, generation logs filled
 8. **Explicit Content** - Flagged correctly
+9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Run `/bitwize-music:promo-director` first if social media content is desired.
 
 **QA Gate**: All checks must pass before proceeding
 
@@ -167,6 +168,7 @@ Check for custom release preferences:
 3. **Album art** - Verified 3000x3000px, correct format
 4. **Track order confirmation** - Final sequencing verified
 5. **Genre classification** - distributor primary/secondary/subgenre
+6. **Social media copy** (optional) - `promo/` files populated for target platforms (via `/bitwize-music:promo-director`)
 
 ---
 
@@ -186,6 +188,7 @@ Check for custom release preferences:
 - [ ] **Documentation updated**
   - [ ] Release date added
   - [ ] Platform links added
+  - [ ] `promo/` copy updated with final streaming links
 
 ---
 
