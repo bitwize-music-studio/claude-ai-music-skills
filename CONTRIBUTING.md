@@ -152,6 +152,16 @@ Then create PR on GitHub and fill out the PR template.
 - [ ] CHANGELOG.md updated
 - [ ] Documentation updated
 - [ ] No breaking changes (unless MAJOR bump)
+- [ ] Migration note added if applicable (see below)
+
+#### When to Add a Migration Note
+
+If your PR introduces filesystem changes (new directories, moved files), dependency changes, template changes that affect existing albums, or config changes, add a migration file in `migrations/`:
+
+1. Create `migrations/<version>.md` (use the version this will ship in)
+2. Add YAML frontmatter with `version`, `summary`, `categories`, `actions`
+3. Add markdown body with context
+4. See `migrations/README.md` for format details and action types
 
 ### 8. Merge and Release
 

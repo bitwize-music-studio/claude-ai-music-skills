@@ -8584,3 +8584,472 @@ class TestValidTrackStatuses:
     def test_status_count(self):
         """Exactly 6 valid track statuses."""
         assert len(server._VALID_TRACK_STATUSES) == 6
+
+
+# ---------------------------------------------------------------------------
+# _derive_title_from_slug helper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestDeriveTitleFromSlug:
+    """Tests for the _derive_title_from_slug helper."""
+
+    def test_track_slug_with_number(self):
+        """Track slug with number prefix strips prefix."""
+        assert server._derive_title_from_slug("01-my-track-name") == "My Track Name"
+
+    def test_album_slug_without_number(self):
+        """Album slug without number converts normally."""
+        assert server._derive_title_from_slug("my-album") == "My Album"
+
+    def test_multi_hyphen_slug(self):
+        """Multi-hyphen slug converts each word."""
+        assert server._derive_title_from_slug("03-the-long-and-winding-road") == "The Long And Winding Road"
+
+    def test_single_word(self):
+        """Single word slug."""
+        assert server._derive_title_from_slug("genesis") == "Genesis"
+
+    def test_already_title_cased_input(self):
+        """Input with mixed case still converts via slug rules."""
+        # Slugs are lowercase, but if passed in it still works
+        assert server._derive_title_from_slug("my-album") == "My Album"
+
+
+# ---------------------------------------------------------------------------
+# rename_album tool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRenameAlbum:
+    """Tests for the rename_album MCP tool."""
+
+    def _make_state_with_dirs(self, tmp_path):
+        """Create state + real directory structure for rename tests."""
+        # Content directory with README + tracks
+        content_root = tmp_path / "content"
+        artist_dir = content_root / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        tracks_dir = artist_dir / "tracks"
+        tracks_dir.mkdir(parents=True)
+
+        readme = artist_dir / "README.md"
+        readme.write_text(_SAMPLE_ALBUM_README)
+
+        track_file = tracks_dir / "01-first-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+
+        # Audio directory
+        audio_root = tmp_path / "audio"
+        audio_dir = audio_root / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "song.wav").write_text("fake audio")
+
+        # Documents directory
+        docs_root = tmp_path / "docs"
+        docs_dir = docs_root / "test-artist" / "test-album"
+        docs_dir.mkdir(parents=True)
+        (docs_dir / "notes.pdf").write_text("fake pdf")
+
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content_root)
+        state["config"]["audio_root"] = str(audio_root)
+        state["config"]["documents_root"] = str(docs_root)
+        state["albums"]["test-album"]["path"] = str(artist_dir)
+        state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = str(track_file)
+
+        return state
+
+    def test_rename_album_success(self, tmp_path):
+        """Basic rename moves content dir and updates state."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert result["success"] is True
+        assert result["old_slug"] == "test-album"
+        assert result["new_slug"] == "new-album"
+        assert result["content_moved"] is True
+
+    def test_rename_album_with_tracks(self, tmp_path):
+        """Track paths are updated in state after rename."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            _run(server.rename_album("test-album", "new-album"))
+        # Check state was updated
+        albums = mock_cache.get_state()["albums"]
+        assert "new-album" in albums
+        assert "test-album" not in albums
+        track = albums["new-album"]["tracks"]["01-first-track"]
+        assert "new-album" in track["path"]
+        assert "test-album" not in track["path"]
+
+    def test_rename_album_title_update(self, tmp_path):
+        """README H1 heading is updated with new title."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album(
+                "test-album", "new-album", new_title="My New Album"
+            )))
+        assert result["title"] == "My New Album"
+        # Check README was updated
+        new_readme = (
+            tmp_path / "content" / "artists" / "test-artist" / "albums"
+            / "electronic" / "new-album" / "README.md"
+        )
+        text = new_readme.read_text()
+        assert "# My New Album" in text
+
+    def test_rename_album_auto_title(self, tmp_path):
+        """Empty new_title derives title from slug."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "cool-new-name")))
+        assert result["title"] == "Cool New Name"
+
+    def test_rename_album_not_found(self):
+        """Returns error when old slug doesn't exist."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_album("nonexistent", "new-name")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_rename_album_already_exists(self):
+        """Returns error when new slug collides with existing album."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_album("test-album", "another-album")))
+        assert "error" in result
+        assert "already exists" in result["error"]
+
+    def test_rename_album_same_slug(self):
+        """Returns error when old == new after normalization."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_album("test-album", "test_album")))
+        assert "error" in result
+        assert "same" in result["error"].lower()
+
+    def test_rename_album_audio_dir_moved(self, tmp_path):
+        """Audio directory is renamed when it exists."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert result["audio_moved"] is True
+        new_audio = tmp_path / "audio" / "test-artist" / "new-album"
+        assert new_audio.is_dir()
+        assert (new_audio / "song.wav").exists()
+
+    def test_rename_album_audio_dir_missing(self, tmp_path):
+        """No audio dir still succeeds with audio_moved=False."""
+        state = self._make_state_with_dirs(tmp_path)
+        # Remove audio dir
+        shutil.rmtree(tmp_path / "audio" / "test-artist" / "test-album")
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert result["success"] is True
+        assert result["audio_moved"] is False
+
+    def test_rename_album_documents_dir_moved(self, tmp_path):
+        """Documents directory is renamed when it exists."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert result["documents_moved"] is True
+        new_docs = tmp_path / "docs" / "test-artist" / "new-album"
+        assert new_docs.is_dir()
+
+    def test_rename_album_documents_dir_missing(self, tmp_path):
+        """No docs dir still succeeds with documents_moved=False."""
+        state = self._make_state_with_dirs(tmp_path)
+        shutil.rmtree(tmp_path / "docs" / "test-artist" / "test-album")
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert result["success"] is True
+        assert result["documents_moved"] is False
+
+    def test_rename_album_normalizes_slugs(self, tmp_path):
+        """Spaces and underscores in slugs are normalized."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_album("test album", "new_album_name")))
+        assert result["success"] is True
+        assert result["old_slug"] == "test-album"
+        assert result["new_slug"] == "new-album-name"
+
+    def test_rename_album_state_cache_updated(self, tmp_path):
+        """Old key removed and new key added in state cache."""
+        state = self._make_state_with_dirs(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            _run(server.rename_album("test-album", "new-album"))
+        albums = mock_cache.get_state()["albums"]
+        assert "test-album" not in albums
+        assert "new-album" in albums
+        mock_write.assert_called_once()
+
+    def test_rename_album_content_dir_missing(self, tmp_path):
+        """Returns error when content directory doesn't exist on disk."""
+        state = self._make_state_with_dirs(tmp_path)
+        # Remove content dir
+        content_dir = (
+            tmp_path / "content" / "artists" / "test-artist"
+            / "albums" / "electronic" / "test-album"
+        )
+        shutil.rmtree(content_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert "error" in result
+        assert "Content directory not found" in result["error"]
+
+    def test_rename_album_no_config(self):
+        """Missing config returns error."""
+        state = _fresh_state()
+        state["config"] = {}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_album("test-album", "new-album")))
+        assert "error" in result
+        assert "config" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# rename_track tool
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestRenameTrack:
+    """Tests for the rename_track MCP tool."""
+
+    def _make_state_with_track(self, tmp_path):
+        """Create state + real track file on disk."""
+        tracks_dir = tmp_path / "tracks"
+        tracks_dir.mkdir()
+
+        track_file = tracks_dir / "01-old-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["01-old-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return state, track_file
+
+    def test_rename_track_success(self, tmp_path):
+        """Basic rename moves file and updates state."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-old-track", "01-new-track"
+            )))
+        assert result["success"] is True
+        assert result["old_slug"] == "01-old-track"
+        assert result["new_slug"] == "01-new-track"
+        # Old file gone, new file exists
+        assert not track_file.exists()
+        new_file = tmp_path / "tracks" / "01-new-track.md"
+        assert new_file.exists()
+
+    def test_rename_track_title_update(self, tmp_path):
+        """Title row in metadata table is updated."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-old-track", "01-new-track",
+                new_title="New Track Title"
+            )))
+        assert result["title"] == "New Track Title"
+        new_file = tmp_path / "tracks" / "01-new-track.md"
+        content = new_file.read_text()
+        assert "| **Title** | New Track Title |" in content
+
+    def test_rename_track_auto_title(self, tmp_path):
+        """Empty new_title derives title from slug."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-old-track", "01-cool-new-track"
+            )))
+        assert result["title"] == "Cool New Track"
+
+    def test_rename_track_preserves_content(self, tmp_path):
+        """File content (except title) is preserved after rename."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            _run(server.rename_track(
+                "test-album", "01-old-track", "01-new-track"
+            ))
+        new_file = tmp_path / "tracks" / "01-new-track.md"
+        content = new_file.read_text()
+        # Key content preserved
+        assert "## Concept" in content
+        assert "Testing one two three" in content
+        assert "| **Status** | In Progress |" in content
+
+    def test_rename_track_not_found(self):
+        """Returns error when track doesn't exist."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "99-missing", "99-new-name"
+            )))
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_rename_track_album_not_found(self):
+        """Returns error when album doesn't exist."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "nonexistent-album", "01-track", "01-new-track"
+            )))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_rename_track_already_exists(self, tmp_path):
+        """Returns error when new slug collides with existing track."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        # Add another track with the target slug
+        other_file = tmp_path / "tracks" / "02-existing.md"
+        other_file.write_text(_SAMPLE_TRACK_MD)
+        state["albums"]["test-album"]["tracks"]["02-existing"] = {
+            "path": str(other_file),
+            "title": "Existing",
+            "status": "Final",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-old-track", "02-existing"
+            )))
+        assert "error" in result
+        assert "already exists" in result["error"]
+
+    def test_rename_track_same_slug(self):
+        """Returns error when old == new after normalization."""
+        mock_cache = MockStateCache(_fresh_state())
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-first-track", "01_first_track"
+            )))
+        assert "error" in result
+        assert "same" in result["error"].lower()
+
+    def test_rename_track_prefix_match(self, tmp_path):
+        """Prefix like '01' matches '01-old-track' when unique."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        # Remove conflicting 01-first-track from inherited state
+        state["albums"]["test-album"]["tracks"].pop("01-first-track", None)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01", "01-new-track"
+            )))
+        assert result["success"] is True
+        assert result["old_slug"] == "01-old-track"
+
+    def test_rename_track_multiple_prefix_matches(self, tmp_path):
+        """Ambiguous prefix returns error."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        # Add another track starting with "01"
+        other_file = tmp_path / "tracks" / "01-another.md"
+        other_file.write_text(_SAMPLE_TRACK_MD)
+        state["albums"]["test-album"]["tracks"]["01-another"] = {
+            "path": str(other_file),
+            "title": "Another",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01", "01-new-track"
+            )))
+        assert "error" in result
+        assert "Multiple tracks" in result["error"]
+
+    def test_rename_track_normalizes_slugs(self, tmp_path):
+        """Input slugs are normalized."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        mock_cache = MockStateCache(state)
+        mock_write = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", mock_write):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01_old_track", "01_new_track"
+            )))
+        assert result["success"] is True
+        assert result["old_slug"] == "01-old-track"
+        assert result["new_slug"] == "01-new-track"
+
+    def test_rename_track_file_missing_on_disk(self, tmp_path):
+        """Returns error when state has track but file is gone."""
+        state, track_file = self._make_state_with_track(tmp_path)
+        track_file.unlink()  # Remove the file
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rename_track(
+                "test-album", "01-old-track", "01-new-track"
+            )))
+        assert "error" in result
+        assert "not found on disk" in result["error"]

@@ -114,6 +114,24 @@ genres:
 
 ---
 
+## Path Resolution (REQUIRED)
+
+Before mastering, read config to resolve audio paths:
+
+1. Read `~/.bitwize-music/config.yaml`
+2. Extract `paths.audio_root` and `artist.name`
+3. Construct audio path: `{audio_root}/{artist}/{album}/`
+
+```bash
+cat ~/.bitwize-music/config.yaml
+```
+
+**Example**: If `audio_root: ~/bitwize-music/audio` and `artist.name: bitwize`, then the audio folder for "my-album" is `~/bitwize-music/audio/bitwize/my-album/`.
+
+**Do not** use placeholder paths or assume audio locations — always resolve from config.
+
+---
+
 ## Mastering Workflow
 
 ### Important: Script Location

@@ -72,6 +72,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...import audio files to album | `/import-audio` |
 | ...import track markdown files | `/import-track` |
 | ...place album art in correct locations | `/import-art` |
+| ...rename an album or track | `/rename <album\|track> <current> <new>` |
 
 ### Ideas & Planning
 | I need to... | Use this skill |
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
+| [`rename`](/skills/rename/SKILL.md) | Rename albums or tracks with path updates | Changing album/track names after creation |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
 | [`researcher`](/skills/researcher/SKILL.md) | Investigative-grade research and source verification | Coordinating research for true-story albums |
 | [`researchers-biographical`](/skills/researchers-biographical/SKILL.md) | Personal backgrounds, interviews, motivations | Finding humanizing details about subjects |
@@ -287,7 +289,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/sheet-music-publisher` - Transcription workflow
 - `/tutorial` - Interactive guided creation
 
-### Haiku 4.5 (Pattern Matching — 14 skills)
+### Haiku 4.5 (Pattern Matching — 15 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
@@ -298,6 +300,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/new-album` - Directory creation
 - `/next-step` - Workflow routing
 - `/pre-generation-check` - Gate validation
+- `/rename` - File/directory renaming
 - `/skill-model-updater` - Pattern replacement
 - `/test` - Run predefined checks
 - `/validate-album` - Structure validation

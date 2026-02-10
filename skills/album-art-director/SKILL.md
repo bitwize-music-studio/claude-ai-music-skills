@@ -1,6 +1,6 @@
 ---
 name: album-art-director
-description: Creates visual concepts for album artwork and generates AI art prompts. Use when all tracks are marked Final and album art needs to be created.
+description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation.
 argument-hint: <album-path or "create art concept for [album]">
 model: claude-sonnet-4-5-20250929
 allowed-tools:
