@@ -12,7 +12,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.45.0-blue)
+![Version](https://img.shields.io/badge/version-0.47.0-blue)
 ![Skills](https://img.shields.io/badge/skills-46-green)
 ![Tests](https://img.shields.io/badge/tests-1713-brightgreen)
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.47** | 9 processing MCP tools, Suno auto-fill clipboard + Tampermonkey script, album streaming block |
 | **0.45** | Promo reviewer skill for social media copy polish, cross-file count consistency fixes |
 | **0.43** | MCP server expanded to 30 tools, 160 integration tests, 843 total tests |
 | **0.39** | Setup skill with auto dependency detection, improved MCP error handling |

@@ -6,6 +6,22 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-02-11
+
+### Added
+- **9 processing MCP tools** — `analyze_audio`, `master_audio`, `fix_dynamic_track`, `master_with_reference`, `transcribe_audio`, `fix_sheet_music_titles`, `create_songbook`, `generate_promo_videos`, `generate_album_sampler` — wrap Python processing scripts for direct MCP invocation with lazy dep checking and structured JSON responses
+- **Suno auto-fill clipboard type** — `format_for_clipboard` now supports `"suno"` content type returning JSON with title, style, and lyrics for browser auto-fill
+- **Tampermonkey userscript** — `tools/userscripts/suno-autofill.user.js` auto-fills Suno's create page from clipboard JSON with adaptive field detection and React-compatible input simulation
+- **Album streaming block** — album template frontmatter now includes `streaming:` dict with soundcloud, spotify, apple_music, youtube_music, amazon_music keys for listen page generation
+
+### Fixed
+- **Pillow CVE-2026-25990** — bumped pillow 10.4.0 → 12.1.1
+- **CI lint/security scope** — ruff and bandit now scan `servers/` in addition to `tools/`
+- **Ruff warnings** — fixed pre-existing unused imports, variables, and f-string prefix issues in server.py
+
+### Removed
+- **Legacy URL fields** — removed `soundcloud_url` and `spotify_url` flat fields from album template (replaced by `streaming:` block)
+
 ## [0.46.0] - 2026-02-11
 
 ### Changed
