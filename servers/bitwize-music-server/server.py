@@ -38,6 +38,17 @@ Tools exposed:
     validate_album_structure - Structural validation of album directories
     create_album_structure - Create album directory with templates
     run_pre_generation_gates - Run all 6 pre-generation validation gates
+    list_skills         - List all skills with optional filtering
+    get_skill           - Get full detail for one skill (fuzzy match)
+    update_album_status - Update album status in README.md
+    create_track        - Create a new track file from template
+    get_promo_status    - Check promo/ directory file status
+    get_promo_content   - Read a specific promo file
+    get_plugin_version  - Get stored vs current plugin version
+    create_idea         - Add a new idea to IDEAS.md
+    update_idea         - Update a field in an existing idea
+    rename_album        - Rename album slug, title, and directories
+    rename_track        - Rename track slug, title, and file
 """
 import json
 import logging
@@ -101,11 +112,13 @@ from tools.state.indexer import (
     incremental_update,
     read_config,
     read_state,
+    scan_skills,
     write_state,
+    CURRENT_VERSION,
     STATE_FILE,
     CONFIG_FILE,
 )
-from tools.state.parsers import parse_track_file
+from tools.state.parsers import parse_album_readme, parse_track_file
 
 # Initialize FastMCP server
 mcp = FastMCP("bitwize-music-mcp")
@@ -142,7 +155,7 @@ class StateCache:
         # Preserve session from existing state
         existing = read_state()
         try:
-            state = build_state(config)
+            state = build_state(config, plugin_root=PLUGIN_ROOT)
         except Exception as e:
             logger.error("State build failed: %s", e)
             return {"error": f"State build failed: {e}"}
@@ -230,14 +243,47 @@ class StateCache:
         return False
 
     def _load_from_disk(self):
-        """Load state from disk into memory."""
+        """Load state from disk into memory.
+
+        If the on-disk state has a different schema version than the running
+        code, an inline rebuild is performed (preserving session data).  This
+        handles the upgrade path transparently — users with a v1.0.0 cache
+        get a full rebuild to v1.1.0 (with skills) on first MCP access.
+        """
         self._state = read_state()
         self._update_mtimes()
         if self._state is None:
             logger.warning("No state file found, will need rebuild")
         else:
-            album_count = len(self._state.get("albums", {}))
-            logger.debug("Loaded state from disk: %d albums", album_count)
+            version = self._state.get("version", "")
+            if version != CURRENT_VERSION:
+                logger.info(
+                    "State version %s != current %s, auto-rebuilding",
+                    version, CURRENT_VERSION,
+                )
+                config = read_config()
+                if config is not None:
+                    try:
+                        session = self._state.get("session", {})
+                        state = build_state(config, plugin_root=PLUGIN_ROOT)
+                        state["session"] = session
+                        write_state(state)
+                        self._state = state
+                        self._update_mtimes()
+                        logger.info(
+                            "Auto-rebuild complete (v%s -> v%s)",
+                            version, CURRENT_VERSION,
+                        )
+                    except Exception:
+                        logger.warning(
+                            "Auto-rebuild failed, using existing state",
+                            exc_info=True,
+                        )
+                else:
+                    logger.warning("Config not found, cannot auto-rebuild")
+            else:
+                album_count = len(self._state.get("albums", {}))
+                logger.debug("Loaded state from disk: %d albums", album_count)
 
     def _update_mtimes(self):
         """Update cached mtime values."""
@@ -524,12 +570,14 @@ async def rebuild_state() -> str:
         len(a.get("tracks", {})) for a in state.get("albums", {}).values()
     )
     ideas_count = len(state.get("ideas", {}).get("items", []))
+    skills_count = state.get("skills", {}).get("count", 0)
 
     return _safe_json({
         "success": True,
         "albums": album_count,
         "tracks": track_count,
         "ideas": ideas_count,
+        "skills": skills_count,
     })
 
 
@@ -577,11 +625,11 @@ async def get_ideas(status_filter: str = "") -> str:
 
 @mcp.tool()
 async def search(query: str, scope: str = "all") -> str:
-    """Full-text search across albums, tracks, and ideas.
+    """Full-text search across albums, tracks, ideas, and skills.
 
     Args:
         query: Search query (case-insensitive substring match)
-        scope: What to search - "albums", "tracks", "ideas", or "all" (default)
+        scope: What to search - "albums", "tracks", "ideas", "skills", or "all" (default)
 
     Returns:
         JSON with matching results grouped by type
@@ -630,6 +678,22 @@ async def search(query: str, scope: str = "all") -> str:
                     query_lower in genre.lower()):
                 idea_matches.append(idea)
         results["ideas"] = idea_matches
+
+    if scope in ("all", "skills"):
+        skill_matches = []
+        for name, skill in state.get("skills", {}).get("items", {}).items():
+            description = skill.get("description", "")
+            model_tier = skill.get("model_tier", "")
+            if (query_lower in name.lower() or
+                    query_lower in description.lower() or
+                    query_lower in model_tier.lower()):
+                skill_matches.append({
+                    "name": name,
+                    "description": description,
+                    "model_tier": model_tier,
+                    "user_invocable": skill.get("user_invocable", True),
+                })
+        results["skills"] = skill_matches
 
     total = sum(len(v) for k, v in results.items() if isinstance(v, list))
     results["total_matches"] = total
@@ -894,6 +958,9 @@ _SECTION_NAMES = {
     "production-notes": "Production Notes",
     "generation-log": "Generation Log",
     "phonetic-review": "Phonetic Review Checklist",
+    "mood": "Mood & Imagery",
+    "mood-imagery": "Mood & Imagery",
+    "lyrical-approach": "Lyrical Approach",
 }
 
 # Fields that can be updated in the track details table
@@ -1024,7 +1091,7 @@ async def extract_section(album_slug: str, track_slug: str, section: str) -> str
 
     track_path = track_data.get("path", "")
     if not track_path:
-        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+        return _safe_json({"found": False, "error": f"No path stored for track '{matched_slug}'"})
 
     # Read the file
     path = Path(track_path)
@@ -1058,10 +1125,6 @@ async def extract_section(album_slug: str, track_slug: str, section: str) -> str
     })
 
 
-# Pre-compiled pattern for table field updates
-_RE_TABLE_ROW = None  # built dynamically per field
-
-
 @mcp.tool()
 async def update_track_field(
     album_slug: str,
@@ -1078,7 +1141,7 @@ async def update_track_field(
         album_slug: Album slug (e.g., "my-album")
         track_slug: Track slug or number (e.g., "01-track-name" or "01")
         field: Field to update. Options:
-            "status" — Track status (Not Started, In Progress, Generated, Final)
+            "status" — Track status (Not Started, Sources Pending, Sources Verified, In Progress, Generated, Final)
             "explicit" — Explicit flag (Yes, No)
             "suno-link" or "suno_link" — Suno generation link
             "sources-verified" or "sources_verified" — Verification status
@@ -1095,6 +1158,16 @@ async def update_track_field(
     if not table_key:
         return _safe_json({
             "error": f"Unknown field '{field}'. Valid options: {', '.join(sorted(_UPDATABLE_FIELDS.keys()))}",
+        })
+
+    # Validate status value against allowed track statuses
+    if field_key == "status" and value.lower().strip() not in _VALID_TRACK_STATUSES:
+        return _safe_json({
+            "error": (
+                f"Invalid track status '{value}'. Valid options: "
+                "Not Started, Sources Pending, Sources Verified, "
+                "In Progress, Generated, Final"
+            ),
         })
 
     # Find track path via state cache
@@ -1133,7 +1206,7 @@ async def update_track_field(
 
     track_path = track_data.get("path", "")
     if not track_path:
-        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+        return _safe_json({"found": False, "error": f"No path stored for track '{matched_slug}'"})
 
     # Read the file
     path = Path(track_path)
@@ -1166,19 +1239,22 @@ async def update_track_field(
 
     logger.info("Updated %s.%s field '%s' to '%s'", normalized_album, matched_slug, table_key, value)
 
-    # Re-parse the track to get updated metadata
-    parsed = parse_track_file(path)
-
-    # Update state cache in memory
-    if matched_slug in tracks:
-        tracks[matched_slug].update({
-            "status": parsed.get("status", tracks[matched_slug].get("status")),
-            "explicit": parsed.get("explicit", tracks[matched_slug].get("explicit")),
-            "has_suno_link": parsed.get("has_suno_link", tracks[matched_slug].get("has_suno_link")),
-            "sources_verified": parsed.get("sources_verified", tracks[matched_slug].get("sources_verified")),
-            "mtime": path.stat().st_mtime,
-        })
-        write_state(state)
+    # Re-parse the track and update cache. If this fails, the file write
+    # already succeeded — log the error but still report success.
+    parsed = {}
+    try:
+        parsed = parse_track_file(path)
+        if matched_slug in tracks:
+            tracks[matched_slug].update({
+                "status": parsed.get("status", tracks[matched_slug].get("status")),
+                "explicit": parsed.get("explicit", tracks[matched_slug].get("explicit")),
+                "has_suno_link": parsed.get("has_suno_link", tracks[matched_slug].get("has_suno_link")),
+                "sources_verified": parsed.get("sources_verified", tracks[matched_slug].get("sources_verified")),
+                "mtime": path.stat().st_mtime,
+            })
+            write_state(state)
+    except Exception as e:
+        logger.warning("File written but cache update failed for %s.%s: %s", normalized_album, matched_slug, e)
 
     return _safe_json({
         "success": True,
@@ -1188,13 +1264,6 @@ async def update_track_field(
         "value": value,
         "track": parsed,
     })
-
-
-# Phase detection logic matching resume skill's decision tree
-_PHASE_RULES = [
-    # (condition_fn, phase_name)
-    # Evaluated top-to-bottom, first match wins
-]
 
 
 def _detect_phase(album: dict) -> str:
@@ -1229,7 +1298,7 @@ def _detect_phase(album: dict) -> str:
     if not_started > 0 or in_progress > 0:
         return "Writing"
     if generated == 0 and final == 0:
-        return "Ready to Generate"
+        return "Ready to Write"
     if generated > 0 and (generated + final) < total:
         return "Generating"
     if generated > 0 and final == 0:
@@ -1335,7 +1404,13 @@ async def load_override(override_name: str) -> str:
         content_root = config.get("content_root", "")
         overrides_dir = str(Path(content_root) / "overrides")
 
-    override_path = Path(overrides_dir) / override_name
+    override_path = (Path(overrides_dir) / override_name).resolve()
+    safe_root = Path(overrides_dir).resolve()
+    if not str(override_path).startswith(str(safe_root) + "/") and override_path != safe_root:
+        return _safe_json({
+            "error": f"Invalid override path: name must not escape overrides directory",
+            "override_name": override_name,
+        })
     if not override_path.exists():
         return _safe_json({
             "found": False,
@@ -1380,7 +1455,12 @@ async def get_reference(name: str, section: str = "") -> str:
     if not ref_name.endswith(".md"):
         ref_name += ".md"
 
-    ref_path = PLUGIN_ROOT / "reference" / ref_name
+    ref_path = (PLUGIN_ROOT / "reference" / ref_name).resolve()
+    safe_root = (PLUGIN_ROOT / "reference").resolve()
+    if not str(ref_path).startswith(str(safe_root) + "/") and ref_path != safe_root:
+        return _safe_json({
+            "error": f"Invalid reference path: name must not escape reference directory",
+        })
     if not ref_path.exists():
         return _safe_json({
             "error": f"Reference file not found: reference/{ref_name}",
@@ -1481,7 +1561,7 @@ async def format_for_clipboard(
 
     track_path = track_data.get("path", "")
     if not track_path:
-        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+        return _safe_json({"found": False, "error": f"No path stored for track '{matched_slug}'"})
 
     try:
         text = Path(track_path).read_text(encoding="utf-8")
@@ -1650,6 +1730,7 @@ async def check_homographs(text: str) -> str:
 
 # Artist blocklist cache — loaded lazily from reference file
 _artist_blocklist_cache: Optional[list] = None
+_artist_blocklist_patterns: Optional[dict] = None  # name -> compiled re.Pattern
 _artist_blocklist_lock = threading.Lock()
 
 
@@ -1658,7 +1739,7 @@ def _load_artist_blocklist() -> list:
 
     Returns a list of dicts: [{name: str, alternative: str, genre: str}]
     """
-    global _artist_blocklist_cache
+    global _artist_blocklist_cache, _artist_blocklist_patterns
     with _artist_blocklist_lock:
         if _artist_blocklist_cache is not None:
             return _artist_blocklist_cache
@@ -1669,6 +1750,7 @@ def _load_artist_blocklist() -> list:
         if not blocklist_path.exists():
             logger.warning("Artist blocklist not found at %s", blocklist_path)
             _artist_blocklist_cache = entries
+            _artist_blocklist_patterns = {}
             return entries
 
         try:
@@ -1676,6 +1758,7 @@ def _load_artist_blocklist() -> list:
         except (OSError, UnicodeDecodeError) as e:
             logger.error("Cannot read artist blocklist: %s", e)
             _artist_blocklist_cache = entries
+            _artist_blocklist_patterns = {}
             return entries
 
         current_genre = ""
@@ -1702,6 +1785,11 @@ def _load_artist_blocklist() -> list:
                         })
 
         _artist_blocklist_cache = entries
+        # Pre-compile patterns for each artist name
+        _artist_blocklist_patterns = {
+            entry["name"]: re.compile(r'\b' + re.escape(entry["name"]) + r'\b', re.IGNORECASE)
+            for entry in entries
+        }
         logger.info("Loaded artist blocklist: %d entries", len(entries))
         return entries
 
@@ -1723,14 +1811,12 @@ async def scan_artist_names(text: str) -> str:
         return _safe_json({"clean": True, "found": [], "count": 0})
 
     blocklist = _load_artist_blocklist()
-    text_lower = text.lower()
     found = []
 
     for entry in blocklist:
         name = entry["name"]
-        # Case-insensitive whole-word search
-        pattern = re.compile(r'\b' + re.escape(name) + r'\b', re.IGNORECASE)
-        if pattern.search(text_lower):
+        pattern = _artist_blocklist_patterns.get(name)
+        if pattern and pattern.search(text):
             found.append({
                 "name": name,
                 "alternative": entry["alternative"],
@@ -1797,7 +1883,7 @@ async def check_pronunciation_enforcement(
 
     track_path = track_data.get("path", "")
     if not track_path:
-        return _safe_json({"error": f"No path stored for track '{matched_slug}'"})
+        return _safe_json({"found": False, "error": f"No path stored for track '{matched_slug}'"})
 
     try:
         text = Path(track_path).read_text(encoding="utf-8")
@@ -1891,12 +1977,13 @@ _BASE_EXPLICIT_WORDS = {
 }
 
 _explicit_word_cache: Optional[set] = None
+_explicit_word_patterns: Optional[dict] = None  # word -> compiled re.Pattern
 _explicit_word_lock = threading.Lock()
 
 
 def _load_explicit_words() -> set:
     """Load the explicit word set, merging base list with user overrides."""
-    global _explicit_word_cache
+    global _explicit_word_cache, _explicit_word_patterns
     with _explicit_word_lock:
         if _explicit_word_cache is not None:
             return _explicit_word_cache
@@ -1934,10 +2021,15 @@ def _load_explicit_words() -> set:
                         if line.startswith("- ") and line[2:].strip():
                             word = line[2:].split("(")[0].strip().lower()
                             words.discard(word)
-        except Exception:
-            pass  # Fall back to base list
+        except (OSError, UnicodeDecodeError, KeyError, TypeError) as e:
+            logger.warning("Failed to load explicit word overrides: %s", e)
 
         _explicit_word_cache = words
+        # Pre-compile patterns for each word
+        _explicit_word_patterns = {
+            w: re.compile(r'\b' + re.escape(w) + r'\b', re.IGNORECASE)
+            for w in words
+        }
         return words
 
 
@@ -1961,22 +2053,16 @@ async def check_explicit_content(text: str) -> str:
             "has_explicit": False, "found": [], "total_count": 0, "unique_words": 0,
         })
 
-    words = _load_explicit_words()
+    _load_explicit_words()
 
-    # Build compiled patterns for each word
-    patterns = {
-        w: re.compile(r'\b' + re.escape(w) + r'\b', re.IGNORECASE)
-        for w in words
-    }
-
-    # Scan line by line
+    # Scan line by line using pre-compiled patterns
     hits: dict = {}  # word -> {count, lines: [{line, line_number}]}
     for line_num, line in enumerate(text.split("\n"), 1):
         stripped = line.strip()
         # Skip section tags
         if stripped.startswith("[") and stripped.endswith("]"):
             continue
-        for word, pattern in patterns.items():
+        for word, pattern in _explicit_word_patterns.items():
             matches = pattern.findall(line)
             if matches:
                 if word not in hits:
@@ -2357,7 +2443,8 @@ async def get_album_full(
         if sections and track.get("path"):
             try:
                 file_text = Path(track["path"]).read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning("Cannot read track file %s: %s", track["path"], e)
                 file_text = None
 
             if file_text:
@@ -2731,8 +2818,8 @@ async def run_pre_generation_gates(
         if track_path:
             try:
                 file_text = Path(track_path).read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                pass
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning("Cannot read track file for pre-gen gates %s: %s", track_path, e)
 
         # Gate 1: Sources Verified
         sources = t_data.get("sources_verified", "N/A")
@@ -2859,7 +2946,7 @@ async def run_pre_generation_gates(
         album_verdict = track_results[0]["verdict"]
     elif total_blocking == 0:
         album_verdict = "ALL READY"
-    elif total_blocking < sum(t["blocking"] for t in track_results):
+    elif any(t["blocking"] == 0 for t in track_results):
         album_verdict = "PARTIAL"
     else:
         album_verdict = "NOT READY"
@@ -2872,6 +2959,1011 @@ async def run_pre_generation_gates(
         "total_blocking": total_blocking,
         "total_warnings": total_warnings,
         "tracks": track_results,
+    })
+
+
+@mcp.tool()
+async def list_skills(model_filter: str = "", category: str = "") -> str:
+    """List all skills with optional filtering.
+
+    Args:
+        model_filter: Filter by model tier ("opus", "sonnet", "haiku")
+        category: Filter by keyword in description (case-insensitive substring match)
+
+    Returns:
+        JSON with skills list, count, and model_counts
+    """
+    state = cache.get_state()
+    skills = state.get("skills", {})
+    items = skills.get("items", {})
+
+    result_items = []
+    for name, skill in sorted(items.items()):
+        # Apply model filter
+        if model_filter:
+            if skill.get("model_tier", "").lower() != model_filter.lower():
+                continue
+
+        # Apply category/description filter
+        if category:
+            description = skill.get("description", "").lower()
+            if category.lower() not in description:
+                continue
+
+        result_items.append({
+            "name": name,
+            "description": skill.get("description", ""),
+            "model": skill.get("model", ""),
+            "model_tier": skill.get("model_tier", "unknown"),
+            "user_invocable": skill.get("user_invocable", True),
+            "argument_hint": skill.get("argument_hint"),
+        })
+
+    return _safe_json({
+        "skills": result_items,
+        "count": len(result_items),
+        "total": skills.get("count", 0),
+        "model_counts": skills.get("model_counts", {}),
+    })
+
+
+@mcp.tool()
+async def get_skill(name: str) -> str:
+    """Get full detail for a specific skill.
+
+    Args:
+        name: Skill name, slug, or partial match (e.g., "lyric-writer", "lyric")
+
+    Returns:
+        JSON with skill data, or error with available skills
+    """
+    state = cache.get_state()
+    skills = state.get("skills", {})
+    items = skills.get("items", {})
+
+    if not items:
+        return _safe_json({
+            "found": False,
+            "error": "No skills in state cache. Run rebuild_state first.",
+        })
+
+    normalized = _normalize_slug(name)
+
+    # Exact match first
+    if normalized in items:
+        return _safe_json({
+            "found": True,
+            "name": normalized,
+            "skill": items[normalized],
+        })
+
+    # Fuzzy match: substring match on skill names
+    matches = {
+        skill_name: data
+        for skill_name, data in items.items()
+        if normalized in skill_name or skill_name in normalized
+    }
+
+    if len(matches) == 1:
+        skill_name = next(iter(matches))
+        return _safe_json({
+            "found": True,
+            "name": skill_name,
+            "skill": matches[skill_name],
+        })
+    elif len(matches) > 1:
+        return _safe_json({
+            "found": False,
+            "multiple_matches": list(matches.keys()),
+            "error": f"Multiple skills match '{name}': {', '.join(matches.keys())}",
+        })
+    else:
+        return _safe_json({
+            "found": False,
+            "available_skills": sorted(items.keys()),
+            "error": f"No skill found matching '{name}'",
+        })
+
+
+# =============================================================================
+# Album Status & Track Creation Tools
+# =============================================================================
+
+# Valid album statuses (from CLAUDE.md workflow)
+_VALID_ALBUM_STATUSES = {
+    "concept", "research complete", "sources verified",
+    "in progress", "complete", "released",
+}
+
+# Valid track statuses (from CLAUDE.md workflow / state-schema.md)
+_VALID_TRACK_STATUSES = {
+    "not started", "sources pending", "sources verified",
+    "in progress", "generated", "final",
+}
+
+# Expected promo files (from templates/promo/)
+_PROMO_FILES = [
+    "campaign.md", "twitter.md", "instagram.md",
+    "tiktok.md", "facebook.md", "youtube.md",
+]
+
+
+def _find_album_or_error(album_slug: str) -> tuple:
+    """Find album in state cache, return (normalized_slug, album_data, error_json).
+
+    If album found: (slug, data, None)
+    If not found: (slug, None, error_json_string)
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized = _normalize_slug(album_slug)
+    album = albums.get(normalized)
+
+    if not album:
+        return normalized, None, _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    return normalized, album, None
+
+
+@mcp.tool()
+async def update_album_status(album_slug: str, status: str) -> str:
+    """Update an album's status in its README.md file.
+
+    Modifies the album details table (| **Status** | Value |) and updates
+    the state cache to reflect the change.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        status: New status. Valid options:
+            "Concept", "Research Complete", "Sources Verified",
+            "In Progress", "Complete", "Released"
+
+    Returns:
+        JSON with update result or error
+    """
+    # Validate status
+    if status.lower().strip() not in _VALID_ALBUM_STATUSES:
+        return _safe_json({
+            "error": (
+                f"Invalid status '{status}'. Valid options: "
+                "Concept, Research Complete, Sources Verified, "
+                "In Progress, Complete, Released"
+            ),
+        })
+
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    album_path = album.get("path", "")
+    if not album_path:
+        return _safe_json({"error": f"No path stored for album '{normalized}'"})
+
+    readme_path = Path(album_path) / "README.md"
+    if not readme_path.exists():
+        return _safe_json({"error": f"README.md not found at {readme_path}"})
+
+    # Read file
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read README.md: {e}"})
+
+    # Find and replace the Status row
+    pattern = re.compile(
+        r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
+        re.MULTILINE,
+    )
+    match = pattern.search(text)
+    if not match:
+        return _safe_json({"error": "Status field not found in album README.md table"})
+
+    old_status = album.get("status", "Unknown")
+    new_row = f"{match.group(1)} {status} |"
+    updated_text = text[:match.start()] + new_row + text[match.end():]
+
+    # Write back
+    try:
+        readme_path.write_text(updated_text, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write README.md: {e}"})
+
+    logger.info("Updated album '%s' status to '%s'", normalized, status)
+
+    # Update cache
+    try:
+        parsed = parse_album_readme(readme_path)
+        album["status"] = parsed.get("status", status)
+        state = cache.get_state()
+        write_state(state)
+    except Exception as e:
+        logger.warning("File written but cache update failed for album %s: %s", normalized, e)
+
+    return _safe_json({
+        "success": True,
+        "album_slug": normalized,
+        "old_status": old_status,
+        "new_status": status,
+    })
+
+
+@mcp.tool()
+async def create_track(
+    album_slug: str,
+    track_number: str,
+    title: str,
+    documentary: bool = False,
+) -> str:
+    """Create a new track file in an album from the track template.
+
+    Copies the track template, fills in track number and title placeholders,
+    and optionally keeps documentary sections (Source, Original Quote).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_number: Two-digit track number (e.g., "01", "02")
+        title: Track title (e.g., "My New Track")
+        documentary: Keep source/quote sections (default: strip them)
+
+    Returns:
+        JSON with created file path or error
+    """
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    album_path = album.get("path", "")
+    if not album_path:
+        return _safe_json({"error": f"No path stored for album '{normalized}'"})
+
+    tracks_dir = Path(album_path) / "tracks"
+    if not tracks_dir.is_dir():
+        return _safe_json({"error": f"tracks/ directory not found in {album_path}"})
+
+    # Normalize track number to zero-padded two digits
+    num = track_number.strip().lstrip("0") or "0"
+    padded = num.zfill(2)
+
+    # Build slug from number and title
+    title_slug = _normalize_slug(title)
+    filename = f"{padded}-{title_slug}.md"
+    track_path = tracks_dir / filename
+
+    if track_path.exists():
+        return _safe_json({
+            "created": False,
+            "error": f"Track file already exists: {track_path}",
+            "path": str(track_path),
+        })
+
+    # Read template
+    template_path = PLUGIN_ROOT / "templates" / "track.md"
+    if not template_path.exists():
+        return _safe_json({"error": f"Track template not found at {template_path}"})
+
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read track template: {e}"})
+
+    # Fill in placeholders
+    album_title = album.get("title", normalized)
+    content = template.replace("[Track Title]", title)
+    content = content.replace("| **Track #** | XX |", f"| **Track #** | {padded} |")
+    content = content.replace("[Album Name](../README.md)", f"[{album_title}](../README.md)")
+    content = content.replace("[Character/Perspective]", "—")
+    content = content.replace("[Track's role in the album narrative]", "—")
+
+    # Fill frontmatter placeholders
+    content = content.replace("track_number: 0", f"track_number: {int(padded)}")
+    content = content.replace(
+        "explicit: false",
+        f"explicit: {'true' if album.get('explicit', False) else 'false'}",
+    )
+
+    # Strip documentary sections if not needed
+    if not documentary:
+        # Remove from <!-- SOURCE-BASED TRACKS --> to <!-- END SOURCE SECTIONS -->
+        source_start = content.find("<!-- SOURCE-BASED TRACKS")
+        source_end = content.find("<!-- END SOURCE SECTIONS -->")
+        if source_start != -1 and source_end != -1:
+            content = content[:source_start] + content[source_end + len("<!-- END SOURCE SECTIONS -->"):]
+
+        # Remove Documentary/True Story sections
+        doc_start = content.find("<!-- DOCUMENTARY/TRUE STORY")
+        doc_end = content.find("<!-- END DOCUMENTARY SECTIONS -->")
+        if doc_start != -1 and doc_end != -1:
+            content = content[:doc_start] + content[doc_end + len("<!-- END DOCUMENTARY SECTIONS -->"):]
+
+    # Write file
+    try:
+        track_path.write_text(content, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write track file: {e}"})
+
+    logger.info("Created track %s in album '%s'", filename, normalized)
+
+    return _safe_json({
+        "created": True,
+        "path": str(track_path),
+        "album_slug": normalized,
+        "track_slug": f"{padded}-{title_slug}",
+        "filename": filename,
+    })
+
+
+# =============================================================================
+# Promo Directory Tools
+# =============================================================================
+
+
+@mcp.tool()
+async def get_promo_status(album_slug: str) -> str:
+    """Get the status of promo/ directory files for an album.
+
+    Checks which promo files exist and whether they have content beyond
+    the template placeholder text.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with promo directory status and per-file details
+    """
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    album_path = album.get("path", "")
+    if not album_path:
+        return _safe_json({"error": f"No path stored for album '{normalized}'"})
+
+    promo_dir = Path(album_path) / "promo"
+    if not promo_dir.is_dir():
+        return _safe_json({
+            "found": True,
+            "album_slug": normalized,
+            "promo_exists": False,
+            "files": [],
+            "populated": 0,
+            "total": len(_PROMO_FILES),
+        })
+
+    files = []
+    populated = 0
+    for fname in _PROMO_FILES:
+        fpath = promo_dir / fname
+        if not fpath.exists():
+            files.append({"file": fname, "exists": False, "populated": False, "word_count": 0})
+            continue
+
+        try:
+            text = fpath.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            files.append({"file": fname, "exists": True, "populated": False, "word_count": 0})
+            continue
+
+        # Count non-template words (skip lines that are template placeholders)
+        words = 0
+        for line in text.split("\n"):
+            stripped = line.strip()
+            # Skip headings, table formatting, empty lines, and common placeholders
+            if (not stripped or stripped.startswith("#") or stripped.startswith("|")
+                    or stripped.startswith("---") or stripped.startswith("```")):
+                continue
+            # Skip lines that are clearly template placeholders
+            if stripped.startswith("[") and stripped.endswith("]"):
+                continue
+            words += len(stripped.split())
+
+        # Consider "populated" if there are meaningful words beyond basic structure
+        is_populated = words > 20
+        if is_populated:
+            populated += 1
+
+        files.append({
+            "file": fname,
+            "exists": True,
+            "populated": is_populated,
+            "word_count": words,
+        })
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "promo_exists": True,
+        "files": files,
+        "populated": populated,
+        "total": len(_PROMO_FILES),
+        "ready": populated == len(_PROMO_FILES),
+    })
+
+
+@mcp.tool()
+async def get_promo_content(album_slug: str, platform: str) -> str:
+    """Read the content of a specific promo file for an album.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        platform: Platform name — one of: campaign, twitter, instagram,
+                  tiktok, facebook, youtube
+
+    Returns:
+        JSON with file content or error
+    """
+    # Validate platform
+    platform_key = platform.lower().strip()
+    filename = f"{platform_key}.md"
+    if filename not in _PROMO_FILES:
+        return _safe_json({
+            "error": f"Unknown platform '{platform}'. Valid options: "
+                     + ", ".join(f.replace(".md", "") for f in _PROMO_FILES),
+        })
+
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    album_path = album.get("path", "")
+    if not album_path:
+        return _safe_json({"error": f"No path stored for album '{normalized}'"})
+
+    promo_path = Path(album_path) / "promo" / filename
+    if not promo_path.exists():
+        return _safe_json({
+            "found": False,
+            "error": f"Promo file not found: {promo_path}",
+            "album_slug": normalized,
+            "platform": platform_key,
+        })
+
+    try:
+        content = promo_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read promo file: {e}"})
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "platform": platform_key,
+        "path": str(promo_path),
+        "content": content,
+    })
+
+
+# =============================================================================
+# Plugin Version Tool
+# =============================================================================
+
+
+@mcp.tool()
+async def get_plugin_version() -> str:
+    """Get the current and stored plugin version.
+
+    Compares the plugin version stored in state.json with the current
+    version from .claude-plugin/plugin.json. Useful for upgrade detection.
+
+    Returns:
+        JSON with stored_version, current_version, and needs_upgrade flag
+    """
+    state = cache.get_state()
+    stored = state.get("plugin_version")
+
+    # Read current version from plugin.json
+    plugin_json = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+    current = None
+    try:
+        if plugin_json.exists():
+            data = json.loads(plugin_json.read_text(encoding="utf-8"))
+            current = data.get("version")
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Cannot read plugin.json: %s", e)
+
+    needs_upgrade = False
+    if stored is None and current is not None:
+        needs_upgrade = True  # First run
+    elif stored and current and stored != current:
+        needs_upgrade = True
+
+    return _safe_json({
+        "stored_version": stored,
+        "current_version": current,
+        "needs_upgrade": needs_upgrade,
+        "plugin_root": str(PLUGIN_ROOT),
+    })
+
+
+# =============================================================================
+# Idea Management Tools
+# =============================================================================
+
+
+def _resolve_ideas_path() -> Optional[Path]:
+    """Resolve the path to IDEAS.md using config."""
+    state = cache.get_state()
+    config = state.get("config", {})
+    content_root = config.get("content_root", "")
+    if not content_root:
+        return None
+    return Path(content_root) / "IDEAS.md"
+
+
+@mcp.tool()
+async def create_idea(
+    title: str,
+    genre: str = "",
+    idea_type: str = "",
+    concept: str = "",
+) -> str:
+    """Add a new album idea to IDEAS.md.
+
+    Appends a new idea entry using the standard format. Creates IDEAS.md
+    from template if it doesn't exist.
+
+    Args:
+        title: Idea title (e.g., "Cyberpunk Dreams")
+        genre: Target genre (e.g., "electronic", "hip-hop")
+        idea_type: Idea type (e.g., "Documentary", "Thematic", "Narrative")
+        concept: One-sentence concept pitch
+
+    Returns:
+        JSON with success or error
+    """
+    if not title.strip():
+        return _safe_json({"error": "Title cannot be empty"})
+
+    ideas_path = _resolve_ideas_path()
+    if not ideas_path:
+        return _safe_json({"error": "Cannot resolve IDEAS.md path (no content_root in config)"})
+
+    # Read existing content or start from scratch
+    if ideas_path.exists():
+        try:
+            text = ideas_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            return _safe_json({"error": f"Cannot read IDEAS.md: {e}"})
+    else:
+        text = "# Album Ideas\n\n---\n\n## Ideas\n"
+
+    # Check for duplicate title
+    if f"### {title.strip()}\n" in text:
+        return _safe_json({
+            "created": False,
+            "error": f"Idea '{title.strip()}' already exists in IDEAS.md",
+        })
+
+    # Build the new idea block
+    lines = [f"\n### {title.strip()}\n"]
+    if genre:
+        lines.append(f"**Genre**: {genre}")
+    if idea_type:
+        lines.append(f"**Type**: {idea_type}")
+    if concept:
+        lines.append(f"**Concept**: {concept}")
+    lines.append("**Status**: Pending\n")
+    new_block = "\n".join(lines)
+
+    # Append to file
+    updated = text.rstrip() + "\n" + new_block
+
+    try:
+        ideas_path.parent.mkdir(parents=True, exist_ok=True)
+        ideas_path.write_text(updated, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write IDEAS.md: {e}"})
+
+    logger.info("Created idea '%s' in IDEAS.md", title.strip())
+
+    # Rebuild ideas in cache
+    try:
+        cache.rebuild()
+    except Exception as e:
+        logger.warning("Idea created but cache rebuild failed: %s", e)
+
+    return _safe_json({
+        "created": True,
+        "title": title.strip(),
+        "genre": genre,
+        "type": idea_type,
+        "status": "Pending",
+        "path": str(ideas_path),
+    })
+
+
+@mcp.tool()
+async def update_idea(title: str, field: str, value: str) -> str:
+    """Update a field in an existing idea in IDEAS.md.
+
+    Args:
+        title: Exact idea title to find (e.g., "Cyberpunk Dreams")
+        field: Field to update — "status", "genre", "type", or "concept"
+        value: New value for the field
+
+    Returns:
+        JSON with success or error
+    """
+    valid_fields = {"status", "genre", "type", "concept"}
+    field_key = field.lower().strip()
+    if field_key not in valid_fields:
+        return _safe_json({
+            "error": f"Unknown field '{field}'. Valid options: {', '.join(sorted(valid_fields))}",
+        })
+
+    # Map field key to bold label used in IDEAS.md
+    field_labels = {
+        "status": "Status",
+        "genre": "Genre",
+        "type": "Type",
+        "concept": "Concept",
+    }
+    label = field_labels[field_key]
+
+    ideas_path = _resolve_ideas_path()
+    if not ideas_path:
+        return _safe_json({"error": "Cannot resolve IDEAS.md path (no content_root in config)"})
+
+    if not ideas_path.exists():
+        return _safe_json({"error": "IDEAS.md not found"})
+
+    try:
+        text = ideas_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read IDEAS.md: {e}"})
+
+    # Find the idea section by title
+    title_pattern = re.compile(r'^###\s+' + re.escape(title.strip()) + r'\s*$', re.MULTILINE)
+    title_match = title_pattern.search(text)
+    if not title_match:
+        return _safe_json({
+            "found": False,
+            "error": f"Idea '{title.strip()}' not found in IDEAS.md",
+        })
+
+    # Find the field within this idea's section (between this ### and next ###)
+    section_start = title_match.end()
+    next_section = re.search(r'^###\s+', text[section_start:], re.MULTILINE)
+    section_end = section_start + next_section.start() if next_section else len(text)
+    section_text = text[section_start:section_end]
+
+    field_pattern = re.compile(
+        r'^(\*\*' + re.escape(label) + r'\*\*\s*:\s*)(.+)$',
+        re.MULTILINE,
+    )
+    field_match = field_pattern.search(section_text)
+    if not field_match:
+        return _safe_json({
+            "error": f"Field '{label}' not found in idea '{title.strip()}'",
+        })
+
+    # Replace the field value
+    old_value = field_match.group(2).strip()
+    abs_start = section_start + field_match.start()
+    abs_end = section_start + field_match.end()
+    new_line = f"{field_match.group(1)}{value}"
+    updated_text = text[:abs_start] + new_line + text[abs_end:]
+
+    try:
+        ideas_path.write_text(updated_text, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write IDEAS.md: {e}"})
+
+    logger.info("Updated idea '%s' field '%s' to '%s'", title.strip(), label, value)
+
+    # Rebuild ideas in cache
+    try:
+        cache.rebuild()
+    except Exception as e:
+        logger.warning("Idea updated but cache rebuild failed: %s", e)
+
+    return _safe_json({
+        "success": True,
+        "title": title.strip(),
+        "field": label,
+        "old_value": old_value,
+        "new_value": value,
+    })
+
+
+def _derive_title_from_slug(slug: str) -> str:
+    """Derive a display title from a slug.
+
+    Strips leading track number prefix (e.g., "01-") and converts hyphens
+    to spaces with title case.
+
+    Examples:
+        "01-my-track-name" → "My Track Name"
+        "my-album"         → "My Album"
+    """
+    import re as _re
+    # Strip leading track number prefix like "01-", "02-"
+    stripped = _re.sub(r'^\d+-', '', slug)
+    return stripped.replace('-', ' ').title()
+
+
+@mcp.tool()
+async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str:
+    """Rename album slug, title, and directories.
+
+    Renames the album across all mirrored path trees (content, audio,
+    documents), updates the README.md title, and refreshes the state cache.
+
+    Args:
+        old_slug: Current album slug (e.g., "old-album-name")
+        new_slug: New album slug (e.g., "new-album-name")
+        new_title: New display title (if empty, derived from new_slug via title case)
+
+    Returns:
+        JSON with rename result or error
+    """
+    normalized_old = _normalize_slug(old_slug)
+    normalized_new = _normalize_slug(new_slug)
+
+    if normalized_old == normalized_new:
+        return _safe_json({"error": "Old and new slugs are the same after normalization."})
+
+    # Get state and validate old album exists
+    state = cache.get_state()
+    albums = state.get("albums", {})
+
+    if normalized_old not in albums:
+        return _safe_json({
+            "error": f"Album '{old_slug}' not found.",
+            "available_albums": list(albums.keys()),
+        })
+
+    if normalized_new in albums:
+        return _safe_json({
+            "error": f"Album '{new_slug}' already exists.",
+        })
+
+    album = albums[normalized_old]
+
+    # Get config for path resolution
+    config = state.get("config", {})
+    if not config:
+        return _safe_json({"error": "No config in state. Run rebuild_state first."})
+
+    content_root = config.get("content_root", "")
+    audio_root = config.get("audio_root", "")
+    documents_root = config.get("documents_root", "")
+    artist = config.get("artist_name", "")
+    genre = album.get("genre", "")
+
+    if not artist:
+        return _safe_json({"error": "No artist_name in config."})
+
+    # Resolve paths
+    content_dir_old = Path(content_root) / "artists" / artist / "albums" / genre / normalized_old
+    content_dir_new = Path(content_root) / "artists" / artist / "albums" / genre / normalized_new
+    audio_dir_old = Path(audio_root) / artist / normalized_old
+    audio_dir_new = Path(audio_root) / artist / normalized_new
+    docs_dir_old = Path(documents_root) / artist / normalized_old
+    docs_dir_new = Path(documents_root) / artist / normalized_new
+
+    # Content directory MUST exist
+    if not content_dir_old.is_dir():
+        return _safe_json({
+            "error": f"Content directory not found: {content_dir_old}",
+        })
+
+    # Derive title
+    title = new_title.strip() if new_title else _derive_title_from_slug(normalized_new)
+
+    # Rename content directory
+    content_moved = False
+    audio_moved = False
+    documents_moved = False
+
+    try:
+        shutil.move(str(content_dir_old), str(content_dir_new))
+        content_moved = True
+    except OSError as e:
+        return _safe_json({
+            "error": f"Failed to rename content directory: {e}",
+            "content_moved": False,
+            "audio_moved": False,
+            "documents_moved": False,
+        })
+
+    # Rename audio directory if it exists
+    if audio_dir_old.is_dir():
+        try:
+            shutil.move(str(audio_dir_old), str(audio_dir_new))
+            audio_moved = True
+        except OSError as e:
+            logger.warning("Content dir renamed but audio dir failed: %s", e)
+
+    # Rename documents directory if it exists
+    if docs_dir_old.is_dir():
+        try:
+            shutil.move(str(docs_dir_old), str(docs_dir_new))
+            documents_moved = True
+        except OSError as e:
+            logger.warning("Content dir renamed but documents dir failed: %s", e)
+
+    # Update README.md title (H1 heading) if it exists
+    readme_path = content_dir_new / "README.md"
+    if readme_path.exists():
+        try:
+            text = readme_path.read_text(encoding="utf-8")
+            heading_pattern = re.compile(r'^#\s+(.+)$', re.MULTILINE)
+            match = heading_pattern.search(text)
+            if match:
+                updated_text = text[:match.start()] + f"# {title}" + text[match.end():]
+                readme_path.write_text(updated_text, encoding="utf-8")
+        except OSError as e:
+            logger.warning("Directories moved but README title update failed: %s", e)
+
+    # Update state cache
+    tracks_updated = 0
+    try:
+        album_data = albums.pop(normalized_old)
+        album_data["path"] = str(content_dir_new)
+        album_data["title"] = title
+
+        # Update track paths
+        for track_slug, track_data in album_data.get("tracks", {}).items():
+            old_track_path = track_data.get("path", "")
+            if old_track_path:
+                track_data["path"] = old_track_path.replace(
+                    str(content_dir_old), str(content_dir_new)
+                )
+                tracks_updated += 1
+
+        albums[normalized_new] = album_data
+        write_state(state)
+    except Exception as e:
+        logger.warning("Directories moved but cache update failed: %s", e)
+
+    logger.info("Renamed album '%s' to '%s'", normalized_old, normalized_new)
+
+    return _safe_json({
+        "success": True,
+        "old_slug": normalized_old,
+        "new_slug": normalized_new,
+        "title": title,
+        "content_moved": content_moved,
+        "audio_moved": audio_moved,
+        "documents_moved": documents_moved,
+        "tracks_updated": tracks_updated,
+    })
+
+
+@mcp.tool()
+async def rename_track(
+    album_slug: str,
+    old_track_slug: str,
+    new_track_slug: str,
+    new_title: str = "",
+) -> str:
+    """Rename track slug, title, and file.
+
+    Renames the track markdown file, updates the title in the metadata table,
+    and refreshes the state cache.
+
+    Args:
+        album_slug: Album containing the track (e.g., "my-album")
+        old_track_slug: Current track slug or prefix (e.g., "01-old-name" or "01")
+        new_track_slug: New track slug (e.g., "01-new-name")
+        new_title: New display title (if empty, derived from new_slug)
+
+    Returns:
+        JSON with rename result or error
+    """
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    tracks = album.get("tracks", {})
+    normalized_old = _normalize_slug(old_track_slug)
+    normalized_new = _normalize_slug(new_track_slug)
+
+    if normalized_old == normalized_new:
+        return _safe_json({"error": "Old and new track slugs are the same after normalization."})
+
+    # Find old track (exact or prefix match)
+    track_data = tracks.get(normalized_old)
+    matched_slug = normalized_old
+    if not track_data:
+        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_old)}
+        if len(prefix_matches) == 1:
+            matched_slug = next(iter(prefix_matches))
+            track_data = prefix_matches[matched_slug]
+        elif len(prefix_matches) > 1:
+            return _safe_json({
+                "error": f"Multiple tracks match '{old_track_slug}': {', '.join(prefix_matches.keys())}",
+            })
+        else:
+            return _safe_json({
+                "error": f"Track '{old_track_slug}' not found in album '{album_slug}'.",
+                "available_tracks": list(tracks.keys()),
+            })
+
+    # Check new slug doesn't already exist
+    if normalized_new in tracks:
+        return _safe_json({
+            "error": f"Track '{new_track_slug}' already exists in album '{album_slug}'.",
+        })
+
+    old_path = Path(track_data.get("path", ""))
+    if not old_path.exists():
+        return _safe_json({
+            "error": f"Track file not found on disk: {old_path}",
+        })
+
+    # Build new path
+    new_path = old_path.parent / f"{normalized_new}.md"
+
+    # Derive title
+    title = new_title.strip() if new_title else _derive_title_from_slug(normalized_new)
+
+    # Rename file
+    try:
+        shutil.move(str(old_path), str(new_path))
+    except OSError as e:
+        return _safe_json({"error": f"Failed to rename track file: {e}"})
+
+    # Update title in metadata table
+    try:
+        text = new_path.read_text(encoding="utf-8")
+        title_pattern = re.compile(
+            r'^(\|\s*\*\*Title\*\*\s*\|)\s*.*?\s*\|',
+            re.MULTILINE,
+        )
+        match = title_pattern.search(text)
+        if match:
+            new_row = f"{match.group(1)} {title} |"
+            updated_text = text[:match.start()] + new_row + text[match.end():]
+            # Also update H1 heading if present
+            heading_pattern = re.compile(r'^#\s+(.+)$', re.MULTILINE)
+            h1_match = heading_pattern.search(updated_text)
+            if h1_match:
+                updated_text = updated_text[:h1_match.start()] + f"# {title}" + updated_text[h1_match.end():]
+            new_path.write_text(updated_text, encoding="utf-8")
+        else:
+            logger.warning("Title field not found in track metadata table for %s", matched_slug)
+    except OSError as e:
+        logger.warning("File renamed but title update failed: %s", e)
+
+    # Update state cache
+    try:
+        state = cache.get_state()
+        albums = state.get("albums", {})
+        album_tracks = albums[normalized_album].get("tracks", {})
+        old_track_data = album_tracks.pop(matched_slug)
+        old_track_data["path"] = str(new_path)
+        old_track_data["title"] = title
+        # Re-parse the track for fresh metadata
+        try:
+            parsed = parse_track_file(new_path)
+            old_track_data.update({
+                "status": parsed.get("status", old_track_data.get("status")),
+                "explicit": parsed.get("explicit", old_track_data.get("explicit")),
+                "has_suno_link": parsed.get("has_suno_link", old_track_data.get("has_suno_link")),
+                "sources_verified": parsed.get("sources_verified", old_track_data.get("sources_verified")),
+                "mtime": new_path.stat().st_mtime,
+            })
+        except Exception:
+            pass
+        album_tracks[normalized_new] = old_track_data
+        write_state(state)
+    except Exception as e:
+        logger.warning("File renamed but cache update failed: %s", e)
+
+    logger.info("Renamed track '%s' to '%s' in album '%s'", matched_slug, normalized_new, normalized_album)
+
+    return _safe_json({
+        "success": True,
+        "album_slug": normalized_album,
+        "old_slug": matched_slug,
+        "new_slug": normalized_new,
+        "title": title,
+        "old_path": str(old_path),
+        "new_path": str(new_path),
     })
 
 

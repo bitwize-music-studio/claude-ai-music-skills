@@ -4,7 +4,7 @@ description: Guides audio mastering for streaming platforms including loudness o
 argument-hint: <folder-path or "master for [platform]">
 model: claude-sonnet-4-5-20250929
 prerequisites:
-  - suno-engineer
+  - import-audio
 allowed-tools:
   - Read
   - Edit
@@ -111,6 +111,24 @@ genres:
 - Mastering "dark-electronic" genre
 - Override has custom preset
 - Result: Apply -3 highmid cut, +2 sub boost, target -12 LUFS
+
+---
+
+## Path Resolution (REQUIRED)
+
+Before mastering, read config to resolve audio paths:
+
+1. Read `~/.bitwize-music/config.yaml`
+2. Extract `paths.audio_root` and `artist.name`
+3. Construct audio path: `{audio_root}/{artist}/{album}/`
+
+```bash
+cat ~/.bitwize-music/config.yaml
+```
+
+**Example**: If `audio_root: ~/bitwize-music/audio` and `artist.name: bitwize`, then the audio folder for "my-album" is `~/bitwize-music/audio/bitwize/my-album/`.
+
+**Do not** use placeholder paths or assume audio locations — always resolve from config.
 
 ---
 

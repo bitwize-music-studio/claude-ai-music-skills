@@ -11,7 +11,7 @@ Track and album statuses indicate workflow progress.
 | `Not Started` | Concept only |
 | `Sources Pending` | Has sources, awaiting human verification |
 | `Sources Verified` | Ready for production |
-| `In Progress` | Currently generating |
+| `In Progress` | Lyrics being written or revised |
 | `Generated` | Has acceptable output |
 | `Final` | Complete, locked |
 
@@ -62,7 +62,7 @@ Every track file includes a generation log table:
 1. **Track status changes require action**:
    - `Not Started` → `Sources Pending`: After adding sources
    - `Sources Pending` → `Sources Verified`: After human verification
-   - `Sources Verified` → `In Progress`: When starting generation
+   - `Sources Verified` → `In Progress`: When starting lyrics writing
    - `In Progress` → `Generated`: When keeper found
    - `Generated` → `Final`: After user approval
 

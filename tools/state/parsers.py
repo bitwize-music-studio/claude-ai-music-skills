@@ -60,7 +60,10 @@ def parse_frontmatter(text: str) -> Dict[str, Any]:
         return {'_error': 'PyYAML not installed'}
 
     try:
-        return yaml.safe_load(frontmatter_text) or {}
+        result = yaml.safe_load(frontmatter_text) or {}
+        if not isinstance(result, dict):
+            return {'_error': f'Frontmatter is not a mapping (got {type(result).__name__})'}
+        return result
     except yaml.YAMLError as e:
         return {'_error': f'Invalid YAML: {e}'}
 
@@ -177,7 +180,7 @@ def parse_album_readme(path: Path) -> Dict[str, Any]:
     tracklist = _parse_tracklist_table(text)
     result['tracklist'] = tracklist
 
-    completed_statuses = {'Final', 'Generated', 'Complete'}
+    completed_statuses = {'Final', 'Generated'}
     result['tracks_completed'] = sum(
         1 for t in tracklist if t.get('status') in completed_statuses
     )
@@ -243,8 +246,6 @@ def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
 
         # Split into columns
         cols = [c.strip() for c in line.split('|')]
-        # Leading/trailing splits produce empty strings: ['', col1, col2, ..., '']
-        cols = [c for c in cols if c or c == '']
         # Remove empty strings from split edges
         if cols and cols[0] == '':
             cols = cols[1:]
@@ -301,20 +302,30 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
 
     result: Dict[str, Any] = {}
 
-    # Title from table or heading
+    # Parse frontmatter (optional — older files may not have it)
+    fm = parse_frontmatter(text)
+    if '_error' in fm:
+        result['_warning'] = fm['_error']
+        fm = {}
+
+    # Title: table → frontmatter → heading
     table_title = _extract_table_value(text, 'Title')
     if table_title and not table_title.startswith('['):
         result['title'] = table_title
+    elif fm.get('title') and fm['title'] not in ('[Track Title]', ''):
+        result['title'] = str(fm['title']).strip('"').strip("'")
     else:
         result['title'] = _extract_heading(text)
 
     # Status
     result['status'] = _normalize_status(_extract_table_value(text, 'Status'))
 
-    # Explicit
+    # Explicit: table → frontmatter → False
     explicit_raw = _extract_table_value(text, 'Explicit')
     if explicit_raw:
         result['explicit'] = explicit_raw.lower().strip() in ('yes', 'true')
+    elif 'explicit' in fm:
+        result['explicit'] = bool(fm['explicit'])
     else:
         result['explicit'] = False
 
@@ -324,6 +335,11 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
         result['has_suno_link'] = True
     else:
         result['has_suno_link'] = False
+
+    # Suno URL from frontmatter (not in table)
+    fm_suno_url = fm.get('suno_url', '')
+    if fm_suno_url and str(fm_suno_url).strip():
+        result['suno_url'] = str(fm_suno_url).strip()
 
     # Sources Verified
     sources_raw = _extract_table_value(text, 'Sources Verified')
@@ -335,7 +351,12 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
             # Check pending BEFORE verified so "pending verification" doesn't match "verified"
             result['sources_verified'] = 'Pending'
         elif '✅' in sources_raw or raw_lower == 'verified' or raw_lower.startswith('verified'):
-            result['sources_verified'] = 'Verified'
+            # Preserve verification date if present (e.g., "✅ Verified (2025-01-15)")
+            date_match = re.search(r'\((\d{4}-\d{2}-\d{2})\)', sources_raw)
+            if date_match:
+                result['sources_verified'] = f'Verified ({date_match.group(1)})'
+            else:
+                result['sources_verified'] = 'Verified'
         else:
             result['sources_verified'] = sources_raw
     else:
@@ -428,3 +449,95 @@ def _extract_bold_field(text: str, key: str) -> Optional[str]:
     if match:
         return match.group(1).strip()
     return None
+
+
+# =============================================================================
+# Skill file parsing
+# =============================================================================
+
+# Known model tier keywords in order of precedence
+_MODEL_TIER_KEYWORDS = ['opus', 'sonnet', 'haiku']
+
+
+def _derive_model_tier(model: str) -> str:
+    """Derive model tier (opus/sonnet/haiku) from a model ID string.
+
+    Args:
+        model: Model identifier (e.g., "claude-opus-4-6", "claude-sonnet-4-5-20250929")
+
+    Returns:
+        Lowercase tier string ("opus", "sonnet", "haiku") or "unknown".
+    """
+    if not model or not isinstance(model, str):
+        return 'unknown'
+    lower = model.lower()
+    for tier in _MODEL_TIER_KEYWORDS:
+        if tier in lower:
+            return tier
+    return 'unknown'
+
+
+def parse_skill_file(path: Path) -> Dict[str, Any]:
+    """Parse a SKILL.md file into structured metadata.
+
+    Extracts YAML frontmatter and normalizes field names (hyphens to
+    underscores). Validates that required fields (name, description, model)
+    are present.
+
+    Args:
+        path: Path to SKILL.md file.
+
+    Returns:
+        Dict with skill metadata. On error, includes '_error' key.
+        Fields returned:
+            name, description, model, model_tier, argument_hint,
+            allowed_tools, prerequisites, requirements, user_invocable,
+            context, path, mtime
+    """
+    try:
+        text = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError) as e:
+        return {'_error': f'Cannot read file: {e}'}
+
+    fm = parse_frontmatter(text)
+    if '_error' in fm:
+        return {'_error': fm['_error']}
+    if not fm:
+        return {'_error': 'No frontmatter found'}
+
+    # Normalize hyphenated keys to underscores
+    normalized: Dict[str, Any] = {}
+    for key, value in fm.items():
+        normalized[key.replace('-', '_')] = value
+
+    # Validate required fields
+    missing = []
+    for field in ('name', 'description'):
+        if not normalized.get(field):
+            missing.append(field)
+    if missing:
+        return {'_error': f"Missing required fields: {', '.join(missing)}"}
+
+    # Extract model (default to empty string if missing)
+    model = normalized.get('model', '')
+
+    # Build result
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+
+    return {
+        'name': normalized['name'],
+        'description': normalized['description'],
+        'model': model,
+        'model_tier': _derive_model_tier(model),
+        'argument_hint': normalized.get('argument_hint'),
+        'allowed_tools': normalized.get('allowed_tools', []),
+        'prerequisites': normalized.get('prerequisites', []),
+        'requirements': normalized.get('requirements', {}),
+        'user_invocable': normalized.get('user_invocable', True),
+        'context': normalized.get('context'),
+        'path': str(path),
+        'mtime': mtime,
+    }

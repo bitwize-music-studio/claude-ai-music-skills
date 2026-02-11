@@ -45,6 +45,24 @@ First-time setup: `cp config/config.example.yaml ~/.bitwize-music/config.yaml` �
 
 ---
 
+## MCP Server — Preferred Data Access
+
+The `bitwize-music-mcp` server is the **preferred way to query project state**. Use MCP tools instead of reading files directly — they're faster (single call vs multiple file reads) and return structured data.
+
+**Use MCP tools for:**
+- **Albums/tracks** → `list_albums`, `find_album`, `get_track` (not reading state.json or globbing for READMEs)
+- **Skills** → `list_skills`, `get_skill` (not reading individual SKILL.md files)
+- **Ideas** → `get_ideas` (not reading IDEAS.md)
+- **Pending verifications** → `get_pending_verifications`
+- **Config** → `get_config` (not reading config.yaml for simple lookups)
+- **Session context** → `get_session`, `update_session`
+- **Cross-scope search** → `search`
+- **Stale cache** → `rebuild_state`
+
+**Fall back to direct file access only when:** MCP server is unavailable, you need to edit files (MCP is read-only), or you need raw file content not exposed through MCP (e.g., full lyrics, research docs).
+
+---
+
 ## Session Start
 
 At the beginning of a fresh session:
@@ -61,14 +79,23 @@ At the beginning of a fresh session:
    - `{overrides}/CLAUDE.md` → incorporate instructions
    - `{overrides}/pronunciation-guide.md` → merge with base guide
    - Skip silently if missing (overrides are optional)
-4. **Load state cache** — Read `~/.bitwize-music/cache/state.json`:
-   - Missing/corrupted/schema mismatch/config changed → `python3 {plugin_root}/tools/state/indexer.py rebuild`
+4. **Load state via MCP** — Use MCP tools to query project state:
+   - `get_config` → verify config is loaded
+   - `list_albums` → get album statuses
+   - `get_ideas` → get idea counts
+   - `get_pending_verifications` → check for pending source verifications
+   - `get_session` → resume last session context
+   - If MCP returns errors about missing/stale cache → `rebuild_state` or `python3 {plugin_root}/tools/state/indexer.py rebuild`
+4.5. **Check for plugin upgrades** — Compare `plugin_version` in state.json vs `.claude-plugin/plugin.json`:
+   - If `plugin_version` is null → first run, set to current version, skip migrations
+   - If stored < current → read `{plugin_root}/migrations/*.md` for applicable versions, process actions
+   - If versions match → no action
 5. **Check skill models** — Run `/bitwize-music:skill-model-updater check`
-6. **Report from state cache**:
-   - Album ideas (from `state.ideas.counts`)
+6. **Report from MCP state**:
+   - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
-   - Pending source verifications (`sources_verified: "Pending"`)
-   - Last session context (from `state.session`)
+   - Pending source verifications (from `get_pending_verifications`)
+   - Last session context (from `get_session`)
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`
@@ -90,7 +117,7 @@ At the beginning of a fresh session:
 
 **Pronunciation hard rule**: Suno CANNOT infer pronunciation from context. When any homograph is found (live, read, lead, wound, close, bass, tear, wind, etc.), **ASK** the user which pronunciation is intended — never assume. Fix with phonetic spelling in Suno lyrics only. See `/skills/lyric-writer/SKILL.md` and `/reference/suno/pronunciation-guide.md` for full rules.
 
-**After writing or revising lyrics**, run the 12-point quality checklist from `/skills/lyric-writer/SKILL.md`. Report violations without being asked.
+**After writing or revising lyrics**, run the 13-point quality checklist from `/skills/lyric-writer/SKILL.md`. Report violations without being asked.
 
 **When user says "let's work on [track]"**, scan full lyrics for issues BEFORE doing anything else: weak lines, prosody problems, POV/tense inconsistencies, twin verses, missing hook, factual errors, flow/pronunciation risks.
 
@@ -98,7 +125,7 @@ At the beginning of a fresh session:
 
 ## Workflow Overview
 
-Concept → Research → Write → Generate → Master → Promo Videos (optional) → **Release**
+Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → Master → Promo Videos (optional) → **Release**
 
 **Critical**: Research must complete before writing for source-based content. Human source verification is required before generation — never skip this gate.
 
@@ -106,15 +133,16 @@ Concept → Research → Write → Generate → Master → Promo Videos (optiona
 
 - **Album mentioned** → `/bitwize-music:resume`
 - **"Make a new album"** → IMMEDIATELY use `/bitwize-music:new-album` BEFORE any discussion
-- **Writing lyrics** → apply `/bitwize-music:lyric-writer` expertise
+- **Writing lyrics** → apply `/bitwize-music:lyric-writer` expertise (auto-invokes suno-engineer)
 - **Planning album** → apply `/bitwize-music:album-conceptualizer` (7 planning phases required)
-- **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise
+- **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Mastering audio** → apply `/bitwize-music:mastering-engineer` standards
 - **Album art** → apply `/bitwize-music:album-art-director`
 - **Releasing** → apply `/bitwize-music:release-director`
 
 - **Verifying sources** → `/bitwize-music:verify-sources` (human verification gate)
+- **"What skills do X?"** → `list_skills` / `get_skill` MCP tools (not reading SKILL.md files)
 
 Skills contain the deep expertise. See `/reference/SKILL_INDEX.md` for the full decision tree.
 
@@ -159,7 +187,27 @@ Albums: `{content_root}/artists/[artist]/albums/[genre]/[album]/`
 Templates: `{plugin_root}/templates/` — use for all new content
 Research staging: `{content_root}/research/` (move to album directory once album exists)
 
+**Album directory layout:**
+```
+{album}/
+├── README.md
+├── SOURCES.md        # (documentary albums)
+├── RESEARCH.md       # (documentary albums)
+├── tracks/
+│   ├── 01-track-name.md
+│   └── ...
+└── promo/            # Social media copy
+    ├── campaign.md
+    ├── twitter.md
+    ├── instagram.md
+    ├── tiktok.md
+    ├── facebook.md
+    └── youtube.md
+```
+
 Track files: zero-padded (`01-`, `02-`). Import with `/bitwize-music:import-track`, `/bitwize-music:import-audio`.
+
+`promo_videos/` in `{audio_root}` holds video files (unchanged). `promo/` in album directory holds social media copy (text).
 
 Currently supports **Suno** (default). Service-specific template sections marked with `<!-- SERVICE: suno -->`.
 

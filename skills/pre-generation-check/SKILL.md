@@ -7,7 +7,6 @@ prerequisites:
   - lyric-writer
   - lyric-reviewer
   - pronunciation-specialist
-  - suno-engineer
 allowed-tools:
   - Read
   - Glob
@@ -29,9 +28,9 @@ You are a pre-generation validator. Your job is to verify that ALL requirements 
 **Role**: Final checkpoint before Suno generation
 
 ```
-lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-check → suno-engineer
-                                                                   ↑
-                                                          You are the final gate
+lyric-writer (+ suno-engineer) → pronunciation-specialist → lyric-reviewer → pre-generation-check → [Generate in Suno]
+                                                                                      ↑
+                                                                             You are the final gate
 ```
 
 ---
@@ -41,6 +40,7 @@ lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-
 ### Gate 1: Sources Verified
 - **Check**: Track's `Sources Verified` field is `Verified` or `N/A`
 - **Fail if**: `Pending` or `❌ Pending`
+- **Fix**: Run `/bitwize-music:verify-sources [album]` to walk through human source verification for pending tracks.
 - **Severity**: BLOCKING — Never generate with unverified sources
 - **Skip if**: Track is not source-based (N/A is acceptable)
 
@@ -48,12 +48,14 @@ lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-
 - **Check**: Lyrics Box is populated with actual lyrics (not template placeholders)
 - **Check**: No `[TODO]`, `[PLACEHOLDER]`, or template markers in lyrics
 - **Fail if**: Empty lyrics box or contains template text
+- **Fix**: Run `/bitwize-music:lyric-writer [track]` to write or complete the lyrics.
 - **Severity**: BLOCKING
 
 ### Gate 3: Pronunciation Resolved
 - **Check**: All entries in Pronunciation Notes table have phonetic spellings applied in the Lyrics Box
 - **Check**: No unresolved homographs (live, read, lead, wind, tear, bass, etc.)
 - **Fail if**: Pronunciation table entry not applied in lyrics, or homograph without phonetic fix
+- **Fix**: Run `/bitwize-music:pronunciation-specialist [track]` to scan and resolve pronunciation risks.
 - **Severity**: BLOCKING — Suno cannot infer pronunciation from context
 
 ### Gate 4: Explicit Flag Set
@@ -61,17 +63,19 @@ lyric-writer → pronunciation-specialist → lyric-reviewer → pre-generation-
 - **Fail if**: Explicit field is missing, empty, or template placeholder
 - **Severity**: WARNING — Can proceed but should be set for distribution metadata
 
-### Gate 5: Style Prompt Complete
-- **Check**: Suno Inputs section has a non-empty Style Prompt
-- **Check**: Style prompt includes vocal description
+### Gate 5: Style Box Complete
+- **Check**: Suno Inputs section has a non-empty Style Box (the `### Style Box` heading in the track template)
+- **Check**: Style Box includes vocal description
 - **Check**: Section tags present in Lyrics Box (`[Verse]`, `[Chorus]`, etc.)
-- **Fail if**: Empty style prompt or missing section tags
+- **Fail if**: Empty Style Box or missing section tags
+- **Fix**: Style Box is created by suno-engineer, which is normally auto-invoked by lyric-writer. Run `/bitwize-music:suno-engineer [track]` to create the missing Style Box.
 - **Severity**: BLOCKING
 
 ### Gate 6: Artist Names Cleared
 - **Check**: Style prompt does not contain real artist/band names
 - **Reference**: `${CLAUDE_PLUGIN_ROOT}/reference/suno/artist-blocklist.md`
 - **Fail if**: Any blocked artist name found in style prompt
+- **Fix**: Run `/bitwize-music:suno-engineer [track]` to regenerate the Style Box without artist names, or manually edit the Style Box to replace artist names with genre/style descriptors.
 - **Severity**: BLOCKING — Suno filters/blocks artist names
 
 ---

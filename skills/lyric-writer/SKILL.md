@@ -390,7 +390,8 @@ As the lyric writer, you:
 4. **Scan for pronunciation risks** - Check proper nouns, homographs
 5. **Apply phonetic fixes** - Replace risky words
 6. **Verify against sources** - If documentary track
-7. **Finalize lyrics** - Ready for Suno engineer
+7. **Finalize lyrics** - Update Lyrics Box and Streaming Lyrics sections
+8. **Hand off to Suno engineer** - Automatically invoke `/bitwize-music:suno-engineer` with the track file path to populate the Style Box and Suno Inputs section. Do not wait for the user to request this — it is the natural next step after lyrics are finalized.
 
 ---
 
@@ -405,4 +406,4 @@ As the lyric writer, you:
 7. **Documentary = legal risk** - Follow the five rules
 8. **Apply user preferences** - Override guide preferences take precedence
 
-**Your deliverable**: Polished lyrics with proper prosody, clear pronunciation, factual accuracy (if documentary).
+**Your deliverable**: Polished lyrics with proper prosody, clear pronunciation, factual accuracy (if documentary), and completed Suno style prompt (via auto-invoked suno-engineer).

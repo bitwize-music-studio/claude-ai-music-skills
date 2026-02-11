@@ -1,6 +1,6 @@
 ---
 name: album-art-director
-description: Creates visual concepts for album artwork and generates AI art prompts. Use when all tracks are marked Final and album art needs to be created.
+description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation.
 argument-hint: <album-path or "create art concept for [album]">
 model: claude-sonnet-4-5-20250929
 allowed-tools:
@@ -279,5 +279,16 @@ As the album art director, you:
 7. **Genre informs but doesn't dictate** - Honor or subvert expectations intentionally
 8. **Concept drives visual** - Art serves the music and theme
 9. **Specs matter** - 3000x3000px minimum, square, RGB
+
+## Integration Points
+
+### Before This Skill
+- `album-conceptualizer` - provides visual concept direction during planning
+- All tracks should be `Final` before generating actual artwork
+
+### After This Skill
+- `import-art` - places generated artwork in correct album directories
+- `promo-director` - needs album art for promo video generation
+- `release-director` - requires artwork for distribution
 
 **Your deliverable**: Album art concept + AI generation prompt ready for production + iteration strategy if needed.

@@ -34,7 +34,6 @@ Quick-reference guide for finding the right skill for any task.
 | ...run full QC before Suno generation | `/lyric-reviewer` |
 | ...run final pre-generation checkpoint | `/pre-generation-check` |
 | ...check if explicit flag is needed | `/explicit-checker` |
-| ...verify sources before generation | `/verify-sources <album-name>` |
 
 ### Suno Generation
 | I need to... | Use this skill |
@@ -56,6 +55,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...find subject's own words (tweets, blogs) | `/researchers-primary-source` |
 | ...find tech/security research | `/researchers-tech` or `/researchers-security` |
 | ...verify research quality | `/researchers-verifier` |
+| ...verify sources before writing | `/verify-sources <album-name>` |
 
 ### Production & Release
 | I need to... | Use this skill |
@@ -72,6 +72,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...import audio files to album | `/import-audio` |
 | ...import track markdown files | `/import-track` |
 | ...place album art in correct locations | `/import-art` |
+| ...rename an album or track | `/rename <album\|track> <current> <new>` |
 
 ### Ideas & Planning
 | I need to... | Use this skill |
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
+| [`rename`](/skills/rename/SKILL.md) | Rename albums or tracks with path updates | Changing album/track names after creation |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
 | [`researcher`](/skills/researcher/SKILL.md) | Investigative-grade research and source verification | Coordinating research for true-story albums |
 | [`researchers-biographical`](/skills/researchers-biographical/SKILL.md) | Personal backgrounds, interviews, motivations | Finding humanizing details about subjects |
@@ -154,7 +156,7 @@ What to have ready before using each skill:
 | `/pronunciation-specialist` | Lyrics written |
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created |
-| `/suno-engineer` | Lyrics finalized, sources verified (if documentary) |
+| `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
 | `/mastering-engineer` | WAV files downloaded from Suno |
 | `/promo-director` | Mastered audio + album artwork |
 | `/cloud-uploader` | Promo videos generated |
@@ -172,11 +174,10 @@ What to have ready before using each skill:
 ```
 /new-album <name> <genre>
     -> /album-conceptualizer (plan concept, tracklist)
-    -> /lyric-writer (for each track)
+    -> /lyric-writer (for each track — auto-invokes /suno-engineer)
     -> /pronunciation-specialist (scan for risks)
     -> /lyric-reviewer (final QC)
     -> /pre-generation-check (validate all gates)
-    -> /suno-engineer (create prompts)
     -> [Generate in Suno]
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -191,10 +192,11 @@ What to have ready before using each skill:
         -> /researchers-legal, /researchers-gov, etc. (specialized research)
         -> /researchers-verifier (verify citations)
     -> /verify-sources (human source verification)
-    -> /lyric-writer (write lyrics from sources)
+    -> /lyric-writer (write lyrics from sources — auto-invokes /suno-engineer)
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
-    -> /suno-engineer -> [Generate] -> /mastering-engineer -> /release-director
+    -> /pre-generation-check (validate all gates)
+    -> [Generate in Suno] -> /mastering-engineer -> /release-director
 ```
 
 ### Resume Existing Work
@@ -229,6 +231,8 @@ Natural pairings that complement each other:
 | Primary Skill | Pairs Well With | Why |
 |---------------|-----------------|-----|
 | `/lyric-writer` | `/pronunciation-specialist` | Catch pronunciation issues immediately |
+| `/pronunciation-specialist` | `/lyric-reviewer` | Reviewer verifies pronunciation fixes applied correctly |
+| `/lyric-reviewer` | `/pre-generation-check` | Review must pass before generation gate |
 | `/researcher` | `/document-hunter` | Automate document acquisition |
 | `/suno-engineer` | `/clipboard` | Copy prompts directly to Suno |
 | `/mastering-engineer` | `/promo-director` | Promo videos need mastered audio |
@@ -245,9 +249,9 @@ Redundant or conflicting combinations:
 
 | Avoid Combining | Reason |
 |-----------------|--------|
-| `/lyric-writer` + `/lyric-reviewer` | Lyric-writer already includes quality checks |
+| `/lyric-writer` + `/lyric-reviewer` (simultaneously) | Run separately: writer first, reviewer after pronunciation pass |
 | Multiple researcher specialists at once | Use `/researcher` to coordinate them instead |
-| `/mastering-engineer` before `/suno-engineer` | Need to generate audio first |
+| `/mastering-engineer` before audio import | Need to generate on Suno and import audio first |
 | `/release-director` before `/mastering-engineer` | Audio must be mastered before release |
 | `/promo-director` before mastering | Promo videos need final mastered audio |
 
@@ -257,7 +261,7 @@ Redundant or conflicting combinations:
 
 Skills are assigned to models based on task complexity. See [model-strategy.md](model-strategy.md) for full rationale.
 
-### Opus 4.5 (Critical Creative Work — 6 skills)
+### Opus 4.6 (Critical Creative Work — 6 skills)
 - `/lyric-writer` - Core creative content
 - `/suno-engineer` - Music generation prompts
 - `/album-conceptualizer` - Album concept shapes everything downstream
@@ -285,7 +289,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/sheet-music-publisher` - Transcription workflow
 - `/tutorial` - Interactive guided creation
 
-### Haiku 4.5 (Pattern Matching — 14 skills)
+### Haiku 4.5 (Pattern Matching — 15 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
@@ -296,6 +300,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/new-album` - Directory creation
 - `/next-step` - Workflow routing
 - `/pre-generation-check` - Gate validation
+- `/rename` - File/directory renaming
 - `/skill-model-updater` - Pattern replacement
 - `/test` - Run predefined checks
 - `/validate-album` - Structure validation

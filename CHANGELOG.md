@@ -6,6 +6,31 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-02-10
+
+### Added
+- **Rename MCP tools** — `rename_album` and `rename_track` tools handle slug, title, and directory renames across all mirrored path trees (content, audio, documents) with state cache updates
+- **`/rename` skill** — interactive wrapper for renaming albums or tracks with confirmation and error handling (Haiku tier)
+- **Plugin migration system** — versioned `migrations/` directory with auto, action, info, and manual migration types; session-start checks for upgrades and processes migration actions
+- **Promo templates** — 6 per-platform social media copy templates (`campaign.md`, `twitter.md`, `instagram.md`, `tiktok.md`, `facebook.md`, `youtube.md`) in new `templates/promo/` directory
+- **Track template frontmatter** — YAML frontmatter with `title`, `track_number`, `explicit`, `suno_url` fields
+- **Suno parenthetical warning** — track template now warns that Suno sings parenthetical directions literally
+- **Migration tests** — validation suite for migration file format, YAML frontmatter, version matching, and action types
+- **Promo template tests** — validates all 6 templates exist and contain required sections
+- **32 rename tests** — `TestRenameAlbum` (15), `TestRenameTrack` (12), `TestDeriveTitleFromSlug` (5)
+
+### Changed
+- **Social media copy** moved from inline SOURCES.md sections to dedicated `promo/` directory in album content
+- **Promo workflow reference** updated to reflect `promo/` directory separation from video files
+- **Album art director** description broadened for use during planning, not just post-Final
+- **Clipboard skill** heading detection updated to match new track template structure (`### Lyrics Box` / `### Style Box`)
+- **Mastering engineer** now requires explicit path resolution step before mastering workflow
+- **Test suite at 1585 tests** — up from 1553 in 0.43.1
+- **Skills count at 45** — up from 44 (added `/rename`)
+
+### Fixed
+- **CONTRIBUTING.md** — added migration checklist item for PRs with filesystem/template/config changes
+
 ## [0.43.1] - 2026-02-06
 
 ### Added

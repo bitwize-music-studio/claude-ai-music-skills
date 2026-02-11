@@ -119,29 +119,13 @@ Sources: [Summary of source count by category]
 
 ## Social Media Copy
 
-### Twitter/X Thread
-
-```
-[Ready-to-post thread format]
-
-1/X [Tweet 1]
-
-2/X [Tweet 2]
-
-[etc.]
-```
-
-### Instagram Caption
-
-```
-[Caption with emoji-friendly formatting]
-```
-
-### YouTube Description
-
-```
-[Full description with timestamps if applicable]
-```
+See `promo/` directory for per-platform social media copy:
+- `promo/campaign.md` — Campaign strategy and schedule
+- `promo/twitter.md` — Twitter/X posts and threads
+- `promo/instagram.md` — Instagram captions and hashtags
+- `promo/tiktok.md` — TikTok captions
+- `promo/facebook.md` — Facebook posts
+- `promo/youtube.md` — YouTube descriptions
 
 ---
 

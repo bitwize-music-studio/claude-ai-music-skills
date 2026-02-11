@@ -107,17 +107,17 @@ Read the track file and extract the requested section.
 
 Extract everything between:
 ```markdown
-#### Lyrics Box (Suno)
+### Lyrics Box
 ```
-and the next `###` or `####` heading.
+and the next `##` or `###` heading.
 
 ### For "style" (Suno Style Box)
 
 Extract everything between:
 ```markdown
-#### Style Box (Suno)
+### Style Box
 ```
-and the next `###` or `####` heading.
+and the next `##` or `###` heading.
 
 ### For "streaming-lyrics" (Streaming Lyrics)
 

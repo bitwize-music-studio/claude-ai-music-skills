@@ -1,3 +1,10 @@
+---
+title: "[Track Title]"
+track_number: 0
+explicit: false
+suno_url: ""
+---
+
 # [Track Title]
 
 ## Track Details
@@ -120,6 +127,10 @@ Space is not a constraint. Thoroughness is the priority.]
 
 ### Lyrics Box
 *Copy this into Suno's "Lyrics" field:*
+
+<!-- WARNING: Suno sings EVERYTHING literally including parenthetical directions.
+     NEVER use (whispered), (softly), (screaming), (spoken), (laughing), etc.
+     Use metatags like [Whispered] or put delivery notes in the Style Box instead. -->
 
 ```
 [Verse 1]

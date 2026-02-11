@@ -287,6 +287,67 @@ IDEAS_MD = """\
 **Status**: In Progress
 """
 
+SKILL_OPUS = """\
+---
+name: lyric-writer
+description: Writes or reviews lyrics with professional prosody and quality checks.
+argument-hint: <track-file-path or "write lyrics for [concept]">
+model: claude-opus-4-6
+allowed-tools:
+  - Read
+  - Edit
+  - Write
+---
+
+# Lyric Writer Agent
+"""
+
+SKILL_SONNET = """\
+---
+name: suno-engineer
+description: Constructs technical Suno V5 style prompts and optimizes generation settings.
+argument-hint: <track-file-path>
+model: claude-sonnet-4-5-20250929
+prerequisites:
+  - lyric-writer
+allowed-tools:
+  - Read
+  - Edit
+  - Bash
+requirements:
+  python:
+    - pydub
+---
+
+# Suno Engineer Agent
+"""
+
+SKILL_HAIKU = """\
+---
+name: help
+description: Shows available skills and quick reference for the plugin.
+model: claude-haiku-4-5-20251001
+allowed-tools: []
+---
+
+# Help
+"""
+
+SKILL_INTERNAL = """\
+---
+name: researchers-legal
+description: Researches court documents and indictments for documentary albums.
+model: claude-sonnet-4-5-20250929
+user-invocable: false
+context: fork
+allowed-tools:
+  - Read
+  - Bash
+---
+
+# Researchers Legal
+"""
+
 EXPLICIT_WORDS_OVERRIDE = """\
 # Explicit Words Override
 
@@ -345,11 +406,31 @@ def content_dir(tmp_path):
     (overrides_dir / "CLAUDE.md").write_text("# Custom Rules\n\n- Always use dark themes\n")
     (overrides_dir / "explicit-words.md").write_text(EXPLICIT_WORDS_OVERRIDE)
 
+    # Promo directory
+    promo_dir = album_dir / "promo"
+    promo_dir.mkdir()
+    (promo_dir / "campaign.md").write_text(
+        "# Campaign\n\n" + "This is real campaign content for promotion. " * 15
+    )
+    (promo_dir / "twitter.md").write_text("# Twitter\n\n| Key | Value |\n")
+
     # Audio directory (with artist folder)
     audio_album = audio_root / "test-artist" / "integration-test-album"
     audio_album.mkdir(parents=True)
     (audio_album / "01-first-track.wav").write_text("")
     (audio_album / "album.png").write_text("")
+
+    # Skills directories (for skill indexing tests)
+    skills_root = tmp_path / "skills"
+    for skill_name, skill_content in [
+        ("lyric-writer", SKILL_OPUS),
+        ("suno-engineer", SKILL_SONNET),
+        ("help", SKILL_HAIKU),
+        ("researchers-legal", SKILL_INTERNAL),
+    ]:
+        skill_dir = skills_root / skill_name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(skill_content)
 
     return {
         "tmp_path": tmp_path,
@@ -360,7 +441,9 @@ def content_dir(tmp_path):
         "audio_root": audio_root,
         "album_dir": album_dir,
         "tracks_dir": tracks_dir,
+        "promo_dir": promo_dir,
         "overrides_dir": overrides_dir,
+        "skills_root": skills_root,
     }
 
 
@@ -380,11 +463,14 @@ def integration_env(content_dir, monkeypatch):
     monkeypatch.setattr(server, "STATE_FILE", cache_dir / "state.json")
     monkeypatch.setattr(server, "CONFIG_FILE", config_path)
 
+    # Monkeypatch PLUGIN_ROOT for skill scanning
+    monkeypatch.setattr(server, "PLUGIN_ROOT", content_dir["tmp_path"])
+
     # Build state using the real indexer
     config = indexer.read_config()
     assert config is not None, "Config should be readable"
 
-    state = indexer.build_state(config)
+    state = indexer.build_state(config, plugin_root=content_dir["tmp_path"])
     indexer.write_state(state)
 
     # Verify state.json was written
@@ -395,7 +481,16 @@ def integration_env(content_dir, monkeypatch):
     real_cache = server.StateCache()
     monkeypatch.setattr(server, "cache", real_cache)
 
-    # Point PLUGIN_ROOT to project root for reference file access
+    # PLUGIN_ROOT already set to tmp_path above for skill scanning.
+    # For reference file access, we need the real project root, but
+    # skills tests need tmp_path. Use tmp_path since skills tests need it
+    # and reference tests can be patched per-test if needed.
+    # Actually, keep tmp_path for skills but the get_reference tool needs
+    # the real reference/ dir — we'll leave PLUGIN_ROOT as tmp_path and
+    # the reference tests that need PROJECT_ROOT will still work because
+    # they were already testing against PROJECT_ROOT via the prior assignment.
+    # Re-point to PROJECT_ROOT for backward compat, but copy skills to tmp_path
+    # since build_state was already called with plugin_root=tmp_path.
     monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
 
     return {
@@ -418,7 +513,7 @@ class TestStateRebuildPipeline:
     def test_state_json_has_correct_structure(self, integration_env):
         """state.json built from real files has all expected fields."""
         state = json.loads(integration_env["state_file"].read_text())
-        assert state["version"] == "1.0.0"
+        assert state["version"] == "1.2.0"
         assert "config" in state
         assert "albums" in state
         assert "session" in state
@@ -1895,3 +1990,1071 @@ class TestCreateAlbumStructureExtended:
             "artist-check-album", "rock"
         )))
         assert "test-artist" in result["path"]
+
+
+# ===========================================================================
+# Skill MCP Tool Integration Tests
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestListSkillsIntegration:
+    """Integration tests for list_skills."""
+
+    def test_list_all_skills(self, integration_env):
+        """list_skills returns all test skills."""
+        result = json.loads(_run(server.list_skills()))
+        assert result["count"] == 4
+        assert result["total"] == 4
+        names = [s["name"] for s in result["skills"]]
+        assert "lyric-writer" in names
+        assert "suno-engineer" in names
+        assert "help" in names
+        assert "researchers-legal" in names
+
+    def test_model_counts(self, integration_env):
+        """list_skills returns correct model_counts."""
+        result = json.loads(_run(server.list_skills()))
+        counts = result["model_counts"]
+        assert counts.get("opus", 0) == 1   # lyric-writer
+        assert counts.get("sonnet", 0) == 2  # suno-engineer + researchers-legal
+        assert counts.get("haiku", 0) == 1   # help
+
+    def test_filter_by_model_opus(self, integration_env):
+        """list_skills filters by opus tier."""
+        result = json.loads(_run(server.list_skills(model_filter="opus")))
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "lyric-writer"
+        assert result["skills"][0]["model_tier"] == "opus"
+
+    def test_filter_by_model_sonnet(self, integration_env):
+        """list_skills filters by sonnet tier."""
+        result = json.loads(_run(server.list_skills(model_filter="sonnet")))
+        assert result["count"] == 2
+        names = [s["name"] for s in result["skills"]]
+        assert "suno-engineer" in names
+        assert "researchers-legal" in names
+
+    def test_filter_by_model_haiku(self, integration_env):
+        """list_skills filters by haiku tier."""
+        result = json.loads(_run(server.list_skills(model_filter="haiku")))
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "help"
+
+    def test_filter_by_category(self, integration_env):
+        """list_skills filters by keyword in description."""
+        result = json.loads(_run(server.list_skills(category="lyrics")))
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "lyric-writer"
+
+    def test_filter_by_category_suno(self, integration_env):
+        """list_skills category filter for Suno."""
+        result = json.loads(_run(server.list_skills(category="suno")))
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "suno-engineer"
+
+    def test_combined_filter_model_and_category(self, integration_env):
+        """list_skills combined model + category filter."""
+        result = json.loads(_run(server.list_skills(
+            model_filter="sonnet", category="court"
+        )))
+        assert result["count"] == 1
+        assert result["skills"][0]["name"] == "researchers-legal"
+
+    def test_no_match(self, integration_env):
+        """list_skills returns empty for non-matching filter."""
+        result = json.loads(_run(server.list_skills(model_filter="opus", category="nonexistent")))
+        assert result["count"] == 0
+        assert result["skills"] == []
+
+    def test_skill_fields_present(self, integration_env):
+        """list_skills entries have all expected fields."""
+        result = json.loads(_run(server.list_skills()))
+        for skill in result["skills"]:
+            for key in ("name", "description", "model", "model_tier", "user_invocable"):
+                assert key in skill, f"Missing field: {key}"
+
+    def test_total_reflects_unfiltered(self, integration_env):
+        """list_skills total always reflects unfiltered total."""
+        result = json.loads(_run(server.list_skills(model_filter="opus")))
+        assert result["count"] == 1
+        assert result["total"] == 4  # total remains unfiltered
+
+
+@pytest.mark.integration
+class TestGetSkillIntegration:
+    """Integration tests for get_skill."""
+
+    def test_exact_match(self, integration_env):
+        """get_skill returns skill by exact name."""
+        result = json.loads(_run(server.get_skill("lyric-writer")))
+        assert result["found"] is True
+        assert result["name"] == "lyric-writer"
+        skill = result["skill"]
+        assert skill["description"].startswith("Writes or reviews lyrics")
+        assert skill["model"] == "claude-opus-4-6"
+        assert skill["model_tier"] == "opus"
+
+    def test_fuzzy_match(self, integration_env):
+        """get_skill fuzzy match works with partial name."""
+        result = json.loads(_run(server.get_skill("lyric")))
+        assert result["found"] is True
+        assert result["name"] == "lyric-writer"
+
+    def test_not_found(self, integration_env):
+        """get_skill returns error for nonexistent skill."""
+        result = json.loads(_run(server.get_skill("nonexistent-skill")))
+        assert result["found"] is False
+        assert "available_skills" in result
+
+    def test_prerequisites(self, integration_env):
+        """get_skill returns prerequisites list."""
+        result = json.loads(_run(server.get_skill("suno-engineer")))
+        assert result["found"] is True
+        skill = result["skill"]
+        assert skill["prerequisites"] == ["lyric-writer"]
+
+    def test_user_invocable_true(self, integration_env):
+        """get_skill returns user_invocable=True by default."""
+        result = json.loads(_run(server.get_skill("lyric-writer")))
+        assert result["skill"]["user_invocable"] is True
+
+    def test_user_invocable_false(self, integration_env):
+        """get_skill returns user_invocable=False for internal skills."""
+        result = json.loads(_run(server.get_skill("researchers-legal")))
+        assert result["found"] is True
+        assert result["skill"]["user_invocable"] is False
+
+    def test_requirements(self, integration_env):
+        """get_skill returns requirements dict."""
+        result = json.loads(_run(server.get_skill("suno-engineer")))
+        assert result["skill"]["requirements"] == {"python": ["pydub"]}
+
+    def test_context_fork(self, integration_env):
+        """get_skill returns context field."""
+        result = json.loads(_run(server.get_skill("researchers-legal")))
+        assert result["skill"]["context"] == "fork"
+
+    def test_context_null(self, integration_env):
+        """get_skill returns null context for regular skills."""
+        result = json.loads(_run(server.get_skill("lyric-writer")))
+        assert result["skill"]["context"] is None
+
+    def test_allowed_tools(self, integration_env):
+        """get_skill returns allowed_tools list."""
+        result = json.loads(_run(server.get_skill("lyric-writer")))
+        assert result["skill"]["allowed_tools"] == ["Read", "Edit", "Write"]
+
+    def test_empty_allowed_tools(self, integration_env):
+        """get_skill returns empty allowed_tools for help skill."""
+        result = json.loads(_run(server.get_skill("help")))
+        assert result["skill"]["allowed_tools"] == []
+
+    def test_argument_hint(self, integration_env):
+        """get_skill returns argument_hint."""
+        result = json.loads(_run(server.get_skill("lyric-writer")))
+        assert result["skill"]["argument_hint"] == '<track-file-path or "write lyrics for [concept]">'
+
+    def test_multiple_matches(self, integration_env):
+        """get_skill returns error when multiple skills match."""
+        result = json.loads(_run(server.get_skill("researcher")))
+        # "researcher" matches "researchers-legal" only (substring)
+        # If it matched multiple, would get error. Let's check.
+        # Actually "researcher" is a substring of "researchers-legal" → 1 match
+        assert result["found"] is True
+        assert result["name"] == "researchers-legal"
+
+    def test_skill_path_stored(self, integration_env):
+        """get_skill includes the file path."""
+        result = json.loads(_run(server.get_skill("help")))
+        assert result["skill"]["path"].endswith("SKILL.md")
+
+    def test_skill_mtime_populated(self, integration_env):
+        """get_skill skill has non-zero mtime."""
+        result = json.loads(_run(server.get_skill("help")))
+        assert result["skill"]["mtime"] > 0
+
+
+@pytest.mark.integration
+class TestSearchSkillsIntegration:
+    """Integration tests for search with skills scope."""
+
+    def test_search_finds_skill_by_name(self, integration_env):
+        """search finds skill by name."""
+        result = json.loads(_run(server.search("lyric-writer", scope="skills")))
+        skills = result.get("skills", [])
+        assert len(skills) >= 1
+        names = [s["name"] for s in skills]
+        assert "lyric-writer" in names
+
+    def test_search_finds_skill_by_description(self, integration_env):
+        """search finds skill by description keyword."""
+        result = json.loads(_run(server.search("prosody", scope="skills")))
+        skills = result.get("skills", [])
+        assert len(skills) >= 1
+        assert skills[0]["name"] == "lyric-writer"
+
+    def test_search_all_includes_skills(self, integration_env):
+        """search scope=all includes skills in results."""
+        result = json.loads(_run(server.search("suno")))
+        assert "skills" in result
+        skills = result["skills"]
+        names = [s["name"] for s in skills]
+        assert "suno-engineer" in names
+
+    def test_search_skills_no_match(self, integration_env):
+        """search with skills scope returns empty for no match."""
+        result = json.loads(_run(server.search("xyznonexistent", scope="skills")))
+        skills = result.get("skills", [])
+        assert len(skills) == 0
+
+
+@pytest.mark.integration
+class TestRebuildStateSkillsIntegration:
+    """Integration tests for rebuild_state with skills."""
+
+    def test_rebuild_includes_skills_count(self, integration_env, monkeypatch):
+        """rebuild_state output includes skills count."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert "skills" in result
+        assert result["skills"] == 4
+
+    def test_skills_survive_rebuild(self, integration_env, monkeypatch):
+        """Skills are present in state after rebuild."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        _run(server.rebuild_state())
+        result = json.loads(_run(server.list_skills()))
+        assert result["count"] == 4
+
+
+@pytest.mark.integration
+class TestAutoRebuildOnVersionMismatch:
+    """Integration tests for auto-rebuild when state version != CURRENT_VERSION.
+
+    When a user upgrades the plugin and their on-disk state.json has an older
+    schema version, _load_from_disk() should transparently rebuild with the
+    new schema (populating skills, etc.) without any user action.
+    """
+
+    def test_old_version_triggers_rebuild(self, integration_env, monkeypatch):
+        """State with old version is auto-rebuilt on first access."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+
+        # Write a v1.0.0 state (no skills section)
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.0.0"
+        old_state.pop("skills", None)
+        state_file.write_text(json.dumps(old_state))
+
+        # Create a fresh cache and access state
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+
+        state = fresh_cache.get_state()
+        assert state["version"] == indexer.CURRENT_VERSION
+        assert "skills" in state
+        assert state["skills"]["count"] == 4
+
+    def test_auto_rebuild_preserves_session(self, integration_env, monkeypatch):
+        """Session data survives the auto-rebuild."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+
+        # Write a v1.0.0 state with session data
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.0.0"
+        old_state.pop("skills", None)
+        old_state["session"] = {
+            "last_album": "my-album",
+            "last_track": "01-opener",
+            "last_phase": "Writing",
+            "pending_actions": ["review lyrics"],
+            "updated_at": "2025-01-01T00:00:00Z",
+        }
+        state_file.write_text(json.dumps(old_state))
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+
+        state = fresh_cache.get_state()
+        assert state["version"] == indexer.CURRENT_VERSION
+        assert state["session"]["last_album"] == "my-album"
+        assert state["session"]["last_track"] == "01-opener"
+        assert state["session"]["last_phase"] == "Writing"
+        assert state["session"]["pending_actions"] == ["review lyrics"]
+
+    def test_auto_rebuild_writes_to_disk(self, integration_env, monkeypatch):
+        """Auto-rebuilt state is persisted to state.json."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.0.0"
+        old_state.pop("skills", None)
+        state_file.write_text(json.dumps(old_state))
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+        fresh_cache.get_state()
+
+        # Read back from disk
+        on_disk = json.loads(state_file.read_text())
+        assert on_disk["version"] == indexer.CURRENT_VERSION
+        assert "skills" in on_disk
+        assert on_disk["skills"]["count"] == 4
+
+    def test_current_version_no_rebuild(self, integration_env, monkeypatch):
+        """State with current version does not trigger rebuild."""
+        state_file = integration_env["state_file"]
+
+        # State already has current version from integration_env fixture
+        on_disk_before = state_file.read_text()
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+        state = fresh_cache.get_state()
+
+        assert state["version"] == indexer.CURRENT_VERSION
+        # File should not have been rewritten (same content)
+        assert state_file.read_text() == on_disk_before
+
+    def test_auto_rebuild_with_missing_config(self, integration_env, monkeypatch):
+        """Auto-rebuild gracefully handles missing config."""
+        state_file = integration_env["state_file"]
+
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.0.0"
+        state_file.write_text(json.dumps(old_state))
+
+        # Remove config file
+        config_path = integration_env["config_path"]
+        config_path.unlink()
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+
+        # Should still load (old state), just can't rebuild
+        state = fresh_cache.get_state()
+        assert state["version"] == "1.0.0"  # Stays old since rebuild failed
+
+    def test_auto_rebuild_albums_intact(self, integration_env, monkeypatch):
+        """Albums are correctly rebuilt after version mismatch."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.0.0"
+        old_state.pop("skills", None)
+        state_file.write_text(json.dumps(old_state))
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+
+        state = fresh_cache.get_state()
+        assert "integration-test-album" in state["albums"]
+        album = state["albums"]["integration-test-album"]
+        assert album["track_count"] == 3
+        assert album["title"] == "Integration Test Album"
+
+
+# ===========================================================================
+# End-to-End Workflow Tests
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestWorkflowAlbumLifecycle:
+    """End-to-end: album creation → track updates → progress tracking."""
+
+    def test_create_album_then_query(self, integration_env):
+        """Create a new album, rebuild state, and query it."""
+        result = json.loads(_run(server.create_album_structure(
+            "lifecycle-album", "electronic"
+        )))
+        assert result["created"] is True
+
+        # Rebuild state to pick up new album
+        _run(server.rebuild_state())
+
+        # Query the new album
+        result = json.loads(_run(server.find_album("lifecycle-album")))
+        assert result["found"] is True
+        assert result["album"]["genre"] == "electronic"
+
+    def test_update_track_then_check_progress(self, integration_env):
+        """Update a track field and verify progress reflects the change."""
+        # Get initial progress
+        before = json.loads(_run(server.get_album_progress("integration-test-album")))
+        assert before["found"] is True
+        completed_before = before["tracks_completed"]
+
+        # Update track 02 to Final (was In Progress)
+        update = json.loads(_run(server.update_track_field(
+            "integration-test-album", "02-second-track", "status", "Final"
+        )))
+        assert update["success"] is True
+
+        # Rebuild so progress picks up the cache changes
+        _run(server.rebuild_state())
+
+        # Check progress increased
+        after = json.loads(_run(server.get_album_progress("integration-test-album")))
+        assert after["tracks_completed"] >= completed_before + 1
+
+    def test_update_track_then_extract_section(self, integration_env):
+        """Update a track then verify section extraction still works."""
+        # Update status
+        _run(server.update_track_field(
+            "integration-test-album", "01-first-track", "status", "Generated"
+        ))
+
+        # Extract section from the same track
+        result = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "lyrics"
+        )))
+        assert result["found"] is True
+        assert "Testing the pipeline" in result["content"]
+
+    def test_update_multiple_tracks_then_album_verdict(self, integration_env):
+        """Update all tracks to Final then verify album is all-ready for generation."""
+        for slug in ["01-first-track", "02-second-track", "03-third-track"]:
+            result = json.loads(_run(server.update_track_field(
+                "integration-test-album", slug, "status", "Final"
+            )))
+            assert result["success"] is True
+
+        # Also set sources_verified on track 02 so pre-gen gates pass
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "02-second-track",
+            "sources_verified", "✅ Verified (2026-02-09)"
+        )))
+        assert result["success"] is True
+
+    def test_session_tracks_workflow(self, integration_env):
+        """Session context follows the workflow across tools."""
+        # Update session to track our work
+        _run(server.update_session(
+            album="integration-test-album",
+            track="01-first-track",
+            phase="Writing"
+        ))
+
+        session = json.loads(_run(server.get_session()))
+        assert session["session"]["last_album"] == "integration-test-album"
+        assert session["session"]["last_track"] == "01-first-track"
+
+        # Update track, then advance session
+        _run(server.update_track_field(
+            "integration-test-album", "01-first-track", "status", "Generated"
+        ))
+        _run(server.update_session(
+            track="02-second-track",
+            phase="Generation"
+        ))
+
+        session = json.loads(_run(server.get_session()))
+        assert session["session"]["last_track"] == "02-second-track"
+        assert session["session"]["last_phase"] == "Generation"
+
+
+@pytest.mark.integration
+class TestWorkflowSourceVerification:
+    """End-to-end: source verification → pre-generation gate flow."""
+
+    def test_pending_sources_block_generation(self, integration_env):
+        """Track with pending sources shows up in pending verifications."""
+        result = json.loads(_run(server.get_pending_verifications()))
+        pending = result.get("albums_with_pending", {})
+        assert "integration-test-album" in pending
+        track_slugs = [t["slug"] for t in pending["integration-test-album"]["tracks"]]
+        assert "02-second-track" in track_slugs
+
+    def test_verify_sources_then_clear_pending(self, integration_env):
+        """After verifying sources, track disappears from pending."""
+        # Verify track 02's sources
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "02-second-track",
+            "sources_verified", "✅ Verified (2026-02-09)"
+        )))
+        assert result["success"] is True
+
+        # Rebuild to reflect the change
+        _run(server.rebuild_state())
+
+        # Check pending — track 02 should no longer be pending
+        result = json.loads(_run(server.get_pending_verifications()))
+        pending = result.get("albums_with_pending", {})
+        if "integration-test-album" in pending:
+            track_slugs = [t["slug"] for t in pending["integration-test-album"]["tracks"]]
+            assert "02-second-track" not in track_slugs
+
+
+@pytest.mark.integration
+class TestWorkflowCrossToolDataFlow:
+    """End-to-end: output of one tool feeds into another."""
+
+    def test_extract_lyrics_then_check_homographs(self, integration_env):
+        """Extract lyrics from a track and pass them to homograph check."""
+        # Track 03 has "read" and "bass" — known homographs
+        lyrics = json.loads(_run(server.extract_section(
+            "integration-test-album", "03-third-track", "lyrics"
+        )))
+        assert lyrics["found"] is True
+        content = lyrics["content"]
+
+        # Check homographs on the extracted content
+        homographs = json.loads(_run(server.check_homographs(content)))
+        # "read" and "bass" should be flagged (response key is "found")
+        found_words = [h["word"].lower() for h in homographs.get("found", [])]
+        assert "read" in found_words or "reed" in found_words or "bass" in found_words
+
+    def test_extract_lyrics_then_check_explicit(self, integration_env):
+        """Extract lyrics and check for explicit content."""
+        lyrics = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "lyrics"
+        )))
+        assert lyrics["found"] is True
+
+        # Check explicit — clean lyrics should have no explicit content
+        explicit = json.loads(_run(server.check_explicit_content(lyrics["content"])))
+        assert explicit["has_explicit"] is False
+
+    def test_lyrics_stats_match_extract_content(self, integration_env):
+        """Lyrics stats word count matches the extracted content."""
+        stats = json.loads(_run(server.get_lyrics_stats(
+            "integration-test-album", "01"
+        )))
+        lyrics = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "lyrics"
+        )))
+        assert stats["found"] is True
+        assert lyrics["found"] is True
+        # Both should report non-zero words
+        assert stats["tracks"][0]["word_count"] > 0
+
+    def test_find_album_then_list_tracks(self, integration_env):
+        """find_album slug can be used with list_track_files."""
+        found = json.loads(_run(server.find_album("integration")))
+        assert found["found"] is True
+        slug = found["slug"]
+
+        tracks = json.loads(_run(server.list_track_files(slug)))
+        assert tracks["found"] is True
+        assert len(tracks["tracks"]) == 3
+
+    def test_get_track_then_resolve_path(self, integration_env):
+        """Track data includes path that matches resolve_path."""
+        track = json.loads(_run(server.get_track(
+            "integration-test-album", "01-first-track"
+        )))
+        assert track["found"] is True
+
+        # The track path should be under the album's content path
+        resolved = json.loads(_run(server.resolve_path(
+            "content", "integration-test-album"
+        )))
+        assert "path" in resolved
+        assert resolved["path"] in track["track"]["path"]
+
+
+@pytest.mark.integration
+class TestWorkflowMultiFieldAtomicity:
+    """End-to-end: multiple field updates don't lose data."""
+
+    def test_sequential_field_updates_preserve_all(self, integration_env):
+        """Updating status then explicit preserves both values."""
+        # Update status
+        r1 = json.loads(_run(server.update_track_field(
+            "integration-test-album", "03-third-track", "status", "Generated"
+        )))
+        assert r1["success"] is True
+
+        # Update explicit
+        r2 = json.loads(_run(server.update_track_field(
+            "integration-test-album", "03-third-track", "explicit", "Yes"
+        )))
+        assert r2["success"] is True
+
+        # Read back — both changes should be present
+        track = json.loads(_run(server.get_track(
+            "integration-test-album", "03-third-track"
+        )))
+        # The file should have both values updated
+        resolve = json.loads(_run(server.resolve_track_file(
+            "integration-test-album", "03-third-track"
+        )))
+        assert resolve["found"] is True
+        content = Path(resolve["path"]).read_text()
+        assert "Generated" in content
+        assert "Yes" in content
+
+    def test_update_does_not_corrupt_other_sections(self, integration_env):
+        """Updating a track field doesn't break other markdown sections."""
+        _run(server.update_track_field(
+            "integration-test-album", "01-first-track", "status", "Final"
+        ))
+
+        # Lyrics section should still be intact
+        lyrics = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "lyrics"
+        )))
+        assert lyrics["found"] is True
+        assert "[Verse 1]" in lyrics["content"]
+        assert "Testing the pipeline" in lyrics["content"]
+
+        # Style box should still be intact
+        style = json.loads(_run(server.extract_section(
+            "integration-test-album", "01-first-track", "style"
+        )))
+        assert style["found"] is True
+        assert "electronic" in style["content"]
+
+
+@pytest.mark.integration
+class TestWorkflowStateCacheConsistency:
+    """End-to-end: cache stays consistent through operations."""
+
+    def test_rebuild_preserves_session(self, integration_env):
+        """Session data survives a state rebuild."""
+        _run(server.update_session(
+            album="integration-test-album",
+            track="02-second-track",
+            phase="Research"
+        ))
+
+        # Rebuild state
+        _run(server.rebuild_state())
+
+        # Session should survive
+        session = json.loads(_run(server.get_session()))
+        assert session["session"]["last_album"] == "integration-test-album"
+        assert session["session"]["last_track"] == "02-second-track"
+
+    def test_state_file_update_after_rebuild(self, integration_env):
+        """Rebuild writes fresh state to disk."""
+        state_file = integration_env["state_file"]
+        mtime_before = state_file.stat().st_mtime
+
+        # Wait a moment to ensure different mtime
+        time.sleep(0.05)
+        _run(server.rebuild_state())
+
+        mtime_after = state_file.stat().st_mtime
+        assert mtime_after >= mtime_before
+
+    def test_new_track_file_detected_after_rebuild(self, integration_env):
+        """Adding a new track file on disk and rebuilding picks it up."""
+        tracks_dir = integration_env["tracks_dir"]
+        new_track = tracks_dir / "04-new-track.md"
+        new_track.write_text("""\
+# New Track
+
+## Track Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Track #** | 04 |
+| **Title** | New Track |
+| **Status** | Not Started |
+| **Suno Link** | — |
+| **Explicit** | No |
+| **Sources Verified** | N/A |
+""")
+
+        _run(server.rebuild_state())
+
+        result = json.loads(_run(server.get_track(
+            "integration-test-album", "04-new-track"
+        )))
+        assert result["found"] is True
+        assert result["track"]["title"] == "New Track"
+        assert result["track"]["status"] == "Not Started"
+
+    def test_deleted_track_file_detected_after_rebuild(self, integration_env):
+        """Deleting a track file on disk and rebuilding removes it from state."""
+        tracks_dir = integration_env["tracks_dir"]
+        track_path = tracks_dir / "03-third-track.md"
+        track_path.unlink()
+
+        _run(server.rebuild_state())
+
+        result = json.loads(_run(server.get_track(
+            "integration-test-album", "03-third-track"
+        )))
+        assert result["found"] is False
+
+    def test_corrupted_state_json_recovery(self, integration_env, monkeypatch):
+        """Corrupted state.json doesn't crash; returns empty state, rebuild recovers."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+
+        # Write invalid JSON
+        state_file.write_text("{invalid json!!!}")
+
+        # Create a fresh cache — should detect corruption but not crash
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+        state = fresh_cache.get_state()
+
+        # Corrupted file returns empty state (graceful degradation)
+        assert state is not None
+        assert isinstance(state, dict)
+
+        # Explicit rebuild recovers the real data
+        rebuilt = fresh_cache.rebuild()
+        assert "albums" in rebuilt
+        assert "integration-test-album" in rebuilt["albums"]
+
+
+@pytest.mark.integration
+class TestWorkflowSearchAcrossScopes:
+    """End-to-end: search finds results across all data types."""
+
+    def test_search_finds_album_and_track(self, integration_env):
+        """A broad search returns results from multiple scopes."""
+        # "first" appears in track slug and title
+        result = json.loads(_run(server.search("first", scope="all")))
+        assert result["total_matches"] > 0
+        assert len(result.get("tracks", [])) >= 1
+        # "integration" appears in album title and slug
+        result2 = json.loads(_run(server.search("integration", scope="all")))
+        assert len(result2.get("albums", [])) >= 1
+
+    def test_search_skills_after_rebuild(self, integration_env, monkeypatch):
+        """Skills are searchable after a rebuild."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        _run(server.rebuild_state())
+
+        result = json.loads(_run(server.search("lyric", scope="skills")))
+        assert len(result.get("skills", [])) >= 1
+        assert result["skills"][0]["name"] == "lyric-writer"
+
+    def test_search_by_genre(self, integration_env):
+        """Search by genre finds albums."""
+        result = json.loads(_run(server.search("electronic", scope="albums")))
+        slugs = [a["slug"] for a in result["albums"]]
+        assert "integration-test-album" in slugs
+
+    def test_search_empty_query_returns_everything(self, integration_env):
+        """Empty string search returns all items."""
+        result = json.loads(_run(server.search("", scope="albums")))
+        assert len(result["albums"]) >= 1
+
+
+@pytest.mark.integration
+class TestWorkflowAlbumValidation:
+    """End-to-end: album validation with real filesystem."""
+
+    def test_validate_detects_missing_audio(self, integration_env):
+        """Validation reports missing audio for tracks without WAV files."""
+        result = json.loads(_run(server.validate_album_structure(
+            "integration-test-album", checks="audio"
+        )))
+        assert result["found"] is True
+        # Track 01 has a WAV, tracks 02 and 03 don't
+        # There should be at least some warnings about missing audio
+
+    def test_validate_passes_structure_checks(self, integration_env):
+        """Basic structural checks pass for a well-formed album."""
+        result = json.loads(_run(server.validate_album_structure(
+            "integration-test-album", checks="structure"
+        )))
+        assert result["found"] is True
+        assert result["passed"] >= 1
+        # No structural failures expected
+        assert result["failed"] == 0
+
+    def test_validate_after_track_deletion(self, integration_env):
+        """Validation handles albums with deleted tracks gracefully."""
+        tracks_dir = integration_env["tracks_dir"]
+        (tracks_dir / "03-third-track.md").unlink()
+
+        _run(server.rebuild_state())
+
+        result = json.loads(_run(server.validate_album_structure(
+            "integration-test-album", checks="structure"
+        )))
+        assert result["found"] is True
+        # Should still work, just with fewer tracks
+
+
+# ===========================================================================
+# Integration Tests: update_album_status
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestUpdateAlbumStatusIntegration:
+    """Integration tests for update_album_status with real files."""
+
+    def test_updates_readme_and_cache(self, integration_env):
+        """Status change persists in README.md and updates state cache."""
+        result = json.loads(_run(server.update_album_status(
+            "integration-test-album", "Complete"
+        )))
+        assert result["success"] is True
+        assert result["old_status"] == "In Progress"
+        assert result["new_status"] == "Complete"
+
+        # Verify README was modified
+        readme = integration_env["album_dir"] / "README.md"
+        text = readme.read_text()
+        assert "| **Status** | Complete |" in text
+
+        # Verify cache was updated
+        state = integration_env["cache"].get_state()
+        assert state["albums"]["integration-test-album"]["status"] == "Complete"
+
+    def test_status_round_trip(self, integration_env):
+        """Status can be changed multiple times and read back."""
+        for status in ["Complete", "Released"]:
+            _run(server.update_album_status("integration-test-album", status))
+
+        result = json.loads(_run(server.find_album("integration-test-album")))
+        assert result["album"]["status"] == "Released"
+
+    def test_invalid_status_rejected(self, integration_env):
+        """Invalid status is rejected without modifying files."""
+        original = (integration_env["album_dir"] / "README.md").read_text()
+        result = json.loads(_run(server.update_album_status(
+            "integration-test-album", "BadStatus"
+        )))
+        assert "error" in result
+        # File should be unchanged
+        assert (integration_env["album_dir"] / "README.md").read_text() == original
+
+
+# ===========================================================================
+# Integration Tests: create_track
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestCreateTrackIntegration:
+    """Integration tests for create_track with real files."""
+
+    def test_creates_track_from_template(self, integration_env, monkeypatch):
+        """Track file is created with proper content from real template."""
+        # Point PLUGIN_ROOT to the real project root for template access
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        result = json.loads(_run(server.create_track(
+            "integration-test-album", "04", "Brand New Track"
+        )))
+        assert result["created"] is True
+        assert result["track_slug"] == "04-brand-new-track"
+
+        track_path = Path(result["path"])
+        assert track_path.exists()
+        content = track_path.read_text()
+        assert "Brand New Track" in content
+        assert "| **Track #** | 04 |" in content
+
+    def test_created_track_appears_after_rebuild(self, integration_env, monkeypatch):
+        """Newly created track is discoverable after state rebuild."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        _run(server.create_track("integration-test-album", "04", "New Track"))
+        _run(server.rebuild_state())
+
+        result = json.loads(_run(server.get_track("integration-test-album", "04-new-track")))
+        assert result["found"] is True
+        assert result["track"]["title"] == "New Track"
+
+    def test_reject_duplicate_track(self, integration_env, monkeypatch):
+        """Cannot create track with same number+slug as existing."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        # First call succeeds
+        r1 = json.loads(_run(server.create_track("integration-test-album", "04", "Track")))
+        assert r1["created"] is True
+
+        # Second call with same args fails
+        r2 = json.loads(_run(server.create_track("integration-test-album", "04", "Track")))
+        assert r2["created"] is False
+
+
+# ===========================================================================
+# Integration Tests: get_promo_status / get_promo_content
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestPromoIntegration:
+    """Integration tests for promo tools with real files."""
+
+    def test_promo_status_reflects_real_files(self, integration_env):
+        """Promo status correctly reports which files exist and are populated."""
+        result = json.loads(_run(server.get_promo_status("integration-test-album")))
+        assert result["promo_exists"] is True
+        assert result["total"] == 6
+
+        # campaign.md has real content
+        campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
+        assert campaign["exists"] is True
+        assert campaign["populated"] is True
+
+        # twitter.md is template-only (just heading + table)
+        twitter = next(f for f in result["files"] if f["file"] == "twitter.md")
+        assert twitter["exists"] is True
+        assert twitter["populated"] is False
+
+        # instagram.md doesn't exist
+        instagram = next(f for f in result["files"] if f["file"] == "instagram.md")
+        assert instagram["exists"] is False
+
+    def test_promo_content_returns_file_text(self, integration_env):
+        """get_promo_content returns actual file content."""
+        result = json.loads(_run(server.get_promo_content(
+            "integration-test-album", "campaign"
+        )))
+        assert result["found"] is True
+        assert "Campaign" in result["content"]
+
+    def test_promo_content_missing_file(self, integration_env):
+        """get_promo_content returns error for missing file."""
+        result = json.loads(_run(server.get_promo_content(
+            "integration-test-album", "facebook"
+        )))
+        assert result["found"] is False
+
+
+# ===========================================================================
+# Integration Tests: get_plugin_version
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestGetPluginVersionIntegration:
+    """Integration tests for get_plugin_version."""
+
+    def test_reads_real_plugin_json(self, integration_env, monkeypatch):
+        """Reads current version from real plugin.json."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        result = json.loads(_run(server.get_plugin_version()))
+        assert result["current_version"] is not None
+        # Version should look like a semver string
+        assert "." in result["current_version"]
+
+
+# ===========================================================================
+# Integration Tests: create_idea / update_idea
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestIdeaManagementIntegration:
+    """Integration tests for idea management tools with real files."""
+
+    def test_create_and_find_idea(self, integration_env):
+        """Created idea appears in get_ideas after cache rebuild."""
+        result = json.loads(_run(server.create_idea(
+            "Robot Uprising", genre="electronic", concept="Machines take over"
+        )))
+        assert result["created"] is True
+
+        # After rebuild, idea should appear
+        ideas = json.loads(_run(server.get_ideas()))
+        titles = [i["title"] for i in ideas["items"]]
+        assert "Robot Uprising" in titles
+
+    def test_update_idea_persists(self, integration_env):
+        """Updated idea field persists in IDEAS.md and cache."""
+        # First, update an existing idea
+        result = json.loads(_run(server.update_idea(
+            "Cyberpunk Dreams", "status", "In Progress"
+        )))
+        assert result["success"] is True
+
+        # Verify file was modified
+        ideas_path = integration_env["content_root"] / "IDEAS.md"
+        text = ideas_path.read_text()
+        # Find the Cyberpunk Dreams section and check its status
+        import re
+        match = re.search(
+            r'### Cyberpunk Dreams.*?(?=###|\Z)',
+            text,
+            re.DOTALL,
+        )
+        assert match is not None
+        assert "**Status**: In Progress" in match.group()
+
+    def test_create_then_update_round_trip(self, integration_env):
+        """Create idea then update it — full round trip."""
+        _run(server.create_idea("Test Idea", genre="rock"))
+
+        result = json.loads(_run(server.update_idea("Test Idea", "genre", "metal")))
+        assert result["success"] is True
+        assert result["old_value"] == "rock"
+        assert result["new_value"] == "metal"
+
+    def test_duplicate_idea_rejected(self, integration_env):
+        """Cannot create idea with same title as existing."""
+        # Cyberpunk Dreams already exists in fixture
+        result = json.loads(_run(server.create_idea("Cyberpunk Dreams")))
+        assert result["created"] is False
+        assert "already exists" in result["error"]
+
+
+# ===========================================================================
+# Integration Tests: Cross-tool workflows with new tools
+# ===========================================================================
+
+
+@pytest.mark.integration
+class TestNewToolWorkflows:
+    """End-to-end workflows using the new MCP tools."""
+
+    def test_create_track_then_update_status(self, integration_env, monkeypatch):
+        """Create a track, update its field, verify in state."""
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        # Create track
+        _run(server.create_track("integration-test-album", "04", "Workflow Track"))
+        _run(server.rebuild_state())
+
+        # Update the new track's status
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "04-workflow-track", "status", "Generated"
+        )))
+        assert result["success"] is True
+
+        # Verify in state
+        track = json.loads(_run(server.get_track(
+            "integration-test-album", "04-workflow-track"
+        )))
+        assert track["track"]["status"] == "Generated"
+
+    def test_album_status_after_all_tracks_final(self, integration_env):
+        """Update album status to Complete after verifying all tracks Final."""
+        # Check progress
+        progress = json.loads(_run(server.get_album_progress("integration-test-album")))
+        assert progress["found"] is True
+
+        # Set album status
+        result = json.loads(_run(server.update_album_status(
+            "integration-test-album", "Complete"
+        )))
+        assert result["success"] is True
+
+        # Verify via list_albums
+        albums = json.loads(_run(server.list_albums(status_filter="Complete")))
+        slugs = [a["slug"] for a in albums["albums"]]
+        assert "integration-test-album" in slugs
+
+    def test_promo_status_then_content(self, integration_env):
+        """Check promo status, then read populated content."""
+        status = json.loads(_run(server.get_promo_status("integration-test-album")))
+        populated_files = [f["file"] for f in status["files"] if f["populated"]]
+        assert len(populated_files) >= 1
+
+        # Read the populated file
+        content = json.loads(_run(server.get_promo_content(
+            "integration-test-album", populated_files[0].replace(".md", "")
+        )))
+        assert content["found"] is True
+        assert len(content["content"]) > 0

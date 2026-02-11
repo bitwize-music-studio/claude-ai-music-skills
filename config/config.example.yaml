@@ -252,7 +252,7 @@ paths:
   # Structure:
   #   ~/.bitwize-music/
   #   ├── config.yaml       # This file
-  #   ├── mastering-env/    # Python venv for mastering tools
+  #   ├── venv/             # Python venv for plugin tools
   #   └── cache/            # Temporary files
 
 

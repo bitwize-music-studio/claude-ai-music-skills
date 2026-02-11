@@ -59,7 +59,8 @@ For each pending track:
 
 1. **Read the track file** to find its sources section
 2. **Read SOURCES.md** in the album directory for the full citation list
-3. **Present sources to the user**:
+3. **Read RESEARCH.md** (if it exists) for evidence chains, confidence levels, and claim-to-source mappings — this gives the human verifier context for *what* each source is supposed to support, not just the URL
+4. **Present sources to the user**:
 
 ```
 TRACK: [track-title]
@@ -86,9 +87,9 @@ Type "verified" to confirm, or describe any issues.
 
 When user confirms verification for a track:
 
-1. **Edit the track markdown file** — update the `sources_verified` field in frontmatter:
-   - Change: `sources_verified: "Pending"` or `sources_verified: "❌ Pending"`
-   - To: `sources_verified: "✅ Verified (YYYY-MM-DD)"`
+1. **Edit the track markdown file** — update the `Sources Verified` row in the Track Details table:
+   - Change: `| **Sources Verified** | ❌ Pending |`
+   - To: `| **Sources Verified** | ✅ Verified (YYYY-MM-DD) |`
    - Use today's date
 
 2. **Confirm the update**:
@@ -119,8 +120,8 @@ Album: [title]
 Tracks verified: X/Y
 Date: YYYY-MM-DD
 
-All sources verified. This album is cleared for generation.
-Next step: /bitwize-music:pre-generation-check [album-name]
+All sources verified. This album is cleared for lyric writing.
+Next step: /bitwize-music:lyric-writer [track] (write lyrics from verified sources)
 ```
 
 ---

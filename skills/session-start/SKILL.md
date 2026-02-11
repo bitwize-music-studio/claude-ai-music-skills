@@ -59,6 +59,22 @@ Read `~/.bitwize-music/cache/state.json`:
   ```
 - `${CLAUDE_PLUGIN_ROOT}` is the directory containing the plugin's CLAUDE.md file
 
+## Step 4.5: Check for Plugin Upgrades
+
+Compare `plugin_version` in state.json against current version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`:
+
+1. **If `plugin_version` is null** (first run or pre-upgrade-system): Set to current version, skip migrations
+2. **If versions match**: No action needed
+3. **If stored < current** (upgrade detected):
+   - Read migration files from `${CLAUDE_PLUGIN_ROOT}/migrations/` for versions between stored and current
+   - Process actions in order:
+     - `auto`: Execute silently (run `check` first — skip if returns 0)
+     - `action`: Show description, ask user to confirm before executing
+     - `info`: Display to user
+     - `manual`: Show instruction to user
+   - Rebuild state to update `plugin_version`
+4. Report: "Upgraded from X to Y" with summary of actions taken
+
 ## Step 5: Check Skill Models
 
 Run `/bitwize-music:skill-model-updater check` to verify all skills use current model versions.

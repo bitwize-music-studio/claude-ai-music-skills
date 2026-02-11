@@ -161,7 +161,7 @@ Transfer one video to phone and verify:
 
 ### Step 5: Organize for Distribution
 
-**Recommended organization:**
+**Video files** stay in the audio directory:
 
 ```
 {audio_root}/{artist}/{album}/
@@ -171,6 +171,20 @@ Transfer one video to phone and verify:
 │   └── archive/            # All generated videos
 └── album_sampler.mp4       # Full album preview
 ```
+
+**Social media copy** lives in the album content directory:
+
+```
+{content_root}/artists/{artist}/albums/{genre}/{album}/promo/
+├── campaign.md             # Strategy, schedule, key messages
+├── twitter.md              # Tweets/threads per track
+├── instagram.md            # Captions + hashtags per track
+├── tiktok.md               # Captions per track
+├── facebook.md             # Posts per track
+└── youtube.md              # Descriptions per track
+```
+
+Fill in the `promo/` templates with platform-specific copy before posting.
 
 **Selection strategy:**
 
@@ -420,9 +434,9 @@ After generating promo videos:
 
 1. **Review all videos** - Quality check
 2. **Select key tracks** - Which to promote where
-3. **[Optional] Upload to cloud** - `/bitwize-music:cloud-uploader`
-4. **Write captions** - Prepare copy for posts
-5. **Schedule posts** - Plan timing
+3. **Fill in promo/ copy** - Populate per-platform templates in album's `promo/` directory
+4. **[Optional] Upload to cloud** - `/bitwize-music:cloud-uploader`
+5. **Schedule posts** - Plan timing using `promo/campaign.md`
 6. **Continue to release workflow** - `/bitwize-music:release-director`
 
 ## Related Documentation

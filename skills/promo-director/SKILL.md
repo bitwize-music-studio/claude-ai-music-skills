@@ -84,9 +84,9 @@ If missing:
 ```
 Python dependencies missing. Create venv?
 
-  mkdir -p ~/.bitwize-music/promotion-env
-  python3 -m venv ~/.bitwize-music/promotion-env
-  source ~/.bitwize-music/promotion-env/bin/activate
+  mkdir -p ~/.bitwize-music/venv
+  python3 -m venv ~/.bitwize-music/venv
+  source ~/.bitwize-music/venv/bin/activate
   pip install pillow pyyaml librosa numpy
 
 Which option:
@@ -295,8 +295,9 @@ Common issues:
 **Next Steps:**
 1. Review videos: Open promo_videos/ folder
 2. Test on phone: Transfer one video and verify quality
-3. [Optional] Upload to cloud: /bitwize-music:cloud-uploader {album}
-4. Ready for release workflow: /bitwize-music:release-director {album}
+3. Populate social copy: Fill in promo/ templates (twitter.md, instagram.md, etc.)
+4. [Optional] Upload to cloud: /bitwize-music:cloud-uploader {album}
+5. Ready for release workflow: /bitwize-music:release-director {album}
 ```
 
 
