@@ -261,11 +261,11 @@ jobs:
 
     - name: Run ruff linter
       run: |
-        ruff check tools/
+        ruff check tools/ servers/
 
     - name: Run bandit security linter
       run: |
-        bandit -r tools/ -ll -q -s B108
+        bandit -r tools/ servers/ -ll -q -s B108
 
     - name: Validation summary
       run: |
