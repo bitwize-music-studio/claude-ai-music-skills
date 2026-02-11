@@ -6,6 +6,21 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-02-11
+
+### Added
+- **`/promo-reviewer` skill** — interactive post-by-post review of social media copy in album `promo/` files with approve/revise/shorten/punch-up/hashtag/tone actions, character limit enforcement, and write-back (Sonnet tier)
+- **Platform rules reference** — `skills/promo-reviewer/platform-rules.md` with per-platform character limits, hashtag conventions, and tone guidelines
+
+### Fixed
+- **SKILL_INDEX alphabetical order** — `pre-generation-check` now correctly sorted before `promo-director`
+- **model-strategy.md completeness** — added missing `verify-sources` (Sonnet) and `rename` (Haiku) subsections; counts now match actual skill inventory
+- **SKILL_INDEX model sections** — added missing `/verify-sources` to Sonnet list and `/setup` to Haiku list
+- **Cross-file count consistency** — all four count locations (SKILL_INDEX, model-strategy, distribution table, README) now agree: 6 Opus, 25 Sonnet, 15 Haiku = 46 total
+
+### Changed
+- **Skills count at 46** — up from 45 (added `/promo-reviewer`)
+
 ## [0.44.0] - 2026-02-10
 
 ### Added

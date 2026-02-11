@@ -62,6 +62,7 @@ Quick-reference guide for finding the right skill for any task.
 |--------------|----------------|
 | ...master audio for streaming platforms | `/mastering-engineer` |
 | ...create promo videos for social media | `/promo-director` |
+| ...review and polish social media copy | `/promo-reviewer` |
 | ...upload promo videos to cloud storage | `/cloud-uploader` |
 | ...create sheet music from audio | `/sheet-music-publisher` |
 | ...design album artwork concept | `/album-art-director` |
@@ -117,8 +118,9 @@ Quick-reference guide for finding the right skill for any task.
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
 | [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action (also available via `/resume`) | Workflow guidance when unsure what to do |
-| [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
+| [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
+| [`promo-reviewer`](/skills/promo-reviewer/SKILL.md) | Review and polish social media copy in promo/ files | Interactive post-by-post review before release |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
 | [`rename`](/skills/rename/SKILL.md) | Rename albums or tracks with path updates | Changing album/track names after creation |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
@@ -159,6 +161,7 @@ What to have ready before using each skill:
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
 | `/mastering-engineer` | WAV files downloaded from Suno |
 | `/promo-director` | Mastered audio + album artwork |
+| `/promo-reviewer` | Promo copy populated in promo/ directory |
 | `/cloud-uploader` | Promo videos generated |
 | `/release-director` | Mastering complete, all QA passed |
 | `/import-audio` | Audio files in known location (e.g., ~/Downloads) |
@@ -218,6 +221,7 @@ What to have ready before using each skill:
 ```
 /mastering-engineer <audio-folder>
     -> /promo-director <album> (optional)
+    -> /promo-reviewer <album> (optional)
     -> /cloud-uploader <album> (optional)
     -> /release-director <album>
 ```
@@ -237,6 +241,7 @@ Natural pairings that complement each other:
 | `/suno-engineer` | `/clipboard` | Copy prompts directly to Suno |
 | `/mastering-engineer` | `/promo-director` | Promo videos need mastered audio |
 | `/promo-director` | `/cloud-uploader` | Upload videos for sharing |
+| `/promo-reviewer` | `/release-director` | Polish copy before release |
 | `/album-conceptualizer` | `/album-art-director` | Visual and sonic vision together |
 | `/new-album` | `/album-conceptualizer` | Always plan after creating structure |
 | `/lyric-reviewer` | `/explicit-checker` | Both are pre-generation QC |
@@ -269,7 +274,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 24 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 25 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -278,6 +283,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/explicit-checker` - Context-dependent content scanning
 - `/mastering-engineer` - Audio guidance
 - `/promo-director` - Video generation
+- `/promo-reviewer` - Interactive copy review
 - `/pronunciation-specialist` - Edge cases need judgment (homographs, context)
 - `/release-director` - Release coordination
 - `/researcher` - Research coordination
@@ -288,6 +294,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/session-start` - Session startup procedure
 - `/sheet-music-publisher` - Transcription workflow
 - `/tutorial` - Interactive guided creation
+- `/verify-sources` - Human verification gate
 
 ### Haiku 4.5 (Pattern Matching — 15 skills)
 - `/about` - Static information
@@ -301,6 +308,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/next-step` - Workflow routing
 - `/pre-generation-check` - Gate validation
 - `/rename` - File/directory renaming
+- `/setup` - Environment detection
 - `/skill-model-updater` - Pattern replacement
 - `/test` - Run predefined checks
 - `/validate-album` - Structure validation
