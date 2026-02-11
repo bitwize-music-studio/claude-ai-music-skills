@@ -68,10 +68,9 @@ In Style Prompt, put vocal description FIRST:
 Check for custom Suno preferences:
 
 ### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/suno-preferences.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base Suno knowledge only
+1. Call `load_override("suno-preferences.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base Suno knowledge only
 
 ### Override File Format
 
@@ -302,7 +301,7 @@ When you discover new Suno behavior or techniques, **update the reference docume
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/suno-preferences.md` at invocation
+1. **Load override first** - Call `load_override("suno-preferences.md")` at invocation
 2. **Suno V5 is literal** - Say what you want clearly and directly. Trust the model.
 3. **Apply genre mappings** - Use override genre preferences if available
 4. **Respect avoidance rules** - Never use genres/words user specified to avoid

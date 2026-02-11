@@ -124,10 +124,9 @@ Check for custom research preferences:
 
 ### Loading Override
 
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/research-preferences.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base research standards only
+1. Call `load_override("research-preferences.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base research standards only
 
 ### Override File Format
 
@@ -265,27 +264,18 @@ These specialists have `user-invocable: false` - you coordinate them, users don'
 
 **Before creating any files, you MUST:**
 
-1. **Check state cache first:**
-   - Read `~/.bitwize-music/cache/state.json`
-   - Search `state.albums` keys for the album name (case-insensitive)
-   - If found: use the album's `path` directly
+1. **Find album via MCP:**
+   - Call `find_album(name)` — fuzzy match by name, slug, or partial
+   - If found: use the album's path from the response
 
 2. **Determine album from context:**
-   - If state cache has albums, check for exactly 1 album with status "Concept", "Research Complete", or "In Progress" — if so, use it
+   - Call `list_albums(status_filter="In Progress")` — check for albums in active states
+   - If exactly 1 album in "Concept", "Research Complete", or "In Progress" → use it
    - If multiple match or none, ask: "Which album is this research for?"
 
-3. **If state cache is missing or stale:**
-   - Try rebuilding: `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py rebuild`
-   - If rebuild fails, fall back to config + Glob:
-     - Read `~/.bitwize-music/config.yaml` — extract `paths.content_root` and `artist.name`
-     - Glob: `{content_root}/artists/{artist}/albums/*/*/README.md`
-     - Filter results for the album name (case-insensitive)
-
-4. **Save files to album directory:**
-   ```
-   {content_root}/artists/{artist}/albums/{genre}/{album}/RESEARCH.md
-   {content_root}/artists/{artist}/albums/{genre}/{album}/SOURCES.md
-   ```
+3. **Resolve content path:**
+   - Call `resolve_path("content", album_slug)` — returns the album's content directory
+   - Save RESEARCH.md and SOURCES.md to this path
 
 **CRITICAL**: Never save to current working directory. Always save to the album's directory.
 
@@ -328,7 +318,7 @@ METHODOLOGY GAPS:
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/research-preferences.md` at invocation
+1. **Load override first** - Call `load_override("research-preferences.md")` at invocation
 2. **Apply research standards** - Use override verification standards and source priorities if available
 3. **Primary sources or nothing** - Don't cite news about documents, cite documents
 4. **Triple-verify key facts** - 3+ independent sources minimum (or override minimum)

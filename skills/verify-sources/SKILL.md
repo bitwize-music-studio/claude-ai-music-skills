@@ -27,13 +27,13 @@ You facilitate the **human source verification gate** — the critical checkpoin
 
 ## Step 1: Find the Album
 
-1. Read `~/.bitwize-music/cache/state.json`
-2. Find the album by name (case-insensitive, slug matching)
-3. If not found, list available albums and exit
+1. Call `find_album(name)` — fuzzy match by name, slug, or partial
+2. If not found, MCP returns available albums
 
 ## Step 2: Identify Pending Tracks
 
-From the album's tracks, find all with `sources_verified: "Pending"`.
+1. Call `get_pending_verifications()` — returns all pending tracks grouped by album
+2. Filter to the target album
 
 If no pending tracks:
 ```
@@ -57,8 +57,8 @@ Total: X tracks pending verification
 
 For each pending track:
 
-1. **Read the track file** to find its sources section
-2. **Read SOURCES.md** in the album directory for the full citation list
+1. Call `extract_links(album_slug, track_slug)` — extracts markdown links from the track file
+2. Call `extract_links(album_slug, "SOURCES.md")` — get the full citation list
 3. **Read RESEARCH.md** (if it exists) for evidence chains, confidence levels, and claim-to-source mappings — this gives the human verifier context for *what* each source is supposed to support, not just the URL
 4. **Present sources to the user**:
 
@@ -87,9 +87,7 @@ Type "verified" to confirm, or describe any issues.
 
 When user confirms verification for a track:
 
-1. **Edit the track markdown file** — update the `Sources Verified` row in the Track Details table:
-   - Change: `| **Sources Verified** | ❌ Pending |`
-   - To: `| **Sources Verified** | ✅ Verified (YYYY-MM-DD) |`
+1. Call `update_track_field(album_slug, track_slug, "sources-verified", "✅ Verified (YYYY-MM-DD)")` — updates the field and auto-rebuilds state cache
    - Use today's date
 
 2. **Confirm the update**:
@@ -107,10 +105,7 @@ After all tracks are verified:
    - If album was `Research Complete` → update to `Sources Verified`
    - If album was `In Progress` and all tracks now verified → note it
 
-2. **Rebuild state cache**:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py update
-```
+2. **Rebuild state cache**: Call `rebuild_state()` to ensure MCP server has fresh data
 
 3. **Summary report**:
 ```

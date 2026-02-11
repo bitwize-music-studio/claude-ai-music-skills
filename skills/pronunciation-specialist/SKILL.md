@@ -110,10 +110,9 @@ You reference TWO pronunciation guides:
 Check for custom pronunciation entries:
 
 ### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/pronunciation-guide.md`
-3. If exists: load and merge with base guide (override entries take precedence)
-4. If not exists: use base guide only (skip silently)
+1. Call `load_override("pronunciation-guide.md")` — returns override content if found (auto-resolves path from config)
+2. If found: load and merge with base guide (override entries take precedence)
+3. If not found: use base guide only (skip silently)
 
 ### Override File Format
 
@@ -142,25 +141,21 @@ Check for custom pronunciation entries:
 
 ## Scanning Workflow
 
-### Step 1: Automatic Scan
+### Step 1: Automated Scan via MCP
 
-Search for known risky patterns:
-```
-- \blive\b (homograph)
-- \bread\b (homograph)
-- \blead\b (homograph)
-- \bSQL\b (tech term)
-- \bLinux\b (tech term)
-- [A-Z]{2,5} (potential acronyms)
-- \d{4} (years)
-- \d{2,3} (numbers)
-```
+1. Extract lyrics: `extract_section(album_slug, track_slug, "lyrics")`
+2. Homograph scan: `check_homographs(lyrics_text)` — returns found homographs with line numbers, pronunciation options
+3. Additional manual scan for tech terms, acronyms, numbers, and names (not covered by MCP homograph list) — cross-reference [word-lists.md](word-lists.md)
+4. If style prompt exists: `scan_artist_names(style_text)` — catch blocklisted names
 
-### Step 2: Cross-Reference
+After fixes are applied:
+5. Verify: `check_pronunciation_enforcement(album_slug, track_slug)` — confirms all pronunciation table entries appear in lyrics
 
-Check flagged words against [word-lists.md](word-lists.md):
-- Is this word listed?
-- What's the recommended fix?
+### Step 2: Review Results
+
+From MCP results and manual scan:
+- Which words were flagged?
+- What's the recommended fix for each?
 
 ### Step 3: Generate Report
 

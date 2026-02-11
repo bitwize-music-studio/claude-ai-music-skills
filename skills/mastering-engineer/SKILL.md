@@ -78,10 +78,9 @@ See [genre-presets.md](genre-presets.md) for detailed genre settings.
 Check for custom mastering presets:
 
 ### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/mastering-presets.yaml`
-3. If exists: load and apply custom presets
-4. If not exists: use base genre presets only
+1. Call `load_override("mastering-presets.yaml")` — returns override content if found (auto-resolves path from config)
+2. If found: load and apply custom presets
+3. If not found: use base genre presets only
 
 ### Override File Format
 
@@ -116,19 +115,13 @@ genres:
 
 ## Path Resolution (REQUIRED)
 
-Before mastering, read config to resolve audio paths:
+Before mastering, resolve audio path via MCP:
 
-1. Read `~/.bitwize-music/config.yaml`
-2. Extract `paths.audio_root` and `artist.name`
-3. Construct audio path: `{audio_root}/{artist}/{album}/`
+1. Call `resolve_path("audio", album_slug)` — returns the full audio directory path
 
-```bash
-cat ~/.bitwize-music/config.yaml
-```
+**Example**: For album "my-album", returns `~/bitwize-music/audio/bitwize/my-album/`.
 
-**Example**: If `audio_root: ~/bitwize-music/audio` and `artist.name: bitwize`, then the audio folder for "my-album" is `~/bitwize-music/audio/bitwize/my-album/`.
-
-**Do not** use placeholder paths or assume audio locations — always resolve from config.
+**Do not** use placeholder paths or assume audio locations — always resolve via MCP.
 
 ---
 
@@ -431,7 +424,7 @@ After all tracks mastered and verified:
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/mastering-presets.yaml` at invocation
+1. **Load override first** - Call `load_override("mastering-presets.yaml")` at invocation
 2. **Apply custom presets** - Use override genre settings if available
 3. **-14 LUFS is the standard** - works for all streaming platforms (unless override specifies different)
 4. **Preserve dynamics** - don't crush to hit target

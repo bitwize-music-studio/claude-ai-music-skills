@@ -116,10 +116,11 @@ pip list | grep playwright
 # Install if needed
 pip install playwright beautifulsoup4 requests
 playwright install chromium
-
-# Create directories (use documents_root from paths.yaml)
-mkdir -p {documents_root}/[artist]/[album]/
 ```
+
+Resolve document storage path:
+- Call `resolve_path("documents", album_slug)` — returns `{documents_root}/{artist}/{album}/`
+- Create directory: `mkdir -p {resolved_path}`
 
 ### Phase 2: Search
 

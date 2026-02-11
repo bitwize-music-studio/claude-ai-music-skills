@@ -73,7 +73,8 @@ lyric-writer (WRITES + SUNO PROMPT) → pronunciation-specialist (RESOLVES) → 
 - **Warning**: Clear stress misalignment
 
 ### 3. Pronunciation Check
-- Proper nouns, homographs, acronyms, tech terms, numbers
+- Call `check_homographs(lyrics_text)` — automated scan for homograph words with pronunciation options
+- Call `check_pronunciation_enforcement(album_slug, track_slug)` — verifies all pronunciation table entries are applied in lyrics
 - **Critical**: Unphonetic proper noun, homograph detected (AUTO-FIX REQUIRED - see Homograph Detection section)
 
 ### 4. POV/Tense Check
@@ -124,8 +125,7 @@ lyric-writer (WRITES + SUNO PROMPT) → pronunciation-specialist (RESOLVES) → 
 - **Warning**: Shared phrases or rhyme words bleeding across section boundaries
 
 ### 14. Artist Name Check
-- Scan lyrics AND style prompt for real artist/band names
-- Cross-reference against `${CLAUDE_PLUGIN_ROOT}/reference/suno/artist-blocklist.md`
+- Call `scan_artist_names(text)` — scans lyrics AND style prompt against the artist blocklist
 - **Critical**: Any artist name in the style prompt will cause Suno to fail or produce unexpected results
 - **Fix**: Replace with genre/style description from the blocklist's "Say Instead" column
 

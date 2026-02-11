@@ -45,21 +45,13 @@ Track completion across these phases:
 
 ## Data Collection
 
-### From State Cache
-Read `~/.bitwize-music/cache/state.json` and extract:
-- Album status, track count, tracks completed
-- Per-track: status, has_suno_link, sources_verified
+### From MCP Server
 
-### From Album Directory
-Read the album README.md for:
-- Whether tracklist is defined (vs template placeholder)
-- Whether RESEARCH.md exists
-- Whether SOURCES.md exists
+1. Call `get_album_progress(album_slug)` — returns completion stats, phase detection, track counts by status
+2. Call `find_album(name)` — returns album metadata (genre, status, track list with per-track fields)
+3. Call `list_track_files(album_slug)` — returns tracks with file paths for any additional checks
 
-Glob track files to check:
-- Whether Lyrics Box has content
-- Whether Pronunciation Notes table exists and has entries
-- Whether Suno Inputs section has style prompt
+These three calls replace all manual state.json reads and file globbing.
 
 ---
 

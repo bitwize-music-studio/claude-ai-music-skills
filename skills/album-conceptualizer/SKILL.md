@@ -67,10 +67,9 @@ Limitations (genre, theme, format) force interesting choices. Embrace them.
 Check for custom album planning preferences:
 
 ### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/album-planning-guide.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base planning principles only
+1. Call `load_override("album-planning-guide.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base planning principles only
 
 ### Override File Format
 
@@ -329,7 +328,7 @@ As the album conceptualizer, you:
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/album-planning-guide.md` at invocation
+1. **Load override first** - Call `load_override("album-planning-guide.md")` at invocation
 2. **Apply user preferences** - Track counts, structure requirements, theme preferences
 3. **The album is a journey** - Map it before you build it
 4. **Know where you're going** - Concept, theme, resolution

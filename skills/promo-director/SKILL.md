@@ -96,22 +96,11 @@ Which option:
 
 ### 2. Album Detection
 
-**Read config:**
-```python
-import yaml
-from pathlib import Path
+**Resolve audio path via MCP:**
 
-config_path = Path.home() / ".bitwize-music" / "config.yaml"
-config = yaml.safe_load(open(config_path))
+Call `resolve_path("audio", album_slug)` — returns the full audio directory path including artist folder.
 
-audio_root = Path(config['paths']['audio_root']).expanduser()
-artist = config['artist']['name']
-```
-
-**Locate album:**
-```
-Album path: {audio_root}/{artist}/{album_name}/
-```
+Example result: `~/bitwize-music/audio/bitwize/sample-album/`
 
 **Verify contents:**
 - ✓ Mastered audio files (.wav, .mp3, .flac, .m4a)
