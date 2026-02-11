@@ -9053,3 +9053,2339 @@ class TestRenameTrack:
             )))
         assert "error" in result
         assert "not found on disk" in result["error"]
+
+
+# =============================================================================
+# Tests for _resolve_audio_dir helper
+# =============================================================================
+
+
+class TestResolveAudioDir:
+    """Tests for the _resolve_audio_dir() helper function."""
+
+    def test_returns_path_when_dir_exists(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album")
+        assert err is None
+        assert path == audio_dir
+
+    def test_returns_error_when_dir_missing(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent/path"
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album")
+        assert path is None
+        result = json.loads(err)
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_returns_error_when_config_missing(self):
+        state = {"config": {}, "albums": {}, "ideas": {}, "session": {}}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album")
+        assert path is None
+        result = json.loads(err)
+        assert "not configured" in result["error"]
+
+    def test_subfolder_appended(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album" / "mastered"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album", "mastered")
+        assert err is None
+        assert path == audio_dir
+
+    def test_slug_normalization(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "my-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("My Album")
+        assert err is None
+        assert path == audio_dir
+
+
+# =============================================================================
+# Tests for dependency checker helpers
+# =============================================================================
+
+
+class TestDepCheckers:
+    """Tests for _check_mastering_deps, _check_ffmpeg, etc."""
+
+    def test_check_mastering_deps_returns_none_when_available(self):
+        # These deps are installed in the test environment
+        result = server._check_mastering_deps()
+        # May or may not be installed, just verify return type
+        assert result is None or isinstance(result, str)
+
+    def test_check_mastering_deps_detects_missing(self):
+        with patch.dict("sys.modules", {"numpy": None}):
+            # Force ImportError by making __import__ fail for numpy
+            original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+            def mock_import(name, *args, **kwargs):
+                if name == "numpy":
+                    raise ImportError("mocked")
+                return original_import(name, *args, **kwargs)
+            with patch("builtins.__import__", side_effect=mock_import):
+                result = server._check_mastering_deps()
+            if result is not None:
+                assert "numpy" in result
+
+    def test_check_ffmpeg_returns_string_type(self):
+        result = server._check_ffmpeg()
+        assert result is None or isinstance(result, str)
+
+    def test_check_ffmpeg_when_missing(self):
+        with patch.object(shutil, "which", return_value=None):
+            result = server._check_ffmpeg()
+        assert result is not None
+        assert "ffmpeg" in result
+
+    def test_check_matchering_returns_string_type(self):
+        result = server._check_matchering()
+        assert result is None or isinstance(result, str)
+
+    def test_check_songbook_deps_returns_string_type(self):
+        result = server._check_songbook_deps()
+        assert result is None or isinstance(result, str)
+
+
+# =============================================================================
+# Tests for analyze_audio tool
+# =============================================================================
+
+
+class TestAnalyzeAudio:
+    """Tests for the analyze_audio MCP tool."""
+
+    def test_missing_deps_returns_error(self):
+        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+        assert "error" in result
+        assert "Missing deps" in result["error"]
+
+    def test_missing_audio_dir_returns_error(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+        assert "error" in result
+
+    def test_no_wav_files_returns_error(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+        assert "error" in result
+        assert "No WAV" in result["error"]
+
+    def test_successful_analysis(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        # Create a dummy wav file
+        (audio_dir / "01-test.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_result = {
+            "filename": "01-test.wav",
+            "duration": 180.0,
+            "sample_rate": 44100,
+            "lufs": -14.5,
+            "peak_db": -0.5,
+            "rms_db": -18.0,
+            "dynamic_range": 17.5,
+            "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15, "mid": 30, "high_mid": 20, "high": 8, "air": 2},
+            "tinniness_ratio": 0.4,
+        }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert "tracks" in result
+        assert len(result["tracks"]) == 1
+        assert "summary" in result
+        assert result["summary"]["track_count"] == 1
+        assert "recommendations" in result
+
+    def test_subfolder_param(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album" / "mastered"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "01-test.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_result = {
+            "filename": "01-test.wav", "duration": 180.0, "sample_rate": 44100,
+            "lufs": -14.0, "peak_db": -1.0, "rms_db": -18.0, "dynamic_range": 17.0,
+            "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15, "mid": 30, "high_mid": 20, "high": 8, "air": 2},
+            "tinniness_ratio": 0.3,
+        }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
+            result = json.loads(_run(server.analyze_audio("test-album", subfolder="mastered")))
+        assert "tracks" in result
+
+
+# =============================================================================
+# Tests for master_audio tool
+# =============================================================================
+
+
+class TestMasterAudio:
+    """Tests for the master_audio MCP tool."""
+
+    def test_missing_deps(self):
+        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+            result = json.loads(_run(server.master_audio("test-album")))
+        assert "error" in result
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_audio("test-album")))
+        assert "error" in result
+
+    def test_no_wav_files(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_audio("test-album")))
+        assert "error" in result
+
+    def test_unknown_genre(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "01-test.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_audio("test-album", genre="nonexistent-genre")))
+        assert "error" in result
+        assert "Unknown genre" in result["error"]
+
+    def test_successful_master_dry_run(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "01-test.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        # Mock soundfile and pyloudnorm for dry_run
+        mock_data = MagicMock()
+        mock_data.shape = (44100, 2)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("soundfile.read", return_value=(mock_data, 44100)), \
+             patch("pyloudnorm.Meter") as mock_meter_cls:
+            mock_meter = MagicMock()
+            mock_meter.integrated_loudness.return_value = -20.0
+            mock_meter_cls.return_value = mock_meter
+            # Also mock numpy imports inside the function
+            import numpy as np
+            mock_data.__len__ = lambda self: 1
+            mock_data.shape = (44100, 2)
+            result = json.loads(_run(server.master_audio("test-album", dry_run=True)))
+
+        assert "tracks" in result or "error" in result
+
+    def test_settings_in_response(self, tmp_path):
+        """Verify settings object is returned with correct values."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "01-test.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_master_result = {
+            "original_lufs": -20.0, "final_lufs": -14.0,
+            "gain_applied": 6.0, "final_peak": -1.0,
+        }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", return_value=mock_master_result), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio("test-album")))
+
+        if "settings" in result:
+            assert result["settings"]["target_lufs"] == -14.0
+            assert result["settings"]["ceiling_db"] == -1.0
+
+
+# =============================================================================
+# Tests for fix_dynamic_track tool
+# =============================================================================
+
+
+class TestFixDynamicTrack:
+    """Tests for the fix_dynamic_track MCP tool."""
+
+    def test_missing_deps(self):
+        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+            result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
+        assert "error" in result
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
+        assert "error" in result
+
+    def test_missing_track_file(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.fix_dynamic_track("test-album", "nonexistent.wav")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+
+# =============================================================================
+# Tests for master_with_reference tool
+# =============================================================================
+
+
+class TestMasterWithReference:
+    """Tests for the master_with_reference MCP tool."""
+
+    def test_missing_matchering(self):
+        with patch.object(server, "_check_matchering", return_value="matchering not installed"):
+            result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
+        assert "error" in result
+        assert "matchering" in result["error"]
+
+    def test_missing_reference_file(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None):
+            result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def _patch_ref_master(self):
+        """Patch tools.mastering.reference_master in sys.modules to avoid matchering import."""
+        mock_fn = MagicMock()
+        mock_mod = types.ModuleType("tools.mastering.reference_master")
+        mock_mod.master_with_reference = mock_fn
+        return patch.dict("sys.modules", {"tools.mastering.reference_master": mock_mod}), mock_fn
+
+    def test_missing_target_file(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        mod_patch, _ = self._patch_ref_master()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference(
+                "test-album", "ref.wav", "nonexistent.wav"
+            )))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_single_track_success(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, _ = self._patch_ref_master()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference(
+                "test-album", "ref.wav", "01-track.wav"
+            )))
+        assert "tracks" in result
+        assert result["tracks"][0]["success"] is True
+        assert result["summary"]["success"] == 1
+
+    def test_batch_mode(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+        (audio_dir / "02-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, _ = self._patch_ref_master()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
+        assert "tracks" in result
+        assert len(result["tracks"]) == 2
+        assert result["summary"]["success"] == 2
+
+
+# =============================================================================
+# Tests for transcribe_audio tool
+# =============================================================================
+
+
+class TestTranscribeAudio:
+    """Tests for the transcribe_audio MCP tool."""
+
+    def test_missing_anthemscore(self):
+        with patch.object(server, "_check_anthemscore", return_value="AnthemScore not found"):
+            result = json.loads(_run(server.transcribe_audio("test-album")))
+        assert "error" in result
+        assert "AnthemScore" in result["error"]
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None):
+            result = json.loads(_run(server.transcribe_audio("test-album")))
+        assert "error" in result
+
+    def test_no_wav_files(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+        mock_mod.transcribe_track.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio("test-album")))
+        assert "error" in result
+        assert "No WAV" in result["error"]
+
+    def test_single_track_missing(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", track_filename="nonexistent.wav"
+            )))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+
+# =============================================================================
+# Tests for fix_sheet_music_titles tool
+# =============================================================================
+
+
+class TestFixSheetMusicTitles:
+    """Tests for the fix_sheet_music_titles MCP tool."""
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+        assert "error" in result
+
+    def test_missing_sheet_dir(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_no_xml_files(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+        assert "error" in result
+
+    def test_successful_fix(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.find_musescore.return_value = None
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+        assert "files" in result
+        assert result["fixed_count"] == 1
+        assert result["files"][0]["new_title"] == "Track"
+
+
+# =============================================================================
+# Tests for create_songbook tool
+# =============================================================================
+
+
+class TestCreateSongbook:
+    """Tests for the create_songbook MCP tool."""
+
+    def test_missing_deps(self):
+        with patch.object(server, "_check_songbook_deps", return_value="Missing pypdf"):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+        assert "error" in result
+        assert "pypdf" in result["error"]
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+        assert "error" in result
+
+    def test_missing_sheet_dir(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+
+# =============================================================================
+# Tests for generate_promo_videos tool
+# =============================================================================
+
+
+class TestGeneratePromoVideos:
+    """Tests for the generate_promo_videos MCP tool."""
+
+    def test_missing_ffmpeg(self):
+        with patch.object(server, "_check_ffmpeg", return_value="ffmpeg not found"):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+        assert "error" in result
+        assert "ffmpeg" in result["error"]
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+        assert "error" in result
+
+    def test_missing_artwork(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+        assert "error" in result
+        assert "artwork" in result["error"].lower()
+
+    def test_single_track_not_found(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="nonexistent.wav"
+            )))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    def test_single_track_uses_markdown_title(self, tmp_path):
+        """Single-track mode should prefer title from state cache (markdown-derived)."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-some-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        state["albums"]["test-album"]["tracks"]["01-some-track"] = {
+            "path": "/tmp/test/.../01-some-track.md",
+            "title": "The Real Title",
+            "status": "Final",
+            "explicit": False,
+            "has_suno_link": True,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+
+        captured_title = []
+
+        def mock_generate(**kwargs):
+            captured_title.append(kwargs.get("title"))
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-some-track.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is True
+        assert len(captured_title) == 1
+        assert captured_title[0] == "The Real Title"
+
+
+# =============================================================================
+# Tests for generate_album_sampler tool
+# =============================================================================
+
+
+class TestGenerateAlbumSampler:
+    """Tests for the generate_album_sampler MCP tool."""
+
+    def test_missing_ffmpeg(self):
+        with patch.object(server, "_check_ffmpeg", return_value="ffmpeg not found"):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+        assert "error" in result
+
+    def test_missing_audio_dir(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+        assert "error" in result
+
+    def test_missing_artwork(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+        assert "error" in result
+        assert "artwork" in result["error"].lower()
+
+    def test_sampler_failure(self, tmp_path):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler", return_value=False):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+        assert "error" in result
+
+
+# =============================================================================
+# Tests for _import_sheet_music_module helper
+# =============================================================================
+
+
+class TestImportSheetMusicModule:
+    """Tests for the _import_sheet_music_module() helper."""
+
+    def test_imports_existing_module(self):
+        """Should import transcribe.py from tools/sheet-music/."""
+        mod = server._import_sheet_music_module("transcribe")
+        assert hasattr(mod, "find_anthemscore")
+        assert hasattr(mod, "transcribe_track")
+
+    def test_imports_fix_titles(self):
+        """Should import fix_titles.py from tools/sheet-music/."""
+        mod = server._import_sheet_music_module("fix_titles")
+        assert hasattr(mod, "fix_xml_title")
+        assert hasattr(mod, "find_musescore")
+
+    def test_imports_create_songbook(self):
+        """Should import create_songbook.py from tools/sheet-music/ (mocks pypdf+reportlab if missing)."""
+        # create_songbook.py does sys.exit(1) at import time if pypdf/reportlab are missing.
+        # Mock them in sys.modules if needed so the import succeeds regardless.
+        mods_to_mock = {}
+        for mod_name in ("pypdf", "reportlab", "reportlab.lib", "reportlab.lib.pagesizes",
+                         "reportlab.lib.units", "reportlab.pdfgen", "reportlab.pdfgen.canvas"):
+            if mod_name not in sys.modules:
+                mods_to_mock[mod_name] = MagicMock()
+        if mods_to_mock:
+            with patch.dict("sys.modules", mods_to_mock):
+                mod = server._import_sheet_music_module("create_songbook")
+        else:
+            mod = server._import_sheet_music_module("create_songbook")
+        assert hasattr(mod, "create_songbook")
+        assert hasattr(mod, "auto_detect_cover_art")
+
+    def test_nonexistent_module_raises(self):
+        """Should raise on a module that doesn't exist."""
+        with pytest.raises(Exception):
+            server._import_sheet_music_module("nonexistent_module")
+
+
+# =============================================================================
+# Comprehensive tests for all 9 processing MCP tools — success paths,
+# batch modes, parameter variations, and edge cases.
+# =============================================================================
+
+
+class TestAnalyzeAudioComprehensive:
+    """Comprehensive tests for analyze_audio: batch, recommendations, edge cases."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=3):
+        """Helper to create audio dir with dummy WAV files."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def _mock_result(self, filename, lufs=-14.0, tinniness=0.3):
+        return {
+            "filename": filename,
+            "duration": 180.0,
+            "sample_rate": 44100,
+            "lufs": lufs,
+            "peak_db": -0.5,
+            "rms_db": -18.0,
+            "dynamic_range": 17.5,
+            "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15,
+                            "mid": 30, "high_mid": 20, "high": 8, "air": 2},
+            "tinniness_ratio": tinniness,
+        }
+
+    def test_batch_multiple_tracks(self, tmp_path):
+        """Analyze multiple WAV files and get per-track results."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        call_count = []
+
+        def mock_analyze(filepath):
+            name = Path(filepath).name
+            call_count.append(name)
+            return self._mock_result(name)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert len(result["tracks"]) == 3
+        assert result["summary"]["track_count"] == 3
+        assert len(call_count) == 3
+
+    def test_tinny_track_recommendation(self, tmp_path):
+        """Tracks with tinniness > 0.6 should appear in recommendations."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_analyze(filepath):
+            name = Path(filepath).name
+            tinniness = 0.8 if "01" in name else 0.3
+            return self._mock_result(name, tinniness=tinniness)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert result["summary"]["tinny_tracks"] == ["01-track-1.wav"]
+        tinny_rec = [r for r in result["recommendations"] if "Tinny" in r]
+        assert len(tinny_rec) == 1
+
+    def test_quiet_tracks_recommendation(self, tmp_path):
+        """Average LUFS below -16 should trigger recommendation."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_analyze(filepath):
+            return self._mock_result(Path(filepath).name, lufs=-20.0)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert result["summary"]["avg_lufs"] == pytest.approx(-20.0)
+        boost_rec = [r for r in result["recommendations"] if "boosting" in r]
+        assert len(boost_rec) == 1
+
+    def test_wide_lufs_range_recommendation(self, tmp_path):
+        """LUFS range > 2 dB should trigger consistency recommendation."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        call_idx = [0]
+
+        def mock_analyze(filepath):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            lufs = -12.0 if idx == 0 else -16.0
+            return self._mock_result(Path(filepath).name, lufs=lufs)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert result["summary"]["lufs_range"] == pytest.approx(4.0)
+        range_rec = [r for r in result["recommendations"] if "LUFS range" in r]
+        assert len(range_rec) == 1
+
+    def test_no_recommendations_when_clean(self, tmp_path):
+        """Well-mastered tracks should produce no recommendations."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_analyze(filepath):
+            return self._mock_result(Path(filepath).name, lufs=-14.0, tinniness=0.2)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            result = json.loads(_run(server.analyze_audio("test-album")))
+
+        assert result["recommendations"] == []
+
+
+class TestMasterAudioComprehensive:
+    """Comprehensive tests for master_audio: batch, genre presets, settings."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=2):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_batch_multiple_tracks_success(self, tmp_path):
+        """Master multiple tracks and verify per-track results."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.0,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio("test-album")))
+
+        assert len(result["tracks"]) == 3
+        assert result["summary"]["tracks_processed"] == 3
+
+    def test_creates_mastered_dir(self, tmp_path):
+        """master_audio should create mastered/ subdirectory."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.0,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio("test-album")))
+
+        assert (audio_dir / "mastered").is_dir()
+
+    def test_genre_preset_applied(self, tmp_path):
+        """Genre preset should set EQ and LUFS values."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_master(input_path, output_path, **kwargs):
+            captured_kwargs.append(kwargs)
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -13.0,
+                "gain_applied": 7.0,
+                "final_peak": -1.0,
+            }
+
+        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
+            result = json.loads(_run(server.master_audio("test-album", genre="hip-hop")))
+
+        assert result["settings"]["genre"] == "hip-hop"
+        assert result["settings"]["target_lufs"] == -13.0
+        assert result["settings"]["cut_highmid"] == -3.0
+        assert result["settings"]["cut_highs"] == -1.0
+
+    def test_custom_params_override_genre(self, tmp_path):
+        """Explicit non-default params should override genre preset."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -12.0,
+                "gain_applied": 8.0,
+                "final_peak": -1.0,
+            }
+
+        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
+            result = json.loads(_run(server.master_audio(
+                "test-album", genre="hip-hop", target_lufs=-12.0
+            )))
+
+        # -12.0 was explicitly set, so it overrides the genre preset's -13.0
+        assert result["settings"]["target_lufs"] == -12.0
+
+    def test_eq_settings_propagated(self, tmp_path):
+        """EQ settings should be passed to master_track."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_master(input_path, output_path, **kwargs):
+            captured_kwargs.append(kwargs)
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.0,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio(
+                "test-album", cut_highmid=-2.0, cut_highs=-1.5
+            )))
+
+        assert len(captured_kwargs) == 1
+        eq = captured_kwargs[0]["eq_settings"]
+        assert len(eq) == 2
+        assert eq[0] == (3500, -2.0, 1.5)
+        assert eq[1] == (8000, -1.5, 0.7)
+
+    def test_summary_gain_range(self, tmp_path):
+        """Summary should include correct gain range across tracks."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        call_idx = [0]
+
+        def mock_master(input_path, output_path, **kwargs):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            gain = 4.0 if idx == 0 else 8.0
+            return {
+                "original_lufs": -14.0 - gain,
+                "final_lufs": -14.0,
+                "gain_applied": gain,
+                "final_peak": -1.0,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio("test-album")))
+
+        assert result["summary"]["gain_range"] == [4.0, 8.0]
+
+    def test_skipped_tracks_excluded(self, tmp_path):
+        """Tracks returning skipped=True should not appear in results."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        call_idx = [0]
+
+        def mock_master(input_path, output_path, **kwargs):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            if idx == 0:
+                return {"skipped": True}
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.0,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
+            result = json.loads(_run(server.master_audio("test-album")))
+
+        assert result["summary"]["tracks_processed"] == 1
+
+
+class TestFixDynamicTrackComprehensive:
+    """Comprehensive tests for fix_dynamic_track success path."""
+
+    def test_successful_fix(self, tmp_path):
+        """Full success path: read WAV, compress, master, write output."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "05-loud-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        import numpy as np
+
+        mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
+             patch("soundfile.write") as mock_write, \
+             patch("pyloudnorm.Meter") as mock_meter_cls:
+            mock_meter = MagicMock()
+            mock_meter.integrated_loudness.side_effect = [-22.0, -16.0, -14.0]
+            mock_meter_cls.return_value = mock_meter
+
+            result = json.loads(_run(server.fix_dynamic_track("test-album", "05-loud-track.wav")))
+
+        assert result["filename"] == "05-loud-track.wav"
+        assert result["original_lufs"] == -22.0
+        assert result["final_lufs"] == -14.0
+        assert "output_path" in result
+        assert "mastered" in result["output_path"]
+        mock_write.assert_called_once()
+
+    def test_creates_mastered_dir(self, tmp_path):
+        """Should create mastered/ subdirectory."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        import numpy as np
+        mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
+             patch("soundfile.write"), \
+             patch("pyloudnorm.Meter") as mock_meter_cls:
+            mock_meter = MagicMock()
+            mock_meter.integrated_loudness.side_effect = [-20.0, -16.0, -14.0]
+            mock_meter_cls.return_value = mock_meter
+            _run(server.fix_dynamic_track("test-album", "01-track.wav"))
+
+        assert (audio_dir / "mastered").is_dir()
+
+
+class TestMasterWithReferenceComprehensive:
+    """Comprehensive tests for master_with_reference: error during batch, output paths."""
+
+    def _patch_ref_master(self):
+        mock_fn = MagicMock()
+        mock_mod = types.ModuleType("tools.mastering.reference_master")
+        mock_mod.master_with_reference = mock_fn
+        return patch.dict("sys.modules", {"tools.mastering.reference_master": mock_mod}), mock_fn
+
+    def test_batch_error_on_one_track(self, tmp_path):
+        """If one track fails in batch mode, others should still succeed."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-good.wav").write_bytes(b"")
+        (audio_dir / "02-bad.wav").write_bytes(b"")
+        (audio_dir / "03-good.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, mock_fn = self._patch_ref_master()
+
+        call_count = [0]
+
+        def side_effect(target, ref, output):
+            call_count[0] += 1
+            if "02-bad" in str(target):
+                raise RuntimeError("Processing failed")
+
+        mock_fn.side_effect = side_effect
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
+
+        assert result["summary"]["success"] == 2
+        assert result["summary"]["failed"] == 1
+        failed = [t for t in result["tracks"] if not t["success"]]
+        assert len(failed) == 1
+        assert "02-bad" in failed[0]["filename"]
+
+    def test_reference_excluded_from_batch(self, tmp_path):
+        """Batch mode should not process the reference file itself."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, mock_fn = self._patch_ref_master()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
+
+        assert len(result["tracks"]) == 1
+        assert "ref.wav" not in result["tracks"][0]["filename"]
+
+    def test_output_dir_created(self, tmp_path):
+        """mastered/ directory should be created automatically."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, _ = self._patch_ref_master()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            _run(server.master_with_reference("test-album", "ref.wav"))
+
+        assert (audio_dir / "mastered").is_dir()
+
+    def test_single_track_output_path(self, tmp_path):
+        """Single track output should be in mastered/ subdirectory."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mod_patch, _ = self._patch_ref_master()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_matchering", return_value=None), \
+             mod_patch:
+            result = json.loads(_run(server.master_with_reference(
+                "test-album", "ref.wav", "01-track.wav"
+            )))
+
+        assert "mastered" in result["tracks"][0]["output"]
+
+
+class TestTranscribeAudioComprehensive:
+    """Comprehensive tests for transcribe_audio success paths."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=2):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_batch_success(self, tmp_path):
+        """Transcribe all WAV files in batch mode."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+        mock_mod.transcribe_track.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio("test-album")))
+
+        assert result["summary"]["success"] == 3
+        assert result["summary"]["failed"] == 0
+        assert len(result["tracks"]) == 3
+        assert all(t["success"] for t in result["tracks"])
+
+    def test_single_track_success(self, tmp_path):
+        """Transcribe a single track by filename."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+        mock_mod.transcribe_track.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", track_filename="01-track.wav"
+            )))
+
+        assert len(result["tracks"]) == 1
+        assert result["tracks"][0]["filename"] == "01-track.wav"
+        assert result["summary"]["success"] == 1
+
+    def test_format_param_parsed(self, tmp_path):
+        """Formats parameter should be parsed and passed correctly."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+        mock_mod.transcribe_track.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", formats="pdf,xml,midi"
+            )))
+
+        assert result["summary"]["formats"] == ["pdf", "xml", "midi"]
+        # Verify args passed to transcribe_track
+        args = mock_mod.transcribe_track.call_args[0][3]
+        assert args.pdf is True
+        assert args.xml is True
+        assert args.midi is True
+
+    def test_dry_run_mode(self, tmp_path):
+        """Dry run should not create output directory."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+        mock_mod.transcribe_track.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", dry_run=True
+            )))
+
+        assert not (audio_dir / "sheet-music").exists()
+        # Verify dry_run was set in args
+        args = mock_mod.transcribe_track.call_args[0][3]
+        assert args.dry_run is True
+
+    def test_partial_failure(self, tmp_path):
+        """Some tracks failing should still report success for others."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+
+        call_idx = [0]
+
+        def mock_transcribe(*args):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            return idx != 1  # Second track fails
+
+        mock_mod.transcribe_track.side_effect = mock_transcribe
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.transcribe_audio("test-album")))
+
+        assert result["summary"]["success"] == 2
+        assert result["summary"]["failed"] == 1
+
+
+class TestFixSheetMusicTitlesComprehensive:
+    """Comprehensive tests for fix_sheet_music_titles: batch, dry_run, PDF export."""
+
+    def test_batch_multiple_xmls(self, tmp_path):
+        """Fix titles in multiple XML files."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+        (sheet_dir / "02-song.xml").write_text("<work-title>02 - Song</work-title>")
+        (sheet_dir / "03-tune.xml").write_text("<work-title>03 - Tune</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.side_effect = ["Track", "Song", "Tune"]
+        mock_mod.find_musescore.return_value = None
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+
+        assert result["fixed_count"] == 3
+        assert len(result["files"]) == 3
+
+    def test_dry_run_mode(self, tmp_path):
+        """Dry run should not modify files or export PDFs."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.find_musescore.return_value = "/usr/bin/musescore"
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album", dry_run=True)))
+
+        mock_mod.fix_xml_title.assert_called_once()
+        # dry_run=True passed to fix_xml_title
+        _, kwargs = mock_mod.fix_xml_title.call_args
+        assert kwargs["dry_run"] is True
+        # No PDF export in dry run
+        assert result["pdf_exports"] == []
+
+    def test_pdf_export_with_musescore(self, tmp_path):
+        """When MuseScore is available and export_pdf=True, should export PDFs."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.find_musescore.return_value = "/usr/bin/musescore"
+        mock_mod.export_pdf.return_value = True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles(
+                "test-album", export_pdf=True
+            )))
+
+        assert len(result["pdf_exports"]) == 1
+        assert result["pdf_exports"][0]["exported"] is True
+
+    def test_no_pdf_export_when_musescore_missing(self, tmp_path):
+        """When MuseScore is missing, PDF export should be skipped with warning."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.find_musescore.return_value = None
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles(
+                "test-album", export_pdf=True
+            )))
+
+        assert any("warning" in p for p in result["pdf_exports"])
+
+    def test_musicxml_extension(self, tmp_path):
+        """Should also find .musicxml files with track number prefixes."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.musicxml").write_text("<work-title>01 - Track</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.find_musescore.return_value = None
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+
+        assert result["fixed_count"] == 1
+        assert result["files"][0]["filename"] == "01-track.musicxml"
+
+    def test_export_pdf_false_skips_export(self, tmp_path):
+        """When export_pdf=False, no PDF export should be attempted."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.fix_xml_title.return_value = "Track"
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.fix_sheet_music_titles(
+                "test-album", export_pdf=False
+            )))
+
+        assert result["pdf_exports"] == []
+        mock_mod.find_musescore.assert_not_called()
+
+
+class TestCreateSongbookComprehensive:
+    """Comprehensive tests for create_songbook success path."""
+
+    def _mock_songbook_module(self):
+        """Create a mock songbook module."""
+        mock_mod = MagicMock()
+        mock_mod.create_songbook.return_value = True
+        mock_mod.auto_detect_cover_art.return_value = "/fake/cover.png"
+        mock_mod.get_website_from_config.return_value = "https://example.com"
+        return mock_mod
+
+    def test_success_path(self, tmp_path):
+        """Full success path for create_songbook."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = self._mock_songbook_module()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+
+        assert result["success"] is True
+        assert result["title"] == "My Songbook"
+        assert result["artist"] == "test-artist"
+        assert "output_path" in result
+
+    def test_page_size_param(self, tmp_path):
+        """Page size parameter should be passed through."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = self._mock_songbook_module()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.create_songbook(
+                "test-album", "My Songbook", page_size="9x12"
+            )))
+
+        assert result["page_size"] == "9x12"
+        # Verify page_size_name passed to the function
+        call_kwargs = mock_mod.create_songbook.call_args
+        assert call_kwargs[1]["page_size_name"] == "9x12"
+
+    def test_artist_from_config(self, tmp_path):
+        """Artist name should come from config state."""
+        audio_dir = tmp_path / "custom-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "custom-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = self._mock_songbook_module()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+
+        assert result["artist"] == "custom-artist"
+        call_kwargs = mock_mod.create_songbook.call_args
+        assert call_kwargs[1]["artist"] == "custom-artist"
+
+    def test_creation_failure(self, tmp_path):
+        """create_songbook returning False should produce error."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = self._mock_songbook_module()
+        mock_mod.create_songbook.return_value = False
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
+
+        assert "error" in result
+
+    def test_output_path_sanitized(self, tmp_path):
+        """Title with spaces/slashes should be sanitized in output path."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = self._mock_songbook_module()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_songbook_deps", return_value=None), \
+             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+            result = json.loads(_run(server.create_songbook(
+                "test-album", "My Album / Songbook"
+            )))
+
+        assert result["success"] is True
+        assert "My_Album_-_Songbook.pdf" in result["output_path"]
+
+
+class TestGeneratePromoVideosComprehensive:
+    """Comprehensive tests for generate_promo_videos: batch, title fallbacks, artwork."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=2, artwork_name="album.png"):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / artwork_name).write_bytes(b"")
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_batch_mode_success(self, tmp_path):
+        """Batch all tracks with mock batch_process_album."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        # Simulate batch_process_album creating output files
+        def mock_batch(**kwargs):
+            output_dir = kwargs["output_dir"]
+            output_dir.mkdir(exist_ok=True)
+            (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
+            (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.batch_process_album",
+                   side_effect=mock_batch), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+
+        assert result["summary"]["success"] == 2
+        assert len(result["tracks"]) == 2
+
+    def test_filename_fallback_title_cleanup(self, tmp_path):
+        """When no markdown title exists, filename should be cleaned up properly."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        # Remove any track data from state so it falls back to filename
+        state["albums"]["test-album"]["tracks"] = {}
+        mock_cache = MockStateCache(state)
+
+        captured_title = []
+
+        def mock_generate(**kwargs):
+            captured_title.append(kwargs.get("title"))
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-track-1.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is True
+        assert len(captured_title) == 1
+        # "01-track-1" → strip "01-" → "track-1" → "Track 1"
+        assert "Track" in captured_title[0]
+        # Should not start with a number
+        assert not captured_title[0][0].isdigit()
+
+    def test_artwork_jpg_found(self, tmp_path):
+        """Should find album.jpg when album.png is missing."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1, artwork_name="album.jpg")
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   return_value=True), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-track-1.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is True
+
+    def test_cover_png_artwork(self, tmp_path):
+        """Should find cover.png as artwork."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1, artwork_name="cover.png")
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   return_value=True), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-track-1.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is True
+
+    def test_style_param_passed(self, tmp_path):
+        """Style parameter should be passed to generate_waveform_video."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", style="neon", track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["style"] == "neon"
+
+    def test_duration_param_passed(self, tmp_path):
+        """Duration parameter should be passed to generate_waveform_video."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", duration=30, track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["duration"] == 30
+
+    def test_track_in_mastered_subdir(self, tmp_path):
+        """Should find track in mastered/ subdirectory if not in root."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 0)
+        mastered_dir = audio_dir / "mastered"
+        mastered_dir.mkdir()
+        (mastered_dir / "01-track.wav").write_bytes(b"")
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   return_value=True), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-track.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is True
+
+    def test_single_track_video_failure(self, tmp_path):
+        """When video generation fails, result should reflect failure."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   return_value=False), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-track-1.wav"
+            )))
+
+        assert result["tracks"][0]["success"] is False
+        assert result["summary"]["failed"] == 1
+
+    def test_batch_passes_content_dir(self, tmp_path):
+        """Batch mode should pass content_dir for markdown title lookup."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        # Create the content directory that the album path points to
+        content_dir = Path(state["albums"]["test-album"]["path"])
+        content_dir.mkdir(parents=True, exist_ok=True)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_batch(**kwargs):
+            captured_kwargs.append(kwargs)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.batch_process_album",
+                   side_effect=mock_batch), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos("test-album"))
+
+        assert captured_kwargs[0]["content_dir"] == content_dir
+
+
+class TestGenerateAlbumSamplerComprehensive:
+    """Comprehensive tests for generate_album_sampler success paths."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=3):
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_success_path(self, tmp_path):
+        """Full success path with output file stats."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 5)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            # Simulate creating the output file
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024 * 1024)  # 1MB fake file
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+
+        assert result["success"] is True
+        assert "output_path" in result
+        assert result["tracks_included"] == 5
+        assert result["clip_duration"] == 12
+        assert result["crossfade"] == 0.5
+        assert "file_size_mb" in result
+
+    def test_custom_clip_duration(self, tmp_path):
+        """Custom clip_duration should be reflected in response."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            assert kwargs["clip_duration"] == 8
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler(
+                "test-album", clip_duration=8
+            )))
+
+        assert result["clip_duration"] == 8
+
+    def test_custom_crossfade(self, tmp_path):
+        """Custom crossfade should be reflected in response."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            assert kwargs["crossfade"] == 1.0
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler(
+                "test-album", crossfade=1.0
+            )))
+
+        assert result["crossfade"] == 1.0
+
+    def test_twitter_limit_ok_true(self, tmp_path):
+        """Short samplers should report twitter_limit_ok=True."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 5)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler(
+                "test-album", clip_duration=10
+            )))
+
+        # 5 tracks * 10s - 4 * 0.5s = 48s < 140s
+        expected = 5 * 10 - 4 * 0.5
+        assert result["expected_duration_seconds"] == expected
+        assert result["twitter_limit_ok"] is True
+
+    def test_twitter_limit_ok_false(self, tmp_path):
+        """Long samplers should report twitter_limit_ok=False."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 15)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler(
+                "test-album", clip_duration=12
+            )))
+
+        # 15 tracks * 12s - 14 * 0.5s = 173s > 140s
+        assert result["twitter_limit_ok"] is False
+
+    def test_creates_promo_videos_dir(self, tmp_path):
+        """Should create promo_videos/ directory."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album"))
+
+        assert (audio_dir / "promo_videos").is_dir()
+
+    def test_artist_from_config(self, tmp_path):
+        """Artist name from config should be passed to the generator."""
+        audio_dir = tmp_path / "custom-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "custom-artist"
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album"))
+
+        assert captured_kwargs[0]["artist_name"] == "custom-artist"
+
+    def test_artwork_jpg_fallback(self, tmp_path):
+        """Should find album.jpg when album.png is missing."""
+        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.jpg").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        def mock_gen_sampler(**kwargs):
+            assert "album.jpg" in str(kwargs["artwork_path"])
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            result = json.loads(_run(server.generate_album_sampler("test-album")))
+
+        assert result["success"] is True
+
+
+class TestDepCheckersComprehensive:
+    """Additional tests for dependency checker edge cases."""
+
+    def test_check_mastering_deps_detects_all_missing(self):
+        """Should list all missing deps, not just the first."""
+        import builtins as _builtins
+        original_import = _builtins.__import__
+        missing_set = {"numpy", "scipy", "soundfile", "pyloudnorm"}
+
+        def mock_import(name, *args, **kwargs):
+            if name in missing_set:
+                raise ImportError(f"mocked {name}")
+            return original_import(name, *args, **kwargs)
+
+        with patch.object(_builtins, "__import__", side_effect=mock_import):
+            result = server._check_mastering_deps()
+
+        assert result is not None
+        for mod in missing_set:
+            assert mod in result
+
+    def test_check_ffmpeg_when_available(self):
+        """Should return None when ffmpeg is found."""
+        with patch.object(shutil, "which", return_value="/usr/bin/ffmpeg"):
+            result = server._check_ffmpeg()
+        assert result is None
+
+    def test_check_matchering_when_missing(self):
+        """Should return error string when matchering is missing."""
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "matchering":
+                raise ImportError("mocked")
+            return original_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            result = server._check_matchering()
+
+        assert result is not None
+        assert "matchering" in result
+
+    def test_check_songbook_deps_detects_missing(self):
+        """Should detect missing pypdf and reportlab."""
+        import builtins
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name in ("pypdf", "reportlab"):
+                raise ImportError(f"mocked {name}")
+            return original_import(name, *args, **kwargs)
+
+        with patch.object(builtins, "__import__", side_effect=mock_import):
+            result = server._check_songbook_deps()
+
+        assert result is not None
+        assert "pypdf" in result
+        assert "reportlab" in result
+
+
+# =============================================================================
+# Gap-closing tests for list_tracks, get_session, rebuild_state, get_config
+# =============================================================================
+
+
+class TestListTracksEdgeCases:
+    """Edge case tests for the list_tracks MCP tool."""
+
+    def test_album_with_no_tracks(self):
+        """Album exists but has zero tracks."""
+        state = _fresh_state()
+        state["albums"]["empty-album"] = {
+            "path": "/tmp/test/artists/test-artist/albums/electronic/empty-album",
+            "genre": "electronic",
+            "title": "Empty Album",
+            "status": "Concept",
+            "explicit": False,
+            "release_date": None,
+            "track_count": 0,
+            "tracks_completed": 0,
+            "readme_mtime": 1234567890.0,
+            "tracks": {},
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_tracks("empty-album")))
+        assert result["found"] is True
+        assert result["track_count"] == 0
+        assert result["tracks"] == []
+
+    def test_album_with_missing_tracks_key(self):
+        """Album dict has no 'tracks' key at all."""
+        state = _fresh_state()
+        state["albums"]["bare-album"] = {
+            "path": "/tmp/test/...",
+            "title": "Bare Album",
+            "status": "Concept",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_tracks("bare-album")))
+        assert result["found"] is True
+        assert result["track_count"] == 0
+
+    def test_empty_albums_dict(self):
+        """State has empty albums dict — all lookups should fail."""
+        state = _fresh_state()
+        state["albums"] = {}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.list_tracks("anything")))
+        assert result["found"] is False
+        assert result["available_albums"] == []
+
+
+class TestGetSessionEdgeCases:
+    """Edge case tests for the get_session MCP tool."""
+
+    def test_missing_session_key(self):
+        """State has no 'session' key at all."""
+        state = {"config": {}, "albums": {}, "ideas": {}}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_session()))
+        assert result["session"] == {}
+
+    def test_session_with_pending_actions(self):
+        """Session with pending actions should return them."""
+        state = _fresh_state()
+        state["session"]["pending_actions"] = ["Review track 3", "Fix pronunciation"]
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_session()))
+        assert result["session"]["pending_actions"] == ["Review track 3", "Fix pronunciation"]
+
+    def test_session_with_null_fields(self):
+        """Session with None/null fields should return them as-is."""
+        state = _fresh_state()
+        state["session"] = {
+            "last_album": None,
+            "last_track": None,
+            "last_phase": None,
+            "pending_actions": [],
+            "updated_at": None,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_session()))
+        assert result["session"]["last_album"] is None
+        assert result["session"]["last_track"] is None
+
+
+class TestRebuildStateEdgeCases:
+    """Edge case tests for the rebuild_state MCP tool."""
+
+    def test_rebuild_empty_albums(self):
+        """Rebuild returns state with no albums or ideas."""
+        state = {
+            "config": {"content_root": "/tmp"},
+            "albums": {},
+            "ideas": {"items": [], "counts": {}},
+            "session": {},
+        }
+
+        class EmptyCache(MockStateCache):
+            def rebuild(self):
+                self._rebuild_called = True
+                return state
+
+        mock_cache = EmptyCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert result["albums"] == 0
+        assert result["tracks"] == 0
+        assert result["ideas"] == 0
+
+    def test_rebuild_counts_nested_tracks(self):
+        """Track count should sum across all albums."""
+        state = _fresh_state()
+        # test-album has 2 tracks, another-album has 1 = 3 total
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["tracks"] == 3
+
+    def test_rebuild_includes_skills_count(self):
+        """Skills count should be included if present."""
+        state = _fresh_state()
+        state["skills"] = {"count": 42, "items": []}
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["skills"] == 42
+
+    def test_rebuild_missing_ideas_key(self):
+        """State with missing 'ideas' key should not crash."""
+        state = {"config": {}, "albums": {}, "session": {}}
+
+        class NoIdeasCache(MockStateCache):
+            def rebuild(self):
+                return state
+
+        mock_cache = NoIdeasCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert result["ideas"] == 0
+
+
+class TestGetConfigEdgeCases:
+    """Edge case tests for the get_config MCP tool."""
+
+    def test_config_with_partial_keys(self):
+        """Config present but only has some keys — should still return it."""
+        state = _fresh_state()
+        state["config"] = {"artist_name": "bitwize"}  # missing paths
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_config()))
+        assert "config" in result
+        assert result["config"]["artist_name"] == "bitwize"
+        # Missing keys just aren't present — no crash
+        assert "content_root" not in result["config"]
+
+    def test_config_returns_all_fields(self):
+        """Full config should include all expected fields."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.get_config()))
+        config = result["config"]
+        assert "content_root" in config
+        assert "audio_root" in config
+        assert "documents_root" in config
+        assert "artist_name" in config

@@ -49,7 +49,19 @@ Tools exposed:
     update_idea         - Update a field in an existing idea
     rename_album        - Rename album slug, title, and directories
     rename_track        - Rename track slug, title, and file
+
+    # Processing tools (mastering, sheet music, promo videos)
+    analyze_audio       - Analyze audio tracks for mastering decisions
+    master_audio        - Master audio tracks for streaming
+    fix_dynamic_track   - Fix tracks with excessive dynamic range
+    master_with_reference - Master using a reference track
+    transcribe_audio    - Convert WAV to sheet music via AnthemScore
+    fix_sheet_music_titles - Strip track numbers from MusicXML titles
+    create_songbook     - Combine sheet music PDFs into a songbook
+    generate_promo_videos - Generate promo videos with waveform visualization
+    generate_album_sampler - Generate album sampler video for social media
 """
+import asyncio
 import json
 import logging
 import os
@@ -109,10 +121,8 @@ except ImportError:
 # Import from plugin's tools
 from tools.state.indexer import (
     build_state,
-    incremental_update,
     read_config,
     read_state,
-    scan_skills,
     write_state,
     CURRENT_VERSION,
     STATE_FILE,
@@ -1227,7 +1237,6 @@ async def update_track_field(
             "track_slug": matched_slug,
         })
 
-    old_value = text[match.start():match.end()]
     new_row = f"{match.group(1)} {value} |"
     updated_text = text[:match.start()] + new_row + text[match.end():]
 
@@ -1408,7 +1417,7 @@ async def load_override(override_name: str) -> str:
     safe_root = Path(overrides_dir).resolve()
     if not str(override_path).startswith(str(safe_root) + "/") and override_path != safe_root:
         return _safe_json({
-            "error": f"Invalid override path: name must not escape overrides directory",
+            "error": "Invalid override path: name must not escape overrides directory",
             "override_name": override_name,
         })
     if not override_path.exists():
@@ -1459,7 +1468,7 @@ async def get_reference(name: str, section: str = "") -> str:
     safe_root = (PLUGIN_ROOT / "reference").resolve()
     if not str(ref_path).startswith(str(safe_root) + "/") and ref_path != safe_root:
         return _safe_json({
-            "error": f"Invalid reference path: name must not escape reference directory",
+            "error": "Invalid reference path: name must not escape reference directory",
         })
     if not ref_path.exists():
         return _safe_json({
@@ -2514,10 +2523,8 @@ async def validate_album_structure(
     if not check_set:
         check_set = {"structure", "audio", "art", "tracks"}
 
-    content_root = config.get("content_root", "")
     audio_root = config.get("audio_root", "")
     artist = config.get("artist_name", "")
-    genre = album.get("genre", "")
     album_path = album.get("path", "")
     audio_path = str(Path(audio_root) / artist / normalized)
 
@@ -3965,6 +3972,1048 @@ async def rename_track(
         "old_path": str(old_path),
         "new_path": str(new_path),
     })
+
+
+# =============================================================================
+# Processing Tools — Mastering, Sheet Music, Promo Videos
+# =============================================================================
+#
+# These tools wrap the Python scripts in tools/mastering/, tools/sheet-music/,
+# and tools/promotion/ so Claude can invoke them directly via MCP instead of
+# telling the user to run CLI commands.
+#
+# Architecture:
+# - Direct import of library functions (not subprocess) for structured results
+# - asyncio.run_in_executor() for CPU-heavy work (keeps MCP event loop alive)
+# - Lazy dependency checking at invocation time (server starts without optional deps)
+# - Block-and-return (no streaming/progress — MCP has no such mechanism)
+# =============================================================================
+
+
+def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple:
+    """Resolve album slug to audio directory path.
+
+    Returns (error_json_or_None, Path_or_None).
+    """
+    state = cache.get_state()
+    config = state.get("config", {})
+    audio_root = config.get("audio_root", "")
+    artist = config.get("artist_name", "")
+    if not audio_root or not artist:
+        return _safe_json({"error": "audio_root or artist_name not configured"}), None
+    normalized = _normalize_slug(album_slug)
+    audio_path = Path(audio_root) / artist / normalized
+    if subfolder:
+        audio_path = audio_path / subfolder
+    if not audio_path.is_dir():
+        return _safe_json({
+            "error": f"Audio directory not found: {audio_path}",
+            "suggestion": "Check album slug or download audio first.",
+        }), None
+    return None, audio_path
+
+
+def _check_mastering_deps() -> Optional[str]:
+    """Return error message if mastering deps missing, else None."""
+    missing = []
+    for mod in ("numpy", "scipy", "soundfile", "pyloudnorm"):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        return (
+            f"Missing mastering dependencies: {', '.join(missing)}. "
+            "Install: pip install pyloudnorm scipy numpy soundfile"
+        )
+    return None
+
+
+def _check_ffmpeg() -> Optional[str]:
+    """Return error message if ffmpeg not found, else None."""
+    if not shutil.which("ffmpeg"):
+        return (
+            "ffmpeg not found. Install: "
+            "brew install ffmpeg (macOS) or apt install ffmpeg (Linux)"
+        )
+    return None
+
+
+def _check_matchering() -> Optional[str]:
+    """Return error message if matchering not installed, else None."""
+    try:
+        __import__("matchering")
+    except ImportError:
+        return "matchering not installed. Install: pip install matchering"
+    return None
+
+
+def _import_sheet_music_module(module_name: str):
+    """Import a module from tools/sheet-music/ using importlib (hyphenated dir)."""
+    import importlib.util
+    module_path = PLUGIN_ROOT / "tools" / "sheet-music" / f"{module_name}.py"
+    spec = importlib.util.spec_from_file_location(
+        f"sheet_music_{module_name}", str(module_path)
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _check_anthemscore() -> Optional[str]:
+    """Return error message if AnthemScore not found, else None."""
+    try:
+        transcribe_mod = _import_sheet_music_module("transcribe")
+        if transcribe_mod.find_anthemscore() is None:
+            return (
+                "AnthemScore not found. Install from: https://www.lunaverus.com/ "
+                "(Professional edition recommended for CLI support)"
+            )
+    except Exception:
+        # Fall back to path search
+        paths = [
+            "/Applications/AnthemScore.app/Contents/MacOS/AnthemScore",
+            "/usr/bin/anthemscore",
+            "/usr/local/bin/anthemscore",
+        ]
+        if not any(Path(p).exists() for p in paths) and not shutil.which("anthemscore"):
+            return (
+                "AnthemScore not found. Install from: https://www.lunaverus.com/ "
+                "(Professional edition recommended for CLI support)"
+            )
+    return None
+
+
+def _check_songbook_deps() -> Optional[str]:
+    """Return error message if songbook deps missing, else None."""
+    missing = []
+    for mod in ("pypdf", "reportlab"):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        return (
+            f"Missing songbook dependencies: {', '.join(missing)}. "
+            "Install: pip install pypdf reportlab"
+        )
+    return None
+
+
+@mcp.tool()
+async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
+    """Analyze audio tracks for mastering decisions.
+
+    Scans WAV files in the album's audio directory and returns per-track
+    metrics including LUFS, peak levels, spectral balance, and tinniness.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        subfolder: Optional subfolder within audio dir (e.g., "mastered")
+
+    Returns:
+        JSON with per-track metrics, summary, and recommendations
+    """
+    dep_err = _check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug, subfolder)
+    if err:
+        return err
+
+    from tools.mastering.analyze_tracks import analyze_track
+
+    wav_files = sorted(audio_dir.glob("*.wav"))
+    wav_files = [f for f in wav_files if "venv" not in str(f)]
+    if not wav_files:
+        return _safe_json({
+            "error": f"No WAV files found in {audio_dir}",
+            "suggestion": "Check the album slug or subfolder.",
+        })
+
+    loop = asyncio.get_event_loop()
+    results = []
+    for wav in wav_files:
+        result = await loop.run_in_executor(None, analyze_track, str(wav))
+        results.append(result)
+
+    # Build summary
+    import numpy as np
+    lufs_values = [r["lufs"] for r in results]
+    avg_lufs = float(np.mean(lufs_values))
+    lufs_range = float(max(lufs_values) - min(lufs_values))
+    tinny_tracks = [r["filename"] for r in results if r["tinniness_ratio"] > 0.6]
+
+    recommendations = []
+    if lufs_range > 2.0:
+        recommendations.append(
+            f"LUFS range is {lufs_range:.1f} dB — target < 2 dB for album consistency."
+        )
+    if tinny_tracks:
+        recommendations.append(
+            f"Tinny tracks needing high-mid EQ cut (2-6kHz): {', '.join(tinny_tracks)}"
+        )
+    if avg_lufs < -16:
+        recommendations.append(
+            f"Average LUFS is {avg_lufs:.1f} — consider boosting toward -14 LUFS for streaming."
+        )
+
+    return _safe_json({
+        "tracks": results,
+        "summary": {
+            "track_count": len(results),
+            "avg_lufs": avg_lufs,
+            "lufs_range": lufs_range,
+            "tinny_tracks": tinny_tracks,
+        },
+        "recommendations": recommendations,
+    })
+
+
+@mcp.tool()
+async def master_audio(
+    album_slug: str,
+    genre: str = "",
+    target_lufs: float = -14.0,
+    ceiling_db: float = -1.0,
+    cut_highmid: float = 0.0,
+    cut_highs: float = 0.0,
+    dry_run: bool = False,
+) -> str:
+    """Master audio tracks for streaming platforms.
+
+    Normalizes loudness, applies optional EQ, and limits peaks. Creates
+    mastered files in a mastered/ subfolder within the audio directory.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset to apply (overrides EQ/LUFS defaults if set)
+        target_lufs: Target integrated loudness (default: -14.0)
+        ceiling_db: True peak ceiling in dB (default: -1.0)
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
+        cut_highs: High shelf cut in dB at 8kHz
+        dry_run: If true, analyze only without writing files
+
+    Returns:
+        JSON with per-track results, settings applied, and summary
+    """
+    dep_err = _check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+        load_genre_presets,
+    )
+    import numpy as np
+    import soundfile as sf
+    import pyloudnorm as pyln
+
+    # Apply genre preset if specified
+    effective_lufs = target_lufs
+    effective_highmid = cut_highmid
+    effective_highs = cut_highs
+    genre_applied = None
+
+    if genre:
+        presets = load_genre_presets()
+        genre_key = genre.lower()
+        if genre_key not in presets:
+            return _safe_json({
+                "error": f"Unknown genre: {genre}",
+                "available_genres": sorted(presets.keys()),
+            })
+        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
+        # Genre preset provides defaults; explicit non-default args override
+        if target_lufs == -14.0:
+            effective_lufs = preset_lufs
+        if cut_highmid == 0.0:
+            effective_highmid = preset_highmid
+        if cut_highs == 0.0:
+            effective_highs = preset_highs
+        genre_applied = genre_key
+
+    # Build EQ settings
+    eq_settings = []
+    if effective_highmid != 0:
+        eq_settings.append((3500, effective_highmid, 1.5))
+    if effective_highs != 0:
+        eq_settings.append((8000, effective_highs, 0.7))
+
+    output_dir = audio_dir / "mastered"
+    if not dry_run:
+        output_dir.mkdir(exist_ok=True)
+
+    wav_files = sorted([
+        f for f in audio_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+
+    if not wav_files:
+        return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+
+    loop = asyncio.get_event_loop()
+    track_results = []
+
+    for wav_file in wav_files:
+        output_path = output_dir / wav_file.name
+        if dry_run:
+            # Dry run: just measure current loudness
+            def _dry_run_measure(path):
+                data, rate = sf.read(str(path))
+                if len(data.shape) == 1:
+                    data = np.column_stack([data, data])
+                meter = pyln.Meter(rate)
+                current = meter.integrated_loudness(data)
+                if not np.isfinite(current):
+                    return None
+                return {
+                    "filename": path.name,
+                    "original_lufs": current,
+                    "final_lufs": effective_lufs,
+                    "gain_applied": effective_lufs - current,
+                    "final_peak": -1.0,
+                    "dry_run": True,
+                }
+            result = await loop.run_in_executor(None, _dry_run_measure, wav_file)
+        else:
+            def _do_master(in_path, out_path):
+                return _master_track(
+                    str(in_path), str(out_path),
+                    target_lufs=effective_lufs,
+                    eq_settings=eq_settings if eq_settings else None,
+                    ceiling_db=ceiling_db,
+                )
+            result = await loop.run_in_executor(None, _do_master, wav_file, output_path)
+            if result and not result.get("skipped"):
+                result["filename"] = wav_file.name
+
+        if result and not result.get("skipped"):
+            track_results.append(result)
+
+    if not track_results:
+        return _safe_json({"error": "No tracks processed (all silent or no WAV files)."})
+
+    gains = [r["gain_applied"] for r in track_results]
+    finals = [r["final_lufs"] for r in track_results]
+
+    return _safe_json({
+        "tracks": track_results,
+        "settings": {
+            "target_lufs": effective_lufs,
+            "ceiling_db": ceiling_db,
+            "cut_highmid": effective_highmid,
+            "cut_highs": effective_highs,
+            "genre": genre_applied,
+            "dry_run": dry_run,
+        },
+        "summary": {
+            "tracks_processed": len(track_results),
+            "gain_range": [min(gains), max(gains)],
+            "final_lufs_range": max(finals) - min(finals),
+            "output_dir": str(output_dir) if not dry_run else None,
+        },
+    })
+
+
+@mcp.tool()
+async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
+    """Fix a track with excessive dynamic range that won't reach target LUFS.
+
+    Applies gentle compression followed by standard mastering to bring
+    the track into line with the rest of the album.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_filename: WAV filename (e.g., "01-track-name.wav")
+
+    Returns:
+        JSON with before/after metrics
+    """
+    dep_err = _check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    input_path = audio_dir / track_filename
+    if not input_path.exists():
+        return _safe_json({
+            "error": f"Track file not found: {input_path}",
+            "available_files": [f.name for f in audio_dir.glob("*.wav")],
+        })
+
+    output_dir = audio_dir / "mastered"
+    output_dir.mkdir(exist_ok=True)
+    output_path = output_dir / track_filename
+
+    from tools.mastering.fix_dynamic_track import gentle_compress
+    from tools.mastering.master_tracks import apply_eq, soft_clip
+
+    def _do_fix(in_path, out_path):
+        import numpy as np
+        import soundfile as sf
+        import pyloudnorm as pyln
+
+        data, rate = sf.read(str(in_path))
+        if len(data.shape) == 1:
+            data = np.column_stack([data, data])
+
+        meter = pyln.Meter(rate)
+        original_lufs = meter.integrated_loudness(data)
+
+        # Step 1: EQ
+        data = apply_eq(data, rate, 3500, -2.0, 1.5)
+        # Step 2: Gentle compression
+        data = gentle_compress(data, threshold_db=-12, ratio=2.5, rate=rate)
+        # Step 3: Normalize to -14 LUFS
+        post_comp_lufs = meter.integrated_loudness(data)
+        target_lufs = -14.0
+        if np.isfinite(post_comp_lufs):
+            gain_db = target_lufs - post_comp_lufs
+            gain_linear = 10 ** (gain_db / 20)
+            data = data * gain_linear
+        # Step 4: Limit peaks
+        ceiling = 10 ** (-1.0 / 20)
+        peak = np.max(np.abs(data))
+        if peak > ceiling:
+            data = data * (ceiling / peak)
+        data = soft_clip(data, ceiling)
+
+        final_lufs = meter.integrated_loudness(data)
+        final_peak = 20 * np.log10(np.max(np.abs(data))) if np.max(np.abs(data)) > 0 else float("-inf")
+
+        sf.write(str(out_path), data, rate, subtype="PCM_16")
+
+        return {
+            "filename": in_path.name,
+            "original_lufs": float(original_lufs),
+            "final_lufs": float(final_lufs),
+            "final_peak_db": float(final_peak),
+            "output_path": str(out_path),
+        }
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _do_fix, input_path, output_path)
+    return _safe_json(result)
+
+
+@mcp.tool()
+async def master_with_reference(
+    album_slug: str,
+    reference_filename: str,
+    target_filename: str = "",
+) -> str:
+    """Master tracks using a professionally mastered reference track.
+
+    Uses the matchering library to match your track(s) to a reference.
+    If target_filename is empty, processes all WAV files in the album's
+    audio directory.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        reference_filename: Reference WAV filename in audio dir (e.g., "reference.wav")
+        target_filename: Optional single target WAV (empty = batch all)
+
+    Returns:
+        JSON with per-track results
+    """
+    dep_err = _check_matchering()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    reference_path = audio_dir / reference_filename
+    if not reference_path.exists():
+        return _safe_json({
+            "error": f"Reference file not found: {reference_path}",
+            "suggestion": "Place the reference WAV in the album's audio directory.",
+        })
+
+    output_dir = audio_dir / "mastered"
+    output_dir.mkdir(exist_ok=True)
+
+    try:
+        from tools.mastering.reference_master import master_with_reference as _ref_master
+    except (ImportError, SystemExit):
+        return _safe_json({
+            "error": "matchering not installed. Install: pip install matchering",
+        })
+
+    loop = asyncio.get_event_loop()
+
+    if target_filename:
+        # Single file
+        target_path = audio_dir / target_filename
+        if not target_path.exists():
+            return _safe_json({
+                "error": f"Target file not found: {target_path}",
+                "available_files": [f.name for f in audio_dir.glob("*.wav")],
+            })
+        output_path = output_dir / target_filename
+
+        try:
+            await loop.run_in_executor(
+                None, _ref_master, target_path, reference_path, output_path
+            )
+            return _safe_json({
+                "tracks": [{"filename": target_filename, "success": True, "output": str(output_path)}],
+                "summary": {"success": 1, "failed": 0},
+            })
+        except Exception as e:
+            return _safe_json({
+                "tracks": [{"filename": target_filename, "success": False, "error": str(e)}],
+                "summary": {"success": 0, "failed": 1},
+            })
+    else:
+        # Batch all WAVs
+        wav_files = sorted([
+            f for f in audio_dir.glob("*.wav")
+            if "venv" not in str(f) and f != reference_path
+        ])
+        if not wav_files:
+            return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+
+        results = []
+        for wav_file in wav_files:
+            output_path = output_dir / wav_file.name
+            try:
+                await loop.run_in_executor(
+                    None, _ref_master, wav_file, reference_path, output_path
+                )
+                results.append({"filename": wav_file.name, "success": True, "output": str(output_path)})
+            except Exception as e:
+                results.append({"filename": wav_file.name, "success": False, "error": str(e)})
+
+        success_count = sum(1 for r in results if r["success"])
+        return _safe_json({
+            "tracks": results,
+            "summary": {"success": success_count, "failed": len(results) - success_count},
+        })
+
+
+@mcp.tool()
+async def transcribe_audio(
+    album_slug: str,
+    track_filename: str = "",
+    formats: str = "pdf,xml",
+    dry_run: bool = False,
+) -> str:
+    """Convert WAV files to sheet music using AnthemScore.
+
+    Transcribes tracks from the album's audio directory into PDF and/or
+    MusicXML format, outputting to a sheet-music/ subfolder.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_filename: Optional single WAV filename (empty = all WAVs)
+        formats: Comma-separated output formats: "pdf", "xml", "midi" (default: "pdf,xml")
+        dry_run: If true, show what would be done without doing it
+
+    Returns:
+        JSON with per-track results and summary
+    """
+    anthemscore_err = _check_anthemscore()
+    if anthemscore_err:
+        return _safe_json({"error": anthemscore_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    transcribe_mod = _import_sheet_music_module("transcribe")
+    find_anthemscore = transcribe_mod.find_anthemscore
+    transcribe_track = transcribe_mod.transcribe_track
+
+    anthemscore_path = find_anthemscore()
+    if not anthemscore_path:
+        return _safe_json({
+            "error": "AnthemScore not found on this system.",
+            "suggestion": "Install from https://www.lunaverus.com/",
+        })
+
+    output_dir = audio_dir / "sheet-music"
+    if not dry_run:
+        output_dir.mkdir(exist_ok=True)
+
+    # Parse formats
+    fmt_list = [f.strip().lower() for f in formats.split(",")]
+
+    # Build a namespace-like object for transcribe_track's args
+    class Args:
+        pass
+    args = Args()
+    args.pdf = "pdf" in fmt_list
+    args.xml = "xml" in fmt_list
+    args.midi = "midi" in fmt_list
+    args.treble = False
+    args.bass = False
+    args.dry_run = dry_run
+
+    if track_filename:
+        wav_files = [audio_dir / track_filename]
+        if not wav_files[0].exists():
+            return _safe_json({
+                "error": f"Track file not found: {wav_files[0]}",
+                "available_files": [f.name for f in audio_dir.glob("*.wav")],
+            })
+    else:
+        wav_files = sorted(audio_dir.glob("*.wav"))
+        wav_files = [f for f in wav_files if "venv" not in str(f)]
+
+    if not wav_files:
+        return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+
+    loop = asyncio.get_event_loop()
+    results = []
+    for wav_file in wav_files:
+        success = await loop.run_in_executor(
+            None, transcribe_track, anthemscore_path, wav_file, output_dir, args
+        )
+        outputs = []
+        if success and not dry_run:
+            for fmt in fmt_list:
+                ext = {"pdf": ".pdf", "xml": ".xml", "midi": ".mid"}.get(fmt, "")
+                out_file = output_dir / f"{wav_file.stem}{ext}"
+                if out_file.exists():
+                    outputs.append(str(out_file))
+        results.append({
+            "filename": wav_file.name,
+            "success": success,
+            "outputs": outputs,
+        })
+
+    success_count = sum(1 for r in results if r["success"])
+    return _safe_json({
+        "tracks": results,
+        "summary": {
+            "success": success_count,
+            "failed": len(results) - success_count,
+            "output_dir": str(output_dir),
+            "formats": fmt_list,
+        },
+    })
+
+
+@mcp.tool()
+async def fix_sheet_music_titles(
+    album_slug: str,
+    dry_run: bool = False,
+    export_pdf: bool = True,
+) -> str:
+    """Strip track number prefixes from MusicXML titles and optionally re-export PDFs.
+
+    Fixes titles like "01 - Song Name" → "Song Name" in MusicXML files
+    within the album's sheet-music/ directory.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        dry_run: If true, show changes without modifying files
+        export_pdf: If true and MuseScore is available, re-export PDFs after fixing
+
+    Returns:
+        JSON with per-file results
+    """
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    sheet_dir = audio_dir / "sheet-music"
+    if not sheet_dir.is_dir():
+        return _safe_json({
+            "error": f"Sheet music directory not found: {sheet_dir}",
+            "suggestion": "Run transcribe_audio first to generate sheet music.",
+        })
+
+    import re as _re
+    fix_titles_mod = _import_sheet_music_module("fix_titles")
+    _fix_xml_title = fix_titles_mod.fix_xml_title
+
+    xml_files = sorted([
+        f for f in sheet_dir.glob("*.xml")
+        if _re.match(r"^\d+", f.stem)
+    ])
+    musicxml_files = sorted([
+        f for f in sheet_dir.glob("*.musicxml")
+        if _re.match(r"^\d+", f.stem)
+    ])
+    xml_files.extend(musicxml_files)
+
+    if not xml_files:
+        return _safe_json({
+            "error": f"No XML files with track number prefixes found in {sheet_dir}",
+        })
+
+    results = []
+    for xml_file in xml_files:
+        new_title = _fix_xml_title(xml_file, dry_run=dry_run)
+        results.append({
+            "filename": xml_file.name,
+            "fixed": new_title is not None,
+            "new_title": new_title,
+        })
+
+    fixed_count = sum(1 for r in results if r["fixed"])
+
+    # Export PDFs if requested
+    pdf_results = []
+    if export_pdf and fixed_count > 0 and not dry_run:
+        musescore = fix_titles_mod.find_musescore()
+        if musescore:
+            for xml_file in xml_files:
+                success = fix_titles_mod.export_pdf(xml_file, musescore, dry_run=dry_run)
+                pdf_results.append({"filename": xml_file.name, "exported": success})
+        else:
+            pdf_results = [{"warning": "MuseScore not found, skipping PDF export"}]
+
+    return _safe_json({
+        "files": results,
+        "fixed_count": fixed_count,
+        "pdf_exports": pdf_results,
+    })
+
+
+@mcp.tool()
+async def create_songbook(
+    album_slug: str,
+    title: str,
+    page_size: str = "letter",
+) -> str:
+    """Combine sheet music PDFs into a KDP-ready songbook.
+
+    Creates a complete songbook with title page, copyright page, table
+    of contents, and all track sheet music.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        title: Songbook title (e.g., "My Album Songbook")
+        page_size: Page size - "letter", "9x12", or "6x9" (default: "letter")
+
+    Returns:
+        JSON with output path and metadata
+    """
+    dep_err = _check_songbook_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    sheet_dir = audio_dir / "sheet-music"
+    if not sheet_dir.is_dir():
+        return _safe_json({
+            "error": f"Sheet music directory not found: {sheet_dir}",
+            "suggestion": "Run transcribe_audio and fix_sheet_music_titles first.",
+        })
+
+    songbook_mod = _import_sheet_music_module("create_songbook")
+    _create_songbook = songbook_mod.create_songbook
+    auto_detect_cover_art = songbook_mod.auto_detect_cover_art
+    get_website_from_config = songbook_mod.get_website_from_config
+
+    # Get artist from state
+    state = cache.get_state()
+    config = state.get("config", {})
+    artist = config.get("artist_name", "Unknown Artist")
+
+    # Auto-detect cover art and website
+    cover = auto_detect_cover_art(str(sheet_dir))
+    website = get_website_from_config()
+
+    # Build output path
+    safe_title = title.replace(" ", "_").replace("/", "-")
+    output_path = sheet_dir / f"{safe_title}.pdf"
+
+    loop = asyncio.get_event_loop()
+    success = await loop.run_in_executor(
+        None,
+        lambda: _create_songbook(
+            source_dir=str(sheet_dir),
+            output_path=str(output_path),
+            title=title,
+            artist=artist,
+            page_size_name=page_size,
+            cover_image=cover,
+            website=website,
+        ),
+    )
+
+    if success:
+        return _safe_json({
+            "success": True,
+            "output_path": str(output_path),
+            "title": title,
+            "artist": artist,
+            "page_size": page_size,
+        })
+    else:
+        return _safe_json({"error": "Songbook creation failed. Check sheet music directory."})
+
+
+@mcp.tool()
+async def generate_promo_videos(
+    album_slug: str,
+    style: str = "pulse",
+    duration: int = 15,
+    track_filename: str = "",
+) -> str:
+    """Generate promo videos with waveform visualization for social media.
+
+    Creates 15-second vertical videos (1080x1920) combining album artwork,
+    audio waveform visualization, and track titles.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        style: Visualization style - "pulse", "mirror", "mountains", "colorwave",
+               "neon", "dual", "bars", "line", "circular" (default: "pulse")
+        duration: Video duration in seconds (default: 15)
+        track_filename: Optional single track WAV filename (empty = batch all)
+
+    Returns:
+        JSON with per-track results and summary
+    """
+    ffmpeg_err = _check_ffmpeg()
+    if ffmpeg_err:
+        return _safe_json({"error": ffmpeg_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    # Find artwork
+    artwork_patterns = [
+        "album.png", "album.jpg", "album-art.png", "album-art.jpg",
+        "artwork.png", "artwork.jpg", "cover.png", "cover.jpg",
+    ]
+    artwork = None
+    for pattern in artwork_patterns:
+        candidate = audio_dir / pattern
+        if candidate.exists():
+            artwork = candidate
+            break
+    if not artwork:
+        return _safe_json({
+            "error": "No album artwork found in audio directory.",
+            "suggestion": "Place album.png in the audio directory or use /bitwize-music:import-art.",
+            "looked_for": artwork_patterns,
+        })
+
+    from tools.promotion.generate_promo_video import (
+        generate_waveform_video,
+        batch_process_album,
+    )
+    from tools.shared.fonts import find_font
+
+    # Get artist from state
+    state = cache.get_state()
+    config_data = state.get("config", {})
+    artist = config_data.get("artist_name", "bitwize")
+
+    font_path = find_font()
+
+    output_dir = audio_dir / "promo_videos"
+    output_dir.mkdir(exist_ok=True)
+
+    loop = asyncio.get_event_loop()
+
+    if track_filename:
+        # Single track
+        track_path = audio_dir / track_filename
+        if not track_path.exists():
+            # Also check mastered/
+            track_path = audio_dir / "mastered" / track_filename
+            if not track_path.exists():
+                return _safe_json({
+                    "error": f"Track file not found: {track_filename}",
+                    "available_files": [f.name for f in audio_dir.glob("*.wav")],
+                })
+
+        # Resolve title: prefer markdown title from state cache over filename
+        title = None
+        albums = state.get("albums", {})
+        normalized = _normalize_slug(album_slug)
+        album_data = albums.get(normalized)
+        if album_data:
+            # Match track by stem (filename without extension)
+            track_stem = track_path.stem
+            track_slug = _normalize_slug(track_stem)
+            tracks = album_data.get("tracks", {})
+            track_data = tracks.get(track_slug)
+            if track_data:
+                title = track_data.get("title")
+
+        if not title:
+            # Fall back to cleaning up the filename
+            import re as _re
+            title = track_path.stem
+            if " - " in title:
+                title = title.split(" - ", 1)[-1]
+            else:
+                title = _re.sub(r"^\d{1,2}[\.\-_\s]+", "", title)
+            title = title.replace("-", " ").replace("_", " ").title()
+
+        output_path = output_dir / f"{track_path.stem}_promo.mp4"
+
+        success = await loop.run_in_executor(
+            None,
+            lambda: generate_waveform_video(
+                audio_path=track_path,
+                artwork_path=artwork,
+                title=title,
+                output_path=output_path,
+                duration=duration,
+                style=style,
+                artist_name=artist,
+                font_path=font_path,
+            ),
+        )
+
+        return _safe_json({
+            "tracks": [{"filename": track_filename, "output": str(output_path), "success": success}],
+            "summary": {"success": 1 if success else 0, "failed": 0 if success else 1},
+        })
+    else:
+        # Batch all tracks
+        # Resolve content dir for title lookup
+        albums = state.get("albums", {})
+        normalized = _normalize_slug(album_slug)
+        content_dir = None
+        album_data = albums.get(normalized)
+        if album_data:
+            content_dir_path = Path(album_data.get("path", ""))
+            if content_dir_path.is_dir():
+                content_dir = content_dir_path
+
+        await loop.run_in_executor(
+            None,
+            lambda: batch_process_album(
+                album_dir=audio_dir,
+                artwork_path=artwork,
+                output_dir=output_dir,
+                duration=duration,
+                style=style,
+                artist_name=artist,
+                font_path=font_path,
+                content_dir=content_dir,
+            ),
+        )
+
+        # Collect results from output dir
+        output_files = sorted(output_dir.glob("*_promo.mp4"))
+        results = [{"filename": f.name, "output": str(f), "success": True} for f in output_files]
+
+        return _safe_json({
+            "tracks": results,
+            "summary": {
+                "success": len(results),
+                "output_dir": str(output_dir),
+            },
+        })
+
+
+@mcp.tool()
+async def generate_album_sampler(
+    album_slug: str,
+    clip_duration: int = 12,
+    crossfade: float = 0.5,
+) -> str:
+    """Generate an album sampler video cycling through all tracks.
+
+    Creates a single promotional video with short clips from each track,
+    designed to fit Twitter's 2:20 (140 second) limit.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        clip_duration: Duration per track clip in seconds (default: 12)
+        crossfade: Crossfade duration between clips in seconds (default: 0.5)
+
+    Returns:
+        JSON with output path, tracks included, and duration
+    """
+    ffmpeg_err = _check_ffmpeg()
+    if ffmpeg_err:
+        return _safe_json({"error": ffmpeg_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    # Find artwork
+    artwork_patterns = [
+        "album.png", "album.jpg", "album-art.png", "album-art.jpg",
+        "artwork.png", "artwork.jpg", "cover.png", "cover.jpg",
+    ]
+    artwork = None
+    for pattern in artwork_patterns:
+        candidate = audio_dir / pattern
+        if candidate.exists():
+            artwork = candidate
+            break
+    if not artwork:
+        return _safe_json({
+            "error": "No album artwork found in audio directory.",
+            "suggestion": "Place album.png in the audio directory.",
+        })
+
+    from tools.promotion.generate_album_sampler import (
+        generate_album_sampler as _gen_sampler,
+    )
+
+    # Get artist from state
+    state = cache.get_state()
+    config_data = state.get("config", {})
+    artist = config_data.get("artist_name", "bitwize")
+
+    output_dir = audio_dir / "promo_videos"
+    output_dir.mkdir(exist_ok=True)
+    output_path = output_dir / "album_sampler.mp4"
+
+    loop = asyncio.get_event_loop()
+    success = await loop.run_in_executor(
+        None,
+        lambda: _gen_sampler(
+            tracks_dir=audio_dir,
+            artwork_path=artwork,
+            output_path=output_path,
+            clip_duration=clip_duration,
+            crossfade=crossfade,
+            artist_name=artist,
+        ),
+    )
+
+    if success and output_path.exists():
+        file_size = output_path.stat().st_size / (1024 * 1024)
+        # Count audio files
+        audio_extensions = {".wav", ".mp3", ".flac", ".m4a"}
+        track_count = sum(
+            1 for f in audio_dir.iterdir()
+            if f.suffix.lower() in audio_extensions
+        )
+        expected_duration = track_count * clip_duration - max(0, track_count - 1) * crossfade
+
+        return _safe_json({
+            "success": True,
+            "output_path": str(output_path),
+            "tracks_included": track_count,
+            "clip_duration": clip_duration,
+            "crossfade": crossfade,
+            "expected_duration_seconds": expected_duration,
+            "file_size_mb": round(file_size, 1),
+            "twitter_limit_ok": expected_duration <= 140,
+        })
+    else:
+        return _safe_json({"error": "Album sampler generation failed."})
 
 
 def main():
