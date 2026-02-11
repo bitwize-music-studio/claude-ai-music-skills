@@ -8360,6 +8360,99 @@ class TestFormatForClipboardEdgeCasesRound5:
 
 
 @pytest.mark.unit
+class TestFormatForClipboardSuno:
+    """Tests for the 'suno' content_type in format_for_clipboard."""
+
+    def _make_cache_with_file(self, tmp_path, title="Test Track"):
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": title,
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state)
+
+    def test_suno_returns_json_with_title_style_lyrics(self, tmp_path):
+        """'suno' content_type returns JSON with title, style, and lyrics fields."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "suno")))
+        assert result["found"] is True
+        assert result["content_type"] == "suno"
+        payload = json.loads(result["content"])
+        assert payload["title"] == "Test Track"
+        assert "electronic" in payload["style"]
+        assert "[Verse 1]" in payload["lyrics"]
+
+    def test_suno_title_fallback_to_slug(self, tmp_path):
+        """When title is missing from track data, uses the matched slug."""
+        track_file = tmp_path / "05-no-title.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-title"] = {
+            "path": str(track_file),
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
+        assert result["found"] is True
+        payload = json.loads(result["content"])
+        assert payload["title"] == "05-no-title"
+
+    def test_suno_missing_both_sections_returns_not_found(self, tmp_path):
+        """When both Style Box and Lyrics Box are missing, returns not-found error."""
+        minimal_track = "# Track\n\n## Concept\n\nJust a concept, no suno inputs.\n"
+        track_file = tmp_path / "05-empty.md"
+        track_file.write_text(minimal_track)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-empty"] = {
+            "path": str(track_file),
+            "title": "Empty Track",
+            "status": "Not Started",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
+        assert result["found"] is False
+        assert "not found" in result["error"]
+
+    def test_suno_preserves_unicode(self, tmp_path):
+        """ensure_ascii=False preserves unicode characters in JSON output."""
+        track_md = _SAMPLE_TRACK_MD.replace("Test Track", "Tëst Träck café")
+        track_file = tmp_path / "05-unicode.md"
+        track_file.write_text(track_md)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-unicode"] = {
+            "path": str(track_file),
+            "title": "Tëst Träck café",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
+        assert result["found"] is True
+        # Content should contain actual unicode, not \\u escapes
+        assert "Tëst Träck café" in result["content"]
+        payload = json.loads(result["content"])
+        assert payload["title"] == "Tëst Träck café"
+
+
+@pytest.mark.unit
 class TestDetectPhaseAdditionalRound5:
     """Additional _detect_phase edge cases for comprehensive coverage."""
 

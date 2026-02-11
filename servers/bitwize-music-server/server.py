@@ -1523,11 +1523,12 @@ async def format_for_clipboard(
             "style" — Suno Style Box content
             "streaming" or "streaming-lyrics" — Streaming platform lyrics
             "all" — Style Box + separator + Lyrics Box
+            "suno" — JSON object with title, style, and lyrics for Suno auto-fill
 
     Returns:
         JSON with {content: str, content_type: str, track_slug: str}
     """
-    valid_types = {"lyrics", "style", "streaming", "streaming-lyrics", "all"}
+    valid_types = {"lyrics", "style", "streaming", "streaming-lyrics", "all", "suno"}
     if content_type not in valid_types:
         return _safe_json({
             "error": f"Invalid content_type '{content_type}'. Options: {', '.join(sorted(valid_types))}",
@@ -1603,6 +1604,18 @@ async def format_for_clipboard(
             if lyrics:
                 parts.append(lyrics)
             content = "\n\n---\n\n".join(parts)
+    elif content_type == "suno":
+        style = _get_section_content("Style Box")
+        lyrics = _get_section_content("Lyrics Box")
+        title = track_data.get("title", matched_slug)
+        if style is None and lyrics is None:
+            content = None
+        else:
+            content = json.dumps({
+                "title": title,
+                "style": style or "",
+                "lyrics": lyrics or "",
+            }, ensure_ascii=False)
     else:
         content = None
 

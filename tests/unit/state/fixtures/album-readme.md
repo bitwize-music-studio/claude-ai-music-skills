@@ -4,8 +4,12 @@ release_date: ""
 genres: ["electronic", "documentary"]
 tags: ["tech", "linux", "true-story"]
 explicit: true
-soundcloud_url: ""
-spotify_url: ""
+streaming:
+  soundcloud: ""
+  spotify: ""
+  apple_music: ""
+  youtube_music: ""
+  amazon_music: ""
 ---
 
 # Sample Album

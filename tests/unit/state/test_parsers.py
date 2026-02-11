@@ -120,6 +120,16 @@ class TestParseAlbumReadme:
         # First genre from frontmatter list
         assert result['genre'] == 'electronic'
 
+    def test_streaming_block_in_frontmatter(self):
+        """Fixture album-readme.md should have a streaming block in frontmatter."""
+        path = FIXTURES_DIR / "album-readme.md"
+        fm = parse_frontmatter(path.read_text())
+        assert 'streaming' in fm, "Fixture missing streaming block in frontmatter"
+        streaming = fm['streaming']
+        assert isinstance(streaming, dict)
+        for platform in ('soundcloud', 'spotify', 'apple_music', 'youtube_music', 'amazon_music'):
+            assert platform in streaming, f"streaming block missing: {platform}"
+
 
 class TestParseTrackFile:
     """Tests for parse_track_file()."""

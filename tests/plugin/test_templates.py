@@ -143,6 +143,23 @@ class TestTemplateFrontmatter:
         for field in ('title', 'explicit', 'genres'):
             assert field in fm, f"album.md frontmatter missing required field: {field}"
 
+    def test_album_frontmatter_has_streaming_block(self, templates_dir):
+        """album.md frontmatter must include a streaming: dict with platform keys."""
+        album = templates_dir / "album.md"
+        fm = parse_frontmatter(album.read_text())
+        assert 'streaming' in fm, "album.md frontmatter missing 'streaming' block"
+        streaming = fm['streaming']
+        assert isinstance(streaming, dict), "streaming must be a dict"
+        for platform in ('soundcloud', 'spotify', 'apple_music', 'youtube_music', 'amazon_music'):
+            assert platform in streaming, f"streaming block missing platform: {platform}"
+
+    def test_album_frontmatter_no_legacy_url_fields(self, templates_dir):
+        """album.md should not have legacy soundcloud_url/spotify_url flat fields."""
+        album = templates_dir / "album.md"
+        fm = parse_frontmatter(album.read_text())
+        assert 'soundcloud_url' not in fm, "album.md still has legacy soundcloud_url field"
+        assert 'spotify_url' not in fm, "album.md still has legacy spotify_url field"
+
     def test_track_has_frontmatter(self, templates_dir):
         track = templates_dir / "track.md"
         content = track.read_text()

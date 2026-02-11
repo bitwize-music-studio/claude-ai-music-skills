@@ -4,8 +4,12 @@ release_date: ""  # YYYY-MM-DD (fill in when releasing)
 genres: []  # e.g., ["hip-hop", "documentary"]
 tags: []  # e.g., ["tech", "linux", "true-story"]
 explicit: false  # true or false
-soundcloud_url: ""  # Fill in when released
-spotify_url: ""  # Fill in when released (optional)
+streaming:
+  soundcloud: ""    # Fill in when released
+  spotify: ""       # Fill in when released
+  apple_music: ""   # Fill in when released
+  youtube_music: "" # Fill in when released
+  amazon_music: ""  # Fill in when released
 # slug: ""  # Optional - only uncomment if you need to override auto-generated slug
 ---
 

@@ -58,6 +58,7 @@ Expected format: `<content-type> <album-name> <track-number>`
 - `style` - Suno Style Box
 - `streaming-lyrics` - Streaming Lyrics (for distributors)
 - `all` - All Suno inputs (Style + Lyrics combined)
+- `suno` - JSON object (title + style + lyrics) for Suno auto-fill via Tampermonkey
 
 Examples:
 - `/clipboard lyrics sample-album 03`
@@ -78,7 +79,7 @@ Example: /clipboard lyrics sample-album 03
 
 Call `format_for_clipboard(album_slug, track_slug, content_type)` — extracts and formats the requested content in one call.
 
-- `content_type`: `"lyrics"`, `"style"`, `"streaming"`, or `"all"`
+- `content_type`: `"lyrics"`, `"style"`, `"streaming"`, `"all"`, or `"suno"`
 - Returns the formatted content ready for clipboard
 - Handles track resolution, section extraction, and formatting automatically
 
@@ -178,6 +179,23 @@ Output:
 Contents:
 - Style Box
 - Lyrics Box
+```
+
+### Copy Suno Auto-Fill JSON
+
+```
+/clipboard suno sample-album 01
+```
+
+Output:
+```
+✓ Copied to clipboard: suno auto-fill JSON from track 01
+  Album: sample-album
+  Track: 01-intro.md
+
+Clipboard contains JSON with: title, style, lyrics
+Paste into Suno with the Tampermonkey auto-fill script (Ctrl+Shift+V).
+See tools/userscripts/README.md for setup.
 ```
 
 ---
