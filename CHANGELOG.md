@@ -6,6 +6,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-02-11
+
+### Changed
+- **Complete MCP migration** — migrated remaining 3 skills (`tutorial`, `validate-album`, `sheet-music-publisher`) to use MCP tools instead of manual file access; all 46 skills now use MCP tools where applicable
+- **`tutorial`** — config reads → `get_config()`, album scanning → `list_albums()` + `get_album_progress()`
+- **`validate-album`** — manual config + `find` command → `get_config()` + `find_album()` + `validate_album_structure()`
+- **`sheet-music-publisher`** — config read + manual override loading → `get_config()` + `find_album()` + `resolve_path("audio")` + `load_override()`
+
 ## [0.45.0] - 2026-02-11
 
 ### Added

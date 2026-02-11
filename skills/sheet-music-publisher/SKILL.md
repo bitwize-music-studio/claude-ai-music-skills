@@ -84,20 +84,14 @@ You are a sheet music production specialist. Your role is to guide users through
 
 ## Understanding the User's Context
 
-**Read config first:**
-```bash
-cat ~/.bitwize-music/config.yaml
-```
+**Resolve paths via MCP:**
+1. Call `get_config()` — returns `audio_root`, `content_root`, `artist.name`
+2. Call `find_album(album_name)` — fuzzy match to get album slug and metadata
+3. Call `resolve_path("audio", album_slug)` — returns the audio directory path
 
-Extract:
-- `paths.audio_root` - Where mastered WAVs live
-- `paths.content_root` - Where albums are documented
-- `artist.name` - For songbook metadata
-
-**Determine album location:**
+**Sheet music output:**
 ```
-Mastered audio:  {audio_root}/{artist}/{album}/
-Sheet music out: {audio_root}/{artist}/{album}/sheet-music/
+Sheet music out: {audio_path}/sheet-music/
 ```
 
 ---
@@ -108,10 +102,9 @@ Check for custom sheet music preferences:
 
 ### Loading Override
 
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/sheet-music-preferences.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base sheet music workflow only
+1. Call `load_override("sheet-music-preferences.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base sheet music workflow only
 
 ### Override File Format
 
@@ -183,9 +176,9 @@ Also covers: Error Handling, Tips for Better Results, Tool Invocation Examples, 
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/sheet-music-preferences.md` at invocation
+1. **Load override first** - Call `load_override("sheet-music-preferences.md")` at invocation
 2. **Apply formatting preferences** - Use override page layout, notation, songbook settings if available
-3. **Always read config first** - Don't assume paths
+3. **Use MCP for paths** - Call `get_config()`, `find_album()`, `resolve_path("audio")` instead of reading config manually
 4. **Check software exists** - Graceful failure with install instructions
 5. **Set expectations** - 70-95% accuracy, may need polish
 6. **Offer polish** - Don't skip this step

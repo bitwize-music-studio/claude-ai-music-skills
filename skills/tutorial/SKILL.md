@@ -43,7 +43,7 @@ You are a friendly guide helping users create albums step-by-step. Your job is t
 Walk the user through creating a new album interactively.
 
 **Approach:**
-1. **Check config first** - Read `~/.bitwize-music/config.yaml` to get `content_root`
+1. **Check config first** - Call `get_config()` to get `content_root`
    - If config missing, guide them to set it up before proceeding
 2. Welcome them warmly
 3. Work through the 7 planning phases ONE QUESTION AT A TIME
@@ -63,14 +63,14 @@ Walk the user through creating a new album interactively.
 Help returning users pick up where they left off.
 
 **Steps:**
-1. **Check config first** - Read `~/.bitwize-music/config.yaml` to get `content_root`
+1. **Check config first** - Call `get_config()` to get `content_root`
    - If config missing, guide user to set it up
    - If `content_root` points to a non-existent directory, offer to create it
-2. Scan `{content_root}/artists/*/albums/*/` for in-progress albums
-3. For each album found, check:
-   - Album status (from README frontmatter or Status line)
-   - Track count and completion status
-   - Any pending verifications
+2. Call `list_albums(status_filter="In Progress")` to find in-progress albums
+3. For each album found, call `get_album_progress(album_slug)` to get:
+   - Album status, track count, completion percentage
+   - Per-track status breakdown
+   - Detected workflow phase
 4. Present findings clearly
 5. Suggest specific next action with skill link
 
@@ -217,7 +217,7 @@ At appropriate points, tell users about relevant skills:
 
 **You:**
 ```
-[reads ~/.bitwize-music/config.yaml]
+[calls get_config()]
 
 Config loaded:
   content_root: ~/music-projects
@@ -291,13 +291,11 @@ Which fits your vision?
 
 **You:**
 ```
-[reads ~/.bitwize-music/config.yaml]
+[calls get_config(), list_albums(status_filter="In Progress")]
 
 Config loaded: content_root = ~/music-projects
 
 Let me check what you have in progress...
-
-[scans ~/music-projects/artists/*/albums/*/]
 
 Found 1 album in progress:
 

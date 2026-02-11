@@ -21,39 +21,24 @@ Validate that an album has all required files in the correct locations, catching
 
 ---
 
-## Step 1: Read Config (REQUIRED)
+## Step 1: Load Config & Find Album
 
-```bash
-cat ~/.bitwize-music/config.yaml
-```
+1. Call `get_config()` — returns paths (`content_root`, `audio_root`, `documents_root`) and `artist.name`
+   - If config missing, STOP and report:
+     ```
+     [FAIL] Config file missing: ~/.bitwize-music/config.yaml
+            Run /configure to set up the plugin.
+     ```
 
-Extract:
-- `paths.content_root` → `{content_root}`
-- `paths.audio_root` → `{audio_root}`
-- `paths.documents_root` → `{documents_root}`
-- `artist.name` → `{artist}`
+2. Call `find_album(album_name)` — fuzzy match by name, slug, or partial
+   - If not found, STOP and report (MCP returns available albums):
+     ```
+     [FAIL] Album not found: {album-name}
+     ```
 
-If config missing, STOP and report:
-```
-[FAIL] Config file missing: ~/.bitwize-music/config.yaml
-       Run /configure to set up the plugin.
-```
+3. Optionally call `validate_album_structure(album_slug)` — runs structural validation checks and returns `{passed, failed, warnings, skipped, issues[], checks[]}`. This MCP tool handles directory structure, required files, audio placement, and track content checks in one call.
 
----
-
-## Step 2: Find Album
-
-```bash
-find {content_root}/artists/{artist}/albums -type d -name "{album-name}" 2>/dev/null
-```
-
-Extract genre from path: `{content_root}/artists/{artist}/albums/{genre}/{album}/`
-
-If album not found, STOP and report:
-```
-[FAIL] Album not found: {album-name}
-       Searched: {content_root}/artists/{artist}/albums/*/
-```
+**Note**: The MCP `validate_album_structure` tool performs many of the checks below automatically. You can use its results directly or run the manual checks for more detailed reporting.
 
 ---
 
@@ -237,7 +222,7 @@ ISSUES TO FIX:
 
 ## Important Notes
 
-1. **Always read config first** - Never assume paths
+1. **Use MCP tools first** - `get_config()`, `find_album()`, `validate_album_structure()` before manual checks
 2. **Check both correct AND wrong locations** - Catch misplaced files
 3. **Provide actionable fixes** - Include exact commands to fix issues
 4. **Use appropriate status** - PASS/FAIL/WARN/SKIP based on severity
