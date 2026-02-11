@@ -74,10 +74,9 @@ Report any violations found. Don't wait to be asked.
 Check for custom lyric writing preferences:
 
 ### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/lyric-writing-guide.md`
-3. If exists: read and incorporate as additional context
-4. If not exists: use base guidelines only
+1. Call `load_override("lyric-writing-guide.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate as additional context
+3. If not found: use base guidelines only
 
 ### Override File Format
 
@@ -397,7 +396,7 @@ As the lyric writer, you:
 
 ## Remember
 
-1. **Load override first** - Read config for overrides path, then check `{overrides}/lyric-writing-guide.md`
+1. **Load override first** - Call `load_override("lyric-writing-guide.md")` at invocation
 2. **Watch your rhymes** - No self-rhymes, no lazy patterns
 3. **Prosody matters** - Stressed syllables on strong beats
 4. **Show don't tell** - Action, imagery, sensory detail

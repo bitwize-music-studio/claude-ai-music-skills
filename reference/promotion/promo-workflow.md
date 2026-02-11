@@ -435,13 +435,15 @@ After generating promo videos:
 1. **Review all videos** - Quality check
 2. **Select key tracks** - Which to promote where
 3. **Fill in promo/ copy** - Populate per-platform templates in album's `promo/` directory
-4. **[Optional] Upload to cloud** - `/bitwize-music:cloud-uploader`
-5. **Schedule posts** - Plan timing using `promo/campaign.md`
-6. **Continue to release workflow** - `/bitwize-music:release-director`
+4. **Review promo copy** - `/bitwize-music:promo-reviewer` — interactive post-by-post review and polish
+5. **[Optional] Upload to cloud** - `/bitwize-music:cloud-uploader`
+6. **Schedule posts** - Plan timing using `promo/campaign.md`
+7. **Continue to release workflow** - `/bitwize-music:release-director`
 
 ## Related Documentation
 
 - `/skills/promo-director/SKILL.md` - Skill documentation
+- `/skills/promo-reviewer/SKILL.md` - Social media copy review
 - `/skills/cloud-uploader/SKILL.md` - Cloud upload skill
 - `/reference/cloud/setup-guide.md` - Cloud storage setup
 - `/skills/promo-director/visualization-guide.md` - Style guide

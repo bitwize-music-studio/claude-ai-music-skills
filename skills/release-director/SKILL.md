@@ -77,10 +77,9 @@ Check for custom release preferences:
 
 ### Loading Override
 
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/release-preferences.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base release workflow only
+1. Call `load_override("release-preferences.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base release workflow only
 
 ### Override File Format
 
@@ -242,7 +241,7 @@ Check for custom release preferences:
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/release-preferences.md` at invocation
+1. **Load override first** - Call `load_override("release-preferences.md")` at invocation
 2. **Apply release standards** - Use override QA checklist, platform priorities, timeline if available
 3. **QA is non-negotiable** - Don't skip pre-release checks (even with overrides)
 4. **Streaming Lyrics required** - Fill in each track before distributor upload

@@ -72,10 +72,9 @@ Check for custom album art preferences:
 
 ### Loading Override
 
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/album-art-preferences.md`
-3. If exists: read and incorporate preferences
-4. If not exists: use base art direction principles only
+1. Call `load_override("album-art-preferences.md")` — returns override content if found (auto-resolves path from config)
+2. If found: read and incorporate preferences
+3. If not found: use base art direction principles only
 
 ### Override File Format
 
@@ -270,7 +269,7 @@ As the album art director, you:
 
 ## Remember
 
-1. **Load override first** - Check for `{overrides}/album-art-preferences.md` at invocation
+1. **Load override first** - Call `load_override("album-art-preferences.md")` at invocation
 2. **Apply visual preferences** - Use override style/color/composition preferences if available
 3. **Album art is first impression** - Make it count
 4. **Thumbnail test is critical** - Must work small

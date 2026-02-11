@@ -72,93 +72,20 @@ Example: /new-album sample-album electronic
 Valid genres: hip-hop, electronic, rock, folk, country, pop, metal, jazz, rnb, classical, reggae, punk, indie-folk, blues, gospel, latin, k-pop
 ```
 
-## Step 2: Read Config (REQUIRED)
+## Step 2: Create Album via MCP
 
-**ALWAYS read the config file first. Never skip this step.**
+Call `create_album_structure(album_slug, genre, documentary)` — creates the complete directory structure with templates in one call.
 
-```bash
-cat ~/.bitwize-music/config.yaml
-```
+- Creates content directory at `{content_root}/artists/{artist}/albums/{genre}/{album-name}/`
+- Copies album template as README.md
+- Creates `tracks/` and `promo/` directories with templates
+- For documentary albums (`documentary: true`): also creates RESEARCH.md and SOURCES.md
+- Returns `{created: bool, path: str, files: [...]}`
+- If album already exists, returns an error
 
-Extract:
-- `paths.content_root` → The base content directory
-- `artist.name` → The artist name (e.g., "bitwize")
+**Note**: Audio and documents directories are NOT created (those are created when needed by import-audio/import-art).
 
-## Step 3: Determine Plugin Root
-
-Find where the plugin is installed to access templates:
-
-```bash
-# Find plugin by looking for CLAUDE.md
-find ~ -name "CLAUDE.md" -path "*claude-ai-music-skills*" 2>/dev/null | head -1 | xargs dirname
-```
-
-Or if you know the plugin location from context, use that.
-
-## Step 4: Construct Album Path
-
-The album path is **ALWAYS**:
-
-```
-{content_root}/artists/{artist}/albums/{genre}/{album-name}/
-```
-
-Example with:
-- `content_root: ~/bitwize-music`
-- `artist: bitwize`
-- `genre: electronic`
-- `album-name: sample-album`
-
-Result:
-```
-~/bitwize-music/artists/bitwize/albums/electronic/sample-album/
-```
-
-## Step 5: Check Album Doesn't Already Exist
-
-```bash
-if [ -d "{album_path}" ]; then
-  echo "Album already exists"
-fi
-```
-
-If exists:
-```
-Error: Album already exists at {album_path}
-
-To work on this album, just reference it by name.
-```
-
-## Step 6: Create Directory Structure
-
-```bash
-mkdir -p {album_path}/tracks
-mkdir -p {album_path}/promo
-```
-
-This creates:
-```
-{content_root}/artists/{artist}/albums/{genre}/{album-name}/
-├── tracks/
-└── promo/
-```
-
-## Step 7: Copy Templates
-
-Copy templates from plugin directory:
-
-```bash
-cp ${CLAUDE_PLUGIN_ROOT}/templates/album.md {album_path}/README.md
-cp ${CLAUDE_PLUGIN_ROOT}/templates/promo/*.md {album_path}/promo/
-```
-
-For documentary/true-story albums (ask user):
-```bash
-cp ${CLAUDE_PLUGIN_ROOT}/templates/research.md {album_path}/RESEARCH.md
-cp ${CLAUDE_PLUGIN_ROOT}/templates/sources.md {album_path}/SOURCES.md
-```
-
-## Step 8: Confirm
+## Step 3: Confirm
 
 Report:
 ```
@@ -251,11 +178,7 @@ If user mentions this is a documentary or true-story album:
 /new-album the-heist documentary hip-hop
 ```
 
-Also copy research templates:
-```bash
-cp ${CLAUDE_PLUGIN_ROOT}/templates/research.md {album_path}/RESEARCH.md
-cp ${CLAUDE_PLUGIN_ROOT}/templates/sources.md {album_path}/SOURCES.md
-```
+The `create_album_structure(album_slug, genre, documentary=true)` call automatically creates RESEARCH.md and SOURCES.md from templates.
 
 Report:
 ```
@@ -273,63 +196,23 @@ Files created:
 
 ## Common Mistakes
 
-### ❌ Don't: Skip reading config
+### ❌ Don't: Create directories manually
 
 **Wrong:**
 ```bash
-# Assuming paths
-mkdir -p ~/music-projects/artists/...
-```
-
-**Right:**
-```bash
-# Always read config first
+# Manual mkdir, config reading, template copying
 cat ~/.bitwize-music/config.yaml
-# Use paths.content_root from config
-```
-
-### ❌ Don't: Use current working directory
-
-**Wrong:**
-```bash
-# Create album relative to wherever we are
-mkdir -p ./artists/bitwize/albums/...
-```
-
-**Right:**
-```bash
-# Use absolute path from config
-mkdir -p {content_root}/artists/{artist}/albums/{genre}/{album-name}/
-```
-
-### ❌ Don't: Hardcode artist name
-
-**Wrong:**
-```bash
-# Assuming artist name
 mkdir -p ~/music-projects/artists/bitwize/albums/...
+cp templates/album.md ...
 ```
 
 **Right:**
-```bash
-# Read artist.name from config
-artist=$(yq '.artist.name' ~/.bitwize-music/config.yaml)
-mkdir -p {content_root}/artists/$artist/albums/...
+```
+# Single MCP call handles everything
+create_album_structure(album_slug, genre, documentary)
 ```
 
-### ❌ Don't: Forget path structure
-
-**Wrong paths:**
-```
-~/music-projects/{album}/           # Missing artists/{artist}/albums/{genre}/
-~/music-projects/albums/{album}/    # Missing artists/{artist}/
-~/music-projects/{artist}/{album}/  # Missing albums/{genre}/
-```
-
-**Correct structure:**
-```
-{content_root}/artists/{artist}/albums/{genre}/{album-name}/
-```
+The MCP tool reads config, resolves paths, creates directories, and copies templates automatically.
 
 ### ❌ Don't: Use wrong genre category
 

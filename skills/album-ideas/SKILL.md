@@ -47,10 +47,10 @@ Keep track of album concepts before they become actual album projects. This is t
 
 ### Config-Based Path
 
-1. Read `~/.bitwize-music/config.yaml`
-2. Check for `paths.ideas_file` field
-3. If not set, default: `{content_root}/IDEAS.md`
-4. If file doesn't exist, create it with template
+1. Call `get_config()` — returns config including `paths.ideas_file`
+2. If `ideas_file` not set, default: `{content_root}/IDEAS.md`
+3. If file doesn't exist, create it with template
+4. For reading existing ideas: call `get_ideas()` — returns ideas with status counts
 
 **Template for new IDEAS.md:**
 ```markdown
@@ -193,8 +193,7 @@ Move an album between status sections.
 
 **Special case - In Progress:**
 When moving to "In Progress", check if album directory exists:
-- Read config for `content_root` and `artist.name`
-- Check for album directory: `{content_root}/artists/{artist}/albums/*/[album-title]/`
+- Call `find_album(album_title)` to check if album directory exists
 - If NOT found, suggest: "Run `/bitwize-music:new-album` to create the album structure"
 
 ### `show [title]` - Show Details
@@ -319,7 +318,7 @@ Periodically review pending ideas:
 
 ## Remember
 
-1. **Read config first** - Get IDEAS file path from `~/.bitwize-music/config.yaml`
+1. **Read config first** - Call `get_config()` for IDEAS file path, or `get_ideas()` for existing ideas
 2. **Create if missing** - Initialize with template if file doesn't exist
 3. **Status tracking** - Pending → In Progress → Complete
 4. **Integration point** - Session start checks this file

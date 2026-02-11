@@ -29,18 +29,16 @@ You analyze the current state of albums and tracks and recommend the optimal nex
 
 ### If No Album Specified
 
-1. Read `~/.bitwize-music/cache/state.json`
-2. Check session context (`state.session.last_album`)
-3. If session has a last album, analyze that one
-4. If no session context, analyze ALL albums and pick the one with the most actionable next step
-5. If no albums exist, recommend creating one
+1. Call `get_session()` — check `last_album` from session context
+2. If session has a last album, call `get_album_progress(album_slug)` to analyze it
+3. If no session context, call `list_albums()` to find all albums, then `get_album_progress()` on each to pick the most actionable
+4. If no albums exist, recommend creating one
 
 ### If Album Specified
 
-1. Read state cache
-2. Find the album
-3. Analyze its state
-4. Recommend next action
+1. Call `find_album(name)` — fuzzy match by name, slug, or partial
+2. Call `get_album_progress(album_slug)` — get status, phase, track counts
+3. Recommend next action based on detected phase
 
 ---
 

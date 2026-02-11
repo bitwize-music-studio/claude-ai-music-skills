@@ -84,18 +84,15 @@ lyric-writer (+ suno-engineer) → pronunciation-specialist → lyric-reviewer �
 
 ### Single Track
 
-1. Read the track file
-2. Run all 6 gates
-3. Report pass/fail for each
-4. Output verdict: READY or NOT READY
+1. Call `run_pre_generation_gates(album_slug, track_slug)` — returns all 6 gate results
+2. Format pass/fail report from MCP response
+3. Output verdict: READY or NOT READY
 
 ### Full Album
 
-1. Read config to find album path
-2. Glob all tracks in `{album_path}/tracks/*.md`
-3. Run all 6 gates on each track
-4. Report per-track and album-level summary
-5. Output verdict: ALL READY, PARTIAL (list ready tracks), or NOT READY
+1. Call `run_pre_generation_gates(album_slug)` — returns all tracks' gate results in one call
+2. Format per-track and album-level summary from MCP response
+3. Output verdict: ALL READY, PARTIAL (list ready tracks), or NOT READY
 
 ---
 

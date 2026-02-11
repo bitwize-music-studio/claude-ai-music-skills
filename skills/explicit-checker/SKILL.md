@@ -55,13 +55,7 @@ Note: "damn" alone is clean, but "goddamn" is explicit.
 
 ## Override Support
 
-Check for custom explicit words list:
-
-### Loading Override
-1. Read `~/.bitwize-music/config.yaml` → `paths.overrides`
-2. Check for `{overrides}/explicit-words.md`
-3. If exists: parse and merge with base list
-4. If not exists: use base list only
+The MCP `check_explicit_content` tool automatically loads and merges user overrides from `{overrides}/explicit-words.md`. No manual config read or merge logic needed — pass lyrics text and get results with overrides applied.
 
 ### Override File Format
 
@@ -79,42 +73,25 @@ Check for custom explicit words list:
 - damn (context: emphasis)
 ```
 
-### Merge Behavior
-1. Start with base explicit word list
-2. Add any words from "Additional Explicit Words" section
-3. Remove any words from "Not Explicit" section
-4. Merged list used for scanning
-
-**Example:**
-- Base list has: `fuck, shit, hell, damn`
-- Override adds: `slang-term`
-- Override removes: `hell, damn`
-- Final list: `fuck, shit, slang-term`
-
 ---
 
 ## Workflow
 
 ### For Album Path
 
-1. **Find all track files**:
-   ```
-   Glob: [album-path]/tracks/*.md
-   ```
-
-2. **For each track**:
-   - Read the Lyrics section
-   - Scan for explicit words (case-insensitive)
-   - Note the track's Explicit flag setting
-   - Record any matches
-
-3. **Generate report**
+1. Call `list_tracks(album_slug)` — get all tracks with metadata
+2. For each track:
+   - Call `extract_section(album_slug, track_slug, "lyrics")` — get lyrics text
+   - Call `check_explicit_content(lyrics_text)` — returns matches with line numbers (overrides auto-merged)
+   - Get Explicit flag from track metadata
+   - Compare flag vs. content
+3. Generate report
 
 ### For Single Track
 
-1. Read the track file
-2. Scan Lyrics section for explicit words
-3. Check Explicit flag
+1. Call `extract_section(album_slug, track_slug, "lyrics")` — get lyrics text
+2. Call `check_explicit_content(lyrics_text)` — scan for explicit words
+3. Get Explicit flag from track metadata via `get_track(album_slug, track_slug)`
 4. Report findings
 
 ---
@@ -212,7 +189,6 @@ This skill is called during:
 
 ## Remember
 
-- **Load override first** - Check for `{overrides}/explicit-words.md` before scanning
 - Case-insensitive matching (Fuck = fuck = FUCK)
 - Check variations (fucking, fucked, fucker)
 - Phonetic spellings count (fuk, sh1t if intentional)

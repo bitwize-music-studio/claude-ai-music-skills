@@ -28,66 +28,23 @@ allowed-tools:
 
 When this skill is invoked with an album name:
 
-### Step 1: Read State Cache
+### Step 1: Find the Album via MCP
 
-Read `~/.bitwize-music/cache/state.json` to get album and track data.
+1. Call `find_album(name)` — fuzzy match by name, slug, or partial (case-insensitive)
+2. If not found: MCP returns available albums — suggest closest match or `/bitwize-music:new-album`
+3. If multiple matches: list all with paths, ask user which one
+4. If MCP returns stale/missing cache error: call `rebuild_state()` then retry
 
-**If state.json is missing or corrupted**:
-- Resolve `${CLAUDE_PLUGIN_ROOT}`: find the plugin installation directory (typically the repo root containing `tools/state/indexer.py`, or search `~/.claude/plugins/cache/bitwize-music/bitwize-music` for latest version directory)
-- Run: `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py rebuild`
-- If rebuild fails, fall back to manual Glob scan: read config, glob `{content_root}/artists/{artist}/albums/*/*/README.md`
-- Then read the newly created state.json
+### Step 2: Get Album Progress
 
-**If state.json exists**: Use it directly (much faster than scanning files).
+1. Call `get_album_progress(album_slug)` — returns track counts by status, completion percentage, and detected workflow phase
+2. Call `list_tracks(album_slug)` — returns per-track details (status, has_suno_link, sources_verified)
 
-### Step 2: Find the Album
+### Step 3: Update Session Context
 
-Search `state.albums` keys for the album name:
-- Case-insensitive match
-- Match variations: "sample-album", "sample_album", "sample album" should all match the same slug
+Call `update_session(album=album_slug, phase=detected_phase)` to set the active album and phase.
 
-**If no matches found**:
-- Tell user: "Album '[name]' not found"
-- List available albums from `state.albums` (slug, genre, status)
-- Suggest: "Did you mean one of these?" or "Use /bitwize-music:new-album to create it"
-
-**If multiple matches found**:
-- List all matches with full paths
-- Ask user which one they want
-
-### Step 3: Extract Album and Track Data
-
-From the matched album entry in `state.albums`, extract:
-- **Album status**: from `album.status`
-- **Track count**: from `album.track_count`
-- **Tracks completed**: from `album.tracks_completed`
-- **Track details**: from `album.tracks` — each track has status, has_suno_link, sources_verified
-
-Count tracks by status from `album.tracks`:
-- Not Started: X tracks
-- In Progress: Y tracks
-- Generated: Z tracks
-- Final: N tracks
-
-### Step 4: Staleness Check (Optional)
-
-Spot-check one track file's mtime against `track.mtime` in state. If stale:
-- Run `python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py update`
-- Re-read state.json
-
-### Step 5: Update Session Context
-
-After finding the album, update session context using the CLI command:
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py session --album <album-slug> --phase <phase>
-```
-
-Optional flags:
-- `--track <track-slug>` — set last track worked on
-- `--add-action "description"` — append a pending action
-- `--clear` — clear session data before applying new values
-
-### Step 6: Determine Current Phase
+### Step 4: Determine Current Phase
 
 Based on album and track statuses, identify the workflow phase:
 
@@ -101,7 +58,7 @@ Based on album and track statuses, identify the workflow phase:
 | Complete | All "Final" | Mastering - Ready to master audio |
 | Released | All "Final" | Released - Album is live |
 
-### Step 7: Report to User
+### Step 5: Report to User
 
 Present a clear status report:
 
@@ -130,7 +87,7 @@ Present a clear status report:
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 8: Recommend the Single Best Next Action
+### Step 6: Recommend the Single Best Next Action
 
 Pick ONE clear recommendation from the decision tree below. Don't list 5 options — pick the best one, include the skill name, and be specific about which track.
 
@@ -183,8 +140,8 @@ WHY:
 ### When No Album Specified (No Arguments)
 
 If invoked without an album name:
-1. Check session context (`state.session.last_album`) — resume that album
-2. If no session context, find all in-progress albums
+1. Call `get_session()` — check `last_album` from session context, resume that album
+2. If no session context, call `list_albums()` to find all in-progress albums
 3. Prioritize: closest to completion > unblocked work > last worked on
 4. If no albums exist, suggest `/bitwize-music:new-album`
 
@@ -279,8 +236,7 @@ Did you mean one of these? Or use /bitwize-music:new-album to create a new album
 
 ## Implementation Notes
 
-- **Always read config first** - Never assume paths
-- **Use Glob tool** - Don't use bash find/ls
+- **Use MCP tools** - `find_album`, `get_album_progress`, `list_tracks`, `update_session` instead of reading state.json directly
 - **Case-insensitive matching** - "Sample-Album" should match "sample-album"
 - **Handle missing albums gracefully** - List what exists, don't error
 - **Be specific about next steps** - Don't just say "continue working", say exactly what to do

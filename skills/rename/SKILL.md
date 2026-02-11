@@ -39,15 +39,9 @@ Examples:
   /rename track my-album 01-old-name 01-new-name
 ```
 
-## Step 2: Read Config (REQUIRED)
+## Step 2: Verify Config via MCP
 
-**ALWAYS read the config file first. Never skip this step.**
-
-```bash
-cat ~/.bitwize-music/config.yaml
-```
-
-This ensures paths are resolved correctly.
+Call `get_config()` to verify configuration is loaded. The MCP rename tools resolve paths internally, but config must be valid.
 
 ## Step 3: Confirm with User
 

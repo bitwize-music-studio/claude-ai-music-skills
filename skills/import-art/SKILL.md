@@ -36,65 +36,28 @@ Usage: /import-art <file-path> <album-name>
 Example: /import-art ~/Downloads/album-art.jpg sample-album
 ```
 
-## Step 2: Read Config (REQUIRED)
+## Step 2: Find Album and Resolve Paths via MCP
 
-**ALWAYS read the config file first. Never skip this step.**
-
-```bash
-cat ~/.bitwize-music/config.yaml
-```
-
-Extract:
-- `paths.content_root` → The base content directory
-- `paths.audio_root` → The base audio directory
-- `artist.name` → The artist name (e.g., "bitwize")
-
-## Step 3: Find Album Genre
-
-Search for the album to determine its genre:
-
-```bash
-find {content_root}/artists/{artist}/albums -type d -name "{album-name}" 2>/dev/null
-```
-
-Extract genre from path (the folder between `albums/` and `{album-name}/`).
+1. Call `find_album(album_name)` — fuzzy match, returns album metadata including genre
+2. Call `resolve_path("audio", album_slug)` — returns audio directory path
+3. Call `resolve_path("content", album_slug)` — returns content directory path
 
 If album not found:
 ```
-Error: Album "{album-name}" not found in content directory.
+Error: Album "{album-name}" not found.
 Create it first with: /new-album {album-name} <genre>
 ```
 
-## Step 4: Construct Target Paths
+## Step 3: Construct Target Paths
 
-**TWO destinations required:**
+**TWO destinations required** (paths from MCP `resolve_path` calls):
 
-1. **Audio folder** (for platforms/mastering):
-   ```
-   {audio_root}/{artist}/{album}/album.png
-   ```
+1. **Audio folder** (for platforms/mastering): `{audio_path}/album.png`
+2. **Content folder** (for documentation): `{content_path}/album-art.{ext}`
 
-2. **Content folder** (for documentation):
-   ```
-   {content_root}/artists/{artist}/albums/{genre}/{album}/album-art.{ext}
-   ```
+**CRITICAL**: `resolve_path` includes the artist folder automatically.
 
-Example with:
-- `content_root: ~/bitwize-music`
-- `audio_root: ~/bitwize-music/audio`
-- `artist: bitwize`
-- `genre: electronic`
-- `album: sample-album`
-
-Results:
-```
-Audio:   ~/bitwize-music/audio/bitwize/sample-album/album.png
-Content: ~/bitwize-music/artists/bitwize/albums/electronic/sample-album/album-art.jpg
-```
-
-**CRITICAL**: Audio path includes artist folder: `{audio_root}/{artist}/{album}/`
-
-## Step 5: Create Directories and Copy Files
+## Step 4: Create Directories and Copy Files
 
 ```bash
 # Create audio directory (includes artist folder!)
@@ -107,7 +70,7 @@ cp "{source_file}" "{audio_root}/{artist}/{album}/album.png"
 cp "{source_file}" "{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.{ext}"
 ```
 
-## Step 6: Confirm
+## Step 5: Confirm
 
 Report:
 ```
@@ -177,36 +140,23 @@ Copied to:
 
 ## Common Mistakes
 
-### ❌ Don't: Skip reading config
+### ❌ Don't: Manually read config and construct paths
 
 **Wrong:**
 ```bash
-# Assuming paths
+cat ~/.bitwize-music/config.yaml
 cp art.png ~/music-projects/audio/sample-album/
 ```
 
 **Right:**
-```bash
-# Always read config first
-cat ~/.bitwize-music/config.yaml
-# Use paths.audio_root, paths.content_root, and artist.name from config
+```
+# Use MCP to find album and resolve both paths
+find_album(album_name) → returns album metadata
+resolve_path("audio", album_slug) → audio path with artist folder
+resolve_path("content", album_slug) → content path with genre
 ```
 
-### ❌ Don't: Forget to include artist in audio path
-
-**Wrong audio destination:**
-```
-{audio_root}/{album}/album.png
-# Example: ~/music-projects/audio/sample-album/album.png
-```
-
-**Correct audio destination:**
-```
-{audio_root}/{artist}/{album}/album.png
-# Example: ~/music-projects/audio/bitwize/sample-album/album.png
-```
-
-**Why it matters:** This is the most common mistake - audio_root includes artist folder.
+**Why it matters:** `resolve_path` handles config reading, artist folder, and genre resolution automatically.
 
 ### ❌ Don't: Place art in only one location
 
@@ -245,19 +195,16 @@ Content location: album-art.jpg (or album-art.png)
 
 **Why it matters:** Different locations use different naming conventions to avoid confusion.
 
-### ❌ Don't: Search from wrong location
+### ❌ Don't: Search for albums manually
 
 **Wrong:**
 ```bash
-# Searching from current directory
 find . -name "README.md" -path "*albums/$album_name*"
 ```
 
 **Right:**
-```bash
-# Search from content_root
-content_root=$(yq '.paths.content_root' ~/.bitwize-music/config.yaml)
-find "$content_root" -name "README.md" -path "*albums/$album_name*"
+```
+find_album(album_name) → returns album data including path and genre
 ```
 
 ### ❌ Don't: Forget to create directories
