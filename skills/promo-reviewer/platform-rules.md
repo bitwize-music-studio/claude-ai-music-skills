@@ -8,7 +8,7 @@ Character limits, hashtag conventions, and tone guidelines for each social media
 
 | Platform | Char Limit | Hashtag Range | Hashtag Max | Key Constraint |
 |----------|-----------|---------------|-------------|----------------|
-| Twitter/X | 280 | 2-3 | 5 | Per-tweet limit; threads: 280/tweet |
+| Twitter/X | 280 | 1-2 | 5 | Per-tweet limit; threads: 280/tweet |
 | Instagram | 2,200 | 15-20 | 30 | First 125 chars visible before "more" |
 | TikTok | 4,000 | 3-5 | 10 | Under 150 chars ideal for visibility |
 | Facebook | 63,206 | 3-5 | 10 | First 2-3 lines visible before "See more" |
@@ -33,10 +33,17 @@ Character limits, hashtag conventions, and tone guidelines for each social media
 - Last tweet: call to action + link
 
 ### Hashtag Convention
-- 2-3 hashtags per tweet (optimal engagement)
+- 1-2 hashtags per tweet (optimal engagement)
 - More than 5 looks spammy, reduces engagement
-- Place at end of tweet or woven into text
+- Never start a tweet with a hashtag (algorithm penalty)
+- Place tags in the tweet body, not in a reply thread
+- Rotate tags — using the same set every tweet triggers spam detection
 - Music hashtags: #NewMusic, #NowPlaying, genre-specific
+
+### Tags to Avoid
+- #MusicPromotion, #SoundCloudPromotion — attracts bots, not listeners
+- #FollowBack, #Like4Like — spam signals that tank credibility
+- #MusicIsLife, #Beats — too generic, zero discovery value
 
 ### Tone
 - Concise, punchy, conversational

@@ -6,6 +6,20 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-02-12
+
+### Added
+- **`/promo-writer` skill** — generates platform-specific social media copy (Twitter, Instagram, TikTok, Facebook, YouTube) from album themes, track concepts, and streaming lyrics; campaign strategy first, then native per-platform posts with character counts and hashtag compliance (Sonnet tier)
+- **Social media best practices reference** — `reference/promotion/social-media-best-practices.md` with per-platform content strategy, algorithm notes, music discovery mechanics, hashtag strategies, indie artist tactics, and cross-platform release rollout templates
+- **Copy formulas reference** — `skills/promo-writer/copy-formulas.md` with 6 hook formulas, CTA templates, post structure skeletons, hashtag recipes by genre/phase, and tone adaptation guide
+- **Promotion preferences override** — `config/overrides.example/promotion-preferences.md` for customizing tone, platform priorities, messaging themes, hashtag preferences, and AI music positioning
+
+### Fixed
+- **Twitter hashtag count** — corrected from "2-3 per tweet" to "1-2 per tweet" in platform-rules.md and promo-reviewer SKILL.md (researched best practice)
+- **Twitter hashtag rules** — added "never start with hashtag" (algorithm penalty), tag rotation (spam detection), and Tags to Avoid section (#MusicPromotion, #FollowBack, #Like4Like)
+- **Release director promo references** — replaced "manual creative step" with promo-writer reference in QA item 9 and Distribution Prep item 6
+- **Promo reviewer workflow** — updated diagram, When to Use, and empty-files message to reference promo-writer as option
+
 ## [0.47.0] - 2026-02-11
 
 ### Added

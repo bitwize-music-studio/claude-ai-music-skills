@@ -17,6 +17,7 @@ Complete reference for all override files. Each override customizes a specific a
 | 9 | `release-preferences.md` | `/release-director` | Release workflow |
 | 10 | `mastering-presets.yaml` | `/mastering-engineer` | Audio mastering presets |
 | 11 | `sheet-music-preferences.md` | `/sheet-music-publisher` | Sheet music formatting |
+| 12 | `promotion-preferences.md` | `/promo-writer`, `/promo-director` | Social media copy & promo preferences |
 
 ---
 
@@ -482,6 +483,53 @@ Your formatting preferences are applied to sheet music generation.
 - Table of contents: Yes
 - Cover page style: Minimalist (title + artist + album art)
 - Page numbers: Bottom center
+```
+
+---
+
+## 12. promotion-preferences.md
+
+**Purpose:** Define your social media copy tone, platform priorities, messaging themes, and hashtag preferences.
+
+**Used by:** `/bitwize-music:promo-writer`, `/bitwize-music:promo-director`
+
+**Merge behavior:** Adds context - applied to copy generation and platform selection
+
+### Default Behavior
+Claude generates social media copy using general best practices from copy-formulas.md and social-media-best-practices.md.
+
+### With Override
+Your tone, platform, and messaging preferences guide copy generation.
+
+### What You Can Customize
+
+| Section | Examples |
+|---------|----------|
+| Tone & voice | Default tone (casual/professional/hype), emoji usage, POV |
+| Platform priorities | Which platforms to generate for, which to skip |
+| Messaging themes | Topics to always/never mention in copy |
+| Hashtag preferences | Always-include tags, genre tags, tags to avoid |
+| AI music positioning | When to mention AI, how to frame it |
+
+### Example
+```markdown
+## Tone & Voice
+- Default tone: casual
+- Emoji usage: minimal
+- Point of view: first-person
+
+## Platform Priorities
+1. Twitter/X
+2. Instagram
+3. TikTok
+Skip: Facebook
+
+## Hashtag Preferences
+### Always Include
+- #NewMusic
+### Avoid
+- #FollowBack
+- #MusicPromotion
 ```
 
 ---

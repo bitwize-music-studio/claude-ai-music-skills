@@ -125,7 +125,7 @@ At the beginning of a fresh session:
 
 ## Workflow Overview
 
-Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → Master → Promo Videos (optional) → **Release**
+Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → Master → Promo Videos (optional) → Promo Copy (optional) → **Release**
 
 **Critical**: Research must complete before writing for source-based content. Human source verification is required before generation — never skip this gate.
 
@@ -139,6 +139,7 @@ Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → Mas
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Mastering audio** → apply `/bitwize-music:mastering-engineer` standards
 - **Album art** → apply `/bitwize-music:album-art-director`
+- **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
 
 - **Verifying sources** → `/bitwize-music:verify-sources` (human verification gate)

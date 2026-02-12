@@ -62,6 +62,7 @@ Quick-reference guide for finding the right skill for any task.
 |--------------|----------------|
 | ...master audio for streaming platforms | `/mastering-engineer` |
 | ...create promo videos for social media | `/promo-director` |
+| ...write social media copy for an album | `/promo-writer` |
 | ...review and polish social media copy | `/promo-reviewer` |
 | ...upload promo videos to cloud storage | `/cloud-uploader` |
 | ...create sheet music from audio | `/sheet-music-publisher` |
@@ -121,6 +122,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`promo-reviewer`](/skills/promo-reviewer/SKILL.md) | Review and polish social media copy in promo/ files | Interactive post-by-post review before release |
+| [`promo-writer`](/skills/promo-writer/SKILL.md) | Generate platform-specific social media copy from album context | Populating promo/ templates with copy for each platform |
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
 | [`rename`](/skills/rename/SKILL.md) | Rename albums or tracks with path updates | Changing album/track names after creation |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
@@ -161,6 +163,7 @@ What to have ready before using each skill:
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
 | `/mastering-engineer` | WAV files downloaded from Suno |
 | `/promo-director` | Mastered audio + album artwork |
+| `/promo-writer` | Album with track concepts and lyrics written |
 | `/promo-reviewer` | Promo copy populated in promo/ directory |
 | `/cloud-uploader` | Promo videos generated |
 | `/release-director` | Mastering complete, all QA passed |
@@ -184,6 +187,7 @@ What to have ready before using each skill:
     -> [Generate in Suno]
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
+    -> /promo-writer (optional: generate social media copy)
     -> /release-director (release to platforms)
 ```
 
@@ -221,6 +225,7 @@ What to have ready before using each skill:
 ```
 /mastering-engineer <audio-folder>
     -> /promo-director <album> (optional)
+    -> /promo-writer <album> (optional)
     -> /promo-reviewer <album> (optional)
     -> /cloud-uploader <album> (optional)
     -> /release-director <album>
@@ -241,6 +246,8 @@ Natural pairings that complement each other:
 | `/suno-engineer` | `/clipboard` | Copy prompts directly to Suno |
 | `/mastering-engineer` | `/promo-director` | Promo videos need mastered audio |
 | `/promo-director` | `/cloud-uploader` | Upload videos for sharing |
+| `/promo-writer` | `/promo-reviewer` | Generate copy, then polish it |
+| `/promo-writer` | `/promo-director` | Social copy + promo videos for full campaign |
 | `/promo-reviewer` | `/release-director` | Polish copy before release |
 | `/album-conceptualizer` | `/album-art-director` | Visual and sonic vision together |
 | `/new-album` | `/album-conceptualizer` | Always plan after creating structure |
@@ -274,7 +281,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 25 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 26 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -284,6 +291,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/mastering-engineer` - Audio guidance
 - `/promo-director` - Video generation
 - `/promo-reviewer` - Interactive copy review
+- `/promo-writer` - Social media copy generation
 - `/pronunciation-specialist` - Edge cases need judgment (homographs, context)
 - `/release-director` - Release coordination
 - `/researcher` - Research coordination

@@ -20,6 +20,7 @@ After promo templates are populated with platform-specific copy, this skill prov
 
 ## When to Use
 
+- After `/bitwize-music:promo-writer` generates initial copy
 - After populating promo/ templates (manually or during release prep)
 - Before release — final polish pass on social media copy
 - User says "review promo copy" or "polish the twitter posts for [album]"
@@ -28,7 +29,7 @@ After promo templates are populated with platform-specific copy, this skill prov
 ## Position in Workflow
 
 ```
-Promo Videos (optional) → Populate promo/ copy → **[Promo Review]** → Release
+Promo Videos (optional) → [Promo Writer] (or manual) → **[Promo Review]** → Release
 ```
 
 Between populating promo templates and release-director.
@@ -77,8 +78,9 @@ If no promo files are populated:
 No promo copy found to review.
 
 Options:
-1. Populate promo templates first (fill in promo/ files manually)
-2. Skip promo review and proceed to release
+1. Generate promo copy: /bitwize-music:promo-writer <album-name>
+2. Populate promo templates manually (fill in promo/ files)
+3. Skip promo review and proceed to release
 ```
 
 ### 2. Platform Selection
@@ -268,7 +270,7 @@ When revising posts, follow these principles:
 ### Twitter/X
 - Every post under 280 chars (hard limit)
 - Thread tweets: each tweet standalone but connected
-- 2-3 hashtags max (more looks spammy)
+- 1-2 hashtags max (more looks spammy)
 - Streaming link in release posts
 
 ### Instagram

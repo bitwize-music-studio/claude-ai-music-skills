@@ -73,7 +73,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.5 Skills (25 skills)
+## Sonnet 4.5 Skills (26 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -103,6 +103,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### promo-reviewer
 **Why Sonnet**: Interactive review of social media copy across platforms. Requires judgment about tone, engagement, platform conventions, and character limit optimization. Revisions need creativity to punch up or shorten copy while preserving the user's voice. Not music content, but needs more than pattern matching.
+
+### promo-writer
+**Why Sonnet**: Generates platform-specific social media copy from album themes and lyrics. Requires adapting the same core message to each platform's conventions (tone, length, hashtag rules). Creative enough to need more than Haiku, but following established formulas and templates — not generating music content. Output is promotional copy, not the music itself.
 
 ### pronunciation-specialist
 **Why Sonnet**: Scans for pronunciation risks. Moved from Haiku because edge cases need judgment - is "live" pronounced LIVE or LIV in this context? Names, technical terms, and homographs require understanding, not just pattern matching.
@@ -233,8 +236,8 @@ Is it purely pattern matching, file operations, or static info?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus 4.5 | 6 | 13.0% | Music-defining output, high error cost |
-| Sonnet 4.5 | 25 | 54.3% | Reasoning, coordination, moderate creativity |
-| Haiku 4.5 | 15 | 32.6% | Rule-based operations, no judgment |
+| Opus 4.5 | 6 | 12.8% | Music-defining output, high error cost |
+| Sonnet 4.5 | 26 | 55.3% | Reasoning, coordination, moderate creativity |
+| Haiku 4.5 | 15 | 31.9% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

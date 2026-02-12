@@ -154,6 +154,39 @@ Override the plugin's default promotion settings for this artist/project.
 - 15s duration
 - Verify on phone before publishing
 
+## Social Media Copy Preferences
+
+These settings are used by `/bitwize-music:promo-writer` when generating social media copy.
+
+### Tone & Voice
+- **Default tone**: casual | professional | hype | mysterious | storytelling
+- **Emoji usage**: none | minimal | moderate | heavy
+- **Point of view**: first-person ("I made...") | third-person ("bitwize releases...") | collective ("We made...")
+
+### Platform Priorities
+Ordered list of platforms to generate copy for. Remove platforms to skip them.
+1. Twitter/X
+2. Instagram
+3. TikTok
+4. Facebook
+5. YouTube
+
+### Messaging Themes
+**Always mention**: Topics to weave into copy (e.g., "the story behind the album", "the creative process")
+**Never mention**: Topics to avoid (e.g., "personal struggles", "competing artists")
+
+### Hashtag Preferences
+**Always include**: Tags for every post (platform limits permitting)
+**Genre tags**: Override genre tag selection from copy-formulas.md
+**Avoid**: Tags to never use (e.g., #FollowBack, #Like4Like, #MusicPromotion)
+
+### AI Music Positioning
+- **Mention AI**: never | occasionally (when relevant) | always
+- **Framing**: How to describe the AI role (e.g., "AI-assisted artist")
+- **Emphasis**: What to highlight about the human contribution (e.g., "creative direction, concept, curation")
+
+---
+
 ## Example Override for Specific Artist
 
 ```markdown
