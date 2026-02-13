@@ -14,7 +14,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
 ![Version](https://img.shields.io/badge/version-0.47.0-blue)
 ![Skills](https://img.shields.io/badge/skills-46-green)
-![Tests](https://img.shields.io/badge/tests-1713-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1768-brightgreen)
 
 ## What Is This?
 
@@ -36,6 +36,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.50** | Audio QC tool (7 checks), `qc_audio` and `master_album` MCP tools, end-to-end mastering pipeline |
+| **0.49** | K-pop genre research with 27 artist deep-dives, artist blocklist, Suno V5 K-pop tips |
 | **0.48** | Promo writer skill for social media copy generation, best practices reference, Twitter hashtag fixes |
 | **0.47** | 9 processing MCP tools, Suno auto-fill clipboard + Tampermonkey script, album streaming block |
 | **0.45** | Promo reviewer skill for social media copy polish, cross-file count consistency fixes |
