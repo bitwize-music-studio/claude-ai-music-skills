@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-02-13
+
 ### Added
 - `master_album` MCP tool — end-to-end mastering pipeline (analyze → QC → master → verify → QC → status update) in a single call
 - Technical Audio QC tool (`qc_tracks.py`) with 7 checks: mono compatibility, phase correlation, clipping, click/pop detection, silence, format validation, spectral balance
