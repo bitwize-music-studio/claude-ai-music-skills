@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-02-13
+
+### Added
+- **K-pop genre research** — 27 artist deep-dive files covering all major K-pop acts across 4 generations (BTS, BLACKPINK, Stray Kids, NewJeans, aespa, (G)I-DLE, ATEEZ, IVE, LE SSERAFIM, SEVENTEEN, EXO, Girls' Generation, Big Bang, SHINee, TWICE, Red Velvet, 2NE1, TVXQ, Dreamcatcher, ENHYPEN, TXT, ITZY, Epik High, IU, Zion.T, Crush, DEAN) with members, discography, musical analysis, Suno prompt keywords, and reference tracks
+- **K-pop artist INDEX** — `genres/k-pop/artists/INDEX.md` quick-reference with Suno keywords and reference tracks for all 27 artists
+- **K-pop artist blocklist** — 25 entries added to `reference/suno/artist-blocklist.md` with sonic description alternatives
+- **K-pop Suno V5 tips** — comprehensive K-pop section in `reference/suno/v5-best-practices.md` covering style prompts, group vocal sound, Korean-English code-switching, switch-up technique, and common issues
+- **Enhanced K-pop README** — expanded with entertainment company sounds (SM, YG, JYP, HYBE, ADOR, Cube, KQ), additional subgenres, industry terms glossary, and artist cross-references
+
 ## [0.48.0] - 2026-02-12
 
 ### Added

@@ -114,6 +114,88 @@ Melancholic, slow-burn, piano and strings, female alto with subtle vibrato
 - Note tempo and mood
 - Describe vocal intimacy level
 
+### K-Pop
+
+K-pop presents unique challenges for Suno due to its maximalist production, multi-vocal architecture, language mixing, and mid-song genre shifts.
+
+**Core style prompt approach:**
+- Always include `K-pop` explicitly plus specific production terms (`maximalist`, `glossy`, `dynamic shifts`)
+- Place vocal description first: `mixed group vocals, layered harmonies, K-pop idol group`
+- Specify concept type: `girl crush`, `cute concept`, `dark concept`, `retro disco`
+- Include BPM (dance tracks: 120-140, ballads: 60-80, hip-hop: 80-100)
+
+**Getting the group vocal sound:**
+- `mixed group vocals` is the single most important tag for simulating a multi-member group
+- Add `layered harmonies`, `gang vocals`, `group chant` for chorus density
+- Use parenthetical backing vocals in lyrics: `I'm on fire (on fire!)` to trigger echo/response
+- Use `[All]` or `[Group]` section tags before chant sections
+- Separate rap verses with `[Rap Verse]` tags to signal a different vocal character
+
+**Korean-English code-switching:**
+- Suno V5 handles Korean (Hangul) better than earlier versions, but romanized Korean with hyphens remains more reliable for pronunciation control
+- Format: `Sa-rang-hae` not `Saranghae`
+- Add `[Clear Vocals]` or `[High Fidelity Vocals]` when mixing languages
+- Keep English hooks and Korean verses as separate sections when possible
+
+**The "switch-up" (mid-song genre change):**
+- Use parenthetical genre cues at each section, not just in the global style prompt:
+  ```
+  [Verse 1]
+  (Soft R&B groove, gentle piano)
+  ...lyrics...
+
+  [Chorus]
+  (Explosive EDM drop, heavy bass, full energy)
+  ...lyrics...
+
+  [Rap Verse]
+  (Aggressive trap flow, 808 bass)
+  ...lyrics...
+
+  [Bridge]
+  (Stripped-back ballad, solo piano)
+  ...lyrics...
+  ```
+- Include `genre-fluid`, `dynamic shifts`, `maximalist K-pop production` in style prompt
+
+**K-pop section structure (more sections than Western pop):**
+- Intro → Verse 1 → Pre-Chorus → Chorus → Post-Chorus → Verse 2 → Pre-Chorus → Chorus → Rap Verse → Bridge → Dance Break → Final Chorus (key change up) → Outro
+- Use `[Dance Break]` with `(Instrumental, heavy beat)` and minimal/no lyrics
+- Final chorus often modulates up a half-step — note `(key change up, maximum energy)` in parenthetical
+
+**Common K-pop Suno issues:**
+
+| Problem | Solution |
+|---------|----------|
+| Sounds like generic pop, not K-pop | Add `K-pop` + `maximalist` + `glossy` + specific concept keywords |
+| Solo voice instead of group | Add `mixed group vocals`, `layered harmonies`, `K-pop idol group` |
+| No genre switch-up mid-song | Use parenthetical genre cues per section, not just global prompt |
+| Korean pronunciation garbled | Use romanized Korean with hyphens; add `[Clear Vocals]` |
+| Rap verse sounds same as singing | Use `[Rap Verse]` tag with `(aggressive rap flow)` parenthetical |
+| Dance break has singing | Keep lyrics minimal/empty in `[Dance Break]`; add `(Instrumental)` |
+
+**Example K-pop style prompts by concept:**
+
+Girl crush:
+```
+K-pop girl group, fierce EDM trap, sassy vocals, heavy bass drop, chant chorus, 135 BPM, confident attitude, glossy production
+```
+
+Bright/cute:
+```
+K-pop, bubblegum pop, bright synths, chirpy vocals, catchy hook, youthful energy, 125 BPM, layered harmonies
+```
+
+Dark/experimental:
+```
+K-pop, industrial synths, aggressive rap, EDM bass drops, distorted bass, maximalist chaos, 140 BPM, mixed group vocals
+```
+
+K-ballad:
+```
+Korean ballad, emotional piano, string orchestra, soaring vocals, key change final chorus, 70 BPM, cinematic, lush arrangement
+```
+
 ---
 
 ## Vocal Control

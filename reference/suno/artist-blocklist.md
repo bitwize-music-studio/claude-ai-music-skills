@@ -139,6 +139,35 @@ Suno actively filters and blocks real artist/band names in style prompts. Using 
 | The King's Singers | classical choral, precise harmonies, British |
 | Sweet Honey in the Rock | acapella gospel, African-American spiritual, powerful |
 
+### K-Pop & Korean
+| Don't Say | Say Instead |
+|-----------|-------------|
+| BTS | genre-fluid K-pop, anthemic hooks, trap-to-R&B shifts, stacked vocal harmonies, hip-hop dance pop |
+| BLACKPINK | fierce EDM trap, bass drops, sassy rap vocals, chant chorus, booming 808s, glossy K-pop |
+| Stray Kids | noise K-pop, industrial synths, aggressive rap, frenetic bass, EDM breakdowns, hard-hitting trap |
+| NewJeans | Y2K pop, jersey club beats, UK garage two-step, dreamy R&B, minimal layering, retro 2000s |
+| aespa | hyperpop, glitchy synths, bubblegum bass, cyberpunk electropop, futuristic maximalist |
+| (G)I-DLE | moombahton-trap, orchestral over modern drums, pop-rock crossover, bold genre shifts |
+| ATEEZ | anthemic K-pop, explosive EDM drops, theatrical energy, dramatic trap, brass-heavy |
+| EXO | polished R&B-pop, electropop, 90s-inspired harmonies, synth-pop, smooth layered vocals |
+| Girls' Generation | bubblegum electropop, bright high-register vocals, Europop synths, chirpy hooks |
+| Big Bang | hip-hop electro-pop, genre-bending, swaggering rap verses, electronic dance hooks |
+| TWICE | bubblegum pop, chirpy hooks, color-pop energy, brass electro-pop, youthful dance-pop |
+| Red Velvet | dual-concept pop, bright quirky hooks and sleek 90s R&B, neo-soul undertones |
+| SHINee | contemporary R&B, acid electro funk, sophisticated dance-pop, Michael Jackson-era groove |
+| IU | acoustic pop-jazz, coffeehouse instrumentation, breathy intimate vocals, orchestral strings |
+| SEVENTEEN | self-produced pop, orchestral arrangements, bright synth-pop, layered harmonies |
+| IVE | glamorous synth-pop, bold dance-pop, reverb-heavy chorus, anthemic melodies |
+| LE SSERAFIM | polished synth-pop, punchy electronic beats, R&B-tinged dance-pop, shimmering layers |
+| 2NE1 | swaggering hip-hop, explosive EDM, fierce female rap, reggae-trap fusion, bold electropop |
+| Dreamcatcher | K-pop metal, distorted guitars with dance-pop, rock-electronic hybrid, dark melodic hooks |
+| ITZY | teen crush pop-EDM, bass house verses, electro house chorus, sassy attitude |
+| TXT | dreamy ethereal pop, pop-rock crossover, falsetto layered vocals, stadium rock energy |
+| ENHYPEN | dark electronic pop, eerie synths, cinematic falsettos, vampiric atmosphere |
+| Epik High | alternative K-hip-hop, boom bap beats, bilingual rap, soul-infused, genre-crossing |
+| Zion.T | minimalist K-R&B, dreamy Rhodes piano, smooth falsetto, jazz-pop fusion |
+| Crush | neo-soul K-R&B, jazz harmony, intimate vocal delivery, analog warmth |
+
 ### Industrial & Experimental
 | Don't Say | Say Instead |
 |-----------|-------------|
