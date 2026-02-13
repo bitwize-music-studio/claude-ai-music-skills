@@ -18,24 +18,28 @@ K-Pop (Korean Pop) is a global entertainment phenomenon rooted in South Korean p
 
 ### Production & Sound Design
 - **Instrumentation**: Heavily layered digital production combining synthesizers, programmed drums, sampled elements, and occasional live instrumentation; genre-fluid within single tracks often incorporating multiple style shifts
-- **Production Approach**: Maximalist layering with 100+ tracks common; frequent beat drops and tempo changes; "switch-up" sections where songs transform genre mid-track; Western songwriters and producers commonly collaborate with Korean teams
+- **Production Approach**: Maximalist layering with 100+ tracks common; frequent beat drops and tempo changes; "switch-up" sections where songs transform genre mid-track; Western songwriters and producers commonly collaborate with Korean teams through international songwriting camps
 - **Sound Design Focus**: Crisp, processed vocals with precise tuning; prominent bass and kick; bright, punchy mixing optimized for both streaming and choreography synchronization
+- **Frequency Signature**: Distinctly bright -- aggressive 8-10 kHz air boost on vocals and master; "smiley face" EQ curve (enhanced lows and highs, controlled mids); tighter and more precise bass than Western pop; vocals mixed extremely forward in the 2-4 kHz presence range
 
 ### Vocal Characteristics
 - **Multiple Vocalists**: Groups feature 4-12+ members with distinct vocal roles (main vocal, lead vocal, sub-vocal, rapper)
 - **Delivery Styles**: Powerful belting, breathy verses, rap sections, spoken word, harmonies, and ad-libs often within single tracks
 - **Language**: Primarily Korean with English hooks, phrases, or entire verses; Japanese versions common; occasional third language elements
 - **Processing**: Precise pitch correction, harmonized backing vocals, heavily processed rap sections, selective use of vocal effects
+- **Training System**: Trainees train 2-7 years before debut (8-12 hours daily). Mix voice training is core focus. JYP's "half-air, half-sound" technique produces distinctive breathy quality across their roster
 
 ### Visual & Performance Integration
 - **Choreography**: Integral to song identity; synchronized group movements, point choreography (signature moves), formations, and dance breaks
 - **Music Videos**: Cinematic production values with narrative elements, visual concepts, Easter eggs for dedicated fans, and elaborate set designs
 - **Concepts**: Each comeback (album release cycle) features unified visual/sonic/thematic concept that extends across music, styling, and promotional materials
+- **Killing Parts**: Meticulously crafted 3-4 second moments designed for maximum viral and emotional impact; choreographers, stylists, and producers collaborate to make these peak moments
 
 ### Structure & Arrangement
-- **Song Structure**: Varies from traditional verse-chorus to experimental; frequent use of pre-chorus builds, post-chorus hooks, and bridge breakdowns
-- **Duration**: Typically 3:00-4:00 for title tracks; often includes spoken intro or outro
-- **Pacing**: High energy maintained through constant variation; "killing parts" (standout moments) strategically placed
+- **Song Structure**: More sections than Western pop (8-12 vs 5-7). Typical: Intro → Verse 1 → Pre-Chorus → Chorus → Post-Chorus → Verse 2 → Pre-Chorus → Chorus → Rap Verse → Bridge → Dance Break → Final Chorus → Outro
+- **Duration**: Typically 3:00-4:00 for title tracks (trending shorter for streaming); often includes spoken intro or outro
+- **Pacing**: High energy maintained through constant variation; perceived dynamics come from arrangement contrast (drops, bridges, genre switches) rather than volume dynamics
+- **Key Changes**: Common mid-song and at final chorus ("truck driver's modulation" -- half-step up for final chorus is standard)
 
 ### Energy & Mood Range
 - **Bright/Cute**: Upbeat, colorful, youthful energy (early Twice, NewJeans)
@@ -43,6 +47,31 @@ K-Pop (Korean Pop) is a global entertainment phenomenon rooted in South Korean p
 - **Dark/Intense**: Aggressive, theatrical, complex narratives (Stray Kids, ATEEZ)
 - **Sophisticated**: Mature themes, refined production, artistic concepts (BTS later work, Red Velvet "Velvet" tracks)
 - **Emotional/Ballad**: Vocal showcases, orchestral elements, restrained production
+
+## Entertainment Company Sounds
+
+Each major K-pop company has a distinctive sonic signature that shapes their artists:
+
+### SM Entertainment — "SMP" (SM Music Performance)
+Founded by Lee Soo-man. Pioneered "Cultural Technology" -- systematic idol development with regional customization. SMP characteristics: electric guitar with rock-feel distortion, layered orchestration (strings, piano), DJing/scratching textures, the "weaving song" approach (blending multiple compositions into singular tracks). Vocals as sonic texture rather than pure storytelling. Key artists: H.O.T., TVXQ, SHINee, EXO, Red Velvet, aespa, NCT.
+
+### YG Entertainment
+Architect: Teddy Park. Hip-hop foundation with R&B, reggae, house, EDM layered on top. "Minimal-maximalist" -- fewer elements but each hits hard. Strong bass, trap influences, swagger-driven delivery. Grittier and more street-influenced than SM's polished density. Key artists: Big Bang, 2NE1, BLACKPINK, TREASURE.
+
+### JYP Entertainment
+Founded by Park Jin Young. "Half-air, half-sound" vocal technique producing breathy, softer vocals. Iconic "JYP" whisper tag at song beginnings. Accessible, emotionally direct pop -- less experimental than SM, more polished than YG. Key artists: Wonder Girls, 2PM, TWICE, Stray Kids, ITZY, NMIXX.
+
+### HYBE / Big Hit Music
+Founded by Bang Si-hyuk. Authenticity-first approach -- artists encouraged toward self-production and authentic storytelling. 360-degree storytelling (music + narrative + visuals as complete experience). Less about a house sound, more about supporting each artist's unique voice. Multi-label structure with creative independence. Key artists: BTS, TXT, ENHYPEN, SEVENTEEN, LE SSERAFIM.
+
+### ADOR (HYBE sub-label)
+Creative Director: Min Hee-jin. "Newtro" (new retro) -- 90s/Y2K nostalgia, synth-pop and R&B foundations, girl-next-door aesthetic. Plush R&B production, approachable and genuine. Key artist: NewJeans.
+
+### Cube Entertainment
+Known for artist-produced focus. Encourages members to write and produce their own music. Sound varies because artists drive their own direction. Key artist: (G)I-DLE (Soyeon writes/produces majority of their catalog).
+
+### KQ Entertainment
+Theatrical, high-energy performances with innovative concepts. Pirate/adventure worldbuilding. Authentic artist development despite limited resources compared to Big 4. Key artist: ATEEZ.
 
 ## Lyric Conventions
 
@@ -59,33 +88,43 @@ K-Pop (Korean Pop) is a global entertainment phenomenon rooted in South Korean p
 |-------|-------------|-------------------|
 | **Idol Pop** | The core K-Pop sound: bright, infectious, highly choreographed group performances with catchy hooks, synchronized vocals, and polished production. Optimized for charts and dance covers. | Girls' Generation, Twice, IVE, NewJeans |
 | **K-Hip-Hop/Idol Rap** | Rap-forward tracks or groups with strong hip-hop influence; harder beats, Korean/English blend, street credibility while maintaining idol presentation | Stray Kids, BTS early work, Big Bang, ATEEZ |
-| **K-R&B** | Smooth vocals, soul influences, contemporary production; can range from sensual slow jams to uptempo grooves; often features in B-side tracks or solo work | Zion.T, Crush, Dean, BIBI, EXO ballads |
-| **K-Ballad** | Emotional, vocal-driven tracks with orchestral or minimal instrumentation; showcases technical ability; staple of Korean music charts and OST (soundtracks) | Taeyeon, Park Hyo-shin, IU, Ailee, Davichi |
+| **K-Hip-Hop (Independent)** | Korea's thriving underground hip-hop scene beyond idol rap; more raw and personal, beat-driven, trap-influenced with strong American hip-hop connections | Epik High, Dynamic Duo, Jay Park, pH-1, Show Me The Money artists |
+| **K-R&B** | Smooth vocals, soul influences, contemporary production; multilingual fluidity, jazzy chords, trap beats, syncopation; more experimental and personal than idol pop | Zion.T, Crush, Dean, Heize, BIBI, Colde |
+| **K-Ballad** | Emotional, vocal-driven tracks with orchestral or minimal instrumentation; showcases technical ability; staple of Korean charts and K-drama OSTs; soaring melodies with key-change finales | Taeyeon, Park Hyo-shin, IU, Ailee, Davichi |
 | **Dark/Experimental** | Aggressive production, complex arrangements, theatrical performances; incorporates industrial, rock, or electronic elements; elaborate worldbuilding narratives | Stray Kids, ATEEZ, Dreamcatcher, (G)I-DLE |
+| **Noise Music/Hyperpop** | Intentional sonic chaos: distorted bass, glitchy effects, aggressive synths, bubblegum bass, structure-breaking arrangements; defined by 4th generation maximalism | NCT 127, Stray Kids, aespa, NMIXX |
 | **Girl Crush** | Fierce, empowering concept featuring powerful vocals, harder production, and confident styling; contrasts with cute concepts | BLACKPINK, 2NE1, ITZY, aespa, LE SSERAFIM |
 | **Cute/Fresh** | Bright, youthful energy with aegyo (cuteness) elements; colorful visuals, simple choreography, upbeat tempos; often debut concept for girl groups | Early Twice, Oh My Girl, fromis_9, IZ*ONE |
-| **Retro/Disco Revival** | 70s-80s influenced production featuring funk bass, synth hooks, and disco beats; part of broader 2020s retro trend in K-Pop | BTS "Dynamite," Dua Lipa x BLACKPINK, SHINee "Don't Call Me" |
+| **Retro/Disco Revival** | 70s-80s influenced production featuring funk bass, synth hooks, and disco beats; part of broader "newtro" (new retro) trend | BTS "Dynamite," SHINee "Don't Call Me," Girls' Generation "All Night" |
+| **K-City Pop** | Korean reimagining of 70s-80s Japanese/Korean city pop; fictional nostalgia, neon aesthetics, synth-pop warmth | Various, part of the broader newtro movement |
 | **K-Rock/Band Idol** | Groups featuring live instrumentation and rock/pop-rock sound; members play instruments in addition to standard idol activities | DAY6, CNBLUE, FT Island, N.Flying, ONEWE |
+| **K-Indie** | Guitar-driven, monophonic synths, minimal bass, obscured vocals, unconventional sounds; more intimate and experimental than mainstream K-pop | Nell, Standing Egg, 10cm, Hyukoh, Jannabi |
+| **Trot** | Korea's oldest popular music genre; vocal inflections with "kkeokk-gi" (flexing) technique; pentatonic scales; revived through TV competitions (Mr. Trot); now encompasses ballads, rock, and dance-pop | Lim Young-woong, Young Tak |
 
 ## Artists
 
 | Artist | Key Albums | Era | Style Focus |
 |--------|-----------|-----|-------------|
-| BTS | *The Most Beautiful Moment in Life* series, *Wings*, *Love Yourself* series, *Map of the Soul: 7* | 3rd-4th Gen (2013-present) | Pioneered authentic storytelling in K-Pop; evolved from hip-hop roots to genre-fluid experimentation; first K-Pop act with #1 Billboard 200 albums |
-| BLACKPINK | *Square Up*, *The Album*, *Born Pink* | 3rd-4th Gen (2016-present) | Defined girl crush concept globally; YG Entertainment's trap-influenced production; fashion-forward positioning; festival headliners |
-| Girls' Generation | *Gee*, *Oh!*, *I Got a Boy*, *Lion Heart* | 2nd Gen (2007-2017) | "Nation's Girl Group"; defined second generation; versatile concepts from cute to mature; individual member branding template |
-| Big Bang | *Alive*, *MADE* | 2nd Gen (2006-present) | Redefined masculine idol presentation; hip-hop credibility; fashion influence; members as individual artists (G-Dragon, Taeyang) |
-| EXO | *XOXO*, *Exodus*, *The War*, *Don't Mess Up My Tempo* | 3rd Gen (2012-present) | Elaborate mythology concepts (superpower themes); synchronized performance excellence; dominated mid-2010s charts |
-| Stray Kids | *Oddinary*, *MAXIDENT*, *5-STAR* | 4th Gen (2018-present) | Self-produced experimental sound; 3RACHA production team; hard-hitting hip-hop-influenced tracks; intensely loyal fandom |
-| NewJeans | *New Jeans*, *Get Up*, *How Sweet* | 4th Gen (2022-present) | Y2K aesthetic revival; minimalist production approach; broke from conventional K-Pop maximalism; immediate global impact |
-| Twice | *Twicetagram*, *Yes or Yes*, *Formula of Love* | 3rd-4th Gen (2015-present) | Dominated cute concept era; transitioned to mature sound; nine-member international lineup; JYP Entertainment flagship |
-| ATEEZ | *Treasure* series, *Zero: Fever* series, *The World* series | 4th Gen (2018-present) | Theatrical performances; pirate-themed worldbuilding; powerful synchronization; strong Western fanbase |
-| Red Velvet | *The Red*, *Perfect Velvet*, *The ReVe Festival* series | 3rd Gen (2014-present) | Dual concept (Red = bright, Velvet = sophisticated); experimental B-sides; vocal powerhouse; SM Entertainment artistry |
-| IU | *Last Fantasy*, *Modern Times*, *Palette*, *Lilac* | Solo (2008-present) | "Nation's Little Sister" to sophisticated artist; singer-songwriter credibility; actress; defines Korean solo artist success |
-| aespa | *Savage*, *Girls*, *MY WORLD* | 4th Gen (2020-present) | AI avatar concept (ae-aespa); metaverse worldbuilding; SM's futuristic vision; hyperpop and EDM influences |
-| (G)I-DLE | *I Never Die*, *I Feel*, *2* | 4th Gen (2018-present) | Self-produced by leader Soyeon; diverse concept exploration; powerful performances; challenges idol production norms |
-| SHINee | *Lucifer*, *Misconceptions of Us*, *1 of 1*, *Don't Call Me* | 2nd-4th Gen (2008-present) | "Princes of K-Pop"; complex choreography pioneers; R&B and funk influences; influential across generations |
-| Seventeen | *Going Seventeen*, *Attacca*, *FML* | 3rd-4th Gen (2015-present) | Self-producing idols (performance, vocal, hip-hop units); synchronized formations with 13 members; Pledis/HYBE |
+| [BTS](artists/bts.md) | *HYYH* series, *Wings*, *Love Yourself* series, *Map of the Soul: 7* | 3rd-4th Gen (2013-present) | Pioneered authentic storytelling in K-Pop; evolved from hip-hop roots to genre-fluid experimentation; first K-Pop act with #1 Billboard 200 albums |
+| [BLACKPINK](artists/blackpink.md) | *Square Up*, *The Album*, *Born Pink* | 3rd-4th Gen (2016-present) | Defined girl crush concept globally; YG Entertainment's trap-influenced production; fashion-forward positioning; festival headliners |
+| [Stray Kids](artists/stray-kids.md) | *NOEASY*, *ODDINARY*, *5-STAR* | 4th Gen (2018-present) | Self-produced experimental sound; 3RACHA production team; noise music pioneers; eight #1 Billboard 200 albums |
+| [NewJeans](artists/newjeans.md) | *New Jeans*, *Get Up*, *How Sweet* | 4th Gen (2022-present) | Y2K aesthetic revival; minimalist production approach; broke from conventional K-Pop maximalism; immediate global impact |
+| [aespa](artists/aespa.md) | *Savage*, *MY WORLD*, *Armageddon* | 4th Gen (2020-present) | AI avatar concept (ae-aespa); metaverse worldbuilding; SM's futuristic vision; hyperpop and EDM influences |
+| [(G)I-DLE](artists/gi-dle.md) | *I Never Die*, *I Feel*, *2* | 4th Gen (2018-present) | Self-produced by leader Soyeon; diverse concept exploration; powerful performances; challenges idol production norms |
+| [ATEEZ](artists/ateez.md) | *Treasure* series, *The World* series, *Golden Hour* series | 4th Gen (2018-present) | Theatrical performances; pirate-themed worldbuilding; orchestral meets trap; first K-pop boy group at Coachella |
+| [IVE](artists/ive.md) | *I've IVE*, *IVE Empathy* | 4th Gen (2021-present) | Polished hook-driven pop; confident "I HAVE" concept; retro sampling; consistent Korean chart dominance |
+| [LE SSERAFIM](artists/le-sserafim.md) | *Fearless*, *Unforgiven*, *EASY*, *CRAZY* | 4th Gen (2022-present) | Genre-chameleon: reggaeton, amapiano, afrobeats, bass-heavy dance-pop; boldness and fearlessness themes |
+| [SEVENTEEN](artists/seventeen.md) | *FML*, *Face the Sun*, *Seventeenth Heaven* | 3rd-4th Gen (2015-present) | Self-producing idols (performance, vocal, hip-hop units); synchronized 13-member formations; IFPI best-selling album 2023 |
+| [Girls' Generation](artists/girls-generation.md) | *Gee*, *I Got a Boy*, *Lion Heart* | 2nd Gen (2007-2017) | "Nation's Girl Group"; defined second generation; pioneered the hook + synchronized dance formula |
+| [Big Bang](artists/big-bang.md) | *Alive*, *MADE* | 2nd Gen (2006-present) | Redefined masculine idol presentation; G-Dragon's hip-hop production; fashion influence; genre-boundary-shattering |
+| [EXO](artists/exo.md) | *XOXO*, *Exodus*, *The War* | 3rd Gen (2012-present) | Vocal powerhouse (D.O., Chen, Baekhyun); mythology concepts; first million-seller since 2001 with "Growl" |
+| [SHINee](artists/shinee.md) | *View*, *1 of 1*, *Don't Call Me* | 2nd-4th Gen (2008-present) | "Princes of K-Pop"; pioneered deep house and new jack swing in K-pop; contemporary R&B foundation |
+| [Twice](artists/twice.md) | *Twicetagram*, *Formula of Love* | 3rd-4th Gen (2015-present) | Dominated cute concept era; transitioned to mature sound; nine-member international lineup |
+| [Red Velvet](artists/red-velvet.md) | *The Red*, *Perfect Velvet*, *The ReVe Festival* series | 3rd Gen (2014-present) | Dual concept (Red = bright, Velvet = sophisticated); experimental B-sides; vocal powerhouse |
+| [2NE1](artists/2ne1.md) | *To Anyone*, *Crush* | 2nd-3rd Gen (2009-2016) | "Female Big Bang"; fierce hip-hop/electronic sound; paved way for BLACKPINK and girl crush concept |
+| [IU](artists/iu.md) | *Modern Times*, *Palette*, *Lilac* | Solo (2008-present) | "Queen of K-pop"; complete creative control; jazz to city pop to retro funk; also acclaimed actress |
+| [Dreamcatcher](artists/dreamcatcher.md) | *Dystopia* trilogy, *Apocalypse* series | 4th Gen (2017-present) | "Face of Rock in K-pop"; metal-influenced girl group; dark fantasy/horror concepts |
+| [Epik High](artists/epik-high.md) | *Swan Songs*, *Sleepless in __________*, *Epik High Is Here* | Independent (2001-present) | Pioneer of Korean hip-hop; boom bap roots with genre fusion; influenced self-composing idols |
 
 ## Suno Prompt Keywords
 
@@ -100,28 +139,32 @@ polished production, layered vocals, bright synths, catchy hook
 ```
 powerful vocals, vocal run, belting, breathy verses, korean rap,
 multilingual lyrics, korean-english mix, harmonized vocals,
-vocal processing, precise tuning, ad-libs, chanting
+vocal processing, precise tuning, ad-libs, chanting,
+mixed group vocals, gang vocals, group chant
 ```
 
 ### Production Style
 ```
 k-pop production, maximalist pop, beat drop, switch-up,
 genre-blending, tempo change, EDM influence, trap beat,
-synth-heavy, bass drop, punchy drums, crisp mix, bright mastering
+synth-heavy, bass drop, punchy drums, crisp mix, bright mastering,
+glossy production, 808 bass, siren synths, filtered build-up
 ```
 
 ### Concept & Style Keywords
 ```
 girl crush, fierce, empowering, cute concept, bright pop,
 dark concept, theatrical, dramatic, retro disco, y2k aesthetic,
-sophisticated, mature, emotional ballad, power ballad
+sophisticated, mature, emotional ballad, power ballad,
+noise music, hyperpop, glitchcore, newtro
 ```
 
 ### Subgenre Specific
 ```
 k-hip-hop, korean rap, k-r&b, smooth vocals, soul influence,
 k-ballad, emotional vocals, orchestral, minimal instrumentation,
-k-rock, band sound, live instruments, pop-rock
+k-rock, band sound, live instruments, pop-rock,
+trot, pentatonic vocal, k-city-pop, synth-pop warmth
 ```
 
 ### Energy & Mood
@@ -136,7 +179,8 @@ playful, youthful, fresh, vibrant
 ```
 dance break, rap verse, pre-chorus build, post-chorus hook,
 killing part, point choreography, synchronized performance,
-comeback, title track, b-side, album track
+comeback, title track, b-side, album track,
+key change final chorus, genre switch mid-song
 ```
 
 ## Reference Tracks
@@ -163,7 +207,11 @@ For style reference when prompting:
 
 - **aespa - "Next Level"** - Metaverse-era K-Pop: originally a Fast & Furious soundtrack song, restructured into multiple distinct sections that feel like separate songs combined. Represents fourth generation's maximalist approach and worldbuilding integration. Polarizing but trendsetting.
 
+- **aespa - "Supernova"** - Cosmic dance-hyperpop with heavy kick/bass and catchy synth melody. SM's maximalist production at its most addictive. #1 on Circle Digital Chart for 11 weeks, Song of the Year 2024. Glittering, dense, and irresistibly hooky.
+
 - **SHINee - "Lucifer"** - Complex choreography pioneer: intricate synchronized movements (the "Lucifer dance" became iconic) over electronic pop production. Established SHINee as "performance idols" and influenced subsequent generation's choreography ambition. R&B vocal runs over dance production.
+
+- **SHINee - "View"** - Pioneered deep house in mainstream K-pop: sophisticated future house production, sun-drenched atmosphere, smooth vocal layers. Proved K-pop could absorb underground electronic genres and make them accessible. A turning point for K-pop's sonic ambition.
 
 - **Twice - "Cheer Up"** - Bright concept perfected: aegyo elements, simple memorable hook ("shy shy shy"), colorful production, and accessible choreography designed for fan covers. Dominated 2016 and defined JYP Entertainment's signature sound. Represented the peak of "cute" concept before industry pivot.
 
@@ -171,4 +219,28 @@ For style reference when prompting:
 
 - **(G)I-DLE - "TOMBOY"** - Self-produced fierce concept: Soyeon's songwriting challenges gender norms with rock-influenced production, powerful delivery, and deliberately provocative styling. Demonstrates growing artist control in K-Pop. Guitar-driven chorus breaks from typical electronic production.
 
+- **Dreamcatcher - "Odd Eye"** - Rock in K-pop: distorted guitars layered with dance-pop production, dark fantasy concept, metal-influenced energy. Represents K-pop's ability to absorb any genre when driven by creative conviction.
+
+- **IVE - "Love Dive"** - Sophisticated synth-pop with a mysterious vocal hook and glamorous production. Song of the Year across all three major Korean awards (2022). Polished, addictive, and elegantly constructed -- the 4th gen refinement of idol pop.
+
 - **Epik High - "Amor Fati"** (feat. Kim Jong-wan) - K-hip-hop artistry: Tablo's introspective lyrics over orchestral production, blending hip-hop with Korean ballad sensibility. Represents the sophisticated, album-artist side of Korean music that coexists with idol pop. Reference for narrative-driven Korean hip-hop.
+
+## Industry Terms
+
+Key terminology for understanding K-pop production context:
+
+| Term | Meaning |
+|------|---------|
+| **Comeback** | New music release cycle (not a return from absence); includes new concepts, styling, choreography |
+| **Title track** | Primary song promoted with music video and music show performances |
+| **B-side** | Non-title album tracks; more room for artistic exploration |
+| **Repackage** | Re-release of album with 2-3 bonus tracks and new packaging |
+| **Mini album (EP)** | 4-7 tracks; most common K-pop release format |
+| **Aegyo** | "Acting cute" -- intentional playful performance of cuteness |
+| **Girl crush** | Confident, fierce concept appealing to all genders |
+| **Dark concept** | Horror, supernatural, villain themes with heavy production |
+| **Killing part** | 3-4 second peak moment designed for viral/emotional impact |
+| **Fan chant** | Choreographed audience chants designed into song structure |
+| **Music show win** | Victory on weekly TV performance competition (M Countdown, Music Bank, etc.) |
+| **All-kill** | Topping all major Korean digital charts simultaneously |
+| **Trainee** | Aspiring idol under contract (2-7 years training, no debut guarantee) |
