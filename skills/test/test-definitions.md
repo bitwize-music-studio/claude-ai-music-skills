@@ -583,6 +583,7 @@ Glob: tools/mastering/
 These must exist:
 - `tools/mastering/analyze_tracks.py`
 - `tools/mastering/master_tracks.py`
+- `tools/mastering/qc_tracks.py`
 
 ### TEST: Mastering workflow documentation exists
 ```

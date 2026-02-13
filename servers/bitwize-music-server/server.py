@@ -52,6 +52,7 @@ Tools exposed:
 
     # Processing tools (mastering, sheet music, promo videos)
     analyze_audio       - Analyze audio tracks for mastering decisions
+    qc_audio            - Run technical QC checks on audio tracks
     master_audio        - Master audio tracks for streaming
     fix_dynamic_track   - Fix tracks with excessive dynamic range
     master_with_reference - Master using a reference track
@@ -60,6 +61,7 @@ Tools exposed:
     create_songbook     - Combine sheet music PDFs into a songbook
     generate_promo_videos - Generate promo videos with waveform visualization
     generate_album_sampler - Generate album sampler video for social media
+    master_album        - End-to-end mastering pipeline (analyze → QC → master → verify → status)
 """
 import asyncio
 import json
@@ -4185,6 +4187,81 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
 
 
 @mcp.tool()
+async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> str:
+    """Run technical QC checks on audio tracks.
+
+    Scans WAV files for mono compatibility, phase correlation, clipping,
+    clicks/pops, silence issues, format validation, and spectral balance.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        subfolder: Optional subfolder within audio dir (e.g., "mastered")
+        checks: Comma-separated checks to run (default: all).
+                Options: mono, phase, clipping, clicks, silence, format, spectral
+
+    Returns:
+        JSON with per-track QC results, summary, and verdicts
+    """
+    dep_err = _check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug, subfolder)
+    if err:
+        return err
+
+    from tools.mastering.qc_tracks import qc_track, ALL_CHECKS
+
+    wav_files = sorted(audio_dir.glob("*.wav"))
+    wav_files = [f for f in wav_files if "venv" not in str(f)]
+    if not wav_files:
+        return _safe_json({
+            "error": f"No WAV files found in {audio_dir}",
+            "suggestion": "Check the album slug or subfolder.",
+        })
+
+    # Parse checks filter
+    active_checks = None
+    if checks:
+        active_checks = [c.strip() for c in checks.split(",")]
+        invalid = [c for c in active_checks if c not in ALL_CHECKS]
+        if invalid:
+            return _safe_json({
+                "error": f"Unknown checks: {', '.join(invalid)}",
+                "valid_checks": ALL_CHECKS,
+            })
+
+    loop = asyncio.get_event_loop()
+    results = []
+    for wav in wav_files:
+        result = await loop.run_in_executor(None, qc_track, str(wav), active_checks)
+        results.append(result)
+
+    # Build summary
+    passed = sum(1 for r in results if r["verdict"] == "PASS")
+    warned = sum(1 for r in results if r["verdict"] == "WARN")
+    failed = sum(1 for r in results if r["verdict"] == "FAIL")
+
+    if failed > 0:
+        verdict = "FAILURES FOUND"
+    elif warned > 0:
+        verdict = "WARNINGS"
+    else:
+        verdict = "ALL PASS"
+
+    return _safe_json({
+        "tracks": results,
+        "summary": {
+            "total": len(results),
+            "passed": passed,
+            "warned": warned,
+            "failed": failed,
+        },
+        "verdict": verdict,
+    })
+
+
+@mcp.tool()
 async def master_audio(
     album_slug: str,
     genre: str = "",
@@ -5027,6 +5104,480 @@ async def generate_album_sampler(
         })
     else:
         return _safe_json({"error": "Album sampler generation failed."})
+
+
+@mcp.tool()
+async def master_album(
+    album_slug: str,
+    genre: str = "",
+    target_lufs: float = -14.0,
+    ceiling_db: float = -1.0,
+    cut_highmid: float = 0.0,
+    cut_highs: float = 0.0,
+) -> str:
+    """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
+
+    Runs 7 sequential stages, stopping on failure:
+        1. Pre-flight — resolve audio dir, check deps, find WAV files
+        2. Analyze — measure LUFS, peaks, spectral balance on raw files
+        3. Pre-QC — run technical QC checks on raw files (fails on FAIL verdict)
+        4. Master — normalize loudness, apply EQ, limit peaks
+        5. Verify — check mastered output meets targets (±0.5 dB LUFS, peak < ceiling)
+        6. Post-QC — run technical QC on mastered files (fails on FAIL verdict)
+        7. Update status — set tracks to Final, album to Complete
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset to apply (overrides EQ/LUFS defaults if set)
+        target_lufs: Target integrated loudness (default: -14.0)
+        ceiling_db: True peak ceiling in dB (default: -1.0)
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
+        cut_highs: High shelf cut in dB at 8kHz
+
+    Returns:
+        JSON with per-stage results, settings, warnings, and failure info
+    """
+    stages = {}
+    warnings = []
+
+    # --- Stage 1: Pre-flight ---
+    dep_err = _check_mastering_deps()
+    if dep_err:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "stages": {"pre_flight": {"status": "fail", "detail": dep_err}},
+            "failed_stage": "pre_flight",
+            "failure_detail": {"reason": dep_err},
+        })
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "stages": {"pre_flight": {"status": "fail", "detail": "Audio directory not found"}},
+            "failed_stage": "pre_flight",
+            "failure_detail": json.loads(err),
+        })
+
+    wav_files = sorted([
+        f for f in audio_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+
+    if not wav_files:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "stages": {"pre_flight": {
+                "status": "fail",
+                "detail": f"No WAV files found in {audio_dir}",
+            }},
+            "failed_stage": "pre_flight",
+            "failure_detail": {"reason": f"No WAV files in {audio_dir}"},
+        })
+
+    stages["pre_flight"] = {
+        "status": "pass",
+        "track_count": len(wav_files),
+        "audio_dir": str(audio_dir),
+    }
+
+    # Resolve genre presets and effective settings (same logic as master_audio)
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+        load_genre_presets,
+    )
+    import numpy as np
+
+    effective_lufs = target_lufs
+    effective_highmid = cut_highmid
+    effective_highs = cut_highs
+    genre_applied = None
+
+    if genre:
+        presets = load_genre_presets()
+        genre_key = genre.lower()
+        if genre_key not in presets:
+            return _safe_json({
+                "album_slug": album_slug,
+                "stage_reached": "pre_flight",
+                "stages": stages,
+                "failed_stage": "pre_flight",
+                "failure_detail": {
+                    "reason": f"Unknown genre: {genre}",
+                    "available_genres": sorted(presets.keys()),
+                },
+            })
+        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
+        if target_lufs == -14.0:
+            effective_lufs = preset_lufs
+        if cut_highmid == 0.0:
+            effective_highmid = preset_highmid
+        if cut_highs == 0.0:
+            effective_highs = preset_highs
+        genre_applied = genre_key
+
+    settings = {
+        "genre": genre_applied,
+        "target_lufs": effective_lufs,
+        "ceiling_db": ceiling_db,
+        "cut_highmid": effective_highmid,
+        "cut_highs": effective_highs,
+    }
+
+    loop = asyncio.get_event_loop()
+
+    # --- Stage 2: Analysis ---
+    from tools.mastering.analyze_tracks import analyze_track
+
+    analysis_results = []
+    for wav in wav_files:
+        result = await loop.run_in_executor(None, analyze_track, str(wav))
+        analysis_results.append(result)
+
+    lufs_values = [r["lufs"] for r in analysis_results]
+    avg_lufs = float(np.mean(lufs_values))
+    lufs_range = float(max(lufs_values) - min(lufs_values))
+    tinny_tracks = [r["filename"] for r in analysis_results if r["tinniness_ratio"] > 0.6]
+
+    if tinny_tracks:
+        for t in tinny_tracks:
+            warnings.append(f"Pre-master: {t} — tinny (high-mid spike)")
+
+    stages["analysis"] = {
+        "status": "pass",
+        "avg_lufs": round(avg_lufs, 1),
+        "lufs_range": round(lufs_range, 1),
+        "tinny_tracks": tinny_tracks,
+    }
+
+    # --- Stage 3: Pre-QC ---
+    from tools.mastering.qc_tracks import qc_track
+
+    pre_qc_results = []
+    for wav in wav_files:
+        result = await loop.run_in_executor(None, qc_track, str(wav), None)
+        pre_qc_results.append(result)
+
+    pre_passed = sum(1 for r in pre_qc_results if r["verdict"] == "PASS")
+    pre_warned = sum(1 for r in pre_qc_results if r["verdict"] == "WARN")
+    pre_failed = sum(1 for r in pre_qc_results if r["verdict"] == "FAIL")
+
+    # Collect warnings
+    for r in pre_qc_results:
+        for check_name, check_info in r["checks"].items():
+            if check_info["status"] == "WARN":
+                warnings.append(f"Pre-QC {r['filename']}: {check_name} WARN — {check_info['detail']}")
+
+    if pre_failed > 0:
+        failed_tracks = [r for r in pre_qc_results if r["verdict"] == "FAIL"]
+        fail_details = []
+        for r in failed_tracks:
+            for check_name, check_info in r["checks"].items():
+                if check_info["status"] == "FAIL":
+                    fail_details.append({
+                        "filename": r["filename"],
+                        "check": check_name,
+                        "status": "FAIL",
+                        "detail": check_info["detail"],
+                    })
+
+        stages["pre_qc"] = {
+            "status": "fail",
+            "passed": pre_passed,
+            "warned": pre_warned,
+            "failed": pre_failed,
+            "verdict": "FAILURES FOUND",
+        }
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_qc",
+            "stages": stages,
+            "settings": settings,
+            "warnings": warnings,
+            "failed_stage": "pre_qc",
+            "failure_detail": {
+                "tracks_failed": [r["filename"] for r in failed_tracks],
+                "details": fail_details,
+            },
+        })
+
+    stages["pre_qc"] = {
+        "status": "pass",
+        "passed": pre_passed,
+        "warned": pre_warned,
+        "failed": 0,
+        "verdict": "ALL PASS" if pre_warned == 0 else "WARNINGS",
+    }
+
+    # --- Stage 4: Mastering ---
+    eq_settings = []
+    if effective_highmid != 0:
+        eq_settings.append((3500, effective_highmid, 1.5))
+    if effective_highs != 0:
+        eq_settings.append((8000, effective_highs, 0.7))
+
+    output_dir = audio_dir / "mastered"
+    output_dir.mkdir(exist_ok=True)
+
+    master_results = []
+    for wav_file in wav_files:
+        output_path = output_dir / wav_file.name
+
+        def _do_master(in_path, out_path, lufs, eq, ceil):
+            return _master_track(
+                str(in_path), str(out_path),
+                target_lufs=lufs,
+                eq_settings=eq if eq else None,
+                ceiling_db=ceil,
+            )
+
+        result = await loop.run_in_executor(
+            None, _do_master, wav_file, output_path,
+            effective_lufs, eq_settings, ceiling_db,
+        )
+        if result and not result.get("skipped"):
+            result["filename"] = wav_file.name
+            master_results.append(result)
+
+    if not master_results:
+        stages["mastering"] = {"status": "fail", "detail": "No tracks processed (all silent)"}
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "mastering",
+            "stages": stages,
+            "settings": settings,
+            "warnings": warnings,
+            "failed_stage": "mastering",
+            "failure_detail": {"reason": "No tracks processed (all silent or no WAV files)"},
+        })
+
+    stages["mastering"] = {
+        "status": "pass",
+        "tracks_processed": len(master_results),
+        "settings": settings,
+        "output_dir": str(output_dir),
+    }
+
+    # --- Stage 5: Verification ---
+    mastered_files = sorted([
+        f for f in output_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+
+    verify_results = []
+    for wav in mastered_files:
+        result = await loop.run_in_executor(None, analyze_track, str(wav))
+        verify_results.append(result)
+
+    verify_lufs = [r["lufs"] for r in verify_results]
+    verify_avg = float(np.mean(verify_lufs))
+    verify_range = float(max(verify_lufs) - min(verify_lufs))
+
+    # Check thresholds
+    out_of_spec = []
+    for r in verify_results:
+        issues = []
+        if abs(r["lufs"] - effective_lufs) > 0.5:
+            issues.append(f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}")
+        if r["peak_db"] > ceiling_db:
+            issues.append(f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB")
+        if issues:
+            out_of_spec.append({"filename": r["filename"], "issues": issues})
+
+    album_range_fail = verify_range >= 1.0
+
+    if out_of_spec or album_range_fail:
+        fail_detail = {}
+        if out_of_spec:
+            fail_detail["tracks_out_of_spec"] = out_of_spec
+        if album_range_fail:
+            fail_detail["album_lufs_range"] = round(verify_range, 2)
+            fail_detail["album_range_limit"] = 1.0
+
+        stages["verification"] = {
+            "status": "fail",
+            "avg_lufs": round(verify_avg, 1),
+            "lufs_range": round(verify_range, 2),
+            "all_within_spec": False,
+        }
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "verification",
+            "stages": stages,
+            "settings": settings,
+            "warnings": warnings,
+            "failed_stage": "verification",
+            "failure_detail": fail_detail,
+        })
+
+    stages["verification"] = {
+        "status": "pass",
+        "avg_lufs": round(verify_avg, 1),
+        "lufs_range": round(verify_range, 2),
+        "all_within_spec": True,
+    }
+
+    # --- Stage 6: Post-QC ---
+    post_qc_results = []
+    for wav in mastered_files:
+        result = await loop.run_in_executor(None, qc_track, str(wav), None)
+        post_qc_results.append(result)
+
+    post_passed = sum(1 for r in post_qc_results if r["verdict"] == "PASS")
+    post_warned = sum(1 for r in post_qc_results if r["verdict"] == "WARN")
+    post_failed = sum(1 for r in post_qc_results if r["verdict"] == "FAIL")
+
+    for r in post_qc_results:
+        for check_name, check_info in r["checks"].items():
+            if check_info["status"] == "WARN":
+                warnings.append(f"Post-QC {r['filename']}: {check_name} WARN — {check_info['detail']}")
+
+    if post_failed > 0:
+        failed_tracks = [r for r in post_qc_results if r["verdict"] == "FAIL"]
+        fail_details = []
+        for r in failed_tracks:
+            for check_name, check_info in r["checks"].items():
+                if check_info["status"] == "FAIL":
+                    fail_details.append({
+                        "filename": r["filename"],
+                        "check": check_name,
+                        "status": "FAIL",
+                        "detail": check_info["detail"],
+                    })
+
+        stages["post_qc"] = {
+            "status": "fail",
+            "passed": post_passed,
+            "warned": post_warned,
+            "failed": post_failed,
+            "verdict": "FAILURES FOUND",
+        }
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "post_qc",
+            "stages": stages,
+            "settings": settings,
+            "warnings": warnings,
+            "failed_stage": "post_qc",
+            "failure_detail": {
+                "tracks_failed": [r["filename"] for r in failed_tracks],
+                "details": fail_details,
+            },
+        })
+
+    stages["post_qc"] = {
+        "status": "pass",
+        "passed": post_passed,
+        "warned": post_warned,
+        "failed": 0,
+        "verdict": "ALL PASS" if post_warned == 0 else "WARNINGS",
+    }
+
+    # --- Stage 7: Update statuses ---
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album_data = albums.get(normalized_album)
+
+    tracks_updated = 0
+    status_errors = []
+
+    if album_data:
+        tracks = album_data.get("tracks", {})
+
+        for track_slug, track_info in tracks.items():
+            track_path_str = track_info.get("path", "")
+            if not track_path_str:
+                status_errors.append(f"No path for track '{track_slug}'")
+                continue
+
+            track_path = Path(track_path_str)
+            if not track_path.exists():
+                status_errors.append(f"Track file not found: {track_path}")
+                continue
+
+            try:
+                text = track_path.read_text(encoding="utf-8")
+                pattern = re.compile(
+                    r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
+                    re.MULTILINE,
+                )
+                match = pattern.search(text)
+                if match:
+                    new_row = f"{match.group(1)} Final |"
+                    updated_text = text[:match.start()] + new_row + text[match.end():]
+                    track_path.write_text(updated_text, encoding="utf-8")
+
+                    # Update cache
+                    parsed = parse_track_file(track_path)
+                    track_info.update({
+                        "status": parsed.get("status", "Final"),
+                        "mtime": track_path.stat().st_mtime,
+                    })
+                    tracks_updated += 1
+                else:
+                    status_errors.append(f"Status field not found in {track_slug}")
+            except Exception as e:
+                status_errors.append(f"Error updating {track_slug}: {e}")
+
+        # Update album status to Complete if all tracks are Final
+        all_final = all(
+            t.get("status", "").lower() == "final"
+            for t in tracks.values()
+        )
+        album_status = None
+        if all_final:
+            album_path_str = album_data.get("path", "")
+            if album_path_str:
+                readme_path = Path(album_path_str) / "README.md"
+                if readme_path.exists():
+                    try:
+                        text = readme_path.read_text(encoding="utf-8")
+                        pattern = re.compile(
+                            r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
+                            re.MULTILINE,
+                        )
+                        match = pattern.search(text)
+                        if match:
+                            new_row = f"{match.group(1)} Complete |"
+                            updated_text = text[:match.start()] + new_row + text[match.end():]
+                            readme_path.write_text(updated_text, encoding="utf-8")
+                            album_data["status"] = "Complete"
+                            album_status = "Complete"
+                    except Exception as e:
+                        status_errors.append(f"Error updating album status: {e}")
+
+        # Persist state cache
+        try:
+            write_state(state)
+        except Exception as e:
+            status_errors.append(f"Cache write failed: {e}")
+    else:
+        status_errors.append(f"Album '{album_slug}' not found in state cache")
+
+    if status_errors:
+        for err_msg in status_errors:
+            warnings.append(f"Status update: {err_msg}")
+
+    stages["status_update"] = {
+        "status": "pass",
+        "tracks_updated": tracks_updated,
+        "album_status": album_status,
+        "errors": status_errors if status_errors else None,
+    }
+
+    return _safe_json({
+        "album_slug": album_slug,
+        "stage_reached": "complete",
+        "stages": stages,
+        "settings": settings,
+        "warnings": warnings,
+        "failed_stage": None,
+        "failure_detail": None,
+    })
 
 
 def main():

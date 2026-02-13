@@ -336,6 +336,7 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --ceiling -
 - [ ] No tracks are clipping (peaks below 0 dBFS)
 - [ ] Track order/naming is finalized
 - [ ] Mixes are approved (mastering won't fix bad mixes)
+- [ ] `qc_audio(album_slug)` — all 7 automated checks pass (mono, phase, clipping, clicks, silence, format, spectral)
 
 ### After Mastering
 
@@ -346,6 +347,7 @@ python3 {plugin_root}/tools/mastering/master_tracks.py {audio_path}/ --ceiling -
 - [ ] Tonal balance consistent across tracks
 - [ ] Fades/silence at start/end are correct
 - [ ] A/B comparison with originals sounds like improvement
+- [ ] `qc_audio(album_slug, "mastered")` — post-mastering QC passes
 
 ### Listening Tests
 
@@ -398,6 +400,25 @@ For tracks with excessive dynamic range:
 ```bash
 python3 fix_dynamic_track.py input.wav [output.wav]
 ```
+
+### qc_tracks.py
+
+Technical audio QC with 7 automated checks:
+- Format validation (WAV, sample rate, bit depth, channels)
+- Mono compatibility (L+R fold energy loss)
+- Phase correlation (windowed L/R correlation)
+- Clipping detection (consecutive samples at ±0.99+)
+- Click/pop detection (transient spikes vs local RMS)
+- Silence detection (leading, trailing, internal gaps)
+- Spectral balance (sub-bass, bass, mid, high-mid, high, air)
+
+**Usage:**
+```bash
+python3 {plugin_root}/tools/mastering/qc_tracks.py {audio_path}/
+python3 {plugin_root}/tools/mastering/qc_tracks.py {audio_path}/ --checks mono,phase,clipping
+```
+
+Also available as the `qc_audio` MCP tool for use from skills.
 
 ### reference_master.py
 

@@ -11482,3 +11482,4 @@ class TestGetConfigEdgeCases:
         assert "audio_root" in config
         assert "documents_root" in config
         assert "artist_name" in config
+

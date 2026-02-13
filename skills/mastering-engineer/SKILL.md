@@ -171,6 +171,36 @@ python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/bi
 - True peak >0.0 dBTP (clipping)
 - LUFS <-20 or >-8 (too quiet or too loud)
 
+### Step 2.5: Audio QC Gate
+
+Run technical QC **before** mastering to catch source issues, and **after** to verify mastered output:
+
+```
+# Pre-mastering: check raw files
+qc_audio(album_slug, "")
+
+# Post-mastering: check mastered output
+qc_audio(album_slug, "mastered")
+```
+
+**7 checks**: mono compatibility, phase correlation, clipping, clicks/pops, silence, format validation, spectral balance.
+
+**Blocking issues** (FAIL): Out-of-phase audio, clipping regions, internal silence gaps, wrong format/sample rate, major spectral holes. Fix these before proceeding.
+
+**Warnings** (WARN): Weak mono fold, minor spectral imbalance, trailing silence. Note in mastering report but don't block.
+
+Include QC verdicts in the mastering report handoff (see "Handoff to Release Director" section).
+
+### One-Call Pipeline (Recommended)
+
+Use the `master_album` MCP tool to run **Steps 2–7 in a single call**:
+
+```
+master_album(album_slug, genre="country", cut_highmid=-2.0)
+```
+
+This executes: analyze → pre-QC → master → verify → post-QC → update statuses. Stops on any failure and returns per-stage results. Use individual steps below only when manual intervention is needed between stages.
+
 ### Step 3: Choose Settings
 
 **Standard (most cases)**:
@@ -228,8 +258,10 @@ Located in `${CLAUDE_PLUGIN_ROOT}/tools/mastering/`:
 | Tool | Purpose |
 |------|---------|
 | `analyze_tracks.py` | Measure LUFS, true peak, dynamic range |
+| `qc_tracks.py` | Technical QC (mono, phase, clipping, clicks, silence, format, spectral) |
 | `master_tracks.py` | Master tracks to target LUFS |
 | `fix_dynamic_track.py` | Fix tracks with extreme dynamic range |
+| `master_album` (MCP) | End-to-end pipeline — all steps in one call |
 
 ### Setup (One-Time)
 ```bash
