@@ -174,8 +174,8 @@ This document covers edge cases and recovery procedures for common workflow issu
 2. Locate misplaced files (check current directory, home, Downloads)
 3. Move files to correct location using proper path structure:
    - Content: `{content_root}/artists/{artist}/albums/{genre}/{album}/`
-   - Audio: `{audio_root}/{artist}/{album}/`
-   - Documents: `{documents_root}/{artist}/{album}/`
+   - Audio: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
+   - Documents: `{documents_root}/artists/{artist}/albums/{genre}/{album}/`
 4. Verify no broken references in track files
 5. Run `/bitwize-music:validate-album` to confirm structure
 

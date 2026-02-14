@@ -64,7 +64,7 @@ artist:
   #
   # Creates paths like:
   #   {content_root}/artists/bitwize/albums/electronic/my-album/
-  #   {audio_root}/bitwize/my-album/
+  #   {audio_root}/artists/bitwize/albums/{genre}/my-album/
   #
   name: "your-artist-name"
 
@@ -117,12 +117,12 @@ artist:
 #
 # STRUCTURE OVERVIEW:
 #   {content_root}/artists/[artist]/albums/[genre]/[album]/  <- Album files
-#   {audio_root}/[artist]/[album]/                           <- Mastered audio
-#   {documents_root}/[artist]/[album]/                       <- PDFs/sources
+#   {audio_root}/artists/[artist]/albums/[genre]/[album]/    <- Mastered audio
+#   {documents_root}/artists/[artist]/albums/[genre]/[album]/ <- PDFs/sources
 #
-# IMPORTANT: audio_root and documents_root include [artist] in the path!
+# IMPORTANT: All paths mirror the content structure with artists/[artist]/albums/[genre]/
 # Wrong: {audio_root}/my-album/
-# Right: {audio_root}/bitwize/my-album/
+# Right: {audio_root}/artists/bitwize/albums/hip-hop/my-album/
 #
 # PLATFORM-SPECIFIC EXAMPLES:
 #
@@ -181,17 +181,20 @@ paths:
   # Where mastered audio files and album art go.
   # Contains large binary files (WAV, PNG) - typically NOT in git.
   #
-  # Structure created:
+  # Structure created (mirrors content structure):
   #   {audio_root}/
-  #   └── [artist]/                   <- Note: includes artist folder!
-  #       └── [album]/
-  #           ├── cover.png           # Album artwork
-  #           ├── 01-track.wav        # Mastered audio
-  #           └── 02-track.wav
+  #   └── artists/
+  #       └── [artist]/
+  #           └── albums/
+  #               └── [genre]/
+  #                   └── [album]/
+  #                       ├── album.png        # Album artwork
+  #                       ├── 01-track.wav     # Mastered audio
+  #                       └── 02-track.wav
   #
-  # COMMON MISTAKE: Forgetting the [artist] folder!
+  # COMMON MISTAKE: Using a flat path without the full structure!
   #   Wrong path: ~/music-projects/audio/my-album/
-  #   Right path: ~/music-projects/audio/bitwize/my-album/
+  #   Right path: ~/music-projects/audio/artists/bitwize/albums/{genre}/my-album/
   #
   # Size considerations:
   #   - Each mastered WAV: ~50-100 MB
@@ -207,13 +210,16 @@ paths:
   # For research-heavy albums: court documents, SEC filings, articles.
   # Too large for git - store separately.
   #
-  # Structure created:
+  # Structure created (mirrors content structure):
   #   {documents_root}/
-  #   └── [artist]/                   <- Note: includes artist folder!
-  #       └── [album]/
-  #           ├── indictment.pdf
-  #           ├── sec-filing.pdf
-  #           └── news-article.pdf
+  #   └── artists/
+  #       └── [artist]/
+  #           └── albums/
+  #               └── [genre]/
+  #                   └── [album]/
+  #                       ├── indictment.pdf
+  #                       ├── sec-filing.pdf
+  #                       └── news-article.pdf
   #
   # If you don't make research-based albums, this can be the same as
   # content_root - the folder just won't be used much.

@@ -164,7 +164,7 @@ Dialogue and internal thoughts are dramatized for artistic purposes."]
 ### File Naming Convention
 
 Save generated album art using `/bitwize-music:import-art` or manually to these locations:
-- **Audio directory**: `{audio_root}/{artist}/{album}/album.png` (used by promo videos, SoundCloud)
+- **Audio directory**: `{audio_root}/artists/{artist}/albums/{genre}/{album}/album.png` (used by promo videos, SoundCloud)
 - **Content directory**: `{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.png` (tracked in git)
 
 Format: PNG preferred, JPEG acceptable. Resolution: at least 3000x3000 for distribution, 1500x1500 minimum.

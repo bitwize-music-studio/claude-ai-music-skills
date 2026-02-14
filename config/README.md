@@ -85,8 +85,8 @@ All paths use a mirrored structure:
 
 ```
 {content_root}/artists/[artist]/albums/[genre]/[album]/   # Album files
-{audio_root}/[artist]/[album]/                            # Mastered audio
-{documents_root}/[artist]/[album]/                        # PDFs
+{audio_root}/artists/[artist]/albums/[genre]/[album]/     # Mastered audio
+{documents_root}/artists/[artist]/albums/[genre]/[album]/ # PDFs
 ```
 
 ### Tools Directory

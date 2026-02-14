@@ -62,7 +62,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 ~/.bitwize-music/              # Shared tools location ({tools_root})
 └── mastering-env/            # Shared Python virtual environment
 
-target-folder/                # Your album's WAV folder ({audio_root}/{artist}/{album}/)
+target-folder/                # Your album's WAV folder ({audio_root}/artists/{artist}/albums/{genre}/{album}/)
 ├── 01 - Track Name.wav       # Original mixed files (16 or 24-bit WAV)
 ├── 02 - Track Name.wav
 ├── ...
@@ -84,7 +84,7 @@ Run the analysis script for accurate measurements:
 
 ```bash
 source ~/.bitwize-music/venv/bin/activate
-python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/
+python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/
 ```
 
 **Key Metrics:**
@@ -113,7 +113,7 @@ After analysis, categorize tracks:
 
 ```bash
 source ~/.bitwize-music/venv/bin/activate
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --genre country
+python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/ --genre country
 ```
 
 ### Available Parameters
@@ -448,25 +448,25 @@ pip install matchering pyloudnorm scipy numpy soundfile
 source ~/.bitwize-music/venv/bin/activate
 
 # Analyze tracks (pass audio folder path)
-python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/
+python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/
 
 # Preview mastering (dry run)
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --dry-run --genre country
+python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/ --dry-run --genre country
 
 # Master with genre preset
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --genre country
+python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/ --genre country
 
 # Or with manual settings
-python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/{artist}/{album}/ --cut-highmid -2
+python3 {plugin_root}/tools/mastering/master_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/ --cut-highmid -2
 
 # Verify results (mastered/ created inside album folder)
-python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/{artist}/{album}/mastered/
+python3 {plugin_root}/tools/mastering/analyze_tracks.py {audio_root}/artists/{artist}/albums/{genre}/{album}/mastered/
 
 # Reference-based mastering (match a pro track)
 python3 {plugin_root}/tools/mastering/reference_master.py --reference pro_track.wav
 
 # List output folder
-ls {audio_root}/{artist}/{album}/mastered/
+ls {audio_root}/artists/{artist}/albums/{genre}/{album}/mastered/
 ```
 
 **Note**: Scripts stay in plugin directory. Never copy `.py` files into audio folders.

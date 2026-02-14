@@ -174,7 +174,7 @@ These skills perform simple, rule-based operations with no creative judgment.
 **Why Haiku**: Places album art in correct locations. Rule-based file operation: read config, determine paths, copy files. Binary success/failure.
 
 ### import-audio
-**Why Haiku**: Moves audio files to correct album location. Path resolution following strict rules: `{audio_root}/{artist}/{album}/`. No judgment - just correct path construction.
+**Why Haiku**: Moves audio files to correct album location. Path resolution following strict rules: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`. No judgment - just correct path construction.
 
 ### import-track
 **Why Haiku**: Moves track markdown files to correct location. Same as import-audio - rule-based path resolution and file operations.

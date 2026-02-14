@@ -204,7 +204,7 @@ class TestQcAudio:
         assert "error" in result
 
     def test_no_wav_files_returns_error(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -217,7 +217,7 @@ class TestQcAudio:
         assert "No WAV" in result["error"]
 
     def test_invalid_check_name_returns_error(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
@@ -235,7 +235,7 @@ class TestQcAudioComprehensive:
     """Comprehensive tests for qc_audio: batch, verdicts, filtering."""
 
     def _make_audio_dir(self, tmp_path, num_tracks=2):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         for i in range(num_tracks):
             (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
@@ -347,7 +347,7 @@ class TestQcAudioComprehensive:
 
     def test_subfolder_resolves(self, tmp_path):
         """Subfolder parameter should resolve to mastered/ subdir."""
-        mastered_dir = tmp_path / "test-artist" / "test-album" / "mastered"
+        mastered_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album" / "mastered"
         mastered_dir.mkdir(parents=True)
         (mastered_dir / "01-track.wav").write_bytes(b"")
 
@@ -411,7 +411,7 @@ class TestMasterAlbum:
         assert result["failed_stage"] == "pre_flight"
 
     def test_no_wav_files_returns_preflight_failure(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -424,7 +424,7 @@ class TestMasterAlbum:
         assert "No WAV" in result["stages"]["pre_flight"]["detail"]
 
     def test_unknown_genre_returns_preflight_failure(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
@@ -444,7 +444,7 @@ class TestMasterAlbumPipeline:
 
     def _make_audio_dir(self, tmp_path, num_tracks=2):
         """Create audio dir with dummy WAV files and matching state."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         for i in range(num_tracks):
             (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")

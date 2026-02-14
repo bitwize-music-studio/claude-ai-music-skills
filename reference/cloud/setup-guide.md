@@ -334,7 +334,7 @@ cloud:
 ### "No such file or directory"
 
 1. Generate promo videos first: `/bitwize-music:promo-director album`
-2. Check album path: `{audio_root}/{artist}/{album}/`
+2. Check album path: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
 3. Verify artist name in config
 
 ### R2 public URL not working

@@ -1313,14 +1313,39 @@ class TestResolvePath:
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "path" in result
-        assert result["path"] == "/tmp/test/audio/test-artist/test-album"
+        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/electronic/test-album"
         assert result["path_type"] == "audio"
+        assert result["genre"] == "electronic"
+
+    def test_audio_path_with_explicit_genre(self):
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("audio", "test-album", genre="rock")))
+        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/rock/test-album"
+        assert result["genre"] == "rock"
 
     def test_documents_path(self):
         mock_cache = MockStateCache()
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "test-album")))
-        assert result["path"] == "/tmp/test/docs/test-artist/test-album"
+        assert result["path"] == "/tmp/test/docs/artists/test-artist/albums/electronic/test-album"
+        assert result["genre"] == "electronic"
+
+    def test_audio_genre_required_not_found(self):
+        """Error when genre not provided and album not in state."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("audio", "unknown-album")))
+        assert "error" in result
+        assert "Genre required" in result["error"]
+
+    def test_documents_genre_required_not_found(self):
+        """Error when genre not provided and album not in state."""
+        mock_cache = MockStateCache()
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.resolve_path("documents", "unknown-album")))
+        assert "error" in result
+        assert "Genre required" in result["error"]
 
     def test_content_path_with_genre(self):
         mock_cache = MockStateCache()
@@ -1390,6 +1415,7 @@ class TestResolvePath:
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test album")))
         assert "test-album" in result["path"]
+        assert result["genre"] == "electronic"
 
 
 # =============================================================================
@@ -3332,7 +3358,7 @@ class TestValidateAlbumStructure:
         audio = tmp_path / "audio"
         album_dir = content / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         tracks_dir = album_dir / "tracks"
-        audio_dir = audio / "test-artist" / "test-album"
+        audio_dir = audio / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
 
         tracks_dir.mkdir(parents=True)
         audio_dir.mkdir(parents=True)
@@ -3365,10 +3391,9 @@ class TestValidateAlbumStructure:
 
     def test_audio_wrong_location(self, tmp_path):
         mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
-        # Move audio to wrong location (missing artist folder)
-        wrong_dir = tmp_path / "audio" / "test-album"
+        # Move audio to old flat structure (wrong location)
+        wrong_dir = tmp_path / "audio" / "test-artist" / "test-album"
         shutil.rmtree(str(audio_dir))
-        shutil.rmtree(str(audio_dir.parent))  # remove test-artist
         wrong_dir.mkdir(parents=True)
         (wrong_dir / "01-test.wav").write_text("")
 
@@ -3495,7 +3520,7 @@ class TestValidateAlbumStructure:
         mock_cache, _, audio_dir = self._make_album_on_disk(tmp_path)
         # Create symlink for audio
         real_audio = audio_dir
-        symlink_audio = tmp_path / "audio-link" / "test-artist" / "test-album"
+        symlink_audio = tmp_path / "audio-link" / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         symlink_audio.parent.mkdir(parents=True)
         symlink_audio.symlink_to(real_audio)
         # Point config at the symlinked root
@@ -8735,13 +8760,13 @@ class TestRenameAlbum:
 
         # Audio directory
         audio_root = tmp_path / "audio"
-        audio_dir = audio_root / "test-artist" / "test-album"
+        audio_dir = audio_root / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "song.wav").write_text("fake audio")
 
         # Documents directory
         docs_root = tmp_path / "docs"
-        docs_dir = docs_root / "test-artist" / "test-album"
+        docs_dir = docs_root / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         docs_dir.mkdir(parents=True)
         (docs_dir / "notes.pdf").write_text("fake pdf")
 
@@ -8845,7 +8870,7 @@ class TestRenameAlbum:
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["audio_moved"] is True
-        new_audio = tmp_path / "audio" / "test-artist" / "new-album"
+        new_audio = tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "new-album"
         assert new_audio.is_dir()
         assert (new_audio / "song.wav").exists()
 
@@ -8853,7 +8878,7 @@ class TestRenameAlbum:
         """No audio dir still succeeds with audio_moved=False."""
         state = self._make_state_with_dirs(tmp_path)
         # Remove audio dir
-        shutil.rmtree(tmp_path / "audio" / "test-artist" / "test-album")
+        shutil.rmtree(tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "test-album")
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
         with patch.object(server, "cache", mock_cache), \
@@ -8871,13 +8896,13 @@ class TestRenameAlbum:
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["documents_moved"] is True
-        new_docs = tmp_path / "docs" / "test-artist" / "new-album"
+        new_docs = tmp_path / "docs" / "artists" / "test-artist" / "albums" / "electronic" / "new-album"
         assert new_docs.is_dir()
 
     def test_rename_album_documents_dir_missing(self, tmp_path):
         """No docs dir still succeeds with documents_moved=False."""
         state = self._make_state_with_dirs(tmp_path)
-        shutil.rmtree(tmp_path / "docs" / "test-artist" / "test-album")
+        shutil.rmtree(tmp_path / "docs" / "artists" / "test-artist" / "albums" / "electronic" / "test-album")
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
         with patch.object(server, "cache", mock_cache), \
@@ -9157,7 +9182,7 @@ class TestResolveAudioDir:
     """Tests for the _resolve_audio_dir() helper function."""
 
     def test_returns_path_when_dir_exists(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9190,7 +9215,7 @@ class TestResolveAudioDir:
         assert "not configured" in result["error"]
 
     def test_subfolder_appended(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album" / "mastered"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album" / "mastered"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9202,14 +9227,14 @@ class TestResolveAudioDir:
         assert path == audio_dir
 
     def test_slug_normalization(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "my-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
-            err, path = server._resolve_audio_dir("My Album")
+            err, path = server._resolve_audio_dir("Test Album")
         assert err is None
         assert path == audio_dir
 
@@ -9284,7 +9309,7 @@ class TestAnalyzeAudio:
         assert "error" in result
 
     def test_no_wav_files_returns_error(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9297,7 +9322,7 @@ class TestAnalyzeAudio:
         assert "No WAV" in result["error"]
 
     def test_successful_analysis(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         # Create a dummy wav file
         (audio_dir / "01-test.wav").write_bytes(b"")
@@ -9331,7 +9356,7 @@ class TestAnalyzeAudio:
         assert "recommendations" in result
 
     def test_subfolder_param(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album" / "mastered"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album" / "mastered"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
 
@@ -9377,7 +9402,7 @@ class TestMasterAudio:
         assert "error" in result
 
     def test_no_wav_files(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9389,7 +9414,7 @@ class TestMasterAudio:
         assert "error" in result
 
     def test_unknown_genre(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
@@ -9403,7 +9428,7 @@ class TestMasterAudio:
         assert "Unknown genre" in result["error"]
 
     def test_successful_master_dry_run(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
@@ -9432,7 +9457,7 @@ class TestMasterAudio:
 
     def test_settings_in_response(self, tmp_path):
         """Verify settings object is returned with correct values."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
@@ -9479,7 +9504,7 @@ class TestFixDynamicTrack:
         assert "error" in result
 
     def test_missing_track_file(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9507,7 +9532,7 @@ class TestMasterWithReference:
         assert "matchering" in result["error"]
 
     def test_missing_reference_file(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9527,7 +9552,7 @@ class TestMasterWithReference:
         return patch.dict("sys.modules", {"tools.mastering.reference_master": mock_mod}), mock_fn
 
     def test_missing_target_file(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         state = _fresh_state()
@@ -9545,7 +9570,7 @@ class TestMasterWithReference:
         assert "not found" in result["error"]
 
     def test_single_track_success(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -9566,7 +9591,7 @@ class TestMasterWithReference:
         assert result["summary"]["success"] == 1
 
     def test_batch_mode(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -9610,7 +9635,7 @@ class TestTranscribeAudio:
         assert "error" in result
 
     def test_no_wav_files(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9629,7 +9654,7 @@ class TestTranscribeAudio:
         assert "No WAV" in result["error"]
 
     def test_single_track_missing(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9666,7 +9691,7 @@ class TestFixSheetMusicTitles:
         assert "error" in result
 
     def test_missing_sheet_dir(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9678,7 +9703,7 @@ class TestFixSheetMusicTitles:
         assert "not found" in result["error"]
 
     def test_no_xml_files(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         state = _fresh_state()
@@ -9693,7 +9718,7 @@ class TestFixSheetMusicTitles:
         assert "error" in result
 
     def test_successful_fix(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -9738,7 +9763,7 @@ class TestCreateSongbook:
         assert "error" in result
 
     def test_missing_sheet_dir(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9775,7 +9800,7 @@ class TestGeneratePromoVideos:
         assert "error" in result
 
     def test_missing_artwork(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9788,7 +9813,7 @@ class TestGeneratePromoVideos:
         assert "artwork" in result["error"].lower()
 
     def test_single_track_not_found(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
         state = _fresh_state()
@@ -9805,7 +9830,7 @@ class TestGeneratePromoVideos:
 
     def test_single_track_uses_markdown_title(self, tmp_path):
         """Single-track mode should prefer title from state cache (markdown-derived)."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
         (audio_dir / "01-some-track.wav").write_bytes(b"")
@@ -9867,7 +9892,7 @@ class TestGenerateAlbumSampler:
         assert "error" in result
 
     def test_missing_artwork(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -9880,7 +9905,7 @@ class TestGenerateAlbumSampler:
         assert "artwork" in result["error"].lower()
 
     def test_sampler_failure(self, tmp_path):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
 
@@ -9950,7 +9975,7 @@ class TestAnalyzeAudioComprehensive:
 
     def _make_audio_dir(self, tmp_path, num_tracks=3):
         """Helper to create audio dir with dummy WAV files."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         for i in range(num_tracks):
             (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
@@ -10072,7 +10097,7 @@ class TestMasterAudioComprehensive:
     """Comprehensive tests for master_audio: batch, genre presets, settings."""
 
     def _make_audio_dir(self, tmp_path, num_tracks=2):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         for i in range(num_tracks):
             (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
@@ -10268,7 +10293,7 @@ class TestFixDynamicTrackComprehensive:
 
     def test_successful_fix(self, tmp_path):
         """Full success path: read WAV, compress, master, write output."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "05-loud-track.wav").write_bytes(b"")
 
@@ -10301,7 +10326,7 @@ class TestFixDynamicTrackComprehensive:
 
     def test_creates_mastered_dir(self, tmp_path):
         """Should create mastered/ subdirectory."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "01-track.wav").write_bytes(b"")
 
@@ -10337,7 +10362,7 @@ class TestMasterWithReferenceComprehensive:
 
     def test_batch_error_on_one_track(self, tmp_path):
         """If one track fails in batch mode, others should still succeed."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-good.wav").write_bytes(b"")
@@ -10373,7 +10398,7 @@ class TestMasterWithReferenceComprehensive:
 
     def test_reference_excluded_from_batch(self, tmp_path):
         """Batch mode should not process the reference file itself."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -10395,7 +10420,7 @@ class TestMasterWithReferenceComprehensive:
 
     def test_output_dir_created(self, tmp_path):
         """mastered/ directory should be created automatically."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -10416,7 +10441,7 @@ class TestMasterWithReferenceComprehensive:
 
     def test_single_track_output_path(self, tmp_path):
         """Single track output should be in mastered/ subdirectory."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "ref.wav").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -10442,7 +10467,7 @@ class TestTranscribeAudioComprehensive:
     """Comprehensive tests for transcribe_audio success paths."""
 
     def _make_audio_dir(self, tmp_path, num_tracks=2):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         for i in range(num_tracks):
             (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
@@ -10565,7 +10590,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_batch_multiple_xmls(self, tmp_path):
         """Fix titles in multiple XML files."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -10590,7 +10615,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_dry_run_mode(self, tmp_path):
         """Dry run should not modify files or export PDFs."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -10617,7 +10642,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_pdf_export_with_musescore(self, tmp_path):
         """When MuseScore is available and export_pdf=True, should export PDFs."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -10643,7 +10668,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_no_pdf_export_when_musescore_missing(self, tmp_path):
         """When MuseScore is missing, PDF export should be skipped with warning."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -10667,7 +10692,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_musicxml_extension(self, tmp_path):
         """Should also find .musicxml files with track number prefixes."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.musicxml").write_text("<work-title>01 - Track</work-title>")
@@ -10690,7 +10715,7 @@ class TestFixSheetMusicTitlesComprehensive:
 
     def test_export_pdf_false_skips_export(self, tmp_path):
         """When export_pdf=False, no PDF export should be attempted."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
         (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
@@ -10726,7 +10751,7 @@ class TestCreateSongbookComprehensive:
 
     def test_success_path(self, tmp_path):
         """Full success path for create_songbook."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
 
@@ -10749,7 +10774,7 @@ class TestCreateSongbookComprehensive:
 
     def test_page_size_param(self, tmp_path):
         """Page size parameter should be passed through."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
 
@@ -10774,7 +10799,7 @@ class TestCreateSongbookComprehensive:
 
     def test_artist_from_config(self, tmp_path):
         """Artist name should come from config state."""
-        audio_dir = tmp_path / "custom-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "custom-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
 
@@ -10796,7 +10821,7 @@ class TestCreateSongbookComprehensive:
 
     def test_creation_failure(self, tmp_path):
         """create_songbook returning False should produce error."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
 
@@ -10817,7 +10842,7 @@ class TestCreateSongbookComprehensive:
 
     def test_output_path_sanitized(self, tmp_path):
         """Title with spaces/slashes should be sanitized in output path."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         sheet_dir = audio_dir / "sheet-music"
         sheet_dir.mkdir(parents=True)
 
@@ -10843,7 +10868,7 @@ class TestGeneratePromoVideosComprehensive:
     """Comprehensive tests for generate_promo_videos: batch, title fallbacks, artwork."""
 
     def _make_audio_dir(self, tmp_path, num_tracks=2, artwork_name="album.png"):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / artwork_name).write_bytes(b"")
         for i in range(num_tracks):
@@ -11045,7 +11070,7 @@ class TestGenerateAlbumSamplerComprehensive:
     """Comprehensive tests for generate_album_sampler success paths."""
 
     def _make_audio_dir(self, tmp_path, num_tracks=3):
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
         for i in range(num_tracks):
@@ -11191,7 +11216,7 @@ class TestGenerateAlbumSamplerComprehensive:
 
     def test_artist_from_config(self, tmp_path):
         """Artist name from config should be passed to the generator."""
-        audio_dir = tmp_path / "custom-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "custom-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")
@@ -11220,7 +11245,7 @@ class TestGenerateAlbumSamplerComprehensive:
 
     def test_artwork_jpg_fallback(self, tmp_path):
         """Should find album.jpg when album.png is missing."""
-        audio_dir = tmp_path / "test-artist" / "test-album"
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.jpg").write_bytes(b"")
         (audio_dir / "01-track.wav").write_bytes(b"")

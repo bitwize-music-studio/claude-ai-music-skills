@@ -1,7 +1,7 @@
 ---
 name: import-audio
 description: Moves audio files to the correct album location with proper path structure. Use when the user has downloaded WAV files from Suno or other sources that need to be organized.
-argument-hint: <file-path> <album-name>
+argument-hint: <file-path> <album-name> [track-slug]
 model: claude-haiku-4-5-20251001
 allowed-tools:
   - Read
@@ -22,41 +22,100 @@ You move audio files to the correct location in the user's audio directory.
 
 ## Step 1: Parse Arguments
 
-Expected format: `<file-path> <album-name>`
+Expected format: `<file-path> <album-name> [track-slug]`
+
+The `track-slug` is optional — only needed for stems zip imports when the track can't be inferred from the filename.
 
 Examples:
 - `~/Downloads/track.wav sample-album`
 - `~/Downloads/03-t-day-beach.wav sample-album`
+- `~/Downloads/stems.zip sample-album 01-first-taste`
 
 If arguments are missing, ask:
 ```
-Usage: /import-audio <file-path> <album-name>
+Usage: /import-audio <file-path> <album-name> [track-slug]
 
-Example: /import-audio ~/Downloads/track.wav sample-album
+Examples:
+  /import-audio ~/Downloads/track.wav sample-album
+  /import-audio ~/Downloads/stems.zip sample-album 01-first-taste
 ```
 
 ## Step 2: Resolve Audio Path via MCP
 
-1. Call `resolve_path("audio", album_slug)` — returns the full audio directory path including artist folder
-2. The resolved path is **ALWAYS**: `{audio_root}/{artist}/{album}/`
+1. Call `resolve_path("audio", album_slug)` — returns the full audio directory path
+2. The resolved path uses the mirrored structure: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
 
-Example result: `~/bitwize-music/audio/bitwize/sample-album/`
+Example result: `~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/`
 
-**CRITICAL**: The path MUST include the artist folder. `resolve_path` handles this automatically.
+**CRITICAL**: Always use `resolve_path` — never construct paths manually.
+
+## Step 3: Detect File Type
+
+Check the file extension and whether it's a stems zip:
+
+| File Type | Action |
+|-----------|--------|
+| `.wav`, `.mp3`, `.flac`, `.ogg`, `.m4a` | Move to album audio dir (Step 4) |
+| `.zip` (stems) | Extract to per-track stems subfolder (Step 4b) |
+
+**How to identify a stems zip**: The user will say "stems" or the zip contains files like `0 Lead Vocals.wav`, `1 Backing Vocals.wav`, etc.
 
 ## Step 4: Create Directory and Move File
 
 ```bash
-mkdir -p {audio_root}/{artist}/{album}
-mv "{source_file}" "{audio_root}/{artist}/{album}/{filename}"
+mkdir -p {resolved_path}
+mv "{source_file}" "{resolved_path}/{filename}"
 ```
+
+## Step 4b: Import Stems Zip
+
+Stems must go into per-track subfolders to prevent filename collisions (every track has `0 Lead Vocals.wav`, etc.):
+
+```
+{resolved_path}/
+  01-first-taste.wav
+  02-sugar-high.wav
+  stems/
+    01-first-taste/
+      0 Lead Vocals.wav
+      1 Backing Vocals.wav
+      2 Drums.wav
+      ...
+    02-sugar-high/
+      0 Lead Vocals.wav
+      1 Backing Vocals.wav
+      ...
+```
+
+**Workflow:**
+
+1. **Determine the track slug** from one of:
+   - The zip filename if it matches a track pattern (e.g., `01-first-taste-stems.zip` → `01-first-taste`)
+   - The user specifying which track (e.g., `/import-audio stems.zip sample-album 01-first-taste`)
+   - **If neither**: Ask the user which track the stems belong to
+2. **Extract** into the per-track subfolder:
+   ```bash
+   mkdir -p {resolved_path}/stems/{track-slug}
+   unzip "{source_file}" -d "{resolved_path}/stems/{track-slug}"
+   ```
+3. **Update track metadata**: Call `update_track_field(album_slug, track_slug, "stems", "Yes")`
+
+**Argument format for stems**: `<zip-path> <album-name> [track-slug]`
 
 ## Step 5: Confirm
 
 Report:
 ```
 Moved: {source_file}
-   To: {audio_root}/{artist}/{album}/{filename}
+   To: {resolved_path}/{filename}
+```
+
+For stems:
+```
+Extracted stems: {source_file}
+       To: {resolved_path}/stems/{track-slug}/
+    Files: {count} stem files extracted
+  Updated: {track-slug} stems → Yes
 ```
 
 ## Error Handling
@@ -119,7 +178,21 @@ artist:
 Result:
 ```
 Moved: ~/Downloads/03-t-day-beach.wav
-   To: ~/bitwize-music/audio/bitwize/sample-album/03-t-day-beach.wav
+   To: ~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/03-t-day-beach.wav
+```
+
+### Stems import example
+
+```
+/import-audio ~/Downloads/stems.zip sample-album 01-first-taste
+```
+
+Result:
+```
+Extracted stems: ~/Downloads/stems.zip
+       To: ~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/stems/01-first-taste/
+    Files: 5 stem files extracted
+  Updated: 01-first-taste stems → Yes
 ```
 
 ---
@@ -131,7 +204,7 @@ Moved: ~/Downloads/03-t-day-beach.wav
 **Wrong:**
 ```bash
 cat ~/.bitwize-music/config.yaml
-mv file.wav ~/music-projects/audio/bitwize/sample-album/
+mv file.wav ~/music-projects/audio/artists/bitwize/albums/electronic/sample-album/
 ```
 
 **Right:**
@@ -146,7 +219,7 @@ resolve_path("audio", album_slug) → returns full path with artist folder
 
 **Path comparison:**
 - Content: `{content_root}/artists/{artist}/albums/{genre}/{album}/` (markdown, lyrics)
-- Audio: `{audio_root}/{artist}/{album}/` (WAV files, flattened structure)
-- Documents: `{documents_root}/{artist}/{album}/` (PDFs, research)
+- Audio: `{audio_root}/artists/{artist}/albums/{genre}/{album}/` (WAV files, stems)
+- Documents: `{documents_root}/artists/{artist}/albums/{genre}/{album}/` (PDFs, research)
 
 Use `resolve_path` with the appropriate `path_type` ("content", "audio", "documents") to get the right path.

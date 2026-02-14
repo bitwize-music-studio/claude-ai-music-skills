@@ -749,15 +749,15 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
 
     Uses config and state cache to construct the correct mirrored path structure:
         content:   {content_root}/artists/{artist}/albums/{genre}/{album}/
-        audio:     {audio_root}/{artist}/{album}/
-        documents: {documents_root}/{artist}/{album}/
+        audio:     {audio_root}/artists/{artist}/albums/{genre}/{album}/
+        documents: {documents_root}/artists/{artist}/albums/{genre}/{album}/
         tracks:    {content_root}/artists/{artist}/albums/{genre}/{album}/tracks/
         overrides: {overrides_path} or {content_root}/overrides/
 
     Args:
         path_type: One of "content", "audio", "documents", "tracks", "overrides"
         album_slug: Album slug (e.g., "my-album"). Ignored for "overrides".
-        genre: Genre slug. Required for "content" and "tracks". If omitted, looked up from state cache.
+        genre: Genre slug. Required for "content", "audio", "documents", and "tracks". If omitted, looked up from state cache.
 
     Returns:
         JSON with resolved path or error
@@ -790,8 +790,8 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
 
     normalized = _normalize_slug(album_slug)
 
-    # For content/tracks, we need genre — try state cache if not provided
-    if path_type in ("content", "tracks") and not genre:
+    # All album path types need genre — try state cache if not provided
+    if path_type in ("content", "tracks", "audio", "documents") and not genre:
         albums = state.get("albums", {})
         album_data = albums.get(normalized, {})
         genre = album_data.get("genre", "")
@@ -804,14 +804,16 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
     audio_root = config.get("audio_root", "")
     documents_root = config.get("documents_root", "")
 
-    if path_type == "content":
-        resolved = str(Path(content_root) / "artists" / artist / "albums" / genre / normalized)
-    elif path_type == "tracks":
-        resolved = str(Path(content_root) / "artists" / artist / "albums" / genre / normalized / "tracks")
-    elif path_type == "audio":
-        resolved = str(Path(audio_root) / artist / normalized)
-    else:  # documents
-        resolved = str(Path(documents_root) / artist / normalized)
+    root_map = {
+        "content": content_root,
+        "tracks": content_root,
+        "audio": audio_root,
+        "documents": documents_root,
+    }
+    base = Path(root_map[path_type]) / "artists" / artist / "albums" / genre / normalized
+    if path_type == "tracks":
+        base = base / "tracks"
+    resolved = str(base)
 
     return _safe_json({
         "path": resolved,
@@ -2541,7 +2543,8 @@ async def validate_album_structure(
     audio_root = config.get("audio_root", "")
     artist = config.get("artist_name", "")
     album_path = album.get("path", "")
-    audio_path = str(Path(audio_root) / artist / normalized)
+    genre = album.get("genre", "")
+    audio_path = str(Path(audio_root) / "artists" / artist / "albums" / genre / normalized)
 
     passed = 0
     failed = 0
@@ -2601,7 +2604,7 @@ async def validate_album_structure(
     # --- Audio checks ---
     if "audio" in check_set:
         audio_p = Path(audio_path)
-        wrong_path = Path(audio_root) / normalized  # missing artist folder
+        wrong_path = Path(audio_root) / artist / normalized  # old flat structure
 
         if audio_p.is_dir():
             _pass("audio", f"Audio directory exists: {audio_path}")
@@ -3761,10 +3764,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     # Resolve paths
     content_dir_old = Path(content_root) / "artists" / artist / "albums" / genre / normalized_old
     content_dir_new = Path(content_root) / "artists" / artist / "albums" / genre / normalized_new
-    audio_dir_old = Path(audio_root) / artist / normalized_old
-    audio_dir_new = Path(audio_root) / artist / normalized_new
-    docs_dir_old = Path(documents_root) / artist / normalized_old
-    docs_dir_new = Path(documents_root) / artist / normalized_new
+    audio_dir_old = Path(audio_root) / "artists" / artist / "albums" / genre / normalized_old
+    audio_dir_new = Path(audio_root) / "artists" / artist / "albums" / genre / normalized_new
+    docs_dir_old = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_old
+    docs_dir_new = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_new
 
     # Content directory MUST exist
     if not content_dir_old.is_dir():
@@ -4017,7 +4020,14 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple:
     if not audio_root or not artist:
         return _safe_json({"error": "audio_root or artist_name not configured"}), None
     normalized = _normalize_slug(album_slug)
-    audio_path = Path(audio_root) / artist / normalized
+    albums = state.get("albums", {})
+    album_data = albums.get(normalized, {})
+    genre = album_data.get("genre", "")
+    if not genre:
+        return _safe_json({
+            "error": f"Genre not found for album '{album_slug}'. Ensure album exists in state.",
+        }), None
+    audio_path = Path(audio_root) / "artists" / artist / "albums" / genre / normalized
     if subfolder:
         audio_path = audio_path / subfolder
     if not audio_path.is_dir():

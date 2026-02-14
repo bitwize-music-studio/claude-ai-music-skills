@@ -61,10 +61,10 @@ Create it first with: /new-album {album-name} <genre>
 
 ```bash
 # Create audio directory (includes artist folder!)
-mkdir -p {audio_root}/{artist}/{album}
+mkdir -p {audio_root}/artists/{artist}/albums/{genre}/{album}
 
 # Copy to audio folder as album.png
-cp "{source_file}" "{audio_root}/{artist}/{album}/album.png"
+cp "{source_file}" "{audio_root}/artists/{artist}/albums/{genre}/{album}/album.png"
 
 # Copy to content folder preserving extension
 cp "{source_file}" "{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.{ext}"
@@ -77,7 +77,7 @@ Report:
 Album art imported for: {album-name}
 
 Copied to:
-1. {audio_root}/{artist}/{album}/album.png (for platforms)
+1. {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png (for platforms)
 2. {content_root}/artists/{artist}/albums/{genre}/{album}/album-art.{ext} (for docs)
 ```
 
@@ -132,7 +132,7 @@ Result:
 Album art imported for: sample-album
 
 Copied to:
-1. ~/bitwize-music/audio/bitwize/sample-album/album.png (for platforms)
+1. ~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/album.png (for platforms)
 2. ~/bitwize-music/artists/bitwize/albums/electronic/sample-album/album-art.jpg (for docs)
 ```
 
@@ -163,7 +163,7 @@ resolve_path("content", album_slug) → content path with genre
 **Wrong:**
 ```bash
 # Only copying to audio folder
-cp art.png {audio_root}/{artist}/{album}/album.png
+cp art.png {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
 # Missing: content folder copy
 ```
 
@@ -171,7 +171,7 @@ cp art.png {audio_root}/{artist}/{album}/album.png
 ```bash
 # Copy to BOTH locations
 # 1. Audio location (for streaming platforms)
-cp art.png {audio_root}/{artist}/{album}/album.png
+cp art.png {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
 # 2. Content location (for documentation)
 cp art.jpg {album_path}/album-art.jpg
 ```
@@ -183,7 +183,7 @@ cp art.jpg {album_path}/album-art.jpg
 **Wrong:**
 ```bash
 # Using same filename in both locations
-cp art.png {audio_root}/{artist}/{album}/album-art.png
+cp art.png {audio_root}/artists/{artist}/albums/{genre}/{album}/album-art.png
 cp art.png {album_path}/album.png
 ```
 
@@ -212,15 +212,15 @@ find_album(album_name) → returns album data including path and genre
 **Wrong:**
 ```bash
 # Copying without ensuring directory exists
-cp art.png {audio_root}/{artist}/{album}/album.png
+cp art.png {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
 # Fails if directory doesn't exist
 ```
 
 **Right:**
 ```bash
 # Create directory first
-mkdir -p {audio_root}/{artist}/{album}/
-cp art.png {audio_root}/{artist}/{album}/album.png
+mkdir -p {audio_root}/artists/{artist}/albums/{genre}/{album}/
+cp art.png {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
 ```
 
 **Why it matters:** Audio directory might not exist yet, especially for new albums.

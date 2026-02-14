@@ -100,7 +100,7 @@ Which option:
 
 Call `resolve_path("audio", album_slug)` — returns the full audio directory path including artist folder.
 
-Example result: `~/bitwize-music/audio/bitwize/sample-album/`
+Example result: `~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/`
 
 **Verify contents:**
 - ✓ Mastered audio files (.wav, .mp3, .flac, .m4a)
@@ -108,7 +108,7 @@ Example result: `~/bitwize-music/audio/bitwize/sample-album/`
 
 If artwork missing:
 ```
-Error: No album artwork found in {audio_root}/{artist}/{album}/
+Error: No album artwork found in {audio_root}/artists/{artist}/albums/{genre}/{album}/
 
 Expected: album.png or album.jpg
 
@@ -194,9 +194,9 @@ Run from plugin directory:
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/promotion/generate_promo_video.py \
-  --batch {audio_root}/{artist}/{album}/ \
+  --batch {audio_root}/artists/{artist}/albums/{genre}/{album}/ \
   --style pulse \
-  -o {audio_root}/{artist}/{album}/promo_videos/
+  -o {audio_root}/artists/{artist}/albums/{genre}/{album}/promo_videos/
 ```
 
 Progress:
@@ -219,10 +219,10 @@ Run from plugin directory:
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/promotion/generate_album_sampler.py \
-  {audio_root}/{artist}/{album}/ \
-  --artwork {audio_root}/{artist}/{album}/album.png \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/ \
+  --artwork {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
   --clip-duration 12 \
-  -o {audio_root}/{artist}/{album}/album_sampler.mp4
+  -o {audio_root}/artists/{artist}/albums/{genre}/{album}/album_sampler.mp4
 ```
 
 Progress:
@@ -245,7 +245,7 @@ Extracting colors from artwork...
 ...
 Concatenating 10 clips with 0.5s crossfades...
 
-Created: {audio_root}/{artist}/{album}/album_sampler.mp4
+Created: {audio_root}/artists/{artist}/albums/{genre}/{album}/album_sampler.mp4
   Duration: 114.5s
   Size: 45.2 MB
 ```
@@ -266,17 +266,17 @@ Common issues:
 ```
 ## Promo Videos Generated
 
-**Location:** {audio_root}/{artist}/{album}/
+**Location:** {audio_root}/artists/{artist}/albums/{genre}/{album}/
 
 **Individual Track Promos:**
-- {audio_root}/{artist}/{album}/promo_videos/
+- {audio_root}/artists/{artist}/albums/{genre}/{album}/promo_videos/
 - 10 videos generated
 - Format: 1080x1920 (9:16), H.264, 15s each
 - Style: pulse
 - File size: ~10-12 MB per video
 
 **Album Sampler:**
-- {audio_root}/{artist}/{album}/album_sampler.mp4
+- {audio_root}/artists/{artist}/albums/{genre}/{album}/album_sampler.mp4
 - Duration: 114.5s (under Twitter 140s limit ✓)
 - Format: 1080x1920 (9:16), H.264
 - File size: 45.2 MB

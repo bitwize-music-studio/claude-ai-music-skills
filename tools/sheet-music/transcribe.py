@@ -143,7 +143,7 @@ def resolve_album_path(album_name):
         # Expand ~ to home directory
         audio_root = Path(audio_root).expanduser()
 
-        # Construct: {audio_root}/{artist}/{album}/
+        # Construct: {audio_root}/artists/{artist}/albums/{genre}/{album}/
         album_path = audio_root / artist / album_name
 
         if not album_path.exists():

@@ -36,8 +36,8 @@ Config is **always** at: `~/.bitwize-music/config.yaml`
 **IMPORTANT — Mirrored path structure**:
 ```
 {content_root}/artists/[artist]/albums/[genre]/[album]/   # Album files (in git)
-{audio_root}/[artist]/[album]/                            # Mastered audio
-{documents_root}/[artist]/[album]/                        # PDFs (not in git)
+{audio_root}/artists/[artist]/albums/[genre]/[album]/     # Mastered audio
+{documents_root}/artists/[artist]/albums/[genre]/[album]/ # PDFs (not in git)
 ```
 Audio and document paths include `[artist]/` after the root. Common mistake: omitting the artist folder.
 
