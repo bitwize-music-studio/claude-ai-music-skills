@@ -50,6 +50,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (14-point checklist)
 - `/bitwize-music:pronunciation-specialist` - Scan for pronunciation risks
 - `/bitwize-music:explicit-checker` - Verify explicit content flags
+- `/bitwize-music:plagiarism-checker` - Check lyrics for phrases matching existing songs
 - `/bitwize-music:pre-generation-check` - Final pre-generation checkpoint (6 gates)
 - `/bitwize-music:validate-album` - Validate album structure and paths
 

@@ -142,6 +142,7 @@ Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → Mas
 - **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
 
+- **Checking for plagiarism** → `/bitwize-music:plagiarism-checker` (web search + LLM knowledge)
 - **Verifying sources** → `/bitwize-music:verify-sources` (human verification gate)
 - **"What skills do X?"** → `list_skills` / `get_skill` MCP tools (not reading SKILL.md files)
 
