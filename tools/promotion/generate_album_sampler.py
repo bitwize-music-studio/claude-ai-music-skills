@@ -94,6 +94,9 @@ def get_track_title(filename: str) -> str:
     else:
         # Only remove 1-2 digit track numbers at start (not 3+ like "116")
         title = re.sub(r'^\d{1,2}[\.\-_\s]+', '', title)
+    # Convert slug format to readable title
+    title = title.replace('-', ' ').replace('_', ' ')
+    title = title.title()
     return title
 
 
@@ -294,9 +297,16 @@ def generate_album_sampler(
     clip_duration: int = DEFAULT_CLIP_DURATION,
     crossfade: float = DEFAULT_CROSSFADE,
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None
+    font_path: Optional[str] = None,
+    titles: Optional[dict] = None,
 ) -> bool:
-    """Generate album sampler video."""
+    """Generate album sampler video.
+
+    Args:
+        titles: Optional dict mapping filename stems to display titles.
+                When provided (e.g. from MCP state cache), these take
+                priority over get_track_title() filename parsing.
+    """
 
     if font_path is None:
         font_path = find_font()
@@ -336,7 +346,7 @@ def generate_album_sampler(
         clip_progress = ProgressBar(len(audio_files), prefix="Clips")
         for i, audio_file in enumerate(audio_files):
             clip_progress.update(audio_file.name)
-            title = get_track_title(audio_file.name)
+            title = (titles or {}).get(audio_file.stem) or get_track_title(audio_file.name)
             logger.info("[%d/%d] %s...", i + 1, len(audio_files), title)
 
             # Find best segment

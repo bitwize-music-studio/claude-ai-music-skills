@@ -5113,6 +5113,17 @@ async def generate_album_sampler(
     config_data = state.get("config", {})
     artist = config_data.get("artist_name", "bitwize")
 
+    # Pre-resolve titles from state cache (proper titles from markdown metadata)
+    titles: dict[str, str] = {}
+    albums = state.get("albums", {})
+    normalized = _normalize_slug(album_slug)
+    album_data = albums.get(normalized)
+    if album_data:
+        for track_slug, track_data in album_data.get("tracks", {}).items():
+            title = track_data.get("title")
+            if title:
+                titles[track_slug] = title
+
     output_dir = audio_dir / "promo_videos"
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / "album_sampler.mp4"
@@ -5127,6 +5138,7 @@ async def generate_album_sampler(
             clip_duration=clip_duration,
             crossfade=crossfade,
             artist_name=artist,
+            titles=titles,
         ),
     )
 
