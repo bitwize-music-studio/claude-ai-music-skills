@@ -73,16 +73,16 @@ After installing, run this command again.
 
 ### Check Python Dependencies (Songbook Only)
 
-If user wants to create a songbook:
+If user wants to create a songbook, call `get_python_command()` to verify the venv exists, then check songbook deps:
 ```bash
-python3 -c "import pypdf, reportlab" 2>&1
+{python_from_get_python_command} -c "import pypdf, reportlab"
 ```
 
 **If missing:**
 ```
 Songbook dependencies missing. Install with:
 
-  pip install pypdf reportlab
+  ~/.bitwize-music/venv/bin/pip install pypdf reportlab
 
 These are only needed for songbook creation (optional).
 ```
@@ -126,10 +126,9 @@ Which tracks should I transcribe?
 
 ## Phase 3: Automated Transcription
 
-**Run transcribe.py:**
-```bash
-cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/sheet-music/transcribe.py {album_name}
+**Run transcription via MCP:**
+```
+transcribe_audio(album_slug)
 ```
 
 **The script will:**
@@ -200,10 +199,9 @@ I'll wait for your confirmation before proceeding.
 
 ## Phase 5: Title Cleanup
 
-**After polish (or if skipped)**, automatically fix titles:
-```bash
-cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
+**After polish (or if skipped)**, automatically fix titles via MCP:
+```
+fix_sheet_music_titles(album_slug)
 ```
 
 **What this does:**
@@ -241,16 +239,9 @@ Perfect for:
 Create songbook? [Y/n]
 ```
 
-**If yes, run create_songbook.py:**
-```bash
-cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/sheet-music/create_songbook.py \
-  {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ \
-  --title "{album_title} Songbook" \
-  --artist "{artist_name}" \
-  --cover {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
-  --website "{website_from_config}" \
-  --page-size letter
+**If yes, run via MCP:**
+```
+create_songbook(album_slug, title="{album_title} Songbook", page_size="letter")
 ```
 
 **Detect page size from config:**
@@ -496,44 +487,42 @@ Input audio:  {audio_root}/artists/{artist}/albums/{genre}/{album}/*.wav
 Output:       {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 ```
 
-## Tool Invocation Examples
+## MCP Tool Reference
 
-### transcribe.py
+### transcribe_audio
 
-```bash
-# By album name (reads config)
-python3 tools/sheet-music/transcribe.py sample-album
+```
+# All tracks
+transcribe_audio(album_slug)
 
-# By path (direct)
-python3 tools/sheet-music/transcribe.py /path/to/album/folder/
+# Single track
+transcribe_audio(album_slug, track_filename="01-track-name.wav")
 
-# Options
-python3 tools/sheet-music/transcribe.py sample-album --pdf-only
-python3 tools/sheet-music/transcribe.py sample-album --dry-run
+# PDF only (no MusicXML)
+transcribe_audio(album_slug, formats="pdf")
+
+# Dry run
+transcribe_audio(album_slug, dry_run=True)
 ```
 
-### fix_titles.py
+### fix_sheet_music_titles
 
-```bash
-# Fix titles in sheet music directory
-python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
+```
+# Fix titles and re-export PDFs
+fix_sheet_music_titles(album_slug)
 
 # Dry run (preview only)
-python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ --dry-run
+fix_sheet_music_titles(album_slug, dry_run=True)
 ```
 
-### create_songbook.py
+### create_songbook
 
-```bash
-# Full songbook with all options
-python3 tools/sheet-music/create_songbook.py \
-  {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ \
-  --title "Sample Album Songbook" \
-  --artist "bitwize" \
-  --cover {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
-  --website "bitwizemusic.com" \
-  --page-size letter \
-  --year 2025
+```
+# Standard songbook
+create_songbook(album_slug, title="Sample Album Songbook")
+
+# With page size
+create_songbook(album_slug, title="Sample Album Songbook", page_size="9x12")
 ```
 
 ## Quality Standards

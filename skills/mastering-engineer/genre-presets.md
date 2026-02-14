@@ -40,7 +40,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -12 to -14 LUFS
 **Dynamics**: Moderate compression, punchy transients
 **EQ focus**: Sub-bass presence (40-60 Hz), vocal clarity (2-4 kHz)
-**Tools command**: `python3 master_tracks.py --genre hip-hop`
+**MCP command**: `master_audio(album_slug, genre="hip-hop")`
 
 **Characteristics**:
 - Strong low end
@@ -51,7 +51,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -12 to -14 LUFS
 **Dynamics**: Wide dynamic range, preserve peaks
 **EQ focus**: Guitar presence (800 Hz - 3 kHz), avoid harsh highs
-**Tools command**: `python3 master_tracks.py --genre rock`
+**MCP command**: `master_audio(album_slug, genre="rock")`
 
 **Characteristics**:
 - Guitar energy
@@ -62,7 +62,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
 **EQ focus**: Sub-bass (30-50 Hz), sparkle on top (10+ kHz)
-**Tools command**: `python3 master_tracks.py --genre edm`
+**MCP command**: `master_audio(album_slug, genre="edm")`
 
 **Characteristics**:
 - Massive bass
@@ -73,7 +73,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -14 to -16 LUFS
 **Dynamics**: Preserve natural dynamics
 **EQ focus**: Warmth (200-500 Hz), natural highs
-**Tools command**: `python3 master_tracks.py --genre folk`
+**MCP command**: `master_audio(album_slug, genre="folk")`
 
 **Characteristics**:
 - Natural, intimate
@@ -84,7 +84,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -13 to -14 LUFS
 **Dynamics**: Moderate, radio-ready
 **EQ focus**: Vocal clarity, steel guitar presence
-**Tools command**: `python3 master_tracks.py --genre country`
+**MCP command**: `master_audio(album_slug, genre="country")`
 
 **Characteristics**:
 - Clear vocals
@@ -95,7 +95,7 @@ Detailed mastering settings by genre.
 **LUFS target**: -16 to -18 LUFS
 **Dynamics**: Preserve full dynamic range
 **EQ focus**: Natural tonal balance, minimal EQ
-**Tools command**: `python3 master_tracks.py --genre jazz`
+**MCP command**: `master_audio(album_slug, genre="jazz")`
 
 **Characteristics**:
 - Wide dynamics
@@ -118,8 +118,8 @@ True Peak: -3.2 dBTP
 ```
 
 **Solution**:
-```bash
-python3 fix_dynamic_track.py "acoustic-ballad.wav"
+```
+fix_dynamic_track(album_slug, track_filename="acoustic-ballad.wav")
 ```
 - Applies moderate compression
 - Raises quiet parts
@@ -132,8 +132,8 @@ python3 fix_dynamic_track.py "acoustic-ballad.wav"
 **Cause**: Suno often generates bright vocals/highs
 
 **Solution**:
-```bash
-python3 master_tracks.py --cut-highmid -3
+```
+master_audio(album_slug, cut_highmid=-3.0)
 ```
 - Increase high-mid cut to -3 dB
 - Reduces harshness at 2-4 kHz
@@ -143,8 +143,8 @@ python3 master_tracks.py --cut-highmid -3
 **Cause**: Suno can over-generate low end
 
 **Solution**:
-```bash
-python3 master_tracks.py --genre [genre] --cut-lows -2
+```
+master_audio(album_slug, genre="hip-hop")
 ```
 - Genre preset with low cut
 - Clears mud below 60 Hz
@@ -165,8 +165,8 @@ python3 master_tracks.py --genre [genre] --cut-lows -2
 **Cause**: True peak limiter set wrong
 
 **Solution**:
-```bash
-python3 master_tracks.py --true-peak -1.5
+```
+master_audio(album_slug, ceiling_db=-1.5)
 ```
 - Targets -1.5 dBTP instead of -1.0
 - More headroom for encoding
@@ -176,8 +176,8 @@ python3 master_tracks.py --true-peak -1.5
 **Cause**: Over-compression trying to hit LUFS target
 
 **Solution**:
-```bash
-python3 master_tracks.py --target-lufs -16
+```
+master_audio(album_slug, target_lufs=-16.0)
 ```
 - Masters to -16 instead of -14
 - Preserves dynamics

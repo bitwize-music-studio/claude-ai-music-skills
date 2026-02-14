@@ -13,7 +13,7 @@ This is an AI music generation workflow using Suno. Skills contain domain expert
 
 **If skill unavailable**, manual approach:
 1. Read `~/.bitwize-music/cache/state.json` — search `state.albums` keys (case-insensitive)
-2. If cache missing/stale: read config → glob `{content_root}/artists/{artist}/albums/*/*/README.md` → rebuild cache with `python3 {plugin_root}/tools/state/indexer.py rebuild`
+2. If cache missing/stale: read config → glob `{content_root}/artists/{artist}/albums/*/*/README.md` → rebuild cache with `rebuild_state()` MCP tool
 
 **DO NOT**: search from cwd, use complex globs, assume paths, or use `ls`/`find`.
 
@@ -85,7 +85,7 @@ At the beginning of a fresh session:
    - `get_ideas` → get idea counts
    - `get_pending_verifications` → check for pending source verifications
    - `get_session` → resume last session context
-   - If MCP returns errors about missing/stale cache → `rebuild_state` or `python3 {plugin_root}/tools/state/indexer.py rebuild`
+   - If MCP returns errors about missing/stale cache → `rebuild_state()` MCP tool
 4.5. **Check for plugin upgrades** — Compare `plugin_version` in state.json vs `.claude-plugin/plugin.json`:
    - If `plugin_version` is null → first run, set to current version, skip migrations
    - If stored < current → read `{plugin_root}/migrations/*.md` for applicable versions, process actions

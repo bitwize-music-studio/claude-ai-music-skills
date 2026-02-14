@@ -880,9 +880,9 @@ Verify it documents:
 Cross-reference and consistency checks.
 
 ### TEST: All skills documented in help system
-Run the validation script:
+Run the validation script (call `get_python_command()` first for the venv path):
 ```bash
-python3 tools/validate_help_completeness.py
+$PYTHON "$PLUGIN_DIR/tools/validate_help_completeness.py"
 ```
 
 This checks:

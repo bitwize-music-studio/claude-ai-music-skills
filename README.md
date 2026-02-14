@@ -12,9 +12,9 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.51.0-blue)
+![Version](https://img.shields.io/badge/version-0.52.0-blue)
 ![Skills](https://img.shields.io/badge/skills-47-green)
-![Tests](https://img.shields.io/badge/tests-1773-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1777-brightgreen)
 
 ## What Is This?
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.52** | `get_python_command` MCP tool, skills migrated from bare python3 to MCP tools |
 | **0.51** | Mirrored path structure for audio/documents, per-track stems subfolders in import-audio |
 | **0.50** | Audio QC tool (7 checks), `qc_audio` and `master_album` MCP tools, end-to-end mastering pipeline |
 | **0.49** | K-pop genre research with 27 artist deep-dives, artist blocklist, Suno V5 K-pop tips |

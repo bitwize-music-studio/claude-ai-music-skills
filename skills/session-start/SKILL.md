@@ -53,11 +53,10 @@ Read `paths.overrides` from config (default: `{content_root}/overrides`):
 
 Read `~/.bitwize-music/cache/state.json`:
 
-- If missing, corrupted, schema mismatch, or config changed: rebuild
-  ```bash
-  python3 ${CLAUDE_PLUGIN_ROOT}/tools/state/indexer.py rebuild
+- If missing, corrupted, schema mismatch, or config changed: rebuild via MCP
   ```
-- `${CLAUDE_PLUGIN_ROOT}` is the directory containing the plugin's CLAUDE.md file
+  rebuild_state()
+  ```
 
 ## Step 4.5: Check for Plugin Upgrades
 

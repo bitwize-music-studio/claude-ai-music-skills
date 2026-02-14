@@ -113,15 +113,21 @@ Error: Promo videos not found.
 Generate with: /bitwize-music:promo-director {album}
 ```
 
-### 2. Preview Upload (Dry Run)
+### 2. Get Python Command
+
+**Call `get_python_command()` first** to get the venv Python path and plugin root. Use these for all bash invocations below.
+
+```
+PYTHON="{python from get_python_command}"
+PLUGIN_DIR="{plugin_root from get_python_command}"
+```
+
+### 3. Preview Upload (Dry Run)
 
 Preview first:
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/cloud/upload_to_cloud.py {album} --dry-run
+$PYTHON "$PLUGIN_DIR/tools/cloud/upload_to_cloud.py" {album} --dry-run
 ```
-
-The script automatically uses `~/.bitwize-music/venv` if available.
 
 Output shows:
 - Provider and bucket
@@ -129,30 +135,29 @@ Output shows:
 - S3 keys (paths in bucket)
 - File sizes
 
-### 3. Upload Files
+### 4. Upload Files
 
 **Upload all (promos + sampler):**
 ```bash
-cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/cloud/upload_to_cloud.py {album}
+$PYTHON "$PLUGIN_DIR/tools/cloud/upload_to_cloud.py" {album}
 ```
 
 **Upload only track promos:**
 ```bash
-python3 tools/cloud/upload_to_cloud.py {album} --type promos
+$PYTHON "$PLUGIN_DIR/tools/cloud/upload_to_cloud.py" {album} --type promos
 ```
 
 **Upload only album sampler:**
 ```bash
-python3 tools/cloud/upload_to_cloud.py {album} --type sampler
+$PYTHON "$PLUGIN_DIR/tools/cloud/upload_to_cloud.py" {album} --type sampler
 ```
 
 **Upload with public access:**
 ```bash
-python3 tools/cloud/upload_to_cloud.py {album} --public
+$PYTHON "$PLUGIN_DIR/tools/cloud/upload_to_cloud.py" {album} --public
 ```
 
-### 4. Verify Upload
+### 5. Verify Upload
 
 **For R2:**
 - Check Cloudflare dashboard → R2 → Your bucket

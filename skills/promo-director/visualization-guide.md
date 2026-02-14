@@ -373,12 +373,9 @@ elif style == "custom":
    - Artwork visibility (not obscured by waveform?)
 4. Adjust if needed, then batch-generate all tracks
 
-**Quick test command:**
-```bash
-python3 tools/promotion/generate_promo_video.py \
-  track-01.wav album.png "Track Title" \
-  --style pulse \
-  -o test.mp4
+**Quick test via MCP:**
+```
+generate_promo_videos(album_slug, style="pulse", track_filename="01-track-name.wav")
 ```
 
 ## Advanced Techniques
