@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-02-14
+
+### Fixed
+- **Album sampler track titles** — `get_track_title()` now converts slug format to readable titles (e.g., "ocean-of-tears" → "Ocean Of Tears"), matching individual promo video behavior
+- **Album sampler MCP title resolution** — `generate_album_sampler` MCP tool now pre-resolves proper titles from state cache (markdown metadata) and passes them to the sampler, so titles match exactly what's in track files
+
 ## [0.52.0] - 2026-02-14
 
 ### Added
