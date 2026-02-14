@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.54** | `extract_distinctive_phrases` MCP tool + `plagiarism-checker` skill — web search + LLM lyrics plagiarism checking |
 | **0.53** | `check_cross_track_repetition` MCP tool — detect overused words/phrases across album tracks |
 | **0.52** | `get_python_command` MCP tool, skills migrated from bare python3 to MCP tools |
 | **0.51** | Mirrored path structure for audio/documents, per-track stems subfolders in import-audio |
