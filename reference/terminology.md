@@ -8,10 +8,10 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 
 | Term | Definition | Example |
 |------|------------|---------|
-| **Audio Root** | Directory where mastered audio files are stored. Uses flat structure without genre folders. | `~/bitwize-music/audio/bitwize/sample-album/` |
+| **Audio Root** | Directory where mastered audio files are stored. Mirrors the content structure with artist and genre folders. | `~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/` |
 | **Config File** | The YAML configuration file that stores all paths and artist settings. Always located at `~/.bitwize-music/config.yaml`. | `paths.content_root: ~/bitwize-music` |
 | **Content Root** | Directory where albums, artists, research files, and markdown content live. Has genre-based folder structure. | `~/bitwize-music/artists/bitwize/albums/electronic/sample-album/` |
-| **Documents Root** | Directory for PDFs and primary source documents too large for git. Mirrors content root structure. | `~/bitwize-music/documents/bitwize/sample-album/` |
+| **Documents Root** | Directory for PDFs and primary source documents too large for git. Mirrors content root structure. | `~/bitwize-music/documents/artists/bitwize/albums/electronic/sample-album/` |
 | **Override** | User-created file that customizes plugin behavior without modifying plugin files. Survives plugin updates. | `{overrides}/CLAUDE.md`, `{overrides}/pronunciation-guide.md` |
 | **Plugin Root** | Directory where the plugin code lives. Contains skills, templates, reference docs, and tools. | `~/.claude/plugins/bitwize-music` |
 | **Skill** | A slash command that invokes specialized functionality. Each skill has its own SKILL.md documentation. | `/bitwize-music:lyric-writer`, `/bitwize-music:researcher` |
@@ -128,7 +128,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | Terms | Clarification |
 |-------|---------------|
 | **Album Ideas vs Album Status** | Album Ideas (`IDEAS.md`) are brainstorming before creation. Album Status (README field) tracks progress of created albums. |
-| **Content Root vs Audio Root** | Content Root has markdown files with genre folders. Audio Root has WAV files with flat structure (no genre folders). |
+| **Content Root vs Audio Root** | Content Root has markdown files (lyrics, track docs). Audio Root has WAV files. Both use the mirrored structure with artist and genre folders. |
 | **Master (file) vs Master (process)** | Master (file) = the final processed audio file. Master (process) = the act of processing audio for release. |
 | **Plugin Root vs Content Root** | Plugin Root contains code/templates (don't edit). Content Root contains your albums/lyrics (edit freely). |
 | **Project vs Album** | "Project" is not used in this plugin. Use "Album" for a collection of tracks being released together. |

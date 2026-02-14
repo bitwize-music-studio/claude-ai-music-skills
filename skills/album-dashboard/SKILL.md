@@ -38,7 +38,7 @@ Track completion across these phases:
 | 5. Pronunciation | All pronunciation table entries applied in lyrics |
 | 6. Review | Lyrics reviewed (no critical issues remain) |
 | 7. Generation | All tracks have `has_suno_link: true` |
-| 8. Mastering | Audio files exist in `{audio_root}/{artist}/{album}/` |
+| 8. Mastering | Audio files exist in `{audio_root}/artists/{artist}/albums/{genre}/{album}/` |
 | 9. Release | Album status is "Released" |
 
 ---
@@ -125,7 +125,7 @@ Next action: [recommendation]
 - % = (tracks with has_suno_link=true) / total tracks * 100
 
 ### Mastering Phase
-- Check `{audio_root}/{artist}/{album}/` for WAV/FLAC files
+- Check `{audio_root}/artists/{artist}/albums/{genre}/{album}/` for WAV/FLAC files
 - % = (audio files found) / total tracks * 100
 
 ### Release Phase

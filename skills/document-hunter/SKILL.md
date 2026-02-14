@@ -82,10 +82,10 @@ See [site-patterns.md](site-patterns.md) for automation strategies for each sour
 **⚠️ Primary source PDFs should NOT be committed to Git** (too large)
 
 ### Storage Location
-PDFs go to `{documents_root}/[artist]/[album]/` (mirrored structure from content_root).
+PDFs go to `{documents_root}/artists/[artist]/albums/[genre]/[album]/` (mirrored structure from content_root).
 
 ```
-{documents_root}/[artist]/[album]/
+{documents_root}/artists/[artist]/albums/[genre]/[album]/
 ├── indictment.pdf
 ├── plea-agreement.pdf
 └── manifest.json
@@ -119,7 +119,7 @@ playwright install chromium
 ```
 
 Resolve document storage path:
-- Call `resolve_path("documents", album_slug)` — returns `{documents_root}/{artist}/{album}/`
+- Call `resolve_path("documents", album_slug)` — returns `{documents_root}/artists/{artist}/albums/{genre}/{album}/`
 - Create directory: `mkdir -p {resolved_path}`
 
 ### Phase 2: Search
@@ -156,7 +156,7 @@ STILL NEEDED:
 - Trial transcript (not found in free sources)
 - Sentencing memo (may require PACER)
 
-MANIFEST: {documents_root}/[artist]/[album]/manifest.json
+MANIFEST: {documents_root}/artists/[artist]/albums/[genre]/[album]/manifest.json
 ```
 
 ---
@@ -183,9 +183,9 @@ rm recap.zip
 
 ## Output Structure
 
-**In `{documents_root}/[artist]/[album]/`** (not in git):
+**In `{documents_root}/artists/[artist]/albums/[genre]/[album]/`** (not in git):
 ```
-{documents_root}/[artist]/[album]/
+{documents_root}/artists/[artist]/albums/[genre]/[album]/
 ├── manifest.json                 # Complete catalog with metadata
 ├── documentcloud_*.pdf           # From DocumentCloud
 ├── courtlistener_*.pdf           # From CourtListener
@@ -196,7 +196,7 @@ rm recap.zip
 **In `{content_root}/.../[album]/SOURCES.md`** (in git):
 - Extracted quotes with page numbers
 - Source URLs for each document
-- References like: `PDF: {documents_root}/[artist]/[album]/indictment.pdf`
+- References like: `PDF: {documents_root}/artists/[artist]/albums/[genre]/[album]/indictment.pdf`
 
 ### Manifest Format
 

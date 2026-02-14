@@ -16,19 +16,19 @@ This document covers procedures for importing audio files (WAV, MP3) from Suno t
 Audio files MUST go to:
 
 ```
-{audio_root}/{artist}/{album}/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/
 ```
 
-**CRITICAL**: The path MUST include the artist folder between `audio_root` and `album`.
+**CRITICAL**: The path MUST use the full mirrored structure: `artists/{artist}/albums/{genre}/{album}/`.
 
 ### Path Comparison
 
 | Type | Path Structure | Example |
 |------|----------------|---------|
-| Audio | `{audio_root}/{artist}/{album}/` | `~/music/audio/bitwize/sample-album/` |
+| Audio | `{audio_root}/artists/{artist}/albums/{genre}/{album}/` | `~/music/audio/artists/bitwize/albums/electronic/sample-album/` |
 | Content | `{content_root}/artists/{artist}/albums/{genre}/{album}/` | `~/music/artists/bitwize/albums/electronic/sample-album/` |
 
-Note: Audio path is flattened (no genre folder), but ALWAYS includes artist.
+Note: Audio and content paths both use the mirrored structure with artist and genre folders.
 
 ## Step-by-Step Process
 
@@ -51,7 +51,7 @@ The skill automatically:
 After import, verify with:
 
 ```bash
-ls {audio_root}/{artist}/{album}/
+ls {audio_root}/artists/{artist}/albums/{genre}/{album}/
 ```
 
 Expected output shows your file in the correct location.
@@ -76,14 +76,14 @@ artist:
 **Result:**
 ```
 Moved: ~/Downloads/03-t-day-beach.wav
-   To: ~/bitwize-music/audio/bitwize/sample-album/03-t-day-beach.wav
+   To: ~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/03-t-day-beach.wav
 ```
 
 ### Correct vs Incorrect Paths
 
 | Status | Path |
 |--------|------|
-| CORRECT | `~/bitwize-music/audio/bitwize/sample-album/03-track.wav` |
+| CORRECT | `~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/03-track.wav` |
 | WRONG | `~/bitwize-music/audio/sample-album/03-track.wav` |
 | WRONG | `~/bitwize-music/artists/bitwize/albums/electronic/sample-album/03-track.wav` |
 | WRONG | `./audio/sample-album/03-track.wav` |
@@ -102,18 +102,18 @@ Wrong:
 
 Correct:
 ```
-{audio_root}/{artist}/{album}/file.wav
-~/bitwize-music/audio/bitwize/sample-album/03-track.wav
+{audio_root}/artists/{artist}/albums/{genre}/{album}/file.wav
+~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/03-track.wav
 ```
 
-**Why it matters:** Mastering scripts and other tools expect the artist folder. Missing it breaks the workflow.
+**Why it matters:** Mastering scripts and other tools expect the full mirrored path. Missing segments breaks the workflow.
 
 ### Skipping Config Read
 
 Wrong:
 ```bash
 # Assuming paths
-mv file.wav ~/music-projects/audio/bitwize/sample-album/
+mv file.wav ~/music-projects/audio/artists/bitwize/albums/electronic/sample-album/
 ```
 
 Correct:
@@ -134,10 +134,10 @@ Wrong:
 
 Correct:
 ```
-{audio_root}/{artist}/{album}/track.wav
+{audio_root}/artists/{artist}/albums/{genre}/{album}/track.wav
 ```
 
-**Why it matters:** Content root is for markdown files (lyrics, track docs). Audio root is for WAV/MP3 files. They have different structures.
+**Why it matters:** Content root is for markdown files (lyrics, track docs). Audio root is for WAV/MP3 files. Both use the same mirrored structure but serve different purposes.
 
 ### Manual Move Without Config
 
@@ -157,7 +157,7 @@ Correct:
 
 After importing, verify:
 
-- [ ] File exists at `{audio_root}/{artist}/{album}/filename.wav`
+- [ ] File exists at `{audio_root}/artists/{artist}/albums/{genre}/{album}/filename.wav`
 - [ ] Path includes artist folder (not directly under audio_root)
 - [ ] File is NOT in content directory (where markdown lives)
 - [ ] File is NOT in current working directory

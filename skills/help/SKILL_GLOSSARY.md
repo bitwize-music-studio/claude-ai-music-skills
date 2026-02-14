@@ -13,7 +13,7 @@ A slash command that invokes specialized functionality. Skills are invoked with 
 The directory where albums, artists, and research files live. Set in `paths.content_root`. Example: `~/music-projects/artists/bitwize/albums/...`
 
 ### Audio Root
-The directory where mastered audio files are stored. Set in `paths.audio_root`. Uses flat structure: `{audio_root}/{artist}/{album}/`. No genre folder.
+The directory where mastered audio files are stored. Set in `paths.audio_root`. Mirrors the content structure: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`.
 
 ### Override
 A user-created file that customizes skill behavior without modifying plugin files. Lives in `{content_root}/overrides/`. Survives plugin updates.
@@ -112,8 +112,8 @@ Pre-configured EQ and dynamics settings for specific genres. Used by mastering t
 - **Album Status** (album README): Tracking progress of created albums. Field in album frontmatter.
 
 ### Content Root vs Audio Root
-- **Content Root**: Markdown files, lyrics, research. Has genre folders.
-- **Audio Root**: WAV/MP3 files. Flat structure, no genre folders.
+- **Content Root**: Markdown files, lyrics, research.
+- **Audio Root**: WAV/MP3 files. Both use the mirrored structure with artist and genre folders.
 
 ### Style Prompt vs Style Box
 Same thing. "Style prompt" is what you write, "Style Box" is where it goes in Suno.

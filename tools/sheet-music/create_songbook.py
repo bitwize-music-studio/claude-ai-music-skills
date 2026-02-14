@@ -94,8 +94,8 @@ def get_website_from_config():
 def auto_detect_cover_art(sheet_music_dir):
     """Auto-detect album art from sheet-music parent directory
 
-    Assumes structure: {audio_root}/{artist}/{album}/sheet-music/
-    Looks for: {audio_root}/{artist}/{album}/album.png
+    Assumes structure: {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
+    Looks for: {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
     """
     sheet_music_path = Path(sheet_music_dir)
 

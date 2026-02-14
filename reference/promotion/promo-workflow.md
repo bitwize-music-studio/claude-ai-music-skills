@@ -16,7 +16,7 @@ Generate professional 15-second vertical promo videos (9:16) from mastered audio
 
 - ✓ Mastered audio files (.wav, .mp3, .flac, .m4a)
 - ✓ Album artwork (album.png or album.jpg)
-- ✓ Both in correct location: `{audio_root}/{artist}/{album}/`
+- ✓ Both in correct location: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
 
 ### Required Software
 
@@ -31,7 +31,7 @@ Generate professional 15-second vertical promo videos (9:16) from mastered audio
 
 **Verify structure:**
 ```
-{audio_root}/{artist}/{album}/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/
 ├── 01-track-name.wav
 ├── 02-another-track.wav
 ├── ...
@@ -68,8 +68,8 @@ See `/skills/promo-director/visualization-guide.md` for full details.
 Generate one video to verify style looks good:
 ```bash
 python3 tools/promotion/generate_promo_video.py \
-  {audio_root}/{artist}/{album}/01-track.wav \
-  {audio_root}/{artist}/{album}/album.png \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/01-track.wav \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
   "Track Title" \
   --style pulse \
   -o test.mp4
@@ -102,26 +102,26 @@ Individual promos:
 ```bash
 cd {plugin_root}
 python3 tools/promotion/generate_promo_video.py \
-  --batch {audio_root}/{artist}/{album}/ \
+  --batch {audio_root}/artists/{artist}/albums/{genre}/{album}/ \
   --style pulse \
-  -o {audio_root}/{artist}/{album}/promo_videos/
+  -o {audio_root}/artists/{artist}/albums/{genre}/{album}/promo_videos/
 ```
 
 Album sampler:
 ```bash
 cd {plugin_root}
 python3 tools/promotion/generate_album_sampler.py \
-  {audio_root}/{artist}/{album}/ \
-  --artwork {audio_root}/{artist}/{album}/album.png \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/ \
+  --artwork {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
   --clip-duration 12 \
-  -o {audio_root}/{artist}/{album}/album_sampler.mp4
+  -o {audio_root}/artists/{artist}/albums/{genre}/{album}/album_sampler.mp4
 ```
 
 Both:
 ```bash
 cd {plugin_root}
 python3 tools/promotion/generate_all_promos.py \
-  {audio_root}/{artist}/{album}/ \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/ \
   --style pulse
 ```
 
@@ -130,7 +130,7 @@ python3 tools/promotion/generate_all_promos.py \
 **Check output:**
 
 ```
-{audio_root}/{artist}/{album}/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/
 ├── promo_videos/
 │   ├── 01-track_promo.mp4
 │   ├── 02-track_promo.mp4
@@ -164,7 +164,7 @@ Transfer one video to phone and verify:
 **Video files** stay in the audio directory:
 
 ```
-{audio_root}/{artist}/{album}/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/
 ├── promo_videos/
 │   ├── instagram/          # Selected videos for Instagram
 │   ├── twitter/            # Selected videos for Twitter
@@ -317,7 +317,7 @@ python3 tools/promotion/generate_promo_video.py \
 ```bash
 for album in album1 album2 album3; do
   python3 tools/promotion/generate_all_promos.py \
-    {audio_root}/{artist}/$album/ \
+    {audio_root}/artists/{artist}/albums/{genre}/$album/ \
     --style pulse
 done
 ```

@@ -18,7 +18,7 @@ This document provides source citations for all factual claims made in the album
 
 Primary source PDFs are stored externally (not in git).
 
-**Location**: `{documents_root}/[artist]/[album]/`
+**Location**: `{documents_root}/artists/[artist]/albums/[genre]/[album]/`
 
 | Document | Source | Filename |
 |----------|--------|----------|

@@ -314,25 +314,25 @@ Verify CLAUDE.md documents these track statuses:
 ### TEST: Directory structure documented
 Verify CLAUDE.md documents the directory structure:
 - `{content_root}/artists/[artist]/albums/[genre]/[album]/`
-- `{audio_root}/[artist]/[album]/`
-- `{documents_root}/[artist]/[album]/`
+- `{audio_root}/artists/[artist]/albums/[genre]/[album]/`
+- `{documents_root}/artists/[artist]/albums/[genre]/[album]/`
 
 ### TEST: Audio path structure has concrete example (regression)
 Read CLAUDE.md "Mirrored structure" section.
 Verify it includes:
-1. A concrete example with actual paths (e.g., `~/bitwize-music/audio/bitwize/sample-album/`)
+1. A concrete example with actual paths (e.g., `~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/`)
 2. The phrase "includes artist!" to emphasize artist folder is required
 3. A "Common mistake" warning about missing artist folder
 
-This test was added after a bug where audio files were placed at `{audio_root}/[album]/` instead of `{audio_root}/[artist]/[album]/`.
+This test was added after a bug where audio files were placed at `{audio_root}/[album]/` instead of the full mirrored path.
 
 ### TEST: Importing external audio files documented (regression)
 Read CLAUDE.md "Importing External Audio Files" section.
 Verify it includes:
 1. Trigger for audio/WAV files in Downloads or external locations
-2. Explicit instruction that path "MUST include artist folder"
-3. Example showing correct path: `{audio_root}/[artist]/[album]/`
-4. "CRITICAL" warning about including artist folder
+2. Explicit instruction that path "MUST use mirrored structure"
+3. Example showing correct path: `{audio_root}/artists/[artist]/albums/[genre]/[album]/`
+4. "CRITICAL" warning about using full mirrored path
 
 This test was added after audio files were repeatedly moved to `{audio_root}/[album]/` without the artist folder.
 
@@ -666,7 +666,7 @@ Glob: skills/import-art/SKILL.md
 Read skills/import-art/SKILL.md.
 Verify it includes:
 1. Step to read `~/.bitwize-music/config.yaml` marked as REQUIRED
-2. Copies to audio folder: `{audio_root}/{artist}/{album}/`
+2. Copies to audio folder: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
 3. Copies to content folder: `{content_root}/artists/{artist}/albums/{genre}/{album}/`
 4. CRITICAL warning about including artist folder in audio path
 
@@ -802,7 +802,7 @@ Verify it includes:
 ### TEST: Sheet music output path includes artist folder
 Read tools/sheet-music/transcribe.py.
 Verify output directory is constructed as:
-`{audio_root}/{artist}/{album}/sheet-music/`
+`{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/`
 
 Verify it INCLUDES artist folder (not `{audio_root}/{album}/sheet-music/`)
 
@@ -1157,16 +1157,16 @@ End-to-end integration test that creates a test album and exercises the full wor
 ```
 1. Create dummy WAV: touch /tmp/_e2e-test.wav
 2. Run: /import-audio /tmp/_e2e-test.wav _e2e-test-album
-3. Verify: Audio in {audio_root}/{artist}/_e2e-test-album/
-4. Verify: Artist folder present in path
-5. Verify: NOT at {audio_root}/_e2e-test-album/ (wrong - missing artist)
+3. Verify: Audio in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+4. Verify: Full mirrored path structure present
+5. Verify: NOT at {audio_root}/_e2e-test-album/ (wrong - missing structure)
 ```
 
 #### Phase 5: Art Import
 ```
 1. Create dummy image: touch /tmp/_e2e-test.png
 2. Run: /import-art /tmp/_e2e-test.png _e2e-test-album
-3. Verify: Art in {audio_root}/{artist}/_e2e-test-album/album.png
+3. Verify: Art in {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/album.png
 4. Verify: Art in {album_path}/album-art.png
 ```
 
@@ -1174,13 +1174,13 @@ End-to-end integration test that creates a test album and exercises the full wor
 ```
 1. Run: /validate-album _e2e-test-album
 2. Verify: All structure checks pass
-3. Verify: Audio path check passes (artist folder present)
+3. Verify: Audio path check passes (full mirrored structure present)
 ```
 
 #### Phase 7: Cleanup
 ```
 1. Remove: {content_root}/artists/{artist}/albums/electronic/_e2e-test-album/
-2. Remove: {audio_root}/{artist}/_e2e-test-album/
+2. Remove: {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
 3. Remove: /tmp/_e2e-test.*
 4. Verify: No test files remain
 ```
@@ -1213,8 +1213,8 @@ PHASE 3: RESEARCH FILES
 PHASE 4: AUDIO IMPORT
 ─────────────────────
 [PASS] /import-audio executed successfully
-[PASS] Audio at {audio_root}/{artist}/_e2e-test-album/
-[PASS] Artist folder present in path
+[PASS] Audio at {audio_root}/artists/{artist}/albums/electronic/_e2e-test-album/
+[PASS] Full mirrored path structure present
 
 PHASE 5: ART IMPORT
 ───────────────────

@@ -6,6 +6,22 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-02-14
+
+### Fixed
+- **`resolve_path` mirrored structure** — audio and documents paths now use `{root}/artists/{artist}/albums/{genre}/{album}/` matching the content structure (was flat `{root}/{artist}/{album}/`)
+- **Genre lookup for audio/documents** — `resolve_path` MCP tool and `paths.py` utility now look up genre from state cache for all path types (was only content/tracks)
+- **`_resolve_audio_dir` genre support** — mastering/QC MCP tools now resolve genre from state cache instead of using flat paths
+- **`validate_album_structure` wrong-location check** — detects old flat audio structure as misplaced files
+- **`rename_album` path construction** — uses mirrored structure for audio and documents directories
+- **`upload_to_cloud.py` path finder** — tries mirrored structure first with glob fallback
+- **35 documentation files** — updated all path references from flat to mirrored structure
+
+### Added
+- **Per-track stems subfolders** — `import-audio` skill now extracts stems into `stems/{track-slug}/` subfolders preventing filename collisions across tracks
+- **Stems file type detection** — `import-audio` skill detects zip files and routes to stems extraction workflow
+- **Track slug derivation** — stems import infers track from zip filename, user argument, or prompts
+
 ## [0.50.0] - 2026-02-13
 
 ### Added

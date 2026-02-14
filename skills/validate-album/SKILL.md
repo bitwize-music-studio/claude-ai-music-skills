@@ -100,18 +100,18 @@ AUDIO FILES
 ───────────
 ```
 
-Expected path: `{audio_root}/{artist}/{album}/`
+Expected path: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
 
 | Check | How | Pass | Fail |
 |-------|-----|------|------|
-| Audio dir exists (correct path) | `test -d {audio_root}/{artist}/{album}` | `[PASS] Audio directory: {path}` | See below |
+| Audio dir exists (correct path) | `test -d {audio_root}/artists/{artist}/albums/{genre}/{album}` | `[PASS] Audio directory: {path}` | See below |
 | Audio dir in wrong location | `test -d {audio_root}/{album}` | N/A | `[FAIL] Audio in wrong location (missing artist folder)` |
 
 **If audio in wrong location**, add to issues:
 ```
-→ Expected: {audio_root}/{artist}/{album}/
+→ Expected: {audio_root}/artists/{artist}/albums/{genre}/{album}/
 → Found at: {audio_root}/{album}/ (WRONG - missing artist folder)
-→ Fix: mv {audio_root}/{album}/ {audio_root}/{artist}/{album}/
+→ Fix: mv {audio_root}/{album}/ {audio_root}/artists/{artist}/albums/{genre}/{album}/
 ```
 
 | Check | How | Pass | Skip |
@@ -195,9 +195,9 @@ ALBUM STRUCTURE
 AUDIO FILES
 ───────────
 [FAIL] Audio directory in wrong location
-       → Expected: ~/bitwize-music/audio/bitwize/sample-album/
+       → Expected: ~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/
        → Found at: ~/bitwize-music/audio/sample-album/
-       → Fix: mv ~/bitwize-music/audio/sample-album/ ~/bitwize-music/audio/bitwize/sample-album/
+       → Fix: mv ~/bitwize-music/audio/sample-album/ ~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/
 
 ALBUM ART
 ─────────
@@ -215,7 +215,7 @@ SUMMARY: 8 passed, 1 failed, 1 warning, 1 skipped
 
 ISSUES TO FIX:
 1. Move audio folder to include artist:
-   mv ~/bitwize-music/audio/sample-album/ ~/bitwize-music/audio/bitwize/sample-album/
+   mv ~/bitwize-music/audio/sample-album/ ~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/
 ```
 
 ---

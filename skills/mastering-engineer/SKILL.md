@@ -119,7 +119,7 @@ Before mastering, resolve audio path via MCP:
 
 1. Call `resolve_path("audio", album_slug)` — returns the full audio directory path
 
-**Example**: For album "my-album", returns `~/bitwize-music/audio/bitwize/my-album/`.
+**Example**: For album "my-album", returns `~/bitwize-music/audio/artists/bitwize/albums/electronic/my-album/`.
 
 **Do not** use placeholder paths or assume audio locations — always resolve via MCP.
 
@@ -157,7 +157,7 @@ python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder
 
 **Example with full path**:
 ```bash
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/bitwize/my-album
+python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/artists/bitwize/albums/electronic/my-album
 ```
 
 **What to check**:

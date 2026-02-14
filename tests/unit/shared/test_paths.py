@@ -32,16 +32,24 @@ class TestResolvePath:
         assert result == Path("/tmp/test-content/artists/test-artist/albums/rock/my-album")
 
     def test_audio_path(self):
-        result = resolve_path("audio", "my-album", config=self.SAMPLE_CONFIG)
-        assert result == Path("/tmp/test-audio/test-artist/my-album")
+        result = resolve_path("audio", "my-album", genre="rock", config=self.SAMPLE_CONFIG)
+        assert result == Path("/tmp/test-audio/artists/test-artist/albums/rock/my-album")
 
     def test_documents_path(self):
-        result = resolve_path("documents", "my-album", config=self.SAMPLE_CONFIG)
-        assert result == Path("/tmp/test-docs/test-artist/my-album")
+        result = resolve_path("documents", "my-album", genre="rock", config=self.SAMPLE_CONFIG)
+        assert result == Path("/tmp/test-docs/artists/test-artist/albums/rock/my-album")
 
-    def test_content_requires_genre(self):
+    def test_genre_required(self):
         with pytest.raises(ValueError, match="Genre is required"):
             resolve_path("content", "my-album", config=self.SAMPLE_CONFIG)
+
+    def test_audio_requires_genre(self):
+        with pytest.raises(ValueError, match="Genre is required"):
+            resolve_path("audio", "my-album", config=self.SAMPLE_CONFIG)
+
+    def test_documents_requires_genre(self):
+        with pytest.raises(ValueError, match="Genre is required"):
+            resolve_path("documents", "my-album", config=self.SAMPLE_CONFIG)
 
     def test_invalid_path_type(self):
         with pytest.raises(ValueError, match="Invalid path_type"):
@@ -49,21 +57,21 @@ class TestResolvePath:
 
     def test_artist_override(self):
         result = resolve_path(
-            "audio", "my-album", artist="other-artist", config=self.SAMPLE_CONFIG
+            "audio", "my-album", artist="other-artist", genre="rock", config=self.SAMPLE_CONFIG
         )
-        assert result == Path("/tmp/test-audio/other-artist/my-album")
+        assert result == Path("/tmp/test-audio/artists/other-artist/albums/rock/my-album")
 
     def test_missing_artist_name(self):
         config = {"artist": {}, "paths": {"content_root": "/tmp"}}
         with pytest.raises(ValueError, match="Artist name is required"):
-            resolve_path("audio", "my-album", config=config)
+            resolve_path("audio", "my-album", genre="rock", config=config)
 
     def test_tilde_expansion(self):
         config = {
             "artist": {"name": "artist"},
             "paths": {"audio_root": "~/music"},
         }
-        result = resolve_path("audio", "album", config=config)
+        result = resolve_path("audio", "album", genre="rock", config=config)
         assert "~" not in str(result)
         assert result.is_absolute()
 

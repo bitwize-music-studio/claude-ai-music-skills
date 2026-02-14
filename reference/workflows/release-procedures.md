@@ -38,7 +38,7 @@ Once user has generated and downloaded the image, use the `/bitwize-music:import
 
 The skill:
 1. Reads config to get `audio_root`, `content_root`, and `artist.name`
-2. Copies to audio folder: `{audio_root}/{artist}/{album}/album.png`
+2. Copies to audio folder: `{audio_root}/artists/{artist}/albums/{genre}/{album}/album.png`
 3. Copies to content folder: `{content_root}/artists/{artist}/albums/{genre}/{album}/album-art.jpg`
 
 **Why use the skill**: It handles both destinations correctly and always includes the artist folder in the audio path.

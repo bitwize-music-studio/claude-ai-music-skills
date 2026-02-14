@@ -91,7 +91,7 @@ These are only needed for songbook creation (optional).
 
 **List mastered tracks:**
 ```bash
-ls -1 {audio_root}/{artist}/{album}/*.wav
+ls -1 {audio_root}/artists/{artist}/albums/{genre}/{album}/*.wav
 ```
 
 **Ask user which tracks to transcribe:**
@@ -135,7 +135,7 @@ python3 tools/sheet-music/transcribe.py {album_name}
 **The script will:**
 1. Read config to locate audio files
 2. Find AnthemScore based on OS
-3. Create output directory: `{audio_root}/{artist}/{album}/sheet-music/`
+3. Create output directory: `{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/`
 4. Process each WAV (~30-60 seconds per track)
 5. Generate PDF + MusicXML for each track
 
@@ -159,7 +159,7 @@ Transcription complete: N tracks processed
 **After transcription completes**, recommend review:
 ```
 Transcription complete. Generated PDFs are in:
-  {audio_root}/{artist}/{album}/sheet-music/
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 
 Next: Review transcriptions for accuracy
 
@@ -203,7 +203,7 @@ I'll wait for your confirmation before proceeding.
 **After polish (or if skipped)**, automatically fix titles:
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
-python3 tools/sheet-music/fix_titles.py {audio_root}/{artist}/{album}/sheet-music/
+python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 ```
 
 **What this does:**
@@ -245,10 +245,10 @@ Create songbook? [Y/n]
 ```bash
 cd ${CLAUDE_PLUGIN_ROOT}
 python3 tools/sheet-music/create_songbook.py \
-  {audio_root}/{artist}/{album}/sheet-music/ \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ \
   --title "{album_title} Songbook" \
   --artist "{artist_name}" \
-  --cover {audio_root}/{artist}/{album}/album.png \
+  --cover {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
   --website "{website_from_config}" \
   --page-size letter
 ```
@@ -260,7 +260,7 @@ python3 tools/sheet-music/create_songbook.py \
 **Detect cover art:**
 ```bash
 # Check standard location
-ls -l {audio_root}/{artist}/{album}/album.png
+ls -l {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png
 ```
 
 **Report:**
@@ -287,7 +287,7 @@ Ready for KDP upload or distribution.
 
 Album: {album_name}
 Tracks transcribed: N
-Output: {audio_root}/{artist}/{album}/sheet-music/
+Output: {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 
 Files generated:
   - N × PDF (individual tracks)
@@ -343,7 +343,7 @@ Which option?
 ### No WAV Files Found
 
 ```
-No WAV files found in: {audio_root}/{artist}/{album}/
+No WAV files found in: {audio_root}/artists/{artist}/albums/{genre}/{album}/
 
 Expected location based on config:
   audio_root: {audio_root}
@@ -492,8 +492,8 @@ cat ~/.bitwize-music/config.yaml
 
 **Path construction:**
 ```
-Input audio:  {audio_root}/{artist}/{album}/*.wav
-Output:       {audio_root}/{artist}/{album}/sheet-music/
+Input audio:  {audio_root}/artists/{artist}/albums/{genre}/{album}/*.wav
+Output:       {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 ```
 
 ## Tool Invocation Examples
@@ -516,10 +516,10 @@ python3 tools/sheet-music/transcribe.py sample-album --dry-run
 
 ```bash
 # Fix titles in sheet music directory
-python3 tools/sheet-music/fix_titles.py {audio_root}/{artist}/{album}/sheet-music/
+python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 
 # Dry run (preview only)
-python3 tools/sheet-music/fix_titles.py {audio_root}/{artist}/{album}/sheet-music/ --dry-run
+python3 tools/sheet-music/fix_titles.py {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ --dry-run
 ```
 
 ### create_songbook.py
@@ -527,10 +527,10 @@ python3 tools/sheet-music/fix_titles.py {audio_root}/{artist}/{album}/sheet-musi
 ```bash
 # Full songbook with all options
 python3 tools/sheet-music/create_songbook.py \
-  {audio_root}/{artist}/{album}/sheet-music/ \
+  {audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/ \
   --title "Sample Album Songbook" \
   --artist "bitwize" \
-  --cover {audio_root}/{artist}/{album}/album.png \
+  --cover {audio_root}/artists/{artist}/albums/{genre}/{album}/album.png \
   --website "bitwizemusic.com" \
   --page-size letter \
   --year 2025

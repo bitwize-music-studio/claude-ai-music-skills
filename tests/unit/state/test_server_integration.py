@@ -414,8 +414,8 @@ def content_dir(tmp_path):
     )
     (promo_dir / "twitter.md").write_text("# Twitter\n\n| Key | Value |\n")
 
-    # Audio directory (with artist folder)
-    audio_album = audio_root / "test-artist" / "integration-test-album"
+    # Audio directory (mirrors content structure)
+    audio_album = audio_root / "artists" / "test-artist" / "albums" / "electronic" / "integration-test-album"
     audio_album.mkdir(parents=True)
     (audio_album / "01-first-track.wav").write_text("")
     (audio_album / "album.png").write_text("")
@@ -918,9 +918,11 @@ class TestRemainingToolsCoverage:
         """resolve_path audio resolves using real config."""
         result = json.loads(_run(server.resolve_path("audio", "integration-test-album")))
         expected = str(
-            integration_env["audio_root"] / "test-artist" / "integration-test-album"
+            integration_env["audio_root"] / "artists" / "test-artist"
+            / "albums" / "electronic" / "integration-test-album"
         )
         assert result["path"] == expected
+        assert result["genre"] == "electronic"
 
     def test_resolve_path_tracks(self, integration_env):
         """resolve_path tracks includes /tracks suffix."""
@@ -1797,10 +1799,10 @@ class TestResolvePathExtended:
     """Extended integration tests for resolve_path."""
 
     def test_documents_path(self, integration_env):
-        """resolve_path documents resolves to artist subfolder."""
+        """resolve_path documents resolves with full mirrored structure."""
         result = json.loads(_run(server.resolve_path("documents", "integration-test-album")))
-        assert "test-artist" in result["path"]
-        assert "integration-test-album" in result["path"]
+        assert "/artists/test-artist/albums/electronic/integration-test-album" in result["path"]
+        assert result["genre"] == "electronic"
 
     def test_invalid_path_type(self, integration_env):
         """resolve_path returns error for invalid type."""

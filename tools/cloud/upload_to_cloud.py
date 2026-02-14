@@ -157,10 +157,9 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     """Find the album directory in audio_root.
 
     Tries multiple path patterns in order:
-    1. {audio_root}/{artist}/{album}  (documented flat structure)
+    1. Glob for {audio_root}/artists/{artist}/albums/*/{album} (mirrored structure)
     2. {audio_root}/{album}           (override already includes artist)
-    3. Glob search for {album} anywhere under audio_root (handles
-       mirrored content structure like artists/{artist}/albums/{genre}/{album})
+    3. Glob search for {album} anywhere under audio_root (fallback)
     """
     if audio_root_override:
         audio_root = Path(audio_root_override).expanduser()
@@ -170,11 +169,13 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     artist = config["artist"]["name"]
     checked = []
 
-    # Try standard flat path: {audio_root}/{artist}/{album}
-    album_path = audio_root / artist / album_name
-    checked.append(str(album_path))
-    if album_path.exists() and _is_within(album_path, audio_root):
-        return album_path
+    # Try mirrored structure: {audio_root}/artists/{artist}/albums/{genre}/{album}
+    genre_glob = audio_root / "artists" / artist / "albums" / "*" / album_name
+    genre_matches = sorted(genre_glob.parent.parent.glob(f"*/{album_name}"))
+    genre_matches = [m for m in genre_matches if m.is_dir() and _is_within(m, audio_root)]
+    checked.append(str(genre_glob))
+    if len(genre_matches) == 1:
+        return genre_matches[0]
 
     # Try direct path (override already includes artist)
     album_path_direct = audio_root / album_name

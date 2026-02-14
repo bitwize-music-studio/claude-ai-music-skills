@@ -51,7 +51,7 @@ python3 transcribe.py sample-album --dry-run       # Preview only
 - MusicXML files (editable in MuseScore)
 - Optional: MIDI files (playback verification)
 
-**Location**: `{audio_root}/{artist}/{album}/sheet-music/`
+**Location**: `{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/`
 
 **Features**:
 - Cross-platform OS detection (macOS, Linux, Windows)
@@ -132,7 +132,7 @@ python3 create_songbook.py /path/to/sheet-music/ \
 
 **Auto-detected (from config)**:
 - `--artist` → `config['artist']['name']`
-- `--cover` → `{audio_root}/{artist}/{album}/album.png`
+- `--cover` → `{audio_root}/artists/{artist}/albums/{genre}/{album}/album.png`
 - `--website` → `config['urls']['soundcloud']` (or other URLs)
 - `--page-size` → `config['sheet_music']['page_size']`
 
@@ -167,24 +167,24 @@ Example: `/path/to/sheet-music/Sample_Album_Songbook.pdf`
 ### Step 1: Transcribe
 ```bash
 python3 transcribe.py sample-album
-# Output: 10 PDFs + 10 XMLs in {audio_root}/bitwize/sample-album/sheet-music/
+# Output: 10 PDFs + 10 XMLs in {audio_root}/artists/bitwize/albums/electronic/sample-album/sheet-music/
 ```
 
 ### Step 2: Polish (Optional)
 ```bash
 # Open XMLs in MuseScore, manually fix errors, add dynamics
-open -a "MuseScore 4" {audio_root}/bitwize/sample-album/sheet-music/*.xml
+open -a "MuseScore 4" {audio_root}/artists/bitwize/albums/electronic/sample-album/sheet-music/*.xml
 ```
 
 ### Step 3: Clean Titles
 ```bash
-python3 fix_titles.py {audio_root}/bitwize/sample-album/sheet-music/
+python3 fix_titles.py {audio_root}/artists/bitwize/albums/electronic/sample-album/sheet-music/
 # Updates XML titles, re-exports PDFs
 ```
 
 ### Step 4: Create Songbook
 ```bash
-python3 create_songbook.py {audio_root}/bitwize/sample-album/sheet-music/ \
+python3 create_songbook.py {audio_root}/artists/bitwize/albums/electronic/sample-album/sheet-music/ \
   --title "Sample Album Songbook"
 # Output: Sample_Album_Songbook.pdf
 ```
@@ -210,7 +210,7 @@ These scripts are called by the `/bitwize-music:sheet-music-publisher` skill, wh
 
 ### Input (Mastered Audio)
 ```
-{audio_root}/{artist}/{album}/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/
 ├── 01-ocean-of-tears.wav
 ├── 02-run-away.wav
 └── 03-t-day-beach.wav
@@ -218,7 +218,7 @@ These scripts are called by the `/bitwize-music:sheet-music-publisher` skill, wh
 
 ### Output (Sheet Music)
 ```
-{audio_root}/{artist}/{album}/sheet-music/
+{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/
 ├── 01-ocean-of-tears.pdf
 ├── 01-ocean-of-tears.xml
 ├── 02-run-away.pdf
@@ -285,8 +285,8 @@ python3 transcribe.py /full/path/to/mastered/
 ```bash
 # Create temp directory with just the WAVs you want
 mkdir temp-transcribe
-cp {audio_root}/{artist}/{album}/01-track.wav temp-transcribe/
-cp {audio_root}/{artist}/{album}/05-track.wav temp-transcribe/
+cp {audio_root}/artists/{artist}/albums/{genre}/{album}/01-track.wav temp-transcribe/
+cp {audio_root}/artists/{artist}/albums/{genre}/{album}/05-track.wav temp-transcribe/
 python3 transcribe.py temp-transcribe/
 ```
 
