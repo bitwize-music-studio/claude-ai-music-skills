@@ -35,6 +35,7 @@ Tools exposed:
     check_homographs    - Scan text for homograph pronunciation risks
     scan_artist_names   - Check text against artist name blocklist
     check_pronunciation_enforcement - Verify pronunciation notes applied in lyrics
+    check_cross_track_repetition - Scan album for words/phrases repeated across tracks
     get_album_full      - Combined album + track sections query
     validate_album_structure - Structural validation of album directories
     create_album_structure - Create album directory with templates
@@ -2270,6 +2271,80 @@ _GENRE_WORD_TARGETS = {
 # Section tag pattern — these aren't "words" for counting
 _SECTION_TAG_RE = re.compile(r'^\[.*\]$')
 
+# Cross-track repetition analysis constants
+_WORD_TOKEN_RE = re.compile(r"[a-zA-Z']+")
+
+# Stopwords: English function words + common song filler + ubiquitous song vocabulary.
+# These appear so often across tracks that flagging them is noise, not signal.
+_CROSS_TRACK_STOPWORDS = frozenset({
+    # English function words
+    "a", "an", "the", "and", "or", "but", "nor", "so", "yet", "for",
+    "in", "on", "at", "to", "of", "by", "up", "as", "if", "is", "it",
+    "be", "am", "are", "was", "were", "been", "being", "do", "did",
+    "does", "done", "has", "had", "have", "having", "he", "she", "we",
+    "me", "my", "her", "his", "its", "our", "us", "they", "them",
+    "their", "you", "your", "who", "what", "that", "this", "with",
+    "from", "not", "no", "can", "will", "would", "could", "should",
+    "may", "might", "shall", "just", "how", "when", "where", "why",
+    "all", "each", "every", "some", "any", "than", "then", "too",
+    "also", "very", "more", "most", "much", "many", "such", "own",
+    "same", "other", "about", "into", "over", "after", "before",
+    "through", "between", "under", "again", "out", "off", "here",
+    "there", "which", "these", "those", "only", "im", "ive", "ill",
+    "id", "dont", "wont", "cant", "didnt", "isnt", "wasnt", "youre",
+    "youve", "youll", "youd", "hes", "shes", "weve", "theyre",
+    "theyve", "theyll", "aint", "gonna", "wanna", "gotta",
+    # Common song filler / vocables
+    "oh", "ooh", "ah", "ahh", "yeah", "yea", "hey", "na", "la",
+    "da", "uh", "huh", "mmm", "whoa", "wo", "yo",
+    # Ubiquitous song vocabulary — too common to flag
+    "love", "heart", "baby", "night", "day", "time", "life", "way",
+    "feel", "know", "see", "come", "go", "get", "got", "let", "take",
+    "make", "say", "said", "back", "down", "like", "right", "left",
+    "good", "new", "now", "one", "two", "still", "never", "ever",
+    "keep", "need", "want", "look", "think", "thought", "mind",
+    "world", "man", "eye", "eyes", "hand", "hands",
+})
+
+
+def _tokenize_lyrics_by_line(lyrics: str) -> list:
+    """Split lyrics into per-line word lists, skipping section tags.
+
+    Lowercases all words, strips leading/trailing apostrophes, and filters
+    out single-character tokens.
+    """
+    result = []
+    for line in lyrics.split("\n"):
+        stripped = line.strip()
+        if not stripped or _SECTION_TAG_RE.match(stripped):
+            continue
+        words = []
+        for token in _WORD_TOKEN_RE.findall(stripped.lower()):
+            # Strip leading/trailing apostrophes (e.g., 'bout -> bout)
+            clean = token.strip("'")
+            if len(clean) > 1:
+                words.append(clean)
+        if words:
+            result.append(words)
+    return result
+
+
+def _ngrams_from_lines(lines: list, min_n: int = 2, max_n: int = 4) -> list:
+    """Generate n-grams from per-line word lists, never crossing line boundaries.
+
+    Skips n-grams where every word is a stopword.
+    """
+    phrases = []
+    for words in lines:
+        for n in range(min_n, max_n + 1):
+            for i in range(len(words) - n + 1):
+                gram = words[i:i + n]
+                # Skip if all words are stopwords
+                if all(w in _CROSS_TRACK_STOPWORDS for w in gram):
+                    continue
+                phrases.append(" ".join(gram))
+    return phrases
+
 
 @mcp.tool()
 async def get_lyrics_stats(
@@ -2422,6 +2497,162 @@ async def get_lyrics_stats(
         "genre": genre,
         "target": target,
         "tracks": track_results,
+    })
+
+
+@mcp.tool()
+async def check_cross_track_repetition(
+    album_slug: str,
+    min_tracks: int = 3,
+) -> str:
+    """Scan all tracks in an album for words/phrases repeated across multiple tracks.
+
+    Extracts lyrics from every track, tokenizes into words and 2-4 word
+    n-grams, and flags items appearing in N+ tracks. Filters out stopwords
+    and common song vocabulary automatically.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        min_tracks: Minimum number of tracks a word/phrase must appear in
+                    to be flagged (default 3, floor 2)
+
+    Returns:
+        JSON with flagged words, phrases, and summary stats
+    """
+    # Floor min_tracks at 2 — repeating in 1 track is not cross-track
+    if min_tracks < 2:
+        min_tracks = 2
+
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    all_tracks = album.get("tracks", {})
+    if not all_tracks:
+        return _safe_json({
+            "found": True,
+            "album_slug": normalized_album,
+            "track_count": 0,
+            "min_tracks_threshold": min_tracks,
+            "repeated_words": [],
+            "repeated_phrases": [],
+            "summary": {
+                "flagged_words": 0,
+                "flagged_phrases": 0,
+                "most_repeated_word": None,
+                "most_repeated_phrase": None,
+            },
+        })
+
+    # Per-track word and phrase sets, plus occurrence counts
+    # word -> set of track slugs where it appears
+    word_tracks: dict[str, set] = {}
+    # word -> total count across all tracks
+    word_total: dict[str, int] = {}
+    # phrase -> set of track slugs
+    phrase_tracks: dict[str, set] = {}
+    # phrase -> total count across all tracks
+    phrase_total: dict[str, int] = {}
+
+    tracks_analyzed = 0
+
+    for t_slug, t_data in sorted(all_tracks.items()):
+        track_path = t_data.get("path", "")
+        if not track_path:
+            continue
+
+        try:
+            text = Path(track_path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+        # Extract Lyrics Box
+        lyrics_section = _extract_markdown_section(text, "Lyrics Box")
+        lyrics = ""
+        if lyrics_section:
+            code = _extract_code_block(lyrics_section)
+            lyrics = code if code else lyrics_section
+
+        if not lyrics.strip():
+            continue
+
+        tracks_analyzed += 1
+        lines = _tokenize_lyrics_by_line(lyrics)
+
+        # Count words for this track
+        track_word_counts: dict[str, int] = {}
+        for words in lines:
+            for w in words:
+                track_word_counts[w] = track_word_counts.get(w, 0) + 1
+
+        for w, count in track_word_counts.items():
+            if w not in word_tracks:
+                word_tracks[w] = set()
+                word_total[w] = 0
+            word_tracks[w].add(t_slug)
+            word_total[w] += count
+
+        # Count phrases for this track
+        phrases = _ngrams_from_lines(lines)
+        track_phrase_counts: dict[str, int] = {}
+        for p in phrases:
+            track_phrase_counts[p] = track_phrase_counts.get(p, 0) + 1
+
+        for p, count in track_phrase_counts.items():
+            if p not in phrase_tracks:
+                phrase_tracks[p] = set()
+                phrase_total[p] = 0
+            phrase_tracks[p].add(t_slug)
+            phrase_total[p] += count
+
+    # Filter to items in >= min_tracks, exclude stopwords for words
+    repeated_words = []
+    for w, track_set in word_tracks.items():
+        if len(track_set) >= min_tracks and w not in _CROSS_TRACK_STOPWORDS:
+            repeated_words.append({
+                "word": w,
+                "track_count": len(track_set),
+                "tracks": sorted(track_set),
+                "total_occurrences": word_total[w],
+            })
+
+    repeated_phrases = []
+    for p, track_set in phrase_tracks.items():
+        if len(track_set) >= min_tracks:
+            repeated_phrases.append({
+                "phrase": p,
+                "track_count": len(track_set),
+                "tracks": sorted(track_set),
+                "total_occurrences": phrase_total[p],
+            })
+
+    # Sort by track_count descending, then alphabetically
+    repeated_words.sort(key=lambda x: (-x["track_count"], x["word"]))
+    repeated_phrases.sort(key=lambda x: (-x["track_count"], x["phrase"]))
+
+    summary = {
+        "flagged_words": len(repeated_words),
+        "flagged_phrases": len(repeated_phrases),
+        "most_repeated_word": repeated_words[0] if repeated_words else None,
+        "most_repeated_phrase": repeated_phrases[0] if repeated_phrases else None,
+    }
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "track_count": tracks_analyzed,
+        "min_tracks_threshold": min_tracks,
+        "repeated_words": repeated_words,
+        "repeated_phrases": repeated_phrases,
+        "summary": summary,
     })
 
 

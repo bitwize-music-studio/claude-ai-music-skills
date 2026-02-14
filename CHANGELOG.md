@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-02-14
+
+### Added
+- **`check_cross_track_repetition` MCP tool** — scans all tracks in an album for words and phrases repeated across multiple tracks; tokenizes lyrics into words and 2-4 word n-grams, filters stopwords and common song vocabulary, flags items appearing in N+ tracks (configurable threshold)
+- **70 unit tests** for cross-track repetition analysis (`test_server_lyrics.py`) — covers helpers (`_tokenize_lyrics_by_line`, `_ngrams_from_lines`), tool edge cases (slug normalization, unreadable files, stopword filtering, sort order, summary structure), and realistic multi-section lyrics
+
 ## [0.52.1] - 2026-02-14
 
 ### Fixed
