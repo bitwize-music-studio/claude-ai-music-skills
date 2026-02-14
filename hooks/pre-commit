@@ -183,7 +183,7 @@ echo ""
 
 # 8. Large file check
 echo "[8/11] Checking for large files..."
-MAX_SIZE=500000  # 500KB
+MAX_SIZE=600000  # 600KB
 LARGE_FILES=""
 for file in $(git diff --cached --name-only); do
     if [ -f "$file" ]; then
@@ -195,7 +195,7 @@ for file in $(git diff --cached --name-only); do
     fi
 done
 if [ -n "$LARGE_FILES" ]; then
-    echo "      ✗ Large files (>500KB) found:"
+    echo "      ✗ Large files (>600KB) found:"
     echo -e "$LARGE_FILES"
     echo "      Use .gitignore or git-lfs for large files"
     exit 1

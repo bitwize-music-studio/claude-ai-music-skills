@@ -87,18 +87,12 @@ Complete guide for publishing sheet music songbooks via Amazon KDP and other pla
 
 ## Preparing Your Songbook
 
-### Use create_songbook.py
+### Use the create_songbook MCP tool
 
 **This tool generates KDP-ready PDFs automatically:**
 
-```bash
-python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/ \
-  --title "Album Name Songbook" \
-  --artist "Artist Name" \
-  --cover /path/to/album.png \
-  --website "yourwebsite.com" \
-  --page-size letter \
-  --year 2025
+```
+create_songbook(album_slug, title="Album Name Songbook", page_size="letter")
 ```
 
 **Output includes:**

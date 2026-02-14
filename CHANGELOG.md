@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-02-14
+
+### Added
+- **`get_python_command` MCP tool** — returns venv Python path, plugin root, and ready-to-use command template; prevents skills from hitting system Python which lacks dependencies
+- **4 new tests** for `get_python_command` (venv exists, venv missing, plugin root, usage template)
+
+### Changed
+- **Skills migrated from bare python3 to MCP tools** — mastering-engineer (12 refs), promo-director (2 refs), sheet-music-publisher (9 refs), session-start (1 ref) now use MCP tools instead of bash python3 commands
+- **Skills without MCP equivalents use `get_python_command`** — cloud-uploader (4 refs), test-definitions (1 ref) now call `get_python_command()` first to get the venv path
+- **CLAUDE.md** — indexer rebuild references updated to `rebuild_state()` MCP tool
+- **genre-presets.md** — all python3 CLI examples replaced with MCP tool calls
+
 ## [0.51.0] - 2026-02-14
 
 ### Fixed

@@ -127,37 +127,18 @@ Before mastering, resolve audio path via MCP:
 
 ## Mastering Workflow
 
-### Important: Script Location
-
-**CRITICAL**: Mastering scripts live in the plugin directory and should **never be copied** to audio folders.
-
-**Plugin directory**:
-```bash
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-MASTERING_DIR="$PLUGIN_DIR/tools/mastering"
-```
-
 ### Step 1: Pre-Flight Check
 
 Before mastering, verify:
-1. **Audio folder exists** — confirm the path is valid
+1. **Audio folder exists** — call `resolve_path("audio", album_slug)` to confirm
 2. **WAV files present** — check for at least one `.wav` file in the folder
 3. If no WAV files found, report: "No WAV files in [path]. Download tracks from Suno as WAV (highest quality) first."
 4. If folder contains only MP3s, warn: "MP3 files found but mastering requires WAV. Re-download from Suno as WAV."
 
 ### Step 2: Analyze Tracks
 
-```bash
-# Find plugin directory
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-
-# Analyze tracks in audio folder
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder
 ```
-
-**Example with full path**:
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/bitwize-music/audio/artists/bitwize/albums/electronic/my-album
+analyze_audio(album_slug)
 ```
 
 **What to check**:
@@ -204,41 +185,41 @@ This executes: analyze → pre-QC → master → verify → post-QC → update s
 ### Step 3: Choose Settings
 
 **Standard (most cases)**:
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --cut-highmid -2
+```
+master_audio(album_slug, cut_highmid=-2.0)
 ```
 
 **Genre-specific**:
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --genre [genre]
+```
+master_audio(album_slug, genre="country")
 ```
 
 **Reference-based** (advanced):
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/reference_master.py" /path/to/audio/folder --reference reference_track.wav
+```
+master_with_reference(album_slug, reference_filename="reference.wav")
 ```
 
 ### Step 4: Dry Run (Preview)
 
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --dry-run --cut-highmid -2
+```
+master_audio(album_slug, cut_highmid=-2.0, dry_run=True)
 ```
 
 Shows what will happen without modifying files.
 
 ### Step 5: Master
 
-```bash
-python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" /path/to/audio/folder --cut-highmid -2
+```
+master_audio(album_slug, cut_highmid=-2.0)
 ```
 
 Creates `mastered/` subdirectory in audio folder with processed files.
 
 ### Step 6: Verify
 
-```bash
+```
 # Analyze the mastered output
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder/mastered
+analyze_audio(album_slug, subfolder="mastered")
 ```
 
 **Quality check**:
@@ -247,63 +228,28 @@ python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" /path/to/audio/folder/ma
 - No clipping
 - Album consistency < 1 dB range
 
+### Fix Outlier Tracks
+
+If a track has excessive dynamic range and won't reach target LUFS:
+
+```
+fix_dynamic_track(album_slug, track_filename="05-problem-track.wav")
+```
+
 ---
 
-## Tools Integration
+## MCP Tools Reference
 
-### Available Tools
+All mastering operations are available as MCP tools. **Use these instead of running Python scripts via bash.**
 
-Located in `${CLAUDE_PLUGIN_ROOT}/tools/mastering/`:
-
-| Tool | Purpose |
-|------|---------|
-| `analyze_tracks.py` | Measure LUFS, true peak, dynamic range |
-| `qc_tracks.py` | Technical QC (mono, phase, clipping, clicks, silence, format, spectral) |
-| `master_tracks.py` | Master tracks to target LUFS |
-| `fix_dynamic_track.py` | Fix tracks with extreme dynamic range |
-| `master_album` (MCP) | End-to-end pipeline — all steps in one call |
-
-### Setup (One-Time)
-```bash
-# Create shared venv in {tools_root}
-mkdir -p ~/.bitwize-music
-python3 -m venv ~/.bitwize-music/venv
-source ~/.bitwize-music/venv/bin/activate
-pip install matchering pyloudnorm scipy numpy soundfile
-```
-
-### Per-Album Session
-
-**IMPORTANT**: Scripts run from plugin directory, never copied to audio folders.
-
-```bash
-# Activate venv
-source ~/.bitwize-music/venv/bin/activate
-
-# Find plugin directory (version-independent)
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-
-# Set audio path
-AUDIO_DIR="/path/to/audio/folder"
-
-# Analyze
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" "$AUDIO_DIR"
-
-# Master
-python3 "$PLUGIN_DIR/tools/mastering/master_tracks.py" "$AUDIO_DIR" --cut-highmid -2
-
-# Verify
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" "$AUDIO_DIR/mastered"
-
-# Deactivate
-deactivate
-```
-
-**Why this approach?**
-- Scripts always use latest plugin version
-- No duplicate copies in audio folders
-- Updates to plugin automatically apply
-- Audio folders stay clean (only audio files)
+| MCP Tool | Purpose |
+|----------|---------|
+| `analyze_audio` | Measure LUFS, true peak, dynamic range |
+| `qc_audio` | Technical QC (mono, phase, clipping, clicks, silence, format, spectral) |
+| `master_audio` | Master tracks to target LUFS with EQ options |
+| `master_with_reference` | Match mastering to a reference track |
+| `fix_dynamic_track` | Fix tracks with extreme dynamic range |
+| `master_album` | End-to-end pipeline — all steps in one call |
 
 ---
 
@@ -348,87 +294,48 @@ Test on:
 
 ## Common Mistakes
 
-### ❌ Don't: Copy scripts to audio folders
+### ❌ Don't: Run Python scripts via bash
 
 **Wrong:**
-```bash
-cd ~/audio/my-album
-cp ~/.claude/plugins/.../tools/mastering/*.py .
-python3 analyze_tracks.py
-```
-
-**Right:**
-```bash
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
-```
-
-**Why it matters:**
-- Copying creates duplicates that don't get updated
-- Audio folders should only contain audio files
-- Scripts won't work after plugin updates
-
-### ❌ Don't: Hardcode plugin version number
-
-**Wrong:**
-```bash
-cd ~/.claude/plugins/cache/bitwize-music/bitwize-music/0.12.0/tools/mastering
-```
-
-**Right:**
-```bash
-PLUGIN_DIR="${CLAUDE_PLUGIN_ROOT}"
-cd "$PLUGIN_DIR/tools/mastering"
-```
-
-**Why it matters:** Plugin version changes with every update. Hardcoding breaks after updates.
-
-### ❌ Don't: Run scripts without path argument
-
-**Wrong:**
-```bash
-cd ~/audio/my-album
-python3 /path/to/analyze_tracks.py  # Analyzes wrong directory
-```
-
-**Right:**
 ```bash
 python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
 ```
 
-**Why it matters:** Scripts analyze current directory by default. Pass explicit path to ensure correct folder.
+**Right:**
+```
+analyze_audio("my-album")
+```
 
-### ❌ Don't: Forget to activate venv
+**Why it matters:** Bash hits system Python which lacks dependencies. MCP tools run inside the venv automatically.
+
+### ❌ Don't: Analyze originals after mastering
 
 **Wrong:**
-```bash
-python3 analyze_tracks.py  # Missing dependencies
+```
+analyze_audio("my-album")  # Checks originals, not mastered output
 ```
 
 **Right:**
-```bash
-source ~/.bitwize-music/venv/bin/activate
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album
-deactivate
+```
+analyze_audio("my-album", subfolder="mastered")
 ```
 
-**Why it matters:** Mastering scripts require pyloudnorm, matchering, etc. Must activate venv first.
+**Why it matters:** `master_audio` creates a `mastered/` subdirectory. Verify that output, not the originals.
 
-### ❌ Don't: Use wrong path for mastered verification
+### ❌ Don't: Skip the dry run
 
 **Wrong:**
-```bash
-# After mastering, analyzing wrong directory
-python3 analyze_tracks.py ~/audio/my-album  # Analyzes originals, not mastered
+```
+master_audio("my-album", cut_highmid=-3.0)  # Writes files immediately
 ```
 
 **Right:**
-```bash
-# Analyze the mastered output
-python3 "$PLUGIN_DIR/tools/mastering/analyze_tracks.py" ~/audio/my-album/mastered
+```
+master_audio("my-album", cut_highmid=-3.0, dry_run=True)  # Preview first
+master_audio("my-album", cut_highmid=-3.0)                 # Then commit
 ```
 
-**Why it matters:** master_tracks.py creates `mastered/` subdirectory. Must verify that folder, not originals.
+**Why it matters:** Dry run shows gain changes without writing files. Catches bad settings before they hit disk.
 
 ---
 

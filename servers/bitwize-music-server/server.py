@@ -20,6 +20,7 @@ Tools exposed:
     update_session      - Update session context
     rebuild_state       - Force full rebuild
     get_config          - Get resolved config
+    get_python_command  - Get venv Python path for bash script invocation
     get_ideas           - Get ideas with counts
     get_pending_verifications - Get tracks needing verification
     resolve_path        - Resolve content/audio/documents path for an album
@@ -607,6 +608,43 @@ async def get_config() -> str:
         return _safe_json({"error": "No config in state. Run rebuild_state first."})
 
     return _safe_json({"config": config})
+
+
+@mcp.tool()
+async def get_python_command() -> str:
+    """Get the correct Python command for running plugin scripts via bash.
+
+    Returns the absolute path to the venv Python interpreter and the plugin
+    root directory. Use this before any bash invocation of plugin Python
+    scripts to avoid hitting system Python (which lacks dependencies).
+
+    Returns:
+        JSON with:
+            python: Absolute path to ~/.bitwize-music/venv/bin/python3
+            plugin_root: Absolute path to the plugin directory
+            venv_exists: Whether the venv exists
+            usage: Ready-to-paste command template
+            warning: Only present if venv is missing, with install instructions
+    """
+    venv_python = Path.home() / ".bitwize-music" / "venv" / "bin" / "python3"
+    venv_exists = venv_python.is_file()
+
+    result: dict[str, Any] = {
+        "python": str(venv_python),
+        "plugin_root": str(PLUGIN_ROOT),
+        "venv_exists": venv_exists,
+        "usage": f'{venv_python} "$PLUGIN_DIR/tools/<script>.py" <args>',
+    }
+
+    if not venv_exists:
+        result["warning"] = (
+            "Venv not found at ~/.bitwize-music/venv. "
+            "Create it with: python3 -m venv ~/.bitwize-music/venv && "
+            "~/.bitwize-music/venv/bin/pip install pyloudnorm scipy numpy "
+            "soundfile matchering pillow pyyaml boto3"
+        )
+
+    return _safe_json(result)
 
 
 @mcp.tool()

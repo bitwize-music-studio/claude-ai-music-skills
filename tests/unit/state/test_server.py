@@ -1016,6 +1016,53 @@ class TestGetConfig:
 
 
 # =============================================================================
+# Tests for MCP tool: get_python_command
+# =============================================================================
+
+
+class TestGetPythonCommand:
+    """Tests for the get_python_command MCP tool."""
+
+    def test_venv_exists(self, tmp_path):
+        """When venv python3 exists, returns path and venv_exists=True."""
+        venv_python = tmp_path / ".bitwize-music" / "venv" / "bin" / "python3"
+        venv_python.parent.mkdir(parents=True)
+        venv_python.touch()
+        venv_python.chmod(0o755)
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = json.loads(_run(server.get_python_command()))
+
+        assert result["venv_exists"] is True
+        assert str(venv_python) == result["python"]
+        assert "plugin_root" in result
+        assert "usage" in result
+        assert "warning" not in result
+
+    def test_venv_missing(self, tmp_path):
+        """When venv doesn't exist, returns warning with install instructions."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = json.loads(_run(server.get_python_command()))
+
+        assert result["venv_exists"] is False
+        assert "warning" in result
+        assert "python3 -m venv" in result["warning"]
+
+    def test_plugin_root_included(self):
+        """Result always includes plugin_root."""
+        result = json.loads(_run(server.get_python_command()))
+        assert "plugin_root" in result
+        assert result["plugin_root"]  # non-empty
+
+    def test_usage_template(self, tmp_path):
+        """Usage field contains a ready-to-paste command template."""
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = json.loads(_run(server.get_python_command()))
+        assert "PLUGIN_DIR" in result["usage"]
+        assert "python3" in result["python"]
+
+
+# =============================================================================
 # Tests for MCP tool: get_ideas
 # =============================================================================
 
