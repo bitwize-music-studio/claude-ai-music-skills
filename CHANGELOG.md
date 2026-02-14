@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **`extract_distinctive_phrases` MCP tool** — extracts 4-7 word n-grams from lyrics with section awareness, filters ~75 common song cliches and stopword-only phrases, ranks by section priority (chorus/hook > verse), returns pre-formatted web search suggestions for plagiarism checking
+- **`_COMMON_SONG_PHRASES` constant** — frozenset of ~75 ubiquitous lyric cliches filtered during phrase extraction (love/heartbreak, night/time, pain/struggle, fire/light, generic emotional)
+- **`plagiarism-checker` skill** — scans lyrics for phrases that may match existing songs using web search and LLM knowledge; standalone quality check (not a pre-generation gate) with HIGH/MEDIUM/LOW risk findings and CLEAR/NEEDS REVIEW/REWRITE REQUIRED verdicts
+- **~35 unit tests** for distinctive phrase extraction (`test_server_lyrics.py`) — covers `_tokenize_lyrics_with_sections` helper, `_extract_distinctive_ngrams` helper, and `extract_distinctive_phrases` MCP tool
+
 ## [0.53.0] - 2026-02-14
 
 ### Added

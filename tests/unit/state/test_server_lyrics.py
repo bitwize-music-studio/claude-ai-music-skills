@@ -1013,3 +1013,336 @@ class TestCheckCrossTrackRepetition:
         phrases = {p["phrase"]: p for p in result["repeated_phrases"]}
         assert "the ember" in phrases
         assert "remember the" in phrases
+
+
+# =============================================================================
+# Tests for _tokenize_lyrics_with_sections helper
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestTokenizeLyricsWithSections:
+    """Tests for the _tokenize_lyrics_with_sections helper."""
+
+    def test_basic_section_tracking(self):
+        lyrics = "[Verse 1]\nWalking through shadows\n[Chorus]\nBurning tonight"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert len(result) == 2
+        assert result[0]["section"] == "Verse 1"
+        assert result[0]["section_type"] == "verse"
+        assert result[1]["section"] == "Chorus"
+        assert result[1]["section_type"] == "chorus"
+
+    def test_section_inheritance(self):
+        """Lines after a section tag inherit that section until next tag."""
+        lyrics = "[Verse 1]\nFirst line\nSecond line\n[Chorus]\nThird line"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["section"] == "Verse 1"
+        assert result[1]["section"] == "Verse 1"
+        assert result[2]["section"] == "Chorus"
+
+    def test_line_numbers_preserved(self):
+        lyrics = "[Verse 1]\nFirst line\n\nSecond line"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["line_number"] == 2
+        assert result[1]["line_number"] == 4
+
+    def test_section_tag_numbering_stripped(self):
+        """'Verse 2' should normalize to section_type 'verse'."""
+        lyrics = "[Verse 2]\nHello world"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["section_type"] == "verse"
+        assert result[0]["section"] == "Verse 2"
+
+    def test_empty_input(self):
+        assert server._tokenize_lyrics_with_sections("") == []
+
+    def test_whitespace_only(self):
+        assert server._tokenize_lyrics_with_sections("   \n  \n  ") == []
+
+    def test_only_section_tags(self):
+        assert server._tokenize_lyrics_with_sections("[Verse]\n[Chorus]") == []
+
+    def test_raw_line_preserved(self):
+        lyrics = "[Verse]\nBurning Shadows Fall Tonight!"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["raw_line"] == "Burning Shadows Fall Tonight!"
+
+    def test_words_lowercased_and_cleaned(self):
+        lyrics = "[Verse]\n'Bout the MORNING light"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["words"] == ["bout", "the", "morning", "light"]
+
+    def test_default_section_for_no_tag(self):
+        """Lines before any section tag get 'Unknown' section."""
+        lyrics = "Walking through shadows"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["section"] == "Unknown"
+        assert result[0]["section_type"] == "verse"
+
+    def test_all_section_types_recognized(self):
+        """All priority section types should be correctly identified."""
+        for section_type in ["chorus", "hook", "pre-chorus", "bridge", "outro", "verse", "intro"]:
+            tag = f"[{section_type.title()}]"
+            lyrics = f"{tag}\nTest words here"
+            result = server._tokenize_lyrics_with_sections(lyrics)
+            assert result[0]["section_type"] == section_type, f"Failed for {section_type}"
+
+    def test_unknown_section_defaults_to_verse(self):
+        lyrics = "[Breakdown]\nHeavy riff here"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["section_type"] == "verse"
+
+    def test_single_char_words_filtered(self):
+        lyrics = "[Verse]\nI am a hero"
+        result = server._tokenize_lyrics_with_sections(lyrics)
+        assert result[0]["words"] == ["am", "hero"]
+
+
+# =============================================================================
+# Tests for _extract_distinctive_ngrams helper
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestExtractDistinctiveNgrams:
+    """Tests for the _extract_distinctive_ngrams helper."""
+
+    def test_basic_extraction(self):
+        lines = [{"words": ["burning", "shadows", "fall", "tonight"],
+                  "section": "Chorus", "section_type": "chorus",
+                  "line_number": 1, "raw_line": "Burning shadows fall tonight"}]
+        result = server._extract_distinctive_ngrams(lines)
+        phrases = [r["phrase"] for r in result]
+        assert "burning shadows fall tonight" in phrases
+
+    def test_min_n_enforced(self):
+        """3-word phrases should not appear with default min_n=4."""
+        lines = [{"words": ["burning", "shadows", "fall"],
+                  "section": "Verse", "section_type": "verse",
+                  "line_number": 1, "raw_line": "Burning shadows fall"}]
+        result = server._extract_distinctive_ngrams(lines)
+        assert len(result) == 0  # only 3 words, can't make 4-gram
+
+    def test_max_n_enforced(self):
+        """8+ word n-grams should not appear with default max_n=7."""
+        words = ["one", "two", "three", "four", "five", "six", "seven", "eight"]
+        lines = [{"words": words, "section": "Verse", "section_type": "verse",
+                  "line_number": 1, "raw_line": " ".join(words)}]
+        result = server._extract_distinctive_ngrams(lines)
+        max_wc = max(r["word_count"] for r in result)
+        assert max_wc <= 7
+
+    def test_common_phrases_filtered(self):
+        """Phrases in _COMMON_SONG_PHRASES should be excluded."""
+        # "middle of the night" is a 4-word common phrase in the frozenset
+        lines = [{"words": ["middle", "of", "the", "night"],
+                  "section": "Chorus", "section_type": "chorus",
+                  "line_number": 1, "raw_line": "Middle of the night"}]
+        result = server._extract_distinctive_ngrams(lines)
+        phrases = [r["phrase"] for r in result]
+        assert "middle of the night" not in phrases
+
+    def test_stopword_only_ngrams_filtered(self):
+        """N-grams where all words are stopwords should be excluded."""
+        lines = [{"words": ["the", "and", "is", "but", "with"],
+                  "section": "Verse", "section_type": "verse",
+                  "line_number": 1, "raw_line": "The and is but with"}]
+        result = server._extract_distinctive_ngrams(lines)
+        assert len(result) == 0
+
+    def test_dedup_keeps_highest_priority(self):
+        """Same phrase in chorus and verse should keep chorus version."""
+        lines = [
+            {"words": ["burning", "shadows", "fall", "tonight"],
+             "section": "Verse 1", "section_type": "verse",
+             "line_number": 2, "raw_line": "Burning shadows fall tonight"},
+            {"words": ["burning", "shadows", "fall", "tonight"],
+             "section": "Chorus", "section_type": "chorus",
+             "line_number": 8, "raw_line": "Burning shadows fall tonight"},
+        ]
+        result = server._extract_distinctive_ngrams(lines)
+        match = [r for r in result if r["phrase"] == "burning shadows fall tonight"]
+        assert len(match) == 1
+        assert match[0]["section"] == "Chorus"
+        assert match[0]["priority"] == 3
+
+    def test_sorted_by_priority_then_length(self):
+        """Results sorted: priority desc, word_count desc."""
+        lines = [
+            {"words": ["burning", "shadows", "fall", "tonight"],
+             "section": "Verse", "section_type": "verse",
+             "line_number": 1, "raw_line": "..."},
+            {"words": ["electric", "storm", "horizon", "calls"],
+             "section": "Chorus", "section_type": "chorus",
+             "line_number": 5, "raw_line": "..."},
+        ]
+        result = server._extract_distinctive_ngrams(lines)
+        # Chorus items (priority 3) should come before verse items (priority 1)
+        chorus_indices = [i for i, r in enumerate(result) if r["priority"] == 3]
+        verse_indices = [i for i, r in enumerate(result) if r["priority"] == 1]
+        if chorus_indices and verse_indices:
+            assert max(chorus_indices) < min(verse_indices)
+
+    def test_empty_input(self):
+        assert server._extract_distinctive_ngrams([]) == []
+
+    def test_custom_min_max_n(self):
+        """Custom min_n=5, max_n=5 should only produce 5-grams."""
+        lines = [{"words": ["one", "two", "three", "four", "five", "six"],
+                  "section": "Verse", "section_type": "verse",
+                  "line_number": 1, "raw_line": "..."}]
+        result = server._extract_distinctive_ngrams(lines, min_n=5, max_n=5)
+        for r in result:
+            assert r["word_count"] == 5
+
+    def test_multiple_lines_produce_independent_ngrams(self):
+        """N-grams should not cross line boundaries."""
+        lines = [
+            {"words": ["alpha", "beta", "gamma", "delta"],
+             "section": "Verse", "section_type": "verse",
+             "line_number": 1, "raw_line": "..."},
+            {"words": ["epsilon", "zeta", "eta", "theta"],
+             "section": "Verse", "section_type": "verse",
+             "line_number": 2, "raw_line": "..."},
+        ]
+        result = server._extract_distinctive_ngrams(lines)
+        phrases = [r["phrase"] for r in result]
+        # Should have 4-grams from each line independently
+        assert "alpha beta gamma delta" in phrases
+        assert "epsilon zeta eta theta" in phrases
+        # Should NOT cross lines
+        cross = [p for p in phrases if "delta" in p and "epsilon" in p]
+        assert len(cross) == 0
+
+
+# =============================================================================
+# Tests for extract_distinctive_phrases MCP tool
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestExtractDistinctivePhrases:
+    """Tests for the extract_distinctive_phrases MCP tool."""
+
+    def test_empty_input(self):
+        result = json.loads(_run(server.extract_distinctive_phrases("")))
+        assert result["phrases"] == []
+        assert result["total_phrases"] == 0
+        assert result["sections_found"] == []
+        assert result["search_suggestions"] == []
+
+    def test_whitespace_only(self):
+        result = json.loads(_run(server.extract_distinctive_phrases("   \n  \n  ")))
+        assert result["total_phrases"] == 0
+
+    def test_none_like_empty(self):
+        """Empty string returns gracefully."""
+        result = json.loads(_run(server.extract_distinctive_phrases("")))
+        assert result["total_phrases"] == 0
+
+    def test_valid_json_output(self):
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        raw = _run(server.extract_distinctive_phrases(lyrics))
+        assert isinstance(raw, str)
+        result = json.loads(raw)
+        assert isinstance(result, dict)
+
+    def test_top_level_keys(self):
+        lyrics = "[Verse]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert set(result.keys()) == {
+            "phrases", "total_phrases", "sections_found", "search_suggestions",
+        }
+
+    def test_phrase_entry_structure(self):
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert len(result["phrases"]) > 0
+        entry = result["phrases"][0]
+        assert set(entry.keys()) == {
+            "phrase", "word_count", "section", "line_number", "raw_line", "priority",
+        }
+
+    def test_search_suggestion_structure(self):
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert len(result["search_suggestions"]) > 0
+        suggestion = result["search_suggestions"][0]
+        assert set(suggestion.keys()) == {"query", "priority", "section"}
+        assert suggestion["query"].startswith('"')
+        assert suggestion["query"].endswith('" lyrics')
+
+    def test_search_suggestions_capped_at_15(self):
+        """search_suggestions should have at most 15 entries."""
+        # Build lyrics with many unique lines to generate lots of phrases
+        lines = []
+        lines.append("[Verse 1]")
+        for i in range(20):
+            lines.append(f"unique{i} alpha{i} beta{i} gamma{i} delta{i} epsilon{i} zeta{i}")
+        lyrics = "\n".join(lines)
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert len(result["search_suggestions"]) <= 15
+
+    def test_sections_found_populated(self):
+        lyrics = "[Verse 1]\nSomething here tonight really\n[Chorus]\nSomething else tomorrow morning"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert "Verse 1" in result["sections_found"]
+        assert "Chorus" in result["sections_found"]
+
+    def test_common_cliches_excluded(self):
+        """Phrases from _COMMON_SONG_PHRASES should not appear in results."""
+        lyrics = "[Chorus]\nFalling in love with you tonight\nBreak my heart again and again"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        phrases = [p["phrase"] for p in result["phrases"]]
+        assert "falling in love" not in phrases
+        assert "break my heart" not in phrases
+
+    def test_chorus_priority_higher_than_verse(self):
+        """Chorus phrases should have higher priority than verse phrases."""
+        lyrics = (
+            "[Verse 1]\nAlpha beta gamma delta epsilon\n"
+            "[Chorus]\nZeta theta iota kappa lambda"
+        )
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        verse_priorities = [p["priority"] for p in result["phrases"] if p["section"] == "Verse 1"]
+        chorus_priorities = [p["priority"] for p in result["phrases"] if p["section"] == "Chorus"]
+        if verse_priorities and chorus_priorities:
+            assert max(verse_priorities) < min(chorus_priorities)
+
+    def test_realistic_lyrics(self):
+        """Full realistic lyrics should produce meaningful phrases."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Concrete jungle where the monitors glow\n"
+            "Every keystroke tells a story below\n"
+            "\n"
+            "[Chorus]\n"
+            "Silicon ghosts in the midnight machine\n"
+            "Dancing through firewalls never seen\n"
+            "\n"
+            "[Verse 2]\n"
+            "Binary whispers echo through the halls\n"
+            "Digital footprints climbing up the walls\n"
+        )
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert result["total_phrases"] > 0
+        # Should find multi-word phrases
+        assert any(p["word_count"] >= 4 for p in result["phrases"])
+        # Should have search suggestions
+        assert len(result["search_suggestions"]) > 0
+        # Should find multiple sections
+        assert len(result["sections_found"]) >= 2
+
+    def test_total_phrases_matches_list_length(self):
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert result["total_phrases"] == len(result["phrases"])
+
+    def test_word_count_accurate(self):
+        """word_count should match actual word count of phrase."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        for phrase_entry in result["phrases"]:
+            actual_words = len(phrase_entry["phrase"].split())
+            assert phrase_entry["word_count"] == actual_words

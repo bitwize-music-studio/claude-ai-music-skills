@@ -34,6 +34,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...run full QC before Suno generation | `/lyric-reviewer` |
 | ...run final pre-generation checkpoint | `/pre-generation-check` |
 | ...check if explicit flag is needed | `/explicit-checker` |
+| ...check lyrics for plagiarism | `/plagiarism-checker` |
 
 ### Suno Generation
 | I need to... | Use this skill |
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
 | [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action (also available via `/resume`) | Workflow guidance when unsure what to do |
+| [`plagiarism-checker`](/skills/plagiarism-checker/SKILL.md) | Scan lyrics for phrases matching existing songs via web search + LLM | Pre-release plagiarism check |
 | [`pre-generation-check`](/skills/pre-generation-check/SKILL.md) | Final pre-generation checkpoint (6 gates) | Validating all requirements before Suno generation |
 | [`promo-director`](/skills/promo-director/SKILL.md) | Generate promo videos for social media | Creating 15s vertical videos for Instagram/Twitter |
 | [`promo-reviewer`](/skills/promo-reviewer/SKILL.md) | Review and polish social media copy in promo/ files | Interactive post-by-post review before release |
@@ -281,7 +283,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 26 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 27 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -289,6 +291,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/document-hunter` - Automated searching
 - `/explicit-checker` - Context-dependent content scanning
 - `/mastering-engineer` - Audio guidance
+- `/plagiarism-checker` - Lyrics plagiarism scanning
 - `/promo-director` - Video generation
 - `/promo-reviewer` - Interactive copy review
 - `/promo-writer` - Social media copy generation

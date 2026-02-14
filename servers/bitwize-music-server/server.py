@@ -36,6 +36,7 @@ Tools exposed:
     scan_artist_names   - Check text against artist name blocklist
     check_pronunciation_enforcement - Verify pronunciation notes applied in lyrics
     check_cross_track_repetition - Scan album for words/phrases repeated across tracks
+    extract_distinctive_phrases - Extract distinctive n-grams from lyrics for plagiarism checking
     get_album_full      - Combined album + track sections query
     validate_album_structure - Structural validation of album directories
     create_album_structure - Create album directory with templates
@@ -2653,6 +2654,253 @@ async def check_cross_track_repetition(
         "repeated_words": repeated_words,
         "repeated_phrases": repeated_phrases,
         "summary": summary,
+    })
+
+
+# =============================================================================
+# Plagiarism / Distinctive Phrase Extraction
+# =============================================================================
+
+# Common song cliches — phrases so ubiquitous they're not useful plagiarism signals.
+_COMMON_SONG_PHRASES = frozenset({
+    # Love / heartbreak
+    "break my heart", "broke my heart", "breaking my heart",
+    "falling in love", "fall in love", "fell in love",
+    "heart and soul", "heart on my sleeve",
+    "love you forever", "love you more",
+    "hold me close", "hold me tight",
+    "never let go", "never let you go",
+    "take my hand", "hold my hand",
+    "tear me apart", "tore me apart",
+    "missing you tonight", "thinking of you",
+    "all my love", "give my love",
+    "you and me", "me and you",
+    # Night / time
+    "middle of the night", "dead of night",
+    "end of the world", "end of time",
+    "light of day", "break of dawn",
+    "run out of time", "running out of time",
+    "turn back time", "stand the test of time",
+    "day and night", "night and day",
+    # Pain / struggle
+    "pain inside", "pain in my heart",
+    "down on my knees", "brought to my knees",
+    "weight of the world", "world on my shoulders",
+    "lost my mind", "losing my mind",
+    "break me down", "breaking me down",
+    "pick me up", "lift me up",
+    "fight for you", "fight for love",
+    "set me free", "set you free",
+    "let me go", "let it go",
+    # Movement / journey
+    "walking away", "walk away",
+    "running away", "run away",
+    "long way home", "find my way",
+    "find my way home", "find my way back",
+    "road to nowhere", "path to follow",
+    # Fire / light
+    "burning inside", "fire inside",
+    "light in the dark", "light in the darkness",
+    "shine so bright", "shining bright",
+    "spark in the dark",
+    # Generic emotional
+    "cant stop thinking", "cant get enough",
+    "never be the same", "nothing is the same",
+    "over and over", "again and again",
+    "round and round", "on and on",
+    "the way you make me feel",
+    "what you do to me", "what you mean to me",
+    "take me away", "far away",
+    "here with me", "stay with me",
+    "come back to me", "back to you",
+    "all night long", "tonight tonight",
+    "dreams come true", "make it through",
+    "side by side", "hand in hand",
+    "once upon a time", "happily ever after",
+})
+
+# Section priority for ranking phrase importance.
+# Higher = more important for plagiarism (chorus hooks matter most).
+_SECTION_PRIORITY = {
+    "chorus": 3,
+    "hook": 3,
+    "pre-chorus": 2,
+    "bridge": 2,
+    "outro": 2,
+    "verse": 1,
+    "intro": 1,
+}
+
+
+def _tokenize_lyrics_with_sections(lyrics: str) -> list:
+    """Split lyrics into per-line dicts tracking section context.
+
+    Returns a list of dicts, each with:
+        section: str — current section name (e.g., "Chorus", "Verse 1")
+        section_type: str — normalized type (e.g., "chorus", "verse")
+        line_number: int — 1-based line number in original text
+        words: list[str] — lowercased, cleaned word tokens
+        raw_line: str — original line text (stripped)
+    """
+    result = []
+    current_section = "Unknown"
+    current_section_type = "verse"  # default
+
+    for line_num, line in enumerate(lyrics.split("\n"), 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Check for section tag
+        if _SECTION_TAG_RE.match(stripped):
+            # Extract section name from brackets
+            current_section = stripped[1:-1].strip()
+            # Normalize section type (strip numbers: "Verse 2" -> "verse")
+            section_lower = current_section.lower()
+            # Check longest keys first so "pre-chorus" matches before "chorus"
+            for stype in sorted(_SECTION_PRIORITY, key=len, reverse=True):
+                if stype in section_lower:
+                    current_section_type = stype
+                    break
+            else:
+                current_section_type = "verse"  # default for unknown sections
+            continue
+
+        # Tokenize the line
+        words = []
+        for token in _WORD_TOKEN_RE.findall(stripped.lower()):
+            clean = token.strip("'")
+            if len(clean) > 1:
+                words.append(clean)
+
+        if words:
+            result.append({
+                "section": current_section,
+                "section_type": current_section_type,
+                "line_number": line_num,
+                "words": words,
+                "raw_line": stripped,
+            })
+
+    return result
+
+
+def _extract_distinctive_ngrams(
+    lines_with_sections: list,
+    min_n: int = 4,
+    max_n: int = 7,
+) -> list:
+    """Extract distinctive n-grams from section-aware tokenized lines.
+
+    Generates n-grams of length min_n..max_n, filters out:
+      - n-grams where ALL words are stopwords
+      - n-grams matching common song cliches
+    Deduplicates by keeping the highest-priority section occurrence.
+    Returns sorted by priority descending, then word count descending.
+    """
+    # phrase -> best entry (highest priority)
+    seen: dict = {}
+
+    for line_data in lines_with_sections:
+        words = line_data["words"]
+        priority = _SECTION_PRIORITY.get(line_data["section_type"], 1)
+
+        for n in range(min_n, max_n + 1):
+            for i in range(len(words) - n + 1):
+                gram = words[i:i + n]
+
+                # Skip if all stopwords
+                if all(w in _CROSS_TRACK_STOPWORDS for w in gram):
+                    continue
+
+                phrase = " ".join(gram)
+
+                # Skip common song cliches
+                if phrase in _COMMON_SONG_PHRASES:
+                    continue
+
+                # Keep highest-priority occurrence
+                if phrase not in seen or priority > seen[phrase]["priority"]:
+                    seen[phrase] = {
+                        "phrase": phrase,
+                        "word_count": n,
+                        "section": line_data["section"],
+                        "section_type": line_data["section_type"],
+                        "line_number": line_data["line_number"],
+                        "raw_line": line_data["raw_line"],
+                        "priority": priority,
+                    }
+
+    # Sort: priority desc, word_count desc, phrase asc
+    results = sorted(
+        seen.values(),
+        key=lambda x: (-x["priority"], -x["word_count"], x["phrase"]),
+    )
+    return results
+
+
+@mcp.tool()
+async def extract_distinctive_phrases(text: str) -> str:
+    """Extract distinctive phrases from lyrics for plagiarism checking.
+
+    Takes raw lyrics text, extracts 4-7 word n-grams with section awareness,
+    filters common song cliches and stopword-only phrases, and ranks by
+    section priority (chorus/hook > verse). Returns phrases and pre-formatted
+    web search suggestions.
+
+    Args:
+        text: Lyrics text to scan (with [Section] tags)
+
+    Returns:
+        JSON with {phrases: [...], total_phrases: int,
+                   sections_found: [...], search_suggestions: [...]}
+    """
+    if not text or not text.strip():
+        return _safe_json({
+            "phrases": [],
+            "total_phrases": 0,
+            "sections_found": [],
+            "search_suggestions": [],
+        })
+
+    # Tokenize with section tracking
+    lines = _tokenize_lyrics_with_sections(text)
+
+    # Extract distinctive n-grams
+    ngrams = _extract_distinctive_ngrams(lines)
+
+    # Collect unique sections found
+    sections_found = sorted({
+        line_data["section"]
+        for line_data in lines
+    })
+
+    # Build phrases list
+    phrases = []
+    for ng in ngrams:
+        phrases.append({
+            "phrase": ng["phrase"],
+            "word_count": ng["word_count"],
+            "section": ng["section"],
+            "line_number": ng["line_number"],
+            "raw_line": ng["raw_line"],
+            "priority": ng["priority"],
+        })
+
+    # Build search suggestions — top 15, formatted for WebSearch
+    search_suggestions = []
+    for ng in ngrams[:15]:
+        search_suggestions.append({
+            "query": f'"{ng["phrase"]}" lyrics',
+            "priority": ng["priority"],
+            "section": ng["section"],
+        })
+
+    return _safe_json({
+        "phrases": phrases,
+        "total_phrases": len(phrases),
+        "sections_found": sections_found,
+        "search_suggestions": search_suggestions,
     })
 
 
