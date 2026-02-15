@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-02-15
+
+### Added
+- **`count_syllables` MCP tool** — syllable counts per line with section tracking, consistency analysis (stdev > 3 = UNEVEN), and summary stats
+- **`analyze_readability` MCP tool** — Flesch Reading Ease scoring, vocabulary richness, and grade level assessment for lyrics
+- **`analyze_rhyme_scheme` MCP tool** — rhyme scheme detection (AABB/ABAB/XAXA) with section awareness, self-rhyme and repeated end word detection
+- **`validate_section_structure` MCP tool** — section tag validation, balanced verse lengths (diff > 2 lines flagged), empty/duplicate/missing section detection, content-before-first-tag warning
+- **`_count_syllables_word` helper** — vowel cluster heuristic for syllable counting (silent 'e', consonant-'le' endings, y-as-vowel)
+- **`_get_rhyme_tail` / `_words_rhyme` helpers** — suffix-based rhyme detection from last vowel cluster to end of word, with silent-e handling and plural tolerance
+- **85 unit tests** for lyrics analysis tools (`test_server_lyrics.py`) — 13 test classes covering all helpers and MCP tools with edge cases, boundary conditions, and bug-catching coverage
+
 ## [0.54.0] - 2026-02-14
 
 ### Added

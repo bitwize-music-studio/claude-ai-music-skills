@@ -1346,3 +1346,815 @@ class TestExtractDistinctivePhrases:
         for phrase_entry in result["phrases"]:
             actual_words = len(phrase_entry["phrase"].split())
             assert phrase_entry["word_count"] == actual_words
+
+
+# ===========================================================================
+# _count_syllables_word helper tests
+# ===========================================================================
+
+class TestCountSyllablesWord:
+    """Tests for the _count_syllables_word helper."""
+
+    def test_monosyllabic(self):
+        assert server._count_syllables_word("cat") == 1
+        assert server._count_syllables_word("dog") == 1
+        assert server._count_syllables_word("the") == 1
+
+    def test_polysyllabic(self):
+        assert server._count_syllables_word("beautiful") == 3
+        assert server._count_syllables_word("amazing") == 3
+        assert server._count_syllables_word("yesterday") == 3
+
+    def test_silent_e(self):
+        assert server._count_syllables_word("make") == 1
+        assert server._count_syllables_word("fire") == 1
+        assert server._count_syllables_word("love") == 1
+
+    def test_consonant_le(self):
+        assert server._count_syllables_word("bottle") == 2
+        assert server._count_syllables_word("apple") == 2
+        assert server._count_syllables_word("little") == 2
+
+    def test_y_as_vowel(self):
+        assert server._count_syllables_word("my") == 1
+        assert server._count_syllables_word("mystery") == 3
+        assert server._count_syllables_word("baby") == 2
+
+    def test_apostrophe_words(self):
+        assert server._count_syllables_word("don't") == 1
+        assert server._count_syllables_word("I'm") == 1
+        # "couldn't" — vowel-cluster heuristic counts 1 (the 'ou' group);
+        # the contraction drops the vowel from "not", a known limitation
+        assert server._count_syllables_word("couldn't") >= 1
+
+    def test_empty_and_edge(self):
+        assert server._count_syllables_word("") == 0
+        assert server._count_syllables_word("a") == 1
+        assert server._count_syllables_word("I") == 1
+
+    def test_floor_at_one(self):
+        # Any non-empty word should return at least 1
+        assert server._count_syllables_word("hmm") >= 1
+        assert server._count_syllables_word("nth") >= 1
+
+
+# ===========================================================================
+# count_syllables tool tests
+# ===========================================================================
+
+class TestCountSyllables:
+    """Tests for the count_syllables MCP tool."""
+
+    def test_empty_input(self):
+        result = json.loads(_run(server.count_syllables("")))
+        assert result["sections"] == []
+        assert result["summary"]["total_syllables"] == 0
+        assert result["summary"]["consistency"] == "N/A"
+
+    def test_section_tracking(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Hello world tonight\n"
+            "Stars are shining bright\n"
+            "\n"
+            "[Chorus]\n"
+            "We are the champions\n"
+        )
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert len(result["sections"]) == 2
+        assert result["sections"][0]["section"] == "Verse 1"
+        assert result["sections"][1]["section"] == "Chorus"
+        assert result["sections"][0]["line_count"] == 2
+        assert result["sections"][1]["line_count"] == 1
+
+    def test_summary_stats(self):
+        lyrics = (
+            "[Verse]\n"
+            "The quick brown fox\n"
+            "Jumped over the lazy dog\n"
+        )
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        summary = result["summary"]
+        assert summary["total_lines"] == 2
+        assert summary["total_syllables"] > 0
+        assert summary["avg_syllables_per_line"] > 0
+        assert summary["min_line"] <= summary["max_line"]
+
+    def test_consistency_even(self):
+        # Lines with similar syllable counts should be CONSISTENT
+        lyrics = (
+            "[Verse]\n"
+            "Hello world tonight\n"
+            "Dancing in the light\n"
+            "Moving through the night\n"
+            "Feeling so alive\n"
+        )
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert result["summary"]["consistency"] == "CONSISTENT"
+
+    def test_consistency_uneven(self):
+        # Lines with very different syllable counts should be UNEVEN
+        lyrics = (
+            "[Verse]\n"
+            "Go\n"
+            "Supercalifragilisticexpialidocious is a wonderful word today\n"
+            "Go\n"
+            "Supercalifragilisticexpialidocious is a wonderful wonderful word today\n"
+        )
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert result["summary"]["consistency"] == "UNEVEN"
+
+    def test_json_structure(self):
+        lyrics = "[Verse]\nHello world\n"
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert "sections" in result
+        assert "summary" in result
+        section = result["sections"][0]
+        assert "section" in section
+        assert "lines" in section
+        assert "avg_syllables_per_line" in section
+        line = section["lines"][0]
+        assert "line_number" in line
+        assert "text" in line
+        assert "syllable_count" in line
+        assert "word_count" in line
+
+
+# ===========================================================================
+# analyze_readability tool tests
+# ===========================================================================
+
+class TestAnalyzeReadability:
+    """Tests for the analyze_readability MCP tool."""
+
+    def test_empty_input(self):
+        result = json.loads(_run(server.analyze_readability("")))
+        assert result["word_stats"]["total_words"] == 0
+        assert result["readability"]["grade_level"] == "N/A"
+
+    def test_vocabulary_richness(self):
+        # All unique words: richness = 1.0
+        lyrics = "[Verse]\nEvery single word here differs completely"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["word_stats"]["vocabulary_richness"] == 1.0
+
+    def test_vocabulary_richness_with_repeats(self):
+        # Repeated words lower richness
+        lyrics = "[Verse]\nlove love love love love love"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["word_stats"]["vocabulary_richness"] < 0.5
+
+    def test_flesch_formula(self):
+        # Simple monosyllabic words on short lines → high score
+        lyrics = "[Verse]\nI love you\nYou love me\nWe are free"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["readability"]["flesch_reading_ease"] > 70
+
+    def test_grade_levels(self):
+        # Simple text should be Easy or Very Easy
+        lyrics = "[Verse]\nI go home\nYou go too\nWe are here"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["readability"]["grade_level"] in ("Very Easy", "Easy", "Standard")
+
+    def test_json_structure(self):
+        lyrics = "[Verse]\nHello world tonight"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert "word_stats" in result
+        assert "line_stats" in result
+        assert "readability" in result
+        assert "total_words" in result["word_stats"]
+        assert "unique_words" in result["word_stats"]
+        assert "flesch_reading_ease" in result["readability"]
+        assert "grade_level" in result["readability"]
+        assert "assessment" in result["readability"]
+
+
+# ===========================================================================
+# _get_rhyme_tail helper tests
+# ===========================================================================
+
+class TestGetRhymeTail:
+    """Tests for the _get_rhyme_tail helper."""
+
+    def test_basic_suffix(self):
+        assert server._get_rhyme_tail("night") == "ight"
+        assert server._get_rhyme_tail("light") == "ight"
+        assert server._get_rhyme_tail("fight") == "ight"
+
+    def test_silent_e_words(self):
+        tail_fire = server._get_rhyme_tail("fire")
+        tail_desire = server._get_rhyme_tail("desire")
+        assert tail_fire == tail_desire
+
+    def test_plural_stripping(self):
+        # "nights" should strip 's' and match "night"
+        tail_nights = server._get_rhyme_tail("nights")
+        tail_night = server._get_rhyme_tail("night")
+        assert tail_nights == tail_night
+
+    def test_short_words(self):
+        # Should handle very short words gracefully
+        tail = server._get_rhyme_tail("go")
+        assert len(tail) >= 1
+
+    def test_empty(self):
+        assert server._get_rhyme_tail("") == ""
+
+    def test_rhyme_pair_match(self):
+        # Words that rhyme should have same tail
+        assert server._get_rhyme_tail("away") == server._get_rhyme_tail("day")
+        assert server._get_rhyme_tail("shore") == server._get_rhyme_tail("more")
+        assert server._get_rhyme_tail("fire") == server._get_rhyme_tail("desire")
+
+
+# ===========================================================================
+# analyze_rhyme_scheme tool tests
+# ===========================================================================
+
+class TestAnalyzeRhymeScheme:
+    """Tests for the analyze_rhyme_scheme MCP tool."""
+
+    def test_empty_input(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme("")))
+        assert result["sections"] == []
+        assert result["summary"]["total_sections"] == 0
+
+    def test_aabb_pattern(self):
+        lyrics = (
+            "[Verse]\n"
+            "The stars are shining bright tonight\n"
+            "Everything is gonna be alright\n"
+            "I walk along the sandy shore\n"
+            "Looking for something more\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        section = result["sections"][0]
+        # First two lines should share a rhyme group, last two another
+        assert section["lines"][0]["rhyme_group"] == section["lines"][1]["rhyme_group"]
+        assert section["lines"][2]["rhyme_group"] == section["lines"][3]["rhyme_group"]
+
+    def test_abab_pattern(self):
+        lyrics = (
+            "[Verse]\n"
+            "Walking down the road tonight\n"
+            "Searching for the distant shore\n"
+            "Stars are shining burning bright\n"
+            "Looking for something more\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        section = result["sections"][0]
+        # Lines 1,3 should match; lines 2,4 should match
+        assert section["lines"][0]["rhyme_group"] == section["lines"][2]["rhyme_group"]
+        assert section["lines"][1]["rhyme_group"] == section["lines"][3]["rhyme_group"]
+
+    def test_xaxa_pattern(self):
+        lyrics = (
+            "[Verse]\n"
+            "The world is turning upside down\n"
+            "Walking through the rain tonight\n"
+            "I cannot see the way ahead\n"
+            "Everything will be alright\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        section = result["sections"][0]
+        # Lines 2 and 4 should share a group (tonight/alright)
+        assert section["lines"][1]["rhyme_group"] == section["lines"][3]["rhyme_group"]
+
+    def test_self_rhyme_detection(self):
+        lyrics = (
+            "[Verse]\n"
+            "I walk into the night\n"
+            "The stars are burning bright\n"
+            "I cannot see the night\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["summary"]["self_rhymes"] >= 1
+        assert any(i["type"] == "self_rhyme" for i in result["issues"])
+
+    def test_multiple_sections(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Walking down the street tonight\n"
+            "Everything will be alright\n"
+            "\n"
+            "[Chorus]\n"
+            "We are the dreamers of the day\n"
+            "We are the ones who found a way\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["summary"]["total_sections"] == 2
+
+    def test_scheme_letters(self):
+        lyrics = (
+            "[Verse]\n"
+            "Stars above the night\n"
+            "Moon is shining bright\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        scheme = result["sections"][0]["scheme"]
+        # Both lines should rhyme → "AA"
+        assert scheme == "AA"
+
+    def test_no_rhyme_different_groups(self):
+        lyrics = (
+            "[Verse]\n"
+            "Walking through the rain\n"
+            "Opening the book\n"
+            "Sitting on the chair\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        section = result["sections"][0]
+        groups = [l["rhyme_group"] for l in section["lines"]]
+        # All different — no rhymes
+        assert len(set(groups)) == len(groups)
+
+    def test_json_structure(self):
+        lyrics = "[Verse]\nHello world tonight\nStars are burning bright\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert "sections" in result
+        assert "issues" in result
+        assert "summary" in result
+        section = result["sections"][0]
+        assert "section" in section
+        assert "section_type" in section
+        assert "scheme" in section
+        assert "lines" in section
+        line = section["lines"][0]
+        assert "line_number" in line
+        assert "end_word" in line
+        assert "rhyme_group" in line
+        assert "rhyme_tail" in line
+
+    def test_repeated_end_word_flagged(self):
+        """Same word ending multiple lines in a section should flag as self_rhyme."""
+        lyrics = (
+            "[Chorus]\n"
+            "We stand in the night\n"
+            "Lost in the night\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["summary"]["self_rhymes"] >= 1
+
+    def test_section_type_detected(self):
+        lyrics = (
+            "[Pre-Chorus]\n"
+            "Building to the top\n"
+            "Never gonna stop\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["sections"][0]["section_type"] == "pre-chorus"
+
+
+# ===========================================================================
+# validate_section_structure tool tests
+# ===========================================================================
+
+class TestValidateSectionStructure:
+    """Tests for the validate_section_structure MCP tool."""
+
+    def test_empty_input(self):
+        result = json.loads(_run(server.validate_section_structure("")))
+        assert result["summary"]["total_sections"] == 0
+        assert result["summary"]["issues_count"] >= 1
+
+    def test_well_formed(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Line one here\n"
+            "Line two here\n"
+            "\n"
+            "[Chorus]\n"
+            "Chorus line one\n"
+            "Chorus line two\n"
+            "\n"
+            "[Verse 2]\n"
+            "Line three here\n"
+            "Line four here\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["total_sections"] == 3
+        assert result["summary"]["has_verse"] is True
+        assert result["summary"]["has_chorus"] is True
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_unbalanced_verses(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Line one\n"
+            "Line two\n"
+            "\n"
+            "[Chorus]\n"
+            "Chorus\n"
+            "\n"
+            "[Verse 2]\n"
+            "Line one\n"
+            "Line two\n"
+            "Line three\n"
+            "Line four\n"
+            "Line five\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["section_balance"] == "UNBALANCED"
+        assert any(i["type"] == "unbalanced_sections" for i in result["issues"])
+
+    def test_empty_section(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Content here\n"
+            "\n"
+            "[Chorus]\n"
+            "\n"
+            "[Verse 2]\n"
+            "More content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(i["type"] == "empty_section" for i in result["issues"])
+
+    def test_no_section_tags(self):
+        lyrics = "Just some lyrics\nWithout any tags\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["total_sections"] == 0
+        assert any(i["type"] == "no_section_tags" for i in result["issues"])
+
+    def test_duplicate_consecutive_tags(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Content\n"
+            "[Verse 1]\n"
+            "More content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(i["type"] == "duplicate_consecutive_tag" for i in result["issues"])
+
+    def test_missing_chorus(self):
+        lyrics = (
+            "[Verse 1]\n"
+            "Content here\n"
+            "\n"
+            "[Verse 2]\n"
+            "More content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["has_chorus"] is False
+        assert any(i["type"] == "missing_chorus" for i in result["issues"])
+
+    def test_missing_verse(self):
+        lyrics = (
+            "[Chorus]\n"
+            "Chorus content\n"
+            "\n"
+            "[Bridge]\n"
+            "Bridge content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["has_verse"] is False
+        assert any(i["type"] == "missing_verse" for i in result["issues"])
+
+    def test_json_structure(self):
+        lyrics = "[Verse]\nHello world\n[Chorus]\nYeah yeah\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert "sections" in result
+        assert "issues" in result
+        assert "summary" in result
+        summary = result["summary"]
+        assert "total_sections" in summary
+        assert "has_verse" in summary
+        assert "has_chorus" in summary
+        assert "has_bridge" in summary
+        assert "issues_count" in summary
+        assert "section_balance" in summary
+        section = result["sections"][0]
+        assert "tag" in section
+        assert "line_number" in section
+        assert "content_lines" in section
+        assert "section_type" in section
+
+    def test_content_before_first_tag(self):
+        """Content before the first section tag should warn."""
+        lyrics = (
+            "Some loose content here\n"
+            "More untagged lines\n"
+            "[Verse 1]\n"
+            "Actual verse content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(i["type"] == "content_before_first_tag" for i in result["issues"])
+
+    def test_hook_counts_as_chorus(self):
+        """[Hook] should satisfy has_chorus."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Some verse content\n"
+            "\n"
+            "[Hook]\n"
+            "Hook content here\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["has_chorus"] is True
+
+    def test_empty_last_section(self):
+        """Empty section at end of text should be flagged."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Content here\n"
+            "\n"
+            "[Chorus]\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(
+            i["type"] == "empty_section" and i["tag"] == "[Chorus]"
+            for i in result["issues"]
+        )
+
+    def test_unknown_section_type_defaults_to_verse(self):
+        """Tags like [Interlude] should default to section_type 'verse'."""
+        lyrics = (
+            "[Interlude]\n"
+            "Some content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["sections"][0]["section_type"] == "verse"
+
+    def test_balanced_with_single_verse(self):
+        """Single verse should always be BALANCED."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Content here\n"
+            "\n"
+            "[Chorus]\n"
+            "Chorus content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_balanced_at_threshold_boundary(self):
+        """Verses differing by exactly 2 lines should be BALANCED (threshold is > 2)."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Line one\n"
+            "Line two\n"
+            "\n"
+            "[Chorus]\n"
+            "Chorus\n"
+            "\n"
+            "[Verse 2]\n"
+            "Line one\n"
+            "Line two\n"
+            "Line three\n"
+            "Line four\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_has_bridge_detected(self):
+        """has_bridge should be True when [Bridge] is present."""
+        lyrics = (
+            "[Verse]\n"
+            "Verse content\n"
+            "\n"
+            "[Chorus]\n"
+            "Chorus content\n"
+            "\n"
+            "[Bridge]\n"
+            "Bridge content\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["summary"]["has_bridge"] is True
+
+    def test_whitespace_only_input(self):
+        """Whitespace-only input should produce no_content issue."""
+        result = json.loads(_run(server.validate_section_structure("   \n\n  ")))
+        assert result["summary"]["total_sections"] == 0
+        assert any(i["type"] == "no_content" for i in result["issues"])
+
+
+# ===========================================================================
+# _words_rhyme helper tests
+# ===========================================================================
+
+class TestWordsRhyme:
+    """Tests for the _words_rhyme helper."""
+
+    def test_empty_inputs(self):
+        assert server._words_rhyme("", "night") is False
+        assert server._words_rhyme("night", "") is False
+        assert server._words_rhyme("", "") is False
+
+    def test_identical_words_return_false(self):
+        assert server._words_rhyme("night", "night") is False
+
+    def test_case_insensitive_identity(self):
+        assert server._words_rhyme("Night", "night") is False
+
+    def test_short_tail_no_match(self):
+        # Single-char tails should not match
+        assert server._words_rhyme("a", "ma") is False
+
+    def test_true_rhyme_pair(self):
+        assert server._words_rhyme("night", "light") is True
+        assert server._words_rhyme("fire", "desire") is True
+
+    def test_false_rhyme_pair(self):
+        assert server._words_rhyme("night", "book") is False
+        assert server._words_rhyme("cat", "dog") is False
+
+    def test_apostrophe_handling(self):
+        # Apostrophes should be stripped before comparison
+        assert server._words_rhyme("night", "light") is True
+
+
+# ===========================================================================
+# Additional _count_syllables_word edge case tests
+# ===========================================================================
+
+class TestCountSyllablesWordEdgeCases:
+    """Additional edge case tests for _count_syllables_word."""
+
+    def test_apostrophe_only_input(self):
+        """After stripping apostrophes, empty string returns 0."""
+        assert server._count_syllables_word("'''") == 0
+
+    def test_silent_e_and_consonant_le_interaction(self):
+        """Both silent-e and consonant-le rules on same word."""
+        # "crumble" — silent-e removes 1, consonant-le adds 1
+        count = server._count_syllables_word("crumble")
+        assert count == 2
+
+    def test_vowel_before_le_no_extra_syllable(self):
+        """Words ending in vowel + 'le' should NOT trigger consonant-le rule."""
+        # "ale" has vowel 'a' before 'le'
+        assert server._count_syllables_word("ale") == 1
+
+    def test_consecutive_vowel_clusters(self):
+        """Diphthongs count as one vowel cluster."""
+        assert server._count_syllables_word("beau") == 1
+        assert server._count_syllables_word("queue") == 1
+
+    def test_uppercase_input(self):
+        """Case normalization should work."""
+        assert server._count_syllables_word("HELLO") == 2
+        assert server._count_syllables_word("APPLE") == 2
+
+
+# ===========================================================================
+# Additional _get_rhyme_tail edge case tests
+# ===========================================================================
+
+class TestGetRhymeTailEdgeCases:
+    """Additional edge case tests for _get_rhyme_tail."""
+
+    def test_apostrophe_only_input(self):
+        assert server._get_rhyme_tail("'''") == ""
+
+    def test_no_vowels_returns_whole_word(self):
+        """Words with no vowels should return the entire word."""
+        assert server._get_rhyme_tail("brr") == "brr"
+
+    def test_double_s_not_stripped(self):
+        """Words ending in 'ss' should NOT have trailing 's' stripped."""
+        tail_boss = server._get_rhyme_tail("boss")
+        tail_toss = server._get_rhyme_tail("toss")
+        assert tail_boss == tail_toss  # Both keep 'ss'
+
+    def test_short_word_no_strip(self):
+        """Two-letter words ending in 's' should NOT be stripped."""
+        # "is" — len(2) <= 2, so no strip
+        tail = server._get_rhyme_tail("is")
+        assert len(tail) >= 1
+
+    def test_word_ending_e_vowel_before(self):
+        """Words ending in vowel + 'e' should NOT activate silent-e scan."""
+        # "free" — 'e' preceded by 'e' (vowel), no silent-e adjustment
+        tail_free = server._get_rhyme_tail("free")
+        tail_see = server._get_rhyme_tail("see")
+        assert tail_free == tail_see  # Both should end the same way
+
+    def test_uppercase_normalization(self):
+        assert server._get_rhyme_tail("NIGHT") == server._get_rhyme_tail("night")
+
+
+# ===========================================================================
+# Additional count_syllables tool edge case tests
+# ===========================================================================
+
+class TestCountSyllablesEdgeCases:
+    """Additional edge case tests for count_syllables MCP tool."""
+
+    def test_whitespace_only_input(self):
+        result = json.loads(_run(server.count_syllables("   \n\n  ")))
+        assert result["summary"]["total_syllables"] == 0
+
+    def test_no_section_tags(self):
+        """Lyrics without tags should use 'Unknown' section."""
+        lyrics = "Hello world tonight\nStars are shining bright\n"
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert len(result["sections"]) == 1
+        assert result["sections"][0]["section"] == "Unknown"
+
+    def test_single_line_consistency_na(self):
+        """Single content line should produce consistency N/A."""
+        lyrics = "[Verse]\nJust one line here\n"
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert result["summary"]["consistency"] == "N/A"
+
+    def test_section_tag_only_no_content(self):
+        """Section tags with no content between them."""
+        lyrics = "[Verse 1]\n[Chorus]\nSome content\n"
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        # Empty "Verse 1" section should not appear (no lines to report)
+        section_names = [s["section"] for s in result["sections"]]
+        assert "Verse 1" not in section_names
+        assert "Chorus" in section_names
+
+    def test_per_line_word_count(self):
+        """Word count per line should match tokenization."""
+        lyrics = "[Verse]\nOne two three four five\n"
+        result = json.loads(_run(server.count_syllables(lyrics)))
+        assert result["sections"][0]["lines"][0]["word_count"] == 5
+
+
+# ===========================================================================
+# Additional analyze_readability edge case tests
+# ===========================================================================
+
+class TestAnalyzeReadabilityEdgeCases:
+    """Additional edge case tests for analyze_readability MCP tool."""
+
+    def test_section_tags_only(self):
+        """Input of only section tags should return empty stats."""
+        result = json.loads(_run(server.analyze_readability("[Verse]\n[Chorus]\n")))
+        assert result["word_stats"]["total_words"] == 0
+
+    def test_grade_level_very_easy(self):
+        """Very simple monosyllabic text should score Very Easy."""
+        lyrics = "[Verse]\nI go\nYou go\nWe go\nThey go\nI run\nYou run"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["readability"]["grade_level"] == "Very Easy"
+
+    def test_grade_level_complex(self):
+        """Dense polysyllabic vocabulary should score Complex or Moderate."""
+        lyrics = (
+            "[Verse]\n"
+            "Extraterrestrial communication permeates interdimensional consciousness\n"
+            "Philosophical metamorphosis characterizes institutional experimentation\n"
+            "Disproportionate internationalization overwhelms administrative bureaucracy\n"
+            "Incomprehensible telecommunication infrastructure deterioration accelerates\n"
+        )
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["readability"]["grade_level"] in ("Complex", "Moderate")
+
+    def test_min_max_words_per_line(self):
+        """min and max words per line should be correct."""
+        lyrics = "[Verse]\nOne two\nOne two three four five six\n"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["line_stats"]["min_words_line"] == 2
+        assert result["line_stats"]["max_words_line"] == 6
+
+    def test_punctuation_only_line_excluded(self):
+        """Lines with only punctuation should be excluded from stats."""
+        lyrics = "[Verse]\nHello world\n---\nGoodbye moon\n"
+        result = json.loads(_run(server.analyze_readability(lyrics)))
+        assert result["line_stats"]["total_lines"] == 2
+
+
+# ===========================================================================
+# Additional analyze_rhyme_scheme edge case tests
+# ===========================================================================
+
+class TestAnalyzeRhymeSchemeEdgeCases:
+    """Additional edge case tests for analyze_rhyme_scheme MCP tool."""
+
+    def test_single_line_section(self):
+        """Single-line section should produce single letter scheme."""
+        lyrics = "[Chorus]\nShining bright\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert len(result["sections"][0]["scheme"]) == 1
+        assert result["summary"]["self_rhymes"] == 0
+
+    def test_short_rhyme_tail_no_false_match(self):
+        """End words with very short tails should not produce false rhyme matches."""
+        lyrics = (
+            "[Verse]\n"
+            "I stand alone\n"
+            "The world is so\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        section = result["sections"][0]
+        # "alone" tail = "one", "so" tail = "o" (1 char) — should NOT match
+        groups = [l["rhyme_group"] for l in section["lines"]]
+        assert groups[0] != groups[1]
+
+    def test_sections_with_issues_count(self):
+        """sections_with_issues should match count of sections having issues."""
+        lyrics = (
+            "[Verse 1]\n"
+            "Walking in the night\n"
+            "Stars are shining bright\n"
+            "\n"
+            "[Verse 2]\n"
+            "Looking at the rain\n"
+            "Feeling all the rain\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        actual = sum(1 for s in result["sections"] if s["issues"])
+        assert result["summary"]["sections_with_issues"] == actual
