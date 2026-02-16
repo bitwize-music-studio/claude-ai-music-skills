@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-02-16
+
+### Added
+- **9 artist deep-dives** — production-level sonic profiles for trance (t.A.T.u., Cascada, ATB, Alice Deejay, Ian Van Dahl), pop (Ace of Base, Aqua, La Bouche), and electronic (Eiffel 65) with members, discography, musical analysis, Suno prompt keywords, and reference tracks
+- **Trance artists INDEX.md** — quick-reference Suno keywords and reference tracks for all 5 trance artists
+- **Pop/Electronic INDEX updates** — added new artists to existing genre INDEX files
+
+### Fixed
+- **Suno auto-fill SPA routing** — userscript now detects Next.js client-side navigation via History API monkey-patching (pushState/replaceState + popstate); button injects on `/create`, removes on other pages, never duplicates
+
 ## [0.55.0] - 2026-02-15
 
 ### Added

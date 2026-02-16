@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Suno Auto-Fill (bitwize-music)
 // @namespace    https://github.com/bitwize-music-studio
-// @version      1.0.0
-// @description  Auto-fill Suno's create page with title, style, and lyrics from clipboard JSON
+// @version      1.1.0
+// @description  Auto-fill Suno's create page with title, style, and lyrics from clipboard JSON (SPA-aware)
 // @author       bitwize
-// @match        https://suno.com/create*
+// @match        https://suno.com/*
 // @grant        none
 // ==/UserScript==
 
@@ -234,10 +234,24 @@
   };
 
   // =========================================================================
-  // Floating "Paste Track" button
+  // Keyboard shortcut: Ctrl+Shift+V
   // =========================================================================
-  function createButton() {
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+      e.preventDefault();
+      autoFill();
+    }
+  });
+
+  // =========================================================================
+  // Button lifecycle — inject or remove based on current URL
+  // =========================================================================
+  const BUTTON_ID = 'suno-autofill-paste-btn';
+
+  function injectButton() {
+    if (document.getElementById(BUTTON_ID)) return; // never duplicate
     const btn = document.createElement('button');
+    btn.id = BUTTON_ID;
     btn.textContent = 'Paste Track';
     Object.assign(btn.style, {
       position: 'fixed',
@@ -266,22 +280,58 @@
     document.body.appendChild(btn);
   }
 
-  // =========================================================================
-  // Keyboard shortcut: Ctrl+Shift+V
-  // =========================================================================
-  document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'V') {
-      e.preventDefault();
-      autoFill();
+  function removeButton() {
+    const btn = document.getElementById(BUTTON_ID);
+    if (btn) btn.remove();
+  }
+
+  function isCreatePage() {
+    return /^\/create\b/.test(location.pathname);
+  }
+
+  function syncButton() {
+    if (isCreatePage()) {
+      injectButton();
+    } else {
+      removeButton();
     }
-  });
+  }
 
   // =========================================================================
-  // Initialize when page is ready
+  // SPA route change observer — Suno uses Next.js client-side routing
+  // Intercept pushState/replaceState and listen for popstate to detect
+  // all navigation without polling.
+  // =========================================================================
+  let lastHref = location.href;
+
+  function onRouteChange() {
+    if (location.href !== lastHref) {
+      lastHref = location.href;
+      syncButton();
+    }
+  }
+
+  // Monkey-patch History API to catch SPA navigations
+  const origPushState = history.pushState;
+  history.pushState = function () {
+    origPushState.apply(this, arguments);
+    onRouteChange();
+  };
+
+  const origReplaceState = history.replaceState;
+  history.replaceState = function () {
+    origReplaceState.apply(this, arguments);
+    onRouteChange();
+  };
+
+  window.addEventListener('popstate', onRouteChange);
+
+  // =========================================================================
+  // Initialize — inject button if already on /create, otherwise wait
   // =========================================================================
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', createButton);
+    document.addEventListener('DOMContentLoaded', syncButton);
   } else {
-    createButton();
+    syncButton();
   }
 })();
