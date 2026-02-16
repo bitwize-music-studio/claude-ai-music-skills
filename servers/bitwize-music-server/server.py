@@ -4678,7 +4678,7 @@ async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
                 if db_col:
                     cur = conn.cursor()
                     cur.execute(
-                        f"UPDATE albums SET {db_col} = %s, updated_at = now() "
+                        f"UPDATE albums SET {db_col} = %s, updated_at = now() "  # nosec B608 - db_col is from allowlist, not user input
                         f"WHERE slug = %s",
                         (url, normalized),
                     )
@@ -4743,7 +4743,7 @@ async def verify_streaming_urls(album_slug: str) -> str:
                         "User-Agent": "bitwize-music-mcp/1.0 (link checker)",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - URL validated above
                     status_code = resp.getcode()
                     final_url = resp.geturl()
                     result_entry["reachable"] = True
