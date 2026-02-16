@@ -9,6 +9,7 @@ members, discography, or musical analysis.
 | Artist | Style | Full Reference |
 |--------|-------|----------------|
 | Daft Punk | French house, filter house, disco, electro-pop | [Full Deep Dive](daft-punk.md) |
+| Eiffel 65 | Italian Eurodance, Italo dance, bubblegum techno | [Full Deep Dive](eiffel-65.md) |
 
 ## Suno Prompt Keywords
 
@@ -36,6 +37,23 @@ warm lo-fi, crunchy samples, 12-bit sampler grit,
 minimal arrangement, filtered loop, repetition-as-structure
 ```
 
+### Eiffel 65
+```
+Italian Eurodance, Italo dance, bubblegum techno, late-90s Eurodance,
+robotic pitch-shifted vocals, metallic vocal processing, harmonizer vocals,
+MIDI-controlled vocal pitch, digitally processed voice, pitch-locked singing,
+nasal sawtooth synth lead, buzzy synth with noise layer, resonant lowpass lead,
+TR-909 drums, crashy electronic hi-hats, grid-locked quantized drums,
+punchy low-mid bass, tight controlled bass, compressed Eurodance mix,
+bright compressed Eurodance, mid-forward electronic pop, wall-of-sound dance,
+nasal synth melody, laser arpeggio intro, minor-key dance pop,
+nonsense vocal hook, catchy robotic chorus, processed vocal anthem,
+128-132 BPM Eurodance, driving four-on-the-floor, relentless dance beat,
+upbeat robotic dance, euphoric Eurodance, melancholic minor-key dance,
+grid-perfect MIDI programming, fully quantized drums, mechanical rhythm,
+metallic vocal harmonizer, pitch-corrected robotic voice, formant-preserved processing
+```
+
 ## Reference Tracks
 
 ### Daft Punk
@@ -47,3 +65,9 @@ minimal arrangement, filtered loop, repetition-as-structure
 - "Something About Us" (Discovery, 2001) — Intimate vocoder love ballad
 - "Get Lucky" (Random Access Memories, 2013) — Live disco with Nile Rodgers guitar and Pharrell vocals; five Grammys
 - "Instant Crush" (Random Access Memories, 2013) — Julian Casablancas vocals through vocoder over disco-rock
+
+### Eiffel 65
+- "Blue (Da Ba Dee)" (Europop, 2000) — Maximum robotic vocal via DigiTech MIDI Vocalist; nasal sawtooth lead; iconic laser arpeggio intro
+- "Move Your Body" (Europop, 2000) — Disco-influenced Eurodance groove; same vocal processing, different energy
+- "Too Much of Heaven" (Europop, 2000) — First Auto-Tuned rapping per Pitchfork; slow tempo exposes MIDI Vocalist texture
+- "Your Clown" (Europop, 2000) — The only actual vocoder track; contrast with MIDI Vocalist on other tracks
