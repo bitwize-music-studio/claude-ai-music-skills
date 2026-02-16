@@ -165,7 +165,9 @@ If your PR introduces filesystem changes (new directories, moved files), depende
 
 ### 8. Merge and Release
 
-Once approved:
+**Recommended**: Use `/bitwize-music:ship "<conventional commit message>"` to automate the entire release pipeline — it handles branching, committing, PR creation, CI polling, merging, version bumping, and the release commit in one step.
+
+**Manual process** (if not using ship):
 1. Squash and merge (or merge commit)
 2. Version automatically updates for users on next plugin use
 

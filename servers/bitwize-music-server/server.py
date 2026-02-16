@@ -45,6 +45,10 @@ Tools exposed:
     validate_album_structure - Structural validation of album directories
     create_album_structure - Create album directory with templates
     run_pre_generation_gates - Run all 6 pre-generation validation gates
+    check_streaming_lyrics - Check streaming lyrics readiness for release
+    get_streaming_urls    - Get streaming platform URLs for an album
+    update_streaming_url  - Set a streaming platform URL
+    verify_streaming_urls - Check if streaming URLs are live/reachable
     list_skills         - List all skills with optional filtering
     get_skill           - Get full detail for one skill (fuzzy match)
     update_album_status - Update album status in README.md
@@ -4179,6 +4183,613 @@ async def run_pre_generation_gates(
     })
 
 
+# =============================================================================
+# Release Readiness Checks
+# =============================================================================
+
+# Template placeholder markers — if streaming lyrics contain these, the section
+# hasn't been filled in yet.
+_STREAMING_PLACEHOLDER_MARKERS = [
+    "Plain lyrics here",
+    "Capitalize first letter of each line",
+    "No end punctuation",
+    "Write out all repeats fully",
+    "Blank lines between sections only",
+]
+
+# End-of-line punctuation that shouldn't appear in streaming lyrics.
+# Ellipsis (...) is allowed, so we match single trailing punctuation only.
+_END_PUNCT_RE = re.compile(r'[.,:;!?]$')
+
+
+@mcp.tool()
+async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
+    """Check streaming lyrics readiness for an album's tracks.
+
+    Validates that each track has properly formatted streaming lyrics
+    (plain text for Spotify/Apple Music). Runs 7 checks per track:
+        1. Section Exists — "Streaming Lyrics" heading found
+        2. Not Empty — Code block has content beyond whitespace
+        3. Not Placeholder — Content doesn't match template placeholder
+        4. No Section Tags — No [Verse], [Chorus] etc. lines
+        5. Lines Capitalized — Non-blank lines start uppercase
+        6. No End Punctuation — Lines don't end with .,:;!? (ellipsis allowed)
+        7. Word Count — >= 20 words; if Suno Lyrics exist, >= 80% of Suno count
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Specific track slug/number (empty = all tracks)
+
+    Returns:
+        JSON with per-track check results and verdicts
+    """
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(album_slug)
+    album = albums.get(normalized_album)
+
+    if not album:
+        return _safe_json({
+            "found": False,
+            "error": f"Album '{album_slug}' not found",
+            "available_albums": list(albums.keys()),
+        })
+
+    all_tracks = album.get("tracks", {})
+
+    # Determine which tracks to check
+    if track_slug:
+        normalized_track = _normalize_slug(track_slug)
+        track_data = all_tracks.get(normalized_track)
+        matched_slug = normalized_track
+
+        if not track_data:
+            prefix_matches = {s: d for s, d in all_tracks.items()
+                             if s.startswith(normalized_track)}
+            if len(prefix_matches) == 1:
+                matched_slug = next(iter(prefix_matches))
+                track_data = prefix_matches[matched_slug]
+            elif len(prefix_matches) > 1:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Multiple tracks match '{track_slug}': "
+                             f"{', '.join(prefix_matches.keys())}",
+                })
+            else:
+                return _safe_json({
+                    "found": False,
+                    "error": f"Track '{track_slug}' not found in album '{album_slug}'",
+                })
+        tracks_to_check = {matched_slug: track_data}
+    else:
+        tracks_to_check = all_tracks
+
+    track_results = []
+    total_blocking = 0
+    total_warnings = 0
+
+    for t_slug, t_data in sorted(tracks_to_check.items()):
+        checks = []
+        blocking = 0
+        warning_count = 0
+        streaming_word_count = 0
+        suno_word_count = 0
+
+        # Read track file
+        file_text = None
+        track_path = t_data.get("path", "")
+        if track_path:
+            try:
+                file_text = Path(track_path).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning("Cannot read track file for streaming check %s: %s",
+                               track_path, e)
+
+        # Extract streaming lyrics section
+        streaming_content = None
+        if file_text:
+            streaming_section = _extract_markdown_section(file_text, "Streaming Lyrics")
+            if streaming_section:
+                streaming_content = _extract_code_block(streaming_section)
+
+        # Check 1: Section Exists
+        if not file_text:
+            checks.append({"check": "Section Exists", "status": "FAIL", "severity": "BLOCKING",
+                           "detail": "Track file not readable"})
+            blocking += 1
+        elif _extract_markdown_section(file_text, "Streaming Lyrics") is None:
+            checks.append({"check": "Section Exists", "status": "FAIL", "severity": "BLOCKING",
+                           "detail": "No '## Streaming Lyrics' heading found"})
+            blocking += 1
+        else:
+            checks.append({"check": "Section Exists", "status": "PASS",
+                           "detail": "Section heading found"})
+
+        # Check 2: Not Empty
+        if streaming_content and streaming_content.strip():
+            checks.append({"check": "Not Empty", "status": "PASS",
+                           "detail": "Content present"})
+        else:
+            checks.append({"check": "Not Empty", "status": "FAIL", "severity": "BLOCKING",
+                           "detail": "Streaming lyrics code block is empty or missing"})
+            blocking += 1
+
+        # Check 3: Not Placeholder
+        if streaming_content and streaming_content.strip():
+            is_placeholder = any(
+                marker.lower() in streaming_content.lower()
+                for marker in _STREAMING_PLACEHOLDER_MARKERS
+            )
+            if is_placeholder:
+                checks.append({"check": "Not Placeholder", "status": "FAIL", "severity": "BLOCKING",
+                               "detail": "Content matches template placeholder text"})
+                blocking += 1
+            else:
+                checks.append({"check": "Not Placeholder", "status": "PASS",
+                               "detail": "Content is not placeholder"})
+        else:
+            checks.append({"check": "Not Placeholder", "status": "SKIP",
+                           "detail": "No content to check"})
+
+        # Checks 4-7 only run if we have actual content
+        if streaming_content and streaming_content.strip():
+            lines = streaming_content.split("\n")
+            non_blank_lines = [(i + 1, line) for i, line in enumerate(lines) if line.strip()]
+
+            # Check 4: No Section Tags
+            tagged_lines = [(ln, line.strip()) for ln, line in non_blank_lines
+                            if _SECTION_TAG_RE.match(line.strip())]
+            if tagged_lines:
+                examples = ", ".join(f"{tag} (line {ln})" for ln, tag in tagged_lines[:5])
+                if len(tagged_lines) > 5:
+                    examples += f", ... ({len(tagged_lines)} total)"
+                checks.append({"check": "No Section Tags", "status": "WARN", "severity": "WARNING",
+                               "detail": f"Found {len(tagged_lines)} tag(s): {examples}"})
+                warning_count += 1
+            else:
+                checks.append({"check": "No Section Tags", "status": "PASS",
+                               "detail": "No section tags found"})
+
+            # Check 5: Lines Capitalized
+            uncapped = [(ln, line.strip()) for ln, line in non_blank_lines
+                        if line.strip() and not line.strip()[0].isupper()
+                        and not _SECTION_TAG_RE.match(line.strip())]
+            if uncapped:
+                examples = ", ".join(
+                    f"line {ln}: \"{text[:40]}\"" for ln, text in uncapped[:5]
+                )
+                if len(uncapped) > 5:
+                    examples += f", ... ({len(uncapped)} total)"
+                checks.append({"check": "Lines Capitalized", "status": "WARN", "severity": "WARNING",
+                               "detail": f"{len(uncapped)} line(s) not capitalized: {examples}"})
+                warning_count += 1
+            else:
+                checks.append({"check": "Lines Capitalized", "status": "PASS",
+                               "detail": "All lines start uppercase"})
+
+            # Check 6: No End Punctuation (ellipsis ... is allowed)
+            punctuated = []
+            for ln, line in non_blank_lines:
+                stripped = line.strip()
+                if _SECTION_TAG_RE.match(stripped):
+                    continue
+                # Allow ellipsis (... or more dots)
+                if stripped.endswith("..."):
+                    continue
+                if _END_PUNCT_RE.search(stripped):
+                    punctuated.append((ln, stripped))
+            if punctuated:
+                examples = ", ".join(
+                    f"line {ln}: \"{text[-30:]}\"" for ln, text in punctuated[:5]
+                )
+                if len(punctuated) > 5:
+                    examples += f", ... ({len(punctuated)} total)"
+                checks.append({"check": "No End Punctuation", "status": "WARN", "severity": "WARNING",
+                               "detail": f"{len(punctuated)} line(s) end with punctuation: {examples}"})
+                warning_count += 1
+            else:
+                checks.append({"check": "No End Punctuation", "status": "PASS",
+                               "detail": "No trailing punctuation found"})
+
+            # Check 7: Word Count
+            # Count words excluding section tags
+            words = []
+            for line in lines:
+                stripped = line.strip()
+                if not stripped or _SECTION_TAG_RE.match(stripped):
+                    continue
+                words.extend(stripped.split())
+            streaming_word_count = len(words)
+
+            # Get Suno lyrics word count for comparison
+            if file_text:
+                suno_section = _extract_markdown_section(file_text, "Lyrics Box")
+                if suno_section:
+                    suno_content = _extract_code_block(suno_section)
+                    if suno_content:
+                        suno_words = []
+                        for sline in suno_content.split("\n"):
+                            s = sline.strip()
+                            if not s or _SECTION_TAG_RE.match(s):
+                                continue
+                            suno_words.extend(s.split())
+                        suno_word_count = len(suno_words)
+
+            if streaming_word_count < 20:
+                checks.append({"check": "Word Count", "status": "WARN", "severity": "WARNING",
+                               "detail": f"Only {streaming_word_count} words (minimum 20 expected)"})
+                warning_count += 1
+            elif suno_word_count > 0 and streaming_word_count < suno_word_count * 0.8:
+                pct = round(streaming_word_count / suno_word_count * 100)
+                checks.append({"check": "Word Count", "status": "WARN", "severity": "WARNING",
+                               "detail": f"{streaming_word_count} words = {pct}% of Suno lyrics "
+                                         f"({suno_word_count} words). Expected >= 80%"})
+                warning_count += 1
+            else:
+                detail = f"{streaming_word_count} words"
+                if suno_word_count > 0:
+                    pct = round(streaming_word_count / suno_word_count * 100)
+                    detail += f" ({pct}% of Suno lyrics)"
+                checks.append({"check": "Word Count", "status": "PASS", "detail": detail})
+        else:
+            # No content — skip content-dependent checks
+            for check_name in ("No Section Tags", "Lines Capitalized",
+                               "No End Punctuation", "Word Count"):
+                checks.append({"check": check_name, "status": "SKIP",
+                               "detail": "No content to check"})
+
+        verdict = "READY" if blocking == 0 else "NOT READY"
+        total_blocking += blocking
+        total_warnings += warning_count
+
+        result = {
+            "track_slug": t_slug,
+            "title": t_data.get("title", t_slug),
+            "verdict": verdict,
+            "blocking": blocking,
+            "warnings": warning_count,
+            "word_count": streaming_word_count,
+            "checks": checks,
+        }
+        if suno_word_count > 0:
+            result["suno_word_count"] = suno_word_count
+        track_results.append(result)
+
+    if len(tracks_to_check) == 1:
+        album_verdict = track_results[0]["verdict"]
+    elif total_blocking == 0:
+        album_verdict = "ALL READY"
+    elif any(t["blocking"] == 0 for t in track_results):
+        album_verdict = "PARTIAL"
+    else:
+        album_verdict = "NOT READY"
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "album_verdict": album_verdict,
+        "total_tracks": len(track_results),
+        "total_blocking": total_blocking,
+        "total_warnings": total_warnings,
+        "tracks": track_results,
+    })
+
+
+# =============================================================================
+# Streaming URL Management
+# =============================================================================
+
+# Canonical platform names and accepted aliases
+_STREAMING_PLATFORMS = {
+    "soundcloud": "soundcloud",
+    "spotify": "spotify",
+    "apple_music": "apple_music",
+    "apple-music": "apple_music",
+    "applemusic": "apple_music",
+    "youtube_music": "youtube_music",
+    "youtube-music": "youtube_music",
+    "youtubemusic": "youtube_music",
+    "amazon_music": "amazon_music",
+    "amazon-music": "amazon_music",
+    "amazonmusic": "amazon_music",
+}
+
+# All 5 canonical platform keys (in display order)
+_STREAMING_PLATFORM_KEYS = [
+    "soundcloud", "spotify", "apple_music", "youtube_music", "amazon_music",
+]
+
+# Map from canonical platform key to DB column name
+_PLATFORM_DB_COLUMNS = {
+    "soundcloud": "soundcloud_url",
+    "spotify": "spotify_url",
+    "apple_music": "apple_music_url",
+    "youtube_music": "youtube_url",
+    "amazon_music": "amazon_music_url",
+}
+
+
+@mcp.tool()
+async def get_streaming_urls(album_slug: str) -> str:
+    """Get streaming platform URLs for an album.
+
+    Returns all 5 platform slots with their current value (empty string
+    if not set), plus a count of filled/missing platforms.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with URLs per platform, filled_count, and missing list
+    """
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    # Get streaming URLs from state cache
+    streaming = album.get("streaming_urls", {})
+
+    # Build full response with all 5 slots
+    urls = {}
+    missing = []
+    for key in _STREAMING_PLATFORM_KEYS:
+        val = streaming.get(key, "")
+        urls[key] = val
+        if not val:
+            missing.append(key)
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "urls": urls,
+        "filled_count": len(_STREAMING_PLATFORM_KEYS) - len(missing),
+        "total_platforms": len(_STREAMING_PLATFORM_KEYS),
+        "missing": missing,
+    })
+
+
+@mcp.tool()
+async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
+    """Set a streaming platform URL for an album.
+
+    Updates the YAML frontmatter in the album's README.md and refreshes
+    the state cache. If a database is configured, also syncs the URL
+    there (best-effort).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        platform: Platform name. Accepts:
+            "soundcloud", "spotify", "apple_music" (or "apple-music"),
+            "youtube_music" (or "youtube-music"), "amazon_music" (or "amazon-music")
+        url: The streaming URL (must start with http:// or https://).
+            Pass empty string to clear.
+
+    Returns:
+        JSON with update result or error
+    """
+    import yaml
+
+    # Validate platform
+    canonical_platform = _STREAMING_PLATFORMS.get(platform.lower().replace(" ", "_"))
+    if not canonical_platform:
+        return _safe_json({
+            "error": f"Unknown platform '{platform}'. Valid: "
+                     f"{', '.join(_STREAMING_PLATFORM_KEYS)}",
+        })
+
+    # Validate URL (allow empty to clear)
+    if url and not url.startswith(("http://", "https://")):
+        return _safe_json({
+            "error": f"Invalid URL: must start with http:// or https:// (got '{url[:50]}')",
+        })
+
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    album_path = album.get("path", "")
+    if not album_path:
+        return _safe_json({"error": f"No path stored for album '{normalized}'"})
+
+    readme_path = Path(album_path) / "README.md"
+    if not readme_path.exists():
+        return _safe_json({"error": f"README.md not found at {readme_path}"})
+
+    # Read file
+    try:
+        text = readme_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read README.md: {e}"})
+
+    # Parse and update frontmatter
+    if not text.startswith("---"):
+        return _safe_json({"error": "README.md has no YAML frontmatter"})
+
+    lines = text.split("\n")
+    end_index = -1
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            end_index = i
+            break
+
+    if end_index == -1:
+        return _safe_json({"error": "Cannot find closing --- in frontmatter"})
+
+    frontmatter_text = "\n".join(lines[1:end_index])
+    try:
+        fm = yaml.safe_load(frontmatter_text) or {}
+    except yaml.YAMLError as e:
+        return _safe_json({"error": f"Cannot parse frontmatter YAML: {e}"})
+
+    # Update streaming URL using targeted regex replacement to preserve
+    # YAML comments and formatting (yaml.dump would strip comments).
+    fm_lines = lines[1:end_index]
+    updated = False
+    for idx, fm_line in enumerate(fm_lines):
+        # Match lines like "  soundcloud: ..." or "  apple_music: ..."
+        stripped = fm_line.lstrip()
+        if stripped.startswith(f"{canonical_platform}:"):
+            # Replace the value, preserving indent
+            indent = fm_line[:len(fm_line) - len(stripped)]
+            if url:
+                fm_lines[idx] = f'{indent}{canonical_platform}: "{url}"'
+            else:
+                fm_lines[idx] = f"{indent}{canonical_platform}: \"\""
+            updated = True
+            break
+
+    if not updated:
+        # Platform key not found in frontmatter — need to add/create streaming block
+        if "streaming" not in fm or not isinstance(fm.get("streaming"), dict):
+            fm["streaming"] = {}
+        fm["streaming"][canonical_platform] = url
+        new_fm_text = yaml.dump(
+            fm, default_flow_style=False, allow_unicode=True, sort_keys=False,
+        ).rstrip("\n")
+        fm_lines = new_fm_text.split("\n")
+
+    # Reconstruct file: --- + frontmatter lines + --- + rest of file
+    rest_of_file = "\n".join(lines[end_index + 1:])
+    new_text = "---\n" + "\n".join(fm_lines) + "\n---\n" + rest_of_file
+
+    # Write back
+    try:
+        readme_path.write_text(new_text, encoding="utf-8")
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write README.md: {e}"})
+
+    # Re-parse and update state cache
+    album_data = parse_album_readme(readme_path)
+    state = cache.get_state()
+    if state and "albums" in state and normalized in state["albums"]:
+        state["albums"][normalized]["streaming_urls"] = album_data.get(
+            "streaming_urls", {}
+        )
+        write_state(state)
+
+    # Best-effort DB sync
+    db_synced = False
+    try:
+        dep_err = _check_db_deps()
+        if not dep_err:
+            conn, conn_err = _get_db_connection()
+            if conn and not conn_err:
+                db_col = _PLATFORM_DB_COLUMNS.get(canonical_platform)
+                if db_col:
+                    cur = conn.cursor()
+                    cur.execute(
+                        f"UPDATE albums SET {db_col} = %s, updated_at = now() "  # nosec B608 - db_col is from allowlist, not user input
+                        f"WHERE slug = %s",
+                        (url, normalized),
+                    )
+                    conn.commit()
+                    db_synced = cur.rowcount > 0
+                conn.close()
+    except Exception as e:
+        logger.warning("DB sync failed for streaming URL: %s", e)
+
+    return _safe_json({
+        "success": True,
+        "album_slug": normalized,
+        "platform": canonical_platform,
+        "url": url,
+        "db_synced": db_synced,
+    })
+
+
+@mcp.tool()
+async def verify_streaming_urls(album_slug: str) -> str:
+    """Check if streaming URLs are live and reachable.
+
+    For each non-empty streaming URL, performs an HTTP HEAD request to
+    verify the link is reachable. Reports status per platform.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with per-platform reachability results
+    """
+    import urllib.request
+    import urllib.error
+
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+
+    streaming = album.get("streaming_urls", {})
+
+    results = {}
+    reachable_count = 0
+    unreachable_count = 0
+    not_set_count = 0
+
+    for key in _STREAMING_PLATFORM_KEYS:
+        url = streaming.get(key, "")
+        if not url:
+            results[key] = {"url": "", "reachable": None, "status": "not_set"}
+            not_set_count += 1
+            continue
+
+        # Try HEAD first, fall back to GET if HEAD is rejected (405/403).
+        # Many streaming platforms block HEAD requests.
+        reachable = False
+        result_entry = {"url": url}
+        for method in ("HEAD", "GET"):
+            try:
+                req = urllib.request.Request(
+                    url, method=method,
+                    headers={
+                        "User-Agent": "bitwize-music-mcp/1.0 (link checker)",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - URL validated above
+                    status_code = resp.getcode()
+                    final_url = resp.geturl()
+                    result_entry["reachable"] = True
+                    result_entry["status_code"] = status_code
+                    if final_url != url:
+                        result_entry["redirect_url"] = final_url
+                    reachable = True
+                    break  # Success, no need to try GET
+            except urllib.error.HTTPError as e:
+                if method == "HEAD" and e.code in (405, 403):
+                    continue  # HEAD rejected, try GET
+                result_entry["reachable"] = False
+                result_entry["status_code"] = e.code
+                result_entry["error"] = str(e.reason)
+                break
+            except (urllib.error.URLError, OSError, ValueError) as e:
+                if method == "HEAD":
+                    continue  # Network issue on HEAD, try GET
+                result_entry["reachable"] = False
+                result_entry["error"] = str(e)
+                break
+
+        if "reachable" not in result_entry:
+            # Both HEAD and GET failed
+            result_entry["reachable"] = False
+            result_entry["error"] = "Both HEAD and GET requests failed"
+
+        results[key] = result_entry
+        if reachable:
+            reachable_count += 1
+        else:
+            unreachable_count += 1
+
+    all_reachable = reachable_count > 0 and unreachable_count == 0 and not_set_count == 0
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "results": results,
+        "all_reachable": all_reachable,
+        "reachable_count": reachable_count,
+        "unreachable_count": unreachable_count,
+        "not_set_count": not_set_count,
+    })
+
+
 @mcp.tool()
 async def list_skills(model_filter: str = "", category: str = "") -> str:
     """List all skills with optional filtering.
@@ -7375,10 +7986,21 @@ async def db_sync_album(album_slug: str) -> str:
         release_date = album_data.get("release_date")
         status = album_data.get("status", "Unknown")
 
+        # Extract streaming URLs from state cache
+        streaming = album_data.get("streaming_urls", {})
+        soundcloud_url = streaming.get("soundcloud", "")
+        spotify_url = streaming.get("spotify", "")
+        apple_music_url = streaming.get("apple_music", "")
+        youtube_url = streaming.get("youtube_music", "")
+        amazon_music_url = streaming.get("amazon_music", "")
+
         cur.execute(
             """INSERT INTO albums (slug, title, genre, track_count, explicit,
-                                   release_date, status, concept, updated_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, now())
+                                   release_date, status, concept,
+                                   soundcloud_url, spotify_url, apple_music_url,
+                                   youtube_url, amazon_music_url, updated_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, %s, %s, %s, %s, now())
                ON CONFLICT (slug) DO UPDATE SET
                    title = EXCLUDED.title,
                    genre = EXCLUDED.genre,
@@ -7386,9 +8008,16 @@ async def db_sync_album(album_slug: str) -> str:
                    explicit = EXCLUDED.explicit,
                    release_date = EXCLUDED.release_date,
                    status = EXCLUDED.status,
+                   soundcloud_url = EXCLUDED.soundcloud_url,
+                   spotify_url = EXCLUDED.spotify_url,
+                   apple_music_url = EXCLUDED.apple_music_url,
+                   youtube_url = EXCLUDED.youtube_url,
+                   amazon_music_url = EXCLUDED.amazon_music_url,
                    updated_at = now()
                RETURNING id""",
-            (slug, title, genre, track_count, explicit, release_date, status, ""),
+            (slug, title, genre, track_count, explicit, release_date, status, "",
+             soundcloud_url, spotify_url, apple_music_url, youtube_url,
+             amazon_music_url),
         )
         album_row = cur.fetchone()
         album_id = album_row["id"]

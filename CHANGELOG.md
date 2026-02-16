@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **`ship` skill** — automates full code release pipeline (branch → commit → PR → CI → merge → version bump → release → cleanup)
+
 ## [0.57.0] - 2026-02-16
 
 ### Added

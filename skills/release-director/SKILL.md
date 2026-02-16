@@ -162,7 +162,7 @@ Check for custom release preferences:
 ### Step 3: Distribution Prep
 
 **Deliverables Created**:
-1. **Streaming Lyrics** - Verify each track has Streaming Lyrics section filled
+1. **Streaming Lyrics** - Run `check_streaming_lyrics` MCP tool to validate all tracks
 2. **Metadata file** - All platform metadata compiled
 3. **Album art** - Verified 3000x3000px, correct format
 4. **Track order confirmation** - Final sequencing verified
@@ -186,7 +186,8 @@ Check for custom release preferences:
 
 - [ ] **Documentation updated**
   - [ ] Release date added
-  - [ ] Platform links added
+  - [ ] Platform links added — use `update_streaming_url` MCP tool for each platform
+  - [ ] Run `verify_streaming_urls` MCP tool to confirm all platform links are live
   - [ ] `promo/` copy updated with final streaming links
 
 ---
@@ -204,14 +205,14 @@ Check for custom release preferences:
 - [ ] Explicit content flagged correctly
 - [ ] Album art 3000x3000px, correct format
 - [ ] README completion checklist done
-- [ ] Streaming Lyrics filled in each track (if using distributor)
+- [ ] Streaming Lyrics validated via `check_streaming_lyrics` MCP tool (if using distributor)
 
 ### Before Campaign Trigger
 
 - [ ] All platforms verified live and accessible
 - [ ] Status updated to "Released" in album README
 - [ ] `release_date` set in album README frontmatter
-- [ ] Platform URLs documented
+- [ ] Platform URLs documented (use `update_streaming_url` and verify with `verify_streaming_urls`)
 
 ---
 
@@ -244,10 +245,10 @@ Check for custom release preferences:
 1. **Load override first** - Call `load_override("release-preferences.md")` at invocation
 2. **Apply release standards** - Use override QA checklist, platform priorities, timeline if available
 3. **QA is non-negotiable** - Don't skip pre-release checks (even with overrides)
-4. **Streaming Lyrics required** - Fill in each track before distributor upload
+4. **Streaming Lyrics required** - Run `check_streaming_lyrics` MCP tool before distributor upload
 5. **Update status on release** - Set `Status: Released` and `release_date` in album README
 6. **Verify all platforms** - Don't assume upload worked
-7. **Document everything** - Update READMEs with release info and platform URLs
+7. **Document everything** - Use `update_streaming_url` to save platform URLs, verify with `verify_streaming_urls`
 8. **Timeline matters** - Plan based on release type (or override preferences)
 9. **One missed step breaks workflow** - Follow sequence systematically
 

@@ -93,6 +93,7 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...run plugin tests | `/test` |
+| ...ship code changes (branch → PR → CI → merge → release) | `/ship "<commit message>"` |
 | ...update skill model references | `/skill-model-updater` |
 
 ---
@@ -142,6 +143,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`resume`](/skills/resume/SKILL.md) | Find album and resume work where you left off | Continuing work on an existing album |
 | [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
+| [`ship`](/skills/ship/SKILL.md) | Automates full release pipeline (branch → PR → CI → merge → version bump → release) | Shipping code changes end-to-end |
 | [`skill-model-updater`](/skills/skill-model-updater/SKILL.md) | Update model references when new Claude models release | Keeping skills on current Claude models |
 | [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno V5 prompting, genre selection | Crafting optimal Suno style prompts |
 | [`test`](/skills/test/SKILL.md) | Run automated tests to validate plugin integrity | Verifying plugin works correctly |
@@ -283,7 +285,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 27 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 28 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -304,6 +306,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/resume` - Status reporting
 - `/session-start` - Session startup procedure
 - `/sheet-music-publisher` - Transcription workflow
+- `/ship` - Release pipeline automation
 - `/tutorial` - Interactive guided creation
 - `/verify-sources` - Human verification gate
 
