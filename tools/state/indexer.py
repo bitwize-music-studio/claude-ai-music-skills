@@ -164,6 +164,14 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
     overrides_raw = paths.get('overrides', '')
     overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
 
+    # Database config (expose enabled flag, mask credentials)
+    db_config = config.get('database', {})
+    database_section = {
+        'enabled': bool(db_config.get('enabled', False)),
+        'host': db_config.get('host', '') if db_config.get('enabled') else '',
+        'name': db_config.get('name', '') if db_config.get('enabled') else '',
+    }
+
     return {
         'content_root': content_root,
         'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
@@ -171,6 +179,7 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
         'overrides_dir': overrides_dir,
         'artist_name': artist.get('name', ''),
         'config_mtime': get_config_mtime(),
+        'database': database_section,
     }
 
 

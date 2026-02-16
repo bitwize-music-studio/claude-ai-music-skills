@@ -1,0 +1,635 @@
+{
+  "name": "Auto Post to Twitter/X",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "30 11 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "30 17 * * *"
+            },
+            {
+              "field": "cronExpression",
+              "expression": "30 20 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  tw.id,\n  tw.tweet_text,\n  tw.media_path,\n  tw.posted,\n  tw.enabled,\n  tw.times_posted,\n  tw.platform,\n  tw.content_type,\n  t.track_number,\n  t.title AS track_title,\n  a.title AS album_title,\n  a.slug AS album_slug,\n  a.genre,\n  a.soundcloud_url,\n  a.spotify_url,\n  a.apple_music_url,\n  a.amazon_music_url,\n  a.bandcamp_url,\n  a.youtube_url\nFROM tweets tw\nJOIN tracks t ON tw.track_id = t.id\nJOIN albums a ON t.album_id = a.id\nWHERE tw.enabled = TRUE\nORDER BY tw.times_posted ASC, random()",
+        "options": {}
+      },
+      "id": "read-tweets",
+      "name": "Read Enabled Tweets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<your-credential-id>",
+          "name": "PostgreSQL Bitwizemusic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n\nif (items.length === 0) {\n  throw new Error('No enabled tweets found. Set at least one row to enabled=TRUE in the tweets table.');\n}\n\nlet minPosted = Infinity;\nfor (const item of items) {\n  const tp = parseInt(item.json.times_posted) || 0;\n  if (tp < minPosted) minPosted = tp;\n}\n\nconst candidates = items.filter(item => {\n  const tp = parseInt(item.json.times_posted) || 0;\n  return tp === minPosted;\n});\n\nconst randomIndex = Math.floor(Math.random() * candidates.length);\nconst selected = candidates[randomIndex];\n\nreturn [selected];\n"
+      },
+      "id": "pick-random",
+      "name": "Pick Random",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "media-check",
+              "leftValue": "={{ $json.media_path }}",
+              "rightValue": "none",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-media",
+      "name": "Check Media",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileSelector": "={{ $json.media_path }}",
+        "options": {
+          "dataPropertyName": "media"
+        }
+      },
+      "id": "read-file",
+      "name": "Read Video File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.x.com/2/media/upload/initialize",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ total_bytes: $binary.media.bytes, media_type: $binary.media.mimeType, media_category: $binary.media.mimeType.startsWith('video') ? 'tweet_video' : $binary.media.mimeType === 'image/gif' ? 'tweet_gif' : 'tweet_image' }) }}",
+        "options": {}
+      },
+      "id": "media-init",
+      "name": "Media INIT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "combine-merge",
+      "name": "Combine for APPEND",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        1320,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst CHUNK_SIZE = 4 * 1024 * 1024;\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'media');\nconst mediaId = $json.data.id;\nconst binaryMeta = $input.first().binary.media;\n\nconst numChunks = Math.ceil(buffer.length / CHUNK_SIZE);\nconst items = [];\n\nfor (let i = 0; i < numChunks; i++) {\n  const start = i * CHUNK_SIZE;\n  const end = Math.min(start + CHUNK_SIZE, buffer.length);\n  const chunk = buffer.slice(start, end);\n\n  const chunkBinary = await this.helpers.prepareBinaryData(\n    chunk,\n    binaryMeta.fileName || 'media.mp4',\n    binaryMeta.mimeType || 'video/mp4'\n  );\n\n  items.push({\n    json: {\n      media_id: mediaId,\n      segment_index: i\n    },\n    binary: {\n      media: chunkBinary\n    }\n  });\n}\n\nreturn items;\n"
+      },
+      "id": "split-chunks",
+      "name": "Split Chunks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.x.com/2/media/upload/' + $json.media_id + '/append' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "media",
+              "inputDataFieldName": "media"
+            },
+            {
+              "parameterType": "formData",
+              "name": "segment_index",
+              "value": "={{ String($json.segment_index) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "media-append",
+      "name": "Media APPEND",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nreturn [{\n  json: {\n    media_id: $input.first().json.media_id || $('Media INIT').first().json.data.id\n  }\n}];\n"
+      },
+      "id": "collect-append",
+      "name": "Collect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.x.com/2/media/upload/' + $json.media_id + '/finalize' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "media-finalize",
+      "name": "Media FINALIZE",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nawait new Promise(resolve => setTimeout(resolve, 30000));\nreturn $input.all();\n"
+      },
+      "id": "wait-processing",
+      "name": "Wait for Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.x.com/2/media/upload?media_id=' + $('Collect').first().json.media_id + '&command=STATUS' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Check Media Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst statusResponse = $input.first().json;\nconst statusData = statusResponse.data || statusResponse;\nconst procInfo = statusData.processing_info;\n\nif (procInfo && procInfo.state === 'failed') {\n  throw new Error('Media processing failed on X servers');\n}\n\nif (procInfo && (procInfo.state === 'pending' || procInfo.state === 'in_progress')) {\n  throw new Error('Media still processing after 30s. State: ' + procInfo.state + '. Try increasing wait time.');\n}\n\nreturn [{\n  json: {\n    media_id: $('Collect').first().json.media_id,\n    tweet_text: $('Pick Random').first().json.tweet_text\n  }\n}];\n"
+      },
+      "id": "verify-prepare",
+      "name": "Verify & Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.x.com/2/tweets",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twitterOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.tweet_text, media: { media_ids: [$json.media_id] } }) }}",
+        "options": {}
+      },
+      "id": "post-tweet-with-media",
+      "name": "Post Tweet With Media",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        -200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ 'UPDATE tweets SET posted = TRUE, times_posted = times_posted + 1, posted_at = NOW() WHERE id = ' + $('Pick Random').first().json.id }}",
+        "options": {}
+      },
+      "id": "update-db-media",
+      "name": "Update DB Media",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        3300,
+        -200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<your-credential-id>",
+          "name": "PostgreSQL Bitwizemusic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst picked = $('Pick Random').first().json;\n\nreturn [{\n  json: {\n    status: 'Tweet posted successfully',\n    tweet_id: picked.id,\n    tweet_text: picked.tweet_text,\n    platform: picked.platform || 'twitter',\n    content_type: picked.content_type || 'promo',\n    track: {\n      number: picked.track_number,\n      title: picked.track_title\n    },\n    album: {\n      title: picked.album_title,\n      slug: picked.album_slug,\n      genre: picked.genre\n    },\n    media_path: picked.media_path,\n    streaming_links: {\n      soundcloud: picked.soundcloud_url,\n      spotify: picked.spotify_url,\n      apple_music: picked.apple_music_url,\n      amazon_music: picked.amazon_music_url,\n      bandcamp: picked.bandcamp_url,\n      youtube: picked.youtube_url\n    },\n    times_posted: (parseInt(picked.times_posted) || 0) + 1\n  }\n}];\n"
+      },
+      "id": "summary-media",
+      "name": "Summary Media",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.tweet_text }}",
+        "additionalFields": {}
+      },
+      "id": "post-tweet-text",
+      "name": "Post Tweet Text Only",
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        880,
+        200
+      ],
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "<your-credential-id>",
+          "name": "Twitter/X OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ 'UPDATE tweets SET posted = TRUE, times_posted = times_posted + 1, posted_at = NOW() WHERE id = ' + $('Pick Random').first().json.id }}",
+        "options": {}
+      },
+      "id": "update-db-text",
+      "name": "Update DB Text",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "<your-credential-id>",
+          "name": "PostgreSQL Bitwizemusic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst picked = $('Pick Random').first().json;\n\nreturn [{\n  json: {\n    status: 'Tweet posted successfully',\n    tweet_id: picked.id,\n    tweet_text: picked.tweet_text,\n    platform: picked.platform || 'twitter',\n    content_type: picked.content_type || 'promo',\n    track: {\n      number: picked.track_number,\n      title: picked.track_title\n    },\n    album: {\n      title: picked.album_title,\n      slug: picked.album_slug,\n      genre: picked.genre\n    },\n    media_path: picked.media_path,\n    streaming_links: {\n      soundcloud: picked.soundcloud_url,\n      spotify: picked.spotify_url,\n      apple_music: picked.apple_music_url,\n      amazon_music: picked.amazon_music_url,\n      bandcamp: picked.bandcamp_url,\n      youtube: picked.youtube_url\n    },\n    times_posted: (parseInt(picked.times_posted) || 0) + 1\n  }\n}];\n"
+      },
+      "id": "summary-text",
+      "name": "Summary Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Enabled Tweets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Enabled Tweets": {
+      "main": [
+        [
+          {
+            "node": "Pick Random",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Random": {
+      "main": [
+        [
+          {
+            "node": "Check Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Media": {
+      "main": [
+        [
+          {
+            "node": "Read Video File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Tweet Text Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Video File": {
+      "main": [
+        [
+          {
+            "node": "Media INIT",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Combine for APPEND",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Media INIT": {
+      "main": [
+        [
+          {
+            "node": "Combine for APPEND",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine for APPEND": {
+      "main": [
+        [
+          {
+            "node": "Split Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Chunks": {
+      "main": [
+        [
+          {
+            "node": "Media APPEND",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media APPEND": {
+      "main": [
+        [
+          {
+            "node": "Collect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect": {
+      "main": [
+        [
+          {
+            "node": "Media FINALIZE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media FINALIZE": {
+      "main": [
+        [
+          {
+            "node": "Wait for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Processing": {
+      "main": [
+        [
+          {
+            "node": "Check Media Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Media Status": {
+      "main": [
+        [
+          {
+            "node": "Verify & Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify & Prepare": {
+      "main": [
+        [
+          {
+            "node": "Post Tweet With Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Tweet With Media": {
+      "main": [
+        [
+          {
+            "node": "Update DB Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB Media": {
+      "main": [
+        [
+          {
+            "node": "Summary Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Tweet Text Only": {
+      "main": [
+        [
+          {
+            "node": "Update DB Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update DB Text": {
+      "main": [
+        [
+          {
+            "node": "Summary Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
