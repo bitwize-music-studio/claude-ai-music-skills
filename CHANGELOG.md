@@ -6,6 +6,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-02-16
+
+### Added
+- **PostgreSQL database integration** — 8 new MCP tools for social media post management (`db_init`, `db_list_tweets`, `db_create_tweet`, `db_update_tweet`, `db_delete_tweet`, `db_search_tweets`, `db_sync_album`, `db_get_tweet_stats`)
+- **Database config section** — `database:` in config.yaml for PostgreSQL credentials with password masking in state
+- **Portable schema** — `tools/database/schema.sql` with migrations directory for future changes
+- **n8n workflow export** — `tools/n8n/n8n-auto-post-twitter.json` for automated Twitter/X posting (sanitized, no credentials)
+- **`tools/database/`** — connection helper, schema, README with setup instructions
+- **`tools/n8n/`** — workflow exports with setup docs, credential notes, and API cost info
+
 ## [0.56.0] - 2026-02-16
 
 ### Added
