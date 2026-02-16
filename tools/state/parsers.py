@@ -162,6 +162,16 @@ def parse_album_readme(path: Path) -> Dict[str, Any]:
     result['release_date'] = fm.get('release_date') or None
     result['explicit'] = fm.get('explicit', False)
 
+    # Streaming URLs from frontmatter
+    streaming_fm = fm.get('streaming', {})
+    if isinstance(streaming_fm, dict):
+        result['streaming_urls'] = {
+            k: v for k, v in streaming_fm.items()
+            if isinstance(v, str) and v.strip()
+        }
+    else:
+        result['streaming_urls'] = {}
+
     # Genre from frontmatter list or table
     fm_genres = fm.get('genres', [])
     if fm_genres and isinstance(fm_genres, list) and len(fm_genres) > 0:

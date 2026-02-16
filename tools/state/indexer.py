@@ -227,6 +227,7 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
             'release_date': album_data.get('release_date'),
             'track_count': album_data.get('track_count', len(tracks)),
             'tracks_completed': album_data.get('tracks_completed', 0),
+            'streaming_urls': album_data.get('streaming_urls', {}),
             'readme_mtime': readme_mtime,
             'tracks': tracks,
         }
@@ -502,6 +503,7 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
                         'release_date': album_data.get('release_date'),
                         'track_count': album_data.get('track_count', len(tracks)),
                         'tracks_completed': album_data.get('tracks_completed', 0),
+                        'streaming_urls': album_data.get('streaming_urls', {}),
                         'readme_mtime': readme_mtime,
                         'tracks': tracks,
                     }

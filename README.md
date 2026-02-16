@@ -8,17 +8,17 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 > If you run into issues, feel free to [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) or just fix it yourself and submit a PR.
 
 > [!WARNING]
-> **Claude Code Max plan recommended** ($200/month). This plugin uses 47 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
+> **Claude Code Max plan recommended** ($200/month). This plugin uses 49 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
 ![Version](https://img.shields.io/badge/version-0.56.0-blue)
-![Skills](https://img.shields.io/badge/skills-48-green)
+![Skills](https://img.shields.io/badge/skills-49-green)
 ![Tests](https://img.shields.io/badge/tests-1969-brightgreen)
 
 ## What Is This?
 
-This is a collection of **48 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
+This is a collection of **49 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
 
 **What you get:**
 - Structured workflow from idea to released album
@@ -415,6 +415,7 @@ For documentary or true-story albums:
 | `/bitwize-music:import-art` | Place album art in audio and content locations |
 | `/bitwize-music:clipboard` | Copy track content to clipboard (macOS/Linux/WSL) |
 | `/bitwize-music:test` | Run automated tests to validate plugin integrity |
+| `/bitwize-music:ship` | Automate full release pipeline (branch → PR → CI → merge → version bump → release) |
 | `/bitwize-music:skill-model-updater` | Update Claude model references |
 | `/bitwize-music:help` | Show available skills, workflows, and quick reference |
 | `/bitwize-music:about` | About bitwize and this plugin |
