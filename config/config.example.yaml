@@ -36,6 +36,7 @@
 #   [optional] promotion:   Promo video generation settings
 #   [optional] sheet_music: Sheet music generation settings
 #   [optional] cloud:       Cloud storage for uploads
+#   [optional] database:    PostgreSQL database for tweet/promo management
 #
 # =============================================================================
 
@@ -503,6 +504,79 @@ sheet_music:
 
 
 # =============================================================================
+# DATABASE [optional]
+# =============================================================================
+# PostgreSQL database for tweet/promo management.
+# Stores social media posts, tracks their publish status, and links them
+# to albums and tracks.
+#
+# REQUIREMENTS:
+#   - PostgreSQL server (local or remote)
+#   - psycopg2-binary (installed with plugin requirements)
+#
+# The database complements the markdown-based workflow — markdown files
+# remain the source of truth for album/track content, while the database
+# stores social media post data and publish state.
+#
+# SECURITY NOTE:
+#   Store credentials carefully. This file should not be version-controlled
+#   if it contains real passwords.
+#
+# Uncomment to enable:
+
+# database:
+  # ---------------------------
+  # enabled [required if using database]
+  # ---------------------------
+  # Master switch. Must be true to enable database tools.
+  # Set false to temporarily disable without removing config.
+  #
+  # enabled: true
+
+  # ---------------------------
+  # host [required if using database]
+  # ---------------------------
+  # PostgreSQL server hostname or IP.
+  #
+  # Examples:
+  #   host: "localhost"                         # Local server
+  #   host: "postgres.example.com"              # Remote server
+  #   host: "/var/run/postgresql"               # Unix socket
+  #
+  # host: "localhost"
+
+  # ---------------------------
+  # port [optional]
+  # ---------------------------
+  # PostgreSQL server port.
+  #
+  # Default (if omitted): 5432
+  #
+  # port: 5432
+
+  # ---------------------------
+  # name [required if using database]
+  # ---------------------------
+  # Database name.
+  #
+  # name: "your-database"
+
+  # ---------------------------
+  # user [required if using database]
+  # ---------------------------
+  # Database user.
+  #
+  # user: "your-username"
+
+  # ---------------------------
+  # password [required if using database]
+  # ---------------------------
+  # Database password.
+  #
+  # password: "your-password"
+
+
+# =============================================================================
 # CONFIGURATION PATTERNS
 # =============================================================================
 # Below are complete example configurations for common setups.
@@ -566,6 +640,14 @@ sheet_music:
 #     access_key_id: "your-key"
 #     secret_access_key: "your-secret"
 #     bucket: "promo-videos"
+#
+# database:
+#   enabled: true
+#   host: "localhost"
+#   port: 5432
+#   name: "your-database"
+#   user: "your-username"
+#   password: "your-password"
 #
 # -----------------------------------------------------------------------------
 # PATTERN 3: macOS Music Folder Setup

@@ -1,0 +1,7 @@
+-- Migration 001: Initial schema
+--
+-- No-op — the base schema is created by schema.sql via db_init.
+-- This file establishes the migrations directory and numbering convention.
+--
+-- Future migrations: 002_description.sql, 003_description.sql, etc.
+-- All statements should use IF NOT EXISTS / IF EXISTS patterns for idempotency.

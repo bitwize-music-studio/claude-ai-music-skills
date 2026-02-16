@@ -40,6 +40,11 @@ reportlab==4.2.5
 boto3==1.35.76
 
 # =============================================================================
+# DATABASE (required for db_* MCP tools - tweet/promo management)
+# =============================================================================
+psycopg2-binary==2.9.10
+
+# =============================================================================
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================

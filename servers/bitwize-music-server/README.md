@@ -48,7 +48,7 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available (30)
+## Tools Available (38)
 
 ### Albums & Tracks
 | Tool | Description |
@@ -99,6 +99,18 @@ After installing, **restart Claude Code** to reload the plugin.
 | `get_config()` | Get resolved configuration paths |
 | `get_ideas(status_filter?)` | Get album ideas with counts |
 | `rebuild_state()` | Force full rebuild from markdown files |
+
+### Database (tweet/promo management)
+| Tool | Description |
+|------|-------------|
+| `db_init()` | Initialize database tables (CREATE TABLE IF NOT EXISTS) |
+| `db_list_tweets(album_slug?, posted?, enabled?)` | List tweets with optional album/status filtering |
+| `db_create_tweet(album_slug, tweet_text, track_number?, media_path?)` | Insert a new tweet linked to an album/track |
+| `db_update_tweet(tweet_id, tweet_text?, posted?, enabled?, media_path?, times_posted?)` | Update tweet fields |
+| `db_delete_tweet(tweet_id)` | Delete a tweet by ID |
+| `db_search_tweets(query, album_slug?)` | Full-text search across tweet content |
+| `db_sync_album(album_slug)` | Upsert album + tracks from plugin state to database |
+| `db_get_tweet_stats(album_slug?)` | Tweet counts by status for an album or globally |
 
 ## Usage
 

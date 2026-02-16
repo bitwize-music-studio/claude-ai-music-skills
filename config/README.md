@@ -159,6 +159,19 @@ Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-
 | `cloud.s3.secret_access_key` | If S3 | IAM secret key |
 | `cloud.s3.bucket` | If S3 | S3 bucket name |
 
+### Database (`database:`)
+
+PostgreSQL database for tweet/promo management. Stores social media posts and their publish state.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `database.enabled` | No | Master switch to enable database tools |
+| `database.host` | If enabled | PostgreSQL hostname or IP |
+| `database.port` | No | PostgreSQL port (default: 5432) |
+| `database.name` | If enabled | Database name |
+| `database.user` | If enabled | Database user |
+| `database.password` | If enabled | Database password |
+
 ## Missing Config
 
 If Claude can't find `~/.bitwize-music/config.yaml`, it will prompt:
