@@ -7188,7 +7188,7 @@ async def db_update_tweet(
             WHERE id = %s
             RETURNING id, tweet_text, platform, content_type, media_path,
                       posted, enabled, times_posted, created_at, posted_at
-        """
+        """  # nosec B608 — column names from hardcoded allowlist, not user input
 
         cur.execute(query, params)
         row = cur.fetchone()
