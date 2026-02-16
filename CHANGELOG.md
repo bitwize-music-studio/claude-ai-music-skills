@@ -6,8 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-02-16
+
 ### Added
 - **`ship` skill** — automates full code release pipeline (branch → commit → PR → CI → merge → version bump → release → cleanup)
+
+### Fixed
+- **Unused import** — removed `parse_frontmatter` from server.py imports (ruff F401)
+- **Bandit false positives** — added `nosec` annotations for parameterized SQL and validated URL open in server.py
+- **README version badge** — updated from 0.56.0 to match plugin.json 0.57.0
 
 ## [0.57.0] - 2026-02-16
 

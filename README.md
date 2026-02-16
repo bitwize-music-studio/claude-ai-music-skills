@@ -12,7 +12,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.57.0-blue)
+![Version](https://img.shields.io/badge/version-0.58.0-blue)
 ![Skills](https://img.shields.io/badge/skills-49-green)
 ![Tests](https://img.shields.io/badge/tests-1969-brightgreen)
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.58** | `ship` skill — automated code release pipeline (branch → PR → CI → merge → version bump → release) |
 | **0.55** | 4 lyrics analysis MCP tools — syllable counting, Flesch readability, rhyme scheme detection, section structure validation |
 | **0.54** | `extract_distinctive_phrases` MCP tool + `plagiarism-checker` skill — web search + LLM lyrics plagiarism checking |
 | **0.53** | `check_cross_track_repetition` MCP tool — detect overused words/phrases across album tracks |
