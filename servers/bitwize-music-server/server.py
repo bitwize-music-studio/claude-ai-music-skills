@@ -152,7 +152,7 @@ from tools.state.indexer import (
     STATE_FILE,
     CONFIG_FILE,
 )
-from tools.state.parsers import parse_album_readme, parse_frontmatter, parse_track_file
+from tools.state.parsers import parse_album_readme, parse_track_file
 
 # Initialize FastMCP server
 mcp = FastMCP("bitwize-music-mcp")
