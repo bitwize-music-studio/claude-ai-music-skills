@@ -2882,13 +2882,14 @@ class TestCheckHomographs:
         text = "[Verse 1]\nWe live and breathe this code\nAlive in the machine"
         result = json.loads(_run(server.check_homographs(text)))
         assert result["count"] >= 1
-        words = [r["canonical"] for r in result["found"]]
+        assert result["has_homographs"] is True
+        words = [r["canonical"] for r in result["matches"]]
         assert "live" in words
 
     def test_finds_multiple(self):
         text = "Read the lead and close the record"
         result = json.loads(_run(server.check_homographs(text)))
-        words = set(r["canonical"] for r in result["found"])
+        words = set(r["canonical"] for r in result["matches"])
         assert "read" in words
         assert "lead" in words
         assert "close" in words
@@ -2897,30 +2898,32 @@ class TestCheckHomographs:
     def test_empty_text(self):
         result = json.loads(_run(server.check_homographs("")))
         assert result["count"] == 0
-        assert result["found"] == []
+        assert result["has_homographs"] is False
+        assert result["matches"] == []
 
     def test_no_homographs(self):
         text = "The sun sets over the mountain\nBirds fly across the sky"
         result = json.loads(_run(server.check_homographs(text)))
         assert result["count"] == 0
+        assert result["has_homographs"] is False
 
     def test_skips_section_tags(self):
         text = "[Verse 1]\nlive and breathe\n[Chorus]\nstay alive"
         result = json.loads(_run(server.check_homographs(text)))
         # Should find "live" in verse but not scan [Verse 1] or [Chorus] lines
-        for r in result["found"]:
+        for r in result["matches"]:
             assert not r["line"].startswith("[")
 
     def test_returns_line_numbers(self):
         text = "Line one\nThe wind blows hard\nLine three"
         result = json.loads(_run(server.check_homographs(text)))
         assert result["count"] == 1
-        assert result["found"][0]["line_number"] == 2
+        assert result["matches"][0]["line_number"] == 2
 
     def test_case_insensitive(self):
         text = "LIVE performance tonight\nRead the book"
         result = json.loads(_run(server.check_homographs(text)))
-        words = [r["canonical"] for r in result["found"]]
+        words = [r["canonical"] for r in result["matches"]]
         assert "live" in words
         assert "read" in words
 
@@ -2928,7 +2931,7 @@ class TestCheckHomographs:
         text = "lead the way"
         result = json.loads(_run(server.check_homographs(text)))
         assert result["count"] == 1
-        entry = result["found"][0]
+        entry = result["matches"][0]
         assert len(entry["options"]) > 0
         assert "pron_a" in entry["options"][0]
 
@@ -2937,14 +2940,14 @@ class TestCheckHomographs:
         text = "She's alive and thriving\nDriven to survive"
         result = json.loads(_run(server.check_homographs(text)))
         # "alive" contains "live" but should NOT match due to word boundary
-        words = [r["canonical"] for r in result["found"]]
+        words = [r["canonical"] for r in result["matches"]]
         assert "live" not in words
 
     def test_multiple_same_line(self):
         """Multiple homographs on the same line each get reported."""
         text = "Read the record, close the wound"
         result = json.loads(_run(server.check_homographs(text)))
-        words = [r["canonical"] for r in result["found"]]
+        words = [r["canonical"] for r in result["matches"]]
         assert "read" in words
         assert "record" in words
         assert "close" in words
@@ -2956,7 +2959,7 @@ class TestCheckHomographs:
         text = "The bass drops hard"
         result = json.loads(_run(server.check_homographs(text)))
         assert result["count"] == 1
-        assert result["found"][0]["column"] == 4  # "The " is 4 chars
+        assert result["matches"][0]["column"] == 4  # "The " is 4 chars
 
 
 # =============================================================================
@@ -2973,7 +2976,7 @@ class TestScanArtistNames:
             result = json.loads(_run(server.scan_artist_names("aggressive dubstep like Skrillex with heavy drops")))
         assert result["clean"] is False
         assert result["count"] >= 1
-        names = [r["name"] for r in result["found"]]
+        names = [r["name"] for r in result["matches"]]
         assert "Skrillex" in names
 
     def test_clean_text(self):
@@ -2991,7 +2994,7 @@ class TestScanArtistNames:
         with patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Daft Punk")))
         assert result["count"] >= 1
-        entry = result["found"][0]
+        entry = result["matches"][0]
         assert "alternative" in entry
         assert len(entry["alternative"]) > 0
 
@@ -3003,7 +3006,7 @@ class TestScanArtistNames:
     def test_multiple_names(self):
         with patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("mix of Eminem and Drake style")))
-        names = [r["name"] for r in result["found"]]
+        names = [r["name"] for r in result["matches"]]
         assert "Eminem" in names
         assert "Drake" in names
 
@@ -3019,8 +3022,8 @@ class TestScanArtistNames:
         with patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Skrillex")))
         assert result["count"] >= 1
-        assert "genre" in result["found"][0]
-        assert result["found"][0]["genre"] == "Electronic & Dance"
+        assert "genre" in result["matches"][0]
+        assert result["matches"][0]["genre"] == "Electronic & Dance"
 
     def test_blocklist_file_missing(self, tmp_path):
         """Gracefully handles missing blocklist file."""
@@ -3037,7 +3040,7 @@ class TestScanArtistNames:
             result = json.loads(_run(server.scan_artist_names(
                 "Skrillex-style drops and Skrillex-like bass"
             )))
-        names = [r["name"] for r in result["found"]]
+        names = [r["name"] for r in result["matches"]]
         assert names.count("Skrillex") == 1
         assert result["count"] >= 1
 
@@ -3054,7 +3057,7 @@ class TestScanArtistNames:
                 "First line is clean\nSecond line has Eminem vibes\n"
                 "Third line mentions Drake flow"
             )))
-        names = [r["name"] for r in result["found"]]
+        names = [r["name"] for r in result["matches"]]
         assert "Eminem" in names
         assert "Drake" in names
 
@@ -3064,14 +3067,14 @@ class TestScanArtistNames:
             result = json.loads(_run(server.scan_artist_names(
                 "like (Skrillex) or [Deadmau5]"
             )))
-        names = [r["name"] for r in result["found"]]
+        names = [r["name"] for r in result["matches"]]
         assert "Skrillex" in names
 
     def test_each_found_entry_has_all_fields(self):
         """Every found entry includes name, alternative, and genre."""
         with patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Drake")))
-        for entry in result["found"]:
+        for entry in result["matches"]:
             assert "name" in entry
             assert "alternative" in entry
             assert "genre" in entry
@@ -4159,7 +4162,7 @@ class TestCheckExplicitContent:
         with patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is True
-        words = [r["word"] for r in result["found"]]
+        words = [r["word"] for r in result["matches"]]
         assert "fuck" in words
         assert "shit" in words
 
@@ -4206,7 +4209,7 @@ class TestCheckExplicitContent:
         text = "Line one is clean\nThis line has shit in it\nLine three clean"
         with patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
-        assert result["found"][0]["lines"][0]["line_number"] == 2
+        assert result["matches"][0]["lines"][0]["line_number"] == 2
 
     def test_override_adds_words(self, tmp_path):
         """User override can add custom explicit words."""
@@ -4222,7 +4225,7 @@ class TestCheckExplicitContent:
              patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("This has a customword")))
         assert result["has_explicit"] is True
-        assert result["found"][0]["word"] == "customword"
+        assert result["matches"][0]["word"] == "customword"
 
     def test_override_removes_words(self, tmp_path):
         """User override can remove base words."""
@@ -4245,7 +4248,7 @@ class TestCheckExplicitContent:
         text = "Fuck on line one\nAnother fuck on line two"
         with patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
-        fuck_entry = next(r for r in result["found"] if r["word"] == "fuck")
+        fuck_entry = next(r for r in result["matches"] if r["word"] == "fuck")
         assert fuck_entry["count"] == 2
         assert len(fuck_entry["lines"]) == 2
 
@@ -4303,7 +4306,7 @@ class TestCheckExplicitContent:
         with patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("Shit, that was loud")))
         assert result["has_explicit"] is True
-        assert result["found"][0]["lines"][0]["line_number"] == 1
+        assert result["matches"][0]["lines"][0]["line_number"] == 1
 
     def test_explicit_word_at_line_end(self):
         """Explicit word at end of line is detected."""
@@ -4319,7 +4322,7 @@ class TestCheckExplicitContent:
         with patch.object(server, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is True
-        assert result["found"][0]["lines"][0]["line_number"] == 251
+        assert result["matches"][0]["lines"][0]["line_number"] == 251
 
     def test_empty_override_adds_nothing(self, tmp_path):
         """Override file with no words in list sections adds nothing extra."""
@@ -4349,14 +4352,13 @@ class TestCheckExplicitContent:
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+             patch.object(server, "_explicit_word_cache", None), \
+             patch.object(server, "_explicit_word_patterns", None):
             # "damn" removed from base, should be clean
             result1 = json.loads(_run(server.check_explicit_content("Well damn")))
-            # Need to reset cache for next call since it got cached
-            server._explicit_word_cache = None
-            server._explicit_word_patterns = None
         with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+             patch.object(server, "_explicit_word_cache", None), \
+             patch.object(server, "_explicit_word_patterns", None):
             # "badterm" added, should be explicit
             result2 = json.loads(_run(server.check_explicit_content("That's a badterm")))
         assert result1["has_explicit"] is False
@@ -6571,9 +6573,12 @@ class TestLoadExplicitWords:
         assert len(words) == len(server._BASE_EXPLICIT_WORDS)
 
     def test_cache_hit_returns_immediately(self):
-        """Second call returns cached result without re-reading files."""
+        """Second call returns cached result when override file mtime unchanged."""
         cached_words = {"cached", "word", "set"}
-        with patch.object(server, "_explicit_word_cache", cached_words):
+        mock_cache = MockStateCache()
+        with patch.object(server, "_explicit_word_cache", cached_words), \
+             patch.object(server, "_explicit_word_mtime", 0.0), \
+             patch.object(server, "cache", mock_cache):
             result = server._load_explicit_words()
         assert result is cached_words
 
@@ -6764,9 +6769,15 @@ class TestLoadArtistBlocklist:
     """Direct tests for the _load_artist_blocklist() helper function."""
 
     def test_cache_hit_returns_immediately(self):
-        """Second call returns cached result."""
+        """Second call returns cached result when file mtime unchanged."""
         cached = [{"name": "Cached", "alternative": "x", "genre": "y"}]
-        with patch.object(server, "_artist_blocklist_cache", cached):
+        blocklist_path = server.PLUGIN_ROOT / "reference" / "suno" / "artist-blocklist.md"
+        try:
+            mtime = blocklist_path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        with patch.object(server, "_artist_blocklist_cache", cached), \
+             patch.object(server, "_artist_blocklist_mtime", mtime):
             result = server._load_artist_blocklist()
         assert result is cached
 
@@ -7556,15 +7567,11 @@ class TestExtractCodeBlockEdgeCases:
         assert server._extract_code_block(text) == "hello world"
 
     def test_code_block_with_language_identifier(self):
-        """Code block with language identifier includes it in output.
-
-        Documents current behavior: the regex r'```\\n?(.*?)```' captures
-        everything between ``` markers, including language identifiers.
-        """
+        """Code block with language identifier strips it from output."""
         text = "```python\nprint('hello')\n```"
         result = server._extract_code_block(text)
-        # Language identifier is included in capture
-        assert "python" in result
+        # Language identifier is stripped, only content remains
+        assert "python" not in result
         assert "print('hello')" in result
 
     def test_empty_code_block(self):

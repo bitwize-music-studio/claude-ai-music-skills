@@ -835,8 +835,11 @@ class TestRemainingToolsCoverage:
         result = json.loads(_run(server.get_session()))
         assert "session" in result
         session = result["session"]
-        # Fresh state has empty session fields
-        assert "last_album" in session or session == {}
+        # Fresh state always has standard session fields
+        assert "last_album" in session
+        assert "last_track" in session
+        assert "last_phase" in session
+        assert "pending_actions" in session
 
     # --- update_session ---
 
@@ -1034,7 +1037,7 @@ class TestRemainingToolsCoverage:
             )))
             assert result["clean"] is False
             assert result["count"] >= 1
-            found_names = [f["name"] for f in result["found"]]
+            found_names = [f["name"] for f in result["matches"]]
             assert artist_name in found_names
 
     # --- check_pronunciation_enforcement ---
@@ -1086,7 +1089,7 @@ class TestRemainingToolsCoverage:
         )))
         assert result["has_explicit"] is True
         assert result["unique_words"] == 2
-        found_words = [f["word"] for f in result["found"]]
+        found_words = [f["word"] for f in result["matches"]]
         assert "fuck" in found_words
         assert "shit" in found_words
 
@@ -1098,7 +1101,7 @@ class TestRemainingToolsCoverage:
             "What the heck is happening"
         )))
         assert result["has_explicit"] is True
-        found_words = [f["word"] for f in result["found"]]
+        found_words = [f["word"] for f in result["matches"]]
         assert "heck" in found_words
 
     # --- create_album_structure ---
@@ -1494,34 +1497,36 @@ class TestCheckHomographsExtended:
         """check_homographs detects 'live' as a homograph."""
         result = json.loads(_run(server.check_homographs("We are live tonight")))
         assert result["count"] >= 1
-        words = [f["canonical"] for f in result["found"]]
+        assert result["has_homographs"] is True
+        words = [f["canonical"] for f in result["matches"]]
         assert "live" in words
 
     def test_detects_read(self, integration_env):
         """check_homographs detects 'read' as a homograph."""
         result = json.loads(_run(server.check_homographs("I read the book")))
         assert result["count"] >= 1
-        words = [f["canonical"] for f in result["found"]]
+        words = [f["canonical"] for f in result["matches"]]
         assert "read" in words
 
     def test_empty_text(self, integration_env):
         """check_homographs returns empty for blank text."""
         result = json.loads(_run(server.check_homographs("")))
         assert result["count"] == 0
-        assert result["found"] == []
+        assert result["has_homographs"] is False
+        assert result["matches"] == []
 
     def test_multiple_homographs(self, integration_env):
         """check_homographs detects multiple different homographs."""
         result = json.loads(_run(server.check_homographs(
             "Live close to the wind, read the lead"
         )))
-        words = set(f["canonical"] for f in result["found"])
+        words = set(f["canonical"] for f in result["matches"])
         assert len(words) >= 3  # live, close, wind, read, lead
 
     def test_returns_line_number(self, integration_env):
         """check_homographs results include line numbers."""
         result = json.loads(_run(server.check_homographs("first line\nlive show")))
-        live_hit = next(f for f in result["found"] if f["canonical"] == "live")
+        live_hit = next(f for f in result["matches"] if f["canonical"] == "live")
         assert live_hit["line_number"] == 2
 
 
@@ -1763,12 +1768,13 @@ class TestGetConfigExtended:
         result = json.loads(_run(server.get_config()))
         assert Path(result["config"]["audio_root"]).is_dir()
 
-    def test_generation_service(self, integration_env):
-        """get_config includes generation service setting."""
+    def test_config_has_core_keys(self, integration_env):
+        """get_config includes core config keys."""
         result = json.loads(_run(server.get_config()))
         config = result["config"]
-        # Config has generation.service = "suno"
-        assert config.get("generation_service") or config.get("service") or True
+        assert "content_root" in config
+        assert "audio_root" in config
+        assert "artist_name" in config
 
 
 @pytest.mark.integration
@@ -1913,9 +1919,9 @@ class TestScanArtistNamesExtended:
         if blocklist:
             name = blocklist[0]["name"]
             result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
-            if result["found"]:
-                assert "alternative" in result["found"][0]
-                assert result["found"][0]["alternative"] != ""
+            if result["matches"]:
+                assert "alternative" in result["matches"][0]
+                assert result["matches"][0]["alternative"] != ""
 
     def test_case_insensitive(self, integration_env, monkeypatch):
         """scan_artist_names matches regardless of case."""
@@ -1963,7 +1969,7 @@ class TestCheckExplicitContentExtended:
         result = json.loads(_run(server.check_explicit_content(
             "Clean line\nWhat the fuck\nAnother clean line"
         )))
-        hit = result["found"][0]
+        hit = result["matches"][0]
         assert hit["lines"][0]["line_number"] == 2
 
     def test_empty_text(self, integration_env, monkeypatch):
@@ -2509,8 +2515,8 @@ class TestWorkflowCrossToolDataFlow:
 
         # Check homographs on the extracted content
         homographs = json.loads(_run(server.check_homographs(content)))
-        # "read" and "bass" should be flagged (response key is "found")
-        found_words = [h["word"].lower() for h in homographs.get("found", [])]
+        # "read" and "bass" should be flagged
+        found_words = [h["word"].lower() for h in homographs.get("matches", [])]
         assert "read" in found_words or "reed" in found_words or "bass" in found_words
 
     def test_extract_lyrics_then_check_explicit(self, integration_env):

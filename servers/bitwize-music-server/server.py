@@ -158,6 +158,38 @@ from tools.state.parsers import parse_album_readme, parse_track_file
 mcp = FastMCP("bitwize-music-mcp")
 
 
+# ---------------------------------------------------------------------------
+# Status constants — single source of truth for track and album statuses.
+# Use these instead of string literals to prevent typos and simplify refactoring.
+# ---------------------------------------------------------------------------
+
+# Track statuses (in order)
+TRACK_NOT_STARTED = "Not Started"
+TRACK_SOURCES_PENDING = "Sources Pending"
+TRACK_SOURCES_VERIFIED = "Sources Verified"
+TRACK_IN_PROGRESS = "In Progress"
+TRACK_GENERATED = "Generated"
+TRACK_FINAL = "Final"
+
+# Album statuses (in order)
+ALBUM_CONCEPT = "Concept"
+ALBUM_RESEARCH_COMPLETE = "Research Complete"
+ALBUM_SOURCES_VERIFIED = "Sources Verified"
+ALBUM_IN_PROGRESS = "In Progress"
+ALBUM_COMPLETE = "Complete"
+ALBUM_RELEASED = "Released"
+
+# Sets for membership checks
+TRACK_COMPLETED_STATUSES = {TRACK_FINAL, TRACK_GENERATED}
+ALBUM_VALID_STATUSES = [
+    ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
+    ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
+]
+
+# Default for missing status fields
+STATUS_UNKNOWN = "Unknown"
+
+
 class StateCache:
     """In-memory cache for state data with lazy loading and staleness detection.
 
@@ -179,26 +211,30 @@ class StateCache:
             return self._state or {}
 
     def rebuild(self) -> dict:
-        """Force full rebuild from markdown files."""
+        """Force full rebuild from markdown files.
+
+        Thread-safe: holds the lock for the session-preservation and
+        write phase so concurrent update_session() calls are not lost.
+        """
         logger.info("Starting full state rebuild")
         config = read_config()
         if config is None:
             logger.error("Config not found at %s", CONFIG_FILE)
             return {"error": f"Config not found at {CONFIG_FILE}"}
 
-        # Preserve session from existing state
-        existing = read_state()
         try:
             state = build_state(config, plugin_root=PLUGIN_ROOT)
         except Exception as e:
             logger.error("State build failed: %s", e)
             return {"error": f"State build failed: {e}"}
 
-        if existing and "session" in existing:
-            state["session"] = existing["session"]
-
-        write_state(state)
+        # Lock for the read-existing → merge-session → write cycle
+        # so concurrent update_session() writes are not overwritten.
         with self._lock:
+            existing = read_state()
+            if existing and "session" in existing:
+                state["session"] = existing["session"]
+            write_state(state)
             self._state = state
             self._update_mtimes()
 
@@ -214,49 +250,51 @@ class StateCache:
     def update_session(self, **kwargs) -> dict:
         """Update session fields and persist.
 
-        Note: get_state() acquires the lock, so we don't re-acquire here
-        to avoid deadlock. Session updates are atomic via write_state's
-        file locking.
+        Thread-safe: holds the lock for the entire read-modify-write cycle
+        to prevent concurrent updates from overwriting each other.
         """
         from datetime import datetime, timezone
 
-        state = self.get_state()
-        if not state:
-            logger.warning("Cannot update session: no state available")
-            return {"error": "No state available"}
-        if "error" in state:
-            logger.warning("Cannot update session: state has error")
-            return {"error": f"State has error: {state['error']}"}
+        with self._lock:
+            if self._is_stale() or self._state is None:
+                self._load_from_disk()
+            state = self._state
+            if not state:
+                logger.warning("Cannot update session: no state available")
+                return {"error": "No state available"}
+            if "error" in state:
+                logger.warning("Cannot update session: state has error")
+                return {"error": f"State has error: {state['error']}"}
 
-        session = state.get("session", {})
+            session = state.get("session", {})
 
-        if kwargs.get("clear"):
-            logger.info("Clearing session data")
-            session = {
-                "last_album": None,
-                "last_track": None,
-                "last_phase": None,
-                "pending_actions": [],
-                "updated_at": None,
-            }
-        else:
-            if kwargs.get("album") is not None:
-                session["last_album"] = kwargs["album"]
-                logger.debug("Session album set to: %s", kwargs["album"])
-            if kwargs.get("track") is not None:
-                session["last_track"] = kwargs["track"]
-            if kwargs.get("phase") is not None:
-                session["last_phase"] = kwargs["phase"]
-            if kwargs.get("action"):
-                actions = session.get("pending_actions", [])
-                actions.append(kwargs["action"])
-                session["pending_actions"] = actions
+            if kwargs.get("clear"):
+                logger.info("Clearing session data")
+                session = {
+                    "last_album": None,
+                    "last_track": None,
+                    "last_phase": None,
+                    "pending_actions": [],
+                    "updated_at": None,
+                }
+            else:
+                if kwargs.get("album") is not None:
+                    session["last_album"] = kwargs["album"]
+                    logger.debug("Session album set to: %s", kwargs["album"])
+                if kwargs.get("track") is not None:
+                    session["last_track"] = kwargs["track"]
+                if kwargs.get("phase") is not None:
+                    session["last_phase"] = kwargs["phase"]
+                if kwargs.get("action"):
+                    actions = session.get("pending_actions", [])
+                    actions.append(kwargs["action"])
+                    session["pending_actions"] = actions
 
-        session["updated_at"] = datetime.now(timezone.utc).isoformat()
-        state["session"] = session
-        write_state(state)
-        self._state = state
-        return session
+            session["updated_at"] = datetime.now(timezone.utc).isoformat()
+            state["session"] = session
+            write_state(state)
+            self._update_mtimes()
+            return session
 
     def _is_stale(self) -> bool:
         """Check if cached state is stale."""
@@ -439,7 +477,7 @@ async def list_albums(status_filter: str = "") -> str:
 
     result = []
     for slug, album in albums.items():
-        status = album.get("status", "Unknown")
+        status = album.get("status", STATUS_UNKNOWN)
 
         # Apply filter if provided
         if status_filter and status.lower() != status_filter.lower():
@@ -528,7 +566,7 @@ async def list_tracks(album_slug: str) -> str:
         track_list.append({
             "slug": slug,
             "title": track.get("title", slug),
-            "status": track.get("status", "Unknown"),
+            "status": track.get("status", STATUS_UNKNOWN),
             "explicit": track.get("explicit", False),
             "has_suno_link": track.get("has_suno_link", False),
             "sources_verified": track.get("sources_verified", "N/A"),
@@ -721,7 +759,7 @@ async def search(query: str, scope: str = "all") -> str:
                     "slug": slug,
                     "title": title,
                     "genre": genre,
-                    "status": album.get("status", "Unknown"),
+                    "status": album.get("status", STATUS_UNKNOWN),
                 })
         results["albums"] = album_matches
 
@@ -736,7 +774,7 @@ async def search(query: str, scope: str = "all") -> str:
                         "album_slug": album_slug,
                         "track_slug": track_slug,
                         "title": title,
-                        "status": track.get("status", "Unknown"),
+                        "status": track.get("status", STATUS_UNKNOWN),
                     })
         results["tracks"] = track_matches
 
@@ -983,7 +1021,7 @@ async def list_track_files(album_slug: str, status_filter: str = "") -> str:
     tracks = album.get("tracks", {})
     track_list = []
     for slug, track in sorted(tracks.items()):
-        status = track.get("status", "Unknown")
+        status = track.get("status", STATUS_UNKNOWN)
 
         if status_filter and status.lower() != status_filter.lower():
             continue
@@ -1012,7 +1050,7 @@ async def list_track_files(album_slug: str, status_filter: str = "") -> str:
 
 # Pre-compiled patterns for section extraction
 _RE_SECTION = re.compile(r'^(#{1,3})\s+(.+)$', re.MULTILINE)
-_RE_CODE_BLOCK = re.compile(r'```\n?(.*?)```', re.DOTALL)
+_RE_CODE_BLOCK = re.compile(r'```(?:[^\n]*\n)(.*?)```|```(.*?)```', re.DOTALL)
 
 # Map user-friendly section names to markdown headings
 _SECTION_NAMES = {
@@ -1084,10 +1122,16 @@ def _extract_markdown_section(text: str, heading: str) -> Optional[str]:
 
 
 def _extract_code_block(section_text: str) -> Optional[str]:
-    """Extract the first code block from section text."""
+    """Extract the first code block from section text.
+
+    Handles both ``​`lang\\ncontent``​` and ``​`content``​` forms,
+    stripping any language identifier on the opening fence line.
+    """
     match = _RE_CODE_BLOCK.search(section_text)
     if match:
-        return match.group(1).strip()
+        # group(1) = content after lang+newline; group(2) = inline content
+        content = match.group(1) if match.group(1) is not None else (match.group(2) or "")
+        return content.strip()
     return None
 
 
@@ -1343,25 +1387,25 @@ def _detect_phase(album: dict) -> str:
 
     Matches the decision tree from the resume skill.
     """
-    status = album.get("status", "Unknown")
+    status = album.get("status", STATUS_UNKNOWN)
     tracks = album.get("tracks", {})
 
-    if status == "Released":
+    if status == ALBUM_RELEASED:
         return "Released"
-    if status == "Complete":
+    if status == ALBUM_COMPLETE:
         return "Ready to Release"
 
-    track_statuses = [t.get("status", "Unknown") for t in tracks.values()]
+    track_statuses = [t.get("status", STATUS_UNKNOWN) for t in tracks.values()]
     sources = [t.get("sources_verified", "N/A") for t in tracks.values()]
 
-    if status == "Concept" or not track_statuses:
+    if status == ALBUM_CONCEPT or not track_statuses:
         return "Planning"
 
     # Count by status
-    not_started = sum(1 for s in track_statuses if s == "Not Started")
-    in_progress = sum(1 for s in track_statuses if s == "In Progress")
-    generated = sum(1 for s in track_statuses if s == "Generated")
-    final = sum(1 for s in track_statuses if s == "Final")
+    not_started = sum(1 for s in track_statuses if s == TRACK_NOT_STARTED)
+    in_progress = sum(1 for s in track_statuses if s == TRACK_IN_PROGRESS)
+    generated = sum(1 for s in track_statuses if s == TRACK_GENERATED)
+    final = sum(1 for s in track_statuses if s == TRACK_FINAL)
     total = len(track_statuses)
     sources_pending = sum(1 for s in sources if s.lower() == "pending")
 
@@ -1378,6 +1422,7 @@ def _detect_phase(album: dict) -> str:
     if final == total:
         return "Ready to Release"
 
+    # Fallback phase name (not an album status constant — this is a workflow phase)
     return "In Progress"
 
 
@@ -1413,12 +1458,11 @@ async def get_album_progress(album_slug: str) -> str:
     # Count by status
     status_counts = {}
     for track in tracks.values():
-        s = track.get("status", "Unknown")
+        s = track.get("status", STATUS_UNKNOWN)
         status_counts[s] = status_counts.get(s, 0) + 1
 
-    completed_statuses = {"Final", "Generated"}
     tracks_completed = sum(
-        count for s, count in status_counts.items() if s in completed_statuses
+        count for s, count in status_counts.items() if s in TRACK_COMPLETED_STATUSES
     )
 
     completion_pct = round((tracks_completed / track_count * 100), 1) if track_count > 0 else 0.0
@@ -1430,7 +1474,7 @@ async def get_album_progress(album_slug: str) -> str:
         "found": True,
         "album_slug": normalized,
         "album_title": album.get("title", normalized),
-        "album_status": album.get("status", "Unknown"),
+        "album_status": album.get("status", STATUS_UNKNOWN),
         "genre": album.get("genre", ""),
         "phase": phase,
         "track_count": track_count,
@@ -1785,10 +1829,10 @@ async def check_homographs(text: str) -> str:
         text: Lyrics text to scan
 
     Returns:
-        JSON with {found: [{word, line, line_number, options}], count: int}
+        JSON with {has_homographs: bool, matches: [{word, line, line_number, options}], count: int}
     """
     if not text.strip():
-        return _safe_json({"found": [], "count": 0})
+        return _safe_json({"has_homographs": False, "matches": [], "count": 0})
 
     results = []
     lines = text.split("\n")
@@ -1810,32 +1854,40 @@ async def check_homographs(text: str) -> str:
                     "options": _HIGH_RISK_HOMOGRAPHS[word],
                 })
 
-    return _safe_json({"found": results, "count": len(results)})
+    return _safe_json({"has_homographs": len(results) > 0, "matches": results, "count": len(results)})
 
 
 # Artist blocklist cache — loaded lazily from reference file
 _artist_blocklist_cache: Optional[list] = None
 _artist_blocklist_patterns: Optional[dict] = None  # name -> compiled re.Pattern
+_artist_blocklist_mtime: float = 0.0
 _artist_blocklist_lock = threading.Lock()
 
 
 def _load_artist_blocklist() -> list:
     """Load and parse the artist blocklist from the reference file.
 
+    Automatically reloads when the source file changes on disk.
     Returns a list of dicts: [{name: str, alternative: str, genre: str}]
     """
     global _artist_blocklist_cache, _artist_blocklist_patterns
+    global _artist_blocklist_mtime
     with _artist_blocklist_lock:
-        if _artist_blocklist_cache is not None:
+        blocklist_path = PLUGIN_ROOT / "reference" / "suno" / "artist-blocklist.md"
+        try:
+            current_mtime = blocklist_path.stat().st_mtime if blocklist_path.exists() else 0.0
+        except OSError:
+            current_mtime = 0.0
+        if _artist_blocklist_cache is not None and current_mtime == _artist_blocklist_mtime:
             return _artist_blocklist_cache
 
-        blocklist_path = PLUGIN_ROOT / "reference" / "suno" / "artist-blocklist.md"
         entries = []
 
         if not blocklist_path.exists():
             logger.warning("Artist blocklist not found at %s", blocklist_path)
             _artist_blocklist_cache = entries
             _artist_blocklist_patterns = {}
+            _artist_blocklist_mtime = current_mtime
             return entries
 
         try:
@@ -1844,6 +1896,7 @@ def _load_artist_blocklist() -> list:
             logger.error("Cannot read artist blocklist: %s", e)
             _artist_blocklist_cache = entries
             _artist_blocklist_patterns = {}
+            _artist_blocklist_mtime = current_mtime
             return entries
 
         current_genre = ""
@@ -1870,6 +1923,7 @@ def _load_artist_blocklist() -> list:
                         })
 
         _artist_blocklist_cache = entries
+        _artist_blocklist_mtime = current_mtime
         # Pre-compile patterns for each artist name
         _artist_blocklist_patterns = {
             entry["name"]: re.compile(r'\b' + re.escape(entry["name"]) + r'\b', re.IGNORECASE)
@@ -1890,28 +1944,28 @@ async def scan_artist_names(text: str) -> str:
         text: Style prompt or lyrics to scan
 
     Returns:
-        JSON with {clean: bool, found: [{name, alternative, genre}], count: int}
+        JSON with {clean: bool, matches: [{name, alternative, genre}], count: int}
     """
     if not text.strip():
-        return _safe_json({"clean": True, "found": [], "count": 0})
+        return _safe_json({"clean": True, "matches": [], "count": 0})
 
     blocklist = _load_artist_blocklist()
-    found = []
+    matches = []
 
     for entry in blocklist:
         name = entry["name"]
         pattern = _artist_blocklist_patterns.get(name)
         if pattern and pattern.search(text):
-            found.append({
+            matches.append({
                 "name": name,
                 "alternative": entry["alternative"],
                 "genre": entry["genre"],
             })
 
     return _safe_json({
-        "clean": len(found) == 0,
-        "found": found,
-        "count": len(found),
+        "clean": len(matches) == 0,
+        "matches": matches,
+        "count": len(matches),
     })
 
 
@@ -2063,29 +2117,47 @@ _BASE_EXPLICIT_WORDS = {
 
 _explicit_word_cache: Optional[set] = None
 _explicit_word_patterns: Optional[dict] = None  # word -> compiled re.Pattern
+_explicit_word_mtime: float = 0.0
 _explicit_word_lock = threading.Lock()
 
 
 def _load_explicit_words() -> set:
-    """Load the explicit word set, merging base list with user overrides."""
+    """Load the explicit word set, merging base list with user overrides.
+
+    Automatically reloads when the user override file changes on disk.
+    """
     global _explicit_word_cache, _explicit_word_patterns
+    global _explicit_word_mtime
+
+    # Resolve the override file path BEFORE acquiring _explicit_word_lock
+    # to avoid lock ordering issues (cache.get_state() acquires cache._lock).
+    override_path = None
+    try:
+        state = cache.get_state()
+        config = state.get("config", {})
+        overrides_dir = config.get("overrides_dir", "")
+        if not overrides_dir:
+            content_root = config.get("content_root", "")
+            overrides_dir = str(Path(content_root) / "overrides")
+        override_path = Path(overrides_dir) / "explicit-words.md"
+    except Exception:
+        pass
+
     with _explicit_word_lock:
-        if _explicit_word_cache is not None:
+
+        try:
+            current_mtime = override_path.stat().st_mtime if override_path and override_path.exists() else 0.0
+        except OSError:
+            current_mtime = 0.0
+
+        if _explicit_word_cache is not None and current_mtime == _explicit_word_mtime:
             return _explicit_word_cache
 
         words = set(_BASE_EXPLICIT_WORDS)
 
-        # Try loading user overrides
+        # Load user overrides (override_path already resolved above)
         try:
-            state = cache.get_state()
-            config = state.get("config", {})
-            overrides_dir = config.get("overrides_dir", "")
-            if not overrides_dir:
-                content_root = config.get("content_root", "")
-                overrides_dir = str(Path(content_root) / "overrides")
-
-            override_path = Path(overrides_dir) / "explicit-words.md"
-            if override_path.exists():
+            if override_path and override_path.exists():
                 text = override_path.read_text(encoding="utf-8")
 
                 # Parse "Additional Explicit Words" section
@@ -2110,6 +2182,7 @@ def _load_explicit_words() -> set:
             logger.warning("Failed to load explicit word overrides: %s", e)
 
         _explicit_word_cache = words
+        _explicit_word_mtime = current_mtime
         # Pre-compile patterns for each word
         _explicit_word_patterns = {
             w: re.compile(r'\b' + re.escape(w) + r'\b', re.IGNORECASE)
@@ -2130,12 +2203,12 @@ async def check_explicit_content(text: str) -> str:
         text: Lyrics text to scan
 
     Returns:
-        JSON with {has_explicit: bool, found: [{word, line, line_number, count}],
+        JSON with {has_explicit: bool, matches: [{word, line, line_number, count}],
                    total_count: int, unique_words: int}
     """
     if not text.strip():
         return _safe_json({
-            "has_explicit": False, "found": [], "total_count": 0, "unique_words": 0,
+            "has_explicit": False, "matches": [], "total_count": 0, "unique_words": 0,
         })
 
     _load_explicit_words()
@@ -2170,7 +2243,7 @@ async def check_explicit_content(text: str) -> str:
 
     return _safe_json({
         "has_explicit": len(found) > 0,
-        "found": found,
+        "matches": found,
         "total_count": total,
         "unique_words": len(found),
     })
@@ -3262,7 +3335,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
     """Analyze rhyme scheme of lyrics with section awareness.
 
     Parses by section, extracts end words, builds rhyme groups (A/B/C letters),
-    and detects self-rhymes and repeated end words.
+    and detects self-rhymes.
 
     Args:
         text: Lyrics text to analyze (with [Section] tags)
@@ -3271,8 +3344,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
         JSON with {sections: [{section, section_type, scheme, lines: [{line_number,
         end_word, rhyme_group, rhyme_tail}], issues: []}],
         issues: [{type, section, line_numbers, word, severity}],
-        summary: {total_sections, sections_with_issues, self_rhymes,
-        repeated_end_words}}
+        summary: {total_sections, sections_with_issues, self_rhymes}}
     """
     if not text or not text.strip():
         return _safe_json({
@@ -3282,7 +3354,6 @@ async def analyze_rhyme_scheme(text: str) -> str:
                 "total_sections": 0,
                 "sections_with_issues": 0,
                 "self_rhymes": 0,
-                "repeated_end_words": 0,
             },
         })
 
@@ -3387,7 +3458,6 @@ async def analyze_rhyme_scheme(text: str) -> str:
 
     # Summary counts
     self_rhymes = sum(1 for i in all_issues if i["type"] == "self_rhyme")
-    repeated_end_words = sum(1 for i in all_issues if i["type"] == "repeated_end_word")
     sections_with_issues = sum(1 for s in result_sections if s["issues"])
 
     return _safe_json({
@@ -3397,7 +3467,6 @@ async def analyze_rhyme_scheme(text: str) -> str:
             "total_sections": len(result_sections),
             "sections_with_issues": sections_with_issues,
             "self_rhymes": self_rhymes,
-            "repeated_end_words": repeated_end_words,
         },
     })
 
@@ -3636,7 +3705,7 @@ async def get_album_full(
         "slug": matched_slug,
         "album": {
             "title": album.get("title", matched_slug),
-            "status": album.get("status", "Unknown"),
+            "status": album.get("status", STATUS_UNKNOWN),
             "genre": album.get("genre", ""),
             "path": album.get("path", ""),
             "track_count": album.get("track_count", 0),
@@ -3654,7 +3723,7 @@ async def get_album_full(
     for track_slug_key, track in sorted(tracks.items()):
         track_entry = {
             "title": track.get("title", track_slug_key),
-            "status": track.get("status", "Unknown"),
+            "status": track.get("status", STATUS_UNKNOWN),
             "explicit": track.get("explicit", False),
             "has_suno_link": track.get("has_suno_link", False),
             "sources_verified": track.get("sources_verified", "N/A"),
@@ -3841,12 +3910,12 @@ async def validate_album_structure(
     if "tracks" in check_set:
         tracks = album.get("tracks", {})
         for t_slug, t_data in sorted(tracks.items()):
-            status = t_data.get("status", "Unknown")
+            status = t_data.get("status", STATUS_UNKNOWN)
             has_link = t_data.get("has_suno_link", False)
             sources = t_data.get("sources_verified", "N/A")
 
             track_issues = []
-            if status in ("Generated", "Final") and not has_link:
+            if status in TRACK_COMPLETED_STATUSES and not has_link:
                 track_issues.append("Suno Link missing")
             if sources.lower() == "pending":
                 track_issues.append("Sources not verified")
@@ -4130,14 +4199,14 @@ async def run_pre_generation_gates(
             gates.append({"gate": "Style Prompt Complete", "status": "PASS",
                           "detail": f"Style prompt: {len(style_content)} chars"})
 
-        # Gate 6: Artist Names Cleared
+        # Gate 6: Artist Names Cleared (uses pre-compiled patterns)
         if style_content:
             found_artists = []
-            text_lower = style_content.lower()
             for entry in blocklist:
-                pattern = re.compile(r'\b' + re.escape(entry["name"]) + r'\b', re.IGNORECASE)
-                if pattern.search(text_lower):
-                    found_artists.append(entry["name"])
+                name = entry["name"]
+                pattern = _artist_blocklist_patterns.get(name)
+                if pattern and pattern.search(style_content):
+                    found_artists.append(name)
 
             if found_artists:
                 gates.append({"gate": "Artist Names Cleared", "status": "FAIL", "severity": "BLOCKING",
@@ -4719,22 +4788,10 @@ async def verify_streaming_urls(album_slug: str) -> str:
 
     streaming = album.get("streaming_urls", {})
 
-    results = {}
-    reachable_count = 0
-    unreachable_count = 0
-    not_set_count = 0
-
-    for key in _STREAMING_PLATFORM_KEYS:
-        url = streaming.get(key, "")
-        if not url:
-            results[key] = {"url": "", "reachable": None, "status": "not_set"}
-            not_set_count += 1
-            continue
-
-        # Try HEAD first, fall back to GET if HEAD is rejected (405/403).
-        # Many streaming platforms block HEAD requests.
-        reachable = False
+    def _check_url(url: str) -> dict:
+        """Check a single URL (blocking). Run in executor to avoid blocking the event loop."""
         result_entry = {"url": url}
+        reachable = False
         for method in ("HEAD", "GET"):
             try:
                 req = urllib.request.Request(
@@ -4767,12 +4824,30 @@ async def verify_streaming_urls(album_slug: str) -> str:
                 break
 
         if "reachable" not in result_entry:
-            # Both HEAD and GET failed
             result_entry["reachable"] = False
             result_entry["error"] = "Both HEAD and GET requests failed"
 
+        return result_entry
+
+    import asyncio
+    loop = asyncio.get_running_loop()
+
+    results = {}
+    reachable_count = 0
+    unreachable_count = 0
+    not_set_count = 0
+
+    for key in _STREAMING_PLATFORM_KEYS:
+        url = streaming.get(key, "")
+        if not url:
+            results[key] = {"url": "", "reachable": None, "status": "not_set"}
+            not_set_count += 1
+            continue
+
+        # Run blocking HTTP in thread pool to avoid blocking the event loop
+        result_entry = await loop.run_in_executor(None, _check_url, url)
         results[key] = result_entry
-        if reachable:
+        if result_entry.get("reachable"):
             reachable_count += 1
         else:
             unreachable_count += 1
@@ -4898,15 +4973,13 @@ async def get_skill(name: str) -> str:
 # =============================================================================
 
 # Valid album statuses (from CLAUDE.md workflow)
-_VALID_ALBUM_STATUSES = {
-    "concept", "research complete", "sources verified",
-    "in progress", "complete", "released",
-}
+_VALID_ALBUM_STATUSES = {s.lower() for s in ALBUM_VALID_STATUSES}
 
 # Valid track statuses (from CLAUDE.md workflow / state-schema.md)
 _VALID_TRACK_STATUSES = {
-    "not started", "sources pending", "sources verified",
-    "in progress", "generated", "final",
+    TRACK_NOT_STARTED.lower(), TRACK_SOURCES_PENDING.lower(),
+    TRACK_SOURCES_VERIFIED.lower(), TRACK_IN_PROGRESS.lower(),
+    TRACK_GENERATED.lower(), TRACK_FINAL.lower(),
 }
 
 # Expected promo files (from templates/promo/)
@@ -4958,8 +5031,7 @@ async def update_album_status(album_slug: str, status: str) -> str:
         return _safe_json({
             "error": (
                 f"Invalid status '{status}'. Valid options: "
-                "Concept, Research Complete, Sources Verified, "
-                "In Progress, Complete, Released"
+                + ", ".join(ALBUM_VALID_STATUSES)
             ),
         })
 
@@ -4990,7 +5062,7 @@ async def update_album_status(album_slug: str, status: str) -> str:
     if not match:
         return _safe_json({"error": "Status field not found in album README.md table"})
 
-    old_status = album.get("status", "Unknown")
+    old_status = album.get("status", STATUS_UNKNOWN)
     new_row = f"{match.group(1)} {status} |"
     updated_text = text[:match.start()] + new_row + text[match.end():]
 
@@ -5002,12 +5074,16 @@ async def update_album_status(album_slug: str, status: str) -> str:
 
     logger.info("Updated album '%s' status to '%s'", normalized, status)
 
-    # Update cache
+    # Update cache — mutate the album dict already in state (obtained from
+    # _find_album_or_error) and write the same state object; do NOT re-fetch
+    # via cache.get_state() which could return a different object if the cache
+    # was invalidated between calls.
     try:
         parsed = parse_album_readme(readme_path)
         album["status"] = parsed.get("status", status)
-        state = cache.get_state()
-        write_state(state)
+        state = cache._state  # same object album references into
+        if state:
+            write_state(state)
     except Exception as e:
         logger.warning("File written but cache update failed for album %s: %s", normalized, e)
 
@@ -5757,12 +5833,11 @@ async def rename_track(
     except OSError as e:
         logger.warning("File renamed but title update failed: %s", e)
 
-    # Update state cache
+    # Update state cache — use the same state object that _find_album_or_error
+    # returned references into; do NOT re-fetch via cache.get_state() which
+    # could return a different object if the cache was invalidated.
     try:
-        state = cache.get_state()
-        albums = state.get("albums", {})
-        album_tracks = albums[normalized_album].get("tracks", {})
-        old_track_data = album_tracks.pop(matched_slug)
+        old_track_data = tracks.pop(matched_slug)
         old_track_data["path"] = str(new_path)
         old_track_data["title"] = title
         # Re-parse the track for fresh metadata
@@ -5777,8 +5852,10 @@ async def rename_track(
             })
         except Exception:
             pass
-        album_tracks[normalized_new] = old_track_data
-        write_state(state)
+        tracks[normalized_new] = old_track_data
+        state = cache._state  # same object that album/tracks reference into
+        if state:
+            write_state(state)
     except Exception as e:
         logger.warning("File renamed but cache update failed: %s", e)
 
@@ -5960,7 +6037,7 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
             "suggestion": "Check the album slug or subfolder.",
         })
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results = []
     for wav in wav_files:
         result = await loop.run_in_executor(None, analyze_track, str(wav))
@@ -6044,7 +6121,7 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
                 "valid_checks": ALL_CHECKS,
             })
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results = []
     for wav in wav_files:
         result = await loop.run_in_executor(None, qc_track, str(wav), active_checks)
@@ -6160,7 +6237,7 @@ async def master_audio(
     if not wav_files:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     track_results = []
 
     for wav_file in wav_files:
@@ -6303,7 +6380,7 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
             "output_path": str(out_path),
         }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, _do_fix, input_path, output_path)
     return _safe_json(result)
 
@@ -6353,7 +6430,7 @@ async def master_with_reference(
             "error": "matchering not installed. Install: pip install matchering",
         })
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     if target_filename:
         # Single file
@@ -6477,7 +6554,7 @@ async def transcribe_audio(
     if not wav_files:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     results = []
     for wav_file in wav_files:
         success = await loop.run_in_executor(
@@ -6638,7 +6715,7 @@ async def create_songbook(
     safe_title = title.replace(" ", "_").replace("/", "-")
     output_path = sheet_dir / f"{safe_title}.pdf"
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(
         None,
         lambda: _create_songbook(
@@ -6728,7 +6805,7 @@ async def generate_promo_videos(
     output_dir = audio_dir / "promo_videos"
     output_dir.mkdir(exist_ok=True)
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     if track_filename:
         # Single track
@@ -6893,7 +6970,7 @@ async def generate_album_sampler(
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / "album_sampler.mp4"
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(
         None,
         lambda: _gen_sampler(
@@ -7052,7 +7129,7 @@ async def master_album(
         "cut_highs": effective_highs,
     }
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     # --- Stage 2: Analysis ---
     from tools.mastering.analyze_tracks import analyze_track
@@ -7302,7 +7379,10 @@ async def master_album(
     }
 
     # --- Stage 7: Update statuses ---
-    state = cache.get_state()
+    # Use the in-memory state directly rather than re-fetching via
+    # cache.get_state(), which could reload from disk and lose any
+    # concurrent modifications made during the lengthy processing stages.
+    state = cache._state or {}
     albums = state.get("albums", {})
     normalized_album = _normalize_slug(album_slug)
     album_data = albums.get(normalized_album)
@@ -7332,14 +7412,14 @@ async def master_album(
                 )
                 match = pattern.search(text)
                 if match:
-                    new_row = f"{match.group(1)} Final |"
+                    new_row = f"{match.group(1)} {TRACK_FINAL} |"
                     updated_text = text[:match.start()] + new_row + text[match.end():]
                     track_path.write_text(updated_text, encoding="utf-8")
 
                     # Update cache
                     parsed = parse_track_file(track_path)
                     track_info.update({
-                        "status": parsed.get("status", "Final"),
+                        "status": parsed.get("status", TRACK_FINAL),
                         "mtime": track_path.stat().st_mtime,
                     })
                     tracks_updated += 1
@@ -7350,7 +7430,7 @@ async def master_album(
 
         # Update album status to Complete if all tracks are Final
         all_final = all(
-            t.get("status", "").lower() == "final"
+            t.get("status", "").lower() == TRACK_FINAL.lower()
             for t in tracks.values()
         )
         album_status = None
@@ -7367,11 +7447,11 @@ async def master_album(
                         )
                         match = pattern.search(text)
                         if match:
-                            new_row = f"{match.group(1)} Complete |"
+                            new_row = f"{match.group(1)} {ALBUM_COMPLETE} |"
                             updated_text = text[:match.start()] + new_row + text[match.end():]
                             readme_path.write_text(updated_text, encoding="utf-8")
-                            album_data["status"] = "Complete"
-                            album_status = "Complete"
+                            album_data["status"] = ALBUM_COMPLETE
+                            album_status = ALBUM_COMPLETE
                     except Exception as e:
                         status_errors.append(f"Error updating album status: {e}")
 
@@ -7984,7 +8064,7 @@ async def db_sync_album(album_slug: str) -> str:
         track_count = album_data.get("track_count", 0)
         explicit = album_data.get("explicit", False)
         release_date = album_data.get("release_date")
-        status = album_data.get("status", "Unknown")
+        status = album_data.get("status", STATUS_UNKNOWN)
 
         # Extract streaming URLs from state cache
         streaming = album_data.get("streaming_urls", {})
