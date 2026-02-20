@@ -6,6 +6,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-02-20
+
+### Added
+- **`mix-engineer` skill** — automated per-stem audio polish pipeline for Suno output cleanup
+- **`tools/mixing/mix_tracks.py`** — core DSP module: spectral gating noise reduction, Butterworth highpass, parametric EQ, high shelf, envelope-following compression, click detection/interpolation, mid-side stereo enhancement, stem remixing with per-stem gain
+- **`tools/mixing/mix-presets.yaml`** — genre presets for 50+ genres with per-stem processing settings and deep-merge user override support
+- **`polish_audio` MCP tool** — process stems or full mixes with genre presets
+- **`analyze_mix_issues` MCP tool** — spectral analysis for noise floor, muddiness, harshness, clicks, sub-rumble
+- **`polish_album` MCP tool** — 3-stage pipeline (analyze → polish → verify)
+- **`source_subfolder` parameter on `master_audio`** — read WAVs from a subfolder (e.g., "polished") for polish → master chaining
+- **89 unit tests** for mix_tracks.py — 16 test classes covering all DSP functions, pipeline modes, preset loading, numerical stability, and override merging
+- **`requirements-mixing.txt`** — standalone dependency file for mixing tools
+
+### Fixed
+- **Python 3.9 compat** — replaced `str | None` union syntax with `Optional[str]` in server.py
+- **Lint** — removed unused `reachable` variable in URL checking
+- **README badges** — updated skills count (49→50), test count (1969→2183), added mix-engineer to workflow table and skills reference
+
 ## [0.58.0] - 2026-02-16
 
 ### Added
