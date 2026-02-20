@@ -5179,7 +5179,7 @@ _ALBUM_STATUS_LEVEL = {
 }
 
 
-def _check_album_track_consistency(album: dict, new_status: str) -> str | None:
+def _check_album_track_consistency(album: dict, new_status: str) -> Optional[str]:
     """Check if album status is consistent with its tracks' statuses.
 
     Returns error message if inconsistent, or None if OK.
@@ -5239,7 +5239,7 @@ def _check_album_track_consistency(album: dict, new_status: str) -> str | None:
     return None
 
 
-def _validate_track_transition(current: str, new: str, *, force: bool = False) -> str | None:
+def _validate_track_transition(current: str, new: str, *, force: bool = False) -> Optional[str]:
     """Return error message if transition is invalid, or None if OK."""
     if force:
         return None
@@ -5257,7 +5257,7 @@ def _validate_track_transition(current: str, new: str, *, force: bool = False) -
     return None
 
 
-def _validate_album_transition(current: str, new: str, *, force: bool = False) -> str | None:
+def _validate_album_transition(current: str, new: str, *, force: bool = False) -> Optional[str]:
     """Return error message if transition is invalid, or None if OK."""
     if force:
         return None
