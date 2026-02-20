@@ -15,6 +15,7 @@ MODEL_PATTERN = re.compile(r'^claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]
 # Skills that require external dependencies
 SKILLS_WITH_REQUIREMENTS = {
     'mastering-engineer': ['matchering', 'pyloudnorm', 'scipy', 'numpy', 'soundfile'],
+    'mix-engineer': ['noisereduce', 'scipy', 'numpy', 'soundfile'],
     'promo-director': ['ffmpeg', 'pillow', 'librosa'],
     'sheet-music-publisher': ['AnthemScore', 'MuseScore', 'pypdf', 'reportlab'],
     'document-hunter': ['playwright', 'chromium'],

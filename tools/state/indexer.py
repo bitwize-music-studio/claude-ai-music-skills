@@ -172,6 +172,19 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
         'name': db_config.get('name', '') if db_config.get('enabled') else '',
     }
 
+    # Generation config (service settings and gates)
+    gen_config = config.get('generation', {})
+    additional_genres_raw = gen_config.get('additional_genres', [])
+    generation_section = {
+        'service': gen_config.get('service', 'suno'),
+        'require_suno_link_for_final': bool(gen_config.get('require_suno_link_for_final', True)),
+        'max_lyric_words': int(gen_config.get('max_lyric_words', 800)),
+        'require_source_path_for_documentary': bool(
+            gen_config.get('require_source_path_for_documentary', True)),
+        'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
+        if isinstance(additional_genres_raw, list) else [],
+    }
+
     return {
         'content_root': content_root,
         'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
@@ -180,6 +193,7 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
         'artist_name': artist.get('name', ''),
         'config_mtime': get_config_mtime(),
         'database': database_section,
+        'generation': generation_section,
     }
 
 

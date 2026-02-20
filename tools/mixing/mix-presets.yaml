@@ -1,0 +1,579 @@
+# Mix Polish Presets — Per-Stem Processing Settings
+#
+# Each stem type defines its own processing chain:
+#   vocals:  noise_reduction → presence boost → high tame → compress
+#   drums:   click removal → compress (fast attack)
+#   bass:    highpass → mud cut → compress
+#   other:   noise reduction → mud cut → high tame
+#
+# gain_db on each stem controls remix balance (0 = unity, positive = louder)
+#
+# full_mix: Fallback settings when stems are not available
+#
+# Override per-user: copy to {overrides}/mix-presets.yaml and edit.
+# User overrides deep-merge on top of these defaults.
+
+defaults:
+  vocals:
+    noise_reduction: 0.5
+    presence_boost_db: 2.0
+    presence_freq: 3000
+    high_tame_db: -2.0
+    high_tame_freq: 7000
+    compress_threshold_db: -15.0
+    compress_ratio: 2.5
+    compress_attack_ms: 10.0
+    gain_db: 0.0
+  drums:
+    click_removal: true
+    click_threshold: 6.0
+    compress_threshold_db: -12.0
+    compress_ratio: 2.0
+    compress_attack_ms: 5.0
+    gain_db: 0.0
+  bass:
+    highpass_cutoff: 30
+    mud_cut_db: -3.0
+    mud_freq: 200
+    compress_threshold_db: -15.0
+    compress_ratio: 3.0
+    compress_attack_ms: 10.0
+    gain_db: 0.0
+  other:
+    noise_reduction: 0.3
+    mud_cut_db: -2.0
+    mud_freq: 300
+    high_tame_db: -1.5
+    high_tame_freq: 8000
+    gain_db: 0.0
+  full_mix:
+    noise_reduction: 0.3
+    highpass_cutoff: 35
+    mud_cut_db: -2.0
+    mud_freq: 250
+    presence_boost_db: 1.5
+    presence_freq: 3000
+    high_tame_db: -1.5
+    high_tame_freq: 7000
+    compress_threshold_db: -15.0
+    compress_ratio: 2.0
+    click_removal: true
+
+genres:
+  # === Pop / Mainstream ===
+  pop:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 0.5
+    other:
+      high_tame_db: -2.0
+  k-pop:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 0.5
+    other:
+      high_tame_db: -2.0
+  hyperpop:
+    vocals:
+      presence_boost_db: 3.0
+      high_tame_db: -1.5
+      gain_db: 0.5
+    drums:
+      compress_ratio: 2.5
+
+  # === Hip-Hop / Rap ===
+  hip-hop:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 1.0
+    bass:
+      highpass_cutoff: 25
+      mud_cut_db: -2.0
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+  hiphop:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 1.0
+    bass:
+      highpass_cutoff: 25
+      mud_cut_db: -2.0
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+  rap:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 1.0
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+  trap:
+    vocals:
+      presence_boost_db: 2.0
+      gain_db: 0.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.5
+    drums:
+      gain_db: 1.0
+  drill:
+    vocals:
+      gain_db: 0.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+  phonk:
+    vocals:
+      high_tame_db: -2.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+  grime:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 0.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+  nerdcore:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 1.0
+    bass:
+      gain_db: 0.5
+
+  # === R&B / Soul / Funk ===
+  r&b:
+    vocals:
+      presence_boost_db: 2.0
+      high_tame_db: -1.5
+      gain_db: 0.5
+    bass:
+      mud_cut_db: -2.0
+      gain_db: 0.5
+  rnb:
+    vocals:
+      presence_boost_db: 2.0
+      high_tame_db: -1.5
+      gain_db: 0.5
+    bass:
+      mud_cut_db: -2.0
+      gain_db: 0.5
+  soul:
+    vocals:
+      presence_boost_db: 1.5
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+  funk:
+    bass:
+      mud_cut_db: -2.0
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+  disco:
+    bass:
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+    other:
+      high_tame_db: -1.0
+  gospel:
+    vocals:
+      presence_boost_db: 2.0
+      gain_db: 0.5
+
+  # === Rock ===
+  rock:
+    vocals:
+      high_tame_db: -2.5
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -3.0
+  indie-rock:
+    vocals:
+      high_tame_db: -2.0
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.5
+  alternative:
+    vocals:
+      high_tame_db: -2.0
+    other:
+      mud_cut_db: -2.5
+  grunge:
+    vocals:
+      high_tame_db: -3.0
+      noise_reduction: 0.3
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -3.0
+  garage-rock:
+    vocals:
+      noise_reduction: 0.3
+      high_tame_db: -2.5
+    other:
+      mud_cut_db: -2.5
+  surf-rock:
+    other:
+      high_tame_db: -1.0
+      mud_cut_db: -2.0
+    drums:
+      gain_db: 0.5
+  psychedelic-rock:
+    vocals:
+      noise_reduction: 0.3
+    other:
+      high_tame_db: -1.0
+      mud_cut_db: -2.0
+  progressive-rock:
+    other:
+      mud_cut_db: -2.5
+    drums:
+      gain_db: 0.5
+  post-rock:
+    vocals:
+      noise_reduction: 0.3
+      presence_boost_db: 1.5
+    other:
+      high_tame_db: -1.0
+
+  # === Punk ===
+  punk:
+    vocals:
+      high_tame_db: -3.0
+      noise_reduction: 0.3
+    drums:
+      gain_db: 1.0
+    other:
+      mud_cut_db: -3.0
+  hardcore-punk:
+    vocals:
+      high_tame_db: -3.0
+      noise_reduction: 0.3
+    drums:
+      gain_db: 1.0
+    other:
+      mud_cut_db: -3.5
+  ska-punk:
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.5
+  celtic-punk:
+    vocals:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.0
+  emo:
+    vocals:
+      presence_boost_db: 2.5
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.5
+
+  # === Metal ===
+  metal:
+    vocals:
+      high_tame_db: -3.0
+      noise_reduction: 0.3
+    drums:
+      compress_ratio: 2.5
+      gain_db: 1.0
+    bass:
+      mud_cut_db: -4.0
+      gain_db: 0.5
+    other:
+      mud_cut_db: -3.5
+  thrash-metal:
+    vocals:
+      high_tame_db: -3.0
+    drums:
+      compress_ratio: 2.5
+      gain_db: 1.0
+    bass:
+      mud_cut_db: -4.0
+    other:
+      mud_cut_db: -4.0
+  black-metal:
+    vocals:
+      high_tame_db: -3.5
+      noise_reduction: 0.3
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -3.0
+  doom-metal:
+    bass:
+      highpass_cutoff: 25
+      mud_cut_db: -2.0
+      gain_db: 1.0
+    drums:
+      compress_ratio: 1.5
+    other:
+      mud_cut_db: -2.5
+  metalcore:
+    vocals:
+      high_tame_db: -3.0
+    drums:
+      compress_ratio: 2.5
+      gain_db: 1.0
+    other:
+      mud_cut_db: -3.5
+  industrial:
+    vocals:
+      high_tame_db: -3.0
+      noise_reduction: 0.3
+    drums:
+      gain_db: 1.0
+    bass:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -3.0
+
+  # === Electronic / EDM ===
+  electronic:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+    other:
+      high_tame_db: -1.0
+  edm:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+    drums:
+      gain_db: 1.0
+    other:
+      high_tame_db: -1.0
+  house:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 0.5
+    drums:
+      gain_db: 1.0
+  techno:
+    drums:
+      gain_db: 1.0
+      compress_ratio: 2.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 0.5
+  trance:
+    other:
+      high_tame_db: -1.0
+    bass:
+      highpass_cutoff: 25
+  drum-and-bass:
+    drums:
+      gain_db: 1.5
+      compress_ratio: 2.5
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+  dubstep:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.5
+    drums:
+      gain_db: 0.5
+  synthwave:
+    other:
+      high_tame_db: -1.0
+      mud_cut_db: -1.5
+    bass:
+      gain_db: 0.5
+  new-wave:
+    vocals:
+      presence_boost_db: 2.0
+    other:
+      high_tame_db: -1.5
+  dancehall:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+    vocals:
+      gain_db: 0.5
+
+  # === Ambient / Lo-Fi / Chill ===
+  ambient:
+    vocals:
+      noise_reduction: 0.3
+      presence_boost_db: 1.0
+      compress_ratio: 1.5
+    other:
+      noise_reduction: 0.2
+      high_tame_db: -1.0
+  lo-fi:
+    vocals:
+      noise_reduction: 0.2
+      presence_boost_db: 1.0
+      high_tame_db: -1.0
+    other:
+      noise_reduction: 0.2
+  lofi:
+    vocals:
+      noise_reduction: 0.2
+      presence_boost_db: 1.0
+      high_tame_db: -1.0
+    other:
+      noise_reduction: 0.2
+  chillwave:
+    vocals:
+      noise_reduction: 0.3
+      presence_boost_db: 1.0
+    other:
+      high_tame_db: -1.0
+  trip-hop:
+    bass:
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+    vocals:
+      presence_boost_db: 2.0
+  vaporwave:
+    vocals:
+      noise_reduction: 0.2
+      presence_boost_db: 1.0
+    other:
+      high_tame_db: -1.0
+  shoegaze:
+    vocals:
+      noise_reduction: 0.2
+      presence_boost_db: 1.0
+    other:
+      noise_reduction: 0.2
+      high_tame_db: -1.0
+
+  # === Folk / Country / Americana ===
+  folk:
+    vocals:
+      presence_boost_db: 2.0
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+  country:
+    vocals:
+      presence_boost_db: 2.0
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+    drums:
+      gain_db: 0.5
+  americana:
+    vocals:
+      presence_boost_db: 2.0
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+  bluegrass:
+    vocals:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+  indie-folk:
+    vocals:
+      presence_boost_db: 1.5
+      gain_db: 0.5
+    other:
+      mud_cut_db: -1.5
+
+  # === Jazz / Blues ===
+  jazz:
+    vocals:
+      presence_boost_db: 1.5
+      compress_ratio: 2.0
+    bass:
+      mud_cut_db: -2.0
+    drums:
+      compress_ratio: 1.5
+    other:
+      mud_cut_db: -1.5
+  blues:
+    vocals:
+      presence_boost_db: 1.5
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.0
+  swing:
+    drums:
+      compress_ratio: 1.5
+    bass:
+      mud_cut_db: -2.0
+  bossa-nova:
+    vocals:
+      presence_boost_db: 1.5
+      compress_ratio: 2.0
+    bass:
+      mud_cut_db: -2.0
+    drums:
+      compress_ratio: 1.5
+
+  # === Classical / Cinematic ===
+  classical:
+    vocals:
+      noise_reduction: 0.3
+      presence_boost_db: 1.0
+      compress_ratio: 1.5
+    drums:
+      compress_ratio: 1.5
+    other:
+      noise_reduction: 0.2
+      mud_cut_db: -1.5
+  opera:
+    vocals:
+      presence_boost_db: 1.5
+      compress_ratio: 1.5
+      gain_db: 0.5
+    other:
+      noise_reduction: 0.2
+  cinematic:
+    bass:
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.0
+
+  # === World / Latin / Reggae ===
+  latin:
+    vocals:
+      gain_db: 0.5
+    drums:
+      gain_db: 0.5
+    bass:
+      gain_db: 0.5
+  afrobeats:
+    drums:
+      gain_db: 1.0
+    bass:
+      gain_db: 0.5
+    vocals:
+      gain_db: 0.5
+  reggae:
+    bass:
+      highpass_cutoff: 25
+      gain_db: 1.0
+    drums:
+      gain_db: 0.5
+
+  # === Indie / Other ===
+  indie:
+    vocals:
+      presence_boost_db: 1.5
+      gain_db: 0.5
+    other:
+      mud_cut_db: -2.0

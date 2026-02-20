@@ -23,6 +23,12 @@ numpy==1.26.4
 soundfile==0.12.1
 
 # =============================================================================
+# AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
+# scipy, numpy, soundfile shared with mastering above
+# =============================================================================
+noisereduce==3.0.3
+
+# =============================================================================
 # PROMO VIDEOS (required for /bitwize-music:promo-director)
 # =============================================================================
 pillow==12.1.1

@@ -73,7 +73,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.5 Skills (28 skills)
+## Sonnet 4.5 Skills (29 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -97,6 +97,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### mastering-engineer
 **Why Sonnet**: Guides audio mastering with technical knowledge (-14 LUFS, true peak limits, genre-specific EQ). Follows established standards but needs to explain rationale and troubleshoot issues.
+
+### mix-engineer
+**Why Sonnet**: Guides per-stem audio polish with technical knowledge (noise reduction, EQ, compression, stem remixing). Similar complexity to mastering-engineer — follows established processing chains but needs to interpret analysis results and recommend settings for the specific audio. Not creating music, but making technical processing decisions.
 
 ### promo-director
 **Why Sonnet**: Coordinates video generation with creative decisions (visualization style, timing, text overlays). Technical workflow with aesthetic judgment. Not creating music, but creating promotional assets.
@@ -239,8 +242,8 @@ Is it purely pattern matching, file operations, or static info?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus 4.5 | 6 | 12.2% | Music-defining output, high error cost |
-| Sonnet 4.5 | 28 | 57.1% | Reasoning, coordination, moderate creativity |
-| Haiku 4.5 | 15 | 30.6% | Rule-based operations, no judgment |
+| Opus 4.5 | 6 | 12.0% | Music-defining output, high error cost |
+| Sonnet 4.5 | 29 | 58.0% | Reasoning, coordination, moderate creativity |
+| Haiku 4.5 | 15 | 30.0% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

@@ -319,6 +319,68 @@ generation:
   #
   service: suno
 
+  # ---------------------------
+  # require_suno_link_for_final [optional]
+  # ---------------------------
+  # Whether a Suno link must be set before marking a track as Final.
+  # When true, Generated → Final is blocked until a Suno link is recorded.
+  # This ensures every Final track has proof of generation.
+  #
+  # Default (if omitted): true
+  #
+  # Set to false if you generate outside Suno or don't track generation links.
+  #
+  # require_suno_link_for_final: true
+
+  # ---------------------------
+  # max_lyric_words [optional]
+  # ---------------------------
+  # Maximum word count for lyrics before generation is blocked.
+  # Suno V5 has a practical limit of ~800 words — lyrics beyond this
+  # are compressed or skipped during generation.
+  #
+  # Default (if omitted): 800
+  #
+  # Adjust if your generation service supports longer lyrics, or lower
+  # it if you want to enforce tighter lyric density.
+  #
+  # max_lyric_words: 800
+
+  # ---------------------------
+  # require_source_path_for_documentary [optional]
+  # ---------------------------
+  # Whether documentary albums (those with SOURCES.md) must follow the
+  # full source verification path: Concept → Research Complete →
+  # Sources Verified → In Progress.
+  #
+  # When true, Concept → In Progress is blocked for albums with SOURCES.md.
+  # This prevents accidentally skipping research verification.
+  #
+  # Default (if omitted): true
+  #
+  # Set to false if you use SOURCES.md for non-documentary purposes
+  # (e.g., sample credits) and don't need the verification workflow.
+  #
+  # require_source_path_for_documentary: true
+
+  # ---------------------------
+  # additional_genres [optional]
+  # ---------------------------
+  # Extra genres to accept when creating albums, beyond the built-in list.
+  #
+  # Built-in genres:
+  #   blues, classical, country, electronic, folk, gospel, hip-hop,
+  #   indie-folk, jazz, k-pop, latin, metal, pop, punk, reggae, rnb, rock
+  #
+  # Use this for subgenres or niche genres your project needs.
+  # Values should be lowercase-with-hyphens (slug format).
+  #
+  # Examples:
+  #   additional_genres: ["synthwave", "lo-fi", "boom-bap", "drill"]
+  #   additional_genres: ["americana", "bluegrass"]
+  #
+  # additional_genres: []
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]

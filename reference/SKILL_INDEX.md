@@ -61,6 +61,7 @@ Quick-reference guide for finding the right skill for any task.
 ### Production & Release
 | I need to... | Use this skill |
 |--------------|----------------|
+| ...polish raw Suno audio (fix noise, muddiness, harshness) | `/mix-engineer` |
 | ...master audio for streaming platforms | `/mastering-engineer` |
 | ...create promo videos for social media | `/promo-director` |
 | ...write social media copy for an album | `/promo-writer` |
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
+| [`mix-engineer`](/skills/mix-engineer/SKILL.md) | Per-stem audio polish (noise, EQ, compression, remix) | Polishing raw Suno output before mastering |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
 | [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action (also available via `/resume`) | Workflow guidance when unsure what to do |
 | [`plagiarism-checker`](/skills/plagiarism-checker/SKILL.md) | Scan lyrics for phrases matching existing songs via web search + LLM | Pre-release plagiarism check |
@@ -165,7 +167,8 @@ What to have ready before using each skill:
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created |
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
-| `/mastering-engineer` | WAV files downloaded from Suno |
+| `/mix-engineer` | WAV files (stems preferred) imported from Suno |
+| `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
 | `/promo-writer` | Album with track concepts and lyrics written |
 | `/promo-reviewer` | Promo copy populated in promo/ directory |
@@ -189,6 +192,7 @@ What to have ready before using each skill:
     -> /lyric-reviewer (final QC)
     -> /pre-generation-check (validate all gates)
     -> [Generate in Suno]
+    -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
     -> /promo-writer (optional: generate social media copy)
@@ -207,7 +211,7 @@ What to have ready before using each skill:
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
     -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno] -> /mastering-engineer -> /release-director
+    -> [Generate in Suno] -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
 ```
 
 ### Resume Existing Work
@@ -227,7 +231,8 @@ What to have ready before using each skill:
 
 ### Post-Generation to Release
 ```
-/mastering-engineer <audio-folder>
+/mix-engineer <album> (optional: polish raw audio)
+    -> /mastering-engineer <audio-folder>
     -> /promo-director <album> (optional)
     -> /promo-writer <album> (optional)
     -> /promo-reviewer <album> (optional)
@@ -248,6 +253,7 @@ Natural pairings that complement each other:
 | `/lyric-reviewer` | `/pre-generation-check` | Review must pass before generation gate |
 | `/researcher` | `/document-hunter` | Automate document acquisition |
 | `/suno-engineer` | `/clipboard` | Copy prompts directly to Suno |
+| `/mix-engineer` | `/mastering-engineer` | Polish audio before mastering for best results |
 | `/mastering-engineer` | `/promo-director` | Promo videos need mastered audio |
 | `/promo-director` | `/cloud-uploader` | Upload videos for sharing |
 | `/promo-writer` | `/promo-reviewer` | Generate copy, then polish it |
@@ -285,7 +291,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 28 skills)
+### Sonnet 4.5 (Reasoning & Coordination — 29 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -293,6 +299,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/document-hunter` - Automated searching
 - `/explicit-checker` - Context-dependent content scanning
 - `/mastering-engineer` - Audio guidance
+- `/mix-engineer` - Stem processing guidance
 - `/plagiarism-checker` - Lyrics plagiarism scanning
 - `/promo-director` - Video generation
 - `/promo-reviewer` - Interactive copy review

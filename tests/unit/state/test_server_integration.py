@@ -786,7 +786,8 @@ class TestUpdateTrackFieldEndToEnd:
     def test_update_status_persists(self, integration_env):
         """Changing a track status writes to the real markdown file."""
         result = json.loads(_run(server.update_track_field(
-            "integration-test-album", "02-second-track", "status", "Generated"
+            "integration-test-album", "02-second-track", "status", "Generated",
+            force=True,
         )))
         assert result["success"] is True
 
@@ -798,14 +799,15 @@ class TestUpdateTrackFieldEndToEnd:
     def test_state_reflects_file_update(self, integration_env):
         """After field update, state cache returns the new value."""
         _run(server.update_track_field(
-            "integration-test-album", "02-second-track", "status", "Final"
+            "integration-test-album", "02-second-track", "status", "Generated",
+            force=True,
         ))
 
         # get_track should reflect the update
         result = json.loads(_run(server.get_track(
             "integration-test-album", "02-second-track"
         )))
-        assert result["track"]["status"] == "Final"
+        assert result["track"]["status"] == "Generated"
 
 
 @pytest.mark.integration
@@ -835,8 +837,11 @@ class TestRemainingToolsCoverage:
         result = json.loads(_run(server.get_session()))
         assert "session" in result
         session = result["session"]
-        # Fresh state has empty session fields
-        assert "last_album" in session or session == {}
+        # Fresh state always has standard session fields
+        assert "last_album" in session
+        assert "last_track" in session
+        assert "last_phase" in session
+        assert "pending_actions" in session
 
     # --- update_session ---
 
@@ -1034,7 +1039,7 @@ class TestRemainingToolsCoverage:
             )))
             assert result["clean"] is False
             assert result["count"] >= 1
-            found_names = [f["name"] for f in result["found"]]
+            found_names = [f["name"] for f in result["matches"]]
             assert artist_name in found_names
 
     # --- check_pronunciation_enforcement ---
@@ -1086,7 +1091,7 @@ class TestRemainingToolsCoverage:
         )))
         assert result["has_explicit"] is True
         assert result["unique_words"] == 2
-        found_words = [f["word"] for f in result["found"]]
+        found_words = [f["word"] for f in result["matches"]]
         assert "fuck" in found_words
         assert "shit" in found_words
 
@@ -1098,7 +1103,7 @@ class TestRemainingToolsCoverage:
             "What the heck is happening"
         )))
         assert result["has_explicit"] is True
-        found_words = [f["word"] for f in result["found"]]
+        found_words = [f["word"] for f in result["matches"]]
         assert "heck" in found_words
 
     # --- create_album_structure ---
@@ -1494,34 +1499,36 @@ class TestCheckHomographsExtended:
         """check_homographs detects 'live' as a homograph."""
         result = json.loads(_run(server.check_homographs("We are live tonight")))
         assert result["count"] >= 1
-        words = [f["canonical"] for f in result["found"]]
+        assert result["has_homographs"] is True
+        words = [f["canonical"] for f in result["matches"]]
         assert "live" in words
 
     def test_detects_read(self, integration_env):
         """check_homographs detects 'read' as a homograph."""
         result = json.loads(_run(server.check_homographs("I read the book")))
         assert result["count"] >= 1
-        words = [f["canonical"] for f in result["found"]]
+        words = [f["canonical"] for f in result["matches"]]
         assert "read" in words
 
     def test_empty_text(self, integration_env):
         """check_homographs returns empty for blank text."""
         result = json.loads(_run(server.check_homographs("")))
         assert result["count"] == 0
-        assert result["found"] == []
+        assert result["has_homographs"] is False
+        assert result["matches"] == []
 
     def test_multiple_homographs(self, integration_env):
         """check_homographs detects multiple different homographs."""
         result = json.loads(_run(server.check_homographs(
             "Live close to the wind, read the lead"
         )))
-        words = set(f["canonical"] for f in result["found"])
+        words = set(f["canonical"] for f in result["matches"])
         assert len(words) >= 3  # live, close, wind, read, lead
 
     def test_returns_line_number(self, integration_env):
         """check_homographs results include line numbers."""
         result = json.loads(_run(server.check_homographs("first line\nlive show")))
-        live_hit = next(f for f in result["found"] if f["canonical"] == "live")
+        live_hit = next(f for f in result["matches"] if f["canonical"] == "live")
         assert live_hit["line_number"] == 2
 
 
@@ -1554,14 +1561,14 @@ class TestRunPreGenerationGatesExtended:
         result = json.loads(_run(server.run_pre_generation_gates("nonexistent")))
         assert result["found"] is False
 
-    def test_six_gates_per_track(self, integration_env):
-        """Each track should be checked against all 6 gates."""
+    def test_eight_gates_per_track(self, integration_env):
+        """Each track should be checked against all 8 gates."""
         with patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album", "01"
             )))
         track = result["tracks"][0]
-        assert len(track["gates"]) == 6
+        assert len(track["gates"]) == 8
 
 
 @pytest.mark.integration
@@ -1763,12 +1770,13 @@ class TestGetConfigExtended:
         result = json.loads(_run(server.get_config()))
         assert Path(result["config"]["audio_root"]).is_dir()
 
-    def test_generation_service(self, integration_env):
-        """get_config includes generation service setting."""
+    def test_config_has_core_keys(self, integration_env):
+        """get_config includes core config keys."""
         result = json.loads(_run(server.get_config()))
         config = result["config"]
-        # Config has generation.service = "suno"
-        assert config.get("generation_service") or config.get("service") or True
+        assert "content_root" in config
+        assert "audio_root" in config
+        assert "artist_name" in config
 
 
 @pytest.mark.integration
@@ -1913,9 +1921,9 @@ class TestScanArtistNamesExtended:
         if blocklist:
             name = blocklist[0]["name"]
             result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
-            if result["found"]:
-                assert "alternative" in result["found"][0]
-                assert result["found"][0]["alternative"] != ""
+            if result["matches"]:
+                assert "alternative" in result["matches"][0]
+                assert result["matches"][0]["alternative"] != ""
 
     def test_case_insensitive(self, integration_env, monkeypatch):
         """scan_artist_names matches regardless of case."""
@@ -1963,7 +1971,7 @@ class TestCheckExplicitContentExtended:
         result = json.loads(_run(server.check_explicit_content(
             "Clean line\nWhat the fuck\nAnother clean line"
         )))
-        hit = result["found"][0]
+        hit = result["matches"][0]
         assert hit["lines"][0]["line_number"] == 2
 
     def test_empty_text(self, integration_env, monkeypatch):
@@ -2393,7 +2401,16 @@ class TestWorkflowAlbumLifecycle:
         assert before["found"] is True
         completed_before = before["tracks_completed"]
 
-        # Update track 02 to Final (was In Progress)
+        # Update track 02: In Progress → Generated → Final (force to bypass gates)
+        update = json.loads(_run(server.update_track_field(
+            "integration-test-album", "02-second-track", "status", "Generated",
+            force=True,
+        )))
+        assert update["success"] is True
+        # Set Suno link before Final transition
+        _run(server.update_track_field(
+            "integration-test-album", "02-second-track", "suno-link", "https://suno.com/test02"
+        ))
         update = json.loads(_run(server.update_track_field(
             "integration-test-album", "02-second-track", "status", "Final"
         )))
@@ -2408,9 +2425,9 @@ class TestWorkflowAlbumLifecycle:
 
     def test_update_track_then_extract_section(self, integration_env):
         """Update a track then verify section extraction still works."""
-        # Update status
+        # Update explicit field (non-status field — no transition check)
         _run(server.update_track_field(
-            "integration-test-album", "01-first-track", "status", "Generated"
+            "integration-test-album", "01-first-track", "explicit", "Yes"
         ))
 
         # Extract section from the same track
@@ -2422,7 +2439,17 @@ class TestWorkflowAlbumLifecycle:
 
     def test_update_multiple_tracks_then_album_verdict(self, integration_env):
         """Update all tracks to Final then verify album is all-ready for generation."""
-        for slug in ["01-first-track", "02-second-track", "03-third-track"]:
+        # Track 01 is already Final; advance 02 and 03 (force to bypass gates)
+        for slug in ["02-second-track", "03-third-track"]:
+            result = json.loads(_run(server.update_track_field(
+                "integration-test-album", slug, "status", "Generated",
+                force=True,
+            )))
+            assert result["success"] is True
+            # Set Suno link before Final transition
+            _run(server.update_track_field(
+                "integration-test-album", slug, "suno-link", "https://suno.com/test"
+            ))
             result = json.loads(_run(server.update_track_field(
                 "integration-test-album", slug, "status", "Final"
             )))
@@ -2448,9 +2475,9 @@ class TestWorkflowAlbumLifecycle:
         assert session["session"]["last_album"] == "integration-test-album"
         assert session["session"]["last_track"] == "01-first-track"
 
-        # Update track, then advance session
+        # Update track (non-status field since track 01 is already Final)
         _run(server.update_track_field(
-            "integration-test-album", "01-first-track", "status", "Generated"
+            "integration-test-album", "01-first-track", "explicit", "Yes"
         ))
         _run(server.update_session(
             track="02-second-track",
@@ -2509,8 +2536,8 @@ class TestWorkflowCrossToolDataFlow:
 
         # Check homographs on the extracted content
         homographs = json.loads(_run(server.check_homographs(content)))
-        # "read" and "bass" should be flagged (response key is "found")
-        found_words = [h["word"].lower() for h in homographs.get("found", [])]
+        # "read" and "bass" should be flagged
+        found_words = [h["word"].lower() for h in homographs.get("matches", [])]
         assert "read" in found_words or "reed" in found_words or "bass" in found_words
 
     def test_extract_lyrics_then_check_explicit(self, integration_env):
@@ -2568,9 +2595,10 @@ class TestWorkflowMultiFieldAtomicity:
 
     def test_sequential_field_updates_preserve_all(self, integration_env):
         """Updating status then explicit preserves both values."""
-        # Update status
+        # Update status (force to bypass pre-gen gates)
         r1 = json.loads(_run(server.update_track_field(
-            "integration-test-album", "03-third-track", "status", "Generated"
+            "integration-test-album", "03-third-track", "status", "Generated",
+            force=True,
         )))
         assert r1["success"] is True
 
@@ -2596,7 +2624,7 @@ class TestWorkflowMultiFieldAtomicity:
     def test_update_does_not_corrupt_other_sections(self, integration_env):
         """Updating a track field doesn't break other markdown sections."""
         _run(server.update_track_field(
-            "integration-test-album", "01-first-track", "status", "Final"
+            "integration-test-album", "01-first-track", "explicit", "Yes"
         ))
 
         # Lyrics section should still be intact
@@ -2794,6 +2822,13 @@ class TestUpdateAlbumStatusIntegration:
 
     def test_updates_readme_and_cache(self, integration_env):
         """Status change persists in README.md and updates state cache."""
+        # Advance tracks to meet consistency requirements for "Complete"
+        for slug in ["02-second-track", "03-third-track"]:
+            _run(server.update_track_field(
+                "integration-test-album", slug, "status", "Generated",
+                force=True,
+            ))
+
         result = json.loads(_run(server.update_album_status(
             "integration-test-album", "Complete"
         )))
@@ -2812,8 +2847,24 @@ class TestUpdateAlbumStatusIntegration:
 
     def test_status_round_trip(self, integration_env):
         """Status can be changed multiple times and read back."""
-        for status in ["Complete", "Released"]:
-            _run(server.update_album_status("integration-test-album", status))
+        # Advance all tracks to Final for Released transition (force to bypass gates)
+        for slug in ["02-second-track", "03-third-track"]:
+            _run(server.update_track_field(
+                "integration-test-album", slug, "status", "Generated",
+                force=True,
+            ))
+            # Set Suno link before Final transition
+            _run(server.update_track_field(
+                "integration-test-album", slug, "suno-link", "https://suno.com/test"
+            ))
+            _run(server.update_track_field(
+                "integration-test-album", slug, "status", "Final"
+            ))
+
+        # Follow valid transition chain: In Progress → Complete → Released
+        # (force Released to bypass release readiness gate — audio fixture incomplete)
+        _run(server.update_album_status("integration-test-album", "Complete"))
+        _run(server.update_album_status("integration-test-album", "Released", force=True))
 
         result = json.loads(_run(server.find_album("integration-test-album")))
         assert result["album"]["status"] == "Released"
@@ -3019,9 +3070,15 @@ class TestNewToolWorkflows:
         _run(server.create_track("integration-test-album", "04", "Workflow Track"))
         _run(server.rebuild_state())
 
-        # Update the new track's status
+        # Update the new track's status: Not Started → In Progress → Generated
+        # (force Generated to bypass pre-gen gates on template content)
         result = json.loads(_run(server.update_track_field(
-            "integration-test-album", "04-workflow-track", "status", "Generated"
+            "integration-test-album", "04-workflow-track", "status", "In Progress"
+        )))
+        assert result["success"] is True
+        result = json.loads(_run(server.update_track_field(
+            "integration-test-album", "04-workflow-track", "status", "Generated",
+            force=True,
         )))
         assert result["success"] is True
 
@@ -3037,9 +3094,9 @@ class TestNewToolWorkflows:
         progress = json.loads(_run(server.get_album_progress("integration-test-album")))
         assert progress["found"] is True
 
-        # Set album status
+        # Set album status (force to bypass consistency — this is an album status test)
         result = json.loads(_run(server.update_album_status(
-            "integration-test-album", "Complete"
+            "integration-test-album", "Complete", force=True
         )))
         assert result["success"] is True
 
