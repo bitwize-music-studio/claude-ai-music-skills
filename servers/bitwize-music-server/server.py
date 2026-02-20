@@ -44,7 +44,7 @@ Tools exposed:
     get_album_full      - Combined album + track sections query
     validate_album_structure - Structural validation of album directories
     create_album_structure - Create album directory with templates
-    run_pre_generation_gates - Run all 6 pre-generation validation gates
+    run_pre_generation_gates - Run all 8 pre-generation validation gates
     check_streaming_lyrics - Check streaming lyrics readiness for release
     get_streaming_urls    - Get streaming platform URLs for an album
     update_streaming_url  - Set a streaming platform URL
@@ -188,6 +188,20 @@ ALBUM_VALID_STATUSES = [
 
 # Default for missing status fields
 STATUS_UNKNOWN = "Unknown"
+
+# Valid primary genres for album creation
+_VALID_GENRES = frozenset({
+    "hip-hop", "electronic", "rock", "folk", "country", "pop", "metal",
+    "jazz", "rnb", "classical", "reggae", "punk", "indie-folk", "blues",
+    "gospel", "latin", "k-pop",
+})
+
+_GENRE_ALIASES = {
+    "r&b": "rnb", "rb": "rnb", "r-and-b": "rnb",
+    "hip hop": "hip-hop", "hiphop": "hip-hop",
+    "k pop": "k-pop", "kpop": "k-pop",
+    "indie folk": "indie-folk",
+}
 
 
 class StateCache:
@@ -1248,6 +1262,7 @@ async def update_track_field(
     track_slug: str,
     field: str,
     value: str,
+    force: bool = False,
 ) -> str:
     """Update a metadata field in a track's markdown file.
 
@@ -1265,6 +1280,7 @@ async def update_track_field(
             "stems" — Stems available (Yes, No)
             "pov" — Point of view
         value: New value for the field
+        force: Override transition validation (for recovery/correction only)
 
     Returns:
         JSON with update result or error
@@ -1321,6 +1337,13 @@ async def update_track_field(
                 "error": f"Track '{track_slug}' not found in album '{album_slug}'",
             })
 
+    # Validate status transition before any file I/O
+    if field_key == "status":
+        current_status = track_data.get("status", TRACK_NOT_STARTED)
+        err = _validate_track_transition(current_status, value, force=force)
+        if err:
+            return _safe_json({"error": err})
+
     track_path = track_data.get("path", "")
     if not track_path:
         return _safe_json({"found": False, "error": f"No path stored for track '{matched_slug}'"})
@@ -1331,6 +1354,70 @@ async def update_track_field(
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as e:
         return _safe_json({"error": f"Cannot read track file: {e}"})
+
+    # Pre-generation gate enforcement: block transition to "Generated" if gates fail
+    if field_key == "status" and not force:
+        canonical_new = _CANONICAL_TRACK_STATUS.get(value.lower().strip(), value)
+        if canonical_new == TRACK_GENERATED:
+            blocklist = _load_artist_blocklist()
+            state_config = (cache.get_state()).get("config", {})
+            gen_cfg = state_config.get("generation", {})
+            gate_blocking, _, gate_results = _check_pre_gen_gates_for_track(
+                track_data, text, blocklist,
+                max_lyric_words=gen_cfg.get("max_lyric_words", 800),
+            )
+            if gate_blocking > 0:
+                return _safe_json({
+                    "error": f"Cannot transition to 'Generated' — {gate_blocking} pre-generation gate(s) failed",
+                    "failed_gates": [g for g in gate_results if g.get("severity") == "BLOCKING"],
+                    "hint": "Fix the issues above, or use force=True to override.",
+                })
+
+    # Suno link gate: block Generated → Final if no Suno link (configurable)
+    if field_key == "status" and not force:
+        canonical_new = _CANONICAL_TRACK_STATUS.get(value.lower().strip(), value)
+        if canonical_new == TRACK_FINAL:
+            state_config = (cache.get_state()).get("config", {})
+            gen_config = state_config.get("generation", {})
+            require_link = gen_config.get("require_suno_link_for_final", True)
+            if require_link and not track_data.get("has_suno_link", False):
+                return _safe_json({
+                    "error": "Cannot mark track as 'Final' — no Suno link set. "
+                             "Set the Suno link first with update_track_field("
+                             "suno-link), or use force=True to override. "
+                             "To disable this check, set "
+                             "generation.require_suno_link_for_final: false in config.",
+                })
+
+    # Source verification gate: check that actual source links exist
+    if field_key in ("sources-verified", "sources_verified") and not force:
+        val_lower = value.lower()
+        if "verified" in val_lower and "pending" not in val_lower:
+            has_links = False
+            # Check 1: SOURCES.md in album directory
+            album_path = album.get("path", "")
+            if album_path:
+                sources_path = Path(album_path) / "SOURCES.md"
+                if sources_path.exists():
+                    try:
+                        sources_text = sources_path.read_text(encoding="utf-8")
+                        if _MARKDOWN_LINK_RE.search(sources_text):
+                            has_links = True
+                    except (OSError, UnicodeDecodeError):
+                        pass
+            # Check 2: Track file Source section for inline links
+            if not has_links:
+                source_section = _extract_markdown_section(text, "Source")
+                if source_section and _MARKDOWN_LINK_RE.search(source_section):
+                    has_links = True
+            if not has_links:
+                return _safe_json({
+                    "error": (
+                        "Cannot verify sources — no markdown links found in "
+                        "SOURCES.md or track Source section. Add [text](url) "
+                        "links before verifying, or use force=True to override."
+                    ),
+                })
 
     # Find and replace the table row: | **Key** | old_value |
     pattern = re.compile(
@@ -3971,6 +4058,17 @@ async def create_album_structure(
 
     normalized = _normalize_slug(album_slug)
     genre_slug = _normalize_slug(genre)
+    genre_slug = _GENRE_ALIASES.get(genre_slug, genre_slug)
+
+    gen_cfg = config.get("generation", {})
+    additional = set(gen_cfg.get("additional_genres", []))
+    all_genres = _VALID_GENRES | additional
+    if genre_slug not in all_genres:
+        return _safe_json({
+            "error": f"Invalid genre '{genre}'. Valid genres: {', '.join(sorted(all_genres))}",
+            "hint": "Use a primary genre, or add custom genres via "
+                    "generation.additional_genres in config.",
+        })
 
     album_path = Path(content_root) / "artists" / artist / "albums" / genre_slug / normalized
     tracks_path = album_path / "tracks"
@@ -4029,12 +4127,177 @@ async def create_album_structure(
 # =============================================================================
 
 
+def _check_pre_gen_gates_for_track(
+    t_data: dict, file_text: str | None, blocklist: list,
+    max_lyric_words: int = 800,
+) -> tuple[int, int, list[dict]]:
+    """Run pre-generation gates on a single track.
+
+    Returns (blocking_count, warning_count, gates_list).
+    """
+    gates: list[dict] = []
+    blocking = 0
+    warning_count = 0
+
+    # Gate 1: Sources Verified
+    sources = t_data.get("sources_verified", "N/A")
+    if sources.lower() == "pending":
+        gates.append({"gate": "Sources Verified", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Sources not yet verified by human"})
+        blocking += 1
+    else:
+        gates.append({"gate": "Sources Verified", "status": "PASS",
+                      "detail": f"Status: {sources}"})
+
+    # Gate 2: Lyrics Reviewed
+    lyrics_content = None
+    if file_text:
+        lyrics_section = _extract_markdown_section(file_text, "Lyrics Box")
+        if lyrics_section:
+            lyrics_content = _extract_code_block(lyrics_section)
+
+    if not lyrics_content or not lyrics_content.strip():
+        gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Lyrics Box is empty"})
+        blocking += 1
+    elif re.search(r'\[TODO\]|\[PLACEHOLDER\]', lyrics_content, re.IGNORECASE):
+        gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Lyrics contain [TODO] or [PLACEHOLDER] markers"})
+        blocking += 1
+    else:
+        gates.append({"gate": "Lyrics Reviewed", "status": "PASS",
+                      "detail": "Lyrics populated"})
+
+    # Gate 3: Pronunciation Resolved
+    if file_text:
+        pron_section = _extract_markdown_section(file_text, "Pronunciation Notes")
+        pron_entries = []
+        if pron_section:
+            for line in pron_section.split("\n"):
+                if not line.startswith("|") or "---" in line or "Word" in line:
+                    continue
+                parts = [p.strip() for p in line.split("|")]
+                if len(parts) >= 4:
+                    word = parts[1].strip()
+                    phonetic = parts[2].strip()
+                    if word and word != "—" and phonetic and phonetic != "—":
+                        pron_entries.append({"word": word, "phonetic": phonetic})
+
+        if pron_entries and lyrics_content:
+            unapplied = []
+            for entry in pron_entries:
+                if not re.search(re.escape(entry["phonetic"]), lyrics_content, re.IGNORECASE):
+                    unapplied.append(entry["word"])
+            if unapplied:
+                gates.append({"gate": "Pronunciation Resolved", "status": "FAIL", "severity": "BLOCKING",
+                              "detail": f"Unapplied: {', '.join(unapplied)}"})
+                blocking += 1
+            else:
+                gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
+                              "detail": f"All {len(pron_entries)} entries applied"})
+        else:
+            gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
+                          "detail": "No pronunciation entries to check"})
+    else:
+        gates.append({"gate": "Pronunciation Resolved", "status": "SKIP",
+                      "detail": "Track file not readable"})
+
+    # Gate 4: Explicit Flag Set
+    explicit = t_data.get("explicit")
+    if explicit is None:
+        gates.append({"gate": "Explicit Flag Set", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Explicit field not set — set to Yes or No before generating"})
+        blocking += 1
+    else:
+        gates.append({"gate": "Explicit Flag Set", "status": "PASS",
+                      "detail": f"Explicit: {'Yes' if explicit else 'No'}"})
+
+    # Gate 5: Style Prompt Complete
+    style_content = None
+    if file_text:
+        style_section = _extract_markdown_section(file_text, "Style Box")
+        if style_section:
+            style_content = _extract_code_block(style_section)
+
+    if not style_content or not style_content.strip():
+        gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Style Box is empty"})
+        blocking += 1
+    else:
+        gates.append({"gate": "Style Prompt Complete", "status": "PASS",
+                      "detail": f"Style prompt: {len(style_content)} chars"})
+
+    # Gate 6: Artist Names Cleared (uses pre-compiled patterns)
+    if style_content:
+        found_artists = []
+        for entry in blocklist:
+            name = entry["name"]
+            pattern = _artist_blocklist_patterns.get(name)
+            if pattern and pattern.search(style_content):
+                found_artists.append(name)
+
+        if found_artists:
+            gates.append({"gate": "Artist Names Cleared", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": f"Found: {', '.join(found_artists)}"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Artist Names Cleared", "status": "PASS",
+                          "detail": "No blocked artist names found"})
+    else:
+        gates.append({"gate": "Artist Names Cleared", "status": "SKIP",
+                      "detail": "No style prompt to check"})
+
+    # Gate 7: Homograph Check — scan lyrics for unresolved homographs
+    if lyrics_content and lyrics_content.strip():
+        found_homographs = []
+        for line in lyrics_content.split("\n"):
+            stripped = line.strip()
+            # Skip section tags like [Verse 1], [Chorus], etc.
+            if stripped.startswith("[") and stripped.endswith("]"):
+                continue
+            for word, pattern in _HOMOGRAPH_PATTERNS.items():
+                if pattern.search(line):
+                    if word not in found_homographs:
+                        found_homographs.append(word)
+        if found_homographs:
+            gates.append({"gate": "Homograph Check", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": f"Unresolved homographs: {', '.join(found_homographs)}"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Homograph Check", "status": "PASS",
+                          "detail": "No homograph risks found"})
+    elif not lyrics_content or not lyrics_content.strip():
+        gates.append({"gate": "Homograph Check", "status": "SKIP",
+                      "detail": "No lyrics to check"})
+
+    # Gate 8: Lyric Length — configurable word count limit
+    if lyrics_content and lyrics_content.strip():
+        lyric_words = [
+            w for line in lyrics_content.split("\n")
+            if line.strip() and not _SECTION_TAG_RE.match(line.strip())
+            for w in line.split() if w
+        ]
+        wc = len(lyric_words)
+        if wc > max_lyric_words:
+            gates.append({"gate": "Lyric Length", "status": "FAIL", "severity": "BLOCKING",
+                          "detail": f"Lyrics are {wc} words — limit is {max_lyric_words}"})
+            blocking += 1
+        else:
+            gates.append({"gate": "Lyric Length", "status": "PASS",
+                          "detail": f"{wc} words (limit {max_lyric_words})"})
+    else:
+        gates.append({"gate": "Lyric Length", "status": "SKIP",
+                      "detail": "No lyrics to check"})
+
+    return blocking, warning_count, gates
+
+
 @mcp.tool()
 async def run_pre_generation_gates(
     album_slug: str,
     track_slug: str = "",
 ) -> str:
-    """Run all 6 pre-generation validation gates on a track or album.
+    """Run all 8 pre-generation validation gates on a track or album.
 
     Gates:
         1. Sources Verified — sources_verified is not "Pending"
@@ -4043,6 +4306,8 @@ async def run_pre_generation_gates(
         4. Explicit Flag Set — Explicit field is "Yes" or "No"
         5. Style Prompt Complete — Non-empty Style Box with content
         6. Artist Names Cleared — No real artist names in Style Box
+        7. Homograph Check — No unresolved homographs in lyrics
+        8. Lyric Length — Lyrics under 800-word Suno limit
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -4093,15 +4358,16 @@ async def run_pre_generation_gates(
     # Load artist blocklist for gate 6
     blocklist = _load_artist_blocklist()
 
+    # Read configurable gate limits
+    state_config = state.get("config", {})
+    gen_cfg = state_config.get("generation", {})
+    max_lyric_words = gen_cfg.get("max_lyric_words", 800)
+
     track_results = []
     total_blocking = 0
     total_warnings = 0
 
     for t_slug, t_data in sorted(tracks_to_check.items()):
-        gates = []
-        blocking = 0
-        warning_count = 0
-
         # Read track file if available
         file_text = None
         track_path = t_data.get("path", "")
@@ -4111,113 +4377,10 @@ async def run_pre_generation_gates(
             except (OSError, UnicodeDecodeError) as e:
                 logger.warning("Cannot read track file for pre-gen gates %s: %s", track_path, e)
 
-        # Gate 1: Sources Verified
-        sources = t_data.get("sources_verified", "N/A")
-        if sources.lower() == "pending":
-            gates.append({"gate": "Sources Verified", "status": "FAIL", "severity": "BLOCKING",
-                          "detail": "Sources not yet verified by human"})
-            blocking += 1
-        else:
-            gates.append({"gate": "Sources Verified", "status": "PASS",
-                          "detail": f"Status: {sources}"})
-
-        # Gate 2: Lyrics Reviewed
-        lyrics_content = None
-        if file_text:
-            lyrics_section = _extract_markdown_section(file_text, "Lyrics Box")
-            if lyrics_section:
-                lyrics_content = _extract_code_block(lyrics_section)
-
-        if not lyrics_content or not lyrics_content.strip():
-            gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
-                          "detail": "Lyrics Box is empty"})
-            blocking += 1
-        elif re.search(r'\[TODO\]|\[PLACEHOLDER\]', lyrics_content, re.IGNORECASE):
-            gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
-                          "detail": "Lyrics contain [TODO] or [PLACEHOLDER] markers"})
-            blocking += 1
-        else:
-            gates.append({"gate": "Lyrics Reviewed", "status": "PASS",
-                          "detail": "Lyrics populated"})
-
-        # Gate 3: Pronunciation Resolved
-        if file_text:
-            pron_section = _extract_markdown_section(file_text, "Pronunciation Notes")
-            pron_entries = []
-            if pron_section:
-                for line in pron_section.split("\n"):
-                    if not line.startswith("|") or "---" in line or "Word" in line:
-                        continue
-                    parts = [p.strip() for p in line.split("|")]
-                    if len(parts) >= 4:
-                        word = parts[1].strip()
-                        phonetic = parts[2].strip()
-                        if word and word != "—" and phonetic and phonetic != "—":
-                            pron_entries.append({"word": word, "phonetic": phonetic})
-
-            if pron_entries and lyrics_content:
-                unapplied = []
-                for entry in pron_entries:
-                    if not re.search(re.escape(entry["phonetic"]), lyrics_content, re.IGNORECASE):
-                        unapplied.append(entry["word"])
-                if unapplied:
-                    gates.append({"gate": "Pronunciation Resolved", "status": "FAIL", "severity": "BLOCKING",
-                                  "detail": f"Unapplied: {', '.join(unapplied)}"})
-                    blocking += 1
-                else:
-                    gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
-                                  "detail": f"All {len(pron_entries)} entries applied"})
-            else:
-                gates.append({"gate": "Pronunciation Resolved", "status": "PASS",
-                              "detail": "No pronunciation entries to check"})
-        else:
-            gates.append({"gate": "Pronunciation Resolved", "status": "SKIP",
-                          "detail": "Track file not readable"})
-
-        # Gate 4: Explicit Flag Set
-        explicit = t_data.get("explicit")
-        if explicit is None:
-            gates.append({"gate": "Explicit Flag Set", "status": "WARN", "severity": "WARNING",
-                          "detail": "Explicit field not set"})
-            warning_count += 1
-        else:
-            gates.append({"gate": "Explicit Flag Set", "status": "PASS",
-                          "detail": f"Explicit: {'Yes' if explicit else 'No'}"})
-
-        # Gate 5: Style Prompt Complete
-        style_content = None
-        if file_text:
-            style_section = _extract_markdown_section(file_text, "Style Box")
-            if style_section:
-                style_content = _extract_code_block(style_section)
-
-        if not style_content or not style_content.strip():
-            gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
-                          "detail": "Style Box is empty"})
-            blocking += 1
-        else:
-            gates.append({"gate": "Style Prompt Complete", "status": "PASS",
-                          "detail": f"Style prompt: {len(style_content)} chars"})
-
-        # Gate 6: Artist Names Cleared (uses pre-compiled patterns)
-        if style_content:
-            found_artists = []
-            for entry in blocklist:
-                name = entry["name"]
-                pattern = _artist_blocklist_patterns.get(name)
-                if pattern and pattern.search(style_content):
-                    found_artists.append(name)
-
-            if found_artists:
-                gates.append({"gate": "Artist Names Cleared", "status": "FAIL", "severity": "BLOCKING",
-                              "detail": f"Found: {', '.join(found_artists)}"})
-                blocking += 1
-            else:
-                gates.append({"gate": "Artist Names Cleared", "status": "PASS",
-                              "detail": "No blocked artist names found"})
-        else:
-            gates.append({"gate": "Artist Names Cleared", "status": "SKIP",
-                          "detail": "No style prompt to check"})
+        blocking, warning_count, gates = _check_pre_gen_gates_for_track(
+            t_data, file_text, blocklist,
+            max_lyric_words=max_lyric_words,
+        )
 
         verdict = "READY" if blocking == 0 else "NOT READY"
         total_blocking += blocking
@@ -4982,10 +5145,148 @@ _VALID_TRACK_STATUSES = {
     TRACK_GENERATED.lower(), TRACK_FINAL.lower(),
 }
 
+# --- Valid status transitions (from CLAUDE.md workflow) ---
+# Not Started → In Progress is allowed (non-documentary albums skip sources)
+_VALID_TRACK_TRANSITIONS = {
+    TRACK_NOT_STARTED: {TRACK_SOURCES_PENDING, TRACK_IN_PROGRESS},
+    TRACK_SOURCES_PENDING: {TRACK_SOURCES_VERIFIED},
+    TRACK_SOURCES_VERIFIED: {TRACK_IN_PROGRESS},
+    TRACK_IN_PROGRESS: {TRACK_GENERATED},
+    TRACK_GENERATED: {TRACK_FINAL},
+    TRACK_FINAL: set(),  # terminal
+}
+
+# Concept → In Progress is allowed (non-documentary albums skip sources)
+_VALID_ALBUM_TRANSITIONS = {
+    ALBUM_CONCEPT: {ALBUM_RESEARCH_COMPLETE, ALBUM_IN_PROGRESS},
+    ALBUM_RESEARCH_COMPLETE: {ALBUM_SOURCES_VERIFIED},
+    ALBUM_SOURCES_VERIFIED: {ALBUM_IN_PROGRESS},
+    ALBUM_IN_PROGRESS: {ALBUM_COMPLETE},
+    ALBUM_COMPLETE: {ALBUM_RELEASED},
+    ALBUM_RELEASED: set(),  # terminal
+}
+
+# Canonical status lookup for case-insensitive matching
+_CANONICAL_TRACK_STATUS = {s.lower(): s for s in _VALID_TRACK_TRANSITIONS}
+_CANONICAL_ALBUM_STATUS = {s.lower(): s for s in _VALID_ALBUM_TRANSITIONS}
+
+# Status level mappings for album/track consistency checks
+_TRACK_STATUS_LEVEL = {
+    TRACK_NOT_STARTED: 0, TRACK_SOURCES_PENDING: 1, TRACK_SOURCES_VERIFIED: 2,
+    TRACK_IN_PROGRESS: 3, TRACK_GENERATED: 4, TRACK_FINAL: 5,
+}
+_ALBUM_STATUS_LEVEL = {
+    ALBUM_CONCEPT: 0, ALBUM_RESEARCH_COMPLETE: 1, ALBUM_SOURCES_VERIFIED: 2,
+    ALBUM_IN_PROGRESS: 3, ALBUM_COMPLETE: 4, ALBUM_RELEASED: 5,
+}
+
+
+def _check_album_track_consistency(album: dict, new_status: str) -> str | None:
+    """Check if album status is consistent with its tracks' statuses.
+
+    Returns error message if inconsistent, or None if OK.
+
+    Rules:
+    - Album "In Progress" → at least 1 track past "Not Started"
+    - Album "Complete" → ALL tracks at Generated or Final
+    - Album "Released" → ALL tracks at Final
+    - Levels 0-2 (Concept/Research/Sources Verified) → no track requirements
+    - Empty albums (no tracks) → always pass
+    """
+    canonical = _CANONICAL_ALBUM_STATUS.get(new_status.lower().strip(), new_status)
+    album_level = _ALBUM_STATUS_LEVEL.get(canonical)
+    if album_level is None or album_level <= 2:
+        return None  # no track requirements for early statuses
+
+    tracks = album.get("tracks", {})
+    if not tracks:
+        return None  # empty albums always pass
+
+    if canonical == ALBUM_IN_PROGRESS:
+        # At least 1 track must be past Not Started
+        has_active = any(
+            _TRACK_STATUS_LEVEL.get(t.get("status", TRACK_NOT_STARTED), 0) > 0
+            for t in tracks.values()
+        )
+        if not has_active:
+            return (
+                "Cannot set album to 'In Progress' — all tracks are still 'Not Started'. "
+                "At least one track must have progressed."
+            )
+
+    elif canonical == ALBUM_COMPLETE:
+        # ALL tracks must be at Generated or Final
+        below = [
+            slug for slug, t in tracks.items()
+            if _TRACK_STATUS_LEVEL.get(t.get("status", TRACK_NOT_STARTED), 0) < _TRACK_STATUS_LEVEL[TRACK_GENERATED]
+        ]
+        if below:
+            return (
+                f"Cannot set album to 'Complete' — {len(below)} track(s) below 'Generated': "
+                f"{', '.join(sorted(below)[:5])}. All tracks must be Generated or Final."
+            )
+
+    elif canonical == ALBUM_RELEASED:
+        # ALL tracks must be at Final
+        non_final = [
+            slug for slug, t in tracks.items()
+            if t.get("status", TRACK_NOT_STARTED) != TRACK_FINAL
+        ]
+        if non_final:
+            return (
+                f"Cannot set album to 'Released' — {len(non_final)} track(s) not Final: "
+                f"{', '.join(sorted(non_final)[:5])}. All tracks must be Final."
+            )
+
+    return None
+
+
+def _validate_track_transition(current: str, new: str, *, force: bool = False) -> str | None:
+    """Return error message if transition is invalid, or None if OK."""
+    if force:
+        return None
+    canonical_current = _CANONICAL_TRACK_STATUS.get(current.lower().strip(), current)
+    canonical_new = _CANONICAL_TRACK_STATUS.get(new.lower().strip(), new)
+    allowed = _VALID_TRACK_TRANSITIONS.get(canonical_current)
+    if allowed is None:
+        return None  # unknown current status — don't block (recovery)
+    if canonical_new not in allowed:
+        return (
+            f"Invalid transition: '{canonical_current}' → '{canonical_new}'. "
+            f"Allowed next: {', '.join(sorted(allowed)) or 'none (terminal)'}. "
+            f"Use force=True to override."
+        )
+    return None
+
+
+def _validate_album_transition(current: str, new: str, *, force: bool = False) -> str | None:
+    """Return error message if transition is invalid, or None if OK."""
+    if force:
+        return None
+    canonical_current = _CANONICAL_ALBUM_STATUS.get(current.lower().strip(), current)
+    canonical_new = _CANONICAL_ALBUM_STATUS.get(new.lower().strip(), new)
+    allowed = _VALID_ALBUM_TRANSITIONS.get(canonical_current)
+    if allowed is None:
+        return None  # unknown current status — don't block (recovery)
+    if canonical_new not in allowed:
+        return (
+            f"Invalid transition: '{canonical_current}' → '{canonical_new}'. "
+            f"Allowed next: {', '.join(sorted(allowed)) or 'none (terminal)'}. "
+            f"Use force=True to override."
+        )
+    return None
+
+
 # Expected promo files (from templates/promo/)
 _PROMO_FILES = [
     "campaign.md", "twitter.md", "instagram.md",
     "tiktok.md", "facebook.md", "youtube.md",
+]
+
+# Album art file patterns for release readiness check
+_ALBUM_ART_PATTERNS = [
+    "album.png", "album.jpg", "album-art.png", "album-art.jpg",
+    "artwork.png", "artwork.jpg", "cover.png", "cover.jpg",
 ]
 
 
@@ -5011,7 +5312,7 @@ def _find_album_or_error(album_slug: str) -> tuple:
 
 
 @mcp.tool()
-async def update_album_status(album_slug: str, status: str) -> str:
+async def update_album_status(album_slug: str, status: str, force: bool = False) -> str:
     """Update an album's status in its README.md file.
 
     Modifies the album details table (| **Status** | Value |) and updates
@@ -5022,6 +5323,7 @@ async def update_album_status(album_slug: str, status: str) -> str:
         status: New status. Valid options:
             "Concept", "Research Complete", "Sources Verified",
             "In Progress", "Complete", "Released"
+        force: Override transition validation (for recovery/correction only)
 
     Returns:
         JSON with update result or error
@@ -5038,6 +5340,126 @@ async def update_album_status(album_slug: str, status: str) -> str:
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+
+    # Validate status transition
+    current_status = album.get("status", ALBUM_CONCEPT)
+    err = _validate_album_transition(current_status, status, force=force)
+    if err:
+        return _safe_json({"error": err})
+
+    # Documentary album gate: albums with SOURCES.md cannot skip Concept → In Progress (configurable)
+    if not force:
+        state_config = (cache.get_state()).get("config", {})
+        gen_cfg = state_config.get("generation", {})
+        require_source_path = gen_cfg.get("require_source_path_for_documentary", True)
+        if require_source_path:
+            canonical_status = _CANONICAL_ALBUM_STATUS.get(status.lower().strip(), status)
+            canonical_current = _CANONICAL_ALBUM_STATUS.get(
+                current_status.lower().strip(), current_status)
+            if canonical_current == ALBUM_CONCEPT and canonical_status == ALBUM_IN_PROGRESS:
+                album_path = album.get("path", "")
+                if album_path:
+                    sources_path = Path(album_path) / "SOURCES.md"
+                    if sources_path.exists():
+                        return _safe_json({
+                            "error": "Cannot skip to 'In Progress' — this album has SOURCES.md "
+                                     "(documentary). Transition through 'Research Complete' → "
+                                     "'Sources Verified' → 'In Progress' instead, or use "
+                                     "force=True to override. To disable this check, set "
+                                     "generation.require_source_path_for_documentary: false "
+                                     "in config.",
+                        })
+
+    # Album/track consistency gate: album status must not exceed track statuses
+    if not force:
+        consistency_err = _check_album_track_consistency(album, status)
+        if consistency_err:
+            return _safe_json({"error": consistency_err})
+
+    # Source verification gate: all tracks must be verified before album
+    # can advance to Sources Verified
+    if status.lower().strip() == ALBUM_SOURCES_VERIFIED.lower() and not force:
+        tracks = album.get("tracks", {})
+        unverified = [
+            s for s, t in tracks.items()
+            if t.get("status", TRACK_NOT_STARTED) in
+            {TRACK_NOT_STARTED, TRACK_SOURCES_PENDING}
+        ]
+        if unverified:
+            return _safe_json({
+                "error": (
+                    f"Cannot mark album as Sources Verified — {len(unverified)} track(s) "
+                    f"still unverified: {', '.join(unverified[:5])}"
+                ),
+            })
+
+    # Release readiness gate: audio, mastered files, and album art must exist
+    canonical_status = _CANONICAL_ALBUM_STATUS.get(status.lower().strip(), status)
+    if canonical_status == ALBUM_RELEASED and not force:
+        release_issues = []
+        state_config = (cache.get_state()).get("config", {})
+        tracks = album.get("tracks", {})
+
+        # Check 1: All tracks Final (explicit message, complements consistency check)
+        non_final = [s for s, t in tracks.items() if t.get("status") != TRACK_FINAL]
+        if non_final:
+            release_issues.append(
+                f"{len(non_final)} track(s) not Final: {', '.join(sorted(non_final)[:5])}"
+            )
+
+        # Check 2: Audio files exist
+        audio_root = state_config.get("audio_root", "")
+        artist_name = state_config.get("artist_name", "")
+        genre = album.get("genre", "")
+        audio_path = Path(audio_root) / "artists" / artist_name / "albums" / genre / normalized
+        if not audio_path.is_dir() or not list(audio_path.glob("*.wav")):
+            release_issues.append("No WAV files in audio directory")
+
+        # Check 3: Mastered audio exists
+        mastered_dir = audio_path / "mastered"
+        if not mastered_dir.is_dir() or not list(mastered_dir.glob("*.wav")):
+            release_issues.append("No mastered audio files")
+
+        # Check 4: Album art exists
+        if not any((audio_path / p).exists() for p in _ALBUM_ART_PATTERNS):
+            release_issues.append("No album art found")
+
+        # Check 5: Streaming lyrics ready
+        streaming_issues = []
+        for t_slug, t_data in tracks.items():
+            track_path_str = t_data.get("path", "")
+            if not track_path_str:
+                streaming_issues.append(f"{t_slug}: no track path")
+                continue
+            try:
+                tfile = Path(track_path_str).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                streaming_issues.append(f"{t_slug}: cannot read track file")
+                continue
+            section = _extract_markdown_section(tfile, "Streaming Lyrics")
+            if not section:
+                streaming_issues.append(f"{t_slug}: missing Streaming Lyrics section")
+                continue
+            block = _extract_code_block(section)
+            if not block or not block.strip():
+                streaming_issues.append(f"{t_slug}: empty Streaming Lyrics")
+                continue
+            if any(m.lower() in block.lower() for m in _STREAMING_PLACEHOLDER_MARKERS):
+                streaming_issues.append(f"{t_slug}: placeholder content in Streaming Lyrics")
+        if streaming_issues:
+            release_issues.append(
+                f"Streaming lyrics not ready for {len(streaming_issues)} track(s): "
+                + ", ".join(streaming_issues[:5])
+            )
+
+        if release_issues:
+            return _safe_json({
+                "error": (
+                    f"Cannot release album — {len(release_issues)} issue(s) found"
+                ),
+                "issues": release_issues,
+                "hint": "Use force=True to override.",
+            })
 
     album_path = album.get("path", "")
     if not album_path:
@@ -6160,6 +6582,7 @@ async def master_audio(
     cut_highmid: float = 0.0,
     cut_highs: float = 0.0,
     dry_run: bool = False,
+    source_subfolder: str = "",
 ) -> str:
     """Master audio tracks for streaming platforms.
 
@@ -6174,6 +6597,8 @@ async def master_audio(
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
         cut_highs: High shelf cut in dB at 8kHz
         dry_run: If true, analyze only without writing files
+        source_subfolder: Read WAV files from this subfolder instead of the
+            base audio dir (e.g., "polished" to master from mix-engineer output)
 
     Returns:
         JSON with per-track results, settings applied, and summary
@@ -6185,6 +6610,16 @@ async def master_audio(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+
+    # If source_subfolder specified, read from that subfolder
+    source_dir = audio_dir
+    if source_subfolder:
+        source_dir = audio_dir / source_subfolder
+        if not source_dir.is_dir():
+            return _safe_json({
+                "error": f"Source subfolder not found: {source_dir}",
+                "suggestion": f"Run polish_audio first to create {source_subfolder}/ output.",
+            })
 
     from tools.mastering.master_tracks import (
         master_track as _master_track,
@@ -6230,12 +6665,12 @@ async def master_audio(
         output_dir.mkdir(exist_ok=True)
 
     wav_files = sorted([
-        f for f in audio_dir.iterdir()
+        f for f in source_dir.iterdir()
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
 
     if not wav_files:
-        return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+        return _safe_json({"error": f"No WAV files found in {source_dir}"})
 
     loop = asyncio.get_running_loop()
     track_results = []
@@ -7394,6 +7829,18 @@ async def master_album(
         tracks = album_data.get("tracks", {})
 
         for track_slug, track_info in tracks.items():
+            current_track_status = track_info.get("status", TRACK_NOT_STARTED)
+
+            # Only transition Generated → Final; skip already-Final tracks
+            if current_track_status.lower() == TRACK_FINAL.lower():
+                continue  # already Final — nothing to do
+            if current_track_status.lower() != TRACK_GENERATED.lower():
+                status_errors.append(
+                    f"Skipped '{track_slug}': status is '{current_track_status}' "
+                    f"(expected '{TRACK_GENERATED}')"
+                )
+                continue
+
             track_path_str = track_info.get("path", "")
             if not track_path_str:
                 status_errors.append(f"No path for track '{track_slug}'")
@@ -7482,6 +7929,445 @@ async def master_album(
         "warnings": warnings,
         "failed_stage": None,
         "failure_detail": None,
+    })
+
+
+# =============================================================================
+# Mix Polish Tools (per-stem audio cleanup before mastering)
+# =============================================================================
+
+
+def _check_mixing_deps() -> Optional[str]:
+    """Return error message if mixing deps missing, else None."""
+    missing = []
+    for mod in ("numpy", "scipy", "soundfile", "noisereduce"):
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        return (
+            f"Missing mixing dependencies: {', '.join(missing)}. "
+            "Install: pip install noisereduce scipy numpy soundfile"
+        )
+    return None
+
+
+@mcp.tool()
+async def polish_audio(
+    album_slug: str,
+    genre: str = "",
+    use_stems: bool = True,
+    dry_run: bool = False,
+) -> str:
+    """Polish audio tracks by processing stems or full mixes.
+
+    When use_stems=True (default), looks for stem WAV files in a stems/
+    subfolder with per-track directories (vocals.wav, drums.wav, bass.wav,
+    other.wav). Processes each stem with targeted cleanup and remixes them.
+
+    When use_stems=False, processes full mix WAV files directly.
+
+    Writes polished output to a polished/ subfolder. Originals are preserved.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset for stem-specific settings (e.g., "hip-hop")
+        use_stems: If true, process per-stem WAVs; if false, process full mixes
+        dry_run: If true, analyze only without writing files
+
+    Returns:
+        JSON with per-track results, settings, and summary
+    """
+    dep_err = _check_mixing_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    from tools.mixing.mix_tracks import (
+        mix_track_stems,
+        mix_track_full,
+        load_mix_presets,
+        STEM_NAMES,
+    )
+
+    # Validate genre if specified
+    if genre:
+        presets = load_mix_presets()
+        genre_key = genre.lower()
+        if genre_key not in presets.get('genres', {}):
+            return _safe_json({
+                "error": f"Unknown genre: {genre}",
+                "available_genres": sorted(presets.get('genres', {}).keys()),
+            })
+
+    output_dir = audio_dir / "polished"
+    if not dry_run:
+        output_dir.mkdir(exist_ok=True)
+
+    loop = asyncio.get_running_loop()
+    track_results = []
+
+    if use_stems:
+        # Stems mode: look for stems/ subdirectory with track folders
+        stems_dir = audio_dir / "stems"
+        if not stems_dir.is_dir():
+            return _safe_json({
+                "error": f"No stems/ directory found in {audio_dir}",
+                "suggestion": "Import stems first, or use use_stems=false for full-mix mode.",
+            })
+
+        track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
+        if not track_dirs:
+            return _safe_json({"error": f"No track directories in {stems_dir}"})
+
+        for track_dir in track_dirs:
+            stem_paths = {}
+            for stem_name in STEM_NAMES:
+                stem_file = track_dir / f"{stem_name}.wav"
+                if stem_file.exists():
+                    stem_paths[stem_name] = str(stem_file)
+
+            if not stem_paths:
+                continue
+
+            out_path = str(output_dir / f"{track_dir.name}.wav")
+
+            def _do_stems(sp, op, g, dr):
+                return mix_track_stems(sp, op, genre=g, dry_run=dr)
+
+            result = await loop.run_in_executor(
+                None, _do_stems, stem_paths, out_path,
+                genre or None, dry_run,
+            )
+
+            if result:
+                result["track_name"] = track_dir.name
+                track_results.append(result)
+
+    else:
+        # Full-mix mode: process WAV files directly
+        wav_files = sorted([
+            f for f in audio_dir.iterdir()
+            if f.suffix.lower() == ".wav" and "venv" not in str(f)
+        ])
+
+        if not wav_files:
+            return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+
+        for wav_file in wav_files:
+            out_path = str(output_dir / wav_file.name)
+
+            def _do_full(ip, op, g, dr):
+                return mix_track_full(ip, op, genre=g, dry_run=dr)
+
+            result = await loop.run_in_executor(
+                None, _do_full, str(wav_file), out_path,
+                genre or None, dry_run,
+            )
+
+            if result:
+                track_results.append(result)
+
+    if not track_results:
+        return _safe_json({"error": "No tracks were processed."})
+
+    return _safe_json({
+        "tracks": track_results,
+        "settings": {
+            "genre": genre or None,
+            "use_stems": use_stems,
+            "dry_run": dry_run,
+        },
+        "summary": {
+            "tracks_processed": len(track_results),
+            "mode": "stems" if use_stems else "full_mix",
+            "output_dir": str(output_dir) if not dry_run else None,
+        },
+    })
+
+
+@mcp.tool()
+async def analyze_mix_issues(
+    album_slug: str,
+) -> str:
+    """Analyze audio files for common mix issues and recommend settings.
+
+    Scans WAV files for noise floor, muddiness (low-mid energy), harshness
+    (high-mid energy), clicks, and stereo issues. Returns per-track diagnostics
+    with recommended mix-engineer settings.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with per-track analysis, detected issues, and recommendations
+    """
+    dep_err = _check_mixing_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    import numpy as np
+    import soundfile as sf
+
+    loop = asyncio.get_running_loop()
+
+    wav_files = sorted([
+        f for f in audio_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+
+    if not wav_files:
+        return _safe_json({"error": f"No WAV files found in {audio_dir}"})
+
+    def _analyze_one(wav_path):
+        data, rate = sf.read(str(wav_path))
+        if len(data.shape) == 1:
+            data = np.column_stack([data, data])
+
+        result = {"filename": wav_path.name, "issues": [], "recommendations": {}}
+
+        # Overall metrics
+        peak = float(np.max(np.abs(data)))
+        rms = float(np.sqrt(np.mean(data ** 2)))
+        result["peak"] = peak
+        result["rms"] = rms
+
+        # Noise floor estimate (quietest 10% of signal)
+        abs_signal = np.abs(data[:, 0])
+        sorted_abs = np.sort(abs_signal)
+        noise_floor = float(np.mean(sorted_abs[:len(sorted_abs) // 10]))
+        result["noise_floor"] = noise_floor
+        if noise_floor > 0.005:
+            result["issues"].append("elevated_noise_floor")
+            result["recommendations"]["noise_reduction"] = min(0.8, noise_floor * 100)
+
+        # Spectral analysis (simplified: energy in frequency bands)
+        from scipy import signal as sig
+        freqs, psd = sig.welch(data[:, 0], rate, nperseg=min(4096, len(data)))
+
+        # Low-mid energy (150-400 Hz) — muddiness indicator
+        low_mid_mask = (freqs >= 150) & (freqs <= 400)
+        total_energy = float(np.sum(psd))
+        if total_energy > 0:
+            low_mid_ratio = float(np.sum(psd[low_mid_mask])) / total_energy
+            result["low_mid_ratio"] = low_mid_ratio
+            if low_mid_ratio > 0.35:
+                result["issues"].append("muddy_low_mids")
+                result["recommendations"]["mud_cut_db"] = -3.0
+
+        # High-mid energy (2-5 kHz) — harshness indicator
+        high_mid_mask = (freqs >= 2000) & (freqs <= 5000)
+        if total_energy > 0:
+            high_mid_ratio = float(np.sum(psd[high_mid_mask])) / total_energy
+            result["high_mid_ratio"] = high_mid_ratio
+            if high_mid_ratio > 0.25:
+                result["issues"].append("harsh_highmids")
+                result["recommendations"]["high_tame_db"] = -2.0
+
+        # Click detection (sudden amplitude spikes)
+        diff = np.diff(data[:, 0])
+        diff_std = float(np.std(diff))
+        if diff_std > 0:
+            click_count = int(np.sum(np.abs(diff) > 6 * diff_std))
+            result["click_count"] = click_count
+            if click_count > 10:
+                result["issues"].append("clicks_detected")
+                result["recommendations"]["click_removal"] = True
+
+        # Sub-bass rumble (< 30 Hz)
+        sub_mask = freqs < 30
+        if total_energy > 0:
+            sub_ratio = float(np.sum(psd[sub_mask])) / total_energy
+            result["sub_ratio"] = sub_ratio
+            if sub_ratio > 0.15:
+                result["issues"].append("sub_rumble")
+                result["recommendations"]["highpass_cutoff"] = 35
+
+        if not result["issues"]:
+            result["issues"].append("none_detected")
+
+        return result
+
+    track_analyses = []
+    for wav_file in wav_files:
+        analysis = await loop.run_in_executor(None, _analyze_one, wav_file)
+        track_analyses.append(analysis)
+
+    # Album-level summary
+    all_issues = set()
+    for a in track_analyses:
+        all_issues.update(i for i in a["issues"] if i != "none_detected")
+
+    return _safe_json({
+        "tracks": track_analyses,
+        "album_summary": {
+            "tracks_analyzed": len(track_analyses),
+            "common_issues": sorted(all_issues),
+            "audio_dir": str(audio_dir),
+        },
+    })
+
+
+@mcp.tool()
+async def polish_album(
+    album_slug: str,
+    genre: str = "",
+) -> str:
+    """End-to-end mix polish pipeline: analyze, polish stems, verify.
+
+    Runs 3 sequential stages:
+        1. Analyze — scan for mix issues and recommend settings
+        2. Polish — process stems (or full mixes) with appropriate settings
+        3. Verify — check polished output quality
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset for stem-specific settings
+
+    Returns:
+        JSON with per-stage results, settings, and recommendations
+    """
+    dep_err = _check_mixing_deps()
+    if dep_err:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "failed_stage": "pre_flight",
+            "failure_detail": {"reason": dep_err},
+        })
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "failed_stage": "pre_flight",
+            "failure_detail": json.loads(err),
+        })
+
+    stages = {}
+
+    # Determine mode: stems or full mix
+    stems_dir = audio_dir / "stems"
+    use_stems = stems_dir.is_dir() and any(stems_dir.iterdir())
+
+    stages["pre_flight"] = {
+        "status": "pass",
+        "audio_dir": str(audio_dir),
+        "mode": "stems" if use_stems else "full_mix",
+        "stems_dir": str(stems_dir) if use_stems else None,
+    }
+
+    # --- Stage 1: Analysis ---
+    analysis_json = await analyze_mix_issues(album_slug)
+    analysis = json.loads(analysis_json)
+
+    if "error" in analysis:
+        stages["analysis"] = {"status": "fail", "detail": analysis["error"]}
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "analysis",
+            "stages": stages,
+            "failed_stage": "analysis",
+            "failure_detail": analysis,
+        })
+
+    stages["analysis"] = {
+        "status": "pass",
+        "tracks_analyzed": analysis["album_summary"]["tracks_analyzed"],
+        "common_issues": analysis["album_summary"]["common_issues"],
+    }
+
+    # --- Stage 2: Polish ---
+    polish_json = await polish_audio(
+        album_slug=album_slug,
+        genre=genre,
+        use_stems=use_stems,
+        dry_run=False,
+    )
+    polish = json.loads(polish_json)
+
+    if "error" in polish:
+        stages["polish"] = {"status": "fail", "detail": polish["error"]}
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "polish",
+            "stages": stages,
+            "failed_stage": "polish",
+            "failure_detail": polish,
+        })
+
+    stages["polish"] = {
+        "status": "pass",
+        "tracks_processed": polish["summary"]["tracks_processed"],
+        "output_dir": polish["summary"]["output_dir"],
+    }
+
+    # --- Stage 3: Verify polished output ---
+    import numpy as np
+    import soundfile as sf
+
+    polished_dir = audio_dir / "polished"
+    if not polished_dir.is_dir():
+        stages["verify"] = {"status": "fail", "detail": "polished/ directory not found"}
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "verify",
+            "stages": stages,
+            "failed_stage": "verify",
+        })
+
+    polished_files = sorted([
+        f for f in polished_dir.iterdir()
+        if f.suffix.lower() == ".wav"
+    ])
+
+    loop = asyncio.get_running_loop()
+    verify_results = []
+
+    for wav in polished_files:
+        def _verify(path):
+            data, rate = sf.read(str(path))
+            peak = float(np.max(np.abs(data)))
+            rms = float(np.sqrt(np.mean(data ** 2)))
+            finite = bool(np.all(np.isfinite(data)))
+            return {
+                "filename": path.name,
+                "peak": peak,
+                "rms": rms,
+                "all_finite": finite,
+                "clipping": peak > 0.99,
+            }
+
+        result = await loop.run_in_executor(None, _verify, wav)
+        verify_results.append(result)
+
+    clipping = [r["filename"] for r in verify_results if r["clipping"]]
+    non_finite = [r["filename"] for r in verify_results if not r["all_finite"]]
+
+    verify_pass = not clipping and not non_finite
+    stages["verify"] = {
+        "status": "pass" if verify_pass else "warn",
+        "tracks_verified": len(verify_results),
+        "clipping_tracks": clipping,
+        "non_finite_tracks": non_finite,
+    }
+
+    return _safe_json({
+        "album_slug": album_slug,
+        "stage_reached": "complete",
+        "stages": stages,
+        "analysis": analysis.get("tracks"),
+        "polish": polish.get("tracks"),
+        "next_step": f"master_audio('{album_slug}', source_subfolder='polished')",
     })
 
 

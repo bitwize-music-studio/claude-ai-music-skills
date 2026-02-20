@@ -1985,7 +1985,7 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "status", "Generated"
+                "test-album", "01-test-track", "status", "Generated", force=True
             )))
         assert result["success"] is True
         assert result["field"] == "Status"
@@ -2010,7 +2010,8 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "sources_verified", "✅ Verified (2026-02-06)"
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-06)", force=True,
             )))
         assert result["success"] is True
         content = track_file.read_text()
@@ -2034,7 +2035,7 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "05", "status", "Final"
+                "test-album", "05", "status", "Generated", force=True
             )))
         assert result["success"] is True
         assert result["track_slug"] == "05-unique-track"
@@ -2044,7 +2045,7 @@ class TestUpdateTrackField:
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
-            _run(server.update_track_field("test-album", "01-test-track", "status", "Final"))
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         content = track_file.read_text()
         assert "| **Explicit** | No |" in content
         assert "| **Title** | Test Track |" in content
@@ -2080,7 +2081,7 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "status", "Generated"
+                "test-album", "01-test-track", "status", "Generated", force=True
             )))
         assert result["track"]["status"] == "Generated"
 
@@ -2090,12 +2091,12 @@ class TestUpdateTrackField:
         mock_write = MagicMock()
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
-            _run(server.update_track_field("test-album", "01-test-track", "status", "Final"))
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         # write_state should have been called to persist
         mock_write.assert_called_once()
         # In-memory state should reflect update
         state = mock_cache.get_state()
-        assert state["albums"]["test-album"]["tracks"]["01-test-track"]["status"] == "Final"
+        assert state["albums"]["test-album"]["tracks"]["01-test-track"]["status"] == "Generated"
 
     def test_cache_update_failure_still_returns_success(self, tmp_path):
         """If cache update fails after successful file write, tool returns success."""
@@ -2105,13 +2106,13 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "status", "Final"
+                "test-album", "01-test-track", "status", "Generated", force=True
             )))
         # File write succeeded, so tool should report success
         assert result["success"] is True
         # The file was actually modified
         content = track_file.read_text()
-        assert "| **Status** | Final |" in content
+        assert "| **Status** | Generated |" in content
 
     def test_no_path_stored_returns_found_false(self):
         """Track with empty path returns found: False."""
@@ -2120,7 +2121,7 @@ class TestUpdateTrackField:
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-first-track", "status", "Final"
+                "test-album", "01-first-track", "status", "Final", force=True
             )))
         assert result["found"] is False
         assert "No path stored" in result["error"]
@@ -2131,7 +2132,8 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "sources_verified", "Verified | Multiple Sources"
+                "test-album", "01-test-track", "sources_verified",
+                "Verified | Multiple Sources", force=True,
             )))
         assert result["success"] is True
         content = track_file.read_text()
@@ -2143,7 +2145,8 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "sources_verified", "✅ Verified (2026-02-09)"
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-09)", force=True,
             )))
         assert result["success"] is True
         content = track_file.read_text()
@@ -2155,7 +2158,7 @@ class TestUpdateTrackField:
         track_file.unlink()
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-test-track", "status", "Final"
+                "test-album", "01-test-track", "status", "Generated", force=True
             )))
         assert "error" in result
         assert "Cannot read" in result["error"]
@@ -2167,7 +2170,7 @@ class TestUpdateTrackField:
         try:
             with patch.object(server, "cache", mock_cache):
                 result = json.loads(_run(server.update_track_field(
-                    "test-album", "01-test-track", "status", "Final"
+                    "test-album", "01-test-track", "status", "Generated", force=True
                 )))
             assert "error" in result
             assert "Cannot write" in result["error"]
@@ -2179,8 +2182,12 @@ class TestUpdateTrackField:
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
-            _run(server.update_track_field("test-album", "01-test-track", "status", "Generated"))
+            # In Progress → Generated (valid transition, force to bypass gates)
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
             _run(server.update_track_field("test-album", "01-test-track", "explicit", "Yes"))
+            # Set Suno link so Final transition passes the suno-link gate
+            _run(server.update_track_field("test-album", "01-test-track", "suno-link", "https://suno.com/test"))
+            # Generated → Final (valid transition)
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final"
             )))
@@ -2197,7 +2204,7 @@ class TestUpdateTrackField:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write), \
              caplog.at_level(logging.WARNING):
-            _run(server.update_track_field("test-album", "01-test-track", "status", "Final"))
+            _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         assert any("cache update failed" in r.message.lower() for r in caplog.records)
 
 
@@ -3733,6 +3740,76 @@ class TestCreateAlbumStructure:
 
 
 # =============================================================================
+# Genre validation tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestGenreValidation:
+    """Tests for genre validation in create_album_structure."""
+
+    def _make_state_with_tmp(self, tmp_path):
+        content = tmp_path / "content"
+        content.mkdir()
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content)
+        return MockStateCache(state), content
+
+    def test_valid_genre_accepted(self, tmp_path):
+        """Valid genre 'electronic' is accepted."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("genre-test", "electronic")))
+        assert result["created"] is True
+
+    def test_invalid_genre_rejected(self, tmp_path):
+        """Invalid genre 'boom-bap' is rejected with valid genres list."""
+        mock_cache, _ = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("genre-test", "boom-bap")))
+        assert "error" in result
+        assert "Invalid genre" in result["error"]
+        assert "hip-hop" in result["error"]  # valid genres listed
+
+    def test_genre_alias_resolved(self, tmp_path):
+        """Genre alias 'R&B' resolves to 'rnb' directory."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
+        assert result["created"] is True
+        assert "/rnb/" in result["path"]
+
+    def test_genre_typo_rejected(self, tmp_path):
+        """Genre typo 'elctronic' is rejected."""
+        mock_cache, _ = self._make_state_with_tmp(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("typo-test", "elctronic")))
+        assert "error" in result
+        assert "Invalid genre" in result["error"]
+
+    def test_additional_genre_from_config(self, tmp_path):
+        """Genre from additional_genres config is accepted."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        state = mock_cache.get_state()
+        state["config"]["generation"] = {"additional_genres": ["synthwave", "lo-fi"]}
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("synth-test", "synthwave")))
+        assert result["created"] is True
+
+    def test_additional_genre_in_error_message(self, tmp_path):
+        """Additional genres appear in the valid genres error list."""
+        mock_cache, _ = self._make_state_with_tmp(tmp_path)
+        state = mock_cache.get_state()
+        state["config"]["generation"] = {"additional_genres": ["synthwave"]}
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("bad-test", "nope")))
+        assert "error" in result
+        assert "synthwave" in result["error"]
+
+
+# =============================================================================
 # run_pre_generation_gates tool tests
 # =============================================================================
 
@@ -3914,7 +3991,9 @@ class TestRunPreGenerationGates:
         assert "Explicit Flag Set" in gate_names
         assert "Style Prompt Complete" in gate_names
         assert "Artist Names Cleared" in gate_names
-        assert len(gates) == 6
+        assert "Homograph Check" in gate_names
+        assert "Lyric Length" in gate_names
+        assert len(gates) == 8
 
     def test_track_no_file_path(self):
         """Track with no file path gets SKIP for file-dependent gates."""
@@ -3956,8 +4035,8 @@ class TestRunPreGenerationGates:
         assert explicit_gate["status"] == "PASS"
         assert "Yes" in explicit_gate["detail"]
 
-    def test_explicit_flag_none_warns(self, tmp_path):
-        """Track with explicit=None should WARN for Explicit Flag gate."""
+    def test_explicit_flag_none_blocks(self, tmp_path):
+        """Track with explicit=None should BLOCK for Explicit Flag gate."""
         track_file = tmp_path / "05-no-explicit.md"
         track_file.write_text(_TRACK_ALL_GATES_PASS)
         state = _fresh_state()
@@ -3971,8 +4050,8 @@ class TestRunPreGenerationGates:
              patch.object(server, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         explicit_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Explicit Flag Set")
-        assert explicit_gate["status"] == "WARN"
-        assert explicit_gate["severity"] == "WARNING"
+        assert explicit_gate["status"] == "FAIL"
+        assert explicit_gate["severity"] == "BLOCKING"
 
     def test_multiple_prefix_matches_error(self, tmp_path):
         """Ambiguous track prefix returns error."""
@@ -4042,7 +4121,7 @@ class TestRunPreGenerationGates:
         assert result["found"] is True
         track = result["tracks"][0]
         # Should still produce gates (file-dependent ones SKIP or FAIL)
-        assert len(track["gates"]) == 6
+        assert len(track["gates"]) == 8
 
     def test_permission_error_track_file(self, tmp_path):
         """Track with permission-denied file still produces gate results."""
@@ -4063,7 +4142,7 @@ class TestRunPreGenerationGates:
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
-            assert len(track["gates"]) == 6
+            assert len(track["gates"]) == 8
         finally:
             track_file.chmod(0o644)
 
@@ -4147,6 +4226,334 @@ class TestRunPreGenerationGates:
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
         assert result["album_verdict"] == "NOT READY"
         assert result["total_blocking"] >= 1
+
+
+# =============================================================================
+# Homograph Gate (Gate 7) + Pre-Gen Gate Enforcement in update_track_field
+# =============================================================================
+
+@pytest.mark.unit
+class TestHomographGate:
+    """Tests for Gate 7 (Homograph Check) in pre-generation gates."""
+
+    def test_gate7_pass_no_homographs(self, tmp_path):
+        """Gate 7 passes when lyrics contain no homographs."""
+        track_file = tmp_path / "05-clean.md"
+        track_file.write_text(_TRACK_ALL_GATES_PASS)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-clean"] = {
+            "path": str(track_file), "title": "Clean Track",
+            "status": "In Progress", "explicit": False,
+            "sources_verified": "Verified",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-clean")))
+        homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
+        assert homograph_gate["status"] == "PASS"
+
+    def test_gate7_fail_homograph_in_lyrics(self, tmp_path):
+        """Gate 7 fails when lyrics contain 'live' or 'read'."""
+        track_content = _TRACK_ALL_GATES_PASS.replace(
+            "Testing one two three\nThis is a test for me",
+            "We live to read the signs\nThe lead will guide us home"
+        )
+        track_file = tmp_path / "05-homo.md"
+        track_file.write_text(track_content)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-homo"] = {
+            "path": str(track_file), "title": "Homo Track",
+            "status": "In Progress", "explicit": False,
+            "sources_verified": "Verified",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-homo")))
+        homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
+        assert homograph_gate["status"] == "FAIL"
+        assert homograph_gate["severity"] == "BLOCKING"
+        assert "live" in homograph_gate["detail"]
+        assert "read" in homograph_gate["detail"]
+        assert "lead" in homograph_gate["detail"]
+
+    def test_gate7_skip_no_lyrics(self):
+        """Gate 7 skips when no lyrics content is available."""
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-lyrics"] = {
+            "title": "No Lyrics", "status": "In Progress",
+            "explicit": True, "sources_verified": "Verified", "path": "",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-no-lyrics")))
+        homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
+        assert homograph_gate["status"] == "SKIP"
+
+
+@pytest.mark.unit
+class TestPreGenGateEnforcementInUpdateTrackField:
+    """Tests for pre-generation gate enforcement when setting status to Generated."""
+
+    def _make_cache_with_track(self, tmp_path, track_content, **overrides):
+        """Create a mock cache with a track file."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(track_content)
+        track_data = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        track_data.update(overrides)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = track_data
+        return MockStateCache(state), track_file
+
+    def test_generated_blocked_empty_lyrics(self, tmp_path):
+        """Status→Generated blocked when lyrics are empty (gate 2)."""
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "[Verse 1]\nTesting one two three\nThis is a test for me\n\n[Chorus]\nWe're testing all day long\nTesting in this song",
+            ""
+        )
+        mock_cache, _ = self._make_cache_with_track(tmp_path, content)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert "error" in result
+        assert "pre-generation gate" in result["error"]
+        assert "failed_gates" in result
+
+    def test_generated_blocked_homograph(self, tmp_path):
+        """Status→Generated blocked when homograph present (gate 7)."""
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "Testing one two three",
+            "We live for the night"
+        )
+        mock_cache, _ = self._make_cache_with_track(tmp_path, content)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert "error" in result
+        assert "pre-generation gate" in result["error"]
+        gate_names = [g["gate"] for g in result["failed_gates"]]
+        assert "Homograph Check" in gate_names
+
+    def test_generated_succeeds_all_gates_pass(self, tmp_path):
+        """Status→Generated succeeds when all gates pass."""
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, _TRACK_ALL_GATES_PASS, sources_verified="Verified"
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert result["success"] is True
+
+    def test_force_bypasses_gate_check(self, tmp_path):
+        """force=True bypasses pre-generation gate enforcement."""
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "Testing one two three",
+            "We live for the night"
+        )
+        mock_cache, _ = self._make_cache_with_track(tmp_path, content)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated", force=True
+            )))
+        assert result["success"] is True
+
+    def test_lyric_length_passes_under_800(self, tmp_path):
+        """Lyrics under 800 words pass the Lyric Length gate."""
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, _TRACK_ALL_GATES_PASS, sources_verified="Verified",
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "01-test-track")))
+        length_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Lyric Length")
+        assert length_gate["status"] == "PASS"
+        assert "words" in length_gate["detail"]
+
+    def test_lyric_length_blocks_over_800(self, tmp_path):
+        """Lyrics over 800 words block the Lyric Length gate."""
+        # Generate lyrics with 850+ words
+        long_lyrics = "\n".join(f"word{i} word{i}a word{i}b word{i}c word{i}d" for i in range(170))
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "[Verse 1]\nTesting one two three\nThis is a test for me\n\n"
+            "[Chorus]\nWe're testing all day long\nTesting in this song",
+            "[Verse 1]\n" + long_lyrics,
+        )
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, content, sources_verified="Verified",
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.run_pre_generation_gates("test-album", "01-test-track")))
+        length_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Lyric Length")
+        assert length_gate["status"] == "FAIL"
+        assert length_gate["severity"] == "BLOCKING"
+        assert "800" in length_gate["detail"]
+
+    def test_generated_blocked_over_800_words(self, tmp_path):
+        """Status→Generated blocked when lyrics exceed 800 words (gate 8)."""
+        long_lyrics = "\n".join(f"word{i} word{i}a word{i}b word{i}c word{i}d" for i in range(170))
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "[Verse 1]\nTesting one two three\nThis is a test for me\n\n"
+            "[Chorus]\nWe're testing all day long\nTesting in this song",
+            "[Verse 1]\n" + long_lyrics,
+        )
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, content, sources_verified="Verified",
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert "error" in result
+        assert "pre-generation gate" in result["error"]
+        gate_names = [g["gate"] for g in result["failed_gates"]]
+        assert "Lyric Length" in gate_names
+
+    def test_config_max_lyric_words_raises_limit(self, tmp_path):
+        """Config max_lyric_words allows longer lyrics when raised."""
+        # 850 words — would fail at default 800, but passes at 1000
+        long_lyrics = "\n".join(f"word{i} word{i}a word{i}b word{i}c word{i}d" for i in range(170))
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "[Verse 1]\nTesting one two three\nThis is a test for me\n\n"
+            "[Chorus]\nWe're testing all day long\nTesting in this song",
+            "[Verse 1]\n" + long_lyrics,
+        )
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, content, sources_verified="Verified",
+        )
+        state = mock_cache.get_state()
+        state["config"]["generation"] = {"max_lyric_words": 1000}
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert result["success"] is True
+
+    def test_generated_blocked_explicit_none(self, tmp_path):
+        """Status→Generated blocked when explicit flag is None (gate 4)."""
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, _TRACK_ALL_GATES_PASS,
+            sources_verified="Verified", explicit=None,
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_artist_blocklist_cache", None):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated"
+            )))
+        assert "error" in result
+        assert "pre-generation gate" in result["error"]
+        gate_names = [g["gate"] for g in result["failed_gates"]]
+        assert "Explicit Flag Set" in gate_names
+
+    def test_non_generated_status_not_gated(self, tmp_path):
+        """Status transitions other than →Generated are not gated."""
+        # Use _SAMPLE_TRACK_MD which would fail gates — but going to "Generated"
+        # is not what we're testing; In Progress is the target and should work fine
+        content = _TRACK_ALL_GATES_PASS.replace(
+            "| **Status** | In Progress |", "| **Status** | Not Started |"
+        )
+        mock_cache, _ = self._make_cache_with_track(
+            tmp_path, content, status="Not Started"
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "In Progress"
+            )))
+        assert result["success"] is True
+
+
+# =============================================================================
+# Suno link Final gate tests
+# =============================================================================
+
+@pytest.mark.unit
+class TestSunoLinkFinalGate:
+    """Tests for the Suno link requirement when transitioning to Final."""
+
+    def _make_cache_with_track(self, tmp_path, has_suno_link=False):
+        """Create a mock cache with a Generated track."""
+        track_file = tmp_path / "01-test-track.md"
+        suno_link_value = "https://suno.com/song/abc123" if has_suno_link else "—"
+        track_file.write_text(_TRACK_ALL_GATES_PASS.replace(
+            "| **Status** | In Progress |", "| **Status** | Generated |"
+        ))
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "Generated",
+            "explicit": False,
+            "has_suno_link": has_suno_link,
+            "sources_verified": "Verified",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state), track_file
+
+    def test_final_blocked_no_suno_link(self, tmp_path):
+        """Generated → Final blocked when has_suno_link is False."""
+        mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final"
+            )))
+        assert "error" in result
+        assert "Suno link" in result["error"]
+
+    def test_final_passes_with_suno_link(self, tmp_path):
+        """Generated → Final succeeds when has_suno_link is True."""
+        mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=True)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final"
+            )))
+        assert result["success"] is True
+
+    def test_force_bypasses_suno_link_check(self, tmp_path):
+        """force=True bypasses the Suno link requirement."""
+        mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final", force=True
+            )))
+        assert result["success"] is True
+
+    def test_config_disabled_allows_final_without_link(self, tmp_path):
+        """When require_suno_link_for_final is false, Final works without a link."""
+        mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
+        state = mock_cache.get_state()
+        state["config"]["generation"] = {"require_suno_link_for_final": False}
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final"
+            )))
+        assert result["success"] is True
 
 
 # =============================================================================
@@ -5225,6 +5632,8 @@ class TestUpdateAlbumStatus:
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        # Set tracks to Generated+ so "Complete" passes consistency check
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         return MockStateCache(state), readme_path
 
     def test_updates_status_in_readme(self, tmp_path):
@@ -5244,7 +5653,7 @@ class TestUpdateAlbumStatus:
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state"):
-            _run(server.update_album_status("test-album", "Released"))
+            _run(server.update_album_status("test-album", "Complete"))
         text = readme_path.read_text()
         assert "| **Genre** | Electronic |" in text
         assert "| **Tracks** | 2 |" in text
@@ -5268,6 +5677,7 @@ class TestUpdateAlbumStatus:
         """Returns error when album has no path."""
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = ""
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
@@ -5278,6 +5688,7 @@ class TestUpdateAlbumStatus:
         """Returns error when README.md doesn't exist."""
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
@@ -5293,12 +5704,12 @@ class TestUpdateAlbumStatus:
         assert result["success"] is True
 
     def test_all_valid_statuses(self, tmp_path):
-        """All valid statuses are accepted."""
+        """All valid statuses are accepted (using force to bypass transition rules)."""
         for status in ["Concept", "Research Complete", "Sources Verified", "In Progress", "Complete", "Released"]:
             mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
             with patch.object(server, "cache", mock_cache), \
                  patch.object(server, "write_state"):
-                result = json.loads(_run(server.update_album_status("test-album", status)))
+                result = json.loads(_run(server.update_album_status("test-album", status, force=True)))
             assert result["success"] is True, f"Failed for status: {status}"
 
     def test_returns_old_and_new_status(self, tmp_path):
@@ -5306,9 +5717,9 @@ class TestUpdateAlbumStatus:
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state"):
-            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+            result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["old_status"] == "In Progress"
-        assert result["new_status"] == "Released"
+        assert result["new_status"] == "Complete"
         assert result["album_slug"] == "test-album"
 
     def test_readme_read_oserror(self, tmp_path):
@@ -5319,6 +5730,7 @@ class TestUpdateAlbumStatus:
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         try:
             with patch.object(server, "cache", mock_cache):
@@ -5335,6 +5747,7 @@ class TestUpdateAlbumStatus:
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
@@ -5348,6 +5761,7 @@ class TestUpdateAlbumStatus:
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
 
         with patch.object(server, "cache", mock_cache), \
@@ -7765,11 +8179,12 @@ class TestUpdateAlbumStatusEdgeCases:
 
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "write_state"):
-            result = json.loads(_run(server.update_album_status("test-album", "in progress")))
+            result = json.loads(_run(server.update_album_status("test-album", "complete")))
         assert result["success"] is True
 
     def test_album_not_found(self):
@@ -7783,12 +8198,318 @@ class TestUpdateAlbumStatusEdgeCases:
         """Missing README.md returns error."""
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         # tmp_path exists but has no README.md
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "README.md" in result["error"]
+
+
+@pytest.mark.unit
+class TestAlbumTrackConsistencyCheck:
+    """Tests for _check_album_track_consistency enforcement in update_album_status."""
+
+    def _make_cache_with_tracks(self, tmp_path, album_status, track_statuses):
+        """Create a mock cache with specific track statuses."""
+        readme_path = tmp_path / "README.md"
+        readme_path.write_text(_SAMPLE_ALBUM_README.replace(
+            "| **Status** | In Progress |", f"| **Status** | {album_status} |"
+        ))
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["status"] = album_status
+        state["albums"]["test-album"]["tracks"] = {
+            slug: {
+                "path": "/tmp/test/track.md",
+                "title": slug,
+                "status": status,
+                "explicit": False,
+                "has_suno_link": False,
+                "sources_verified": "N/A",
+                "mtime": 1234567890.0,
+            }
+            for slug, status in track_statuses.items()
+        }
+        return MockStateCache(state), readme_path
+
+    def test_in_progress_blocked_all_not_started(self, tmp_path):
+        """Album 'In Progress' blocked when all tracks are 'Not Started'."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "Concept", {
+            "01-track": "Not Started",
+            "02-track": "Not Started",
+        })
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
+        assert "error" in result
+        assert "all tracks are still" in result["error"]
+
+    def test_complete_blocked_track_below_generated(self, tmp_path):
+        """Album 'Complete' blocked when any track is below 'Generated'."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {
+            "01-track": "Final",
+            "02-track": "In Progress",
+        })
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Complete")))
+        assert "error" in result
+        assert "below 'Generated'" in result["error"]
+        assert "02-track" in result["error"]
+
+    def test_released_blocked_track_not_final(self, tmp_path):
+        """Album 'Released' blocked when any track is not 'Final'."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "Complete", {
+            "01-track": "Final",
+            "02-track": "Generated",
+        })
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert "not Final" in result["error"]
+        assert "02-track" in result["error"]
+
+    def test_passes_when_tracks_at_correct_levels(self, tmp_path):
+        """Album transitions succeed when all tracks meet requirements."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {
+            "01-track": "Generated",
+            "02-track": "Final",
+        })
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "Complete")))
+        assert result["success"] is True
+
+    def test_empty_album_allowed_at_any_level(self, tmp_path):
+        """Albums with no tracks pass consistency check at any status."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {})
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "Complete")))
+        assert result["success"] is True
+
+    def test_force_bypasses_consistency_check(self, tmp_path):
+        """force=True bypasses album/track consistency check."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {
+            "01-track": "Not Started",
+        })
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Complete", force=True
+            )))
+        assert result["success"] is True
+
+    def test_early_statuses_no_track_requirements(self, tmp_path):
+        """Concept/Research Complete/Sources Verified have no track requirements."""
+        mock_cache, _ = self._make_cache_with_tracks(tmp_path, "Concept", {
+            "01-track": "Not Started",
+        })
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Research Complete"
+            )))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestReleaseReadinessGate:
+    """Tests for release readiness gate in update_album_status."""
+
+    def _make_release_env(self, tmp_path, has_audio=True, has_mastered=True, has_art=True):
+        """Create a mock cache with album at Complete, all tracks Final, and audio dirs."""
+        album_dir = tmp_path / "album"
+        readme_path = album_dir / "README.md"
+        readme_path.parent.mkdir(parents=True)
+        readme_path.write_text(_SAMPLE_ALBUM_README.replace(
+            "| **Status** | In Progress |", "| **Status** | Complete |"
+        ))
+
+        # Create real track file with valid streaming lyrics
+        tracks_dir = album_dir / "tracks"
+        tracks_dir.mkdir(parents=True, exist_ok=True)
+        track_file = tracks_dir / "01-track.md"
+        track_file.write_text(
+            "# Track\n\n## Streaming Lyrics\n\n```\n"
+            "This is a real song lyric\nWith multiple lines\n```\n"
+        )
+
+        audio_dir = tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        if has_audio:
+            (audio_dir / "01-track.wav").write_bytes(b"RIFF")
+        if has_mastered:
+            mastered_dir = audio_dir / "mastered"
+            mastered_dir.mkdir()
+            (mastered_dir / "01-track.wav").write_bytes(b"RIFF")
+        if has_art:
+            (audio_dir / "album.png").write_bytes(b"PNG")
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(readme_path.parent)
+        state["albums"]["test-album"]["status"] = "Complete"
+        state["albums"]["test-album"]["genre"] = "electronic"
+        state["albums"]["test-album"]["tracks"] = {
+            "01-track": {
+                "path": str(track_file), "title": "Track", "status": "Final",
+                "explicit": False, "sources_verified": "N/A", "mtime": 1234567890.0,
+            },
+        }
+        state["config"]["audio_root"] = str(tmp_path / "audio")
+        return MockStateCache(state)
+
+    def test_released_blocked_no_audio(self, tmp_path):
+        """Released blocked when no audio directory."""
+        mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert "issues" in result
+        assert any("WAV" in i for i in result["issues"])
+
+    def test_released_blocked_no_mastered(self, tmp_path):
+        """Released blocked when no mastered files."""
+        mock_cache = self._make_release_env(tmp_path, has_mastered=False, has_art=True)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert any("mastered" in i.lower() for i in result["issues"])
+
+    def test_released_blocked_no_art(self, tmp_path):
+        """Released blocked when no album art."""
+        mock_cache = self._make_release_env(tmp_path, has_art=False)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert any("album art" in i.lower() for i in result["issues"])
+
+    def test_released_passes_all_prerequisites(self, tmp_path):
+        """Released passes when all prerequisites met."""
+        mock_cache = self._make_release_env(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert result["success"] is True
+
+    def test_force_bypasses_release_gate(self, tmp_path):
+        """force=True bypasses all release checks."""
+        mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Released", force=True
+            )))
+        assert result["success"] is True
+
+    def test_multiple_issues_reported_together(self, tmp_path):
+        """All release issues are collected and reported in one response."""
+        mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "issues" in result
+        # Should report at least audio, mastered, and art issues
+        assert len(result["issues"]) >= 3
+
+    def test_released_blocked_missing_streaming_lyrics(self, tmp_path):
+        """Released blocked when track file has no Streaming Lyrics section."""
+        mock_cache = self._make_release_env(tmp_path)
+        # Overwrite track file with content missing Streaming Lyrics
+        state = mock_cache.get_state()
+        track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
+        Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n")
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert any("streaming lyrics" in i.lower() for i in result["issues"])
+
+    def test_released_blocked_placeholder_streaming_lyrics(self, tmp_path):
+        """Released blocked when streaming lyrics contain placeholder markers."""
+        mock_cache = self._make_release_env(tmp_path)
+        state = mock_cache.get_state()
+        track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
+        Path(track_path).write_text(
+            "# Track\n\n## Streaming Lyrics\n\n```\n"
+            "Plain lyrics here\nCapitalize first letter of each line\n```\n"
+        )
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert "error" in result
+        assert any("streaming lyrics" in i.lower() for i in result["issues"])
+
+    def test_released_passes_with_valid_streaming_lyrics(self, tmp_path):
+        """Released passes when streaming lyrics are valid (no placeholders)."""
+        mock_cache = self._make_release_env(tmp_path)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "Released")))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestDocumentaryAlbumSourcePath:
+    """Tests for documentary album source path enforcement in update_album_status."""
+
+    def _make_cache_with_album(self, tmp_path, has_sources=True, status="Concept"):
+        """Create a mock cache with an album directory."""
+        album_dir = tmp_path / "album"
+        album_dir.mkdir(parents=True)
+        readme_content = _SAMPLE_ALBUM_README.replace(
+            "| **Status** | In Progress |", f"| **Status** | {status} |"
+        )
+        (album_dir / "README.md").write_text(readme_content)
+        if has_sources:
+            (album_dir / "SOURCES.md").write_text("# Sources\n\n[Link](https://example.com)")
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        state["albums"]["test-album"]["status"] = status
+        return MockStateCache(state)
+
+    def test_concept_to_in_progress_blocked_with_sources(self, tmp_path):
+        """Concept → In Progress blocked when SOURCES.md exists (documentary album)."""
+        mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
+        assert "error" in result
+        assert "SOURCES.md" in result["error"]
+        assert "documentary" in result["error"].lower()
+
+    def test_concept_to_in_progress_allowed_without_sources(self, tmp_path):
+        """Concept → In Progress allowed when no SOURCES.md exists."""
+        mock_cache = self._make_cache_with_album(tmp_path, has_sources=False, status="Concept")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
+        assert result["success"] is True
+
+    def test_concept_to_research_complete_allowed_with_sources(self, tmp_path):
+        """Concept → Research Complete works fine even with SOURCES.md."""
+        mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "Research Complete")))
+        assert result["success"] is True
+
+    def test_force_bypasses_documentary_check(self, tmp_path):
+        """force=True bypasses the documentary album check."""
+        mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "In Progress", force=True
+            )))
+        assert result["success"] is True
+
+    def test_config_disabled_allows_concept_to_in_progress(self, tmp_path):
+        """When require_source_path_for_documentary is false, Concept → In Progress works."""
+        mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
+        state = mock_cache.get_state()
+        state["config"]["generation"] = {"require_source_path_for_documentary": False}
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
+        assert result["success"] is True
 
 
 class TestDetectPhaseAdditional:
@@ -8236,11 +8957,11 @@ class TestUpdateTrackFieldStatusValidation:
         # The validation does value.lower().strip(), so "  Final  " becomes "final"
         mock_cache = MockStateCache()
         state = mock_cache.get_state()
-        # Use a track that exists
+        # Use a track that exists — force=True to bypass transition check
         mock_cache_with_file_state = MockStateCache(state)
         with patch.object(server, "cache", mock_cache_with_file_state):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-first-track", "status", "  Final  "
+                "test-album", "01-first-track", "status", "  Final  ", force=True
             )))
         # Should pass validation (whitespace stripped) but may fail on file write
         # since the track path in SAMPLE_STATE doesn't exist on disk
@@ -8251,23 +8972,248 @@ class TestUpdateTrackFieldStatusValidation:
         mock_cache = MockStateCache()
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
-                "test-album", "01-first-track", "status", "in progress"
+                "test-album", "01-first-track", "status", "in progress", force=True
             )))
         # Passes status validation; may fail on file path
         assert "Invalid track status" not in result.get("error", "")
 
     def test_all_valid_statuses_accepted(self):
-        """All valid track statuses pass validation."""
+        """All valid track statuses pass validation (using force to bypass transitions)."""
         valid = ["Not Started", "Sources Pending", "Sources Verified",
                  "In Progress", "Generated", "Final"]
         for status in valid:
             mock_cache = MockStateCache()
             with patch.object(server, "cache", mock_cache):
                 result = json.loads(_run(server.update_track_field(
-                    "test-album", "01-first-track", "status", status
+                    "test-album", "01-first-track", "status", status, force=True
                 )))
             assert "Invalid track status" not in result.get("error", ""), \
                 f"Status '{status}' was incorrectly rejected"
+
+
+@pytest.mark.unit
+class TestTrackStatusTransitionEnforcement:
+    """Tests for track status transition validation."""
+
+    def _make_cache_with_status(self, tmp_path, status):
+        """Create a mock cache with a track at a specific status."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD.replace(
+            "| **Status** | In Progress |", f"| **Status** | {status} |"
+        ))
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": status,
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state), track_file
+
+    def test_valid_transition_not_started_to_sources_pending(self, tmp_path):
+        """Not Started → Sources Pending is allowed."""
+        mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Sources Pending"
+            )))
+        assert result["success"] is True
+
+    def test_valid_skip_not_started_to_in_progress(self, tmp_path):
+        """Not Started → In Progress is allowed (non-documentary albums)."""
+        mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "In Progress"
+            )))
+        assert result["success"] is True
+
+    def test_invalid_skip_not_started_to_final(self, tmp_path):
+        """Not Started → Final is rejected (skips required steps)."""
+        mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final"
+            )))
+        assert "error" in result
+        assert "Invalid transition" in result["error"]
+        assert "force=True" in result["error"]
+
+    def test_terminal_state_final_rejected(self, tmp_path):
+        """Final → anything is rejected (terminal state)."""
+        mock_cache, _ = self._make_cache_with_status(tmp_path, "Final")
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "In Progress"
+            )))
+        assert "error" in result
+        assert "Invalid transition" in result["error"]
+        assert "none (terminal)" in result["error"]
+
+    def test_force_override_bypasses_validation(self, tmp_path):
+        """force=True allows any transition."""
+        mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Final", force=True
+            )))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestAlbumStatusTransitionEnforcement:
+    """Tests for album status transition validation."""
+
+    def _make_cache_with_album_status(self, tmp_path, album_status, track_statuses=None):
+        """Create a mock cache with album at a specific status."""
+        readme_path = tmp_path / "README.md"
+        readme_path.write_text(_SAMPLE_ALBUM_README.replace(
+            "| **Status** | In Progress |", f"| **Status** | {album_status} |"
+        ))
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(tmp_path)
+        state["albums"]["test-album"]["status"] = album_status
+        if track_statuses:
+            for slug, status in track_statuses.items():
+                if slug in state["albums"]["test-album"]["tracks"]:
+                    state["albums"]["test-album"]["tracks"][slug]["status"] = status
+        return MockStateCache(state), readme_path
+
+    def test_valid_transition_concept_to_research_complete(self, tmp_path):
+        """Concept → Research Complete is allowed."""
+        mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Research Complete"
+            )))
+        assert result["success"] is True
+
+    def test_invalid_skip_concept_to_complete(self, tmp_path):
+        """Concept → Complete is rejected (skips required steps)."""
+        mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Complete"
+            )))
+        assert "error" in result
+        assert "Invalid transition" in result["error"]
+
+    def test_sources_verified_gate_blocks_unverified_tracks(self, tmp_path):
+        """Cannot set album to Sources Verified when tracks are unverified."""
+        mock_cache, _ = self._make_cache_with_album_status(
+            tmp_path, "Research Complete",
+            track_statuses={
+                "01-first-track": "Sources Verified",
+                "02-second-track": "Sources Pending",
+            }
+        )
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Sources Verified"
+            )))
+        assert "error" in result
+        assert "still unverified" in result["error"]
+        assert "02-second-track" in result["error"]
+
+    def test_sources_verified_gate_passes_all_verified(self, tmp_path):
+        """Can set album to Sources Verified when all tracks are verified."""
+        mock_cache, _ = self._make_cache_with_album_status(
+            tmp_path, "Research Complete",
+            track_statuses={
+                "01-first-track": "Sources Verified",
+                "02-second-track": "Sources Verified",
+            }
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Sources Verified"
+            )))
+        assert result["success"] is True
+
+    def test_force_override_bypasses_album_validation(self, tmp_path):
+        """force=True allows any album transition."""
+        mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.update_album_status(
+                "test-album", "Released", force=True
+            )))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestMasterAlbumStage7TransitionLogic:
+    """Tests for master_album Stage 7 transition-safe behavior."""
+
+    def test_only_generated_tracks_advance_to_final(self, tmp_path):
+        """Stage 7 only sets Generated tracks to Final, skips others."""
+        # Create track files with different statuses
+        tracks_dir = tmp_path / "tracks"
+        tracks_dir.mkdir()
+
+        generated_track = tracks_dir / "01-generated.md"
+        generated_track.write_text(
+            _SAMPLE_TRACK_MD.replace("| **Status** | In Progress |", "| **Status** | Generated |")
+        )
+
+        in_progress_track = tracks_dir / "02-in-progress.md"
+        in_progress_track.write_text(_SAMPLE_TRACK_MD)  # Status: In Progress
+
+        final_track = tracks_dir / "03-already-final.md"
+        final_track.write_text(
+            _SAMPLE_TRACK_MD.replace("| **Status** | In Progress |", "| **Status** | Final |")
+        )
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"] = {
+            "01-generated": {
+                "path": str(generated_track),
+                "title": "Generated Track",
+                "status": "Generated",
+                "explicit": False,
+                "has_suno_link": True,
+                "sources_verified": "N/A",
+                "mtime": 1234567890.0,
+            },
+            "02-in-progress": {
+                "path": str(in_progress_track),
+                "title": "In Progress Track",
+                "status": "In Progress",
+                "explicit": False,
+                "has_suno_link": False,
+                "sources_verified": "N/A",
+                "mtime": 1234567890.0,
+            },
+            "03-already-final": {
+                "path": str(final_track),
+                "title": "Already Final",
+                "status": "Final",
+                "explicit": False,
+                "has_suno_link": True,
+                "sources_verified": "N/A",
+                "mtime": 1234567890.0,
+            },
+        }
+        mock_cache = MockStateCache(state)
+
+        # Can't call master_album directly (needs audio processing),
+        # so verify the transition maps match Stage 7 logic
+        err_generated = server._validate_track_transition("Generated", "Final")
+        assert err_generated is None, "Generated → Final should be valid"
+
+        err_in_progress = server._validate_track_transition("In Progress", "Final")
+        assert err_in_progress is not None, "In Progress → Final should be invalid"
+
+        err_final = server._validate_track_transition("Final", "Final")
+        assert err_final is not None, "Final → Final should be invalid (terminal)"
 
 
 @pytest.mark.unit
@@ -8680,7 +9626,107 @@ class TestUpdateTrackFieldNonStatusFields:
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources-verified",
-                "✅ Verified (2026-02-10)"
+                "✅ Verified (2026-02-10)", force=True,
+            )))
+        assert result["success"] is True
+
+
+@pytest.mark.unit
+class TestSourceVerificationGate:
+    """Tests for source link validation when verifying sources."""
+
+    def _make_cache_with_track_and_album(self, tmp_path, track_content, album_has_sources=False):
+        """Create a mock cache with track file and optionally SOURCES.md."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(track_content)
+
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        if album_has_sources:
+            sources_file = album_dir / "SOURCES.md"
+            sources_file.write_text(
+                "# Sources\n\n"
+                "| Document | URL |\n"
+                "|----------|-----|\n"
+                "| [Wikipedia](https://en.wikipedia.org/wiki/Test) | Reference |\n"
+            )
+
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "Pending",
+            "mtime": 1234567890.0,
+        }
+        return MockStateCache(state), track_file
+
+    def test_blocked_no_sources(self, tmp_path):
+        """Blocked when no SOURCES.md and no inline Source section links."""
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert "error" in result
+        assert "no markdown links" in result["error"]
+
+    def test_passes_with_sources_md(self, tmp_path):
+        """Passes when SOURCES.md has [text](url) links."""
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=True
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert result["success"] is True
+
+    def test_passes_with_inline_source_section(self, tmp_path):
+        """Passes when track Source section has markdown links."""
+        track_with_source = _SAMPLE_TRACK_MD + "\n## Source\n\n[Wikipedia](https://en.wikipedia.org/wiki/Test)\n"
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, track_with_source, album_has_sources=False
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)"
+            )))
+        assert result["success"] is True
+
+    def test_pending_value_not_blocked(self, tmp_path):
+        """Setting to 'Pending' or 'N/A' is NOT blocked by source check."""
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        for val in ["❌ Pending", "N/A", "Pending"]:
+            with patch.object(server, "cache", mock_cache), \
+                 patch.object(server, "write_state", MagicMock()):
+                result = json.loads(_run(server.update_track_field(
+                    "test-album", "01-test-track", "sources_verified", val
+                )))
+            assert result.get("success") is True or "no markdown links" not in result.get("error", "")
+
+    def test_force_bypasses_source_check(self, tmp_path):
+        """force=True bypasses the source link validation."""
+        mock_cache, _ = self._make_cache_with_track_and_album(
+            tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
+        )
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "sources_verified",
+                "✅ Verified (2026-02-19)", force=True,
             )))
         assert result["success"] is True
 

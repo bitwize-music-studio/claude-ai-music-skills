@@ -1,0 +1,951 @@
+#!/usr/bin/env python3
+"""
+Unit tests for mix_tracks.py
+
+Tests per-stem processing functions, full pipeline, and preset loading.
+
+Usage:
+    python -m pytest tests/unit/mixing/test_mix_tracks.py -v
+"""
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+import soundfile as sf
+
+# Ensure project root is on sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from tools.mixing.mix_tracks import (
+    MIX_PRESETS,
+    _BUILTIN_PRESETS_FILE,
+    _load_yaml_file,
+    _deep_merge,
+    apply_eq,
+    apply_high_shelf,
+    apply_highpass,
+    gentle_compress,
+    remove_clicks,
+    reduce_noise,
+    enhance_stereo,
+    remix_stems,
+    process_vocals,
+    process_drums,
+    process_bass,
+    process_other,
+    mix_track_stems,
+    mix_track_full,
+    load_mix_presets,
+    _get_stem_settings,
+    _get_full_mix_settings,
+)
+
+
+# ─── Test Helpers ─────────────────────────────────────────────────────
+
+
+def _generate_sine(freq=440.0, duration=1.0, rate=44100, amplitude=0.5, stereo=True):
+    """Generate a sine wave test signal."""
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    mono = (amplitude * np.sin(2 * np.pi * freq * t)).astype(np.float64)
+    if stereo:
+        return np.column_stack([mono, mono]), rate
+    return mono, rate
+
+
+def _generate_noise(duration=1.0, rate=44100, amplitude=0.3, stereo=True):
+    """Generate white noise test signal."""
+    rng = np.random.default_rng(42)
+    samples = int(rate * duration)
+    mono = (amplitude * rng.standard_normal(samples)).astype(np.float64)
+    if stereo:
+        return np.column_stack([mono, mono.copy()]), rate
+    return mono, rate
+
+
+def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
+    """Generate a signal with an artificial click/pop."""
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    data = (amplitude * 0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+    # Insert a sharp click
+    click_idx = int(click_pos * rate)
+    if click_idx < len(data):
+        data[click_idx] = amplitude * 0.99
+        if click_idx + 1 < len(data):
+            data[click_idx + 1] = -amplitude * 0.99
+    return np.column_stack([data, data]), rate
+
+
+def _write_wav(path, data, rate):
+    sf.write(str(path), data, rate, subtype='PCM_16')
+
+
+# ─── Fixtures ─────────────────────────────────────────────────────────
+
+
+@pytest.fixture
+def sine_wav(tmp_path):
+    data, rate = _generate_sine(freq=440, amplitude=0.5, stereo=True)
+    path = tmp_path / "sine.wav"
+    _write_wav(path, data, rate)
+    return str(path)
+
+
+@pytest.fixture
+def mono_wav(tmp_path):
+    data, rate = _generate_sine(freq=440, amplitude=0.5, stereo=False)
+    path = tmp_path / "mono.wav"
+    _write_wav(path, data, rate)
+    return str(path)
+
+
+@pytest.fixture
+def noise_wav(tmp_path):
+    data, rate = _generate_noise(amplitude=0.3, stereo=True)
+    path = tmp_path / "noise.wav"
+    _write_wav(path, data, rate)
+    return str(path)
+
+
+@pytest.fixture
+def click_wav(tmp_path):
+    data, rate = _generate_click()
+    path = tmp_path / "click.wav"
+    _write_wav(path, data, rate)
+    return str(path)
+
+
+@pytest.fixture
+def silent_wav(tmp_path):
+    rate = 44100
+    data = np.zeros((rate, 2), dtype=np.float64)
+    path = tmp_path / "silent.wav"
+    _write_wav(path, data, rate)
+    return str(path)
+
+
+@pytest.fixture
+def stem_dir(tmp_path):
+    """Create a directory with stem WAV files."""
+    stems = tmp_path / "stems" / "01-test-track"
+    stems.mkdir(parents=True)
+
+    rate = 44100
+    duration = 1.0
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+
+    # Vocals: mid-frequency sine
+    vocals = 0.4 * np.sin(2 * np.pi * 800 * t)
+    _write_wav(stems / "vocals.wav", np.column_stack([vocals, vocals]), rate)
+
+    # Drums: noise bursts
+    rng = np.random.default_rng(42)
+    drums = 0.5 * rng.standard_normal(len(t))
+    _write_wav(stems / "drums.wav", np.column_stack([drums, drums]), rate)
+
+    # Bass: low sine
+    bass = 0.5 * np.sin(2 * np.pi * 80 * t)
+    _write_wav(stems / "bass.wav", np.column_stack([bass, bass]), rate)
+
+    # Other: mid-high sine
+    other = 0.3 * np.sin(2 * np.pi * 2000 * t)
+    _write_wav(stems / "other.wav", np.column_stack([other, other]), rate)
+
+    return stems
+
+
+@pytest.fixture
+def output_path(tmp_path):
+    return str(tmp_path / "output.wav")
+
+
+# ─── Tests: apply_highpass ────────────────────────────────────────────
+
+
+class TestApplyHighpass:
+    """Tests for the Butterworth highpass filter."""
+
+    def test_removes_low_frequencies(self):
+        """Highpass should reduce low-frequency energy."""
+        data, rate = _generate_sine(freq=20, amplitude=0.5)
+        result = apply_highpass(data, rate, cutoff=100)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_passes_high_frequencies(self):
+        """Highpass should pass frequencies above cutoff."""
+        data, rate = _generate_sine(freq=1000, amplitude=0.5)
+        result = apply_highpass(data, rate, cutoff=30)
+        # High-freq signal should be mostly unchanged
+        # Allow some attenuation from filter rolloff
+        assert np.max(np.abs(result)) > 0.3
+
+    def test_zero_cutoff_is_passthrough(self):
+        """Cutoff of 0 should return unchanged data."""
+        data, rate = _generate_sine()
+        result = apply_highpass(data, rate, cutoff=0)
+        assert np.array_equal(result, data)
+
+    def test_cutoff_above_nyquist_is_passthrough(self):
+        """Cutoff above Nyquist should return unchanged data."""
+        data, rate = _generate_sine()
+        result = apply_highpass(data, rate, cutoff=rate)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        """Should work with mono (1D) arrays."""
+        data, rate = _generate_sine(stereo=False)
+        result = apply_highpass(data, rate, cutoff=100)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        data, rate = _generate_sine()
+        result = apply_highpass(data, rate, cutoff=30)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: apply_eq ─────────────────────────────────────────────────
+
+
+class TestApplyEq:
+    """Tests for the parametric EQ function."""
+
+    def test_zero_gain_is_passthrough(self):
+        data, rate = _generate_sine()
+        result = apply_eq(data, rate, freq=1000, gain_db=0.0)
+        assert np.array_equal(result, data)
+
+    def test_negative_gain_reduces_energy(self):
+        data, rate = _generate_sine(freq=1000, amplitude=0.5)
+        result = apply_eq(data, rate, freq=1000, gain_db=-6.0, q=1.0)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_positive_gain_increases_energy(self):
+        data, rate = _generate_sine(freq=1000, amplitude=0.3)
+        result = apply_eq(data, rate, freq=1000, gain_db=6.0, q=1.0)
+        assert np.max(np.abs(result)) > np.max(np.abs(data))
+
+    def test_freq_out_of_range_skips(self):
+        data, rate = _generate_sine()
+        result = apply_eq(data, rate, freq=25000, gain_db=-6.0)
+        assert np.array_equal(result, data)
+
+    def test_negative_q_skips(self):
+        data, rate = _generate_sine()
+        result = apply_eq(data, rate, freq=1000, gain_db=-6.0, q=-1.0)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        data, rate = _generate_sine(stereo=False)
+        result = apply_eq(data, rate, freq=1000, gain_db=-3.0)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        data, rate = _generate_sine()
+        result = apply_eq(data, rate, freq=3000, gain_db=6.0, q=1.5)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: apply_high_shelf ─────────────────────────────────────────
+
+
+class TestApplyHighShelf:
+    """Tests for the high shelf EQ function."""
+
+    def test_negative_gain_reduces_highs(self):
+        data, rate = _generate_sine(freq=10000, amplitude=0.5)
+        result = apply_high_shelf(data, rate, freq=8000, gain_db=-6.0)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_zero_gain_is_passthrough(self):
+        data, rate = _generate_sine()
+        result = apply_high_shelf(data, rate, freq=8000, gain_db=0.0)
+        assert np.array_equal(result, data)
+
+    def test_freq_above_nyquist_skips(self):
+        data, rate = _generate_sine()
+        result = apply_high_shelf(data, rate, freq=25000, gain_db=-6.0)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        data, rate = _generate_sine(freq=10000, stereo=False)
+        result = apply_high_shelf(data, rate, freq=8000, gain_db=-3.0)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        data, rate = _generate_sine()
+        result = apply_high_shelf(data, rate, freq=8000, gain_db=-6.0)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: gentle_compress ──────────────────────────────────────────
+
+
+class TestGentleCompress:
+    """Tests for the envelope-following compressor."""
+
+    def test_reduces_peaks_above_threshold(self):
+        """Compression should reduce peaks above threshold."""
+        data, rate = _generate_sine(freq=440, amplitude=0.8)
+        result = gentle_compress(data, rate, threshold_db=-6.0, ratio=4.0)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_unity_ratio_is_passthrough(self):
+        """Ratio of 1:1 should not compress."""
+        data, rate = _generate_sine()
+        result = gentle_compress(data, rate, threshold_db=-6.0, ratio=1.0)
+        assert np.array_equal(result, data)
+
+    def test_below_ratio_is_passthrough(self):
+        """Ratio below 1:1 should return unchanged data."""
+        data, rate = _generate_sine()
+        result = gentle_compress(data, rate, threshold_db=-6.0, ratio=0.5)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        data, rate = _generate_sine(stereo=False, amplitude=0.8)
+        result = gentle_compress(data, rate, threshold_db=-6.0, ratio=2.0)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        data, rate = _generate_sine(amplitude=0.9)
+        result = gentle_compress(data, rate, threshold_db=-10.0, ratio=4.0)
+        assert np.all(np.isfinite(result))
+
+    def test_preserves_sign(self):
+        """Compression should not invert signal polarity."""
+        data, rate = _generate_sine(amplitude=0.8)
+        result = gentle_compress(data, rate, threshold_db=-6.0, ratio=3.0)
+        # Check that signs are preserved where non-zero
+        nonzero = np.abs(data) > 0.01
+        assert np.all(np.sign(result[nonzero]) == np.sign(data[nonzero]))
+
+
+# ─── Tests: remove_clicks ────────────────────────────────────────────
+
+
+class TestRemoveClicks:
+    """Tests for click/pop detection and removal."""
+
+    def test_removes_artificial_click(self):
+        """Should detect and reduce artificial clicks."""
+        data, rate = _generate_click(amplitude=0.5)
+        result = remove_clicks(data, rate, threshold=4.0)
+        # The click sample should be reduced
+        click_idx = int(0.5 * rate)
+        assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+
+    def test_clean_signal_unchanged(self):
+        """Clean signal without clicks should be mostly unchanged."""
+        data, rate = _generate_sine(amplitude=0.3)
+        result = remove_clicks(data, rate, threshold=6.0)
+        # Most samples should be identical
+        diff = np.max(np.abs(result - data))
+        assert diff < 0.1
+
+    def test_zero_threshold_is_passthrough(self):
+        data, rate = _generate_sine()
+        result = remove_clicks(data, rate, threshold=0)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        data, rate = _generate_sine(stereo=False)
+        result = remove_clicks(data, rate)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        data, rate = _generate_click()
+        result = remove_clicks(data, rate)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: reduce_noise ─────────────────────────────────────────────
+
+
+class TestReduceNoise:
+    """Tests for spectral gating noise reduction."""
+
+    def test_reduces_noise_floor(self):
+        """Noise reduction should reduce low-level noise."""
+        pytest.importorskip("noisereduce")
+        data, rate = _generate_noise(amplitude=0.1, stereo=True)
+        result = reduce_noise(data, rate, strength=0.8)
+        assert np.std(result) < np.std(data)
+
+    def test_zero_strength_is_passthrough(self):
+        """Zero strength should return unchanged data."""
+        data, rate = _generate_noise()
+        result = reduce_noise(data, rate, strength=0.0)
+        assert np.array_equal(result, data)
+
+    def test_mono_input(self):
+        pytest.importorskip("noisereduce")
+        data, rate = _generate_noise(stereo=False)
+        result = reduce_noise(data, rate, strength=0.3)
+        assert result.shape == data.shape
+
+    def test_output_is_finite(self):
+        pytest.importorskip("noisereduce")
+        data, rate = _generate_noise()
+        result = reduce_noise(data, rate, strength=0.5)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: enhance_stereo ───────────────────────────────────────────
+
+
+class TestEnhanceStereo:
+    """Tests for mid-side stereo width enhancement."""
+
+    def test_increases_side_energy(self):
+        """Enhancement should increase difference between L and R."""
+        # Create a signal with slight stereo difference
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        left = 0.5 * np.sin(2 * np.pi * 440 * t)
+        right = 0.5 * np.sin(2 * np.pi * 440 * t + 0.3)  # Phase offset
+        data = np.column_stack([left, right])
+
+        result = enhance_stereo(data, rate, amount=0.5)
+        # Side signal (L-R) should be stronger
+        orig_side = np.std(data[:, 0] - data[:, 1])
+        enhanced_side = np.std(result[:, 0] - result[:, 1])
+        assert enhanced_side > orig_side
+
+    def test_zero_amount_is_passthrough(self):
+        data, rate = _generate_sine()
+        result = enhance_stereo(data, rate, amount=0.0)
+        assert np.array_equal(result, data)
+
+    def test_mono_input_returns_unchanged(self):
+        data, rate = _generate_sine(stereo=False)
+        result = enhance_stereo(data, rate, amount=0.5)
+        assert np.array_equal(result, data)
+
+    def test_output_is_finite(self):
+        data, rate = _generate_sine()
+        result = enhance_stereo(data, rate, amount=0.5)
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: remix_stems ──────────────────────────────────────────────
+
+
+class TestRemixStems:
+    """Tests for stem remixing."""
+
+    def test_basic_remix(self):
+        """Should combine stems into a single stereo output."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+
+        stems = {
+            'vocals': (np.column_stack([
+                0.3 * np.sin(2 * np.pi * 440 * t),
+                0.3 * np.sin(2 * np.pi * 440 * t),
+            ]), rate),
+            'drums': (np.column_stack([
+                0.3 * np.sin(2 * np.pi * 200 * t),
+                0.3 * np.sin(2 * np.pi * 200 * t),
+            ]), rate),
+        }
+
+        mixed, out_rate = remix_stems(stems)
+        assert out_rate == rate
+        assert mixed.shape == (rate, 2)
+        assert np.max(np.abs(mixed)) > 0
+
+    def test_gain_adjustment(self):
+        """Positive gain should increase stem level in mix."""
+        rate = 44100
+        data = np.zeros((rate, 2))
+        data[:, 0] = 0.3
+        data[:, 1] = 0.3
+        stems = {'vocals': (data.copy(), rate)}
+
+        # Mix with unity gain
+        mixed_unity, _ = remix_stems(stems, gains_dict={'vocals': 0.0})
+        # Mix with +6 dB gain
+        mixed_boosted, _ = remix_stems(stems, gains_dict={'vocals': 6.0})
+
+        assert np.max(np.abs(mixed_boosted)) > np.max(np.abs(mixed_unity))
+
+    def test_mono_stem_to_stereo(self):
+        """Mono stems should be expanded to stereo in the mix."""
+        rate = 44100
+        mono = np.ones(rate) * 0.3
+        stems = {'bass': (mono, rate)}
+
+        mixed, _ = remix_stems(stems)
+        assert mixed.shape == (rate, 2)
+        # Both channels should have the mono content
+        assert np.allclose(mixed[:, 0], mixed[:, 1], atol=1e-6)
+
+    def test_different_lengths_padded(self):
+        """Stems of different lengths should be zero-padded."""
+        rate = 44100
+        short = np.column_stack([np.ones(rate), np.ones(rate)]) * 0.3
+        long = np.column_stack([np.ones(rate * 2), np.ones(rate * 2)]) * 0.3
+
+        stems = {
+            'vocals': (short, rate),
+            'bass': (long, rate),
+        }
+
+        mixed, _ = remix_stems(stems)
+        assert mixed.shape[0] == rate * 2
+
+    def test_empty_stems_raises(self):
+        """Empty stems dict should raise ValueError."""
+        with pytest.raises(ValueError):
+            remix_stems({})
+
+    def test_prevents_clipping(self):
+        """Output should not exceed 0.95 peak."""
+        rate = 44100
+        loud = np.column_stack([np.ones(rate), np.ones(rate)]) * 0.8
+        stems = {
+            'vocals': (loud.copy(), rate),
+            'drums': (loud.copy(), rate),
+            'bass': (loud.copy(), rate),
+            'other': (loud.copy(), rate),
+        }
+
+        mixed, _ = remix_stems(stems)
+        assert np.max(np.abs(mixed)) <= 0.95 + 1e-6
+
+
+# ─── Tests: Per-Stem Processors ──────────────────────────────────────
+
+
+class TestProcessVocals:
+    """Tests for the vocal processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        result = process_vocals(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        settings = {
+            'noise_reduction': 0.0,
+            'presence_boost_db': 3.0,
+            'presence_freq': 3000,
+            'high_tame_db': -3.0,
+            'high_tame_freq': 7000,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 3.0,
+            'compress_attack_ms': 10.0,
+        }
+        result = process_vocals(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessDrums:
+    """Tests for the drum processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_noise(amplitude=0.5)
+        result = process_drums(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_with_click_removal_disabled(self):
+        data, rate = _generate_noise(amplitude=0.5)
+        settings = {
+            'click_removal': False,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 5.0,
+        }
+        result = process_drums(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessBass:
+    """Tests for the bass processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=80, amplitude=0.5)
+        result = process_bass(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_highpass_removes_sub_rumble(self):
+        """Bass processor should remove sub-bass rumble."""
+        data, rate = _generate_sine(freq=15, amplitude=0.5)
+        result = process_bass(data, rate)
+        # Very low frequency should be reduced
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+
+class TestProcessOther:
+    """Tests for the 'other' stem processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=2000, amplitude=0.4)
+        result = process_other(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: Full Pipeline (Stems) ────────────────────────────────────
+
+
+class TestMixTrackStems:
+    """Integration tests for the stems processing pipeline."""
+
+    def test_basic_stems_processing(self, stem_dir, output_path):
+        """Process stems directory and produce output WAV."""
+        stem_paths = {
+            name: str(stem_dir / f"{name}.wav")
+            for name in ('vocals', 'drums', 'bass', 'other')
+        }
+        result = mix_track_stems(stem_paths, output_path)
+
+        assert result['mode'] == 'stems'
+        assert len(result['stems_processed']) == 4
+        assert Path(output_path).exists()
+        assert not result.get('error')
+
+    def test_dry_run_no_output(self, stem_dir, output_path):
+        """Dry run should analyze but not write files."""
+        stem_paths = {
+            name: str(stem_dir / f"{name}.wav")
+            for name in ('vocals', 'drums', 'bass', 'other')
+        }
+        result = mix_track_stems(stem_paths, output_path, dry_run=True)
+
+        assert result['dry_run'] is True
+        assert len(result['stems_processed']) == 4
+        assert not Path(output_path).exists()
+
+    def test_partial_stems(self, stem_dir, output_path):
+        """Should work with only some stems available."""
+        stem_paths = {
+            'vocals': str(stem_dir / "vocals.wav"),
+            'drums': str(stem_dir / "drums.wav"),
+        }
+        result = mix_track_stems(stem_paths, output_path)
+
+        assert len(result['stems_processed']) == 2
+        assert Path(output_path).exists()
+
+    def test_with_genre_preset(self, stem_dir, output_path):
+        """Genre preset should be applied."""
+        stem_paths = {
+            name: str(stem_dir / f"{name}.wav")
+            for name in ('vocals', 'drums', 'bass', 'other')
+        }
+        result = mix_track_stems(stem_paths, output_path, genre='rock')
+
+        assert len(result['stems_processed']) == 4
+        assert Path(output_path).exists()
+
+    def test_output_is_valid_wav(self, stem_dir, output_path):
+        """Output should be a readable stereo WAV."""
+        stem_paths = {
+            name: str(stem_dir / f"{name}.wav")
+            for name in ('vocals', 'drums', 'bass', 'other')
+        }
+        mix_track_stems(stem_paths, output_path)
+
+        data, rate = sf.read(output_path)
+        assert rate == 44100
+        assert len(data.shape) == 2
+        assert data.shape[1] == 2
+        assert np.all(np.isfinite(data))
+
+    def test_missing_stem_file_skipped(self, stem_dir, output_path):
+        """Missing stem files should be skipped gracefully."""
+        stem_paths = {
+            'vocals': str(stem_dir / "vocals.wav"),
+            'drums': str(stem_dir / "nonexistent.wav"),
+        }
+        result = mix_track_stems(stem_paths, output_path)
+
+        assert len(result['stems_processed']) == 1
+        assert Path(output_path).exists()
+
+    def test_no_valid_stems_returns_error(self, tmp_path, output_path):
+        """All missing stems should return error."""
+        stem_paths = {
+            'vocals': str(tmp_path / "missing.wav"),
+        }
+        result = mix_track_stems(stem_paths, output_path)
+        assert result.get('error')
+
+    def test_empty_stem_wav_skipped(self, stem_dir, output_path):
+        """Empty (zero-sample) stem WAV should be skipped, not crash."""
+        # Overwrite vocals with an empty WAV
+        empty_path = stem_dir / "vocals.wav"
+        sf.write(str(empty_path), np.array([]).reshape(0, 2), 44100)
+
+        stem_paths = {
+            'vocals': str(empty_path),
+            'drums': str(stem_dir / "drums.wav"),
+        }
+        result = mix_track_stems(stem_paths, output_path)
+
+        # Only drums should be processed; vocals skipped
+        assert len(result['stems_processed']) == 1
+        assert result['stems_processed'][0]['stem'] == 'drums'
+        assert Path(output_path).exists()
+
+
+# ─── Tests: Full Pipeline (Full Mix) ─────────────────────────────────
+
+
+class TestMixTrackFull:
+    """Integration tests for the full-mix fallback pipeline."""
+
+    def test_basic_full_mix(self, noise_wav, output_path):
+        """Process a full mix WAV file."""
+        result = mix_track_full(noise_wav, output_path)
+
+        assert result['mode'] == 'full_mix'
+        assert Path(output_path).exists()
+        assert not result.get('error')
+
+    def test_dry_run_no_output(self, noise_wav, output_path):
+        """Dry run should analyze but not write files."""
+        result = mix_track_full(noise_wav, output_path, dry_run=True)
+
+        assert result['dry_run'] is True
+        assert not Path(output_path).exists()
+
+    def test_with_genre_preset(self, noise_wav, output_path):
+        """Genre preset should be applied."""
+        result = mix_track_full(noise_wav, output_path, genre='hip-hop')
+        assert Path(output_path).exists()
+
+    def test_mono_input(self, mono_wav, output_path):
+        """Mono input should produce mono output."""
+        result = mix_track_full(mono_wav, output_path)
+        data, _ = sf.read(output_path)
+        assert len(data.shape) == 1  # Mono output for mono input
+
+    def test_output_is_valid_wav(self, noise_wav, output_path):
+        """Output should be a valid readable WAV."""
+        mix_track_full(noise_wav, output_path)
+        data, rate = sf.read(output_path)
+        assert rate == 44100
+        assert len(data) > 0
+        assert np.all(np.isfinite(data))
+
+    def test_has_metrics(self, noise_wav, output_path):
+        """Result should include before/after metrics."""
+        result = mix_track_full(noise_wav, output_path)
+        assert 'pre_peak' in result
+        assert 'pre_rms' in result
+        assert 'post_peak' in result
+        assert 'post_rms' in result
+
+
+# ─── Tests: Preset Loading ───────────────────────────────────────────
+
+
+class TestPresetLoading:
+    """Tests for YAML preset loading and merging."""
+
+    def test_builtin_yaml_exists(self):
+        assert _BUILTIN_PRESETS_FILE.exists(), f"Missing {_BUILTIN_PRESETS_FILE}"
+
+    def test_builtin_yaml_is_valid(self):
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        assert 'genres' in data
+        assert 'defaults' in data
+
+    def test_defaults_have_all_stem_types(self):
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        defaults = data['defaults']
+        for stem in ('vocals', 'drums', 'bass', 'other', 'full_mix'):
+            assert stem in defaults, f"Missing default settings for '{stem}'"
+
+    def test_common_genres_exist(self):
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        genres = data['genres']
+        for genre in ['pop', 'rock', 'hip-hop', 'electronic', 'jazz',
+                       'classical', 'folk', 'country', 'metal', 'ambient']:
+            assert genre in genres, f"Expected genre '{genre}' in mix presets"
+
+    def test_loaded_presets_structure(self):
+        presets = MIX_PRESETS
+        assert 'defaults' in presets
+        assert 'genres' in presets
+        assert 'vocals' in presets['defaults']
+
+    def test_get_stem_settings_defaults(self):
+        """Should return defaults when no genre specified."""
+        settings = _get_stem_settings('vocals')
+        assert 'presence_boost_db' in settings
+        assert 'compress_ratio' in settings
+
+    def test_get_stem_settings_with_genre(self):
+        """Genre should override defaults."""
+        settings = _get_stem_settings('vocals', genre='hip-hop')
+        # Hip-hop has vocals.presence_boost_db = 2.5
+        assert settings['presence_boost_db'] == 2.5
+
+    def test_get_full_mix_settings(self):
+        settings = _get_full_mix_settings()
+        assert 'noise_reduction' in settings
+        assert 'highpass_cutoff' in settings
+
+    def test_load_yaml_file_missing(self, tmp_path):
+        result = _load_yaml_file(tmp_path / "nonexistent.yaml")
+        assert result == {}
+
+    def test_load_yaml_file_empty(self, tmp_path):
+        empty = tmp_path / "empty.yaml"
+        empty.write_text("")
+        result = _load_yaml_file(empty)
+        assert result == {}
+
+    def test_load_yaml_file_invalid(self, tmp_path):
+        bad = tmp_path / "bad.yaml"
+        bad.write_text(": : : not valid [[[")
+        result = _load_yaml_file(bad)
+        assert result == {}
+
+
+class TestDeepMerge:
+    """Tests for the deep merge utility."""
+
+    def test_shallow_merge(self):
+        result = _deep_merge({'a': 1}, {'b': 2})
+        assert result == {'a': 1, 'b': 2}
+
+    def test_override_value(self):
+        result = _deep_merge({'a': 1}, {'a': 2})
+        assert result == {'a': 2}
+
+    def test_nested_merge(self):
+        base = {'vocals': {'gain_db': 0.0, 'presence_boost_db': 2.0}}
+        override = {'vocals': {'gain_db': 1.0}}
+        result = _deep_merge(base, override)
+        assert result == {'vocals': {'gain_db': 1.0, 'presence_boost_db': 2.0}}
+
+    def test_override_adds_new_nested_key(self):
+        base = {'vocals': {'gain_db': 0.0}}
+        override = {'vocals': {'noise_reduction': 0.5}}
+        result = _deep_merge(base, override)
+        assert result == {'vocals': {'gain_db': 0.0, 'noise_reduction': 0.5}}
+
+    def test_base_unchanged(self):
+        base = {'a': 1}
+        _deep_merge(base, {'a': 2})
+        assert base == {'a': 1}
+
+
+# ─── Tests: Numerical Stability ──────────────────────────────────────
+
+
+class TestNumericalStability:
+    """Tests for edge cases that could cause crashes or corruption."""
+
+    def test_eq_extreme_gain(self):
+        data, rate = _generate_sine()
+        result = apply_eq(data, rate, freq=1000, gain_db=-24.0, q=1.0)
+        assert np.all(np.isfinite(result))
+
+    def test_eq_extreme_boost(self):
+        data, rate = _generate_sine(amplitude=0.1)
+        result = apply_eq(data, rate, freq=1000, gain_db=24.0, q=1.0)
+        assert np.all(np.isfinite(result))
+
+    def test_compress_silent_signal(self):
+        data = np.zeros((44100, 2))
+        result = gentle_compress(data, 44100, threshold_db=-20.0, ratio=4.0)
+        assert np.all(np.isfinite(result))
+
+    def test_remix_silent_stems(self):
+        rate = 44100
+        silence = np.zeros((rate, 2))
+        stems = {'vocals': (silence.copy(), rate), 'bass': (silence.copy(), rate)}
+        mixed, _ = remix_stems(stems)
+        assert np.all(np.isfinite(mixed))
+
+    def test_highpass_near_nyquist(self):
+        data, rate = _generate_sine()
+        result = apply_highpass(data, rate, cutoff=rate // 2 - 1)
+        # Should still produce finite output (even if filter is extreme)
+        assert np.all(np.isfinite(result))
+
+    def test_process_very_short_audio(self):
+        """Very short audio (< 100 samples) should not crash."""
+        data = np.random.randn(50, 2) * 0.3
+        rate = 44100
+        result = process_vocals(data, rate, settings={
+            'noise_reduction': 0.0,
+            'presence_boost_db': 2.0,
+            'presence_freq': 3000,
+            'high_tame_db': -2.0,
+            'high_tame_freq': 7000,
+            'compress_threshold_db': -15.0,
+            'compress_ratio': 2.5,
+            'compress_attack_ms': 10.0,
+        })
+        assert np.all(np.isfinite(result))
+
+
+# ─── Tests: Override Merging ─────────────────────────────────────────
+
+
+class TestOverrideMerging:
+    """Tests for user override preset merging."""
+
+    def test_override_merges_genre(self, tmp_path, monkeypatch):
+        """User override should deep-merge into built-in genre."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        override_file = override_dir / "mix-presets.yaml"
+        override_file.write_text(
+            "genres:\n"
+            "  rock:\n"
+            "    vocals:\n"
+            "      gain_db: 2.0\n"
+        )
+
+        import tools.mixing.mix_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        presets = load_mix_presets()
+        rock_vocals = presets['genres']['rock']['vocals']
+        assert rock_vocals['gain_db'] == 2.0
+        # Should keep other built-in rock vocal settings
+        assert 'high_tame_db' in rock_vocals
+
+    def test_override_adds_new_genre(self, tmp_path, monkeypatch):
+        """User override can add entirely new genres."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        override_file = override_dir / "mix-presets.yaml"
+        override_file.write_text(
+            "genres:\n"
+            "  dark-ambient:\n"
+            "    vocals:\n"
+            "      noise_reduction: 0.8\n"
+            "      gain_db: -1.0\n"
+        )
+
+        import tools.mixing.mix_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        presets = load_mix_presets()
+        assert 'dark-ambient' in presets['genres']
+        assert presets['genres']['dark-ambient']['vocals']['noise_reduction'] == 0.8
+
+    def test_no_override_dir_works(self, monkeypatch):
+        """When no override directory exists, built-in presets load fine."""
+        import tools.mixing.mix_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: None)
+
+        presets = load_mix_presets()
+        assert 'rock' in presets['genres']
+        assert 'pop' in presets['genres']

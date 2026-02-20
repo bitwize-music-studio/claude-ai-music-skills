@@ -18,7 +18,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 ## What Is This?
 
-This is a collection of **49 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
+This is a collection of **50 specialized skills** that turn Claude Code into a full music production assistant. It handles everything from album concept development to lyrics, Suno prompts, mastering, and release.
 
 **What you get:**
 - Structured workflow from idea to released album
