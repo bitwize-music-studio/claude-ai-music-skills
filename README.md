@@ -8,7 +8,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 > If you run into issues, feel free to [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) or just fix it yourself and submit a PR.
 
 > [!WARNING]
-> **Claude Code Max plan recommended** ($200/month). This plugin uses 49 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
+> **Claude Code Max plan recommended** ($200/month). This plugin uses 50 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
@@ -202,6 +202,7 @@ Each phase has specialized skills and quality gates:
 | **Research** | Gather sources (for true-story albums) | `/bitwize-music:researcher`, `/bitwize-music:document-hunter` |
 | **Write** | Create lyrics with quality checks | `/bitwize-music:lyric-writer`, `/bitwize-music:pronunciation-specialist` |
 | **Generate** | Create tracks on Suno | `/bitwize-music:suno-engineer` |
+| **Polish** | Fix Suno artifacts, per-stem cleanup | `/bitwize-music:mix-engineer` |
 | **Master** | Optimize audio for streaming | `/bitwize-music:mastering-engineer` |
 | **Release** | QA, upload, distribute | `/bitwize-music:release-director` |
 
@@ -395,6 +396,7 @@ For documentary or true-story albums:
 
 | Skill | Description |
 |-------|-------------|
+| `/bitwize-music:mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
 | `/bitwize-music:mastering-engineer` | Audio mastering for streaming |
 | `/bitwize-music:promo-director` | Generate promo videos for social media |
 | `/bitwize-music:promo-reviewer` | Review and polish social media copy before release |
@@ -430,7 +432,7 @@ Skills use different Claude models optimized for quality vs cost. On Claude Code
 | Model | When Used | Skills |
 |-------|-----------|--------|
 | **Opus 4.6** | Critical creative outputs (6 skills) | `/bitwize-music:lyric-writer`, `/bitwize-music:suno-engineer`, `/bitwize-music:album-conceptualizer`, `/bitwize-music:lyric-reviewer`, `/bitwize-music:researchers-legal`, `/bitwize-music:researchers-verifier` |
-| **Sonnet 4.5** | Reasoning and coordination (25 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
+| **Sonnet 4.5** | Reasoning and coordination (29 skills) | `/bitwize-music:researcher`, `/bitwize-music:pronunciation-specialist`, `/bitwize-music:explicit-checker`, and most other skills |
 | **Haiku 4.5** | Rule-based operations (15 skills) | `/bitwize-music:validate-album`, `/bitwize-music:test`, imports, clipboard, help |
 
 **Why different models?**
