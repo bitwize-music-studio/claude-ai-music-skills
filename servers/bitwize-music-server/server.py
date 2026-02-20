@@ -4128,7 +4128,7 @@ async def create_album_structure(
 
 
 def _check_pre_gen_gates_for_track(
-    t_data: dict, file_text: str | None, blocklist: list,
+    t_data: dict, file_text: Optional[str], blocklist: list,
     max_lyric_words: int = 800,
 ) -> tuple[int, int, list[dict]]:
     """Run pre-generation gates on a single track.
@@ -4970,7 +4970,6 @@ async def verify_streaming_urls(album_slug: str) -> str:
                     result_entry["status_code"] = status_code
                     if final_url != url:
                         result_entry["redirect_url"] = final_url
-                    reachable = True
                     break  # Success, no need to try GET
             except urllib.error.HTTPError as e:
                 if method == "HEAD" and e.code in (405, 403):
