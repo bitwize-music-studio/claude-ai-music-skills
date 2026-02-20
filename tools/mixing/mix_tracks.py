@@ -49,6 +49,74 @@ _CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 # Stem names in processing order
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 
+# Suno stem keyword → category mapping (case-insensitive, checked in order)
+_STEM_KEYWORDS = {
+    "vocals": ["vocal"],
+    "drums": ["drum"],
+    "bass": ["bass"],
+    # "other" is the catch-all — anything not matching above
+}
+
+
+def discover_stems(track_dir):
+    """Discover and categorize stem WAV files in a directory.
+
+    Supports both standard naming (vocals.wav) and Suno naming
+    (0 Lead Vocals.wav, 1 Backing Vocals.wav, etc.).
+
+    When multiple files match one category (e.g., lead + backing vocals),
+    all are returned so they can be combined during processing.
+
+    Args:
+        track_dir: Path to directory containing stem WAV files.
+
+    Returns:
+        Dict mapping stem category to path (str) or list of paths (list[str]).
+        Single files are returned as strings for backward compatibility.
+        Multiple files for one category are returned as a list.
+    """
+    track_dir = Path(track_dir)
+    result = {}
+
+    # Try standard names first
+    for stem_name in STEM_NAMES:
+        stem_file = track_dir / f"{stem_name}.wav"
+        if stem_file.exists():
+            result[stem_name] = str(stem_file)
+
+    if result:
+        return result
+
+    # Fall back to pattern matching on all WAV files
+    wav_files = sorted([
+        f for f in track_dir.iterdir()
+        if f.suffix.lower() == ".wav"
+    ])
+
+    if not wav_files:
+        return result
+
+    categorized = {name: [] for name in STEM_NAMES}
+
+    for wav_file in wav_files:
+        name_lower = wav_file.stem.lower()
+        matched = False
+        for stem_cat, keywords in _STEM_KEYWORDS.items():
+            if any(kw in name_lower for kw in keywords):
+                categorized[stem_cat].append(str(wav_file))
+                matched = True
+                break
+        if not matched:
+            categorized["other"].append(str(wav_file))
+
+    for stem_name, paths in categorized.items():
+        if len(paths) == 1:
+            result[stem_name] = paths[0]
+        elif len(paths) > 1:
+            result[stem_name] = paths
+
+    return result
+
 
 # ─── YAML / Config Helpers ───────────────────────────────────────────
 
@@ -744,15 +812,50 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
         if stem_name not in stem_paths:
             continue
 
-        stem_path = Path(stem_paths[stem_name])
-        if not stem_path.exists():
-            logger.warning("Stem file not found: %s", stem_path)
-            continue
+        # Normalize to list of paths (supports single str or list of str)
+        raw = stem_paths[stem_name]
+        paths = [raw] if isinstance(raw, str) else list(raw)
 
-        data, rate = sf.read(str(stem_path))
+        # Read and combine all files for this stem category
+        data = None
+        rate = None
+        for p in paths:
+            p = Path(p)
+            if not p.exists():
+                logger.warning("Stem file not found: %s", p)
+                continue
+            chunk, r = sf.read(str(p))
+            if chunk.size == 0:
+                logger.warning("Stem audio is empty, skipping: %s", p)
+                continue
+            if data is None:
+                data = chunk.astype(np.float64)
+                rate = r
+            else:
+                if r != rate:
+                    logger.warning(
+                        "Sample rate mismatch in %s (%d vs %d), skipping",
+                        p, r, rate,
+                    )
+                    continue
+                # Ensure same shape (mono→stereo promotion)
+                if len(data.shape) == 1 and len(chunk.shape) == 2:
+                    data = np.column_stack([data, data])
+                elif len(data.shape) == 2 and len(chunk.shape) == 1:
+                    chunk = np.column_stack([chunk, chunk])
+                # Pad shorter to match longer
+                max_len = max(data.shape[0], chunk.shape[0])
+                if data.shape[0] < max_len:
+                    padded = np.zeros((max_len,) + data.shape[1:], dtype=np.float64)
+                    padded[:data.shape[0]] = data
+                    data = padded
+                if chunk.shape[0] < max_len:
+                    padded = np.zeros((max_len,) + chunk.shape[1:], dtype=np.float64)
+                    padded[:chunk.shape[0]] = chunk
+                    chunk = padded
+                data = data + chunk.astype(np.float64)
 
-        if data.size == 0:
-            logger.warning("Stem audio is empty, skipping: %s", stem_path)
+        if data is None:
             continue
 
         # Measure pre-processing level
@@ -919,11 +1022,7 @@ def _process_one_track(track_dir, output_path, genre, dry_run):
         (track_name, result_dict) tuple.
     """
     track_dir = Path(track_dir)
-    stem_paths = {}
-    for stem_name in STEM_NAMES:
-        stem_file = track_dir / f"{stem_name}.wav"
-        if stem_file.exists():
-            stem_paths[stem_name] = str(stem_file)
+    stem_paths = discover_stems(track_dir)
 
     if not stem_paths:
         return (track_dir.name, None)

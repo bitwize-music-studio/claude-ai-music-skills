@@ -40,6 +40,7 @@ from tools.mixing.mix_tracks import (
     mix_track_stems,
     mix_track_full,
     load_mix_presets,
+    discover_stems,
     _get_stem_settings,
     _get_full_mix_settings,
 )
@@ -696,6 +697,152 @@ class TestMixTrackStems:
         assert len(result['stems_processed']) == 1
         assert result['stems_processed'][0]['stem'] == 'drums'
         assert Path(output_path).exists()
+
+
+# ─── Tests: Stem Discovery ───────────────────────────────────────────
+
+
+class TestDiscoverStems:
+    """Test discover_stems with standard and Suno naming conventions."""
+
+    def test_standard_naming(self, stem_dir):
+        """Standard names (vocals.wav, drums.wav, etc.) are found."""
+        result = discover_stems(stem_dir)
+        assert 'vocals' in result
+        assert 'drums' in result
+        assert 'bass' in result
+        assert 'other' in result
+        assert result['vocals'].endswith('vocals.wav')
+
+    def test_suno_naming(self, tmp_path):
+        """Suno-style names (0 Lead Vocals.wav, etc.) are mapped."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
+        sf.write(str(tmp_path / "1 Backing Vocals.wav"), tone, rate)
+        sf.write(str(tmp_path / "2 Drums.wav"), tone, rate)
+        sf.write(str(tmp_path / "3 Bass.wav"), tone, rate)
+        sf.write(str(tmp_path / "4 Synth.wav"), tone, rate)
+        sf.write(str(tmp_path / "5 Other.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'vocals' in result
+        assert 'drums' in result
+        assert 'bass' in result
+        assert 'other' in result
+
+    def test_suno_multiple_vocals_returns_list(self, tmp_path):
+        """Multiple vocal stems are returned as a list."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
+        sf.write(str(tmp_path / "1 Backing Vocals.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert isinstance(result['vocals'], list)
+        assert len(result['vocals']) == 2
+
+    def test_suno_single_stem_returns_string(self, tmp_path):
+        """Single file per category returns a string, not a list."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "2 Drums.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert isinstance(result['drums'], str)
+
+    def test_suno_synth_maps_to_other(self, tmp_path):
+        """Synth stem maps to 'other' category."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "4 Synth.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'other' in result
+
+    def test_suno_multiple_other_returns_list(self, tmp_path):
+        """Multiple non-matching stems are combined as 'other'."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "4 Synth.wav"), tone, rate)
+        sf.write(str(tmp_path / "5 Other.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert isinstance(result['other'], list)
+        assert len(result['other']) == 2
+
+    def test_standard_naming_preferred(self, stem_dir, tmp_path):
+        """Standard names take priority even if Suno-named files also exist."""
+        # stem_dir already has standard names; add a Suno-named file
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(stem_dir / "0 Lead Vocals.wav"), tone, rate)
+
+        result = discover_stems(stem_dir)
+        # Should use standard vocals.wav, not the Suno file
+        assert isinstance(result['vocals'], str)
+        assert result['vocals'].endswith('vocals.wav')
+
+    def test_empty_directory(self, tmp_path):
+        """Empty directory returns empty dict."""
+        result = discover_stems(tmp_path)
+        assert result == {}
+
+    def test_case_insensitive_matching(self, tmp_path):
+        """Keyword matching is case-insensitive."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "LEAD VOCALS.wav"), tone, rate)
+        sf.write(str(tmp_path / "DRUMS.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'vocals' in result
+        assert 'drums' in result
+
+
+class TestMixTrackStemsMultiFile:
+    """Test mix_track_stems with multi-file stem categories."""
+
+    def test_list_paths_combined(self, tmp_path):
+        """Multiple paths for one category are combined."""
+        rate = 44100
+        t = np.arange(rate) / rate
+        lead = np.sin(2 * np.pi * 440 * t).astype(np.float32)
+        backing = np.sin(2 * np.pi * 880 * t).astype(np.float32) * 0.5
+
+        lead_path = tmp_path / "lead.wav"
+        backing_path = tmp_path / "backing.wav"
+        sf.write(str(lead_path), lead, rate)
+        sf.write(str(backing_path), backing, rate)
+
+        output = str(tmp_path / "output.wav")
+        result = mix_track_stems(
+            {'vocals': [str(lead_path), str(backing_path)]},
+            output,
+        )
+
+        assert len(result['stems_processed']) == 1
+        assert result['stems_processed'][0]['stem'] == 'vocals'
+        assert Path(output).exists()
+
+    def test_suno_naming_end_to_end(self, tmp_path):
+        """Full pipeline with Suno-named stems."""
+        rate = 44100
+        t = np.arange(rate) / rate
+        tone = np.sin(2 * np.pi * 440 * t).astype(np.float32)
+
+        sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
+        sf.write(str(tmp_path / "2 Drums.wav"), tone * 0.8, rate)
+        sf.write(str(tmp_path / "3 Bass.wav"), tone * 0.6, rate)
+        sf.write(str(tmp_path / "5 Other.wav"), tone * 0.4, rate)
+
+        stem_paths = discover_stems(tmp_path)
+        output = str(tmp_path / "polished.wav")
+        result = mix_track_stems(stem_paths, output)
+
+        assert len(result['stems_processed']) == 4
+        assert Path(output).exists()
+        assert not result.get('error')
 
 
 # ─── Tests: Full Pipeline (Full Mix) ─────────────────────────────────

@@ -1076,3 +1076,263 @@ class TestMasterAlbumPipeline:
         assert len(captured_kwargs) == 1
         eq = captured_kwargs[0]["eq_settings"]
         assert eq == [(3500, -2.0, 1.5)]
+
+    # --- Auto-recovery tests ---
+
+    def test_auto_recovery_triggers_on_dynamic_range(self, tmp_path):
+        """LUFS too low + peak at ceiling → fix_dynamic runs, pipeline passes."""
+        import numpy as np_
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        # Track analyze calls: Stage 2 gets 2 calls (idx 0-1),
+        # Stage 5 verify gets 2 (idx 2-3), re-verify gets 2 (idx 4-5).
+        analyze_call_count = [0]
+
+        def mock_analyze(filepath):
+            idx = analyze_call_count[0]
+            analyze_call_count[0] += 1
+            name = Path(filepath).name
+            # Re-verify pass (idx >= 4): track 1 now passes after recovery
+            if name == "01-track-1.wav" and idx >= 4:
+                return self._mock_analyze(name, lufs=-14.0, peak_db=-1.1)
+            # Initial verify (idx 2-3) and analysis: track 1 LUFS too low
+            if name == "01-track-1.wav":
+                return self._mock_analyze(name, lufs=-16.0, peak_db=-1.0)
+            return self._mock_analyze(name, lufs=-14.0, peak_db=-1.5)
+
+        fix_dynamic_called = [False]
+
+        def mock_fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+            fix_dynamic_called[0] = True
+            return data, {
+                "original_lufs": -16.0,
+                "final_lufs": -14.0,
+                "final_peak_db": -1.1,
+            }
+
+        fake_audio = np_.zeros((100, 2))
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
+             patch("soundfile.read", return_value=(fake_audio, 44100)), \
+             patch("soundfile.write"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert fix_dynamic_called[0], "fix_dynamic should have been called"
+        assert result["stages"]["verification"]["status"] == "pass"
+        assert result["stages"]["verification"]["all_within_spec"] is True
+        assert len(result["stages"]["verification"]["auto_recovered"]) == 1
+        assert result["stages"]["verification"]["auto_recovered"][0]["filename"] == "01-track-1.wav"
+
+    def test_auto_recovery_skips_non_recoverable(self, tmp_path):
+        """LUFS too high or peak exceeds ceiling → no fix attempted, fails normally."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        def mock_analyze(filepath):
+            name = Path(filepath).name
+            # LUFS too HIGH — not recoverable
+            return self._mock_analyze(name, lufs=-12.0, peak_db=-1.5)
+
+        fix_dynamic_called = [False]
+
+        def mock_fix_dynamic(data, rate, **kwargs):
+            fix_dynamic_called[0] = True
+            return data, {}
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert not fix_dynamic_called[0], "fix_dynamic should NOT have been called"
+        assert result["failed_stage"] == "verification"
+
+    def test_auto_recovery_fails_gracefully(self, tmp_path):
+        """Fix attempted but still out of spec → returns failure JSON."""
+        import numpy as np_
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        def mock_analyze(filepath):
+            name = Path(filepath).name
+            # Always returns LUFS too low with peak at ceiling — even after fix
+            return self._mock_analyze(name, lufs=-16.0, peak_db=-1.0)
+
+        def mock_fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+            # Fix doesn't actually help
+            return data, {
+                "original_lufs": -16.0,
+                "final_lufs": -15.5,
+                "final_peak_db": -1.0,
+            }
+
+        fake_audio = np_.zeros((100, 2))
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
+             patch("soundfile.read", return_value=(fake_audio, 44100)), \
+             patch("soundfile.write"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert result["failed_stage"] == "verification"
+        assert result["stages"]["verification"]["all_within_spec"] is False
+
+    def test_auto_recovery_reported_in_warnings(self, tmp_path):
+        """Recovery details should appear in warnings list."""
+        import numpy as np_
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        # Stage 2: 2 calls (idx 0-1), Stage 5: 2 calls (idx 2-3),
+        # Re-verify: 2 calls (idx 4-5)
+        analyze_call_count = [0]
+
+        def mock_analyze(filepath):
+            idx = analyze_call_count[0]
+            analyze_call_count[0] += 1
+            name = Path(filepath).name
+            if name == "02-track-2.wav" and idx >= 4:
+                return self._mock_analyze(name, lufs=-14.0, peak_db=-1.1)
+            if name == "02-track-2.wav":
+                return self._mock_analyze(name, lufs=-16.0, peak_db=-1.0)
+            return self._mock_analyze(name, lufs=-14.0, peak_db=-1.5)
+
+        def mock_fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+            return data, {
+                "original_lufs": -16.0,
+                "final_lufs": -14.0,
+                "final_peak_db": -1.1,
+            }
+
+        fake_audio = np_.zeros((100, 2))
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
+             patch("soundfile.read", return_value=(fake_audio, 44100)), \
+             patch("soundfile.write"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        recovery_warnings = [w for w in result["warnings"] if isinstance(w, dict) and w.get("type") == "auto_recovery"]
+        assert len(recovery_warnings) == 1
+        assert "02-track-2.wav" in recovery_warnings[0]["tracks_fixed"]
+
+    def test_auto_recovery_re_verifies_all_tracks(self, tmp_path):
+        """After fixing one track, ALL tracks should be re-verified."""
+        import numpy as np_
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        analyzed_files = []
+        analyze_call_count = [0]
+
+        def mock_analyze(filepath):
+            idx = analyze_call_count[0]
+            analyze_call_count[0] += 1
+            name = Path(filepath).name
+            analyzed_files.append(name)
+            # Stage 2: idx 0-2, Stage 5 verify: idx 3-5, re-verify: idx 6-8
+            # Track 1 fails in verify (idx 3-5) but passes in re-verify (idx 6+)
+            if name == "01-track-1.wav" and idx >= 6:
+                return self._mock_analyze(name, lufs=-14.0, peak_db=-1.5)
+            if name == "01-track-1.wav":
+                return self._mock_analyze(name, lufs=-16.0, peak_db=-1.0)
+            return self._mock_analyze(name, lufs=-14.0, peak_db=-1.5)
+
+        def mock_fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+            return data, {
+                "original_lufs": -16.0,
+                "final_lufs": -14.0,
+                "final_peak_db": -1.1,
+            }
+
+        fake_audio = np_.zeros((100, 2))
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
+             patch("soundfile.read", return_value=(fake_audio, 44100)), \
+             patch("soundfile.write"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert result["stages"]["verification"]["status"] == "pass"
+        # Stage 2: 3 calls, Stage 5 verify: 3 calls, re-verify: 3 calls = 9 total
+        # The re-verify calls (idx 6-8) should include all 3 tracks
+        re_verify_calls = analyzed_files[6:]
+        assert len(re_verify_calls) == 3, (
+            f"Expected 3 re-verification calls, got {len(re_verify_calls)}: {re_verify_calls}"
+        )
