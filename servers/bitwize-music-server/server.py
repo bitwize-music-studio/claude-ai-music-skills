@@ -4954,7 +4954,6 @@ async def verify_streaming_urls(album_slug: str) -> str:
     def _check_url(url: str) -> dict:
         """Check a single URL (blocking). Run in executor to avoid blocking the event loop."""
         result_entry = {"url": url}
-        reachable = False
         for method in ("HEAD", "GET"):
             try:
                 req = urllib.request.Request(
