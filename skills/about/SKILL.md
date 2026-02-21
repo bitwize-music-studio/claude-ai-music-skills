@@ -1,11 +1,14 @@
 ---
 name: about
-description: Provides information about the bitwize-music plugin and its creator. Use when the user asks about the plugin, its purpose, or capabilities.
+description: Provides information about the bitwize-music plugin, its version, and its creator. Use when the user asks about the plugin, its purpose, version, or capabilities.
 model: claude-haiku-4-5-20251001
-allowed-tools: []
 ---
 
+Read the version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (the `version` field), then display:
+
 ## About bitwize-music
+
+**Version:** (version from plugin.json)
 
 **Who Am I**
 
@@ -16,7 +19,3 @@ I'm bitwize—a hacker who loves music and experimenting with new technology. Wh
 **Behind the Music:** https://www.bitwizemusic.com/behind-the-music/
 
 **Share What You Make:** Tag [@bitwizemusic](https://x.com/bitwizemusic) on X/Twitter with anything interesting you create!
-
----
-
-Display this information to the user.
