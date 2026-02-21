@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.60.0] - 2026-02-21
+
+### Added
+- **Suno stem discovery** — `discover_stems()` maps Suno's exported filenames (`0 Lead Vocals.wav`, `1 Backing Vocals.wav`) to polish pipeline stem roles via keyword-based matching + multi-file combining
+- **Mastering auto-recovery** — `master_album` Stage 5 auto-detects recoverable dynamic range failures (LUFS too low + peak at ceiling) and applies `fix_dynamic()` from raw source files before re-verifying
+- **`fix_dynamic()` reusable helper** — extracted core fix logic into a function that accepts pipeline settings (target LUFS, EQ, ceiling) instead of hardcoded values
+- **12 new tests** — 7 unit tests for `fix_dynamic()`, 5 pipeline tests for auto-recovery scenarios
+
+### Fixed
+- **`fix_dynamic_track` MCP tool** — now uses shared `fix_dynamic()` instead of inline code
+
 ## [0.59.0] - 2026-02-20
 
 ### Added
