@@ -2,9 +2,9 @@ name: Validation & Tests
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, develop ]
   push:
-    branches: [ main ]
+    branches: [ develop ]
 
 permissions:
   contents: read

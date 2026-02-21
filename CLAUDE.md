@@ -233,7 +233,7 @@ Currently supports **Suno** (default). Service-specific template sections marked
 
 **Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in both plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
 
-**Development workflow**: Feature branch → Conventional Commits → `/bitwize-music:test all` → PR → Merge. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+**Development workflow**: Feature branch off `develop` → Conventional Commits → `/bitwize-music:test all` → PR into `develop` → Release: merge `develop` → `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
