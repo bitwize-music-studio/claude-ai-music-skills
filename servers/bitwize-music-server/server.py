@@ -6767,49 +6767,25 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
     output_dir.mkdir(exist_ok=True)
     output_path = output_dir / track_filename
 
-    from tools.mastering.fix_dynamic_track import gentle_compress
-    from tools.mastering.master_tracks import apply_eq, soft_clip
+    from tools.mastering.fix_dynamic_track import fix_dynamic
 
     def _do_fix(in_path, out_path):
         import numpy as np
         import soundfile as sf
-        import pyloudnorm as pyln
 
         data, rate = sf.read(str(in_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
 
-        meter = pyln.Meter(rate)
-        original_lufs = meter.integrated_loudness(data)
-
-        # Step 1: EQ
-        data = apply_eq(data, rate, 3500, -2.0, 1.5)
-        # Step 2: Gentle compression
-        data = gentle_compress(data, threshold_db=-12, ratio=2.5, rate=rate)
-        # Step 3: Normalize to -14 LUFS
-        post_comp_lufs = meter.integrated_loudness(data)
-        target_lufs = -14.0
-        if np.isfinite(post_comp_lufs):
-            gain_db = target_lufs - post_comp_lufs
-            gain_linear = 10 ** (gain_db / 20)
-            data = data * gain_linear
-        # Step 4: Limit peaks
-        ceiling = 10 ** (-1.0 / 20)
-        peak = np.max(np.abs(data))
-        if peak > ceiling:
-            data = data * (ceiling / peak)
-        data = soft_clip(data, ceiling)
-
-        final_lufs = meter.integrated_loudness(data)
-        final_peak = 20 * np.log10(np.max(np.abs(data))) if np.max(np.abs(data)) > 0 else float("-inf")
+        data, metrics = fix_dynamic(data, rate)
 
         sf.write(str(out_path), data, rate, subtype="PCM_16")
 
         return {
             "filename": in_path.name,
-            "original_lufs": float(original_lufs),
-            "final_lufs": float(final_lufs),
-            "final_peak_db": float(final_peak),
+            "original_lufs": metrics["original_lufs"],
+            "final_lufs": metrics["final_lufs"],
+            "final_peak_db": metrics["final_peak_db"],
             "output_path": str(out_path),
         }
 
@@ -7723,37 +7699,131 @@ async def master_album(
             out_of_spec.append({"filename": r["filename"], "issues": issues})
 
     album_range_fail = verify_range >= 1.0
+    auto_recovered = []
 
     if out_of_spec or album_range_fail:
-        fail_detail = {}
-        if out_of_spec:
-            fail_detail["tracks_out_of_spec"] = out_of_spec
-        if album_range_fail:
-            fail_detail["album_lufs_range"] = round(verify_range, 2)
-            fail_detail["album_range_limit"] = 1.0
+        # --- Auto-recovery: fix recoverable dynamic range issues ---
+        # A track is recoverable when LUFS is too low (>0.5 dB below target)
+        # AND peak is at ceiling (within 0.1 dB).  This specific pattern means
+        # the limiter is clamping transients — compression will help.
+        recoverable = []
+        for spec in out_of_spec:
+            has_peak_issue = any("Peak" in iss for iss in spec["issues"])
+            vr = next(
+                (r for r in verify_results if r["filename"] == spec["filename"]),
+                None,
+            )
+            if not vr:
+                continue
+            lufs_too_low = vr["lufs"] < effective_lufs - 0.5
+            peak_at_ceiling = vr["peak_db"] >= ceiling_db - 0.1
+            if lufs_too_low and peak_at_ceiling and not has_peak_issue:
+                recoverable.append(spec["filename"])
 
-        stages["verification"] = {
-            "status": "fail",
-            "avg_lufs": round(verify_avg, 1),
-            "lufs_range": round(verify_range, 2),
-            "all_within_spec": False,
-        }
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "verification",
-            "stages": stages,
-            "settings": settings,
-            "warnings": warnings,
-            "failed_stage": "verification",
-            "failure_detail": fail_detail,
-        })
+        if recoverable:
+            from tools.mastering.fix_dynamic_track import fix_dynamic
 
-    stages["verification"] = {
+            auto_recovered = []
+            for fname in recoverable:
+                raw_path = audio_dir / fname
+                if not raw_path.exists():
+                    continue
+
+                def _do_recovery(src, dst, lufs, eq, ceil):
+                    import soundfile as sf
+                    data, rate = sf.read(str(src))
+                    if len(data.shape) == 1:
+                        data = np.column_stack([data, data])
+                    data, metrics = fix_dynamic(
+                        data, rate,
+                        target_lufs=lufs,
+                        eq_settings=eq if eq else None,
+                        ceiling_db=ceil,
+                    )
+                    sf.write(str(dst), data, rate, subtype="PCM_16")
+                    return metrics
+
+                mastered_path = output_dir / fname
+                metrics = await loop.run_in_executor(
+                    None, _do_recovery, raw_path, mastered_path,
+                    effective_lufs, eq_settings, ceiling_db,
+                )
+                auto_recovered.append({
+                    "filename": fname,
+                    "original_lufs": metrics["original_lufs"],
+                    "final_lufs": metrics["final_lufs"],
+                    "final_peak_db": metrics["final_peak_db"],
+                })
+
+            if auto_recovered:
+                warnings.append({
+                    "type": "auto_recovery",
+                    "tracks_fixed": [r["filename"] for r in auto_recovered],
+                })
+
+                # Re-verify ALL tracks (album range check needs all)
+                verify_results = []
+                for wav in mastered_files:
+                    result = await loop.run_in_executor(
+                        None, analyze_track, str(wav),
+                    )
+                    verify_results.append(result)
+
+                verify_lufs = [r["lufs"] for r in verify_results]
+                verify_avg = float(np.mean(verify_lufs))
+                verify_range = float(max(verify_lufs) - min(verify_lufs))
+
+                out_of_spec = []
+                for r in verify_results:
+                    issues = []
+                    if abs(r["lufs"] - effective_lufs) > 0.5:
+                        issues.append(
+                            f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}"
+                        )
+                    if r["peak_db"] > ceiling_db:
+                        issues.append(
+                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB"
+                        )
+                    if issues:
+                        out_of_spec.append({"filename": r["filename"], "issues": issues})
+
+                album_range_fail = verify_range >= 1.0
+
+        # If still failing after recovery attempt, return failure
+        if out_of_spec or album_range_fail:
+            fail_detail = {}
+            if out_of_spec:
+                fail_detail["tracks_out_of_spec"] = out_of_spec
+            if album_range_fail:
+                fail_detail["album_lufs_range"] = round(verify_range, 2)
+                fail_detail["album_range_limit"] = 1.0
+
+            stages["verification"] = {
+                "status": "fail",
+                "avg_lufs": round(verify_avg, 1),
+                "lufs_range": round(verify_range, 2),
+                "all_within_spec": False,
+            }
+            return _safe_json({
+                "album_slug": album_slug,
+                "stage_reached": "verification",
+                "stages": stages,
+                "settings": settings,
+                "warnings": warnings,
+                "failed_stage": "verification",
+                "failure_detail": fail_detail,
+            })
+
+    verification_stage = {
         "status": "pass",
         "avg_lufs": round(verify_avg, 1),
         "lufs_range": round(verify_range, 2),
         "all_within_spec": True,
     }
+    # Include auto-recovery details when tracks were fixed
+    if auto_recovered:
+        verification_stage["auto_recovered"] = auto_recovered
+    stages["verification"] = verification_stage
 
     # --- Stage 6: Post-QC ---
     post_qc_results = []
@@ -7989,7 +8059,7 @@ async def polish_audio(
         mix_track_stems,
         mix_track_full,
         load_mix_presets,
-        STEM_NAMES,
+        discover_stems,
     )
 
     # Validate genre if specified
@@ -8023,11 +8093,7 @@ async def polish_audio(
             return _safe_json({"error": f"No track directories in {stems_dir}"})
 
         for track_dir in track_dirs:
-            stem_paths = {}
-            for stem_name in STEM_NAMES:
-                stem_file = track_dir / f"{stem_name}.wav"
-                if stem_file.exists():
-                    stem_paths[stem_name] = str(stem_file)
+            stem_paths = discover_stems(track_dir)
 
             if not stem_paths:
                 continue

@@ -18,6 +18,61 @@ from tools.mastering.master_tracks import apply_eq, soft_clip
 
 logger = logging.getLogger(__name__)
 
+
+def fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+    """Core dynamic range fix: EQ → compress → normalize → limit.
+
+    Args:
+        data: Audio data (numpy array, stereo)
+        rate: Sample rate
+        target_lufs: Target LUFS (default: -14.0)
+        eq_settings: List of (freq, gain_db, q) tuples. If None, applies
+            default 3500 Hz cut (-2.0 dB, Q=1.5).
+        ceiling_db: Peak ceiling in dB (default: -1.0)
+
+    Returns:
+        (processed_data, metrics_dict) tuple where metrics_dict contains
+        original_lufs, final_lufs, and final_peak_db.
+    """
+    meter = pyln.Meter(rate)
+    original_lufs = meter.integrated_loudness(data)
+
+    # Step 1: EQ
+    if eq_settings is None:
+        eq_settings = [(3500, -2.0, 1.5)]
+    for freq, gain_db, q in eq_settings:
+        data = apply_eq(data, rate, freq, gain_db, q)
+
+    # Step 2: Gentle compression
+    data = gentle_compress(data, threshold_db=-12, ratio=2.5, rate=rate)
+
+    # Step 3: Normalize to target LUFS
+    post_comp_lufs = meter.integrated_loudness(data)
+    if np.isfinite(post_comp_lufs):
+        gain_db_val = target_lufs - post_comp_lufs
+        gain_linear = 10 ** (gain_db_val / 20)
+        data = data * gain_linear
+
+    # Step 4: Limit peaks
+    ceiling = 10 ** (ceiling_db / 20)
+    peak = np.max(np.abs(data))
+    if peak > ceiling:
+        data = data * (ceiling / peak)
+    data = soft_clip(data, ceiling)
+
+    final_lufs = meter.integrated_loudness(data)
+    peak_abs = np.max(np.abs(data))
+    final_peak = 20 * np.log10(peak_abs) if peak_abs > 0 else float("-inf")
+
+    metrics = {
+        "original_lufs": float(original_lufs),
+        "final_lufs": float(final_lufs),
+        "final_peak_db": float(final_peak),
+    }
+
+    return data, metrics
+
+
 def gentle_compress(data, threshold_db=-10, ratio=3.0, attack_ms=10, release_ms=100, rate=44100):
     """Apply gentle compression to reduce dynamic range."""
     threshold = 10 ** (threshold_db / 20)
@@ -84,38 +139,12 @@ def main():
     if len(data.shape) == 1:
         data = np.column_stack([data, data])
 
-    meter = pyln.Meter(rate)
-    original_lufs = meter.integrated_loudness(data)
-    print(f"  Original LUFS: {original_lufs:.1f}")
+    print(f"  Original LUFS: {pyln.Meter(rate).integrated_loudness(data):.1f}")
 
-    # Step 1: Apply EQ (same as other tracks)
-    data = apply_eq(data, rate, 3500, -2.0, 1.5)
+    data, metrics = fix_dynamic(data, rate)
 
-    # Step 2: Apply gentle compression to tame transients
-    data = gentle_compress(data, threshold_db=-12, ratio=2.5, rate=rate)
-
-    post_comp_lufs = meter.integrated_loudness(data)
-    print(f"  After compression: {post_comp_lufs:.1f} LUFS")
-
-    # Step 3: Normalize to -14 LUFS
-    target_lufs = -14.0
-    gain_db = target_lufs - post_comp_lufs
-    gain_linear = 10 ** (gain_db / 20)
-    data = data * gain_linear
-
-    # Step 4: Limit peaks
-    ceiling = 10 ** (-1.0 / 20)  # -1 dBTP
-    peak = np.max(np.abs(data))
-    if peak > ceiling:
-        data = data * (ceiling / peak)
-    data = soft_clip(data, ceiling)
-
-    # Verify
-    final_lufs = meter.integrated_loudness(data)
-    final_peak = 20 * np.log10(np.max(np.abs(data)))
-
-    print(f"  Final LUFS: {final_lufs:.1f}")
-    print(f"  Final Peak: {final_peak:.1f} dBTP")
+    print(f"  Final LUFS: {metrics['final_lufs']:.1f}")
+    print(f"  Final Peak: {metrics['final_peak_db']:.1f} dBTP")
 
     # Write
     sf.write(output_file, data, rate, subtype='PCM_16')
