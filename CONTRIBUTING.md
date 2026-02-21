@@ -2,6 +2,19 @@
 
 Thank you for contributing! This document explains our development workflow.
 
+## Branch Model
+
+We use a **two-branch model** with `develop` as the integration branch and `main` as the stable release branch:
+
+- **`develop`** — active development, receives feature branch PRs, version tagged with `-dev` suffix (e.g., `0.62.0-dev`)
+- **`main`** — stable releases only, receives merges from `develop` when ready to release
+
+CI runs on pushes to `develop` and on PRs into both branches. Direct pushes to `main` skip CI (already validated by the PR gate).
+
+**Plugin distribution channels:**
+- Stable users get updates from `main` via `marketplace.json`
+- Dev users get updates from `develop` via `marketplace-dev.json`
+
 ## Development Workflow
 
 We use a **PR-based workflow** with the following process:
@@ -9,9 +22,9 @@ We use a **PR-based workflow** with the following process:
 ### 1. Create a Feature Branch
 
 ```bash
-# Create branch from main
-git checkout main
-git pull origin main
+# Create branch from develop
+git checkout develop
+git pull origin develop
 git checkout -b feat/your-feature-name  # or fix/, docs/, chore/
 ```
 
@@ -89,7 +102,7 @@ We use [Conventional Commits](https://conventionalcommits.org/).
 
 <body>
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 **Examples:**
@@ -98,13 +111,13 @@ git commit -m "feat: add sheet-music-publisher skill
 
 Add comprehensive sheet music generation workflow...
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 git commit -m "fix: correct audio path in import-audio skill
 
 Was missing artist folder in path construction.
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
 
 **Commit types:**
@@ -116,40 +129,26 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 | `docs:` | None | Documentation only |
 | `chore:` | None | Maintenance |
 
-### 5. Update Version Files (at release time)
-
-Version bumps are done when preparing a release, not on every individual commit. When ready to release:
-
-**Files to update (BOTH must match):**
-1. `.claude-plugin/plugin.json`
-2. `.claude-plugin/marketplace.json`
-
-**Version bumping:**
-- `feat:` → Increment MINOR (0.3.0 → 0.4.0)
-- `fix:` → Increment PATCH (0.3.0 → 0.3.1)
-- `feat!:` → Increment MAJOR (0.3.0 → 1.0.0)
-
-### 6. Push and Create PR
+### 5. Push and Create PR
 
 ```bash
 git push origin feat/your-feature-name
 ```
 
-Then create PR on GitHub and fill out the PR template.
+Then create a PR targeting **`develop`** (not `main`).
 
-### 7. PR Review Process
+### 6. PR Review Process
 
 **Automated checks (run on GitHub Actions):**
 - JSON/YAML validation
 - Version sync check (plugin.json vs marketplace.json)
 - SKILL.md structure validation
 
-**Required before merge:**
+**Required before merge to `develop`:**
 - [ ] All automated checks pass
 - [ ] `/bitwize-music:test all` passes locally (run before submitting PR)
 - [ ] Follows Conventional Commits
-- [ ] Version files updated and synced (if applicable)
-- [ ] CHANGELOG.md updated
+- [ ] CHANGELOG.md updated under "Unreleased"
 - [ ] Documentation updated
 - [ ] No breaking changes (unless MAJOR bump)
 - [ ] Migration note added if applicable (see below)
@@ -163,13 +162,27 @@ If your PR introduces filesystem changes (new directories, moved files), depende
 3. Add markdown body with context
 4. See `migrations/README.md` for format details and action types
 
-### 8. Merge and Release
+### 7. Release to Stable
 
-**Recommended**: Use `/bitwize-music:ship "<conventional commit message>"` to automate the entire release pipeline — it handles branching, committing, PR creation, CI polling, merging, version bumping, and the release commit in one step.
+When `develop` is ready to release:
 
-**Manual process** (if not using ship):
-1. Squash and merge (or merge commit)
-2. Version automatically updates for users on next plugin use
+1. Create a PR from `develop` → `main`
+2. Update version files (drop `-dev` suffix):
+   - `.claude-plugin/plugin.json`
+   - `.claude-plugin/marketplace.json`
+3. Move CHANGELOG.md entries from "Unreleased" to a versioned heading
+4. Merge PR to `main`
+5. After merge, bump `develop` to the next `-dev` version (e.g., `0.63.0-dev`)
+
+**Version bumping:**
+- `feat:` → Increment MINOR (0.3.0 → 0.4.0)
+- `fix:` → Increment PATCH (0.3.0 → 0.3.1)
+- `feat!:` → Increment MAJOR (0.3.0 → 1.0.0)
+
+**Files that must stay in sync:**
+- `.claude-plugin/plugin.json` — plugin version
+- `.claude-plugin/marketplace.json` — stable marketplace version
+- `.claude-plugin/marketplace-dev.json` — dev marketplace version (on `develop` branch only)
 
 ## Testing
 
