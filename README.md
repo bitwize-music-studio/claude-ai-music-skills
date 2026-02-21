@@ -12,7 +12,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.60.0-blue)
+![Version](https://img.shields.io/badge/version-0.61.0-blue)
 ![Skills](https://img.shields.io/badge/skills-50-green)
 ![Tests](https://img.shields.io/badge/tests-2235-brightgreen)
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.61** | `originals/` audio layout + migration tool, fade-out support, mix character effects (saturation, lowpass, stereo width) |
 | **0.60** | Suno stem discovery + mastering auto-recovery for dynamic range issues |
 | **0.59** | `mix-engineer` skill — per-stem audio polish pipeline (noise reduction, EQ, compression, click removal) |
 | **0.58** | `ship` skill — automated code release pipeline (branch → PR → CI → merge → version bump → release) |

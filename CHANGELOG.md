@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.61.0] - 2026-02-21
+
 ### Added
 - **`originals/` audio layout** — raw WAV files now stored in `originals/` subdirectory to keep album audio root clean; all tools (mastering, mixing, promotion, import-audio) updated with backward-compatible fallback to album root for legacy albums
 - **`migrate_audio_layout` MCP tool** — migrates pre-existing albums from root-level WAVs to `originals/` layout (dry-run safe by default, single album or batch)
