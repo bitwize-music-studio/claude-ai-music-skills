@@ -11,9 +11,9 @@ We use a **two-branch model** with `develop` as the integration branch and `main
 
 CI runs on pushes to `develop` and on PRs into both branches. Direct pushes to `main` skip CI (already validated by the PR gate).
 
-**Plugin distribution channels:**
-- Stable users get updates from `main` via `marketplace.json`
-- Dev users get updates from `develop` via `marketplace-dev.json`
+**Plugin distribution channels** (both use `marketplace.json`, branch separation handles the split):
+- Stable: `/plugin marketplace add bitwize-music-studio/claude-ai-music-skills` (from `main`)
+- Dev: `/plugin marketplace add https://github.com/bitwize-music-studio/claude-ai-music-skills.git#develop`
 
 ## Development Workflow
 
@@ -181,8 +181,7 @@ When `develop` is ready to release:
 
 **Files that must stay in sync:**
 - `.claude-plugin/plugin.json` — plugin version
-- `.claude-plugin/marketplace.json` — stable marketplace version
-- `.claude-plugin/marketplace-dev.json` — dev marketplace version (on `develop` branch only)
+- `.claude-plugin/marketplace.json` — marketplace version
 
 ## Testing
 
