@@ -402,19 +402,33 @@ class TestApplyFadeOut:
 class TestGenrePresets:
     """Tests for genre preset configuration."""
 
-    def test_all_presets_are_3_tuples(self):
+    def test_all_presets_are_4_tuples(self):
         for genre, preset in GENRE_PRESETS.items():
-            assert len(preset) == 3, f"Genre '{genre}' preset should be a 3-tuple"
+            assert len(preset) == 4, f"Genre '{genre}' preset should be a 4-tuple"
 
     def test_all_presets_have_negative_lufs(self):
-        for genre, (lufs, _, _) in GENRE_PRESETS.items():
+        for genre, (lufs, _, _, _) in GENRE_PRESETS.items():
             assert lufs < 0, f"Genre '{genre}' LUFS should be negative"
 
     def test_all_presets_have_nonpositive_eq(self):
         """EQ values should be cuts (negative) or zero."""
-        for genre, (_, highmid, highs) in GENRE_PRESETS.items():
+        for genre, (_, highmid, highs, _) in GENRE_PRESETS.items():
             assert highmid <= 0, f"Genre '{genre}' high-mid should be <= 0"
             assert highs <= 0, f"Genre '{genre}' highs should be <= 0"
+
+    def test_all_presets_have_valid_compress_ratio(self):
+        """Compress ratio should be >= 1.0 for all genres."""
+        for genre, (_, _, _, compress_ratio) in GENRE_PRESETS.items():
+            assert compress_ratio >= 1.0, \
+                f"Genre '{genre}' compress_ratio should be >= 1.0, got {compress_ratio}"
+
+    def test_dynamic_genres_bypass_compression(self):
+        """Classical, opera, jazz, bossa-nova, ambient should bypass compression."""
+        dynamic_genres = ['classical', 'opera', 'jazz', 'bossa-nova', 'ambient']
+        for genre in dynamic_genres:
+            _, _, _, compress_ratio = GENRE_PRESETS[genre]
+            assert compress_ratio == 1.0, \
+                f"Genre '{genre}' should bypass compression (ratio 1.0), got {compress_ratio}"
 
     def test_common_genres_exist(self):
         for genre in ['pop', 'rock', 'hip-hop', 'electronic', 'jazz', 'classical', 'folk', 'country', 'metal']:
@@ -422,13 +436,16 @@ class TestGenrePresets:
 
     def test_preset_with_mastering(self, noise_wav, output_path):
         """Apply a genre preset through the full mastering chain."""
-        lufs, highmid, highs = GENRE_PRESETS['rock']
+        lufs, highmid, highs, compress_ratio = GENRE_PRESETS['rock']
         eq = []
         if highmid != 0:
             eq.append((3500, highmid, 1.5))
         if highs != 0:
             eq.append((8000, highs, 0.7))
-        result = master_track(noise_wav, output_path, target_lufs=lufs, eq_settings=eq)
+        result = master_track(
+            noise_wav, output_path, target_lufs=lufs, eq_settings=eq,
+            compress_ratio=compress_ratio,
+        )
         assert not result.get('skipped', False)
 
 
@@ -505,8 +522,11 @@ class TestYamlPresetLoading:
         assert len(data['genres']) > 50  # We have 60+ genres
 
     def test_builtin_yaml_has_required_fields(self):
-        """Each genre entry should have target_lufs, cut_highmid, cut_highs."""
+        """Each genre entry should have target_lufs, cut_highmid, cut_highs.
+        compress_ratio is optional per-genre (defaults inherited)."""
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        assert 'compress_ratio' in data['defaults'], \
+            "defaults should include compress_ratio"
         for genre, settings in data['genres'].items():
             assert 'target_lufs' in settings, f"Genre '{genre}' missing target_lufs"
             assert 'cut_highmid' in settings, f"Genre '{genre}' missing cut_highmid"
@@ -515,12 +535,14 @@ class TestYamlPresetLoading:
     def test_loaded_presets_match_yaml(self):
         """GENRE_PRESETS dict should match what's in the YAML file."""
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        default_compress = float(data.get('defaults', {}).get('compress_ratio', 1.5))
         for genre, settings in data['genres'].items():
             assert genre in GENRE_PRESETS, f"Genre '{genre}' in YAML but not in GENRE_PRESETS"
             expected = (
                 float(settings['target_lufs']),
                 float(settings['cut_highmid']),
                 float(settings['cut_highs']),
+                float(settings.get('compress_ratio', default_compress)),
             )
             assert GENRE_PRESETS[genre] == expected, (
                 f"Genre '{genre}': YAML={expected}, loaded={GENRE_PRESETS[genre]}"
@@ -563,7 +585,7 @@ class TestYamlPresetLoading:
 
         presets = load_genre_presets()
         # Rock should have overridden cut_highmid but keep other fields
-        lufs, highmid, highs = presets['rock']
+        lufs, highmid, highs, compress_ratio = presets['rock']
         assert highmid == -1.0  # Overridden
         assert lufs == -14.0    # Inherited from built-in
         assert highs == 0       # Inherited from built-in
@@ -586,7 +608,7 @@ class TestYamlPresetLoading:
 
         presets = load_genre_presets()
         assert 'dark-electronic' in presets
-        assert presets['dark-electronic'] == (-12.0, -3.0, -1.0)
+        assert presets['dark-electronic'] == (-12.0, -3.0, -1.0, 1.5)
 
     def test_override_defaults(self, tmp_path, monkeypatch):
         """User can override default settings."""
@@ -605,7 +627,7 @@ class TestYamlPresetLoading:
         monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
 
         presets = load_genre_presets()
-        lufs, highmid, highs = presets['custom-genre']
+        lufs, highmid, highs, compress_ratio = presets['custom-genre']
         assert lufs == -12.0    # From overridden defaults
         assert highmid == -2.0  # From genre entry
 
@@ -618,3 +640,26 @@ class TestYamlPresetLoading:
         assert 'rock' in presets
         assert 'pop' in presets
         assert len(presets) > 50
+
+
+# ─── Tests: Mastering Compression ────────────────────────────────────
+
+
+class TestMasteringCompression:
+    """Tests for the mastering compression stage."""
+
+    def test_mastering_with_compression(self, noise_wav, output_path):
+        """Full mastering chain should complete with compression enabled."""
+        result = master_track(
+            noise_wav, output_path, target_lufs=-14.0, compress_ratio=1.5,
+        )
+        assert not result.get('skipped', False)
+        assert Path(output_path).exists()
+
+    def test_mastering_with_compression_bypass(self, noise_wav, output_path):
+        """Compression ratio 1.0 should bypass (no-op)."""
+        result = master_track(
+            noise_wav, output_path, target_lufs=-14.0, compress_ratio=1.0,
+        )
+        assert not result.get('skipped', False)
+        assert Path(output_path).exists()

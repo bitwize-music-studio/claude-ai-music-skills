@@ -733,6 +733,28 @@ def _get_full_mix_settings(genre=None):
     return full_mix_defaults.copy()
 
 
+def _get_bus_settings(genre=None):
+    """Get bus compression settings for the mix bus.
+
+    Args:
+        genre: Optional genre name for genre-specific overrides
+
+    Returns:
+        Dict of bus compression settings.
+    """
+    presets = MIX_PRESETS
+    defaults = presets.get('defaults', {})
+    bus_defaults = defaults.get('bus', {})
+
+    if genre:
+        genre_key = genre.lower()
+        genre_presets = presets.get('genres', {}).get(genre_key, {})
+        genre_bus = genre_presets.get('bus', {})
+        return _deep_merge(bus_defaults, genre_bus)
+
+    return bus_defaults.copy()
+
+
 def process_vocals(data, rate, settings=None):
     """Process vocal stem: noise reduction -> presence boost -> high tame -> compress.
 
@@ -1014,6 +1036,48 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
     # Remix
     if not dry_run:
         mixed, rate = remix_stems(processed_stems, gains)
+
+        # Bus compression — glue the combined mix
+        bus_settings = _get_bus_settings(genre)
+        bus_ratio = bus_settings.get('compress_ratio', 2.5)
+        if bus_ratio > 1.0:
+            pre_bus_peak = float(np.max(np.abs(mixed)))
+            pre_bus_rms = float(np.sqrt(np.mean(mixed ** 2)))
+
+            mixed = gentle_compress(
+                mixed, rate,
+                threshold_db=bus_settings.get('compress_threshold_db', -14.0),
+                ratio=bus_ratio,
+                attack_ms=bus_settings.get('compress_attack_ms', 20.0),
+                release_ms=bus_settings.get('compress_release_ms', 150.0),
+            )
+
+            # Re-normalize peaks to 0.95 ceiling
+            peak = np.max(np.abs(mixed))
+            if peak > 0.95:
+                mixed = mixed * (0.95 / peak)
+
+            post_bus_peak = float(np.max(np.abs(mixed)))
+            post_bus_rms = float(np.sqrt(np.mean(mixed ** 2)))
+            logger.info(
+                "Bus compression: ratio=%.1f:1, peak %.4f→%.4f, RMS %.4f→%.4f",
+                bus_ratio, pre_bus_peak, post_bus_peak, pre_bus_rms, post_bus_rms,
+            )
+            result['bus_compression'] = {
+                'ratio': bus_ratio,
+                'pre_peak': pre_bus_peak,
+                'post_peak': post_bus_peak,
+                'pre_rms': pre_bus_rms,
+                'post_rms': post_bus_rms,
+            }
+
+        # Stereo width (genre character)
+        full_mix_settings = _get_full_mix_settings(genre)
+        stereo_w = full_mix_settings.get('stereo_width', 1.0)
+        if stereo_w != 1.0:
+            mixed = apply_stereo_width(mixed, rate, width=stereo_w)
+            logger.info("Stereo width: %.2f", stereo_w)
+            result['stereo_width'] = stereo_w
 
         # Write output
         output_path = Path(output_path)
