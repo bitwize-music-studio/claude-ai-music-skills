@@ -2,7 +2,7 @@
 name: promo-writer
 description: Generates platform-specific social media copy from album themes, track concepts, and lyrics. Use when promo/ templates need to be populated before release.
 argument-hint: <album-name> [platform]
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 prerequisites:
   - lyric-writer
 allowed-tools:

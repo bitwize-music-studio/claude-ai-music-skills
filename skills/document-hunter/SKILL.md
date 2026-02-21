@@ -2,7 +2,7 @@
 name: document-hunter
 description: Searches and retrieves documents from free public sources using automated browser navigation. Use when research needs primary source documents like court filings, government reports, or public records.
 argument-hint: <case-name or "auto-search [album-path]">
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 context: fork
 allowed-tools:
   - Bash

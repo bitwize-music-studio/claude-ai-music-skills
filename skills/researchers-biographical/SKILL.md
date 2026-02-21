@@ -2,7 +2,7 @@
 name: researchers-biographical
 description: Researches personal backgrounds, interviews, motivations, and humanizing details. Use when research needs biographical context about people involved in the album's subject.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 user-invocable: false
 context: fork
 allowed-tools:

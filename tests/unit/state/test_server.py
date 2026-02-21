@@ -11,6 +11,7 @@ Usage:
 import asyncio
 import copy
 import importlib
+import importlib.metadata
 import importlib.util
 import json
 import shutil
@@ -6547,6 +6548,216 @@ class TestGetPluginVersion:
              patch.object(server, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["plugin_root"] == str(tmp_path)
+
+
+# =============================================================================
+# Tests for _parse_requirements
+# =============================================================================
+
+
+class TestParseRequirements:
+    """Tests for the _parse_requirements() helper."""
+
+    def test_parses_pinned_versions(self, tmp_path):
+        """Parses standard == pinned versions."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\nflask==3.0.0\n")
+        result = server._parse_requirements(req)
+        assert result == {"requests": "2.31.0", "flask": "3.0.0"}
+
+    def test_skips_comments_and_blanks(self, tmp_path):
+        """Skips comment lines and blank lines."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("# This is a comment\n\nrequests==2.31.0\n\n# Another\n")
+        result = server._parse_requirements(req)
+        assert result == {"requests": "2.31.0"}
+
+    def test_strips_extras(self, tmp_path):
+        """Strips extras markers like [cli]."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("mcp[cli]==1.23.0\n")
+        result = server._parse_requirements(req)
+        assert result == {"mcp": "1.23.0"}
+
+    def test_lowercases_names(self, tmp_path):
+        """Package names are lowercased."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("PyYAML==6.0.2\nNumPy==1.26.4\n")
+        result = server._parse_requirements(req)
+        assert "pyyaml" in result
+        assert "numpy" in result
+
+    def test_missing_file_returns_empty(self, tmp_path):
+        """Missing file returns empty dict."""
+        result = server._parse_requirements(tmp_path / "nonexistent.txt")
+        assert result == {}
+
+    def test_empty_file_returns_empty(self, tmp_path):
+        """Empty file returns empty dict."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("")
+        result = server._parse_requirements(req)
+        assert result == {}
+
+    def test_ignores_non_pinned_lines(self, tmp_path):
+        """Ignores lines without == (bare names, >=, etc.)."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests>=2.0\nflask\nnumpy==1.26.4\n")
+        result = server._parse_requirements(req)
+        assert result == {"numpy": "1.26.4"}
+
+    def test_handles_inline_comments(self, tmp_path):
+        """Strips inline comments after version."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0  # HTTP library\n")
+        result = server._parse_requirements(req)
+        assert result == {"requests": "2.31.0"}
+
+    def test_handles_hyphenated_names(self, tmp_path):
+        """Handles hyphenated package names."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("psycopg2-binary==2.9.10\n")
+        result = server._parse_requirements(req)
+        assert result == {"psycopg2-binary": "2.9.10"}
+
+
+# =============================================================================
+# Tests for check_venv_health
+# =============================================================================
+
+
+class TestCheckVenvHealth:
+    """Tests for the check_venv_health() MCP tool."""
+
+    def test_all_match_returns_ok(self, tmp_path):
+        """All packages matching returns status ok."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\nflask==3.0.0\n")
+
+        def mock_version(pkg):
+            versions = {"requests": "2.31.0", "flask": "3.0.0"}
+            if pkg in versions:
+                return versions[pkg]
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "ok"
+        assert result["ok_count"] == 2
+        assert result["mismatches"] == []
+        assert result["missing"] == []
+
+    def test_version_mismatch_returns_stale(self, tmp_path):
+        """Version mismatch returns status stale with details."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", return_value="2.28.0"), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert len(result["mismatches"]) == 1
+        assert result["mismatches"][0]["package"] == "requests"
+        assert result["mismatches"][0]["required"] == "2.31.0"
+        assert result["mismatches"][0]["installed"] == "2.28.0"
+
+    def test_missing_package_returns_stale(self, tmp_path):
+        """Missing package returns status stale with missing list."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        def mock_version(pkg):
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert len(result["missing"]) == 1
+        assert result["missing"][0]["package"] == "requests"
+
+    def test_no_venv_returns_no_venv(self, tmp_path):
+        """Missing venv returns no_venv status."""
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music"
+        venv_dir.mkdir(parents=True)
+        # No venv/bin/python3
+
+        with patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "no_venv"
+
+    def test_missing_requirements_returns_error(self, tmp_path):
+        """Missing requirements.txt returns error status."""
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+        # No requirements.txt in PLUGIN_ROOT
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "error"
+
+    def test_mixed_ok_mismatch_missing(self, tmp_path):
+        """Mixed results: some ok, some mismatch, some missing."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("aaa==1.0.0\nbbb==2.0.0\nccc==3.0.0\n")
+
+        def mock_version(pkg):
+            if pkg == "aaa":
+                return "1.0.0"  # ok
+            if pkg == "bbb":
+                return "1.9.0"  # mismatch
+            raise importlib.metadata.PackageNotFoundError(pkg)  # ccc missing
+
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert result["ok_count"] == 1
+        assert len(result["mismatches"]) == 1
+        assert len(result["missing"]) == 1
+
+    def test_fix_command_includes_plugin_root(self, tmp_path):
+        """Fix command references the correct requirements.txt path."""
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        def mock_version(pkg):
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert str(tmp_path / "requirements.txt") in result["fix_command"]
+        assert "~/.bitwize-music/venv/bin/pip" in result["fix_command"]
 
 
 # =============================================================================

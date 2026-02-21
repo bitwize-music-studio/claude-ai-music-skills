@@ -29,15 +29,18 @@ class TestResolvePath:
         result = resolve_path(
             "content", "my-album", genre="rock", config=self.SAMPLE_CONFIG
         )
-        assert result == Path("/tmp/test-content/artists/test-artist/albums/rock/my-album")
+        expected = Path("/tmp/test-content").resolve() / "artists/test-artist/albums/rock/my-album"
+        assert result == expected
 
     def test_audio_path(self):
         result = resolve_path("audio", "my-album", genre="rock", config=self.SAMPLE_CONFIG)
-        assert result == Path("/tmp/test-audio/artists/test-artist/albums/rock/my-album")
+        expected = Path("/tmp/test-audio").resolve() / "artists/test-artist/albums/rock/my-album"
+        assert result == expected
 
     def test_documents_path(self):
         result = resolve_path("documents", "my-album", genre="rock", config=self.SAMPLE_CONFIG)
-        assert result == Path("/tmp/test-docs/artists/test-artist/albums/rock/my-album")
+        expected = Path("/tmp/test-docs").resolve() / "artists/test-artist/albums/rock/my-album"
+        assert result == expected
 
     def test_genre_required(self):
         with pytest.raises(ValueError, match="Genre is required"):
@@ -59,7 +62,8 @@ class TestResolvePath:
         result = resolve_path(
             "audio", "my-album", artist="other-artist", genre="rock", config=self.SAMPLE_CONFIG
         )
-        assert result == Path("/tmp/test-audio/artists/other-artist/albums/rock/my-album")
+        expected = Path("/tmp/test-audio").resolve() / "artists/other-artist/albums/rock/my-album"
+        assert result == expected
 
     def test_missing_artist_name(self):
         config = {"artist": {}, "paths": {"content_root": "/tmp"}}
@@ -91,7 +95,7 @@ class TestResolveTracksDir:
 
     def test_tracks_dir(self):
         result = resolve_tracks_dir("my-album", "rock", config=self.SAMPLE_CONFIG)
-        expected = Path("/tmp/test-content/artists/test-artist/albums/rock/my-album/tracks")
+        expected = Path("/tmp/test-content").resolve() / "artists/test-artist/albums/rock/my-album/tracks"
         assert result == expected
 
 
@@ -107,12 +111,12 @@ class TestResolveOverridesDir:
             }
         }
         result = resolve_overrides_dir(config=config)
-        assert result == Path("/tmp/my-overrides")
+        assert result == Path("/tmp/my-overrides").resolve()
 
     def test_default_overrides_path(self):
         config = {"paths": {"content_root": "/tmp/content"}}
         result = resolve_overrides_dir(config=config)
-        assert result == Path("/tmp/content/overrides")
+        assert result == Path("/tmp/content").resolve() / "overrides"
 
     def test_tilde_expansion(self):
         config = {"paths": {"content_root": "~/music"}}

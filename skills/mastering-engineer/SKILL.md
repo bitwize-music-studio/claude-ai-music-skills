@@ -2,7 +2,7 @@
 name: mastering-engineer
 description: Guides audio mastering for streaming platforms including loudness optimization and tonal balance. Use when the user has approved tracks and wants to master audio files.
 argument-hint: <folder-path or "master for [platform]">
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 prerequisites:
   - import-audio
 allowed-tools:
@@ -135,6 +135,27 @@ Before mastering, verify:
 3. If no WAV files found, report: "No WAV files in [path]. Download tracks from Suno as WAV (highest quality) first."
 4. If folder contains only MP3s, warn: "MP3 files found but mastering requires WAV. Re-download from Suno as WAV."
 
+### Step 1.5: Confirm Genre Settings
+
+Before analyzing or mastering, confirm genre settings with the user:
+
+1. **Look up album genre** — call `find_album(album_slug)` to get the genre from album state
+2. **Present genre and ask for confirmation**:
+   - "This album is filed under **[genre]**. Should I use the **[genre]** mastering preset?"
+   - If user wants a different genre, let them pick from available presets
+   - If no genre found in state, ask the user to choose one
+3. **Ask about per-track variations**:
+   - "Are all tracks the same style, or do any need different mastering settings?"
+   - If the user identifies tracks with a different style (e.g., "track 5 is more of a ballad"):
+     - Note which tracks need different treatment and what genre/settings to use
+     - Master in two passes: main genre for most tracks, then override settings for the exceptions
+4. **Record the decisions** — note genre choices in the mastering report for the handoff
+
+**Per-track override workflow:**
+- Master all tracks with the primary genre first
+- Then re-master override tracks by calling `master_audio` again with the different genre
+  and copying the re-mastered output over the previous version in `mastered/`
+
 ### Step 2: Analyze Tracks
 
 ```
@@ -181,6 +202,8 @@ master_album(album_slug, genre="country", cut_highmid=-2.0)
 ```
 
 This executes: analyze → pre-QC → master → verify → post-QC → update statuses. Stops on any failure and returns per-stage results. Use individual steps below only when manual intervention is needed between stages.
+
+**Note:** `master_album` applies one genre to all tracks. If Step 1.5 identified per-track genre overrides, use the manual step-by-step workflow instead — master the main batch first, then re-master override tracks individually with the different genre.
 
 ### Step 3: Choose Settings
 

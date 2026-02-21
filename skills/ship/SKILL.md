@@ -2,7 +2,7 @@
 name: ship
 description: Automates the full code release pipeline — branch, commit, push, PR, wait for CI, merge, version bump, release, cleanup.
 argument-hint: 'conventional commit message, e.g. "feat: add new feature"'
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 allowed-tools:
   - Bash
   - Read

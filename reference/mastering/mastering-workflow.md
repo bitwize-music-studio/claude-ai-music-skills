@@ -60,7 +60,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 
 ```
 ~/.bitwize-music/              # Shared tools location ({tools_root})
-└── mastering-env/            # Shared Python virtual environment
+└── venv/                     # Unified Python virtual environment
 
 target-folder/                # Your album's WAV folder ({audio_root}/artists/{artist}/albums/{genre}/{album}/)
 ├── 01 - Track Name.wav       # Original mixed files (16 or 24-bit WAV)

@@ -78,10 +78,11 @@ def discover_stems(track_dir):
     track_dir = Path(track_dir)
     result = {}
 
-    # Try standard names first
+    # Try standard names first (exact match — verify actual filename case
+    # to avoid false positives on case-insensitive filesystems like macOS)
     for stem_name in STEM_NAMES:
         stem_file = track_dir / f"{stem_name}.wav"
-        if stem_file.exists():
+        if stem_file.exists() and stem_file.name in os.listdir(track_dir):
             result[stem_name] = str(stem_file)
 
     if result:

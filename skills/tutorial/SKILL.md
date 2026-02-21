@@ -2,7 +2,7 @@
 name: tutorial
 description: Provides interactive guided album creation for new users. Use when the user is new to the plugin or asks for a walkthrough of the album creation process.
 argument-hint: <new-album | resume | help>
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Write
