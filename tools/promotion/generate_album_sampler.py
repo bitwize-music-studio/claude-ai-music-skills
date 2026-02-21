@@ -314,11 +314,13 @@ def generate_album_sampler(
             logger.error("No suitable font found")
             return False
 
-    # Find audio files
+    # Find audio files (check originals/ subdirectory first)
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
+    originals = tracks_dir / "originals"
+    search_dir = originals if originals.is_dir() else tracks_dir
     audio_files = []
     for ext in audio_extensions:
-        audio_files.extend(tracks_dir.glob(f'*{ext}'))
+        audio_files.extend(search_dir.glob(f'*{ext}'))
 
     # Filter out album.png if it somehow got in
     audio_files = [f for f in audio_files if f.suffix.lower() in audio_extensions]

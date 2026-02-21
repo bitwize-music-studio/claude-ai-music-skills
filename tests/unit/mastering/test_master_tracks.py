@@ -25,6 +25,7 @@ from tools.mastering.master_tracks import (
     _BUILTIN_PRESETS_FILE,
     _load_yaml_file,
     apply_eq,
+    apply_fade_out,
     apply_high_shelf,
     limit_peaks,
     load_genre_presets,
@@ -333,6 +334,66 @@ class TestMasterTrack:
         assert rate == 44100
         assert len(data) > 0
         assert np.all(np.isfinite(data))
+
+
+# ─── Tests: apply_fade_out ─────────────────────────────────────────────
+
+
+class TestApplyFadeOut:
+    """Tests for the fade-out envelope function."""
+
+    def test_fade_out_reduces_end_amplitude(self):
+        """Last samples should be near zero after fade."""
+        data, rate = _generate_sine(freq=440, duration=3.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=2.0)
+        # Last few samples should be nearly silent
+        end_rms = np.sqrt(np.mean(result[-100:] ** 2))
+        assert end_rms < 0.01
+
+    def test_fade_out_preserves_beginning(self):
+        """Samples before fade region should be unchanged."""
+        data, rate = _generate_sine(freq=440, duration=3.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=1.0)
+        # First 2 seconds (before fade region) should be identical
+        pre_fade_samples = int(2.0 * rate)
+        assert np.array_equal(result[:pre_fade_samples], data[:pre_fade_samples])
+
+    def test_fade_out_none_is_passthrough(self):
+        """fade_out=None via master_track should not modify audio."""
+        data, rate = _generate_sine(freq=440, duration=3.0, amplitude=0.5)
+        # apply_fade_out with duration <= 0 should passthrough
+        result = apply_fade_out(data, rate, duration=0.0)
+        assert np.array_equal(result, data)
+
+    def test_fade_out_longer_than_audio(self):
+        """Fade longer than audio should gracefully fade the entire track."""
+        data, rate = _generate_sine(freq=440, duration=1.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=5.0)
+        # Should not crash; last samples should be near zero
+        end_rms = np.sqrt(np.mean(result[-100:] ** 2))
+        assert end_rms < 0.01
+        # Shape should be preserved
+        assert result.shape == data.shape
+
+    def test_fade_out_exponential_curve(self):
+        """Middle of fade region should be below 0.5 (not linear)."""
+        rate = 44100
+        duration = 2.0
+        # Create constant signal for easy envelope checking
+        data = np.ones((int(rate * duration), 2)) * 0.5
+        result = apply_fade_out(data, rate, duration=2.0, curve='exponential')
+        # Midpoint of fade (t=0.5): gain = (1 - 0.5)^3 = 0.125
+        mid_idx = len(data) // 2
+        # At midpoint, amplitude should be well below 0.5 * 0.5 = 0.25 (linear midpoint)
+        assert result[mid_idx, 0] < 0.25
+
+    def test_fade_out_mono(self):
+        """Fade-out should work on mono (1D) arrays."""
+        data, rate = _generate_sine(freq=440, duration=2.0, amplitude=0.5, stereo=False)
+        result = apply_fade_out(data, rate, duration=1.0)
+        assert result.shape == data.shape
+        end_rms = np.sqrt(np.mean(result[-100:] ** 2))
+        assert end_rms < 0.01
 
 
 # ─── Tests: Genre Presets ──────────────────────────────────────────────

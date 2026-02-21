@@ -101,9 +101,12 @@ Before polishing, resolve audio path via MCP:
 
 1. Call `resolve_path("audio", album_slug)` — returns the full audio directory path
 
-**Stem directory convention:**
+**Audio directory convention:**
 ```
 {audio_root}/artists/[artist]/albums/[genre]/[album]/
+├── originals/                   # ← raw Suno WAV downloads
+│   ├── 01-track-name.wav
+│   └── ...
 ├── stems/
 │   ├── 01-track-name/
 │   │   ├── vocals.wav

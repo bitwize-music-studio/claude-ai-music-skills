@@ -6,6 +6,19 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **`originals/` audio layout** — raw WAV files now stored in `originals/` subdirectory to keep album audio root clean; all tools (mastering, mixing, promotion, import-audio) updated with backward-compatible fallback to album root for legacy albums
+- **`migrate_audio_layout` MCP tool** — migrates pre-existing albums from root-level WAVs to `originals/` layout (dry-run safe by default, single album or batch)
+- **Fade-out support** — `apply_fade_out()` in mastering pipeline with exponential/linear curves; `fade_out` parameter in `master_track()`, track file parser, and track template (`| **Fade Out** | — |`)
+- **Mix polish character effects** — `apply_saturation()` (tanh waveshaping), `apply_lowpass()` (Butterworth), `apply_stereo_width()` (mid-side processing) in mix_tracks.py; genre presets updated for 50+ genres with per-stem saturation, lowpass, and stereo width settings
+- **29 new tests** — 6 for `migrate_audio_layout`, plus mastering and mixing coverage
+
+### Changed
+- **CLAUDE.md** — updated audio path structure documentation to reflect `originals/` layout
+- **import-audio skill** — imports now target `originals/` subdirectory
+- **mastering-engineer skill** — updated pre-flight check to look in `originals/` first
+- **mix-engineer skill** — updated audio directory convention docs
+
 ## [0.60.0] - 2026-02-21
 
 ### Added

@@ -62,9 +62,11 @@ Check the file extension and whether it's a stems zip:
 
 ## Step 4: Create Directory and Move File
 
+Audio files go into `originals/` to keep the album root clean:
+
 ```bash
-mkdir -p {resolved_path}
-mv "{source_file}" "{resolved_path}/{filename}"
+mkdir -p {resolved_path}/originals
+mv "{source_file}" "{resolved_path}/originals/{filename}"
 ```
 
 ## Step 4b: Import Stems Zip
@@ -73,8 +75,9 @@ Stems must go into per-track subfolders to prevent filename collisions (every tr
 
 ```
 {resolved_path}/
-  01-first-taste.wav
-  02-sugar-high.wav
+  originals/
+    01-first-taste.wav
+    02-sugar-high.wav
   stems/
     01-first-taste/
       0 Lead Vocals.wav
@@ -107,7 +110,7 @@ Stems must go into per-track subfolders to prevent filename collisions (every tr
 Report:
 ```
 Moved: {source_file}
-   To: {resolved_path}/{filename}
+   To: {resolved_path}/originals/{filename}
 ```
 
 For stems:

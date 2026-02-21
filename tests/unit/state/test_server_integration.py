@@ -417,7 +417,8 @@ def content_dir(tmp_path):
     # Audio directory (mirrors content structure)
     audio_album = audio_root / "artists" / "test-artist" / "albums" / "electronic" / "integration-test-album"
     audio_album.mkdir(parents=True)
-    (audio_album / "01-first-track.wav").write_text("")
+    (audio_album / "originals").mkdir()
+    (audio_album / "originals" / "01-first-track.wav").write_text("")
     (audio_album / "album.png").write_text("")
 
     # Skills directories (for skill indexing tests)

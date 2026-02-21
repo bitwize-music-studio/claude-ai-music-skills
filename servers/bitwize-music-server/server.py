@@ -3960,7 +3960,7 @@ async def validate_album_structure(
 
         if audio_p.is_dir():
             _pass("audio", f"Audio directory exists: {audio_path}")
-            wav_files = list(audio_p.glob("*.wav"))
+            wav_files = list(_find_wav_source_dir(audio_p).glob("*.wav"))
             if wav_files:
                 _pass("audio", f"{len(wav_files)} WAV files found")
             else:
@@ -5410,7 +5410,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
         artist_name = state_config.get("artist_name", "")
         genre = album.get("genre", "")
         audio_path = Path(audio_root) / "artists" / artist_name / "albums" / genre / normalized
-        if not audio_path.is_dir() or not list(audio_path.glob("*.wav")):
+        if not audio_path.is_dir() or not list(_find_wav_source_dir(audio_path).glob("*.wav")):
             release_issues.append("No WAV files in audio directory")
 
         # Check 3: Mastered audio exists
@@ -6338,6 +6338,14 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple:
     return None, audio_path
 
 
+def _find_wav_source_dir(audio_dir: Path) -> Path:
+    """Return originals/ if it exists, else album root (legacy fallback)."""
+    originals = audio_dir / "originals"
+    if originals.is_dir():
+        return originals
+    return audio_dir
+
+
 def _check_mastering_deps() -> Optional[str]:
     """Return error message if mastering deps missing, else None."""
     missing = []
@@ -6449,7 +6457,8 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
 
     from tools.mastering.analyze_tracks import analyze_track
 
-    wav_files = sorted(audio_dir.glob("*.wav"))
+    source_dir = _find_wav_source_dir(audio_dir)
+    wav_files = sorted(source_dir.glob("*.wav"))
     wav_files = [f for f in wav_files if "venv" not in str(f)]
     if not wav_files:
         return _safe_json({
@@ -6522,7 +6531,8 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
 
     from tools.mastering.qc_tracks import qc_track, ALL_CHECKS
 
-    wav_files = sorted(audio_dir.glob("*.wav"))
+    source_dir = _find_wav_source_dir(audio_dir) if not subfolder else audio_dir
+    wav_files = sorted(source_dir.glob("*.wav"))
     wav_files = [f for f in wav_files if "venv" not in str(f)]
     if not wav_files:
         return _safe_json({
@@ -6610,7 +6620,6 @@ async def master_audio(
         return err
 
     # If source_subfolder specified, read from that subfolder
-    source_dir = audio_dir
     if source_subfolder:
         source_dir = audio_dir / source_subfolder
         if not source_dir.is_dir():
@@ -6618,6 +6627,8 @@ async def master_audio(
                 "error": f"Source subfolder not found: {source_dir}",
                 "suggestion": f"Run polish_audio first to create {source_subfolder}/ output.",
             })
+    else:
+        source_dir = _find_wav_source_dir(audio_dir)
 
     from tools.mastering.master_tracks import (
         master_track as _master_track,
@@ -6758,9 +6769,11 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
 
     input_path = audio_dir / track_filename
     if not input_path.exists():
+        input_path = _find_wav_source_dir(audio_dir) / track_filename
+    if not input_path.exists():
         return _safe_json({
-            "error": f"Track file not found: {input_path}",
-            "available_files": [f.name for f in audio_dir.glob("*.wav")],
+            "error": f"Track file not found: {track_filename}",
+            "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
         })
 
     output_dir = audio_dir / "mastered"
@@ -6824,8 +6837,10 @@ async def master_with_reference(
 
     reference_path = audio_dir / reference_filename
     if not reference_path.exists():
+        reference_path = _find_wav_source_dir(audio_dir) / reference_filename
+    if not reference_path.exists():
         return _safe_json({
-            "error": f"Reference file not found: {reference_path}",
+            "error": f"Reference file not found: {reference_filename}",
             "suggestion": "Place the reference WAV in the album's audio directory.",
         })
 
@@ -6845,9 +6860,11 @@ async def master_with_reference(
         # Single file
         target_path = audio_dir / target_filename
         if not target_path.exists():
+            target_path = _find_wav_source_dir(audio_dir) / target_filename
+        if not target_path.exists():
             return _safe_json({
-                "error": f"Target file not found: {target_path}",
-                "available_files": [f.name for f in audio_dir.glob("*.wav")],
+                "error": f"Target file not found: {target_filename}",
+                "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
             })
         output_path = output_dir / target_filename
 
@@ -6866,8 +6883,9 @@ async def master_with_reference(
             })
     else:
         # Batch all WAVs
+        source_dir = _find_wav_source_dir(audio_dir)
         wav_files = sorted([
-            f for f in audio_dir.glob("*.wav")
+            f for f in source_dir.glob("*.wav")
             if "venv" not in str(f) and f != reference_path
         ])
         if not wav_files:
@@ -6952,12 +6970,15 @@ async def transcribe_audio(
     if track_filename:
         wav_files = [audio_dir / track_filename]
         if not wav_files[0].exists():
+            wav_files = [_find_wav_source_dir(audio_dir) / track_filename]
+        if not wav_files[0].exists():
             return _safe_json({
-                "error": f"Track file not found: {wav_files[0]}",
-                "available_files": [f.name for f in audio_dir.glob("*.wav")],
+                "error": f"Track file not found: {track_filename}",
+                "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
             })
     else:
-        wav_files = sorted(audio_dir.glob("*.wav"))
+        source_dir = _find_wav_source_dir(audio_dir)
+        wav_files = sorted(source_dir.glob("*.wav"))
         wav_files = [f for f in wav_files if "venv" not in str(f)]
 
     if not wav_files:
@@ -7220,12 +7241,14 @@ async def generate_promo_videos(
         # Single track
         track_path = audio_dir / track_filename
         if not track_path.exists():
-            # Also check mastered/
-            track_path = audio_dir / "mastered" / track_filename
+            # Also check originals/ and mastered/
+            track_path = audio_dir / "originals" / track_filename
+            if not track_path.exists():
+                track_path = audio_dir / "mastered" / track_filename
             if not track_path.exists():
                 return _safe_json({
                     "error": f"Track file not found: {track_filename}",
-                    "available_files": [f.name for f in audio_dir.glob("*.wav")],
+                    "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
                 })
 
         # Resolve title: prefer markdown title from state cache over filename
@@ -7398,7 +7421,7 @@ async def generate_album_sampler(
         # Count audio files
         audio_extensions = {".wav", ".mp3", ".flac", ".m4a"}
         track_count = sum(
-            1 for f in audio_dir.iterdir()
+            1 for f in _find_wav_source_dir(audio_dir).iterdir()
             if f.suffix.lower() in audio_extensions
         )
         expected_duration = track_count * clip_duration - max(0, track_count - 1) * crossfade
@@ -7472,8 +7495,9 @@ async def master_album(
             "failure_detail": json.loads(err),
         })
 
+    source_dir = _find_wav_source_dir(audio_dir)
     wav_files = sorted([
-        f for f in audio_dir.iterdir()
+        f for f in source_dir.iterdir()
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
 
@@ -7633,21 +7657,34 @@ async def master_album(
     output_dir = audio_dir / "mastered"
     output_dir.mkdir(exist_ok=True)
 
+    # Look up per-track metadata for fade_out values
+    state = cache.get_state() or {}
+    album_tracks = (state.get("albums", {})
+                         .get(_normalize_slug(album_slug), {})
+                         .get("tracks", {}))
+
     master_results = []
     for wav_file in wav_files:
         output_path = output_dir / wav_file.name
 
-        def _do_master(in_path, out_path, lufs, eq, ceil):
+        # Derive track slug from WAV filename and look up fade_out
+        track_stem = wav_file.stem
+        track_slug = _normalize_slug(track_stem)
+        track_meta = album_tracks.get(track_slug, {})
+        fade_out_val = track_meta.get("fade_out")
+
+        def _do_master(in_path, out_path, lufs, eq, ceil, fade):
             return _master_track(
                 str(in_path), str(out_path),
                 target_lufs=lufs,
                 eq_settings=eq if eq else None,
                 ceiling_db=ceil,
+                fade_out=fade,
             )
 
         result = await loop.run_in_executor(
             None, _do_master, wav_file, output_path,
-            effective_lufs, eq_settings, ceiling_db,
+            effective_lufs, eq_settings, ceiling_db, fade_out_val,
         )
         if result and not result.get("skipped"):
             result["filename"] = wav_file.name
@@ -7726,6 +7763,8 @@ async def master_album(
             auto_recovered = []
             for fname in recoverable:
                 raw_path = audio_dir / fname
+                if not raw_path.exists():
+                    raw_path = _find_wav_source_dir(audio_dir) / fname
                 if not raw_path.exists():
                     continue
 
@@ -8114,8 +8153,9 @@ async def polish_audio(
 
     else:
         # Full-mix mode: process WAV files directly
+        source_dir = _find_wav_source_dir(audio_dir)
         wav_files = sorted([
-            f for f in audio_dir.iterdir()
+            f for f in source_dir.iterdir()
             if f.suffix.lower() == ".wav" and "venv" not in str(f)
         ])
 
@@ -8183,8 +8223,9 @@ async def analyze_mix_issues(
 
     loop = asyncio.get_running_loop()
 
+    source_dir = _find_wav_source_dir(audio_dir)
     wav_files = sorted([
-        f for f in audio_dir.iterdir()
+        f for f in source_dir.iterdir()
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
 
@@ -9207,6 +9248,126 @@ async def db_get_tweet_stats(album_slug: str = "") -> str:
         return _safe_json({"error": f"Stats query failed: {e}"})
     finally:
         conn.close()
+
+
+@mcp.tool()
+async def migrate_audio_layout(
+    album_slug: str = "",
+    dry_run: bool = True,
+) -> str:
+    """Migrate album audio from legacy root layout to originals/ subdirectory.
+
+    Moves root-level WAV files into an originals/ subdirectory for one or all
+    albums. Safe by default — dry_run=True shows what would happen without
+    moving files.
+
+    Args:
+        album_slug: Specific album slug (empty string = all albums)
+        dry_run: If True, only report what would be moved (default: True)
+
+    Returns:
+        JSON with per-album results and summary counts
+    """
+    state = cache.get_state()
+    config = state.get("config", {})
+    audio_root = config.get("audio_root", "")
+    artist = config.get("artist_name", "")
+
+    if not audio_root or not artist:
+        return _safe_json({"error": "audio_root or artist_name not configured"})
+
+    albums = state.get("albums", {})
+    if album_slug:
+        normalized = _normalize_slug(album_slug)
+        if normalized not in albums:
+            return _safe_json({"error": f"Album '{album_slug}' not found in state"})
+        album_items = [(normalized, albums[normalized])]
+    else:
+        album_items = list(albums.items())
+
+    results = []
+    migrated_count = 0
+    skipped_count = 0
+    already_migrated_count = 0
+    total_files = 0
+
+    for slug, album_data in album_items:
+        genre = album_data.get("genre", "")
+        if not genre:
+            results.append({
+                "slug": slug,
+                "status": "skipped",
+                "files_moved": [],
+                "skip_reason": "no genre in state",
+            })
+            skipped_count += 1
+            continue
+
+        audio_dir = Path(audio_root) / "artists" / artist / "albums" / genre / slug
+
+        if not audio_dir.is_dir():
+            results.append({
+                "slug": slug,
+                "status": "skipped",
+                "files_moved": [],
+                "skip_reason": "no audio dir",
+            })
+            skipped_count += 1
+            continue
+
+        originals_dir = audio_dir / "originals"
+        if originals_dir.is_dir():
+            results.append({
+                "slug": slug,
+                "status": "already_migrated",
+                "files_moved": [],
+                "skip_reason": "already has originals/",
+            })
+            already_migrated_count += 1
+            continue
+
+        wav_files = sorted(
+            f for f in audio_dir.iterdir()
+            if f.suffix.lower() == ".wav"
+        )
+
+        if not wav_files:
+            results.append({
+                "slug": slug,
+                "status": "skipped",
+                "files_moved": [],
+                "skip_reason": "no WAV files in root",
+            })
+            skipped_count += 1
+            continue
+
+        moved_names = [f.name for f in wav_files]
+
+        if not dry_run:
+            originals_dir.mkdir(parents=True, exist_ok=True)
+            for wav in wav_files:
+                shutil.move(str(wav), str(originals_dir / wav.name))
+
+        results.append({
+            "slug": slug,
+            "status": "migrated" if not dry_run else "would_migrate",
+            "files_moved": moved_names,
+            "skip_reason": None,
+        })
+        migrated_count += 1
+        total_files += len(moved_names)
+
+    return _safe_json({
+        "albums": results,
+        "summary": {
+            "total_albums": len(album_items),
+            "migrated": migrated_count,
+            "skipped": skipped_count,
+            "already_migrated": already_migrated_count,
+            "total_files_moved": total_files,
+        },
+        "dry_run": dry_run,
+    })
 
 
 def main():

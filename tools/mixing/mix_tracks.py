@@ -494,6 +494,103 @@ def remove_clicks(data, rate, threshold=6.0):
         return result
 
 
+def apply_saturation(data, rate, drive=0.0, tone='warm'):
+    """Apply soft harmonic distortion via tanh waveshaping.
+
+    Args:
+        data: Audio data (samples,) or (samples, channels)
+        rate: Sample rate
+        drive: Saturation amount (0.0 = bypass, 1.0 = heavy)
+        tone: 'warm' applies gentle high-shelf rolloff after saturation;
+              'neutral' skips the rolloff
+
+    Returns:
+        Saturated audio data, same shape as input.
+    """
+    if drive <= 0:
+        return data
+
+    drive = min(drive, 1.0)
+
+    # Scale input by drive amount, apply tanh, scale back
+    # Higher drive = more harmonics
+    gain = 1.0 + drive * 4.0  # Maps 0-1 to 1-5x input gain
+    result = np.tanh(data * gain) / np.tanh(gain)
+
+    # Warm tone: gentle high-shelf rolloff to tame harshness from harmonics
+    if tone == 'warm':
+        result = apply_high_shelf(result, rate, freq=8000, gain_db=-1.5 * drive)
+
+    return result
+
+
+def apply_lowpass(data, rate, cutoff=20000):
+    """Apply 2nd-order Butterworth lowpass filter.
+
+    Args:
+        data: Audio data (samples,) or (samples, channels)
+        rate: Sample rate
+        cutoff: Cutoff frequency in Hz (default 20000 = effectively off)
+
+    Returns:
+        Lowpass-filtered audio data.
+    """
+    nyquist = rate / 2
+    if cutoff <= 0 or cutoff >= nyquist:
+        return data
+
+    normalized_cutoff = cutoff / nyquist
+    b, a = signal.butter(2, normalized_cutoff, btype='low')
+
+    # Verify stability
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable lowpass filter at %d Hz, skipping", cutoff)
+        return data
+
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+
+def apply_stereo_width(data, rate, width=1.0):
+    """Adjust stereo width using mid-side processing.
+
+    Args:
+        data: Audio data (samples, 2) — stereo only
+        rate: Sample rate (unused, kept for API consistency)
+        width: Width multiplier.
+            < 1.0 = narrower (more mono)
+            1.0 = passthrough (no change)
+            > 1.0 = wider (more side signal)
+
+    Returns:
+        Width-adjusted stereo audio data.
+    """
+    if len(data.shape) == 1 or data.shape[1] != 2:
+        return data
+    if width == 1.0:
+        return data
+
+    # Mid-side encoding
+    mid = (data[:, 0] + data[:, 1]) / 2
+    side = (data[:, 0] - data[:, 1]) / 2
+
+    # Scale side signal by width factor
+    side = side * width
+
+    # Decode back to L/R
+    result = np.zeros_like(data)
+    result[:, 0] = mid + side
+    result[:, 1] = mid - side
+
+    return result
+
+
 def enhance_stereo(data, rate, amount=0.2):
     """Enhance stereo width using mid-side processing.
 
@@ -673,6 +770,16 @@ def process_vocals(data, rate, settings=None):
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
     return data
 
 
@@ -701,6 +808,11 @@ def process_drums(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
 
     return data
 
@@ -737,6 +849,11 @@ def process_bass(data, rate, settings=None):
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
     return data
 
 
@@ -769,6 +886,11 @@ def process_other(data, rate, settings=None):
     high_tame_freq = settings.get('high_tame_freq', 8000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -989,6 +1111,21 @@ def mix_track_full(input_path, output_path, genre=None, dry_run=False):
             data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                    ratio=comp_ratio)
 
+        # Saturation (genre character)
+        sat_drive = settings.get('saturation_drive', 0)
+        if sat_drive > 0:
+            data = apply_saturation(data, rate, drive=sat_drive)
+
+        # Lowpass (vintage/lo-fi character)
+        lp_cutoff = settings.get('lowpass_cutoff', 20000)
+        if lp_cutoff < 20000:
+            data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+        # Stereo width (genre character)
+        stereo_w = settings.get('stereo_width', 1.0)
+        if stereo_w != 1.0 and not was_mono:
+            data = apply_stereo_width(data, rate, width=stereo_w)
+
         # Convert back to mono if input was mono
         if was_mono:
             data = data[:, 0]
@@ -1123,7 +1260,10 @@ Examples:
 
     if args.full_mix:
         # Full-mix mode: process WAV files directly
-        wav_files = sorted([f for f in input_dir.iterdir()
+        # Check originals/ subdirectory first, fall back to album root
+        originals = input_dir / "originals"
+        source_dir = originals if originals.is_dir() else input_dir
+        wav_files = sorted([f for f in source_dir.iterdir()
                            if f.suffix.lower() == '.wav'
                            and 'venv' not in str(f)])
 

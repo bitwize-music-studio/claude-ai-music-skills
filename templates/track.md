@@ -20,6 +20,7 @@ suno_url: ""
 | **Explicit** | Yes / No |
 | **POV** | [Character/Perspective] |
 | **Role** | [Track's role in the album narrative] |
+| **Fade Out** | — |
 | **Sources Verified** | ❌ Pending |
 
 <!--
