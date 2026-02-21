@@ -2,17 +2,17 @@
 
 A complete AI music production workflow for Suno. Install as a Claude Code plugin or clone the repo and start making albums.
 
-> [!WARNING]
-> **Early Development** - This is a personal project I built to streamline my own music production workflow with Claude Code and Suno. It's being shared publicly in case others find it useful, but expect rough edges. Bugs are likely. Documentation may be incomplete. Features may change without notice.
+> [!NOTE]
+> This is a personal project I built to streamline my own music production workflow with Claude Code and Suno. It's being shared publicly in case others find it useful. Active development happens on the `develop` branch — `main` only receives tested, stable releases.
 >
-> If you run into issues, feel free to [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) or just fix it yourself and submit a PR.
+> If you run into issues, feel free to [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues) or submit a PR.
 
 > [!WARNING]
 > **Claude Code Max plan recommended** ($200/month). This plugin uses 50 specialized skills that spawn subagents across Opus, Sonnet, and Haiku models. Session startup, automatic lyric reviews, multi-agent research workflows, and full album production pipelines are all token-intensive. The standard Pro plan will hit rate limits quickly during any multi-track session.
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.61.0-blue)
+![Version](https://img.shields.io/badge/version-0.62.0-blue)
 ![Skills](https://img.shields.io/badge/skills-50-green)
 ![Tests](https://img.shields.io/badge/tests-2238-brightgreen)
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.62** | `develop`/`main` branch model, CI streamlined to Python 3.11, plugin version in `/about` |
 | **0.61** | `originals/` audio layout + migration tool, fade-out support, mix character effects (saturation, lowpass, stereo width) |
 | **0.60** | Suno stem discovery + mastering auto-recovery for dynamic range issues |
 | **0.59** | `mix-engineer` skill — per-stem audio polish pipeline (noise reduction, EQ, compression, click removal) |

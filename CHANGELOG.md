@@ -6,6 +6,20 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.62.0] - 2026-02-21
+
+### Added
+- **`develop` branch model** — two-branch workflow with `develop` for active work and `main` for stable releases; plugin distribution channels via branch-based marketplace
+- **Plugin version in about skill** — `/bitwize-music:about` now reads and displays version from plugin.json dynamically
+
+### Changed
+- **CI targets Python 3.11 only** — dropped 3.9/3.10/3.12 matrix; not a library, runs in user's venv
+- **CI triggers** — pushes run on `develop` only; `main` validated via PR gate
+- **CONTRIBUTING.md** — updated for develop/main branch model, release process, co-author line
+
+### Fixed
+- **Test count badge** — corrected 2235 → 2238 (3 skipped tests collected by CI)
+
 ## [0.61.0] - 2026-02-21
 
 ### Added
