@@ -23,15 +23,17 @@ Each genre preset adjusts per-stem processing settings. Settings not specified i
 
 Each preset can adjust per-stem gain to change the mix balance:
 
-| Genre Family | Vocals | Drums | Bass | Other |
-|-------------|--------|-------|------|-------|
-| Default | 0 dB | 0 dB | 0 dB | 0 dB |
-| Hip-Hop/Rap | +1 dB | +0.5 dB | +1 dB | 0 dB |
-| Rock/Metal | 0 dB | +0.5-1 dB | 0 dB | 0 dB |
-| EDM/Electronic | 0 dB | +0.5-1 dB | +0.5-1 dB | 0 dB |
-| Folk/Country | +0.5 dB | +0.5 dB | 0 dB | 0 dB |
-| Jazz/Classical | 0 dB | 0 dB | 0 dB | 0 dB |
-| Ambient/Lo-Fi | 0 dB | 0 dB | 0 dB | 0 dB |
+| Genre Family | Vocals | Drums | Bass | Guitar | Keyboard | Strings | Brass | Woodwinds | Percussion | Synth | Other |
+|-------------|--------|-------|------|--------|----------|---------|-------|-----------|------------|-------|-------|
+| Default | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB |
+| Hip-Hop/Rap | +1 dB | +0.5 dB | +1 dB | 0 dB | 0 dB | -0.5 dB | -0.5 dB | 0 dB | +0.5 dB | -0.5 dB | 0 dB |
+| Rock/Metal | 0 dB | +0.5-1 dB | 0 dB | +0.5 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | -0.5 dB | 0 dB |
+| EDM/Electronic | 0 dB | +0.5-1 dB | +0.5-1 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | +0.5 dB | +0.5 dB | 0 dB |
+| Folk/Country | +0.5 dB | +0.5 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB |
+| Jazz/Classical | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | +0.5 dB | 0 dB | 0 dB | 0 dB |
+| Funk | 0 dB | +0.5 dB | +0.5 dB | 0 dB | 0 dB | 0 dB | +0.5 dB | 0 dB | +0.5 dB | 0 dB | 0 dB |
+| Latin/Afrobeats | +0.5 dB | +0.5-1 dB | +0.5 dB | 0 dB | 0 dB | 0 dB | +0.5 dB | 0 dB | +1 dB | 0 dB | 0 dB |
+| Ambient/Lo-Fi | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB |
 
 ---
 
@@ -81,8 +83,9 @@ These are the problems mix-engineer is designed to fix:
 ### Rock / Metal
 - More aggressive high taming on vocals (-2.5 to -3 dB) to control harshness
 - Drums forward in the mix
+- Guitar: saturation for warmth/crunch, heavier mud cut to avoid boxiness
+- Metal: extra drum compression and guitar saturation for tight, aggressive sound
 - Heavier mud cut on "other" stem (-3 to -3.5 dB) to clear room for guitars
-- Metal: extra drum compression for tight sound
 
 ### Electronic / EDM
 - Bass and drums pushed forward
@@ -97,13 +100,27 @@ These are the problems mix-engineer is designed to fix:
 
 ### Folk / Country / Americana
 - Vocals forward (+0.5 dB) for lyric clarity
+- Guitar: stronger presence (+2 dB) for acoustic clarity, no stereo width (centered)
 - Light mud cut on "other" (-1.5 dB) — preserve acoustic warmth
 - Standard compression — don't squash dynamics
 
 ### Jazz / Classical
-- Reduced compression (vocals 2.0:1, drums 1.5:1) — dynamics are critical
+- Reduced compression across all stems — dynamics are critical
+- Guitar, keyboard, brass, woodwinds: light saturation (0.1) for analog warmth
+- Woodwinds: boosted presence (+1.5 dB) and gain for solo clarity
+- Strings: minimal compression (1:1 bypass in classical), wide stereo
 - Light mud cuts — preserve natural resonance
 - Moderate vocal presence boost (+1.5 dB)
+
+### Funk
+- Guitar: saturation and tight compression (3:1) for rhythmic attack
+- Keyboard: heavier saturation for clavinet/organ character
+- Brass: forward in mix (+0.5 dB) with tight compression
+- Percussion: boosted for groove elements
+
+### Latin / Afrobeats
+- Percussion: forward in mix (+1 dB) with tighter compression — central to genre
+- Brass: forward (+0.5 dB) with boosted presence for salsa/afrobeats arrangements
 
 ---
 

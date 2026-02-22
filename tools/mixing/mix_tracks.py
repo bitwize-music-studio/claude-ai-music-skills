@@ -2,7 +2,8 @@
 """
 Automated Mix Polish Pipeline for Suno Stems
 
-Processes per-stem audio (vocals, drums, bass, other) with targeted
+Processes per-stem audio (vocals, backing_vocals, drums, bass, guitar,
+keyboard, strings, brass, woodwinds, percussion, synth, other) with targeted
 cleanup and EQ, then remixes into a polished stereo WAV ready for mastering.
 
 Falls back to full-mix processing when stems are not available.
@@ -47,17 +48,31 @@ _BUILTIN_PRESETS_FILE = Path(__file__).parent / "mix-presets.yaml"
 _CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 
 # Stem names in processing order
-STEM_NAMES = ("vocals", "drums", "bass", "other")
+STEM_NAMES = (
+    "vocals", "backing_vocals", "drums", "bass",
+    "guitar", "keyboard", "strings", "brass",
+    "woodwinds", "percussion", "synth", "other",
+)
 
 # Keyword → category mapping for smart routing (case-insensitive).
-# Checked in order; first match wins.  Unmatched files → "other".
+# Ordered list of tuples — checked top-to-bottom; first match wins.
+# CRITICAL: "backing_vocal" must be checked BEFORE "vocal" because
+# "backing_vocal" contains the substring "vocal".
 # RULE: every WAV is always included — nothing is ever dropped.
-_STEM_KEYWORDS = {
-    "vocals": ["vocal", "backing_vocal"],
-    "drums": ["drum", "percussion"],
-    "bass": ["bass"],
-    # "other" is the catch-all — synth, keyboard, guitar, etc.
-}
+_STEM_KEYWORDS = [
+    ("backing_vocals", ["backing_vocal", "backing vocal"]),
+    ("vocals",         ["vocal", "lead vocal"]),
+    ("percussion",     ["percussion"]),
+    ("drums",          ["drum"]),
+    ("bass",           ["bass"]),
+    ("guitar",         ["guitar"]),
+    ("keyboard",       ["keyboard", "piano", "organ", "keys", "rhodes"]),
+    ("strings",        ["string", "violin", "viola", "cello"]),
+    ("brass",          ["brass", "trumpet", "trombone", "horn", "tuba"]),
+    ("woodwinds",      ["woodwind", "flute", "clarinet", "oboe", "bassoon", "saxophone", "sax"]),
+    ("synth",          ["synth"]),
+    # "other" is the catch-all — anything not matched by keywords above
+]
 
 
 def discover_stems(track_dir):
@@ -96,7 +111,7 @@ def discover_stems(track_dir):
     for wav_file in wav_files:
         name_lower = wav_file.stem.lower()
         matched = False
-        for stem_cat, keywords in _STEM_KEYWORDS.items():
+        for stem_cat, keywords in _STEM_KEYWORDS:
             if any(kw in name_lower for kw in keywords):
                 categorized[stem_cat].append(str(wav_file))
                 matched = True
@@ -687,7 +702,8 @@ def _get_stem_settings(stem_name, genre=None):
     """Get processing settings for a specific stem type.
 
     Args:
-        stem_name: One of 'vocals', 'drums', 'bass', 'other'
+        stem_name: One of 'vocals', 'backing_vocals', 'drums', 'bass', 'guitar',
+            'keyboard', 'strings', 'brass', 'woodwinds', 'percussion', 'synth', 'other'
         genre: Optional genre name for genre-specific overrides
 
     Returns:
@@ -801,6 +817,65 @@ def process_vocals(data, rate, settings=None):
     return data
 
 
+def process_backing_vocals(data, rate, settings=None):
+    """Process backing vocal stem: noise reduction -> presence boost -> high tame -> width -> compress.
+
+    Lighter presence than lead vocals so backing sits behind. Wider stereo
+    spread and slightly more aggressive high tame for de-essing.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of backing vocal processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('backing_vocals')
+
+    # Noise reduction (same as lead)
+    nr_strength = settings.get('noise_reduction', 0.5)
+    if nr_strength > 0:
+        data = reduce_noise(data, rate, strength=nr_strength)
+
+    # Presence boost — half of lead's +2.0 dB
+    presence_db = settings.get('presence_boost_db', 1.0)
+    presence_freq = settings.get('presence_freq', 3000)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
+
+    # Tame highs — slightly more aggressive than lead for de-essing
+    high_tame_db = settings.get('high_tame_db', -2.5)
+    high_tame_freq = settings.get('high_tame_freq', 7000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width — spread behind lead
+    stereo_w = settings.get('stereo_width', 1.3)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression — tighter than lead
+    comp_threshold = settings.get('compress_threshold_db', -14.0)
+    comp_ratio = settings.get('compress_ratio', 3.0)
+    comp_attack = settings.get('compress_attack_ms', 8.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
 def process_drums(data, rate, settings=None):
     """Process drum stem: click removal -> compress (fast attack).
 
@@ -875,6 +950,437 @@ def process_bass(data, rate, settings=None):
     return data
 
 
+def process_synth(data, rate, settings=None):
+    """Process synth stem: highpass -> mid boost -> high tame -> width -> compress.
+
+    Highpass avoids bass competition. Mid boost adds body/presence.
+    Light compression preserves dynamics.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of synth processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('synth')
+
+    # Highpass — avoid bass competition
+    hp_cutoff = settings.get('highpass_cutoff', 80)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mid boost — body/presence (wide Q)
+    mid_boost_db = settings.get('mid_boost_db', 1.0)
+    mid_freq = settings.get('mid_freq', 2000)
+    if mid_boost_db != 0:
+        data = apply_eq(data, rate, freq=mid_freq, gain_db=mid_boost_db, q=0.8)
+
+    # Tame highs — control digital brightness
+    high_tame_db = settings.get('high_tame_db', -1.5)
+    high_tame_freq = settings.get('high_tame_freq', 9000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width — pad spread
+    stereo_w = settings.get('stereo_width', 1.2)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression — light, preserve dynamics
+    comp_threshold = settings.get('compress_threshold_db', -16.0)
+    comp_ratio = settings.get('compress_ratio', 2.0)
+    comp_attack = settings.get('compress_attack_ms', 15.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_guitar(data, rate, settings=None):
+    """Process guitar stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
+
+    Mud cut at 250 Hz targets guitar-specific boxiness. Presence at 3 kHz
+    brings out pick articulation. Moderate compression preserves dynamics.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of guitar processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('guitar')
+
+    # Highpass — remove sub-bass
+    hp_cutoff = settings.get('highpass_cutoff', 80)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mud cut (~250 Hz) — guitar boxiness zone
+    mud_cut_db = settings.get('mud_cut_db', -2.5)
+    mud_freq = settings.get('mud_freq', 250)
+    if mud_cut_db != 0:
+        data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
+
+    # Presence boost (~3 kHz) — pick articulation
+    presence_db = settings.get('presence_boost_db', 1.5)
+    presence_freq = settings.get('presence_freq', 3000)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.2)
+
+    # Tame highs (~8 kHz)
+    high_tame_db = settings.get('high_tame_db', -1.5)
+    high_tame_freq = settings.get('high_tame_freq', 8000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width
+    stereo_w = settings.get('stereo_width', 1.15)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression — moderate, preserve dynamics
+    comp_threshold = settings.get('compress_threshold_db', -14.0)
+    comp_ratio = settings.get('compress_ratio', 2.5)
+    comp_attack = settings.get('compress_attack_ms', 12.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_keyboard(data, rate, settings=None):
+    """Process keyboard stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
+
+    Low highpass (40 Hz) preserves piano bass notes. Presence at 2.5 kHz avoids
+    vocal zone. Light compression preserves expressive dynamics.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of keyboard processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('keyboard')
+
+    # Highpass — low cutoff to preserve piano bass notes
+    hp_cutoff = settings.get('highpass_cutoff', 40)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mud cut (~300 Hz)
+    mud_cut_db = settings.get('mud_cut_db', -2.0)
+    mud_freq = settings.get('mud_freq', 300)
+    if mud_cut_db != 0:
+        data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
+
+    # Presence boost (~2.5 kHz) — avoids vocal zone
+    presence_db = settings.get('presence_boost_db', 1.0)
+    presence_freq = settings.get('presence_freq', 2500)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=0.8)
+
+    # Tame highs (~9 kHz)
+    high_tame_db = settings.get('high_tame_db', -1.5)
+    high_tame_freq = settings.get('high_tame_freq', 9000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width
+    stereo_w = settings.get('stereo_width', 1.1)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression — light, preserve dynamics
+    comp_threshold = settings.get('compress_threshold_db', -16.0)
+    comp_ratio = settings.get('compress_ratio', 2.0)
+    comp_attack = settings.get('compress_attack_ms', 15.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_strings(data, rate, settings=None):
+    """Process strings stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> lp.
+
+    Lightest processing of all stems. Very gentle compression (1.5:1) preserves
+    orchestral dynamics. Wide stereo for orchestral spread. Presence at 3.5 kHz
+    (above vocals' 3 kHz).
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of strings processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('strings')
+
+    # Highpass — very low cutoff for cello/bass range
+    hp_cutoff = settings.get('highpass_cutoff', 35)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mud cut (~250 Hz, wide Q)
+    mud_cut_db = settings.get('mud_cut_db', -1.5)
+    mud_freq = settings.get('mud_freq', 250)
+    if mud_cut_db != 0:
+        data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=0.8)
+
+    # Presence boost (~3.5 kHz) — above vocals
+    presence_db = settings.get('presence_boost_db', 1.0)
+    presence_freq = settings.get('presence_freq', 3500)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
+
+    # Tame highs (~9 kHz) — gentle
+    high_tame_db = settings.get('high_tame_db', -1.0)
+    high_tame_freq = settings.get('high_tame_freq', 9000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width — wide for orchestral spread
+    stereo_w = settings.get('stereo_width', 1.25)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression — very gentle, preserve orchestral dynamics
+    comp_threshold = settings.get('compress_threshold_db', -18.0)
+    comp_ratio = settings.get('compress_ratio', 1.5)
+    comp_attack = settings.get('compress_attack_ms', 20.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_brass(data, rate, settings=None):
+    """Process brass stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
+
+    Presence at 2 kHz for brass "bite" (below vocals). Aggressive high tame
+    (-2 dB at 7 kHz) because brass is piercing. No stereo width (brass is
+    usually centered).
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of brass processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('brass')
+
+    # Highpass
+    hp_cutoff = settings.get('highpass_cutoff', 60)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mud cut (~300 Hz)
+    mud_cut_db = settings.get('mud_cut_db', -2.0)
+    mud_freq = settings.get('mud_freq', 300)
+    if mud_cut_db != 0:
+        data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
+
+    # Presence boost (~2 kHz) — brass bite
+    presence_db = settings.get('presence_boost_db', 1.5)
+    presence_freq = settings.get('presence_freq', 2000)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
+
+    # Tame highs (~7 kHz) — aggressive, brass is piercing
+    high_tame_db = settings.get('high_tame_db', -2.0)
+    high_tame_freq = settings.get('high_tame_freq', 7000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Compression
+    comp_threshold = settings.get('compress_threshold_db', -14.0)
+    comp_ratio = settings.get('compress_ratio', 2.5)
+    comp_attack = settings.get('compress_attack_ms', 10.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_woodwinds(data, rate, settings=None):
+    """Process woodwinds stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
+
+    Tuned for reed/breath instruments. Light high tame preserves breathiness.
+    No stereo width (solo instruments are centered).
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of woodwinds processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('woodwinds')
+
+    # Highpass
+    hp_cutoff = settings.get('highpass_cutoff', 50)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Mud cut (~250 Hz, wide Q)
+    mud_cut_db = settings.get('mud_cut_db', -1.5)
+    mud_freq = settings.get('mud_freq', 250)
+    if mud_cut_db != 0:
+        data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=0.8)
+
+    # Presence boost (~2.5 kHz)
+    presence_db = settings.get('presence_boost_db', 1.0)
+    presence_freq = settings.get('presence_freq', 2500)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
+
+    # Tame highs (~8 kHz) — gentle, preserve breathiness
+    high_tame_db = settings.get('high_tame_db', -1.0)
+    high_tame_freq = settings.get('high_tame_freq', 8000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Compression
+    comp_threshold = settings.get('compress_threshold_db', -16.0)
+    comp_ratio = settings.get('compress_ratio', 2.0)
+    comp_attack = settings.get('compress_attack_ms', 15.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    # Lowpass (vintage/lo-fi character)
+    lp_cutoff = settings.get('lowpass_cutoff', 20000)
+    if lp_cutoff < 20000:
+        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
+
+    return data
+
+
+def process_percussion(data, rate, settings=None):
+    """Process percussion stem: highpass -> click removal -> presence -> high tame -> width -> compress -> sat.
+
+    Distinct from drums — handles congas, shakers, tambourines etc. Presence at
+    4 kHz (highest of all stems — shakers/tambourines live here). High tame at
+    10 kHz (preserve shimmer). Wider stereo than drums.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Dict of percussion processing settings
+
+    Returns:
+        Processed audio data.
+    """
+    settings = settings or _get_stem_settings('percussion')
+
+    # Highpass
+    hp_cutoff = settings.get('highpass_cutoff', 60)
+    if hp_cutoff > 0:
+        data = apply_highpass(data, rate, cutoff=hp_cutoff)
+
+    # Click removal
+    if settings.get('click_removal', True):
+        click_threshold = settings.get('click_threshold', 6.0)
+        data = remove_clicks(data, rate, threshold=click_threshold)
+
+    # Presence boost (~4 kHz) — shakers/tambourines
+    presence_db = settings.get('presence_boost_db', 1.0)
+    presence_freq = settings.get('presence_freq', 4000)
+    if presence_db != 0:
+        data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
+
+    # Tame highs (~10 kHz) — highest of all stems, preserve shimmer
+    high_tame_db = settings.get('high_tame_db', -1.0)
+    high_tame_freq = settings.get('high_tame_freq', 10000)
+    if high_tame_db != 0:
+        data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Stereo width — wider than drums
+    stereo_w = settings.get('stereo_width', 1.2)
+    if stereo_w != 1.0:
+        data = apply_stereo_width(data, rate, width=stereo_w)
+
+    # Compression
+    comp_threshold = settings.get('compress_threshold_db', -15.0)
+    comp_ratio = settings.get('compress_ratio', 2.0)
+    comp_attack = settings.get('compress_attack_ms', 8.0)
+    if comp_ratio > 1.0:
+        data = gentle_compress(data, rate, threshold_db=comp_threshold,
+                               ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Saturation (genre character)
+    sat_drive = settings.get('saturation_drive', 0)
+    if sat_drive > 0:
+        data = apply_saturation(data, rate, drive=sat_drive)
+
+    return data
+
+
 def process_other(data, rate, settings=None):
     """Process 'other' stem (instruments, synths): noise reduction -> mud cut -> high tame.
 
@@ -916,8 +1422,16 @@ def process_other(data, rate, settings=None):
 # Stem processor dispatch
 STEM_PROCESSORS = {
     'vocals': process_vocals,
+    'backing_vocals': process_backing_vocals,
     'drums': process_drums,
     'bass': process_bass,
+    'guitar': process_guitar,
+    'keyboard': process_keyboard,
+    'strings': process_strings,
+    'brass': process_brass,
+    'woodwinds': process_woodwinds,
+    'percussion': process_percussion,
+    'synth': process_synth,
     'other': process_other,
 }
 

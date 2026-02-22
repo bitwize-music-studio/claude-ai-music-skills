@@ -37,8 +37,16 @@ from tools.mixing.mix_tracks import (
     enhance_stereo,
     remix_stems,
     process_vocals,
+    process_backing_vocals,
     process_drums,
     process_bass,
+    process_guitar,
+    process_keyboard,
+    process_strings,
+    process_brass,
+    process_woodwinds,
+    process_percussion,
+    process_synth,
     process_other,
     mix_track_stems,
     mix_track_full,
@@ -159,6 +167,81 @@ def stem_dir(tmp_path):
     # Other: mid-high sine
     other = 0.3 * np.sin(2 * np.pi * 2000 * t)
     _write_wav(stems / "other.wav", np.column_stack([other, other]), rate)
+
+    return stems
+
+
+@pytest.fixture
+def stem_dir_6(tmp_path):
+    """Create a directory with 6 Suno-named stem WAV files."""
+    stems = tmp_path / "stems" / "01-test-track-6"
+    stems.mkdir(parents=True)
+
+    rate = 44100
+    duration = 1.0
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+
+    # Lead Vocals: mid-frequency sine
+    lead = 0.4 * np.sin(2 * np.pi * 800 * t)
+    _write_wav(stems / "0 Lead Vocals.wav", np.column_stack([lead, lead]), rate)
+
+    # Backing Vocals: slightly different frequency
+    backing = 0.3 * np.sin(2 * np.pi * 900 * t)
+    _write_wav(stems / "1 Backing Vocals.wav", np.column_stack([backing, backing]), rate)
+
+    # Drums: noise bursts
+    rng = np.random.default_rng(42)
+    drums = 0.5 * rng.standard_normal(len(t))
+    _write_wav(stems / "2 Drums.wav", np.column_stack([drums, drums]), rate)
+
+    # Bass: low sine
+    bass = 0.5 * np.sin(2 * np.pi * 80 * t)
+    _write_wav(stems / "3 Bass.wav", np.column_stack([bass, bass]), rate)
+
+    # Synth: mid-high sine
+    synth = 0.3 * np.sin(2 * np.pi * 2000 * t)
+    _write_wav(stems / "4 Synth.wav", np.column_stack([synth, synth]), rate)
+
+    # Other: different frequency
+    other = 0.25 * np.sin(2 * np.pi * 3000 * t)
+    _write_wav(stems / "5 Other.wav", np.column_stack([other, other]), rate)
+
+    return stems
+
+
+@pytest.fixture
+def stem_dir_12(tmp_path):
+    """Create a directory with 12 Suno-named stem WAV files."""
+    stems = tmp_path / "stems" / "01-test-track-12"
+    stems.mkdir(parents=True)
+
+    rate = 44100
+    duration = 1.0
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+
+    files = [
+        ("0 Lead Vocals.wav",    0.4, 800),
+        ("1 Backing Vocals.wav", 0.3, 900),
+        ("2 Drums.wav",          0.5, None),   # noise
+        ("3 Bass.wav",           0.5, 80),
+        ("4 Guitar.wav",         0.35, 1200),
+        ("5 Keyboard.wav",       0.3, 1500),
+        ("6 Strings.wav",        0.25, 600),
+        ("7 Brass.wav",          0.3, 1000),
+        ("8 Woodwinds.wav",      0.25, 2200),
+        ("9 Percussion.wav",     0.35, None),  # noise
+        ("10 Synth.wav",         0.3, 2000),
+        ("11 FX.wav",            0.2, 3000),
+    ]
+
+    rng = np.random.default_rng(42)
+    for name, amp, freq in files:
+        if freq is None:
+            # noise-based stem (drums, percussion)
+            data = amp * rng.standard_normal(len(t))
+        else:
+            data = amp * np.sin(2 * np.pi * freq * t)
+        _write_wav(stems / name, np.column_stack([data, data]), rate)
 
     return stems
 
@@ -755,6 +838,277 @@ class TestProcessOther:
         assert np.all(np.isfinite(result))
 
 
+class TestProcessBackingVocals:
+    """Tests for the backing vocal processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        result = process_backing_vocals(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_less_presence_than_lead(self):
+        """Backing vocals should have less presence boost than lead vocals."""
+        bv_settings = _get_stem_settings('backing_vocals')
+        lead_settings = _get_stem_settings('vocals')
+        assert bv_settings['presence_boost_db'] < lead_settings['presence_boost_db']
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        settings = {
+            'noise_reduction': 0.0,
+            'presence_boost_db': 0.5,
+            'presence_freq': 3000,
+            'high_tame_db': -3.0,
+            'high_tame_freq': 7000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -14.0,
+            'compress_ratio': 3.0,
+            'compress_attack_ms': 8.0,
+        }
+        result = process_backing_vocals(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+    def test_default_gain_is_negative(self):
+        """Backing vocals default gain should be negative (sit behind lead)."""
+        settings = _get_stem_settings('backing_vocals')
+        assert settings['gain_db'] < 0
+
+
+class TestProcessSynth:
+    """Tests for the synth processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=2000, amplitude=0.4)
+        result = process_synth(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_highpass_removes_sub_bass(self):
+        """Synth processor should remove sub-bass via highpass."""
+        data, rate = _generate_sine(freq=30, amplitude=0.5)
+        result = process_synth(data, rate)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=2000, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 100,
+            'mid_boost_db': 2.0,
+            'mid_freq': 2000,
+            'high_tame_db': -2.0,
+            'high_tame_freq': 9000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -16.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 15.0,
+        }
+        result = process_synth(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessGuitar:
+    """Tests for the guitar processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=1200, amplitude=0.4)
+        result = process_guitar(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_highpass_removes_sub_bass(self):
+        """Guitar processor should remove sub-bass via highpass."""
+        data, rate = _generate_sine(freq=30, amplitude=0.5)
+        result = process_guitar(data, rate)
+        assert np.max(np.abs(result)) < np.max(np.abs(data))
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=1200, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 100,
+            'mud_cut_db': -3.0,
+            'mud_freq': 250,
+            'presence_boost_db': 2.0,
+            'presence_freq': 3000,
+            'high_tame_db': -2.0,
+            'high_tame_freq': 8000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -14.0,
+            'compress_ratio': 2.5,
+            'compress_attack_ms': 12.0,
+        }
+        result = process_guitar(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessKeyboard:
+    """Tests for the keyboard processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=1500, amplitude=0.4)
+        result = process_keyboard(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_preserves_low_piano_notes(self):
+        """Low highpass (40 Hz) should preserve piano bass notes."""
+        # A note at 55 Hz (A1 on piano) should mostly pass
+        data, rate = _generate_sine(freq=55, amplitude=0.5)
+        result = process_keyboard(data, rate)
+        # Should retain significant energy (highpass at 40 Hz, signal at 55 Hz)
+        assert np.max(np.abs(result)) > 0.1
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=1500, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 50,
+            'mud_cut_db': -2.0,
+            'mud_freq': 300,
+            'presence_boost_db': 1.5,
+            'presence_freq': 2500,
+            'high_tame_db': -2.0,
+            'high_tame_freq': 9000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -16.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 15.0,
+        }
+        result = process_keyboard(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessStrings:
+    """Tests for the strings processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=600, amplitude=0.4)
+        result = process_strings(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_very_light_compression(self):
+        """Strings should use lightest compression (1.5:1 default)."""
+        settings = _get_stem_settings('strings')
+        assert settings['compress_ratio'] == 1.5
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=600, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 40,
+            'mud_cut_db': -1.0,
+            'mud_freq': 250,
+            'presence_boost_db': 1.5,
+            'presence_freq': 3500,
+            'high_tame_db': -1.0,
+            'high_tame_freq': 9000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -18.0,
+            'compress_ratio': 1.5,
+            'compress_attack_ms': 20.0,
+        }
+        result = process_strings(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessBrass:
+    """Tests for the brass processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=1000, amplitude=0.4)
+        result = process_brass(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_high_tame_controls_harshness(self):
+        """Brass high tame should be aggressive (-2 dB at 7 kHz)."""
+        settings = _get_stem_settings('brass')
+        assert settings['high_tame_db'] == -2.0
+        assert settings['high_tame_freq'] == 7000
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=1000, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 80,
+            'mud_cut_db': -2.0,
+            'mud_freq': 300,
+            'presence_boost_db': 2.0,
+            'presence_freq': 2000,
+            'high_tame_db': -3.0,
+            'high_tame_freq': 7000,
+            'compress_threshold_db': -14.0,
+            'compress_ratio': 2.5,
+            'compress_attack_ms': 10.0,
+        }
+        result = process_brass(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessWoodwinds:
+    """Tests for the woodwinds processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_sine(freq=2200, amplitude=0.4)
+        result = process_woodwinds(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_preserves_breathiness(self):
+        """Woodwinds high tame should be gentle (-1 dB) to preserve breathiness."""
+        settings = _get_stem_settings('woodwinds')
+        assert settings['high_tame_db'] == -1.0
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_sine(freq=2200, amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 60,
+            'mud_cut_db': -1.5,
+            'mud_freq': 250,
+            'presence_boost_db': 1.5,
+            'presence_freq': 2500,
+            'high_tame_db': -1.5,
+            'high_tame_freq': 8000,
+            'compress_threshold_db': -16.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 15.0,
+        }
+        result = process_woodwinds(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
+class TestProcessPercussion:
+    """Tests for the percussion processing chain."""
+
+    def test_produces_output(self):
+        data, rate = _generate_noise(amplitude=0.4)
+        result = process_percussion(data, rate)
+        assert result.shape == data.shape
+        assert np.all(np.isfinite(result))
+
+    def test_click_removal_works(self):
+        """Percussion should apply click removal by default."""
+        data, rate = _generate_click(amplitude=0.5)
+        result = process_percussion(data, rate)
+        click_idx = int(0.5 * rate)
+        assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+
+    def test_with_custom_settings(self):
+        data, rate = _generate_noise(amplitude=0.4)
+        settings = {
+            'highpass_cutoff': 80,
+            'click_removal': False,
+            'presence_boost_db': 1.5,
+            'presence_freq': 4000,
+            'high_tame_db': -1.5,
+            'high_tame_freq': 10000,
+            'stereo_width': 1.0,
+            'compress_threshold_db': -15.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 8.0,
+        }
+        result = process_percussion(data, rate, settings=settings)
+        assert np.all(np.isfinite(result))
+
+
 # ─── Tests: Full Pipeline (Stems) ────────────────────────────────────
 
 
@@ -900,7 +1254,7 @@ class TestDiscoverStems:
         assert result['vocals'].endswith('vocals.wav')
 
     def test_suno_naming_all_included(self, tmp_path):
-        """All Suno-style files are included — nothing dropped."""
+        """All Suno-style files are included — nothing dropped, 6 distinct categories."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
@@ -911,16 +1265,16 @@ class TestDiscoverStems:
         sf.write(str(tmp_path / "5 Other.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        # Keyword matching routes files to correct categories
-        assert 'vocals' in result  # Lead Vocals + Backing Vocals
-        assert isinstance(result['vocals'], list)
-        assert len(result['vocals']) == 2
-        assert 'drums' in result   # "2 Drums"
-        assert 'bass' in result    # "3 Bass"
-        assert 'other' in result   # Synth + Other (no keyword match)
-        assert isinstance(result['other'], list)
-        assert len(result['other']) == 2
-        # Total: 2 + 1 + 1 + 2 = 6 — nothing dropped
+        # Each Suno stem routes to its own category
+        assert 'vocals' in result           # "0 Lead Vocals"
+        assert isinstance(result['vocals'], str)  # single file
+        assert 'backing_vocals' in result   # "1 Backing Vocals"
+        assert isinstance(result['backing_vocals'], str)
+        assert 'drums' in result            # "2 Drums"
+        assert 'bass' in result             # "3 Bass"
+        assert 'synth' in result            # "4 Synth"
+        assert 'other' in result            # "5 Other"
+        # Total: 6 files in 6 categories — nothing dropped
         total = sum(
             len(v) if isinstance(v, list) else 1
             for v in result.values()
@@ -928,17 +1282,18 @@ class TestDiscoverStems:
         assert total == 6
 
     def test_suno_vocals_keyword_matched(self, tmp_path):
-        """Suno vocal files are routed to 'vocals' via keyword matching."""
+        """Lead and backing vocal files are routed to separate categories."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
         sf.write(str(tmp_path / "1 Backing Vocals.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        # Both match "vocal" keyword → routed to vocals
+        # Lead → vocals, Backing → backing_vocals
         assert 'vocals' in result
-        assert isinstance(result['vocals'], list)
-        assert len(result['vocals']) == 2
+        assert isinstance(result['vocals'], str)
+        assert 'backing_vocals' in result
+        assert isinstance(result['backing_vocals'], str)
 
     def test_single_nonstandard_stem_returns_string(self, tmp_path):
         """Single file per category returns a string, not a list."""
@@ -950,20 +1305,20 @@ class TestDiscoverStems:
         # "2 drums" contains "drum" keyword → drums category
         assert isinstance(result['drums'], str)
 
-    def test_suno_synth_maps_to_other(self, tmp_path):
-        """Synth stem maps to 'other' category."""
+    def test_suno_synth_maps_to_synth(self, tmp_path):
+        """Synth stem maps to 'synth' category."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(tmp_path / "4 Synth.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        assert 'other' in result
+        assert 'synth' in result
 
     def test_suno_multiple_other_returns_list(self, tmp_path):
         """Multiple non-matching stems are combined as 'other'."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
-        sf.write(str(tmp_path / "4 Synth.wav"), tone, rate)
+        sf.write(str(tmp_path / "4 FX.wav"), tone, rate)
         sf.write(str(tmp_path / "5 Other.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
@@ -987,12 +1342,12 @@ class TestDiscoverStems:
         # drums.wav → drums, bass.wav → bass
         assert 'drums' in result
         assert 'bass' in result
-        # other.wav + synth.wav → other (no keyword match)
+        # synth.wav → synth (keyword match)
+        assert 'synth' in result
+        assert Path(result['synth']).name == "synth.wav"
+        # other.wav → other (no keyword match)
         assert 'other' in result
-        other_names = result['other'] if isinstance(result['other'], list) else [result['other']]
-        other_basenames = [Path(p).name for p in other_names]
-        assert "other.wav" in other_basenames
-        assert "synth.wav" in other_basenames
+        assert Path(result['other']).name == "other.wav"
         # Total: 6 files — nothing dropped
         total = sum(
             len(v) if isinstance(v, list) else 1
@@ -1017,6 +1372,129 @@ class TestDiscoverStems:
         assert 'vocals' in result
         # "drums" contains "drum" → drums
         assert 'drums' in result
+
+    def test_backing_vocals_not_confused_with_vocals(self, tmp_path):
+        """Keyword ordering regression: backing_vocal must match before vocal."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "1 Backing Vocals.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        # Must route to backing_vocals, NOT vocals
+        assert 'backing_vocals' in result
+        assert 'vocals' not in result
+
+
+class TestMixTrackStems6Stem:
+    """Integration test: all 6 Suno stems discovered + processed end-to-end."""
+
+    def test_6_stem_end_to_end(self, stem_dir_6, output_path):
+        """All 6 Suno stems are discovered, processed, and remixed."""
+        stem_paths = discover_stems(stem_dir_6)
+
+        # Should have all 6 categories
+        assert len(stem_paths) == 6
+        for cat in ('vocals', 'backing_vocals', 'drums', 'bass', 'synth', 'other'):
+            assert cat in stem_paths, f"Missing category: {cat}"
+
+        result = mix_track_stems(stem_paths, output_path)
+
+        assert Path(output_path).exists()
+        assert not result.get('error')
+        assert len(result['stems_processed']) == 6
+        processed_names = {s['stem'] for s in result['stems_processed']}
+        assert processed_names == {'vocals', 'backing_vocals', 'drums', 'bass', 'synth', 'other'}
+
+
+class TestMixTrackStems12Stem:
+    """Integration test: all 12 Suno stems discovered + processed end-to-end."""
+
+    def test_12_stem_end_to_end(self, stem_dir_12, output_path):
+        """All 12 Suno stems are discovered, processed, and remixed."""
+        stem_paths = discover_stems(stem_dir_12)
+
+        # Should have all 12 categories
+        assert len(stem_paths) == 12
+        expected = {
+            'vocals', 'backing_vocals', 'drums', 'bass',
+            'guitar', 'keyboard', 'strings', 'brass',
+            'woodwinds', 'percussion', 'synth', 'other',
+        }
+        for cat in expected:
+            assert cat in stem_paths, f"Missing category: {cat}"
+
+        result = mix_track_stems(stem_paths, output_path)
+
+        assert Path(output_path).exists()
+        assert not result.get('error')
+        assert len(result['stems_processed']) == 12
+        processed_names = {s['stem'] for s in result['stems_processed']}
+        assert processed_names == expected
+
+
+class TestStemDiscoveryRegression:
+    """Regression tests for keyword routing edge cases."""
+
+    def test_percussion_not_confused_with_drums(self, tmp_path):
+        """'9 Percussion.wav' must route to percussion, NOT drums."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "2 Drums.wav"), tone, rate)
+        sf.write(str(tmp_path / "9 Percussion.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'drums' in result
+        assert 'percussion' in result
+        assert Path(result['drums']).name == "2 Drums.wav"
+        assert Path(result['percussion']).name == "9 Percussion.wav"
+
+    def test_keyboard_matches_piano(self, tmp_path):
+        """'Piano.wav' should route to keyboard category."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "Piano.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'keyboard' in result
+        assert Path(result['keyboard']).name == "Piano.wav"
+
+    def test_saxophone_matches_woodwinds(self, tmp_path):
+        """'Saxophone.wav' should route to woodwinds category."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "Saxophone.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'woodwinds' in result
+        assert Path(result['woodwinds']).name == "Saxophone.wav"
+
+    def test_trumpet_matches_brass(self, tmp_path):
+        """'Trumpet.wav' should route to brass category."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "Trumpet.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'brass' in result
+        assert Path(result['brass']).name == "Trumpet.wav"
+
+    def test_violin_matches_strings(self, tmp_path):
+        """'Violin.wav' should route to strings category."""
+        rate = 44100
+        tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
+        sf.write(str(tmp_path / "Violin.wav"), tone, rate)
+
+        result = discover_stems(tmp_path)
+        assert 'strings' in result
+        assert Path(result['strings']).name == "Violin.wav"
+
+    def test_old_4_stem_still_works(self, stem_dir):
+        """Old 4-stem directories (vocals, drums, bass, other) still work."""
+        result = discover_stems(stem_dir)
+        assert 'vocals' in result
+        assert 'drums' in result
+        assert 'bass' in result
+        assert 'other' in result
 
 
 class TestMixTrackStemsMultiFile:
@@ -1061,7 +1539,8 @@ class TestMixTrackStemsMultiFile:
         assert 'drums' in stem_paths   # "Drums" → drum keyword
         assert 'bass' in stem_paths    # "Bass" → bass keyword
         assert 'other' in stem_paths   # "Other" → no keyword match
-        # Total: 4 files — nothing dropped
+        # Each file in its own category — 4 distinct categories
+        assert len(stem_paths) == 4
         total = sum(
             len(v) if isinstance(v, list) else 1
             for v in stem_paths.values()
@@ -1141,7 +1620,9 @@ class TestPresetLoading:
     def test_defaults_have_all_stem_types(self):
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
         defaults = data['defaults']
-        for stem in ('vocals', 'drums', 'bass', 'other', 'full_mix'):
+        for stem in ('vocals', 'backing_vocals', 'drums', 'bass', 'guitar',
+                      'keyboard', 'strings', 'brass', 'woodwinds', 'percussion',
+                      'synth', 'other', 'bus', 'full_mix'):
             assert stem in defaults, f"Missing default settings for '{stem}'"
 
     def test_common_genres_exist(self):

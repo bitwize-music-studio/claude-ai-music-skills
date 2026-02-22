@@ -1,6 +1,6 @@
 ---
 name: mix-engineer
-description: Polishes raw Suno audio by processing per-stem WAVs (vocals, drums, bass, other) with targeted cleanup, EQ, and compression, then remixing into a polished stereo WAV ready for mastering. Use after audio import and before mastering.
+description: Polishes raw Suno audio by processing per-stem WAVs (vocals, backing_vocals, drums, bass, guitar, keyboard, strings, brass, woodwinds, percussion, synth, other) with targeted cleanup, EQ, and compression, then remixing into a polished stereo WAV ready for mastering. Use after audio import and before mastering.
 argument-hint: <album-name or "polish for [genre]">
 model: claude-sonnet-4-6
 prerequisites:
@@ -54,7 +54,7 @@ You are an audio mix polish specialist for AI-generated music. You take raw Suno
 ## Core Principles
 
 ### Stems First
-Suno provides separate stem WAVs (vocals, drums, bass, other). Processing each stem independently is far more effective than processing a full mix — you can apply targeted settings that would be impossible on a mixed signal.
+Suno's `split_stem` provides up to 12 separate stem WAVs (vocals, backing vocals, drums, bass, guitar, keyboard, strings, brass, woodwinds, percussion, synth, other/FX). Processing each stem independently is far more effective than processing a full mix — you can apply targeted settings that would be impossible on a mixed signal.
 
 ### Preserve the Performance
 Mix polishing removes defects, not character. Be conservative with processing. Over-processing sounds worse than under-processing.
@@ -109,10 +109,18 @@ Before polishing, resolve audio path via MCP:
 │   └── ...
 ├── stems/
 │   ├── 01-track-name/
-│   │   ├── vocals.wav
-│   │   ├── drums.wav
-│   │   ├── bass.wav
-│   │   └── other.wav
+│   │   ├── 0 Lead Vocals.wav
+│   │   ├── 1 Backing Vocals.wav
+│   │   ├── 2 Drums.wav
+│   │   ├── 3 Bass.wav
+│   │   ├── 4 Guitar.wav
+│   │   ├── 5 Keyboard.wav
+│   │   ├── 6 Strings.wav
+│   │   ├── 7 Brass.wav
+│   │   ├── 8 Woodwinds.wav
+│   │   ├── 9 Percussion.wav
+│   │   ├── 10 Synth.wav
+│   │   └── 11 FX.wav
 │   └── 02-track-name/
 │       └── ...
 ├── polished/                    # ← mix-engineer output
@@ -232,11 +240,18 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 
 ## Per-Stem Processing Chains
 
-### Vocals
+### Vocals (Lead)
 1. **Noise reduction** (strength 0.5) — removes AI hiss and artifacts
 2. **Presence boost** (+2 dB at 3 kHz) — vocal clarity
 3. **High tame** (-2 dB shelf at 7 kHz) — de-ess sibilance
 4. **Gentle compress** (-15 dB threshold, 2.5:1) — dynamic consistency
+
+### Backing Vocals
+1. **Noise reduction** (strength 0.5) — same as lead
+2. **Presence boost** (+1 dB at 3 kHz) — half of lead's boost, sits behind
+3. **High tame** (-2.5 dB shelf at 7 kHz) — slightly more aggressive de-essing
+4. **Stereo width** (1.3×) — spread behind lead
+5. **Gentle compress** (-14 dB threshold, 3:1, 8ms attack) — tighter than lead
 
 ### Drums
 1. **Click removal** (threshold 6σ) — removes digital clicks/pops
@@ -247,7 +262,60 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 2. **Mud cut** (-3 dB at 200 Hz) — low-mid cleanup
 3. **Gentle compress** (-15 dB threshold, 3:1) — consistent bottom end
 
-### Other (instruments, synths)
+### Guitar
+1. **Highpass** (80 Hz Butterworth) — remove sub-bass
+2. **Mud cut** (-2.5 dB at 250 Hz) — guitar boxiness zone
+3. **Presence boost** (+1.5 dB at 3 kHz, Q 1.2) — pick articulation
+4. **High tame** (-1.5 dB shelf at 8 kHz) — brightness control
+5. **Stereo width** (1.15×) — moderate spread
+6. **Gentle compress** (-14 dB threshold, 2.5:1, 12ms attack) — moderate, preserve dynamics
+
+### Keyboard
+1. **Highpass** (40 Hz Butterworth) — low cutoff preserves piano bass notes
+2. **Mud cut** (-2 dB at 300 Hz) — low-mid cleanup
+3. **Presence boost** (+1 dB at 2.5 kHz, Q 0.8) — avoids vocal zone
+4. **High tame** (-1.5 dB shelf at 9 kHz) — brightness control
+5. **Stereo width** (1.1×) — slight spread
+6. **Gentle compress** (-16 dB threshold, 2:1, 15ms attack) — light, preserve expressive dynamics
+
+### Strings
+1. **Highpass** (35 Hz Butterworth) — very low for cello/bass range
+2. **Mud cut** (-1.5 dB at 250 Hz, Q 0.8) — gentle low-mid cleanup
+3. **Presence boost** (+1 dB at 3.5 kHz) — above vocals
+4. **High tame** (-1 dB shelf at 9 kHz) — gentle
+5. **Stereo width** (1.25×) — wide for orchestral spread
+6. **Gentle compress** (-18 dB threshold, 1.5:1, 20ms attack) — lightest of all stems, preserve orchestral dynamics
+
+### Brass
+1. **Highpass** (60 Hz Butterworth) — sub-rumble removal
+2. **Mud cut** (-2 dB at 300 Hz) — low-mid cleanup
+3. **Presence boost** (+1.5 dB at 2 kHz) — brass "bite" (below vocals)
+4. **High tame** (-2 dB shelf at 7 kHz) — aggressive, brass is piercing
+5. **Gentle compress** (-14 dB threshold, 2.5:1, 10ms attack)
+
+### Woodwinds
+1. **Highpass** (50 Hz Butterworth) — sub-rumble removal
+2. **Mud cut** (-1.5 dB at 250 Hz, Q 0.8) — gentle
+3. **Presence boost** (+1 dB at 2.5 kHz) — reed/breath articulation
+4. **High tame** (-1 dB shelf at 8 kHz) — gentle, preserve breathiness
+5. **Gentle compress** (-16 dB threshold, 2:1, 15ms attack)
+
+### Percussion
+1. **Highpass** (60 Hz Butterworth) — sub-rumble removal
+2. **Click removal** (threshold 6σ) — digital clicks/pops
+3. **Presence boost** (+1 dB at 4 kHz) — highest of all stems (shakers/tambourines)
+4. **High tame** (-1 dB shelf at 10 kHz) — preserve shimmer
+5. **Stereo width** (1.2×) — wider than drums
+6. **Gentle compress** (-15 dB threshold, 2:1, 8ms attack)
+
+### Synth
+1. **Highpass** (80 Hz Butterworth) — avoid bass competition
+2. **Mid boost** (+1 dB at 2 kHz, wide Q 0.8) — body/presence
+3. **High tame** (-1.5 dB shelf at 9 kHz) — control digital brightness
+4. **Stereo width** (1.2×) — pad spread
+5. **Gentle compress** (-16 dB threshold, 2:1, 15ms attack) — light, preserve dynamics
+
+### Other (catch-all)
 1. **Noise reduction** (strength 0.3) — lighter than vocals
 2. **Mud cut** (-2 dB at 300 Hz) — low-mid cleanup
 3. **High tame** (-1.5 dB shelf at 8 kHz) — brightness control
