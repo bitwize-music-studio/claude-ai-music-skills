@@ -51,18 +51,20 @@ STEM_NAMES = ("vocals", "drums", "bass", "other")
 
 # Suno stem keyword → category mapping (case-insensitive, checked in order)
 _STEM_KEYWORDS = {
-    "vocals": ["vocal"],
-    "drums": ["drum"],
+    "vocals": ["vocal", "backing_vocal"],
+    "drums": ["drum", "percussion"],
     "bass": ["bass"],
-    # "other" is the catch-all — anything not matching above
+    # "other" is the catch-all — synth, keyboard, guitar, etc.
 }
 
 
 def discover_stems(track_dir):
     """Discover and categorize stem WAV files in a directory.
 
-    Supports both standard naming (vocals.wav) and Suno naming
-    (0 Lead Vocals.wav, 1 Backing Vocals.wav, etc.).
+    Scans ALL WAV files and categorizes them into processing buckets
+    (vocals, drums, bass, other).  Extra stems like synth.wav,
+    keyboard.wav, percussion.wav, backing_vocals.wav, and guitar.wav
+    are folded into the appropriate category so nothing is dropped.
 
     When multiple files match one category (e.g., lead + backing vocals),
     all are returned so they can be combined during processing.
@@ -76,26 +78,16 @@ def discover_stems(track_dir):
         Multiple files for one category are returned as a list.
     """
     track_dir = Path(track_dir)
-    result = {}
 
-    # Try standard names first (exact match — verify actual filename case
-    # to avoid false positives on case-insensitive filesystems like macOS)
-    for stem_name in STEM_NAMES:
-        stem_file = track_dir / f"{stem_name}.wav"
-        if stem_file.exists() and stem_file.name in os.listdir(track_dir):
-            result[stem_name] = str(stem_file)
-
-    if result:
-        return result
-
-    # Fall back to pattern matching on all WAV files
+    # Collect ALL WAV files in the directory
     wav_files = sorted([
         f for f in track_dir.iterdir()
         if f.suffix.lower() == ".wav"
+        and f.name in os.listdir(track_dir)  # case-sensitive check for macOS
     ])
 
     if not wav_files:
-        return result
+        return {}
 
     categorized = {name: [] for name in STEM_NAMES}
 
@@ -110,6 +102,7 @@ def discover_stems(track_dir):
         if not matched:
             categorized["other"].append(str(wav_file))
 
+    result = {}
     for stem_name, paths in categorized.items():
         if len(paths) == 1:
             result[stem_name] = paths[0]

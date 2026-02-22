@@ -956,17 +956,19 @@ class TestDiscoverStems:
         assert isinstance(result['other'], list)
         assert len(result['other']) == 2
 
-    def test_standard_naming_preferred(self, stem_dir, tmp_path):
-        """Standard names take priority even if Suno-named files also exist."""
+    def test_standard_and_suno_names_combined(self, stem_dir, tmp_path):
+        """Standard and Suno-named files are combined in the same category."""
         # stem_dir already has standard names; add a Suno-named file
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(stem_dir / "0 Lead Vocals.wav"), tone, rate)
 
         result = discover_stems(stem_dir)
-        # Should use standard vocals.wav, not the Suno file
-        assert isinstance(result['vocals'], str)
-        assert result['vocals'].endswith('vocals.wav')
+        # Both vocals.wav and 0 Lead Vocals.wav should appear together
+        assert isinstance(result['vocals'], list)
+        vocal_names = [Path(p).name for p in result['vocals']]
+        assert "vocals.wav" in vocal_names
+        assert "0 Lead Vocals.wav" in vocal_names
 
     def test_empty_directory(self, tmp_path):
         """Empty directory returns empty dict."""
