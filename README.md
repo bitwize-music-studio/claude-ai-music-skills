@@ -14,7 +14,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
 ![Version](https://img.shields.io/badge/version-0.65.0-blue)
 ![Skills](https://img.shields.io/badge/skills-50-green)
-![Tests](https://img.shields.io/badge/tests-2252-brightgreen)
+![Tests](https://img.shields.io/badge/tests-2256-brightgreen)
 
 ## What Is This?
 
