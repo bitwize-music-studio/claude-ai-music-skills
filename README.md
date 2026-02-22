@@ -12,9 +12,9 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.63.0-blue)
+![Version](https://img.shields.io/badge/version-0.64.0-blue)
 ![Skills](https://img.shields.io/badge/skills-50-green)
-![Tests](https://img.shields.io/badge/tests-2299-brightgreen)
+![Tests](https://img.shields.io/badge/tests-2331-brightgreen)
 
 ## What Is This?
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.64** | 12-stem pipeline (full Suno split_stem), guitar/keyboard/strings/brass/woodwinds/percussion as first-class stems, instrument-name keyword routing, percussion/drums separation fix |
 | **0.63** | Bus compression presets (16 genres), stereo width in stems path, mastering compression stage, venv health check, debug logging, reset mastering tool |
 | **0.62** | `develop`/`main` branch model, CI streamlined to Python 3.11, plugin version in `/about` |
 | **0.61** | `originals/` audio layout + migration tool, fade-out support, mix character effects (saturation, lowpass, stereo width) |
