@@ -911,22 +911,34 @@ class TestDiscoverStems:
         sf.write(str(tmp_path / "5 Other.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        # No standard names → everything lands in "other"
-        assert 'other' in result
+        # Keyword matching routes files to correct categories
+        assert 'vocals' in result  # Lead Vocals + Backing Vocals
+        assert isinstance(result['vocals'], list)
+        assert len(result['vocals']) == 2
+        assert 'drums' in result   # "2 Drums"
+        assert 'bass' in result    # "3 Bass"
+        assert 'other' in result   # Synth + Other (no keyword match)
         assert isinstance(result['other'], list)
-        assert len(result['other']) == 6  # all 6 files included
+        assert len(result['other']) == 2
+        # Total: 2 + 1 + 1 + 2 = 6 — nothing dropped
+        total = sum(
+            len(v) if isinstance(v, list) else 1
+            for v in result.values()
+        )
+        assert total == 6
 
-    def test_suno_files_all_go_to_other(self, tmp_path):
-        """Non-standard-named files all go to 'other' — no keyword guessing."""
+    def test_suno_vocals_keyword_matched(self, tmp_path):
+        """Suno vocal files are routed to 'vocals' via keyword matching."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(tmp_path / "0 Lead Vocals.wav"), tone, rate)
         sf.write(str(tmp_path / "1 Backing Vocals.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        # Both go to "other" (not "vocals") because they're not exact standard names
-        assert isinstance(result['other'], list)
-        assert len(result['other']) == 2
+        # Both match "vocal" keyword → routed to vocals
+        assert 'vocals' in result
+        assert isinstance(result['vocals'], list)
+        assert len(result['vocals']) == 2
 
     def test_single_nonstandard_stem_returns_string(self, tmp_path):
         """Single file per category returns a string, not a list."""
@@ -935,7 +947,8 @@ class TestDiscoverStems:
         sf.write(str(tmp_path / "2 Drums.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        assert isinstance(result['other'], str)
+        # "2 drums" contains "drum" keyword → drums category
+        assert isinstance(result['drums'], str)
 
     def test_suno_synth_maps_to_other(self, tmp_path):
         """Synth stem maps to 'other' category."""
@@ -958,8 +971,8 @@ class TestDiscoverStems:
         assert len(result['other']) == 2
 
     def test_standard_plus_extra_stems_all_included(self, stem_dir, tmp_path):
-        """Standard names go to their category, extras go to 'other'."""
-        # stem_dir already has standard names (vocals.wav, drums.wav, etc.)
+        """Standard + Suno names all included, routed by keyword."""
+        # stem_dir already has standard names (vocals.wav, drums.wav, bass.wav, other.wav)
         # Add extra Suno-named files
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
@@ -967,32 +980,43 @@ class TestDiscoverStems:
         sf.write(str(stem_dir / "synth.wav"), tone, rate)
 
         result = discover_stems(stem_dir)
-        # Standard vocals.wav → vocals category
+        # vocals.wav + "0 Lead Vocals.wav" both match "vocal" keyword → list
         assert 'vocals' in result
-        # Extra files → other (nothing dropped)
+        assert isinstance(result['vocals'], list)
+        assert len(result['vocals']) == 2
+        # drums.wav → drums, bass.wav → bass
+        assert 'drums' in result
+        assert 'bass' in result
+        # other.wav + synth.wav → other (no keyword match)
         assert 'other' in result
         other_names = result['other'] if isinstance(result['other'], list) else [result['other']]
         other_basenames = [Path(p).name for p in other_names]
-        assert "0 Lead Vocals.wav" in other_basenames
+        assert "other.wav" in other_basenames
         assert "synth.wav" in other_basenames
+        # Total: 6 files — nothing dropped
+        total = sum(
+            len(v) if isinstance(v, list) else 1
+            for v in result.values()
+        )
+        assert total == 6
 
     def test_empty_directory(self, tmp_path):
         """Empty directory returns empty dict."""
         result = discover_stems(tmp_path)
         assert result == {}
 
-    def test_nonstandard_names_go_to_other(self, tmp_path):
-        """Non-exact-match names go to 'other' regardless of content."""
+    def test_uppercase_names_keyword_matched(self, tmp_path):
+        """Uppercase names are matched via case-insensitive keywords."""
         rate = 44100
         tone = np.sin(2 * np.pi * 440 * np.arange(rate) / rate).astype(np.float32)
         sf.write(str(tmp_path / "LEAD VOCALS.wav"), tone, rate)
         sf.write(str(tmp_path / "DRUMS.wav"), tone, rate)
 
         result = discover_stems(tmp_path)
-        # Not exact matches for vocals.wav / drums.wav → both go to "other"
-        assert 'other' in result
-        assert isinstance(result['other'], list)
-        assert len(result['other']) == 2
+        # "lead vocals" contains "vocal" → vocals
+        assert 'vocals' in result
+        # "drums" contains "drum" → drums
+        assert 'drums' in result
 
 
 class TestMixTrackStemsMultiFile:
@@ -1021,7 +1045,7 @@ class TestMixTrackStemsMultiFile:
         assert Path(output).exists()
 
     def test_suno_naming_end_to_end(self, tmp_path):
-        """Full pipeline with Suno-named stems — all included in 'other'."""
+        """Full pipeline with Suno-named stems — keyword-routed to correct categories."""
         rate = 44100
         t = np.arange(rate) / rate
         tone = np.sin(2 * np.pi * 440 * t).astype(np.float32)
@@ -1032,10 +1056,17 @@ class TestMixTrackStemsMultiFile:
         sf.write(str(tmp_path / "5 Other.wav"), tone * 0.4, rate)
 
         stem_paths = discover_stems(tmp_path)
-        # All 4 Suno-named files go to "other" (no standard name matches)
-        assert 'other' in stem_paths
-        assert isinstance(stem_paths['other'], list)
-        assert len(stem_paths['other']) == 4
+        # Keywords route each file to the right category
+        assert 'vocals' in stem_paths  # "Lead Vocals" → vocal keyword
+        assert 'drums' in stem_paths   # "Drums" → drum keyword
+        assert 'bass' in stem_paths    # "Bass" → bass keyword
+        assert 'other' in stem_paths   # "Other" → no keyword match
+        # Total: 4 files — nothing dropped
+        total = sum(
+            len(v) if isinstance(v, list) else 1
+            for v in stem_paths.values()
+        )
+        assert total == 4
 
         output = str(tmp_path / "polished.wav")
         result = mix_track_stems(stem_paths, output)

@@ -49,21 +49,24 @@ _CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 # Stem names in processing order
 STEM_NAMES = ("vocals", "drums", "bass", "other")
 
-# Standard stem names → exact filename match.  Anything that doesn't
-# match a standard name goes straight into "other" and gets processed.
-# No keyword guessing — if a WAV is in the directory it came from Suno
-# and we want it.
-_STANDARD_STEMS = {name: f"{name}.wav" for name in STEM_NAMES}
+# Keyword → category mapping for smart routing (case-insensitive).
+# Checked in order; first match wins.  Unmatched files → "other".
+# RULE: every WAV is always included — nothing is ever dropped.
+_STEM_KEYWORDS = {
+    "vocals": ["vocal", "backing_vocal"],
+    "drums": ["drum", "percussion"],
+    "bass": ["bass"],
+    # "other" is the catch-all — synth, keyboard, guitar, etc.
+}
 
 
 def discover_stems(track_dir):
     """Discover and categorize stem WAV files in a directory.
 
-    Every WAV file in the directory is included — nothing is dropped.
-    Files with standard names (vocals.wav, drums.wav, bass.wav, other.wav)
-    go into their matching processing bucket.  Everything else (synth.wav,
-    backing_vocals.wav, keyboard.wav, guitar.wav, percussion.wav, Suno
-    numbered files like "0 Lead Vocals.wav") goes into "other".
+    Every WAV file is included — nothing is ever dropped.  Files are
+    routed to processing buckets via keyword matching so each stem type
+    gets the right treatment (de-essing for vocals, compression for
+    drums, etc.).  Anything that doesn't match a keyword goes to "other".
 
     When multiple files land in one category, all are returned as a list
     so they can be combined during processing.
@@ -91,16 +94,14 @@ def discover_stems(track_dir):
     categorized = {name: [] for name in STEM_NAMES}
 
     for wav_file in wav_files:
-        # Exact standard name match → that category
-        placed = False
-        for stem_cat, std_filename in _STANDARD_STEMS.items():
-            if wav_file.name == std_filename:
+        name_lower = wav_file.stem.lower()
+        matched = False
+        for stem_cat, keywords in _STEM_KEYWORDS.items():
+            if any(kw in name_lower for kw in keywords):
                 categorized[stem_cat].append(str(wav_file))
-                placed = True
+                matched = True
                 break
-        # Everything else → "other" (synth, keyboard, guitar, backing
-        # vocals, percussion, Suno numbered files, etc.)
-        if not placed:
+        if not matched:
             categorized["other"].append(str(wav_file))
 
     result = {}
