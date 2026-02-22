@@ -34,3 +34,5 @@ build/
 dist/
 *.egg-info/
 TESTING.md
+.coverage
+TODO.md
