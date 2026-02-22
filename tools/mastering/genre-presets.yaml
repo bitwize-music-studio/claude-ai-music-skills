@@ -1,10 +1,9 @@
 # Genre-Specific Mastering Presets
 #
 # Each genre defines:
-#   target_lufs     - Loudness target (streaming standard: -14, dynamic genres: -16 to -18)
-#   cut_highmid     - EQ cut in dB at 3.5kHz to tame harshness (negative = cut, 0 = none)
-#   cut_highs       - High shelf cut in dB at 8kHz for overly bright mixes (negative = cut, 0 = none)
-#   compress_ratio  - Mastering compression ratio (1.0 = bypass, 1.5 = gentle glue)
+#   target_lufs  - Loudness target (streaming standard: -14, dynamic genres: -16 to -18)
+#   cut_highmid  - EQ cut in dB at 3.5kHz to tame harshness (negative = cut, 0 = none)
+#   cut_highs    - High shelf cut in dB at 8kHz for overly bright mixes (negative = cut, 0 = none)
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -14,7 +13,6 @@ defaults:
   target_lufs: -14.0
   cut_highmid: 0
   cut_highs: 0
-  compress_ratio: 1.5
 
 genres:
   # === Pop / Mainstream ===
@@ -224,7 +222,6 @@ genres:
     target_lufs: -16.0
     cut_highmid: -1.0
     cut_highs: 0
-    compress_ratio: 1.0
   lo-fi:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -277,7 +274,6 @@ genres:
     target_lufs: -16.0
     cut_highmid: 0
     cut_highs: 0
-    compress_ratio: 1.0
   blues:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -290,19 +286,16 @@ genres:
     target_lufs: -16.0
     cut_highmid: 0
     cut_highs: 0
-    compress_ratio: 1.0
 
   # === Classical / Cinematic ===
   classical:
     target_lufs: -18.0
     cut_highmid: 0
     cut_highs: 0
-    compress_ratio: 1.0
   opera:
     target_lufs: -18.0
     cut_highmid: 0
     cut_highs: 0
-    compress_ratio: 1.0
   cinematic:
     target_lufs: -16.0
     cut_highmid: 0

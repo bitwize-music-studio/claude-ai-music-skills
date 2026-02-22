@@ -30,7 +30,6 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from tools.mixing.mix_tracks import gentle_compress
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -76,7 +75,7 @@ def load_genre_presets() -> dict:
     """Load genre presets from YAML, merging built-in with user overrides.
 
     Returns:
-        Dict mapping genre name to (target_lufs, cut_highmid, cut_highs, compress_ratio) tuples.
+        Dict mapping genre name to (target_lufs, cut_highmid, cut_highs) tuples.
     """
     # Load built-in presets
     builtin = _load_yaml_file(_BUILTIN_PRESETS_FILE)
@@ -97,7 +96,6 @@ def load_genre_presets() -> dict:
     default_lufs = float(defaults.get('target_lufs', -14.0))
     default_highmid = float(defaults.get('cut_highmid', 0))
     default_highs = float(defaults.get('cut_highs', 0))
-    default_compress_ratio = float(defaults.get('compress_ratio', 1.5))
 
     # Merge: built-in genres + override genres (override wins per-field)
     all_genre_names = set(builtin_genres.keys()) | set(override_genres.keys())
@@ -110,7 +108,6 @@ def load_genre_presets() -> dict:
             float(merged.get('target_lufs', default_lufs)),
             float(merged.get('cut_highmid', default_highmid)),
             float(merged.get('cut_highs', default_highs)),
-            float(merged.get('compress_ratio', default_compress_ratio)),
         )
 
     return presets
@@ -274,8 +271,7 @@ def limit_peaks(data, ceiling_db=-1.0):
     return soft_clip(data, ceiling_linear)
 
 def master_track(input_path, output_path, target_lufs=-14.0,
-                 eq_settings=None, ceiling_db=-1.0, fade_out=None,
-                 compress_ratio=1.5):
+                 eq_settings=None, ceiling_db=-1.0, fade_out=None):
     """Master a single track.
 
     Args:
@@ -284,8 +280,6 @@ def master_track(input_path, output_path, target_lufs=-14.0,
         target_lufs: Target integrated loudness
         eq_settings: List of (freq, gain_db, q) tuples for EQ
         ceiling_db: True peak ceiling in dB
-        fade_out: Optional fade-out duration in seconds
-        compress_ratio: Compression ratio (1.0 = bypass, 1.5 = gentle glue)
     """
     # Read audio
     data, rate = sf.read(input_path)
@@ -304,14 +298,6 @@ def master_track(input_path, output_path, target_lufs=-14.0,
     # is measured correctly with the fade included)
     if fade_out is not None and fade_out > 0:
         data = apply_fade_out(data, rate, duration=fade_out)
-
-    # Mastering compression — gentle safety net
-    if compress_ratio > 1.0:
-        data = gentle_compress(
-            data, rate,
-            threshold_db=-18.0, ratio=compress_ratio,
-            attack_ms=30.0, release_ms=200.0,
-        )
 
     # Measure current loudness
     meter = pyln.Meter(rate)
@@ -357,8 +343,7 @@ def master_track(input_path, output_path, target_lufs=-14.0,
         'final_peak': final_peak,
     }
 
-def _process_one_track(wav_file, output_path, target_lufs, eq_settings,
-                       ceiling_db, dry_run, compress_ratio=1.5):
+def _process_one_track(wav_file, output_path, target_lufs, eq_settings, ceiling_db, dry_run):
     """Process a single track (used by both sequential and parallel paths).
 
     Returns (wav_file_name, result_dict) or (wav_file_name, None) if skipped.
@@ -384,8 +369,7 @@ def _process_one_track(wav_file, output_path, target_lufs, eq_settings,
             str(output_path),
             target_lufs=target_lufs,
             eq_settings=eq_settings,
-            ceiling_db=ceiling_db,
-            compress_ratio=compress_ratio,
+            ceiling_db=ceiling_db
         )
 
     if result.get('skipped'):
@@ -427,8 +411,6 @@ Examples:
                        help='Show debug output')
     parser.add_argument('--quiet', '-q', action='store_true',
                        help='Show only warnings and errors')
-    parser.add_argument('--compress-ratio', type=float, default=None,
-                       help='Mastering compression ratio (1.0=bypass, default: genre preset or 1.5)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -443,7 +425,7 @@ Examples:
             logger.error("Unknown genre: %s", args.genre)
             logger.error("Available: %s", ', '.join(sorted(GENRE_PRESETS.keys())))
             return
-        preset_lufs, preset_highmid, preset_highs, preset_compress = GENRE_PRESETS[genre_key]
+        preset_lufs, preset_highmid, preset_highs = GENRE_PRESETS[genre_key]
         # Genre preset provides defaults, but explicit args override
         if args.target_lufs is None:
             args.target_lufs = preset_lufs
@@ -451,8 +433,6 @@ Examples:
             args.cut_highmid = preset_highmid
         if args.cut_highs is None:
             args.cut_highs = preset_highs
-        if args.compress_ratio is None:
-            args.compress_ratio = preset_compress
 
     # Apply defaults if no genre and no explicit value
     if args.target_lufs is None:
@@ -461,8 +441,6 @@ Examples:
         args.cut_highmid = 0
     if args.cut_highs is None:
         args.cut_highs = 0
-    if args.compress_ratio is None:
-        args.compress_ratio = 1.5
 
     # Setup
     input_dir = Path(args.path).expanduser().resolve()
@@ -511,10 +489,6 @@ Examples:
         print(f"EQ: High-mid cut: {args.cut_highmid}dB at 3.5kHz")
     if args.cut_highs != 0:
         print(f"EQ: High shelf cut: {args.cut_highs}dB at 8kHz")
-    if args.compress_ratio > 1.0:
-        print(f"Compression: {args.compress_ratio}:1")
-    else:
-        print("Compression: bypass")
     print(f"Output: {output_dir}/")
     print("=" * 70)
     print()
@@ -540,8 +514,7 @@ Examples:
         for wav_file, output_path in tasks:
             progress.update(wav_file.name)
             _, result = _process_one_track(
-                wav_file, output_path, args.target_lufs, eq, args.ceiling,
-                args.dry_run, compress_ratio=args.compress_ratio,
+                wav_file, output_path, args.target_lufs, eq, args.ceiling, args.dry_run
             )
             if result is None:
                 continue
@@ -556,8 +529,7 @@ Examples:
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = {
                 executor.submit(
-                    _process_one_track, wf, op, args.target_lufs, eq, args.ceiling,
-                    args.dry_run, args.compress_ratio,
+                    _process_one_track, wf, op, args.target_lufs, eq, args.ceiling, args.dry_run
                 ): i
                 for i, (wf, op) in enumerate(tasks)
             }
