@@ -6752,7 +6752,6 @@ async def master_audio(
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
-    effective_compress = 1.5
     genre_applied = None
 
     if genre:
@@ -6763,7 +6762,7 @@ async def master_audio(
                 "error": f"Unknown genre: {genre}",
                 "available_genres": sorted(presets.keys()),
             })
-        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
+        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
         # Genre preset provides defaults; explicit non-default args override
         if target_lufs == -14.0:
             effective_lufs = preset_lufs
@@ -6771,7 +6770,6 @@ async def master_audio(
             effective_highmid = preset_highmid
         if cut_highs == 0.0:
             effective_highs = preset_highs
-        effective_compress = preset_compress
         genre_applied = genre_key
 
     # Build EQ settings
@@ -6824,7 +6822,6 @@ async def master_audio(
                     target_lufs=effective_lufs,
                     eq_settings=eq_settings if eq_settings else None,
                     ceiling_db=ceiling_db,
-                    compress_ratio=effective_compress,
                 )
             result = await loop.run_in_executor(None, _do_master, wav_file, output_path)
             if result and not result.get("skipped"):
@@ -7665,7 +7662,6 @@ async def master_album(
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
-    effective_compress = 1.5
     genre_applied = None
 
     if genre:
@@ -7682,14 +7678,13 @@ async def master_album(
                     "available_genres": sorted(presets.keys()),
                 },
             })
-        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
+        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
         if target_lufs == -14.0:
             effective_lufs = preset_lufs
         if cut_highmid == 0.0:
             effective_highmid = preset_highmid
         if cut_highs == 0.0:
             effective_highs = preset_highs
-        effective_compress = preset_compress
         genre_applied = genre_key
 
     settings = {
@@ -7811,20 +7806,18 @@ async def master_album(
         track_meta = album_tracks.get(track_slug, {})
         fade_out_val = track_meta.get("fade_out")
 
-        def _do_master(in_path, out_path, lufs, eq, ceil, fade, comp):
+        def _do_master(in_path, out_path, lufs, eq, ceil, fade):
             return _master_track(
                 str(in_path), str(out_path),
                 target_lufs=lufs,
                 eq_settings=eq if eq else None,
                 ceiling_db=ceil,
                 fade_out=fade,
-                compress_ratio=comp,
             )
 
         result = await loop.run_in_executor(
             None, _do_master, wav_file, output_path,
             effective_lufs, eq_settings, ceiling_db, fade_out_val,
-            effective_compress,
         )
         if result and not result.get("skipped"):
             result["filename"] = wav_file.name

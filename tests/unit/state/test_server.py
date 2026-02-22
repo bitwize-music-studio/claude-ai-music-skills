@@ -11489,7 +11489,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 1.5)}
+        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
@@ -11515,7 +11515,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 1.5)}
+        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \

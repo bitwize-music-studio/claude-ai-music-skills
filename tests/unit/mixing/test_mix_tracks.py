@@ -46,7 +46,6 @@ from tools.mixing.mix_tracks import (
     discover_stems,
     _get_stem_settings,
     _get_full_mix_settings,
-    _get_bus_settings,
 )
 
 
@@ -833,31 +832,6 @@ class TestMixTrackStems:
         assert len(result['stems_processed']) == 1
         assert Path(output_path).exists()
 
-    def test_stems_applies_stereo_width(self, stem_dir, output_path):
-        """Stems pipeline should apply stereo width for genres that define it."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        # Shoegaze has stereo_width: 1.4 in full_mix settings
-        result = mix_track_stems(stem_paths, output_path, genre='shoegaze')
-
-        assert Path(output_path).exists()
-        assert 'stereo_width' in result, "Result should include stereo_width for shoegaze"
-        assert result['stereo_width'] == 1.4
-
-    def test_stems_no_stereo_width_for_default(self, stem_dir, output_path):
-        """Stems pipeline should skip stereo width when default (1.0)."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        result = mix_track_stems(stem_paths, output_path)
-
-        assert Path(output_path).exists()
-        assert 'stereo_width' not in result, \
-            "Result should not include stereo_width when default (1.0)"
-
     def test_no_valid_stems_returns_error(self, tmp_path, output_path):
         """All missing stems should return error."""
         stem_paths = {
@@ -1281,75 +1255,3 @@ class TestOverrideMerging:
         presets = load_mix_presets()
         assert 'rock' in presets['genres']
         assert 'pop' in presets['genres']
-
-
-# ─── Tests: Bus Compression ─────────────────────────────────────────
-
-
-class TestBusCompression:
-    """Tests for mix bus compression in the stems pipeline."""
-
-    def test_bus_compression_reduces_peaks(self):
-        """Bus compression should reduce peak level on sustained material."""
-        # Sustained loud sine — represents post-remix combined signal
-        data, rate = _generate_sine(freq=440, amplitude=0.8)
-
-        pre_peak = float(np.max(np.abs(data)))
-
-        result = gentle_compress(
-            data, rate,
-            threshold_db=-14.0, ratio=2.5,
-            attack_ms=20.0, release_ms=150.0,
-        )
-
-        post_peak = float(np.max(np.abs(result)))
-
-        assert post_peak < pre_peak, (
-            f"Bus compression should reduce peaks: {pre_peak:.4f} → {post_peak:.4f}"
-        )
-
-    def test_bus_compression_settings_from_presets(self):
-        """_get_bus_settings() should return correct defaults."""
-        settings = _get_bus_settings()
-        assert settings['compress_threshold_db'] == -14.0
-        assert settings['compress_ratio'] == 2.5
-        assert settings['compress_attack_ms'] == 20.0
-        assert settings['compress_release_ms'] == 150.0
-
-    def test_bus_compression_genre_override(self):
-        """Genre overrides should apply to bus settings."""
-        # Classical should bypass (ratio 1.0)
-        classical = _get_bus_settings(genre='classical')
-        assert classical['compress_ratio'] == 1.0
-
-        # EDM should use tighter compression (ratio 3.0)
-        edm = _get_bus_settings(genre='edm')
-        assert edm['compress_ratio'] == 3.0
-
-        # Jazz should bypass (ratio 1.0)
-        jazz = _get_bus_settings(genre='jazz')
-        assert jazz['compress_ratio'] == 1.0
-
-    def test_bus_compression_bypass_when_ratio_unity(self):
-        """Ratio 1.0 should effectively be a no-op (bypass)."""
-        data, rate = _generate_sine(freq=440, amplitude=0.8)
-        result = gentle_compress(
-            data, rate,
-            threshold_db=-14.0, ratio=1.0,
-            attack_ms=20.0, release_ms=150.0,
-        )
-        assert np.array_equal(result, data)
-
-    def test_mix_track_stems_applies_bus_compression(self, stem_dir, output_path):
-        """Full stems pipeline should produce output with bus compression metrics."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        result = mix_track_stems(stem_paths, output_path)
-
-        assert Path(output_path).exists()
-        assert 'bus_compression' in result, "Result should include bus_compression metrics"
-        bus = result['bus_compression']
-        assert bus['ratio'] == 2.5
-        assert bus['post_peak'] <= 0.95 + 1e-6
