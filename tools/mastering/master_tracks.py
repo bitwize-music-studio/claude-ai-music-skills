@@ -207,6 +207,48 @@ def apply_high_shelf(data, rate, freq, gain_db):
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
         return result
 
+def apply_fade_out(data, rate, duration=5.0, curve='exponential'):
+    """Apply a fade-out to the end of audio data.
+
+    Args:
+        data: Audio data (samples,) for mono or (samples, channels) for stereo
+        rate: Sample rate
+        duration: Fade duration in seconds (default: 5.0).
+            If <= 0, returns data unchanged (passthrough).
+            If > audio length, fades the entire track.
+        curve: 'exponential' for (1-t)**3, 'linear' for 1-t
+
+    Returns:
+        Audio data with fade-out applied.
+    """
+    if duration <= 0:
+        return data
+
+    total_samples = data.shape[0]
+    fade_samples = int(rate * duration)
+
+    # If fade is longer than audio, fade the entire track
+    if fade_samples > total_samples:
+        fade_samples = total_samples
+
+    # Build the fade envelope
+    t = np.linspace(0, 1, fade_samples, endpoint=True)
+    if curve == 'exponential':
+        envelope = (1 - t) ** 3
+    else:
+        envelope = 1 - t
+
+    result = data.copy()
+    if len(data.shape) == 1:
+        # Mono
+        result[-fade_samples:] *= envelope
+    else:
+        # Stereo / multichannel — broadcast envelope across channels
+        result[-fade_samples:] *= envelope[:, np.newaxis]
+
+    return result
+
+
 def soft_clip(data, threshold=0.95):
     """Soft clipping limiter to prevent harsh digital clipping."""
     # Soft knee limiter using tanh
@@ -218,43 +260,6 @@ def soft_clip(data, threshold=0.95):
     # Apply soft saturation above threshold
     result[above_thresh] = np.sign(data[above_thresh]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[above_thresh]) - threshold) / (1 - threshold)))
     return result
-
-def apply_fade_out(data, rate, duration=5.0, curve='exponential'):
-    """Apply a fade-out envelope to the end of audio data.
-
-    Args:
-        data: Audio data (samples,) or (samples, channels)
-        rate: Sample rate
-        duration: Fade duration in seconds
-        curve: Fade curve type ('exponential' or 'linear')
-
-    Returns:
-        Audio data with fade-out applied.
-    """
-    if duration <= 0:
-        return data
-
-    total_samples = data.shape[0]
-    fade_samples = min(int(duration * rate), total_samples)
-
-    if fade_samples == 0:
-        return data
-
-    # Build fade envelope: 1→0 over fade_samples
-    t = np.linspace(0, 1, fade_samples, endpoint=True)
-    if curve == 'exponential':
-        envelope = (1 - t) ** 3
-    else:
-        envelope = 1 - t
-
-    result = data.copy()
-    if len(data.shape) == 1:
-        result[-fade_samples:] *= envelope
-    else:
-        result[-fade_samples:] *= envelope[:, np.newaxis]
-
-    return result
-
 
 def limit_peaks(data, ceiling_db=-1.0):
     """Simple peak limiter to prevent clipping.
@@ -284,7 +289,8 @@ def master_track(input_path, output_path, target_lufs=-14.0,
         target_lufs: Target integrated loudness
         eq_settings: List of (freq, gain_db, q) tuples for EQ
         ceiling_db: True peak ceiling in dB
-        fade_out: Optional fade-out duration in seconds
+        fade_out: Optional fade-out duration in seconds.
+            None or <= 0 disables fade-out.
         compress_ratio: Compression ratio (1.0 = bypass, 1.5 = gentle glue)
     """
     # Read audio
@@ -312,6 +318,7 @@ def master_track(input_path, output_path, target_lufs=-14.0,
             threshold_db=-18.0, ratio=compress_ratio,
             attack_ms=30.0, release_ms=200.0,
         )
+
 
     # Measure current loudness
     meter = pyln.Meter(rate)

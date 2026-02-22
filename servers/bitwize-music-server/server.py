@@ -6818,15 +6818,27 @@ async def master_audio(
                 }
             result = await loop.run_in_executor(None, _dry_run_measure, wav_file)
         else:
-            def _do_master(in_path, out_path):
+            # Look up per-track fade_out from state cache
+            fade_out_val = 5.0  # default
+            state = cache.get_state() or {}
+            albums = state.get("albums", {})
+            album_data = albums.get(_normalize_slug(album_slug))
+            if album_data:
+                track_slug = wav_file.stem
+                track_info = album_data.get("tracks", {}).get(track_slug, {})
+                if track_info.get("fade_out") is not None:
+                    fade_out_val = track_info["fade_out"]
+
+            def _do_master(in_path, out_path, fo):
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
                     eq_settings=eq_settings if eq_settings else None,
                     ceiling_db=ceiling_db,
+                    fade_out=fo,
                     compress_ratio=effective_compress,
                 )
-            result = await loop.run_in_executor(None, _do_master, wav_file, output_path)
+            result = await loop.run_in_executor(None, _do_master, wav_file, output_path, fade_out_val)
             if result and not result.get("skipped"):
                 result["filename"] = wav_file.name
 

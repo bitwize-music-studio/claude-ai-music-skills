@@ -354,9 +354,11 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
     # Fade Out (duration in seconds, or None)
     fade_out_raw = _extract_table_value(text, 'Fade Out')
     if fade_out_raw and fade_out_raw.strip() not in ('—', '–', '-', ''):
-        try:
-            result['fade_out'] = float(fade_out_raw.strip())
-        except (ValueError, TypeError):
+        # Extract numeric value: "5s" → 5.0, "5" → 5.0, "10.5s" → 10.5
+        fade_match = re.search(r'(\d+(?:\.\d+)?)', fade_out_raw)
+        if fade_match:
+            result['fade_out'] = float(fade_match.group(1))
+        else:
             result['fade_out'] = None
     else:
         result['fade_out'] = None

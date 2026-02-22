@@ -1283,6 +1283,50 @@ class TestMasterAlbumPipeline:
         assert len(recovery_warnings) == 1
         assert "02-track-2.wav" in recovery_warnings[0]["tracks_fixed"]
 
+    def test_fade_out_passed_to_master_track(self, tmp_path):
+        """master_album should read fade_out from track metadata and pass it to master_track."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        # Set fade_out in track metadata
+        state["albums"]["test-album"]["tracks"] = {
+            "01-track-1": {
+                "title": "Track 1",
+                "status": "Generated",
+                "explicit": False,
+                "has_suno_link": True,
+                "sources_verified": "N/A",
+                "fade_out": 3.0,
+                "mtime": 1234567890.0,
+            },
+        }
+
+        captured_kwargs = []
+
+        def mock_master(input_path, output_path, **kwargs):
+            captured_kwargs.append(kwargs)
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track",
+                   side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert len(captured_kwargs) == 1
+        assert captured_kwargs[0]["fade_out"] == 3.0
+
     def test_auto_recovery_re_verifies_all_tracks(self, tmp_path):
         """After fixing one track, ALL tracks should be re-verified."""
         import numpy as np_
