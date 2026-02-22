@@ -219,8 +219,7 @@ class TestQcAudio:
     def test_invalid_check_name_returns_error(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir()
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -238,10 +237,8 @@ class TestQcAudioComprehensive:
     def _make_audio_dir(self, tmp_path, num_tracks=2):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        originals = audio_dir / "originals"
-        originals.mkdir()
         for i in range(num_tracks):
-            (originals / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -429,8 +426,7 @@ class TestMasterAlbum:
     def test_unknown_genre_returns_preflight_failure(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir()
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -450,10 +446,8 @@ class TestMasterAlbumPipeline:
         """Create audio dir with dummy WAV files and matching state."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        originals = audio_dir / "originals"
-        originals.mkdir()
         for i in range(num_tracks):
-            (originals / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -855,7 +849,7 @@ class TestMasterAlbumPipeline:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets",
-                   return_value={"rock": (-14.0, -2.5, 0.0, 1.5)}), \
+                   return_value={"rock": (-14.0, -2.5, 0.0)}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
@@ -1063,7 +1057,7 @@ class TestMasterAlbumPipeline:
                 "final_peak": -1.5,
             }
 
-        presets = {"country": (-14.0, -2.0, 0.0, 1.5)}
+        presets = {"country": (-14.0, -2.0, 0.0)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
@@ -1387,49 +1381,6 @@ class TestMasterAlbumPipeline:
             f"Expected 3 re-verification calls, got {len(re_verify_calls)}: {re_verify_calls}"
         )
 
-    def test_fade_out_passed_to_master_track(self, tmp_path):
-        """Pipeline reads fade_out from track metadata and passes it through."""
-        audio_dir, state = self._make_audio_dir(tmp_path, 1)
-        # Add fade_out to track metadata
-        state["albums"]["test-album"]["tracks"] = {
-            "01-track-1": {
-                "title": "Track 1",
-                "status": "Generated",
-                "explicit": False,
-                "has_suno_link": True,
-                "sources_verified": "N/A",
-                "mtime": 1234567890.0,
-                "fade_out": 5.0,
-            },
-        }
-        mock_cache = MockStateCache(state)
-
-        captured_kwargs = []
-
-        def mock_master(input_path, output_path, **kwargs):
-            captured_kwargs.append(kwargs)
-            Path(output_path).write_bytes(b"")
-            return {
-                "original_lufs": -20.0,
-                "final_lufs": -14.0,
-                "gain_applied": 6.0,
-                "final_peak": -1.5,
-            }
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
-             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
-             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
-             patch("tools.mastering.analyze_tracks.analyze_track",
-                   side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
-             patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
-             patch.object(server, "write_state"):
-            result = json.loads(_run(server.master_album("test-album")))
-
-        assert len(captured_kwargs) == 1
-        assert captured_kwargs[0]["fade_out"] == 5.0
-
 
 # =============================================================================
 # Tests for reset_mastering MCP tool
@@ -1449,8 +1400,8 @@ class TestResetMastering:
             d.mkdir(parents=True)
             (d / "track1.wav").write_bytes(b"\x00" * 1024)
             (d / "track2.wav").write_bytes(b"\x00" * 2048)
-        # Also create originals so the base audio_dir exists
-        (audio_dir / "originals").mkdir(parents=True, exist_ok=True)
+        # Ensure the base audio_dir exists
+        audio_dir.mkdir(parents=True, exist_ok=True)
         return audio_dir
 
     def test_dry_run_reports_without_deleting(self, tmp_path):

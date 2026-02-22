@@ -28,9 +28,6 @@ from tools.mixing.mix_tracks import (
     apply_eq,
     apply_high_shelf,
     apply_highpass,
-    apply_lowpass,
-    apply_saturation,
-    apply_stereo_width,
     gentle_compress,
     remove_clicks,
     reduce_noise,
@@ -54,7 +51,6 @@ from tools.mixing.mix_tracks import (
     discover_stems,
     _get_stem_settings,
     _get_full_mix_settings,
-    _get_bus_settings,
 )
 
 
@@ -517,162 +513,6 @@ class TestEnhanceStereo:
         data, rate = _generate_sine()
         result = enhance_stereo(data, rate, amount=0.5)
         assert np.all(np.isfinite(result))
-
-
-# ─── Tests: apply_saturation ─────────────────────────────────────────
-
-
-class TestApplySaturation:
-    """Tests for the tanh waveshaping saturation function."""
-
-    def test_saturation_increases_harmonics(self):
-        """Output RMS should increase with drive > 0."""
-        data, rate = _generate_sine(freq=440, amplitude=0.3)
-        result = apply_saturation(data, rate, drive=0.5)
-        # Saturation adds harmonics which increases RMS
-        orig_rms = np.sqrt(np.mean(data ** 2))
-        sat_rms = np.sqrt(np.mean(result ** 2))
-        assert sat_rms > orig_rms * 0.9  # At least comparable (gain normalization)
-
-    def test_saturation_zero_drive_passthrough(self):
-        """drive=0 should return identical audio."""
-        data, rate = _generate_sine()
-        result = apply_saturation(data, rate, drive=0.0)
-        assert np.array_equal(result, data)
-
-    def test_saturation_warm_vs_neutral(self):
-        """'warm' tone should have less high-frequency energy than 'neutral'."""
-        data, rate = _generate_noise(amplitude=0.3)
-        warm = apply_saturation(data, rate, drive=0.5, tone='warm')
-        neutral = apply_saturation(data, rate, drive=0.5, tone='neutral')
-        # Compare high-frequency energy (last quarter of spectrum)
-        from scipy import fft
-        warm_spectrum = np.abs(fft.rfft(warm[:, 0]))
-        neutral_spectrum = np.abs(fft.rfft(neutral[:, 0]))
-        high_start = len(warm_spectrum) * 3 // 4
-        warm_highs = np.sum(warm_spectrum[high_start:])
-        neutral_highs = np.sum(neutral_spectrum[high_start:])
-        assert warm_highs < neutral_highs
-
-    def test_saturation_output_is_finite(self):
-        """Saturation should never produce NaN/inf."""
-        data, rate = _generate_sine(amplitude=0.9)
-        result = apply_saturation(data, rate, drive=1.0)
-        assert np.all(np.isfinite(result))
-
-    def test_saturation_mono_input(self):
-        """Saturation should work on mono (1D) arrays."""
-        data, rate = _generate_sine(stereo=False)
-        result = apply_saturation(data, rate, drive=0.3)
-        assert result.shape == data.shape
-
-
-# ─── Tests: apply_lowpass ────────────────────────────────────────────
-
-
-class TestApplyLowpass:
-    """Tests for the Butterworth lowpass filter."""
-
-    def test_lowpass_removes_highs(self):
-        """Energy above cutoff should be reduced."""
-        data, rate = _generate_sine(freq=10000, amplitude=0.5)
-        result = apply_lowpass(data, rate, cutoff=5000)
-        assert np.max(np.abs(result)) < np.max(np.abs(data))
-
-    def test_lowpass_high_cutoff_passthrough(self):
-        """Cutoff at or above Nyquist should return unchanged data."""
-        data, rate = _generate_sine(freq=440, amplitude=0.5)
-        # Cutoff >= Nyquist (22050) returns unchanged
-        result = apply_lowpass(data, rate, cutoff=22050)
-        assert np.array_equal(result, data)
-
-    def test_lowpass_passes_low_frequencies(self):
-        """Lowpass should pass frequencies below cutoff."""
-        data, rate = _generate_sine(freq=100, amplitude=0.5)
-        result = apply_lowpass(data, rate, cutoff=5000)
-        # Low-freq signal should be mostly unchanged
-        assert np.max(np.abs(result)) > 0.3
-
-    def test_lowpass_mono_input(self):
-        """Should work with mono (1D) arrays."""
-        data, rate = _generate_sine(freq=10000, stereo=False)
-        result = apply_lowpass(data, rate, cutoff=5000)
-        assert result.shape == data.shape
-
-    def test_lowpass_output_is_finite(self):
-        data, rate = _generate_sine()
-        result = apply_lowpass(data, rate, cutoff=8000)
-        assert np.all(np.isfinite(result))
-
-
-# ─── Tests: apply_stereo_width ───────────────────────────────────────
-
-
-class TestApplyStereoWidth:
-    """Tests for the mid-side stereo width adjustment function."""
-
-    def test_stereo_width_narrow(self):
-        """width < 1.0 should reduce L-R difference."""
-        rate = 44100
-        t = np.linspace(0, 1.0, rate, endpoint=False)
-        left = 0.5 * np.sin(2 * np.pi * 440 * t)
-        right = 0.5 * np.sin(2 * np.pi * 440 * t + 0.3)
-        data = np.column_stack([left, right])
-
-        result = apply_stereo_width(data, rate, width=0.5)
-        orig_diff = np.std(data[:, 0] - data[:, 1])
-        narrow_diff = np.std(result[:, 0] - result[:, 1])
-        assert narrow_diff < orig_diff
-
-    def test_stereo_width_wide(self):
-        """width > 1.0 should increase L-R difference."""
-        rate = 44100
-        t = np.linspace(0, 1.0, rate, endpoint=False)
-        left = 0.5 * np.sin(2 * np.pi * 440 * t)
-        right = 0.5 * np.sin(2 * np.pi * 440 * t + 0.3)
-        data = np.column_stack([left, right])
-
-        result = apply_stereo_width(data, rate, width=1.5)
-        orig_diff = np.std(data[:, 0] - data[:, 1])
-        wide_diff = np.std(result[:, 0] - result[:, 1])
-        assert wide_diff > orig_diff
-
-    def test_stereo_width_unity_passthrough(self):
-        """width=1.0 should return identical audio."""
-        data, rate = _generate_sine()
-        result = apply_stereo_width(data, rate, width=1.0)
-        assert np.array_equal(result, data)
-
-    def test_stereo_width_mono_returns_unchanged(self):
-        """Mono input should be returned unchanged."""
-        data, rate = _generate_sine(stereo=False)
-        result = apply_stereo_width(data, rate, width=1.5)
-        assert np.array_equal(result, data)
-
-    def test_stereo_width_output_is_finite(self):
-        data, rate = _generate_sine()
-        result = apply_stereo_width(data, rate, width=2.0)
-        assert np.all(np.isfinite(result))
-
-
-# ─── Tests: lo-fi preset integration ────────────────────────────────
-
-
-class TestLofiPresetIntegration:
-    """Integration test: lo-fi preset should activate saturation in full_mix chain."""
-
-    def test_lofi_preset_applies_saturation(self, noise_wav, output_path):
-        """lo-fi genre preset should activate saturation in full_mix chain."""
-        settings = _get_full_mix_settings(genre='lo-fi')
-        assert settings.get('saturation_drive', 0) > 0, \
-            "lo-fi preset should set saturation_drive > 0 for full_mix"
-        assert settings.get('lowpass_cutoff', 20000) < 20000, \
-            "lo-fi preset should set lowpass_cutoff < 20000 for full_mix"
-
-        # Run full pipeline to ensure it doesn't crash
-        result = mix_track_full(noise_wav, output_path, genre='lo-fi')
-        assert Path(output_path).exists()
-        assert not result.get('error')
 
 
 # ─── Tests: remix_stems ──────────────────────────────────────────────
@@ -1186,31 +1026,6 @@ class TestMixTrackStems:
 
         assert len(result['stems_processed']) == 1
         assert Path(output_path).exists()
-
-    def test_stems_applies_stereo_width(self, stem_dir, output_path):
-        """Stems pipeline should apply stereo width for genres that define it."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        # Shoegaze has stereo_width: 1.4 in full_mix settings
-        result = mix_track_stems(stem_paths, output_path, genre='shoegaze')
-
-        assert Path(output_path).exists()
-        assert 'stereo_width' in result, "Result should include stereo_width for shoegaze"
-        assert result['stereo_width'] == 1.4
-
-    def test_stems_no_stereo_width_for_default(self, stem_dir, output_path):
-        """Stems pipeline should skip stereo width when default (1.0)."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        result = mix_track_stems(stem_paths, output_path)
-
-        assert Path(output_path).exists()
-        assert 'stereo_width' not in result, \
-            "Result should not include stereo_width when default (1.0)"
 
     def test_no_valid_stems_returns_error(self, tmp_path, output_path):
         """All missing stems should return error."""
@@ -1807,75 +1622,3 @@ class TestOverrideMerging:
         presets = load_mix_presets()
         assert 'rock' in presets['genres']
         assert 'pop' in presets['genres']
-
-
-# ─── Tests: Bus Compression ─────────────────────────────────────────
-
-
-class TestBusCompression:
-    """Tests for mix bus compression in the stems pipeline."""
-
-    def test_bus_compression_reduces_peaks(self):
-        """Bus compression should reduce peak level on sustained material."""
-        # Sustained loud sine — represents post-remix combined signal
-        data, rate = _generate_sine(freq=440, amplitude=0.8)
-
-        pre_peak = float(np.max(np.abs(data)))
-
-        result = gentle_compress(
-            data, rate,
-            threshold_db=-14.0, ratio=2.5,
-            attack_ms=20.0, release_ms=150.0,
-        )
-
-        post_peak = float(np.max(np.abs(result)))
-
-        assert post_peak < pre_peak, (
-            f"Bus compression should reduce peaks: {pre_peak:.4f} → {post_peak:.4f}"
-        )
-
-    def test_bus_compression_settings_from_presets(self):
-        """_get_bus_settings() should return correct defaults."""
-        settings = _get_bus_settings()
-        assert settings['compress_threshold_db'] == -14.0
-        assert settings['compress_ratio'] == 2.5
-        assert settings['compress_attack_ms'] == 20.0
-        assert settings['compress_release_ms'] == 150.0
-
-    def test_bus_compression_genre_override(self):
-        """Genre overrides should apply to bus settings."""
-        # Classical should bypass (ratio 1.0)
-        classical = _get_bus_settings(genre='classical')
-        assert classical['compress_ratio'] == 1.0
-
-        # EDM should use tighter compression (ratio 3.0)
-        edm = _get_bus_settings(genre='edm')
-        assert edm['compress_ratio'] == 3.0
-
-        # Jazz should bypass (ratio 1.0)
-        jazz = _get_bus_settings(genre='jazz')
-        assert jazz['compress_ratio'] == 1.0
-
-    def test_bus_compression_bypass_when_ratio_unity(self):
-        """Ratio 1.0 should effectively be a no-op (bypass)."""
-        data, rate = _generate_sine(freq=440, amplitude=0.8)
-        result = gentle_compress(
-            data, rate,
-            threshold_db=-14.0, ratio=1.0,
-            attack_ms=20.0, release_ms=150.0,
-        )
-        assert np.array_equal(result, data)
-
-    def test_mix_track_stems_applies_bus_compression(self, stem_dir, output_path):
-        """Full stems pipeline should produce output with bus compression metrics."""
-        stem_paths = {
-            name: str(stem_dir / f"{name}.wav")
-            for name in ('vocals', 'drums', 'bass', 'other')
-        }
-        result = mix_track_stems(stem_paths, output_path)
-
-        assert Path(output_path).exists()
-        assert 'bus_compression' in result, "Result should include bus_compression metrics"
-        bus = result['bus_compression']
-        assert bus['ratio'] == 2.5
-        assert bus['post_peak'] <= 0.95 + 1e-6

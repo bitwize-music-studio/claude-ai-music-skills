@@ -108,10 +108,6 @@ def main():
         logger.error("Directory not found: %s", wav_dir)
         sys.exit(1)
 
-    # Check originals/ subdirectory first, fall back to album root
-    originals = wav_dir / "originals"
-    if originals.is_dir():
-        wav_dir = originals
     wav_files = sorted(wav_dir.glob('*.wav'))
 
     print("=" * 80)
