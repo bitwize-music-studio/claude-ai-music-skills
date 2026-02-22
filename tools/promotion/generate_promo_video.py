@@ -349,12 +349,10 @@ def batch_process_album(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Find audio files (check originals/ subdirectory first)
-    originals = album_dir / "originals"
-    search_dir = originals if originals.is_dir() else album_dir
+    # Find audio files
     audio_files = []
     for ext in audio_extensions:
-        audio_files.extend(search_dir.glob(f'*{ext}'))
+        audio_files.extend(album_dir.glob(f'*{ext}'))
 
     if not audio_files:
         logger.warning("No audio files found in %s", album_dir)

@@ -216,43 +216,6 @@ def soft_clip(data, threshold=0.95):
     result[above_thresh] = np.sign(data[above_thresh]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[above_thresh]) - threshold) / (1 - threshold)))
     return result
 
-def apply_fade_out(data, rate, duration=5.0, curve='exponential'):
-    """Apply a fade-out envelope to the end of audio data.
-
-    Args:
-        data: Audio data (samples,) or (samples, channels)
-        rate: Sample rate
-        duration: Fade duration in seconds
-        curve: Fade curve type ('exponential' or 'linear')
-
-    Returns:
-        Audio data with fade-out applied.
-    """
-    if duration <= 0:
-        return data
-
-    total_samples = data.shape[0]
-    fade_samples = min(int(duration * rate), total_samples)
-
-    if fade_samples == 0:
-        return data
-
-    # Build fade envelope: 1→0 over fade_samples
-    t = np.linspace(0, 1, fade_samples, endpoint=True)
-    if curve == 'exponential':
-        envelope = (1 - t) ** 3
-    else:
-        envelope = 1 - t
-
-    result = data.copy()
-    if len(data.shape) == 1:
-        result[-fade_samples:] *= envelope
-    else:
-        result[-fade_samples:] *= envelope[:, np.newaxis]
-
-    return result
-
-
 def limit_peaks(data, ceiling_db=-1.0):
     """Simple peak limiter to prevent clipping.
 
@@ -271,7 +234,7 @@ def limit_peaks(data, ceiling_db=-1.0):
     return soft_clip(data, ceiling_linear)
 
 def master_track(input_path, output_path, target_lufs=-14.0,
-                 eq_settings=None, ceiling_db=-1.0, fade_out=None):
+                 eq_settings=None, ceiling_db=-1.0):
     """Master a single track.
 
     Args:
@@ -293,11 +256,6 @@ def master_track(input_path, output_path, target_lufs=-14.0,
     if eq_settings:
         for freq, gain_db, q in eq_settings:
             data = apply_eq(data, rate, freq, gain_db, q)
-
-    # Apply fade-out if specified (before loudness measurement so LUFS
-    # is measured correctly with the fade included)
-    if fade_out is not None and fade_out > 0:
-        data = apply_fade_out(data, rate, duration=fade_out)
 
     # Measure current loudness
     meter = pyln.Meter(rate)
@@ -463,10 +421,7 @@ Examples:
         output_dir.mkdir(exist_ok=True)
 
     # Find wav files (case-insensitive for cross-platform compatibility)
-    # Check originals/ subdirectory first, fall back to album root
-    originals = input_dir / "originals"
-    source_dir = originals if originals.is_dir() else input_dir
-    wav_files = sorted([f for f in source_dir.iterdir()
+    wav_files = sorted([f for f in input_dir.iterdir()
                        if f.suffix.lower() == '.wav'
                        and 'venv' not in str(f)])
 

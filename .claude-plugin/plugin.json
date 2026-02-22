@@ -1,7 +1,7 @@
 {
   "name": "bitwize-music",
   "description": "AI music generation workflow for Suno - album concepts, lyrics, prompts, mastering, release",
-  "version": "0.64.0",
+  "version": "0.65.0",
   "author": {
     "name": "bitwize-music"
   },

@@ -351,16 +351,6 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
     if fm_suno_url and str(fm_suno_url).strip():
         result['suno_url'] = str(fm_suno_url).strip()
 
-    # Fade Out (duration in seconds, or None)
-    fade_out_raw = _extract_table_value(text, 'Fade Out')
-    if fade_out_raw and fade_out_raw.strip() not in ('—', '–', '-', ''):
-        try:
-            result['fade_out'] = float(fade_out_raw.strip())
-        except (ValueError, TypeError):
-            result['fade_out'] = None
-    else:
-        result['fade_out'] = None
-
     # Sources Verified
     sources_raw = _extract_table_value(text, 'Sources Verified')
     if sources_raw:

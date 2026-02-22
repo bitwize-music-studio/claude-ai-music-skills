@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.65.0] - 2026-02-22
+
+### Reverted
+- **`originals/` audio layout** — reverted `originals/` subdirectory layout and `migrate_audio_layout` MCP tool; WAV files remain in album audio root
+- **Fade-out support** — reverted `apply_fade_out()` from mastering pipeline and `fade_out` field from track template/parser
+- **Mix polish character effects** — reverted `apply_saturation()`, `apply_lowpass()`, `apply_stereo_width()` from mix pipeline and character effect settings from genre presets
+
+These 0.61.0 audio pipeline changes degraded output quality. Infrastructure from 0.62.0–0.63.0 (develop branch model, venv health check, debug logging, `reset_mastering`, `cleanup_legacy_venvs`) is preserved.
+
 ## [0.64.0] - 2026-02-22
 
 ### Reverted

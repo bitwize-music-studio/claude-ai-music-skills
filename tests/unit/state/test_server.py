@@ -3422,8 +3422,7 @@ class TestValidateAlbumStructure:
         audio_dir.mkdir(parents=True)
         (album_dir / "README.md").write_text("# Test Album")
         (tracks_dir / "01-test.md").write_text(_SAMPLE_TRACK_MD)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-test.wav").write_text("")  # dummy wav
+        (audio_dir / "01-test.wav").write_text("")  # dummy wav
         (audio_dir / "album.png").write_text("")  # dummy art
 
         state = _fresh_state()
@@ -8550,8 +8549,7 @@ class TestReleaseReadinessGate:
         audio_dir = tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         if has_audio:
-            (audio_dir / "originals").mkdir(exist_ok=True)
-            (audio_dir / "originals" / "01-track.wav").write_bytes(b"RIFF")
+            (audio_dir / "01-track.wav").write_bytes(b"RIFF")
         if has_mastered:
             mastered_dir = audio_dir / "mastered"
             mastered_dir.mkdir()
@@ -10075,8 +10073,7 @@ class TestRenameAlbum:
         audio_root = tmp_path / "audio"
         audio_dir = audio_root / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "song.wav").write_text("fake audio")
+        (audio_dir / "song.wav").write_text("fake audio")
 
         # Documents directory
         docs_root = tmp_path / "docs"
@@ -10186,7 +10183,7 @@ class TestRenameAlbum:
         assert result["audio_moved"] is True
         new_audio = tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "new-album"
         assert new_audio.is_dir()
-        assert (new_audio / "originals" / "song.wav").exists()
+        assert (new_audio / "song.wav").exists()
 
     def test_rename_album_audio_dir_missing(self, tmp_path):
         """No audio dir still succeeds with audio_moved=False."""
@@ -10639,8 +10636,7 @@ class TestAnalyzeAudio:
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         # Create a dummy wav file
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -10731,8 +10727,7 @@ class TestMasterAudio:
     def test_unknown_genre(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -10746,8 +10741,7 @@ class TestMasterAudio:
     def test_successful_master_dry_run(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -10776,8 +10770,7 @@ class TestMasterAudio:
         """Verify settings object is returned with correct values."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-test.wav").write_bytes(b"")
+        (audio_dir / "01-test.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -10872,8 +10865,7 @@ class TestMasterWithReference:
     def test_missing_target_file(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -10891,9 +10883,8 @@ class TestMasterWithReference:
     def test_single_track_success(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -10913,10 +10904,9 @@ class TestMasterWithReference:
     def test_batch_mode(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
-        (audio_dir / "originals" / "02-track.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+        (audio_dir / "02-track.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -11154,8 +11144,7 @@ class TestGeneratePromoVideos:
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-some-track.wav").write_bytes(b"")
+        (audio_dir / "01-some-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11299,9 +11288,8 @@ class TestAnalyzeAudioComprehensive:
         """Helper to create audio dir with dummy WAV files."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
         for i in range(num_tracks):
-            (audio_dir / "originals" / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -11422,9 +11410,8 @@ class TestMasterAudioComprehensive:
     def _make_audio_dir(self, tmp_path, num_tracks=2):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
         for i in range(num_tracks):
-            (audio_dir / "originals" / f"{i+1:02d}-track.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -11619,8 +11606,7 @@ class TestFixDynamicTrackComprehensive:
         """Full success path: read WAV, compress, master, write output."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "05-loud-track.wav").write_bytes(b"")
+        (audio_dir / "05-loud-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11653,8 +11639,7 @@ class TestFixDynamicTrackComprehensive:
         """Should create mastered/ subdirectory."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11690,11 +11675,10 @@ class TestMasterWithReferenceComprehensive:
         """If one track fails in batch mode, others should still succeed."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-good.wav").write_bytes(b"")
-        (audio_dir / "originals" / "02-bad.wav").write_bytes(b"")
-        (audio_dir / "originals" / "03-good.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-good.wav").write_bytes(b"")
+        (audio_dir / "02-bad.wav").write_bytes(b"")
+        (audio_dir / "03-good.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11727,9 +11711,8 @@ class TestMasterWithReferenceComprehensive:
         """Batch mode should not process the reference file itself."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11750,9 +11733,8 @@ class TestMasterWithReferenceComprehensive:
         """mastered/ directory should be created automatically."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11772,9 +11754,8 @@ class TestMasterWithReferenceComprehensive:
         """Single track output should be in mastered/ subdirectory."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "ref.wav").write_bytes(b"")
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "ref.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -11799,9 +11780,8 @@ class TestTranscribeAudioComprehensive:
     def _make_audio_dir(self, tmp_path, num_tracks=2):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
-        (audio_dir / "originals").mkdir(exist_ok=True)
         for i in range(num_tracks):
-            (audio_dir / "originals" / f"{i+1:02d}-track.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -12202,9 +12182,8 @@ class TestGeneratePromoVideosComprehensive:
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / artwork_name).write_bytes(b"")
-        (audio_dir / "originals").mkdir(exist_ok=True)
         for i in range(num_tracks):
-            (audio_dir / "originals" / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -12405,9 +12384,8 @@ class TestGenerateAlbumSamplerComprehensive:
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
-        (audio_dir / "originals").mkdir(exist_ok=True)
         for i in range(num_tracks):
-            (audio_dir / "originals" / f"{i+1:02d}-track.wav").write_bytes(b"")
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
@@ -12552,8 +12530,7 @@ class TestGenerateAlbumSamplerComprehensive:
         audio_dir = tmp_path / "artists" / "custom-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.png").write_bytes(b"")
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -12582,8 +12559,7 @@ class TestGenerateAlbumSamplerComprehensive:
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
         (audio_dir / "album.jpg").write_bytes(b"")
-        (audio_dir / "originals").mkdir(exist_ok=True)
-        (audio_dir / "originals" / "01-track.wav").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
@@ -12842,236 +12818,4 @@ class TestGetConfigEdgeCases:
         assert "audio_root" in config
         assert "documents_root" in config
         assert "artist_name" in config
-
-
-# =============================================================================
-# Backward-compatibility: WAVs in album root (legacy layout, no originals/)
-# =============================================================================
-
-
-class TestOriginalsBackwardCompat:
-    """Verify tools work with WAVs in album root (legacy layout, no originals/)."""
-
-    def test_validate_album_finds_wavs_in_root(self, tmp_path):
-        """validate_album_structure should find WAVs directly in audio_dir."""
-        content = tmp_path / "content"
-        audio = tmp_path / "audio"
-        album_dir = content / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        tracks_dir = album_dir / "tracks"
-        audio_dir = audio / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        tracks_dir.mkdir(parents=True)
-        audio_dir.mkdir(parents=True)
-        (album_dir / "README.md").write_text("# Test Album")
-        (tracks_dir / "01-test.md").write_text(_SAMPLE_TRACK_MD)
-        (audio_dir / "01-test.wav").write_text("")  # WAV in root, no originals/
-        (audio_dir / "album.png").write_text("")
-
-        state = copy.deepcopy(SAMPLE_STATE)
-        state["config"]["content_root"] = str(content)
-        state["config"]["audio_root"] = str(audio)
-        state["albums"]["test-album"]["path"] = str(album_dir)
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.validate_album_structure("test-album")))
-        assert result["found"] is True
-        # Should find the WAV in root via legacy fallback
-        audio_checks = [c for c in result["checks"] if c["category"] == "audio"]
-        wav_msgs = [c["message"] for c in audio_checks if "WAV" in c.get("message", "")]
-        assert any("1 WAV" in m for m in wav_msgs)
-
-    def test_analyze_audio_legacy_layout(self, tmp_path):
-        """analyze_audio should find WAVs in album root when originals/ absent."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        audio_dir.mkdir(parents=True)
-        (audio_dir / "01-track.wav").write_bytes(b"")  # legacy: no originals/
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_result = {
-            "filename": "01-track.wav",
-            "duration": 180.0,
-            "sample_rate": 44100,
-            "lufs": -14.0,
-            "peak_db": -0.5,
-            "rms_db": -18.0,
-            "dynamic_range": 17.5,
-            "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15,
-                            "mid": 30, "high_mid": 20, "high": 8, "air": 2},
-            "tinniness_ratio": 0.3,
-        }
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
-             patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
-            result = json.loads(_run(server.analyze_audio("test-album")))
-        assert "tracks" in result
-        assert len(result["tracks"]) == 1
-
-    def test_master_audio_legacy_layout(self, tmp_path):
-        """master_audio should find WAVs in album root when originals/ absent."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        audio_dir.mkdir(parents=True)
-        (audio_dir / "01-track.wav").write_bytes(b"")  # legacy: no originals/
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_master_result = {
-            "original_lufs": -20.0, "final_lufs": -14.0,
-            "gain_applied": 6.0, "final_peak": -1.0,
-        }
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
-             patch("tools.mastering.master_tracks.master_track", return_value=mock_master_result), \
-             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
-            result = json.loads(_run(server.master_audio("test-album")))
-        assert "tracks" in result or "error" not in result
-
-
-class TestMigrateAudioLayout:
-    """Tests for the migrate_audio_layout MCP tool."""
-
-    def _make_state(self, tmp_path):
-        """Return a state with audio_root pointing at tmp_path."""
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        return state
-
-    def _album_audio_dir(self, tmp_path, genre="electronic", slug="test-album"):
-        """Create and return the audio dir for an album."""
-        d = tmp_path / "artists" / "test-artist" / "albums" / genre / slug
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-
-    def test_dry_run_shows_what_would_be_moved(self, tmp_path):
-        """dry_run=True lists files but does NOT move them."""
-        state = self._make_state(tmp_path)
-        audio_dir = self._album_audio_dir(tmp_path)
-        (audio_dir / "01-track.wav").write_bytes(b"")
-        (audio_dir / "02-track.wav").write_bytes(b"")
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="test-album", dry_run=True,
-            )))
-
-        assert result["dry_run"] is True
-        album_result = result["albums"][0]
-        assert album_result["slug"] == "test-album"
-        assert album_result["status"] == "would_migrate"
-        assert "01-track.wav" in album_result["files_moved"]
-        assert "02-track.wav" in album_result["files_moved"]
-        # Files should NOT have moved
-        assert (audio_dir / "01-track.wav").exists()
-        assert (audio_dir / "02-track.wav").exists()
-        assert not (audio_dir / "originals").exists()
-
-    def test_actual_migration_moves_files(self, tmp_path):
-        """dry_run=False moves WAVs into originals/."""
-        state = self._make_state(tmp_path)
-        audio_dir = self._album_audio_dir(tmp_path)
-        (audio_dir / "01-track.wav").write_bytes(b"RIFF")
-        (audio_dir / "02-track.wav").write_bytes(b"RIFF")
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="test-album", dry_run=False,
-            )))
-
-        assert result["dry_run"] is False
-        album_result = result["albums"][0]
-        assert album_result["status"] == "migrated"
-        assert len(album_result["files_moved"]) == 2
-        # Files should now be in originals/
-        assert (audio_dir / "originals" / "01-track.wav").exists()
-        assert (audio_dir / "originals" / "02-track.wav").exists()
-        # And gone from root
-        assert not (audio_dir / "01-track.wav").exists()
-        assert not (audio_dir / "02-track.wav").exists()
-
-    def test_skips_already_migrated(self, tmp_path):
-        """Albums with originals/ already present get status 'already_migrated'."""
-        state = self._make_state(tmp_path)
-        audio_dir = self._album_audio_dir(tmp_path)
-        originals = audio_dir / "originals"
-        originals.mkdir()
-        (originals / "01-track.wav").write_bytes(b"")
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="test-album", dry_run=False,
-            )))
-
-        album_result = result["albums"][0]
-        assert album_result["status"] == "already_migrated"
-        assert album_result["skip_reason"] == "already has originals/"
-        assert result["summary"]["already_migrated"] == 1
-
-    def test_skips_albums_with_no_audio_dir(self, tmp_path):
-        """Albums without a corresponding audio directory are skipped."""
-        state = self._make_state(tmp_path)
-        # Don't create the audio dir on disk
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="test-album", dry_run=False,
-            )))
-
-        album_result = result["albums"][0]
-        assert album_result["status"] == "skipped"
-        assert album_result["skip_reason"] == "no audio dir"
-
-    def test_single_album_mode(self, tmp_path):
-        """Passing album_slug processes only that album."""
-        state = self._make_state(tmp_path)
-        # Create audio dirs for both albums
-        electronic_dir = self._album_audio_dir(tmp_path, "electronic", "test-album")
-        rock_dir = self._album_audio_dir(tmp_path, "rock", "another-album")
-        (electronic_dir / "01-track.wav").write_bytes(b"")
-        (rock_dir / "01-rock.wav").write_bytes(b"")
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="another-album", dry_run=True,
-            )))
-
-        assert result["summary"]["total_albums"] == 1
-        assert len(result["albums"]) == 1
-        assert result["albums"][0]["slug"] == "another-album"
-
-    def test_non_wav_files_left_in_root(self, tmp_path):
-        """Only WAV files are moved; other files remain in root."""
-        state = self._make_state(tmp_path)
-        audio_dir = self._album_audio_dir(tmp_path)
-        (audio_dir / "01-track.wav").write_bytes(b"")
-        (audio_dir / "album.png").write_bytes(b"\x89PNG")
-        (audio_dir / "notes.txt").write_text("notes")
-
-        mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.migrate_audio_layout(
-                album_slug="test-album", dry_run=False,
-            )))
-
-        album_result = result["albums"][0]
-        assert album_result["status"] == "migrated"
-        assert album_result["files_moved"] == ["01-track.wav"]
-        # WAV moved
-        assert (audio_dir / "originals" / "01-track.wav").exists()
-        assert not (audio_dir / "01-track.wav").exists()
-        # Non-WAV files remain
-        assert (audio_dir / "album.png").exists()
-        assert (audio_dir / "notes.txt").exists()
 

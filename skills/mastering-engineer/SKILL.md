@@ -131,7 +131,7 @@ Before mastering, resolve audio path via MCP:
 
 Before mastering, verify:
 1. **Audio folder exists** — call `resolve_path("audio", album_slug)` to confirm
-2. **WAV files present** — check `originals/` subdirectory first, then album root (legacy). At least one `.wav` file must exist.
+2. **WAV files present** — check for at least one `.wav` file in the folder
 3. If no WAV files found, report: "No WAV files in [path]. Download tracks from Suno as WAV (highest quality) first."
 4. If folder contains only MP3s, warn: "MP3 files found but mastering requires WAV. Re-download from Suno as WAV."
 
