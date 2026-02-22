@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-02-22
+
+### Added
+- **12-stem pipeline** — expanded from 6 to 12 stem types matching Suno's full `split_stem` output: guitar, keyboard, strings, brass, woodwinds, and percussion now have dedicated processing chains instead of being dumped into the "other" catch-all
+- **Instrument-name keywords** — flexible stem routing matches by instrument name (e.g. "Piano.wav" → keyboard, "Saxophone.wav" → woodwinds, "Trumpet.wav" → brass, "Violin.wav" → strings)
+- **Genre overrides for new stems** — 20+ genre presets updated with per-stem settings for guitar, keyboard, strings, brass, woodwinds, and percussion
+- **45 new tests** — 6 processor test classes, 12-stem integration test, 6 keyword routing regression tests
+
+### Fixed
+- **Percussion/drums separation** — "percussion" keyword no longer routes to "drums"; Suno separates kit drums (kick/snare/hi-hats) from percussion (congas/shakers/tambourine) and they need different processing chains
+
 ## [0.65.0] - 2026-02-22
 
 ### Reverted

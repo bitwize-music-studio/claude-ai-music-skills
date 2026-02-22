@@ -200,6 +200,66 @@ class TestApplyHighShelf:
         assert np.all(np.isfinite(result))
 
 
+# ─── Tests: apply_fade_out ─────────────────────────────────────────────
+
+
+class TestApplyFadeOut:
+    """Tests for the fade-out function."""
+
+    def test_reduces_end_amplitude(self):
+        """Fade-out should reduce amplitude at the end of audio."""
+        data, rate = _generate_sine(duration=5.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=2.0)
+        # Last sample should be near zero
+        assert np.max(np.abs(result[-1])) < 0.01
+        # Samples before the fade region should be unchanged
+        fade_samples = int(rate * 2.0)
+        pre_fade = data.shape[0] - fade_samples
+        assert np.allclose(result[:pre_fade], data[:pre_fade], atol=1e-10)
+
+    def test_preserves_beginning(self):
+        """Audio before the fade region should be untouched."""
+        data, rate = _generate_sine(duration=5.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=1.0)
+        fade_samples = int(rate * 1.0)
+        pre_fade = data.shape[0] - fade_samples
+        assert np.array_equal(result[:pre_fade], data[:pre_fade])
+
+    def test_zero_duration_passthrough(self):
+        """duration=0 should return data unchanged."""
+        data, rate = _generate_sine(duration=3.0)
+        result = apply_fade_out(data, rate, duration=0.0)
+        assert np.array_equal(result, data)
+
+    def test_longer_than_audio(self):
+        """Fade longer than audio should fade the entire track without error."""
+        data, rate = _generate_sine(duration=1.0, amplitude=0.5)
+        result = apply_fade_out(data, rate, duration=10.0)
+        # First sample should be near original, last sample should be near zero
+        assert np.max(np.abs(result[-1])) < 0.01
+        assert result.shape == data.shape
+
+    def test_exponential_curve_shape(self):
+        """Exponential curve should decay faster initially than linear."""
+        data, rate = _generate_sine(duration=3.0, amplitude=0.5)
+        exp_result = apply_fade_out(data, rate, duration=2.0, curve='exponential')
+        lin_result = apply_fade_out(data, rate, duration=2.0, curve='linear')
+        # At the midpoint of the fade, exponential (1-0.5)**3 = 0.125
+        # vs linear 1-0.5 = 0.5. So exponential should be quieter at midpoint.
+        fade_samples = int(rate * 2.0)
+        midpoint = data.shape[0] - fade_samples // 2
+        exp_energy = np.mean(np.abs(exp_result[midpoint:midpoint+100]))
+        lin_energy = np.mean(np.abs(lin_result[midpoint:midpoint+100]))
+        assert exp_energy < lin_energy
+
+    def test_mono_support(self):
+        """Fade-out should work on mono (1D) arrays."""
+        data, rate = _generate_sine(duration=3.0, amplitude=0.5, stereo=False)
+        result = apply_fade_out(data, rate, duration=1.0)
+        assert result.shape == data.shape
+        assert np.max(np.abs(result[-1])) < 0.01
+
+
 # ─── Tests: soft_clip and limit_peaks ──────────────────────────────────
 
 

@@ -12,9 +12,9 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.65.0-blue)
+![Version](https://img.shields.io/badge/version-0.66.0-blue)
 ![Skills](https://img.shields.io/badge/skills-50-green)
-![Tests](https://img.shields.io/badge/tests-2256-brightgreen)
+![Tests](https://img.shields.io/badge/tests-2333-brightgreen)
 
 ## What Is This?
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.66** | 12-stem pipeline (full Suno split_stem), guitar/keyboard/strings/brass/woodwinds/percussion as first-class stems, instrument-name keyword routing, percussion/drums separation fix |
 | **0.65** | Reverted 0.61 audio pipeline changes (originals layout, fade-out, character effects) — keeps 0.62–0.63 infrastructure |
 | **0.63** | Venv health check, debug logging, reset mastering tool, cleanup legacy venvs |
 | **0.62** | `develop`/`main` branch model, CI streamlined to Python 3.11, plugin version in `/about` |
