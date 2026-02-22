@@ -1,3 +1,0 @@
-# Document Hunting (required for /bitwize-music:document-hunter)
-# After pip install, also run: playwright install chromium
-playwright>=1.40.0

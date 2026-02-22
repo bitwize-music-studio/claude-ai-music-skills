@@ -63,6 +63,30 @@ if [ -f "$VENV_PYTHON" ]; then
     $VENV_PYTHON -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
     $VENV_PYTHON -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
     $VENV_PYTHON -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"
+
+    # Check for version drift against requirements.txt
+    $VENV_PYTHON -c "
+import importlib.metadata, pathlib
+reqs = pathlib.Path('${CLAUDE_PLUGIN_ROOT}/requirements.txt').read_text()
+stale = []
+for line in reqs.splitlines():
+    line = line.split('#')[0].strip()
+    if not line or '==' not in line:
+        continue
+    name, _, ver = line.partition('==')
+    name = name.split('[')[0].strip()
+    try:
+        installed = importlib.metadata.version(name)
+        if installed != ver:
+            stale.append(f'  {name}: {installed} → {ver}')
+    except importlib.metadata.PackageNotFoundError:
+        stale.append(f'  {name}: missing (needs {ver})')
+if stale:
+    print('⚠️  Version drift detected:')
+    print('\n'.join(stale))
+else:
+    print('✅ All package versions match requirements.txt')
+" 2>&1
 else
     echo "❌ Venv not found at ~/.bitwize-music/venv"
     echo "   Run: python3 -m venv ~/.bitwize-music/venv"

@@ -85,6 +85,7 @@ Tools exposed:
     db_get_tweet_stats    - Tweet counts by status for an album or globally
 """
 import asyncio
+import importlib.metadata
 import json
 import logging
 import os
@@ -5802,6 +5803,115 @@ async def get_plugin_version() -> str:
 
 
 # =============================================================================
+# Venv Health Check
+# =============================================================================
+
+
+def _parse_requirements(path: Path) -> dict:
+    """Parse requirements.txt into {package_name: version} dict.
+
+    Handles ``==`` pins only (our format), skips comments and blank lines.
+    Strips extras markers (e.g., ``mcp[cli]==1.23.0`` → ``mcp: 1.23.0``).
+    Lowercases package names for consistent comparison.
+
+    Returns:
+        dict mapping lowercased package names to pinned version strings.
+        Empty dict on missing or unreadable file.
+    """
+    result = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return result
+
+    for line in text.splitlines():
+        line = line.strip()
+        # Strip inline comments
+        if "#" in line:
+            line = line[:line.index("#")].strip()
+        if not line or line.startswith("#"):
+            continue
+        if "==" not in line:
+            continue
+        name, _, version = line.partition("==")
+        # Strip extras: mcp[cli] → mcp
+        if "[" in name:
+            name = name[:name.index("[")]
+        name = name.strip().lower()
+        version = version.strip()
+        if name and version:
+            result[name] = version
+    return result
+
+
+@mcp.tool()
+async def check_venv_health() -> str:
+    """Check if venv packages match requirements.txt pinned versions.
+
+    Compares installed package versions in the plugin venv against
+    the pinned versions in requirements.txt. Useful for detecting
+    version drift after plugin upgrades.
+
+    Returns:
+        JSON with status ("ok", "stale", "no_venv", "error"),
+        mismatches, missing packages, counts, and fix command.
+    """
+    venv_python = Path.home() / ".bitwize-music" / "venv" / "bin" / "python3"
+    if not venv_python.exists():
+        return _safe_json({
+            "status": "no_venv",
+            "message": "Venv not found at ~/.bitwize-music/venv",
+        })
+
+    req_path = PLUGIN_ROOT / "requirements.txt"
+    requirements = _parse_requirements(req_path)
+    if not requirements:
+        return _safe_json({
+            "status": "error",
+            "message": f"Cannot read or parse {req_path}",
+        })
+
+    mismatches = []
+    missing = []
+    ok_count = 0
+
+    for pkg, required_version in sorted(requirements.items()):
+        try:
+            installed_version = importlib.metadata.version(pkg)
+            if installed_version == required_version:
+                ok_count += 1
+            else:
+                mismatches.append({
+                    "package": pkg,
+                    "required": required_version,
+                    "installed": installed_version,
+                })
+        except importlib.metadata.PackageNotFoundError:
+            missing.append({
+                "package": pkg,
+                "required": required_version,
+            })
+
+    checked = len(requirements)
+    status = "ok" if not mismatches and not missing else "stale"
+
+    result = {
+        "status": status,
+        "checked": checked,
+        "ok_count": ok_count,
+        "mismatches": mismatches,
+        "missing": missing,
+    }
+
+    if status == "stale":
+        result["fix_command"] = (
+            f"~/.bitwize-music/venv/bin/pip install -r {req_path}"
+        )
+
+    return _safe_json(result)
+
+
+# =============================================================================
 # Idea Management Tools
 # =============================================================================
 
@@ -6642,6 +6752,7 @@ async def master_audio(
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
+    effective_compress = 1.5
     genre_applied = None
 
     if genre:
@@ -6652,7 +6763,7 @@ async def master_audio(
                 "error": f"Unknown genre: {genre}",
                 "available_genres": sorted(presets.keys()),
             })
-        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
+        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
         # Genre preset provides defaults; explicit non-default args override
         if target_lufs == -14.0:
             effective_lufs = preset_lufs
@@ -6660,6 +6771,7 @@ async def master_audio(
             effective_highmid = preset_highmid
         if cut_highs == 0.0:
             effective_highs = preset_highs
+        effective_compress = preset_compress
         genre_applied = genre_key
 
     # Build EQ settings
@@ -6712,6 +6824,7 @@ async def master_audio(
                     target_lufs=effective_lufs,
                     eq_settings=eq_settings if eq_settings else None,
                     ceiling_db=ceiling_db,
+                    compress_ratio=effective_compress,
                 )
             result = await loop.run_in_executor(None, _do_master, wav_file, output_path)
             if result and not result.get("skipped"):
@@ -7448,6 +7561,7 @@ async def master_album(
     ceiling_db: float = -1.0,
     cut_highmid: float = 0.0,
     cut_highs: float = 0.0,
+    source_subfolder: str = "",
 ) -> str:
     """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
 
@@ -7467,6 +7581,8 @@ async def master_album(
         ceiling_db: True peak ceiling in dB (default: -1.0)
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
         cut_highs: High shelf cut in dB at 8kHz
+        source_subfolder: Read WAV files from this subfolder instead of the
+            base audio dir (e.g., "polished" to master from mix-engineer output)
 
     Returns:
         JSON with per-stage results, settings, warnings, and failure info
@@ -7495,7 +7611,26 @@ async def master_album(
             "failure_detail": json.loads(err),
         })
 
-    source_dir = _find_wav_source_dir(audio_dir)
+    # If source_subfolder specified, read from that subfolder
+    if source_subfolder:
+        source_dir = audio_dir / source_subfolder
+        if not source_dir.is_dir():
+            return _safe_json({
+                "album_slug": album_slug,
+                "stage_reached": "pre_flight",
+                "stages": {"pre_flight": {
+                    "status": "fail",
+                    "detail": f"Source subfolder not found: {source_dir}",
+                }},
+                "failed_stage": "pre_flight",
+                "failure_detail": {
+                    "reason": f"Source subfolder not found: {source_dir}",
+                    "suggestion": f"Run polish_audio first to create {source_subfolder}/ output.",
+                },
+            })
+    else:
+        source_dir = _find_wav_source_dir(audio_dir)
+
     wav_files = sorted([
         f for f in source_dir.iterdir()
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
@@ -7507,16 +7642,17 @@ async def master_album(
             "stage_reached": "pre_flight",
             "stages": {"pre_flight": {
                 "status": "fail",
-                "detail": f"No WAV files found in {audio_dir}",
+                "detail": f"No WAV files found in {source_dir}",
             }},
             "failed_stage": "pre_flight",
-            "failure_detail": {"reason": f"No WAV files in {audio_dir}"},
+            "failure_detail": {"reason": f"No WAV files in {source_dir}"},
         })
 
     stages["pre_flight"] = {
         "status": "pass",
         "track_count": len(wav_files),
         "audio_dir": str(audio_dir),
+        "source_dir": str(source_dir),
     }
 
     # Resolve genre presets and effective settings (same logic as master_audio)
@@ -7529,6 +7665,7 @@ async def master_album(
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
+    effective_compress = 1.5
     genre_applied = None
 
     if genre:
@@ -7545,13 +7682,14 @@ async def master_album(
                     "available_genres": sorted(presets.keys()),
                 },
             })
-        preset_lufs, preset_highmid, preset_highs = presets[genre_key]
+        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
         if target_lufs == -14.0:
             effective_lufs = preset_lufs
         if cut_highmid == 0.0:
             effective_highmid = preset_highmid
         if cut_highs == 0.0:
             effective_highs = preset_highs
+        effective_compress = preset_compress
         genre_applied = genre_key
 
     settings = {
@@ -7673,18 +7811,20 @@ async def master_album(
         track_meta = album_tracks.get(track_slug, {})
         fade_out_val = track_meta.get("fade_out")
 
-        def _do_master(in_path, out_path, lufs, eq, ceil, fade):
+        def _do_master(in_path, out_path, lufs, eq, ceil, fade, comp):
             return _master_track(
                 str(in_path), str(out_path),
                 target_lufs=lufs,
                 eq_settings=eq if eq else None,
                 ceiling_db=ceil,
                 fade_out=fade,
+                compress_ratio=comp,
             )
 
         result = await loop.run_in_executor(
             None, _do_master, wav_file, output_path,
             effective_lufs, eq_settings, ceiling_db, fade_out_val,
+            effective_compress,
         )
         if result and not result.get("skipped"):
             result["filename"] = wav_file.name
@@ -7762,9 +7902,7 @@ async def master_album(
 
             auto_recovered = []
             for fname in recoverable:
-                raw_path = audio_dir / fname
-                if not raw_path.exists():
-                    raw_path = _find_wav_source_dir(audio_dir) / fname
+                raw_path = source_dir / fname
                 if not raw_path.exists():
                     continue
 
@@ -8473,6 +8611,160 @@ async def polish_album(
         "analysis": analysis.get("tracks"),
         "polish": polish.get("tracks"),
         "next_step": f"master_audio('{album_slug}', source_subfolder='polished')",
+    })
+
+
+# =============================================================================
+# Reset Mastering (clean up mastered/polished before re-running pipeline)
+# =============================================================================
+
+
+_RESET_ALLOWED_SUBFOLDERS = {"mastered", "polished"}
+
+
+@mcp.tool()
+async def reset_mastering(
+    album_slug: str,
+    subfolders: list[str] = ["mastered"],
+    dry_run: bool = True,
+) -> str:
+    """Remove mastered/ and/or polished/ subfolders so the mastering pipeline can be re-run.
+
+    Only 'mastered' and 'polished' are allowed — originals/ and stems/ are
+    protected and cannot be deleted through this tool.
+
+    Default is dry_run=True: reports what would be deleted without removing anything.
+    Set dry_run=False to actually delete.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        subfolders: Which subfolders to remove (default: ["mastered"])
+        dry_run: If true (default), only report what would be deleted
+
+    Returns:
+        JSON with per-subfolder results (deleted/not_found/rejected)
+    """
+    # Validate subfolder names against allowlist
+    rejected = [s for s in subfolders if s not in _RESET_ALLOWED_SUBFOLDERS]
+    if rejected:
+        return _safe_json({
+            "error": f"Disallowed subfolders: {rejected}",
+            "allowed": sorted(_RESET_ALLOWED_SUBFOLDERS),
+            "hint": "Only 'mastered' and 'polished' can be reset. "
+                    "originals/ and stems/ are protected.",
+        })
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    results = {}
+    for subfolder in subfolders:
+        target = audio_dir / subfolder
+        if not target.is_dir():
+            results[subfolder] = {"status": "not_found", "path": str(target)}
+            continue
+
+        # Count files and total size
+        file_count = 0
+        total_bytes = 0
+        for f in target.rglob("*"):
+            if f.is_file():
+                file_count += 1
+                total_bytes += f.stat().st_size
+
+        size_mb = round(total_bytes / (1024 * 1024), 2)
+
+        if dry_run:
+            results[subfolder] = {
+                "status": "would_delete",
+                "path": str(target),
+                "file_count": file_count,
+                "size_mb": size_mb,
+            }
+        else:
+            shutil.rmtree(target)
+            results[subfolder] = {
+                "status": "deleted",
+                "path": str(target),
+                "file_count": file_count,
+                "size_mb": size_mb,
+            }
+
+    return _safe_json({
+        "album_slug": album_slug,
+        "dry_run": dry_run,
+        "results": results,
+    })
+
+
+# =============================================================================
+# Legacy Venv Cleanup
+# =============================================================================
+
+
+_LEGACY_VENV_DIRS = ["mastering-env", "promotion-env", "cloud-env"]
+
+
+@mcp.tool()
+async def cleanup_legacy_venvs(
+    dry_run: bool = True,
+) -> str:
+    """Detect and remove stale per-tool virtual environments from ~/.bitwize-music/.
+
+    Prior to 0.40.0, each tool had its own venv (mastering-env, promotion-env,
+    cloud-env). These are now consolidated into a single ~/.bitwize-music/venv/.
+
+    Default is dry_run=True: reports what would be removed.
+    Set dry_run=False to actually delete the stale directories.
+
+    Args:
+        dry_run: If true (default), only report stale venvs without removing them
+
+    Returns:
+        JSON with per-directory status (found/not_found) and sizes
+    """
+    tools_root = Path.home() / ".bitwize-music"
+    results = {}
+
+    for dirname in _LEGACY_VENV_DIRS:
+        target = tools_root / dirname
+        if not target.is_dir():
+            results[dirname] = {"status": "not_found"}
+            continue
+
+        # Calculate size
+        total_bytes = 0
+        file_count = 0
+        for f in target.rglob("*"):
+            if f.is_file():
+                file_count += 1
+                total_bytes += f.stat().st_size
+
+        size_mb = round(total_bytes / (1024 * 1024), 2)
+
+        if dry_run:
+            results[dirname] = {
+                "status": "would_delete",
+                "path": str(target),
+                "file_count": file_count,
+                "size_mb": size_mb,
+            }
+        else:
+            shutil.rmtree(target)
+            results[dirname] = {
+                "status": "deleted",
+                "path": str(target),
+                "file_count": file_count,
+                "size_mb": size_mb,
+            }
+
+    found = [d for d, r in results.items() if r["status"] != "not_found"]
+    return _safe_json({
+        "dry_run": dry_run,
+        "stale_venvs_found": len(found),
+        "results": results,
+        "note": "All tools now use ~/.bitwize-music/venv/ (unified venv).",
     })
 
 
@@ -9372,6 +9664,12 @@ async def migrate_audio_layout(
 
 def main():
     """Start the MCP server."""
+    # Enable file-based debug logging if configured
+    from tools.shared.logging_config import configure_file_logging
+    config = read_config()
+    if config:
+        configure_file_logging(config)
+
     logger.info("Starting bitwize-music-state MCP server")
     mcp.run(transport="stdio")
 

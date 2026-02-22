@@ -1,7 +1,0 @@
-# Mix Engineer Dependencies
-# These are the additional dependencies for /bitwize-music:mix-engineer
-# scipy, numpy, and soundfile are shared with mastering
-noisereduce>=3.0.0
-scipy>=1.10.0
-numpy>=1.24.0
-soundfile>=0.12.1

@@ -1,6 +1,0 @@
-# Audio Mastering (required for /bitwize-music:mastering-engineer)
-matchering>=2.0.6
-pyloudnorm>=0.1.1
-scipy>=1.10.0
-numpy>=1.24.0
-soundfile>=0.12.1

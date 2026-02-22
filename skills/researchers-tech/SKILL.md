@@ -2,7 +2,7 @@
 name: researchers-tech
 description: Researches project histories, changelogs, developer interviews, and open source documentation. Use when the album subject involves technology projects or developer stories.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 user-invocable: false
 context: fork
 allowed-tools:

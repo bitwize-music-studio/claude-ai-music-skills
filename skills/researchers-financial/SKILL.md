@@ -2,7 +2,7 @@
 name: researchers-financial
 description: Researches SEC filings, earnings calls, analyst reports, and market data. Use when the album subject involves financial crimes, corporate stories, or market events.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 user-invocable: false
 context: fork
 allowed-tools:

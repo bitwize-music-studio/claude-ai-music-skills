@@ -2,7 +2,7 @@
 name: album-ideas
 description: Tracks and manages album ideas including brainstorming, planning, and status updates. Use when the user wants to add, review, or organize their album idea backlog.
 argument-hint: <"list" or "add [title]" or "remove [title]" or "status [title] [status]">
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Edit

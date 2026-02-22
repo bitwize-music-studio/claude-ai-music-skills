@@ -96,8 +96,9 @@ The `~/.bitwize-music/` directory also contains:
 ```
 ~/.bitwize-music/
 ├── config.yaml         # Your configuration
-├── mastering-env/      # Shared Python venv for mastering
-└── cache/              # Future: cache files
+├── venv/               # Unified Python venv (all tools)
+├── logs/               # Debug logs (when enabled)
+└── cache/              # State cache
 ```
 
 ## Settings Reference
@@ -158,6 +159,18 @@ Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-
 | `cloud.s3.access_key_id` | If S3 | IAM access key |
 | `cloud.s3.secret_access_key` | If S3 | IAM secret key |
 | `cloud.s3.bucket` | If S3 | S3 bucket name |
+
+### Logging (`logging:`)
+
+File-based debug logging for development and troubleshooting. Silent by default.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `logging.enabled` | Yes (to activate) | Master switch — `true` to enable file logging |
+| `logging.level` | No | Minimum log level: `debug`, `info`, `warning`, `error` (default: `debug`) |
+| `logging.file` | No | Log file path, supports `~` (default: `~/.bitwize-music/logs/debug.log`). Directory auto-created |
+| `logging.max_size_mb` | No | Max size per log file in MB before rotation (default: 5) |
+| `logging.backup_count` | No | Number of rotated backups to keep (default: 3) |
 
 ### Database (`database:`)
 

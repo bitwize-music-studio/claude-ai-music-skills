@@ -6,6 +6,27 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-02-21
+
+### Added
+- **Bus compression presets** — 16 genre presets in mix-presets.yaml for bus compression stage
+- **Stereo width in stems path** — stereo width processing now applied during stems-based polish pipeline
+- **Mastering compression stage** — dedicated compression stage added to mastering pipeline
+- **Mastering genre confirmation** — mastering-engineer skill now asks to confirm the genre preset before mastering and checks if any tracks need different treatment
+- **`check_venv_health` MCP tool** — compares installed package versions against `requirements.txt` pins; integrated into session start to warn about version drift after plugin upgrades
+- **Configurable debug logging** — new `logging` section in config.yaml enables file-based debug logging with rotation; silent by default, opt-in for development/troubleshooting
+- **`reset_mastering` MCP tool** — removes `mastered/` and/or `polished/` subfolders so the mastering pipeline can be re-run cleanly; dry-run safe by default, `originals/` and `stems/` are protected
+- **`cleanup_legacy_venvs` MCP tool** — detects and removes stale per-tool venvs (`mastering-env`, `promotion-env`, `cloud-env`) left over from pre-0.40.0; dry-run safe by default
+- **Dev mode docs** — CONTRIBUTING.md section explaining how to avoid cached plugin conflicts when using `--plugin-dir`
+
+### Removed
+- **Redundant requirements files** — removed `requirements-mastering.txt`, `requirements-mixing.txt`, `requirements-promo.txt`, `requirements-research.txt`, `requirements-sheet-music.txt`, and `tools/cloud/requirements.txt`; the unified `requirements.txt` covers all dependencies
+
+### Fixed
+- **Stale venv references** — updated `config/README.md`, `TESTING.md`, `reference/mastering/mastering-workflow.md`, and `skills/test/test-definitions.md` to reference unified `venv/` instead of legacy `mastering-env/`
+- **Migration 0.40.0** — added missing `cloud-env` cleanup action
+- **CI installs full dependencies** — `test.yml` now uses `requirements.txt` instead of the removed `requirements-mastering.txt`
+
 ## [0.62.0] - 2026-02-21
 
 ### Added

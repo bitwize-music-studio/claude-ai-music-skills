@@ -2,7 +2,7 @@
 name: researchers-gov
 description: Researches DOJ/FBI/SEC press releases, agency statements, and government sources. Use when research needs official government records or agency documentation.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 user-invocable: false
 context: fork
 allowed-tools:

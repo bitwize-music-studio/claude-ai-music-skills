@@ -507,7 +507,7 @@ class TestResolvePath:
 
     def test_path_with_trailing_slash(self):
         result = resolve_path("/tmp/test/")
-        assert str(result) == "/tmp/test"
+        assert str(result) == str(Path("/tmp/test").resolve())
 
 
 @pytest.mark.unit
@@ -528,9 +528,10 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 12345.0)
 
         section = build_config_section(config)
-        assert section['content_root'] == '/home/user/content'
-        assert section['audio_root'] == '/home/user/audio'
-        assert section['documents_root'] == '/home/user/documents'
+        # resolve_path() calls .resolve(), which on macOS may change the prefix
+        assert section['content_root'] == str(Path('/home/user/content').resolve())
+        assert section['audio_root'] == str(Path('/home/user/audio').resolve())
+        assert section['documents_root'] == str(Path('/home/user/documents').resolve())
         assert section['artist_name'] == 'testartist'
         assert section['config_mtime'] == 12345.0
 
@@ -2386,7 +2387,11 @@ class TestScanIdeasTOCTOU:
 
         config = {'paths': {}}
 
-        # Patch stat to raise OSError (simulating file deletion)
+        # Patch Path.stat to raise OSError on IDEAS.md on the second call,
+        # simulating file deletion between exists() check and stat() call.
+        # On Python 3.12+, exists() calls self.stat() internally, so we
+        # must let the first call through (exists) and fail on the second
+        # (the explicit stat in scan_ideas).
         original_stat = Path.stat
 
         call_count = [0]
@@ -2644,7 +2649,7 @@ class TestBuildConfigSectionOverrides:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['overrides_dir'] == '/home/user/custom-overrides'
+        assert section['overrides_dir'] == str(Path('/home/user/custom-overrides').resolve())
 
     def test_empty_overrides_defaults_to_content_root(self, monkeypatch):
         """When overrides is empty string, default is {content_root}/overrides."""
@@ -2659,7 +2664,7 @@ class TestBuildConfigSectionOverrides:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['overrides_dir'] == '/home/user/content/overrides'
+        assert section['overrides_dir'] == str(Path('/home/user/content').resolve() / 'overrides')
 
     def test_no_overrides_key_defaults(self, monkeypatch):
         """When overrides key is absent, default is {content_root}/overrides."""
@@ -2673,7 +2678,7 @@ class TestBuildConfigSectionOverrides:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['overrides_dir'] == '/home/user/content/overrides'
+        assert section['overrides_dir'] == str(Path('/home/user/content').resolve() / 'overrides')
 
     def test_tilde_in_overrides_path(self, monkeypatch):
         """Tilde in overrides path is expanded to home directory."""

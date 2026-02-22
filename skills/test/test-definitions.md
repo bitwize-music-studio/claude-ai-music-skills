@@ -924,7 +924,7 @@ Read .gitignore. Verify it includes:
 - `research/`
 - `*.pdf`
 - `primary-sources/`
-- `mastering-env/`
+- `venv/`
 - `TESTING.md`
 
 ### TEST: No skill.json files exist (standard is SKILL.md)

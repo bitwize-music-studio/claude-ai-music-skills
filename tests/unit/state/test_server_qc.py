@@ -855,7 +855,7 @@ class TestMasterAlbumPipeline:
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets",
-                   return_value={"rock": (-14.0, -2.5, 0.0)}), \
+                   return_value={"rock": (-14.0, -2.5, 0.0, 1.5)}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
@@ -1063,7 +1063,7 @@ class TestMasterAlbumPipeline:
                 "final_peak": -1.5,
             }
 
-        presets = {"country": (-14.0, -2.0, 0.0)}
+        presets = {"country": (-14.0, -2.0, 0.0, 1.5)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
@@ -1385,3 +1385,191 @@ class TestMasterAlbumPipeline:
 
         assert len(captured_kwargs) == 1
         assert captured_kwargs[0]["fade_out"] == 5.0
+
+
+# =============================================================================
+# Tests for reset_mastering MCP tool
+# =============================================================================
+
+
+class TestResetMastering:
+    """Tests for the reset_mastering MCP tool."""
+
+    def _make_audio_tree(self, tmp_path, subfolders=("mastered",)):
+        """Create a fake audio dir with subfolders containing dummy files."""
+        audio_dir = (
+            tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        )
+        for sf in subfolders:
+            d = audio_dir / sf
+            d.mkdir(parents=True)
+            (d / "track1.wav").write_bytes(b"\x00" * 1024)
+            (d / "track2.wav").write_bytes(b"\x00" * 2048)
+        # Also create originals so the base audio_dir exists
+        (audio_dir / "originals").mkdir(parents=True, exist_ok=True)
+        return audio_dir
+
+    def test_dry_run_reports_without_deleting(self, tmp_path):
+        audio_dir = self._make_audio_tree(tmp_path, ["mastered"])
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.reset_mastering("test-album", dry_run=True)))
+
+        assert result["dry_run"] is True
+        assert result["results"]["mastered"]["status"] == "would_delete"
+        assert result["results"]["mastered"]["file_count"] == 2
+        # Files should still exist
+        assert (audio_dir / "mastered" / "track1.wav").exists()
+
+    def test_delete_mastered(self, tmp_path):
+        audio_dir = self._make_audio_tree(tmp_path, ["mastered"])
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.reset_mastering("test-album", dry_run=False)))
+
+        assert result["dry_run"] is False
+        assert result["results"]["mastered"]["status"] == "deleted"
+        assert not (audio_dir / "mastered").exists()
+
+    def test_delete_multiple_subfolders(self, tmp_path):
+        audio_dir = self._make_audio_tree(tmp_path, ["mastered", "polished"])
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(
+                server.reset_mastering(
+                    "test-album", subfolders=["mastered", "polished"], dry_run=False,
+                )
+            ))
+
+        assert result["results"]["mastered"]["status"] == "deleted"
+        assert result["results"]["polished"]["status"] == "deleted"
+        assert not (audio_dir / "mastered").exists()
+        assert not (audio_dir / "polished").exists()
+
+    def test_rejects_disallowed_subfolders(self):
+        """originals, stems, and arbitrary names must be rejected."""
+        state = _fresh_state()
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(
+                server.reset_mastering("test-album", subfolders=["originals"])
+            ))
+        assert "error" in result
+        assert "originals" in result["error"]
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(
+                server.reset_mastering("test-album", subfolders=["stems"])
+            ))
+        assert "error" in result
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(
+                server.reset_mastering("test-album", subfolders=["foo"])
+            ))
+        assert "error" in result
+
+    def test_missing_subfolder_reported_not_found(self, tmp_path):
+        self._make_audio_tree(tmp_path, ["mastered"])  # no polished/
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(
+                server.reset_mastering(
+                    "test-album", subfolders=["mastered", "polished"], dry_run=False,
+                )
+            ))
+
+        assert result["results"]["mastered"]["status"] == "deleted"
+        assert result["results"]["polished"]["status"] == "not_found"
+
+    def test_missing_audio_dir_returns_error(self):
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent/path"
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.reset_mastering("test-album")))
+
+        assert "error" in result
+
+
+# =============================================================================
+# Tests for cleanup_legacy_venvs MCP tool
+# =============================================================================
+
+
+class TestCleanupLegacyVenvs:
+    """Tests for the cleanup_legacy_venvs MCP tool."""
+
+    def test_dry_run_reports_stale_venvs(self, tmp_path):
+        tools_root = tmp_path / ".bitwize-music"
+        tools_root.mkdir()
+        stale = tools_root / "mastering-env"
+        stale.mkdir()
+        (stale / "bin").mkdir()
+        (stale / "bin" / "python3").write_bytes(b"\x00" * 512)
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.cleanup_legacy_venvs(dry_run=True)))
+
+        assert result["dry_run"] is True
+        assert result["results"]["mastering-env"]["status"] == "would_delete"
+        assert result["stale_venvs_found"] == 1
+        # Directory should still exist
+        assert stale.exists()
+
+    def test_delete_stale_venvs(self, tmp_path):
+        tools_root = tmp_path / ".bitwize-music"
+        tools_root.mkdir()
+        for name in ("mastering-env", "promotion-env", "cloud-env"):
+            d = tools_root / name
+            d.mkdir()
+            (d / "dummy").write_bytes(b"\x00" * 100)
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.cleanup_legacy_venvs(dry_run=False)))
+
+        assert result["stale_venvs_found"] == 3
+        for name in ("mastering-env", "promotion-env", "cloud-env"):
+            assert result["results"][name]["status"] == "deleted"
+            assert not (tools_root / name).exists()
+
+    def test_no_stale_venvs(self, tmp_path):
+        tools_root = tmp_path / ".bitwize-music"
+        tools_root.mkdir()
+        # Only the active venv exists
+        (tools_root / "venv").mkdir()
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.cleanup_legacy_venvs(dry_run=True)))
+
+        assert result["stale_venvs_found"] == 0
+        for name in ("mastering-env", "promotion-env", "cloud-env"):
+            assert result["results"][name]["status"] == "not_found"
+
+    def test_partial_stale_venvs(self, tmp_path):
+        tools_root = tmp_path / ".bitwize-music"
+        tools_root.mkdir()
+        (tools_root / "cloud-env").mkdir()
+        (tools_root / "cloud-env" / "file.txt").write_bytes(b"\x00" * 50)
+
+        with patch("pathlib.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.cleanup_legacy_venvs(dry_run=False)))
+
+        assert result["stale_venvs_found"] == 1
+        assert result["results"]["cloud-env"]["status"] == "deleted"
+        assert result["results"]["mastering-env"]["status"] == "not_found"
+        assert result["results"]["promotion-env"]["status"] == "not_found"

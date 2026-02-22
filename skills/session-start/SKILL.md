@@ -1,7 +1,7 @@
 ---
 name: session-start
 description: Runs the session startup procedure - verifies setup, loads config and state, checks skill models, and reports project status. Use at the beginning of a fresh session.
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Bash
@@ -28,7 +28,7 @@ You perform the 8-step session startup procedure that initializes a working sess
 Quick dependency check:
 
 ```bash
-python3 -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing"
+~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing"
 ```
 
 - If MCP missing: **Stop immediately** and suggest: `/bitwize-music:setup mcp`
@@ -74,11 +74,9 @@ Compare `plugin_version` in state.json against current version in `${CLAUDE_PLUG
    - Rebuild state to update `plugin_version`
 4. Report: "Upgraded from X to Y" with summary of actions taken
 
-## Step 5: Check Skill Models
+## Step 5: (Removed)
 
-Run `/bitwize-music:skill-model-updater check` to verify all skills use current model versions.
-
-Report any outdated models found.
+Skill model checking is no longer part of session start. Run `/bitwize-music:skill-model-updater check` manually when new Claude models are released.
 
 ## Step 6: Report From State Cache
 
@@ -141,7 +139,6 @@ SESSION START
 Setup: MCP ready, config loaded
 Overrides: [loaded from {path} | not found (optional)]
 State: [loaded | rebuilt | error]
-Skill models: [all current | X outdated]
 
 ALBUM IDEAS
   Pending: X | In Progress: Y

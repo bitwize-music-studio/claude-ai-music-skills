@@ -1,4 +1,0 @@
-# Promo Videos (required for /bitwize-music:promo-director)
-# Also requires: ffmpeg (system package)
-pillow>=10.0.0
-librosa>=0.10.0

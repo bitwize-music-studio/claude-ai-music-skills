@@ -209,6 +209,30 @@ When fixing bugs, add a regression test:
 4. Verify it fails before your fix
 5. Verify it passes after your fix
 
+## Development Mode (--plugin-dir)
+
+When developing with `--plugin-dir`, Claude Code sets `CLAUDE_PLUGIN_ROOT` to your local repo, so `run.py` launches the dev `server.py`. However, if the plugin is also **installed** (cached at `~/.claude/plugins/cache/bitwize-music/`), the cached MCP server may run instead of (or alongside) the dev one, since both register the same `bitwize-music-mcp` server ID.
+
+**Before testing with `--plugin-dir`:**
+
+```bash
+# Option A: Remove the cached plugin
+rm -rf ~/.claude/plugins/cache/bitwize-music
+
+# Option B: Uninstall first
+/plugin uninstall bitwize-music
+```
+
+**Then run Claude with your dev repo:**
+
+```bash
+claude --plugin-dir /path/to/claude-ai-music-skills
+```
+
+`CLAUDE_PLUGIN_ROOT` will point to your dev repo and `run.py` will use the dev `server.py`.
+
+**After dev testing**, re-install the plugin normally to restore the cached version.
+
 ## Code Style
 
 - **Python scripts:** Follow PEP 8

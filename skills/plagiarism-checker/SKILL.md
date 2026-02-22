@@ -2,7 +2,7 @@
 name: plagiarism-checker
 description: Scans lyrics for phrases that may match existing songs using web search and LLM knowledge. Use before release to check for unintentional borrowing.
 argument-hint: <album-name> [track-slug]
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 allowed-tools:
   - Read
   - Glob

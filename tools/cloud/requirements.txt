@@ -1,5 +1,0 @@
-# Cloud Uploader Dependencies
-# Install: pip install -r requirements.txt
-
-boto3>=1.26.0      # S3-compatible API (works with R2 and S3)
-pyyaml>=6.0        # Config file reading

@@ -69,11 +69,16 @@ At the beginning of a fresh session:
 
 1. **Verify setup** — Quick dependency check:
    ```bash
-   python3 -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing"
+   ~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing"
    ```
    - If MCP missing → **Stop immediately** and suggest: `/bitwize-music:setup mcp`
    - If config missing → suggest: `/bitwize-music:configure`
    - Don't proceed with session start until setup is complete
+1.5. **Check venv health** — Use `check_venv_health` MCP tool:
+   - `status: "ok"` → continue silently
+   - `status: "stale"` → warn with mismatches and fix command, continue session
+   - `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
+   - `status: "error"` → warn and continue
 2. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
 3. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
    - `{overrides}/CLAUDE.md` → incorporate instructions
@@ -90,8 +95,9 @@ At the beginning of a fresh session:
    - If `plugin_version` is null → first run, set to current version, skip migrations
    - If stored < current → read `{plugin_root}/migrations/*.md` for applicable versions, process actions
    - If versions match → no action
-5. **Check skill models** — Run `/bitwize-music:skill-model-updater check`
+5. _(Removed — run `/bitwize-music:skill-model-updater check` manually when new models are released)_
 6. **Report from MCP state**:
+   - Venv health warnings (from step 1.5 — omit if ok, warn if stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`")
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications`)

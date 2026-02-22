@@ -639,6 +639,55 @@ sheet_music:
 
 
 # =============================================================================
+# LOGGING (logging:)
+# =============================================================================
+# File-based debug logging for development and troubleshooting.
+# When enabled, all log output is written to a rotating log file.
+# Completely silent when disabled or omitted — no behavior change.
+#
+# logging:
+#
+#   # ---------------------------
+#   # enabled [required to activate]
+#   # ---------------------------
+#   # Master switch. Set to true to enable file logging.
+#   # When false or omitted, no log file is created.
+#   #
+#   # enabled: true
+#
+#   # ---------------------------
+#   # level [optional, default: "debug"]
+#   # ---------------------------
+#   # Minimum log level written to the file.
+#   # Options: "debug", "info", "warning", "error"
+#   #
+#   # level: "debug"
+#
+#   # ---------------------------
+#   # file [optional, default: "~/.bitwize-music/logs/debug.log"]
+#   # ---------------------------
+#   # Path to the log file. Supports ~ for home directory.
+#   # The directory is auto-created if it doesn't exist.
+#   #
+#   # file: "~/.bitwize-music/logs/debug.log"
+#
+#   # ---------------------------
+#   # max_size_mb [optional, default: 5]
+#   # ---------------------------
+#   # Maximum size of each log file in megabytes before rotation.
+#   #
+#   # max_size_mb: 5
+#
+#   # ---------------------------
+#   # backup_count [optional, default: 3]
+#   # ---------------------------
+#   # Number of rotated log files to keep.
+#   # e.g., debug.log, debug.log.1, debug.log.2, debug.log.3
+#   #
+#   # backup_count: 3
+
+
+# =============================================================================
 # CONFIGURATION PATTERNS
 # =============================================================================
 # Below are complete example configurations for common setups.

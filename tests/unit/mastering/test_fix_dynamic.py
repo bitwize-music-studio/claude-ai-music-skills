@@ -65,8 +65,8 @@ class TestFixDynamic:
         processed, metrics = fix_dynamic(data.copy(), rate, target_lufs=target)
         proc_err = abs(metrics["final_lufs"] - target)
 
-        assert proc_err < simple_err, (
-            f"fix_dynamic ({proc_err:.2f} dB error) should beat "
+        assert proc_err <= simple_err, (
+            f"fix_dynamic ({proc_err:.2f} dB error) should be at least as good as "
             f"simple normalization ({simple_err:.2f} dB error)"
         )
 

@@ -1,7 +1,7 @@
 ---
 name: promo-director
 description: Generates 15-second vertical promo videos for social media from mastered audio. Use after mastering is complete and before release, when the user wants social media content.
-model: claude-sonnet-4-5-20250929
+model: claude-sonnet-4-6
 prerequisites:
   - mastering-engineer
   - album-art-director
