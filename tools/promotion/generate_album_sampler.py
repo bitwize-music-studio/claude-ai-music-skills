@@ -483,9 +483,12 @@ Examples:
         promo_dir.mkdir(exist_ok=True)
         output = promo_dir / 'album_sampler.mp4'
 
-    # Calculate expected duration
+    # Calculate expected duration — check originals/ first
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
-    track_count = sum(1 for f in args.tracks_dir.iterdir()
+    count_dir = args.tracks_dir / "originals"
+    if not count_dir.is_dir():
+        count_dir = args.tracks_dir
+    track_count = sum(1 for f in count_dir.iterdir()
                       if f.suffix.lower() in audio_extensions)
     expected_duration = track_count * args.clip_duration - (track_count - 1) * args.crossfade
 

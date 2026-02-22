@@ -7904,6 +7904,8 @@ async def master_album(
             for fname in recoverable:
                 raw_path = source_dir / fname
                 if not raw_path.exists():
+                    raw_path = _find_wav_source_dir(audio_dir) / fname
+                if not raw_path.exists():
                     continue
 
                 def _do_recovery(src, dst, lufs, eq, ceil):
