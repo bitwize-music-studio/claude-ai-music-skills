@@ -1,19 +1,14 @@
 # Mix Polish Presets — Per-Stem Processing Settings
 #
 # Each stem type defines its own processing chain:
-#   vocals:  noise_reduction → presence boost → high tame → compress → saturation → lowpass
-#   drums:   click removal → compress (fast attack) → saturation
-#   bass:    highpass → mud cut → compress → saturation
-#   other:   noise reduction → mud cut → high tame → lowpass
+#   vocals:  noise_reduction → presence boost → high tame → compress
+#   drums:   click removal → compress (fast attack)
+#   bass:    highpass → mud cut → compress
+#   other:   noise reduction → mud cut → high tame
 #
 # gain_db on each stem controls remix balance (0 = unity, positive = louder)
 #
 # full_mix: Fallback settings when stems are not available
-#
-# Character effects (all default to off/passthrough):
-#   saturation_drive: 0.0-1.0 (0 = off, adds harmonic warmth/grit)
-#   lowpass_cutoff: Hz (20000 = off, lower = darker/vintage)
-#   stereo_width: multiplier (1.0 = off, <1 = narrower, >1 = wider)
 #
 # Override per-user: copy to {overrides}/mix-presets.yaml and edit.
 # User overrides deep-merge on top of these defaults.
@@ -29,8 +24,6 @@ defaults:
     compress_ratio: 2.5
     compress_attack_ms: 10.0
     gain_db: 0.0
-    saturation_drive: 0
-    lowpass_cutoff: 20000
   drums:
     click_removal: true
     click_threshold: 6.0
@@ -38,7 +31,6 @@ defaults:
     compress_ratio: 2.0
     compress_attack_ms: 5.0
     gain_db: 0.0
-    saturation_drive: 0
   bass:
     highpass_cutoff: 30
     mud_cut_db: -3.0
@@ -47,7 +39,6 @@ defaults:
     compress_ratio: 3.0
     compress_attack_ms: 10.0
     gain_db: 0.0
-    saturation_drive: 0
   other:
     noise_reduction: 0.3
     mud_cut_db: -2.0
@@ -55,7 +46,6 @@ defaults:
     high_tame_db: -1.5
     high_tame_freq: 8000
     gain_db: 0.0
-    lowpass_cutoff: 20000
   full_mix:
     noise_reduction: 0.3
     highpass_cutoff: 35
@@ -68,9 +58,6 @@ defaults:
     compress_threshold_db: -15.0
     compress_ratio: 2.0
     click_removal: true
-    saturation_drive: 0
-    lowpass_cutoff: 20000
-    stereo_width: 1.0
 
 genres:
   # === Pop / Mainstream ===
@@ -80,16 +67,12 @@ genres:
       gain_db: 0.5
     other:
       high_tame_db: -2.0
-    full_mix:
-      stereo_width: 1.1
   k-pop:
     vocals:
       presence_boost_db: 2.5
       gain_db: 0.5
     other:
       high_tame_db: -2.0
-    full_mix:
-      stereo_width: 1.1
   hyperpop:
     vocals:
       presence_boost_db: 3.0
@@ -97,47 +80,35 @@ genres:
       gain_db: 0.5
     drums:
       compress_ratio: 2.5
-    full_mix:
-      saturation_drive: 0.15
-      stereo_width: 1.2
 
   # === Hip-Hop / Rap ===
   hip-hop:
     vocals:
       presence_boost_db: 2.5
       gain_db: 1.0
-      saturation_drive: 0.1
     bass:
       highpass_cutoff: 25
       mud_cut_db: -2.0
       gain_db: 1.0
     drums:
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
   hiphop:
     vocals:
       presence_boost_db: 2.5
       gain_db: 1.0
-      saturation_drive: 0.1
     bass:
       highpass_cutoff: 25
       mud_cut_db: -2.0
       gain_db: 1.0
     drums:
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
   rap:
     vocals:
       presence_boost_db: 2.5
       gain_db: 1.0
-      saturation_drive: 0.1
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-    full_mix:
-      saturation_drive: 0.1
   trap:
     vocals:
       presence_boost_db: 2.0
@@ -145,11 +116,8 @@ genres:
     bass:
       highpass_cutoff: 25
       gain_db: 1.5
-      saturation_drive: 0.15
     drums:
       gain_db: 1.0
-    full_mix:
-      saturation_drive: 0.1
   drill:
     vocals:
       gain_db: 0.5
@@ -158,40 +126,25 @@ genres:
       gain_db: 1.0
     drums:
       gain_db: 0.5
-      saturation_drive: 0.1
-    full_mix:
-      saturation_drive: 0.1
   phonk:
     vocals:
       high_tame_db: -2.5
-      saturation_drive: 0.4
-      lowpass_cutoff: 8000
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-      saturation_drive: 0.2
     drums:
       gain_db: 0.5
-      saturation_drive: 0.35
-    full_mix:
-      saturation_drive: 0.35
-      lowpass_cutoff: 10000
-      stereo_width: 0.9
   grime:
     vocals:
       presence_boost_db: 2.5
       gain_db: 0.5
-      saturation_drive: 0.1
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-    full_mix:
-      saturation_drive: 0.1
   nerdcore:
     vocals:
       presence_boost_db: 2.5
       gain_db: 1.0
-      saturation_drive: 0.1
     bass:
       gain_db: 0.5
 
@@ -201,42 +154,29 @@ genres:
       presence_boost_db: 2.0
       high_tame_db: -1.5
       gain_db: 0.5
-      saturation_drive: 0.1
     bass:
       mud_cut_db: -2.0
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
   rnb:
     vocals:
       presence_boost_db: 2.0
       high_tame_db: -1.5
       gain_db: 0.5
-      saturation_drive: 0.1
     bass:
       mud_cut_db: -2.0
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
   soul:
     vocals:
       presence_boost_db: 1.5
       gain_db: 0.5
-      saturation_drive: 0.15
     other:
       mud_cut_db: -1.5
-    full_mix:
-      saturation_drive: 0.15
   funk:
     bass:
       mud_cut_db: -2.0
       gain_db: 0.5
-      saturation_drive: 0.2
     drums:
       gain_db: 0.5
-      saturation_drive: 0.1
-    full_mix:
-      saturation_drive: 0.15
   disco:
     bass:
       gain_db: 0.5
@@ -244,14 +184,10 @@ genres:
       gain_db: 0.5
     other:
       high_tame_db: -1.0
-    full_mix:
-      saturation_drive: 0.1
-      stereo_width: 1.1
   gospel:
     vocals:
       presence_boost_db: 2.0
       gain_db: 0.5
-      saturation_drive: 0.1
 
   # === Rock ===
   rock:
@@ -259,11 +195,8 @@ genres:
       high_tame_db: -2.5
     drums:
       gain_db: 0.5
-      saturation_drive: 0.15
     other:
       mud_cut_db: -3.0
-    full_mix:
-      saturation_drive: 0.15
   indie-rock:
     vocals:
       high_tame_db: -2.0
@@ -271,74 +204,48 @@ genres:
       gain_db: 0.5
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.1
   alternative:
     vocals:
       high_tame_db: -2.0
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.1
   grunge:
     vocals:
       high_tame_db: -3.0
       noise_reduction: 0.3
-      saturation_drive: 0.3
     drums:
       gain_db: 0.5
-      saturation_drive: 0.2
     other:
       mud_cut_db: -3.0
-    full_mix:
-      saturation_drive: 0.25
-      lowpass_cutoff: 14000
   garage-rock:
     vocals:
       noise_reduction: 0.3
       high_tame_db: -2.5
-      saturation_drive: 0.25
-    drums:
-      saturation_drive: 0.2
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.2
-      lowpass_cutoff: 14000
   surf-rock:
     other:
       high_tame_db: -1.0
       mud_cut_db: -2.0
     drums:
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
-      stereo_width: 1.15
   psychedelic-rock:
     vocals:
       noise_reduction: 0.3
-      saturation_drive: 0.15
     other:
       high_tame_db: -1.0
       mud_cut_db: -2.0
-    full_mix:
-      saturation_drive: 0.15
-      stereo_width: 1.3
   progressive-rock:
     other:
       mud_cut_db: -2.5
     drums:
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.2
   post-rock:
     vocals:
       noise_reduction: 0.3
       presence_boost_db: 1.5
     other:
       high_tame_db: -1.0
-    full_mix:
-      stereo_width: 1.3
 
   # === Punk ===
   punk:
@@ -347,46 +254,32 @@ genres:
       noise_reduction: 0.3
     drums:
       gain_db: 1.0
-      saturation_drive: 0.2
     other:
       mud_cut_db: -3.0
-    full_mix:
-      saturation_drive: 0.2
   hardcore-punk:
     vocals:
       high_tame_db: -3.0
       noise_reduction: 0.3
     drums:
       gain_db: 1.0
-      saturation_drive: 0.25
     other:
       mud_cut_db: -3.5
-    full_mix:
-      saturation_drive: 0.25
   ska-punk:
     drums:
       gain_db: 0.5
-      saturation_drive: 0.1
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.1
   celtic-punk:
     vocals:
       gain_db: 0.5
     other:
       mud_cut_db: -2.0
-    full_mix:
-      saturation_drive: 0.1
   emo:
     vocals:
       presence_boost_db: 2.5
       gain_db: 0.5
-      saturation_drive: 0.1
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.15
 
   # === Metal ===
   metal:
@@ -396,79 +289,56 @@ genres:
     drums:
       compress_ratio: 2.5
       gain_db: 1.0
-      saturation_drive: 0.2
     bass:
       mud_cut_db: -4.0
       gain_db: 0.5
-      saturation_drive: 0.15
     other:
       mud_cut_db: -3.5
-    full_mix:
-      saturation_drive: 0.2
   thrash-metal:
     vocals:
       high_tame_db: -3.0
     drums:
       compress_ratio: 2.5
       gain_db: 1.0
-      saturation_drive: 0.25
     bass:
       mud_cut_db: -4.0
     other:
       mud_cut_db: -4.0
-    full_mix:
-      saturation_drive: 0.25
   black-metal:
     vocals:
       high_tame_db: -3.5
       noise_reduction: 0.3
-      saturation_drive: 0.2
     drums:
       gain_db: 0.5
     other:
       mud_cut_db: -3.0
-    full_mix:
-      saturation_drive: 0.2
-      lowpass_cutoff: 15000
   doom-metal:
     bass:
       highpass_cutoff: 25
       mud_cut_db: -2.0
       gain_db: 1.0
-      saturation_drive: 0.25
     drums:
       compress_ratio: 1.5
     other:
       mud_cut_db: -2.5
-    full_mix:
-      saturation_drive: 0.2
-      stereo_width: 1.1
   metalcore:
     vocals:
       high_tame_db: -3.0
     drums:
       compress_ratio: 2.5
       gain_db: 1.0
-      saturation_drive: 0.2
     other:
       mud_cut_db: -3.5
-    full_mix:
-      saturation_drive: 0.2
   industrial:
     vocals:
       high_tame_db: -3.0
       noise_reduction: 0.3
-      saturation_drive: 0.35
     drums:
       gain_db: 1.0
-      saturation_drive: 0.3
     bass:
       gain_db: 0.5
-      saturation_drive: 0.2
     other:
       mud_cut_db: -3.0
-    full_mix:
-      saturation_drive: 0.3
 
   # === Electronic / EDM ===
   electronic:
@@ -479,8 +349,6 @@ genres:
       gain_db: 0.5
     other:
       high_tame_db: -1.0
-    full_mix:
-      stereo_width: 1.1
   edm:
     bass:
       highpass_cutoff: 25
@@ -489,80 +357,56 @@ genres:
       gain_db: 1.0
     other:
       high_tame_db: -1.0
-    full_mix:
-      stereo_width: 1.15
   house:
     bass:
       highpass_cutoff: 25
       gain_db: 0.5
     drums:
       gain_db: 1.0
-    full_mix:
-      stereo_width: 1.1
   techno:
     drums:
       gain_db: 1.0
       compress_ratio: 2.5
-      saturation_drive: 0.1
     bass:
       highpass_cutoff: 25
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.1
   trance:
     other:
       high_tame_db: -1.0
     bass:
       highpass_cutoff: 25
-    full_mix:
-      stereo_width: 1.2
   drum-and-bass:
     drums:
       gain_db: 1.5
       compress_ratio: 2.5
-      saturation_drive: 0.15
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-    full_mix:
-      stereo_width: 1.1
   dubstep:
     bass:
       highpass_cutoff: 25
       gain_db: 1.5
-      saturation_drive: 0.2
     drums:
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.15
   synthwave:
     other:
       high_tame_db: -1.0
       mud_cut_db: -1.5
     bass:
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.15
-      stereo_width: 1.3
   new-wave:
     vocals:
       presence_boost_db: 2.0
     other:
       high_tame_db: -1.5
-    full_mix:
-      saturation_drive: 0.1
-      stereo_width: 1.15
   dancehall:
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-      saturation_drive: 0.1
     drums:
       gain_db: 0.5
     vocals:
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.1
 
   # === Ambient / Lo-Fi / Chill ===
   ambient:
@@ -573,55 +417,26 @@ genres:
     other:
       noise_reduction: 0.2
       high_tame_db: -1.0
-    full_mix:
-      stereo_width: 1.3
   lo-fi:
     vocals:
       noise_reduction: 0.2
       presence_boost_db: 1.0
       high_tame_db: -1.0
-      saturation_drive: 0.3
-      lowpass_cutoff: 9000
-    drums:
-      saturation_drive: 0.2
-    bass:
-      saturation_drive: 0.2
     other:
       noise_reduction: 0.2
-      lowpass_cutoff: 10000
-    full_mix:
-      saturation_drive: 0.25
-      lowpass_cutoff: 9000
-      stereo_width: 0.85
   lofi:
     vocals:
       noise_reduction: 0.2
       presence_boost_db: 1.0
       high_tame_db: -1.0
-      saturation_drive: 0.3
-      lowpass_cutoff: 9000
-    drums:
-      saturation_drive: 0.2
-    bass:
-      saturation_drive: 0.2
     other:
       noise_reduction: 0.2
-      lowpass_cutoff: 10000
-    full_mix:
-      saturation_drive: 0.25
-      lowpass_cutoff: 9000
-      stereo_width: 0.85
   chillwave:
     vocals:
       noise_reduction: 0.3
       presence_boost_db: 1.0
-      saturation_drive: 0.15
     other:
       high_tame_db: -1.0
-    full_mix:
-      saturation_drive: 0.15
-      lowpass_cutoff: 13000
-      stereo_width: 1.1
   trip-hop:
     bass:
       gain_db: 0.5
@@ -629,35 +444,19 @@ genres:
       gain_db: 0.5
     vocals:
       presence_boost_db: 2.0
-      saturation_drive: 0.1
-    full_mix:
-      saturation_drive: 0.15
-      lowpass_cutoff: 13000
   vaporwave:
     vocals:
       noise_reduction: 0.2
       presence_boost_db: 1.0
-      saturation_drive: 0.25
-      lowpass_cutoff: 10000
     other:
       high_tame_db: -1.0
-      lowpass_cutoff: 11000
-    full_mix:
-      saturation_drive: 0.2
-      lowpass_cutoff: 11000
-      stereo_width: 0.9
   shoegaze:
     vocals:
       noise_reduction: 0.2
       presence_boost_db: 1.0
-      saturation_drive: 0.15
     other:
       noise_reduction: 0.2
       high_tame_db: -1.0
-    full_mix:
-      saturation_drive: 0.2
-      lowpass_cutoff: 14000
-      stereo_width: 1.4
 
   # === Folk / Country / Americana ===
   folk:
@@ -666,7 +465,6 @@ genres:
       gain_db: 0.5
     other:
       mud_cut_db: -1.5
-    # Clean — acoustic transparency
   country:
     vocals:
       presence_boost_db: 2.0
@@ -675,71 +473,54 @@ genres:
       mud_cut_db: -1.5
     drums:
       gain_db: 0.5
-    # Clean — instrument clarity
   americana:
     vocals:
       presence_boost_db: 2.0
       gain_db: 0.5
     other:
       mud_cut_db: -1.5
-    # Clean — natural warmth from instruments
   bluegrass:
     vocals:
       gain_db: 0.5
     other:
       mud_cut_db: -1.5
-    # Clean — acoustic transparency
   indie-folk:
     vocals:
       presence_boost_db: 1.5
       gain_db: 0.5
     other:
       mud_cut_db: -1.5
-    # Clean
 
   # === Jazz / Blues ===
   jazz:
     vocals:
       presence_boost_db: 1.5
       compress_ratio: 2.0
-      saturation_drive: 0.1
     bass:
       mud_cut_db: -2.0
     drums:
       compress_ratio: 1.5
     other:
       mud_cut_db: -1.5
-    full_mix:
-      saturation_drive: 0.1
   blues:
     vocals:
       presence_boost_db: 1.5
       gain_db: 0.5
-      saturation_drive: 0.2
-    bass:
-      saturation_drive: 0.15
     other:
       mud_cut_db: -2.0
-    full_mix:
-      saturation_drive: 0.15
   swing:
     drums:
       compress_ratio: 1.5
     bass:
       mud_cut_db: -2.0
-    full_mix:
-      saturation_drive: 0.1
   bossa-nova:
     vocals:
       presence_boost_db: 1.5
       compress_ratio: 2.0
-      saturation_drive: 0.1
     bass:
       mud_cut_db: -2.0
     drums:
       compress_ratio: 1.5
-    full_mix:
-      saturation_drive: 0.1
 
   # === Classical / Cinematic ===
   classical:
@@ -752,7 +533,6 @@ genres:
     other:
       noise_reduction: 0.2
       mud_cut_db: -1.5
-    # No saturation, no lowpass, no width change — preserve natural dynamics
   opera:
     vocals:
       presence_boost_db: 1.5
@@ -760,7 +540,6 @@ genres:
       gain_db: 0.5
     other:
       noise_reduction: 0.2
-    # Clean, natural
   cinematic:
     bass:
       gain_db: 0.5
@@ -768,8 +547,6 @@ genres:
       gain_db: 0.5
     other:
       mud_cut_db: -2.0
-    full_mix:
-      stereo_width: 1.3
 
   # === World / Latin / Reggae ===
   latin:
@@ -779,27 +556,19 @@ genres:
       gain_db: 0.5
     bass:
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.1
   afrobeats:
     drums:
       gain_db: 1.0
-      saturation_drive: 0.1
     bass:
       gain_db: 0.5
     vocals:
       gain_db: 0.5
-    full_mix:
-      stereo_width: 1.1
   reggae:
     bass:
       highpass_cutoff: 25
       gain_db: 1.0
-      saturation_drive: 0.15
     drums:
       gain_db: 0.5
-    full_mix:
-      saturation_drive: 0.1
 
   # === Indie / Other ===
   indie:
@@ -808,16 +577,3 @@ genres:
       gain_db: 0.5
     other:
       mud_cut_db: -2.0
-    full_mix:
-      saturation_drive: 0.1
-  singer-songwriter:
-    vocals:
-      presence_boost_db: 2.0
-      gain_db: 0.5
-    # Clean — vocal intimacy without coloration
-  piano-pop:
-    full_mix:
-      stereo_width: 1.05
-  piano-rock:
-    full_mix:
-      saturation_drive: 0.1
