@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.64.0] - 2026-02-22
+
+### Reverted
+- **Mastering compression stage** — reverted dedicated compression stage (broke mastering pipeline); will revisit later
+- **Stereo width in stems path** — reverted stems stereo width (coupled to compression changes)
+- **Bus compression presets** — reverted mix-presets.yaml bus compression presets (dead config without code)
+
 ## [0.63.0] - 2026-02-21
 
 ### Added
