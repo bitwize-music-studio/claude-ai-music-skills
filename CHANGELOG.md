@@ -6,7 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.63.0] - 2026-02-21
+
 ### Added
+- **Bus compression presets** — 16 genre presets in mix-presets.yaml for bus compression stage
+- **Stereo width in stems path** — stereo width processing now applied during stems-based polish pipeline
+- **Mastering compression stage** — dedicated compression stage added to mastering pipeline
 - **Mastering genre confirmation** — mastering-engineer skill now asks to confirm the genre preset before mastering and checks if any tracks need different treatment
 - **`check_venv_health` MCP tool** — compares installed package versions against `requirements.txt` pins; integrated into session start to warn about version drift after plugin upgrades
 - **Configurable debug logging** — new `logging` section in config.yaml enables file-based debug logging with rotation; silent by default, opt-in for development/troubleshooting
