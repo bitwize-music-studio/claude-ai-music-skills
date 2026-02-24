@@ -273,6 +273,9 @@ paths:
 # All fields are optional - leave out or comment out unused ones.
 
 urls:
+  # Your website (used in sheet music footers and title pages)
+  # website: "https://your-artist.com"
+
   # Primary platforms
   soundcloud: "https://soundcloud.com/your-artist"
 
@@ -290,7 +293,6 @@ urls:
 
   # Other platforms
   # linktree: "https://linktr.ee/your-artist"
-  # website: "https://your-artist.com"
 
 
 # =============================================================================
@@ -471,6 +473,20 @@ generation:
 
 sheet_music:
   # ---------------------------
+  # enabled [optional]
+  # ---------------------------
+  # Master switch for sheet music pipeline.
+  # Set false to disable sheet music generation entirely.
+  # When false, sheet-music-publisher skill will skip gracefully.
+  #
+  # Default (if omitted): true
+  #
+  # Set to false if you don't have AnthemScore/MuseScore installed
+  # and don't want sheet music features offered.
+  #
+  enabled: true
+
+  # ---------------------------
   # page_size
   # ---------------------------
   # Page size for PDF songbooks.
@@ -490,6 +506,20 @@ sheet_music:
   # Set false for cleaner professional look.
   #
   section_headers: false
+
+  # ---------------------------
+  # footer_url [optional]
+  # ---------------------------
+  # URL displayed in the footer of every page in singles and songbooks.
+  # Also used on the title page of individual singles.
+  #
+  # Default (if omitted): auto-detected from urls section
+  #
+  # Examples:
+  #   footer_url: "https://www.bitwize-music.com"
+  #   footer_url: "https://your-artist.com"
+  #
+  # footer_url: "https://www.your-website.com"
 
 
 # =============================================================================
@@ -552,6 +582,7 @@ sheet_music:
   #   access_key_id: "your-r2-access-key-id"
   #   secret_access_key: "your-r2-secret-access-key"
   #   bucket: "promo-videos"
+  #   public_url: ""  # Custom domain for public URLs (e.g., "https://cdn.example.com")
 
   # ---------------------------
   # AWS S3 Configuration

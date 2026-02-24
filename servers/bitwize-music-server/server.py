@@ -404,6 +404,66 @@ def _safe_json(data: Any) -> str:
         return json.dumps({"error": f"JSON serialization failed: {e}"})
 
 
+def _update_frontmatter_block(
+    file_path: Path, key: str, values: dict
+) -> tuple:
+    """Add or update a top-level YAML frontmatter block in a markdown file.
+
+    Parses the ``---`` delimited frontmatter, sets *key* to *values* using
+    ``yaml.safe_load`` / ``yaml.dump``, and writes back.  The rest of the
+    file is preserved unchanged.
+
+    Args:
+        file_path: Path to a ``.md`` file with ``---`` frontmatter.
+        key: Top-level key to set (e.g. ``"sheet_music"``).
+        values: Dict of sub-keys to write under *key*.
+
+    Returns:
+        ``(True, None)`` on success, ``(False, error_string)`` on failure.
+    """
+    import yaml
+
+    try:
+        text = file_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return False, f"Cannot read {file_path}: {exc}"
+
+    if not text.startswith("---"):
+        return False, f"{file_path} has no YAML frontmatter"
+
+    lines = text.split("\n")
+    end_index = -1
+    for i, line in enumerate(lines[1:], 1):
+        if line.strip() == "---":
+            end_index = i
+            break
+
+    if end_index == -1:
+        return False, f"Cannot find closing --- in {file_path}"
+
+    frontmatter_text = "\n".join(lines[1:end_index])
+    try:
+        fm = yaml.safe_load(frontmatter_text) or {}
+    except yaml.YAMLError as exc:
+        return False, f"Cannot parse frontmatter YAML in {file_path}: {exc}"
+
+    fm[key] = values
+
+    new_fm_text = yaml.dump(
+        fm, default_flow_style=False, allow_unicode=True, sort_keys=False,
+    ).rstrip("\n")
+
+    rest_of_file = "\n".join(lines[end_index + 1:])
+    new_text = "---\n" + new_fm_text + "\n---\n" + rest_of_file
+
+    try:
+        file_path.write_text(new_text, encoding="utf-8")
+    except OSError as exc:
+        return False, f"Cannot write {file_path}: {exc}"
+
+    return True, None
+
+
 # =============================================================================
 # MCP Tools
 # =============================================================================
@@ -6456,6 +6516,44 @@ def _find_wav_source_dir(audio_dir: Path) -> Path:
     return audio_dir
 
 
+def _extract_track_number_from_stem(stem: str) -> Optional[int]:
+    """Extract leading digits from a stem like '01-first-pour' -> 1."""
+    match = re.match(r'^(\d+)', stem)
+    return int(match.group(1)) if match else None
+
+
+def _build_title_map(album_slug: str, wav_files: list) -> dict:
+    """Map WAV stems to clean titles from state cache, falling back to slug_to_title.
+
+    Returns dict: {stem: clean_title} e.g. {"01-first-pour": "First Pour"}
+    """
+    from tools.shared.text_utils import slug_to_title, sanitize_filename
+
+    # Try to get track titles from state cache
+    state = cache.get_state()
+    albums = state.get("albums", {})
+    album = albums.get(_normalize_slug(album_slug), {})
+    tracks = album.get("tracks", {})
+
+    title_map = {}
+    for wav_file in wav_files:
+        stem = wav_file.stem  # e.g. "01-first-pour"
+        # Try matching stem directly in cache tracks
+        if stem in tracks:
+            title = tracks[stem].get("title", slug_to_title(stem))
+        else:
+            # Try without leading number prefix (e.g. "first-pour")
+            stripped = re.sub(r'^\d+-', '', stem)
+            if stripped in tracks:
+                title = tracks[stripped].get("title", slug_to_title(stem))
+            else:
+                # Fallback: derive title from slug
+                title = slug_to_title(stem)
+        title_map[stem] = sanitize_filename(title)
+
+    return title_map
+
+
 def _check_mastering_deps() -> Optional[str]:
     """Return error message if mastering deps missing, else None."""
     missing = []
@@ -6501,6 +6599,39 @@ def _import_sheet_music_module(module_name: str):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def _import_cloud_module(module_name: str):
+    """Import a module from tools/cloud/ using importlib (hyphenated dir)."""
+    import importlib.util
+    module_path = PLUGIN_ROOT / "tools" / "cloud" / f"{module_name}.py"
+    spec = importlib.util.spec_from_file_location(
+        f"cloud_{module_name}", str(module_path)
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _check_cloud_enabled() -> Optional[str]:
+    """Return error message if cloud uploads not enabled, else None."""
+    try:
+        from tools.shared.config import load_config
+        config = load_config()
+    except Exception:
+        return (
+            "Could not load config. Ensure ~/.bitwize-music/config.yaml exists."
+        )
+    if not config:
+        return "Config not found. Run /bitwize-music:configure first."
+    cloud_config = config.get("cloud", {})
+    if not cloud_config.get("enabled", False):
+        return (
+            "Cloud uploads not enabled. "
+            "Set cloud.enabled: true in ~/.bitwize-music/config.yaml. "
+            "See config/README.md for setup instructions."
+        )
+    return None
 
 
 def _check_anthemscore() -> Optional[str]:
@@ -7038,13 +7169,17 @@ async def master_with_reference(
 async def transcribe_audio(
     album_slug: str,
     track_filename: str = "",
-    formats: str = "pdf,xml",
+    formats: str = "pdf,xml,midi",
     dry_run: bool = False,
 ) -> str:
     """Convert WAV files to sheet music using AnthemScore.
 
-    Transcribes tracks from the album's audio directory into PDF and/or
-    MusicXML format, outputting to a sheet-music/ subfolder.
+    Creates symlinks with clean track titles (from state cache) so AnthemScore
+    embeds proper titles in its output. Falls back to slug_to_title() when
+    the state cache has no track data.
+
+    Output goes to sheet-music/source/ with clean title filenames and a
+    .manifest.json recording track ordering and slug mapping.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -7055,6 +7190,8 @@ async def transcribe_audio(
     Returns:
         JSON with per-track results and summary
     """
+    import tempfile
+
     anthemscore_err = _check_anthemscore()
     if anthemscore_err:
         return _safe_json({"error": anthemscore_err})
@@ -7074,9 +7211,9 @@ async def transcribe_audio(
             "suggestion": "Install from https://www.lunaverus.com/",
         })
 
-    output_dir = audio_dir / "sheet-music"
+    output_dir = audio_dir / "sheet-music" / "source"
     if not dry_run:
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse formats
     fmt_list = [f.strip().lower() for f in formats.split(",")]
@@ -7109,112 +7246,219 @@ async def transcribe_audio(
     if not wav_files:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
-    loop = asyncio.get_running_loop()
-    results = []
-    for wav_file in wav_files:
-        success = await loop.run_in_executor(
-            None, transcribe_track, anthemscore_path, wav_file, output_dir, args
-        )
-        outputs = []
-        if success and not dry_run:
-            for fmt in fmt_list:
-                ext = {"pdf": ".pdf", "xml": ".xml", "midi": ".mid"}.get(fmt, "")
-                out_file = output_dir / f"{wav_file.stem}{ext}"
-                if out_file.exists():
-                    outputs.append(str(out_file))
-        results.append({
-            "filename": wav_file.name,
-            "success": success,
-            "outputs": outputs,
-        })
+    # Build title map from state cache (falls back to slug_to_title)
+    title_map = _build_title_map(album_slug, wav_files)
 
-    success_count = sum(1 for r in results if r["success"])
-    return _safe_json({
-        "tracks": results,
-        "summary": {
-            "success": success_count,
-            "failed": len(results) - success_count,
+    # Dry run: just report the title mapping
+    if dry_run:
+        manifest_tracks = []
+        for wav_file in wav_files:
+            stem = wav_file.stem
+            clean_title = title_map.get(stem, stem)
+            track_num = _extract_track_number_from_stem(stem)
+            manifest_tracks.append({
+                "number": track_num,
+                "source_slug": stem,
+                "title": clean_title,
+            })
+        return _safe_json({
+            "dry_run": True,
+            "title_map": title_map,
+            "manifest": {"tracks": manifest_tracks},
             "output_dir": str(output_dir),
             "formats": fmt_list,
-        },
-    })
+        })
+
+    # Create temp dir with clean-titled symlinks
+    tmp_dir = None
+    try:
+        tmp_dir = Path(tempfile.mkdtemp(prefix=f"{album_slug}-transcribe-"))
+
+        # Disambiguate duplicate titles
+        used_titles = {}
+        symlink_map = {}  # clean_title -> (symlink_path, original_wav)
+        for wav_file in wav_files:
+            stem = wav_file.stem
+            clean_title = title_map.get(stem, stem)
+            # Handle duplicate titles
+            if clean_title in used_titles:
+                used_titles[clean_title] += 1
+                clean_title = f"{clean_title} ({used_titles[clean_title]})"
+            else:
+                used_titles[clean_title] = 1
+
+            symlink_path = tmp_dir / f"{clean_title}.wav"
+            try:
+                symlink_path.symlink_to(wav_file.resolve())
+            except OSError:
+                # Fallback: copy if symlinks fail (e.g., Windows)
+                shutil.copy2(wav_file, symlink_path)
+            symlink_map[clean_title] = (symlink_path, wav_file)
+
+        # Transcribe from symlinked files
+        loop = asyncio.get_running_loop()
+        results = []
+        manifest_tracks = []
+
+        for clean_title, (symlink_path, original_wav) in symlink_map.items():
+            stem = original_wav.stem
+            track_num = _extract_track_number_from_stem(stem)
+
+            success = await loop.run_in_executor(
+                None, transcribe_track, anthemscore_path, symlink_path, output_dir, args
+            )
+
+            outputs = []
+            if success:
+                for fmt in fmt_list:
+                    ext = {"pdf": ".pdf", "xml": ".xml", "midi": ".mid"}.get(fmt, "")
+                    out_file = output_dir / f"{clean_title}{ext}"
+                    if out_file.exists():
+                        outputs.append(str(out_file))
+
+            results.append({
+                "filename": original_wav.name,
+                "clean_title": clean_title,
+                "success": success,
+                "outputs": outputs,
+            })
+            manifest_tracks.append({
+                "number": track_num,
+                "source_slug": stem,
+                "title": clean_title,
+            })
+
+        # Sort manifest by track number
+        manifest_tracks.sort(key=lambda t: (t["number"] is None, t["number"] or 0))
+
+        # Write .manifest.json to source/
+        manifest = {"tracks": manifest_tracks}
+        manifest_path = output_dir / ".manifest.json"
+        with open(manifest_path, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, indent=2)
+
+        success_count = sum(1 for r in results if r["success"])
+        return _safe_json({
+            "tracks": results,
+            "manifest": manifest,
+            "summary": {
+                "success": success_count,
+                "failed": len(results) - success_count,
+                "output_dir": str(output_dir),
+                "formats": fmt_list,
+            },
+        })
+    finally:
+        # Clean up temp dir
+        if tmp_dir and tmp_dir.exists():
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @mcp.tool()
-async def fix_sheet_music_titles(
+async def prepare_singles(
     album_slug: str,
     dry_run: bool = False,
-    export_pdf: bool = True,
+    xml_only: bool = False,
 ) -> str:
-    """Strip track number prefixes from MusicXML titles and optionally re-export PDFs.
+    """Prepare consumer-ready sheet music singles with clean titles.
 
-    Fixes titles like "01 - Song Name" → "Song Name" in MusicXML files
-    within the album's sheet-music/ directory.
+    Reads source files from the album's sheet-music/source/ directory.
+    If source/ has a .manifest.json (from transcribe_audio), files are
+    already clean-titled. Otherwise falls back to numbered file discovery
+    with slug_to_title derivation.
+
+    Output files are numbered: "01 - First Pour.pdf", etc.
+    Creates .manifest.json in singles/ with filename field for songbook.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
         dry_run: If true, show changes without modifying files
-        export_pdf: If true and MuseScore is available, re-export PDFs after fixing
+        xml_only: If true, only process XML files (skip PDF/MIDI)
 
     Returns:
-        JSON with per-file results
+        JSON with per-track results and manifest
     """
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
 
-    sheet_dir = audio_dir / "sheet-music"
-    if not sheet_dir.is_dir():
-        return _safe_json({
-            "error": f"Sheet music directory not found: {sheet_dir}",
-            "suggestion": "Run transcribe_audio first to generate sheet music.",
-        })
-
-    import re as _re
-    fix_titles_mod = _import_sheet_music_module("fix_titles")
-    _fix_xml_title = fix_titles_mod.fix_xml_title
-
-    xml_files = sorted([
-        f for f in sheet_dir.glob("*.xml")
-        if _re.match(r"^\d+", f.stem)
-    ])
-    musicxml_files = sorted([
-        f for f in sheet_dir.glob("*.musicxml")
-        if _re.match(r"^\d+", f.stem)
-    ])
-    xml_files.extend(musicxml_files)
-
-    if not xml_files:
-        return _safe_json({
-            "error": f"No XML files with track number prefixes found in {sheet_dir}",
-        })
-
-    results = []
-    for xml_file in xml_files:
-        new_title = _fix_xml_title(xml_file, dry_run=dry_run)
-        results.append({
-            "filename": xml_file.name,
-            "fixed": new_title is not None,
-            "new_title": new_title,
-        })
-
-    fixed_count = sum(1 for r in results if r["fixed"])
-
-    # Export PDFs if requested
-    pdf_results = []
-    if export_pdf and fixed_count > 0 and not dry_run:
-        musescore = fix_titles_mod.find_musescore()
-        if musescore:
-            for xml_file in xml_files:
-                success = fix_titles_mod.export_pdf(xml_file, musescore, dry_run=dry_run)
-                pdf_results.append({"filename": xml_file.name, "exported": success})
+    # Try new structure first, fall back to flat layout
+    source_dir = audio_dir / "sheet-music" / "source"
+    if not source_dir.is_dir():
+        sheet_dir = audio_dir / "sheet-music"
+        if sheet_dir.is_dir():
+            source_dir = sheet_dir  # backward compat: flat layout
         else:
-            pdf_results = [{"warning": "MuseScore not found, skipping PDF export"}]
+            return _safe_json({
+                "error": f"Sheet music directory not found: {source_dir}",
+                "suggestion": "Run transcribe_audio first to generate sheet music.",
+            })
 
+    singles_dir = audio_dir / "sheet-music" / "singles"
+
+    prepare_mod = _import_sheet_music_module("prepare_singles")
+    _prepare_singles = prepare_mod.prepare_singles
+
+    musescore = None
+    if not xml_only:
+        musescore = prepare_mod.find_musescore()
+
+    # Get artist, cover art, and footer URL for title pages
+    songbook_mod = _import_sheet_music_module("create_songbook")
+    auto_detect_cover_art = songbook_mod.auto_detect_cover_art
+    get_footer_url_from_config = songbook_mod.get_footer_url_from_config
+
+    state = cache.get_state()
+    srv_config = state.get("config", {})
+    artist = srv_config.get("artist_name", "Unknown Artist")
+    cover_image = auto_detect_cover_art(str(source_dir))
+    footer_url = get_footer_url_from_config()
+    page_size_name = "letter"
+    try:
+        from tools.shared.config import load_config
+        cfg = load_config()
+        if cfg:
+            page_size_name = cfg.get('sheet_music', {}).get('page_size', 'letter')
+    except Exception:
+        pass
+
+    # Build title_map from state cache for legacy (no source manifest) fallback
+    title_map = None
+    albums = state.get("albums", {})
+    album = albums.get(_normalize_slug(album_slug), {})
+    cache_tracks = album.get("tracks", {})
+    if cache_tracks:
+        from tools.shared.text_utils import sanitize_filename, slug_to_title as _s2t
+        title_map = {}
+        for slug, track in cache_tracks.items():
+            title_map[slug] = sanitize_filename(track.get("title", _s2t(slug)))
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: _prepare_singles(
+            source_dir=source_dir,
+            singles_dir=singles_dir,
+            musescore=musescore,
+            dry_run=dry_run,
+            xml_only=xml_only,
+            artist=artist,
+            cover_image=cover_image,
+            footer_url=footer_url,
+            page_size_name=page_size_name,
+            title_map=title_map,
+        ),
+    )
+
+    if "error" in result:
+        return _safe_json({"error": result["error"]})
+
+    tracks = result.get("tracks", [])
     return _safe_json({
-        "files": results,
-        "fixed_count": fixed_count,
-        "pdf_exports": pdf_results,
+        "tracks": tracks,
+        "singles_dir": str(singles_dir),
+        "track_count": len(tracks),
+        "manifest": result.get("manifest", {}),
     })
 
 
@@ -7224,10 +7468,11 @@ async def create_songbook(
     title: str,
     page_size: str = "letter",
 ) -> str:
-    """Combine sheet music PDFs into a KDP-ready songbook.
+    """Combine sheet music PDFs into a distribution-ready songbook.
 
     Creates a complete songbook with title page, copyright page, table
-    of contents, and all track sheet music.
+    of contents, and all track sheet music. Reads from singles/ directory
+    (falls back to flat sheet-music/ layout for backward compatibility).
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -7245,42 +7490,54 @@ async def create_songbook(
     if err:
         return err
 
-    sheet_dir = audio_dir / "sheet-music"
-    if not sheet_dir.is_dir():
-        return _safe_json({
-            "error": f"Sheet music directory not found: {sheet_dir}",
-            "suggestion": "Run transcribe_audio and fix_sheet_music_titles first.",
-        })
+    # Try new structure first (singles/), fall back to flat layout
+    singles_dir = audio_dir / "sheet-music" / "singles"
+    if singles_dir.is_dir():
+        source_dir = singles_dir
+    else:
+        sheet_dir = audio_dir / "sheet-music"
+        if sheet_dir.is_dir():
+            source_dir = sheet_dir  # backward compat
+        else:
+            return _safe_json({
+                "error": f"Sheet music directory not found: {singles_dir}",
+                "suggestion": "Run transcribe_audio and prepare_singles first.",
+            })
 
     songbook_mod = _import_sheet_music_module("create_songbook")
     _create_songbook = songbook_mod.create_songbook
     auto_detect_cover_art = songbook_mod.auto_detect_cover_art
     get_website_from_config = songbook_mod.get_website_from_config
+    get_footer_url_from_config = songbook_mod.get_footer_url_from_config
 
     # Get artist from state
     state = cache.get_state()
     config = state.get("config", {})
     artist = config.get("artist_name", "Unknown Artist")
 
-    # Auto-detect cover art and website
-    cover = auto_detect_cover_art(str(sheet_dir))
+    # Auto-detect cover art, website, and footer URL
+    cover = auto_detect_cover_art(str(source_dir))
     website = get_website_from_config()
+    footer_url = get_footer_url_from_config()
 
-    # Build output path
+    # Build output path in songbook/ subdirectory
+    songbook_dir = audio_dir / "sheet-music" / "songbook"
+    songbook_dir.mkdir(parents=True, exist_ok=True)
     safe_title = title.replace(" ", "_").replace("/", "-")
-    output_path = sheet_dir / f"{safe_title}.pdf"
+    output_path = songbook_dir / f"{safe_title}.pdf"
 
     loop = asyncio.get_running_loop()
     success = await loop.run_in_executor(
         None,
         lambda: _create_songbook(
-            source_dir=str(sheet_dir),
+            source_dir=str(source_dir),
             output_path=str(output_path),
             title=title,
             artist=artist,
             page_size_name=page_size,
             cover_image=cover,
             website=website,
+            footer_url=footer_url,
         ),
     )
 
@@ -7294,6 +7551,268 @@ async def create_songbook(
         })
     else:
         return _safe_json({"error": "Songbook creation failed. Check sheet music directory."})
+
+
+@mcp.tool()
+async def publish_sheet_music(
+    album_slug: str,
+    include_source: bool = False,
+    dry_run: bool = False,
+) -> str:
+    """Upload sheet music files (PDFs, MusicXML, MIDI) to Cloudflare R2.
+
+    Collects files from sheet-music/singles/ and sheet-music/songbook/,
+    optionally including sheet-music/source/, and uploads them to R2
+    for public download URLs.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        include_source: Include source/ transcription files (default: False)
+        dry_run: List files and R2 keys without uploading (default: False)
+
+    Returns:
+        JSON with uploaded files, R2 keys, and summary
+    """
+    cloud_err = _check_cloud_enabled()
+    if cloud_err:
+        return _safe_json({"error": cloud_err})
+
+    err, audio_dir = _resolve_audio_dir(album_slug)
+    if err:
+        return err
+
+    sheet_music_dir = audio_dir / "sheet-music"
+    if not sheet_music_dir.is_dir():
+        return _safe_json({
+            "error": f"Sheet music directory not found: {sheet_music_dir}",
+            "suggestion": (
+                "Run transcribe_audio first to generate source files, "
+                "then prepare_singles to create distribution-ready PDFs."
+            ),
+        })
+
+    # Collect files from each subdirectory
+    subdirs_to_scan = ["singles", "songbook"]
+    if include_source:
+        subdirs_to_scan.append("source")
+
+    files_to_upload = []  # list of (local_path, r2_subdir, filename)
+    for subdir in subdirs_to_scan:
+        subdir_path = sheet_music_dir / subdir
+        if not subdir_path.is_dir():
+            continue
+        for f in sorted(subdir_path.iterdir()):
+            if not f.is_file():
+                continue
+            # Skip internal metadata files
+            if f.name == ".manifest.json":
+                continue
+            files_to_upload.append((f, subdir, f.name))
+
+    if not files_to_upload:
+        return _safe_json({
+            "error": "No sheet music files found to upload.",
+            "checked_dirs": [
+                str(sheet_music_dir / s) for s in subdirs_to_scan
+            ],
+            "suggestion": "Run prepare_singles and/or create_songbook first.",
+        })
+
+    # Get artist name from state
+    state = cache.get_state()
+    config_data = state.get("config", {})
+    artist = config_data.get("artist_name", "Unknown Artist")
+    normalized_slug = _normalize_slug(album_slug)
+
+    # Build R2 keys
+    upload_plan = []
+    for local_path, subdir, filename in files_to_upload:
+        r2_key = f"{artist}/{normalized_slug}/sheet-music/{subdir}/{filename}"
+        upload_plan.append({
+            "local_path": str(local_path),
+            "r2_key": r2_key,
+            "size_bytes": local_path.stat().st_size,
+            "subdir": subdir,
+            "filename": filename,
+        })
+
+    if dry_run:
+        return _safe_json({
+            "dry_run": True,
+            "album_slug": normalized_slug,
+            "artist": artist,
+            "files": upload_plan,
+            "summary": {
+                "total": len(upload_plan),
+                "by_subdir": {
+                    s: len([f for f in upload_plan if f["subdir"] == s])
+                    for s in subdirs_to_scan
+                    if any(f["subdir"] == s for f in upload_plan)
+                },
+            },
+        })
+
+    # Import cloud module and upload
+    try:
+        cloud_mod = _import_cloud_module("upload_to_cloud")
+    except Exception as e:
+        return _safe_json({
+            "error": f"Failed to import cloud module: {e}",
+            "suggestion": "Ensure boto3 is installed: pip install boto3",
+        })
+
+    from tools.shared.config import load_config
+    config = load_config()
+
+    try:
+        s3_client = cloud_mod.get_s3_client(config)
+    except SystemExit:
+        return _safe_json({
+            "error": "Cloud credentials not configured.",
+            "suggestion": "Configure cloud.r2 or cloud.s3 credentials in ~/.bitwize-music/config.yaml",
+        })
+
+    try:
+        bucket = cloud_mod.get_bucket_name(config)
+    except SystemExit:
+        return _safe_json({
+            "error": "Bucket name not configured.",
+            "suggestion": "Set cloud.r2.bucket or cloud.s3.bucket in ~/.bitwize-music/config.yaml",
+        })
+
+    public_read = config.get("cloud", {}).get("public_read", False)
+
+    uploaded = []
+    failed = []
+    for item in upload_plan:
+        local_path = Path(item["local_path"])
+        r2_key = item["r2_key"]
+        success = cloud_mod.retry_upload(
+            s3_client, bucket, local_path, r2_key,
+            public_read=public_read, dry_run=False,
+        )
+        if success:
+            uploaded.append({
+                "r2_key": r2_key,
+                "filename": item["filename"],
+                "subdir": item["subdir"],
+            })
+        else:
+            failed.append({"r2_key": r2_key, "filename": item["filename"]})
+
+    # Build public URLs if available
+    cloud_config = config.get("cloud", {})
+    provider = cloud_config.get("provider", "r2")
+    base_url = None
+    if public_read:
+        if provider == "r2":
+            custom_domain = cloud_config.get("r2", {}).get("public_url")
+            if custom_domain:
+                base_url = custom_domain.rstrip("/")
+        elif provider == "s3":
+            region = cloud_config.get("s3", {}).get("region", "us-east-1")
+            base_url = f"https://{bucket}.s3.{region}.amazonaws.com"
+
+    urls = {}
+    if base_url:
+        for item in uploaded:
+            urls[item["filename"]] = f"{base_url}/{item['r2_key']}"
+    else:
+        # Use relative R2 keys when no public_url is configured
+        for item in uploaded:
+            urls[item["filename"]] = item["r2_key"]
+
+    # --- Persist URLs to track/album frontmatter ---
+    frontmatter_updated = False
+    tracks_updated = []
+    album_updated = False
+    fm_reason = None
+
+    if not urls:
+        fm_reason = "No files uploaded successfully"
+    else:
+        import re
+
+        # Find album content path
+        _, album_data, album_err = _find_album_or_error(normalized_slug)
+        if album_err:
+            fm_reason = f"Album not found in state: {normalized_slug}"
+        else:
+            album_content_path = album_data.get("path", "")
+            state_tracks = album_data.get("tracks", {})
+
+            # Group single URLs by track number
+            # Singles are named like "01 - The Mountain.pdf"
+            track_urls = {}  # {1: {"pdf": url, "musicxml": url, "midi": url}, ...}
+            songbook_urls = {}  # {"songbook": url}
+            ext_to_key = {".pdf": "pdf", ".xml": "musicxml", ".mid": "midi", ".midi": "midi"}
+
+            for item in uploaded:
+                filename = item["filename"]
+                url = urls.get(filename)
+                if not url:
+                    continue
+
+                if item["subdir"] == "singles":
+                    m = re.match(r"^(\d+)\s*-\s*", filename)
+                    if m:
+                        track_num = int(m.group(1))
+                        suffix = Path(filename).suffix.lower()
+                        file_key = ext_to_key.get(suffix)
+                        if file_key:
+                            track_urls.setdefault(track_num, {})[file_key] = url
+                elif item["subdir"] == "songbook":
+                    suffix = Path(filename).suffix.lower()
+                    if suffix == ".pdf":
+                        songbook_urls["songbook"] = url
+
+            # Update each track file's frontmatter
+            for track_num, sm_values in track_urls.items():
+                prefix = f"{track_num:02d}-"
+                for slug, tdata in state_tracks.items():
+                    if slug.startswith(prefix):
+                        track_path = Path(tdata.get("path", ""))
+                        if track_path.is_file():
+                            ok, err = _update_frontmatter_block(
+                                track_path, "sheet_music", sm_values,
+                            )
+                            if ok:
+                                tracks_updated.append(slug)
+                        break
+
+            # Update album README.md frontmatter
+            if songbook_urls and album_content_path:
+                readme_path = Path(album_content_path) / "README.md"
+                if readme_path.is_file():
+                    ok, err = _update_frontmatter_block(
+                        readme_path, "sheet_music", songbook_urls,
+                    )
+                    if ok:
+                        album_updated = True
+
+            frontmatter_updated = bool(tracks_updated) or album_updated
+
+    result = {
+        "album_slug": normalized_slug,
+        "artist": artist,
+        "uploaded": uploaded,
+        "failed": failed,
+        "summary": {
+            "total": len(upload_plan),
+            "success": len(uploaded),
+            "failed": len(failed),
+        },
+        "urls": urls,
+        "frontmatter_updated": frontmatter_updated,
+    }
+    if tracks_updated:
+        result["tracks_updated"] = tracks_updated
+    if album_updated:
+        result["album_updated"] = True
+    if fm_reason:
+        result["frontmatter_reason"] = fm_reason
+
+    return _safe_json(result)
 
 
 @mcp.tool()

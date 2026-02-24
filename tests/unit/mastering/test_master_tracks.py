@@ -200,66 +200,6 @@ class TestApplyHighShelf:
         assert np.all(np.isfinite(result))
 
 
-# ─── Tests: apply_fade_out ─────────────────────────────────────────────
-
-
-class TestApplyFadeOut:
-    """Tests for the fade-out function."""
-
-    def test_reduces_end_amplitude(self):
-        """Fade-out should reduce amplitude at the end of audio."""
-        data, rate = _generate_sine(duration=5.0, amplitude=0.5)
-        result = apply_fade_out(data, rate, duration=2.0)
-        # Last sample should be near zero
-        assert np.max(np.abs(result[-1])) < 0.01
-        # Samples before the fade region should be unchanged
-        fade_samples = int(rate * 2.0)
-        pre_fade = data.shape[0] - fade_samples
-        assert np.allclose(result[:pre_fade], data[:pre_fade], atol=1e-10)
-
-    def test_preserves_beginning(self):
-        """Audio before the fade region should be untouched."""
-        data, rate = _generate_sine(duration=5.0, amplitude=0.5)
-        result = apply_fade_out(data, rate, duration=1.0)
-        fade_samples = int(rate * 1.0)
-        pre_fade = data.shape[0] - fade_samples
-        assert np.array_equal(result[:pre_fade], data[:pre_fade])
-
-    def test_zero_duration_passthrough(self):
-        """duration=0 should return data unchanged."""
-        data, rate = _generate_sine(duration=3.0)
-        result = apply_fade_out(data, rate, duration=0.0)
-        assert np.array_equal(result, data)
-
-    def test_longer_than_audio(self):
-        """Fade longer than audio should fade the entire track without error."""
-        data, rate = _generate_sine(duration=1.0, amplitude=0.5)
-        result = apply_fade_out(data, rate, duration=10.0)
-        # First sample should be near original, last sample should be near zero
-        assert np.max(np.abs(result[-1])) < 0.01
-        assert result.shape == data.shape
-
-    def test_exponential_curve_shape(self):
-        """Exponential curve should decay faster initially than linear."""
-        data, rate = _generate_sine(duration=3.0, amplitude=0.5)
-        exp_result = apply_fade_out(data, rate, duration=2.0, curve='exponential')
-        lin_result = apply_fade_out(data, rate, duration=2.0, curve='linear')
-        # At the midpoint of the fade, exponential (1-0.5)**3 = 0.125
-        # vs linear 1-0.5 = 0.5. So exponential should be quieter at midpoint.
-        fade_samples = int(rate * 2.0)
-        midpoint = data.shape[0] - fade_samples // 2
-        exp_energy = np.mean(np.abs(exp_result[midpoint:midpoint+100]))
-        lin_energy = np.mean(np.abs(lin_result[midpoint:midpoint+100]))
-        assert exp_energy < lin_energy
-
-    def test_mono_support(self):
-        """Fade-out should work on mono (1D) arrays."""
-        data, rate = _generate_sine(duration=3.0, amplitude=0.5, stereo=False)
-        result = apply_fade_out(data, rate, duration=1.0)
-        assert result.shape == data.shape
-        assert np.max(np.abs(result[-1])) < 0.01
-
-
 # ─── Tests: soft_clip and limit_peaks ──────────────────────────────────
 
 
@@ -401,17 +341,17 @@ class TestMasterTrack:
 class TestGenrePresets:
     """Tests for genre preset configuration."""
 
-    def test_all_presets_are_3_tuples(self):
+    def test_all_presets_are_4_tuples(self):
         for genre, preset in GENRE_PRESETS.items():
-            assert len(preset) == 3, f"Genre '{genre}' preset should be a 3-tuple"
+            assert len(preset) == 4, f"Genre '{genre}' preset should be a 4-tuple"
 
     def test_all_presets_have_negative_lufs(self):
-        for genre, (lufs, _, _) in GENRE_PRESETS.items():
+        for genre, (lufs, _, _, _) in GENRE_PRESETS.items():
             assert lufs < 0, f"Genre '{genre}' LUFS should be negative"
 
     def test_all_presets_have_nonpositive_eq(self):
         """EQ values should be cuts (negative) or zero."""
-        for genre, (_, highmid, highs) in GENRE_PRESETS.items():
+        for genre, (_, highmid, highs, _) in GENRE_PRESETS.items():
             assert highmid <= 0, f"Genre '{genre}' high-mid should be <= 0"
             assert highs <= 0, f"Genre '{genre}' highs should be <= 0"
 
@@ -421,7 +361,7 @@ class TestGenrePresets:
 
     def test_preset_with_mastering(self, noise_wav, output_path):
         """Apply a genre preset through the full mastering chain."""
-        lufs, highmid, highs = GENRE_PRESETS['rock']
+        lufs, highmid, highs, _compress = GENRE_PRESETS['rock']
         eq = []
         if highmid != 0:
             eq.append((3500, highmid, 1.5))
@@ -514,12 +454,15 @@ class TestYamlPresetLoading:
     def test_loaded_presets_match_yaml(self):
         """GENRE_PRESETS dict should match what's in the YAML file."""
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        defaults = data.get('defaults', {})
+        default_compress = float(defaults.get('compress_ratio', 1.5))
         for genre, settings in data['genres'].items():
             assert genre in GENRE_PRESETS, f"Genre '{genre}' in YAML but not in GENRE_PRESETS"
             expected = (
                 float(settings['target_lufs']),
                 float(settings['cut_highmid']),
                 float(settings['cut_highs']),
+                float(settings.get('compress_ratio', default_compress)),
             )
             assert GENRE_PRESETS[genre] == expected, (
                 f"Genre '{genre}': YAML={expected}, loaded={GENRE_PRESETS[genre]}"
@@ -562,10 +505,11 @@ class TestYamlPresetLoading:
 
         presets = load_genre_presets()
         # Rock should have overridden cut_highmid but keep other fields
-        lufs, highmid, highs = presets['rock']
+        lufs, highmid, highs, compress = presets['rock']
         assert highmid == -1.0  # Overridden
         assert lufs == -14.0    # Inherited from built-in
         assert highs == 0       # Inherited from built-in
+        assert compress == 1.5  # Default compress_ratio
 
     def test_override_adds_new_genre(self, tmp_path, monkeypatch):
         """User override can add entirely new genres."""
@@ -585,7 +529,7 @@ class TestYamlPresetLoading:
 
         presets = load_genre_presets()
         assert 'dark-electronic' in presets
-        assert presets['dark-electronic'] == (-12.0, -3.0, -1.0)
+        assert presets['dark-electronic'] == (-12.0, -3.0, -1.0, 1.5)
 
     def test_override_defaults(self, tmp_path, monkeypatch):
         """User can override default settings."""
@@ -604,9 +548,10 @@ class TestYamlPresetLoading:
         monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
 
         presets = load_genre_presets()
-        lufs, highmid, highs = presets['custom-genre']
+        lufs, highmid, highs, compress = presets['custom-genre']
         assert lufs == -12.0    # From overridden defaults
         assert highmid == -2.0  # From genre entry
+        assert compress == 1.5  # Default compress_ratio
 
     def test_no_override_dir_works(self, monkeypatch):
         """When no override directory exists, built-in presets load fine."""

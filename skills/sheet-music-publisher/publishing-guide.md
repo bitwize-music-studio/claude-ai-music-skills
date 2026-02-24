@@ -1,87 +1,86 @@
-# Sheet Music Publishing Guide
+# Sheet Music Distribution Guide
 
-Complete guide for publishing sheet music songbooks via Amazon KDP and other platforms.
+Guide for distributing sheet music via your website and other platforms.
 
 ## Overview
 
-**What you're publishing**: Piano arrangements (sheet music) compiled into a songbook
+**What you're distributing**: Piano arrangements (sheet music) as individual singles and a combined songbook
 
-**Best platforms**:
-- Amazon Kindle Direct Publishing (KDP) - Print books
-- Sheet Music Plus - Digital sheet music marketplace
-- Musicnotes - Digital sheet music store
-- Your own website - Direct sales, PDF downloads
+**Primary method**: Free download from your website
 
-**This guide focuses on KDP** - the most accessible platform for independent publishers.
+**File formats**:
+| Format | Extension | Purpose |
+|--------|-----------|---------|
+| **PDF** | `.pdf` | Viewing and printing — universal, works everywhere |
+| **MusicXML** | `.xml` | Editing in MuseScore, Finale, Sibelius — for musicians who want to customize |
+| **MIDI** | `.mid` | Playback and practice — import into any DAW or notation software |
 
----
-
-## Amazon KDP Basics
-
-### What is KDP?
-
-**Kindle Direct Publishing** - Amazon's self-publishing platform for print and ebook.
-
-**For sheet music**: Use **print books** (paperback), not ebook format.
-
-**Benefits:**
-- No upfront costs
-- Print-on-demand (no inventory)
-- Amazon distribution
-- Author gets royalty per sale
-- Professional-looking results
-
-**Requirements:**
-- Amazon account (free)
-- PDF manuscript (your songbook)
-- Cover image (front/back/spine)
-- Basic metadata (title, author, description)
+**Alternative platforms** (optional):
+- Sheet Music Plus — digital marketplace
+- Musicnotes — digital sheet music store
+- Your own website — direct downloads (recommended)
 
 ---
 
-## Songbook Requirements
+## Website Distribution
 
-### Page Count
+### Recommended Setup
 
-**KDP minimum**: 24 pages
+Host sheet music as free downloads on your website alongside the album.
 
-**Typical songbook**: 40-100 pages
+**Per-track downloads** (from `singles/` directory):
+- PDF — for viewing/printing
+- MusicXML — for editing
+- MIDI — for playback
 
-**Calculate:**
-- Front matter: 3-4 pages (title, copyright, TOC)
-- Tracks: 2-5 pages each (depends on song length)
-- Back matter: 1-2 pages (optional: about artist, license info)
+**Complete songbook** (from `songbook/` directory):
+- Single PDF with title page, copyright, TOC, all tracks
 
-**Tip**: If under 24 pages, add:
-- Extended liner notes
-- Artist bio
-- Behind-the-scenes stories
-- Additional blank staff paper
+### File Organization for Upload
 
-### Page Size
+The pipeline produces a clean directory structure:
 
-**KDP supports:**
-| Size | Dimensions | Best For |
-|------|------------|----------|
-| **Letter** | 8.5" × 11" | Standard US sheet music |
-| **9" × 12"** | 9" × 12" | Professional sheet music |
-| **A4** | 8.27" × 11.69" | International/European |
-| 6" × 9" | 6" × 9" | Compact/travel size |
+```
+sheet-music/
+├── source/          # Working files (don't distribute)
+├── singles/         # Upload these — one set per track
+│   ├── Ocean of Tears.pdf
+│   ├── Ocean of Tears.xml
+│   ├── Ocean of Tears.mid
+│   ├── Run Away.pdf
+│   ├── Run Away.xml
+│   ├── Run Away.mid
+│   └── ...
+└── songbook/
+    └── Album Name - Complete Songbook.pdf
+```
 
-**Most common**: Letter (8.5" × 11") for hobbyist/home use
+Upload everything from `singles/` and `songbook/` to your website. Don't upload `source/` — those are working files with track number prefixes.
 
-### File Format
+### Website Page Structure
 
-**Manuscript**: PDF only
+**Album sheet music page should include:**
+- Brief description ("Free piano arrangements from [Album Name]")
+- Per-track download links (PDF, XML, MIDI for each)
+- Complete songbook download link
+- Link to listen to the album
+- Credit line: "Transcribed using AnthemScore, edited with MuseScore"
 
-**Requirements:**
-- 300 DPI or higher
-- Black text/notation on white background
-- No bleed (sheet music doesn't need it)
-- Fonts embedded
-- No security/password protection
+### Hosting Options
 
-**Color**: Black & white recommended (cheaper printing, typical for sheet music)
+**Static site / existing website:**
+- Upload files to your web host
+- Link directly to PDFs
+- Simplest approach
+
+**GitHub Pages / Netlify:**
+- Free hosting for static files
+- Version control built in
+- Good for musician-developers
+
+**Bandcamp:**
+- Can include sheet music as bonus content with album purchase
+- Or offer as free download
 
 ---
 
@@ -89,24 +88,19 @@ Complete guide for publishing sheet music songbooks via Amazon KDP and other pla
 
 ### Use the create_songbook MCP tool
 
-**This tool generates KDP-ready PDFs automatically:**
-
 ```
-create_songbook(album_slug, title="Album Name Songbook", page_size="letter")
+create_songbook(album_slug, title="Album Name - Complete Songbook", page_size="letter")
 ```
 
 **Output includes:**
 - Title page (with album art)
-- Copyright page (legal boilerplate)
+- Copyright page
 - Table of contents (track names + page numbers)
-- All tracks (in order)
-- Professional formatting
-
-**Result**: Upload-ready PDF for KDP interior.
+- All tracks in order
 
 ### Front Matter Checklist
 
-**Title page** (auto-generated by create_songbook.py):
+**Title page** (auto-generated):
 - Book title
 - Artist/composer name
 - Subtitle (e.g., "Piano Arrangements")
@@ -115,187 +109,24 @@ create_songbook(album_slug, title="Album Name Songbook", page_size="letter")
 - Year
 
 **Copyright page** (auto-generated):
-- Copyright notice: © Year Artist Name
-- Rights statement
-- Transcription credits (AnthemScore, MuseScore)
+- Copyright notice
+- Free distribution statement
+- Transcription credits
 - Website/contact info
-- Publication year
 
 **Table of Contents** (auto-generated):
-- Track number
-- Track name (without track number prefix)
-- Page number
-- Properly formatted with leader dots
+- Track names with page numbers
+- Leader dots for readability
 
-### Optional Additions
+### Page Size
 
-**About the Artist** (1 page):
-- Brief bio
-- Discography
-- Links to music platforms
+| Size | Dimensions | Best For |
+|------|------------|----------|
+| **Letter** | 8.5" x 11" | Standard US sheet music |
+| **9" x 12"** | 9" x 12" | Professional sheet music |
+| 6" x 9" | 6" x 9" | Compact/travel size |
 
-**Liner Notes** (1-2 pages):
-- Album concept
-- Recording notes
-- Thank-yous
-
-**Blank Staff Paper** (end of book):
-- 2-3 pages of blank staff paper
-- For musician notes/arrangements
-
----
-
-## Creating a Cover
-
-### KDP Cover Requirements
-
-**Two options:**
-
-1. **Cover Creator** (KDP's built-in tool)
-   - Easy, template-based
-   - Limited customization
-   - Good for simple covers
-
-2. **Upload custom PDF** (recommended)
-   - Full creative control
-   - Use album artwork
-   - Professional appearance
-
-### Cover Dimensions
-
-**KDP provides template** based on page count and size.
-
-**Example for 50-page, 8.5×11" book:**
-- Full cover width: ~17.1" (front + spine + back)
-- Height: 11"
-- Spine width: ~0.1" (depends on page count)
-
-**Download template from KDP** when setting up your book.
-
-### Cover Design Tips
-
-**Front cover:**
-- Album artwork (if you have it)
-- Book title (large, readable)
-- Artist name
-- "Piano Arrangements" or "Sheet Music Songbook"
-
-**Spine** (if thick enough):
-- Title
-- Artist name
-
-**Back cover:**
-- Track listing or description
-- ISBN barcode (KDP adds this automatically)
-- Author bio (optional)
-- Website/social links
-
-**Tools:**
-- Canva (free templates)
-- Photoshop/GIMP
-- Use your existing album art + text overlay
-
----
-
-## KDP Upload Process
-
-### Step 1: Create Account
-
-1. Go to [kdp.amazon.com](https://kdp.amazon.com)
-2. Sign in with Amazon account (or create one)
-3. Complete tax interview (required for royalties)
-
-### Step 2: Create New Title
-
-**Paperback Details:**
-
-| Field | Example |
-|-------|---------|
-| Language | English |
-| Book Title | Sample Album Songbook |
-| Subtitle | Piano Arrangements |
-| Author | bitwize |
-| Contributors | (leave blank or add "Music by bitwize") |
-| Description | Piano arrangements of the album "Sample Album" by bitwize. Includes [track count] tracks transcribed for solo piano. |
-| Keywords | piano sheet music, songbook, [artist], [genre] |
-| Categories | Music > Songbooks, Music > Piano |
-
-**Publishing Rights:**
-- Select: "I own the copyright"
-
-**ISBN:**
-- Use free KDP ISBN (easiest)
-- Or buy your own ISBN (if you want)
-
-### Step 3: Upload Content
-
-**Manuscript:**
-1. Upload your songbook PDF (from create_songbook.py)
-2. KDP previewer checks for issues
-3. Review interior (flip through)
-4. Check margins/bleed (should be fine for sheet music)
-
-**Cover:**
-1. Upload PDF cover (if custom)
-2. Or use Cover Creator
-3. Preview front/back/spine
-
-**Review:**
-- Use KDP 3D Preview
-- Check for:
-  - Text readable
-  - No cut-off content
-  - TOC page numbers correct
-  - Spine text aligned (if visible)
-
-### Step 4: Pricing
-
-**Print cost** (KDP calculates):
-- Based on page count, size, color
-- Example: 50-page B&W letter = ~$3.00 print cost
-
-**Set list price:**
-- Amazon takes 40% of list price
-- You pay print cost
-- Remaining = your royalty
-
-**Example:**
-- List price: $14.99
-- Print cost: $3.00
-- Amazon cut: $6.00 (40%)
-- Your royalty: $5.99 (40%)
-
-**Typical pricing:**
-- 40-60 pages: $9.99-$14.99
-- 60-100 pages: $14.99-$19.99
-- 100+ pages: $19.99-$29.99
-
-**Tip**: Price competitively. Check similar songbooks on Amazon.
-
-### Step 5: Distribution
-
-**Amazon.com only** (default):
-- Available on US Amazon
-- Fastest, simplest
-
-**Expanded Distribution** (optional):
-- Amazon international stores (.uk, .ca, .de, etc.)
-- Libraries and bookstores
-- Reduces royalty slightly
-
-**Recommended**: Start with Amazon.com, expand later if selling well.
-
-### Step 6: Publish
-
-1. Review all details
-2. Click **Publish Your Paperback Book**
-3. KDP reviews (24-72 hours)
-4. Book goes live on Amazon
-
-**After publishing:**
-- You get Author Page on Amazon
-- Can order author copies (at cost)
-- Sales tracking in KDP dashboard
+**Most common**: Letter (8.5" x 11") for home printing
 
 ---
 
@@ -306,130 +137,32 @@ create_songbook(album_slug, title="Album Name Songbook", page_size="letter")
 **If you wrote the songs:**
 - You own the copyright to music and lyrics
 - Sheet music is a derivative work you also own
-- You can publish freely
+- You can distribute freely
 
 **If you sampled or covered songs:**
 - You do NOT own copyright
-- Cannot publish without permission
+- Cannot distribute without permission
 - Not applicable for original music
 
 ### Copyright Notice
 
-**Include in songbook:**
+**Included in songbook automatically:**
 ```
-© 2025 Your Artist Name. All rights reserved.
+© 2026 Your Artist Name.
 
-No part of this publication may be reproduced, distributed,
-or transmitted in any form without the prior written permission
-of the copyright holder.
-```
+This songbook is a free companion to the album.
+Share freely. Credit appreciated.
 
-**Also include:**
-```
 Piano arrangements transcribed using AnthemScore.
 Notation edited with MuseScore.
 ```
 
-### ISBN and Registration
+### Creative Commons (Optional)
 
-**ISBN** (International Standard Book Number):
-- Unique identifier for your book
-- KDP provides free ISBN (easiest option)
-- Or buy your own from Bowker ($125+ in US)
-
-**Free KDP ISBN is fine** unless:
-- You want to distribute elsewhere (not just Amazon)
-- You want ISBN under your name/imprint
-
-**Copyright registration** (optional):
-- Register with US Copyright Office (copyright.gov)
-- Cost: $65
-- Provides legal protection
-- Not required (copyright exists automatically)
-
----
-
-## Marketing & Sales
-
-### Amazon Listing Optimization
-
-**Title SEO:**
-- Include genre keywords (e.g., "Electronic Music Piano Songbook")
-- Include artist name
-
-**Description:**
-```
-Piano arrangements from the acclaimed album "[Album Name]" by [Artist].
-
-This songbook includes [X] tracks transcribed for solo piano,
-capturing the essence of [Artist]'s unique [genre] sound.
-
-Track Listing:
-1. Track Name
-2. Track Name
-[...]
-
-Perfect for:
-- Intermediate to advanced pianists
-- Fans of [Artist]
-- [Genre] enthusiasts
-
-Features:
-- Professional transcriptions
-- Clear, readable notation
-- Table of contents for easy reference
-```
-
-**Keywords** (7 available):
-1. piano sheet music
-2. songbook
-3. [artist name]
-4. [genre] piano
-5. [album name]
-6. piano arrangements
-7. solo piano
-
-**Categories** (2 available):
-- Books > Arts & Photography > Music > Songbooks
-- Books > Arts & Photography > Music > Instruments > Piano
-
-### Promotion Ideas
-
-**Social media:**
-- Post sample pages (first page of a popular track)
-- Share 3D cover preview
-- Announce availability
-
-**Music platforms:**
-- Add link to KDP songbook in album description (SoundCloud, Bandcamp)
-- Mention in YouTube video descriptions
-
-**Email list:**
-- Announce to fans
-- Offer preview PDF (first track)
-
-**Licensing packages:**
-- Include songbook PDF in sync licensing packages
-- Shows professionalism to music supervisors
-
-**Author website:**
-- Dedicated page with preview
-- Link to Amazon
-- Offer bonus content (backing tracks?)
-
-### Pricing Strategies
-
-**Launch pricing:**
-- Start lower ($9.99) to get initial sales/reviews
-- Raise after 10-20 sales
-
-**Bundle:**
-- Mention album + songbook together
-- Cross-promote on music platforms
-
-**Comparison:**
-- Check competitor pricing
-- Match or slightly undercut
+Consider adding a Creative Commons license for clear sharing terms:
+- **CC BY** — anyone can use/share with credit
+- **CC BY-NC** — non-commercial use with credit
+- **CC BY-SA** — share-alike with credit
 
 ---
 
@@ -439,51 +172,27 @@ Features:
 
 **Website**: [sheetmusicplus.com](https://www.sheetmusicplus.com/)
 
-**How it works:**
 - Digital marketplace for sheet music
 - Sellers upload PDFs (individual tracks or books)
-- Buyers download instantly
 - Revenue split: ~70% to creator
-
-**Requirements:**
-- Publisher account
-- High-quality PDFs
-- Metadata (composer, arranger, etc.)
-
-**Best for:**
-- Individual track sales (not just full songbook)
-- Reaching sheet music enthusiasts
+- Best for: reaching sheet music enthusiasts
 
 ### Musicnotes
 
 **Website**: [musicnotes.com](https://www.musicnotes.com/)
 
-**Similar to Sheet Music Plus:**
-- Digital marketplace
-- Instant downloads
-- Revenue split
-
-**Requirements:**
-- Apply as arranger/publisher
+- Similar to Sheet Music Plus
 - May require sample work for approval
+- Digital marketplace with instant downloads
 
-### Self-Hosted (Your Website)
+### Print-on-Demand (Optional)
 
-**Use Gumroad, Sellfy, or similar:**
-- Upload PDF
-- Set price
-- Collect payment
-- Instant download for buyers
+If you want physical copies available:
+- Amazon KDP — print books, no upfront cost
+- Lulu — print-on-demand
+- Blurb — premium quality
 
-**Pros:**
-- Keep 90-95% of revenue (after platform fee)
-- Direct relationship with customers
-- No approval process
-
-**Cons:**
-- You handle marketing
-- No Amazon discoverability
-- Fewer buyers
+These are optional — the primary distribution method is free digital download.
 
 ---
 
@@ -496,154 +205,53 @@ Features:
 - Useful for music supervisors (TV/film)
 - Helps arrangers/cover artists
 
-**Include in pitch:**
-- PDF sheet music for all tracks
-- Or mention "sheet music available upon request"
-
-### Mechanical Licensing
-
-**If your songbook includes covers:**
-- Need mechanical license (Harry Fox, etc.)
-- Pay per copy sold
-- Complex, consult music attorney
-
-**Not applicable** for original compositions you own.
-
 ### Educational Use
 
-**Some educators buy songbooks** for teaching:
+**Educators may use your sheet music** for teaching:
 - Make sure notation is accurate
 - Include difficulty level in description
-- Consider educational pricing
+- Free distribution makes this more accessible
 
 ---
 
-## Common Questions
+## Checklist: Publishing Sheet Music
 
-### "How long does KDP review take?"
-
-**Typical**: 24-72 hours
-
-**Sometimes**: Up to 1 week for first-time publishers
-
-**Rejections** (rare for sheet music):
-- Copyright issues (using copyrighted material)
-- Poor quality (blurry scans)
-- Doesn't meet page count minimum
-
-### "Can I update after publishing?"
-
-**Yes**, easily:
-- Upload new manuscript PDF
-- Update description, price, keywords
-- Changes live in 24-72 hours
-
-**Recommended** if you find errors after publishing.
-
-### "Do I need a business/LLC?"
-
-**No**, can publish as individual.
-
-**But consider**:
-- Business name looks more professional
-- Simplifies taxes if selling a lot
-- Limited liability protection
-
-**Not required** for small-scale publishing.
-
-### "What about ebook format?"
-
-**Not recommended** for sheet music:
-- E-ink Kindles can't display sheet music well
-- Page layout critical for sheet music
-- Print format is standard
-
-**Exception**: Tablet-friendly PDF on your website (separate from KDP).
-
-### "Can I sell on Amazon and my website?"
-
-**Yes**, no exclusivity requirement for print books.
-
-**Can:**
-- Sell print version on KDP
-- Sell PDF version on your site
-- Distribute elsewhere (Sheet Music Plus, etc.)
-
----
-
-## Checklist: Publishing to KDP
-
-**Before uploading:**
-- [ ] Songbook PDF finalized (from create_songbook.py)
-- [ ] Front matter complete (title, copyright, TOC)
-- [ ] Page count ≥ 24 pages
-- [ ] File is 300 DPI PDF
-- [ ] Cover designed (or will use Cover Creator)
-- [ ] Track titles clean (no number prefixes)
+**Before distributing:**
+- [ ] Singles prepared (clean titles, all 3 formats)
+- [ ] Songbook PDF finalized (optional)
 - [ ] Copyright notice included
+- [ ] Album art on title page
+- [ ] Track titles clean (no number prefixes)
+- [ ] Review PDFs for readability
 
-**KDP setup:**
-- [ ] Account created, tax interview complete
-- [ ] Title, subtitle, author filled in
-- [ ] Description written (SEO-optimized)
-- [ ] Keywords chosen (7 max)
-- [ ] Categories selected (2 max)
-- [ ] Manuscript uploaded and previewed
-- [ ] Cover uploaded (or created in Cover Creator)
-- [ ] Pricing set (competitive, profitable)
+**Website setup:**
+- [ ] Upload singles (PDF, XML, MIDI per track)
+- [ ] Upload songbook PDF
+- [ ] Create download page with track listing
+- [ ] Add link to album streaming page
+- [ ] Test all download links
 
-**After publishing:**
-- [ ] Book live on Amazon (check link)
-- [ ] Order author copy (quality check)
+**Promotion:**
 - [ ] Announce on social media
 - [ ] Add link to album descriptions
-- [ ] Monitor sales in KDP dashboard
-
----
-
-## Resources
-
-**KDP Help:**
-- [kdp.amazon.com/help](https://kdp.amazon.com/help)
-- Community forums
-- Chat support
-
-**Cover design:**
-- Canva (templates)
-- KDP Cover Calculator (dimensions)
-
-**Music publishing:**
-- Harry Fox Agency (mechanical licenses for covers)
-- Copyright.gov (registration)
-
-**Communities:**
-- /r/selfpublish (Reddit)
-- KDP Community forums
-- Music publisher groups
+- [ ] Mention in YouTube video descriptions
+- [ ] Post sample page images
 
 ---
 
 ## Summary
 
-**Sheet music publishing workflow:**
+**Sheet music distribution workflow:**
 
-1. Generate songbook with create_songbook.py
-2. Review PDF (quality check)
-3. Design cover (or use template)
-4. Create KDP account
-5. Upload manuscript and cover
-6. Set pricing (competitive + profitable)
-7. Publish and promote
-8. Monitor sales, update as needed
+1. Generate sheet music with transcribe_audio (outputs to source/)
+2. Prepare singles with prepare_singles (outputs to singles/)
+3. Create songbook with create_songbook (outputs to songbook/)
+4. Review all PDFs for quality
+5. Upload to your website
+6. Announce and promote
 
 **Benefits:**
-- Additional revenue stream
+- Serves fans and musicians
 - Adds value to licensing packages
 - Professional presence
-- Serves fans and musicians
-
-**Time investment:**
-- Initial setup: 2-4 hours
-- Ongoing: Minimal (KDP handles printing/shipping)
-
-**Start simple** - one songbook, see how it goes. Can always expand with individual track PDFs, deluxe editions, etc.
+- Free distribution builds goodwill

@@ -30,7 +30,7 @@ Complete guide for converting mastered audio to publishing-quality piano reducti
 ./tools/sheet-music/transcribe.sh /path/to/mastered/ --midi
 ```
 
-**Output**: Creates `sheet-music/` folder with PDFs and MusicXML files.
+**Output**: Creates `sheet-music/source/` folder with PDFs, MusicXML, and MIDI files.
 
 ---
 
@@ -95,10 +95,14 @@ Complete guide for converting mastered audio to publishing-quality piano reducti
 **Organize source files**:
 ```
 album/
-├── mastered/           # Source WAVs
+├── mastered/                    # Source WAVs
 │   ├── 01-track.wav
 │   └── 02-track.wav
-└── sheet-music/        # Output location (create this)
+└── sheet-music/                 # Output location
+    ├── source/                  # AnthemScore output (auto-created)
+    ├── singles/                 # Clean-titled consumer files
+    │   └── .manifest.json
+    └── songbook/                # Combined songbook PDF
 ```
 
 ### Phase 2: Transcription in AnthemScore
@@ -341,11 +345,19 @@ artists/[artist]/albums/[genre]/[album]/sheet-music/
 
 ### Naming Convention
 
+**Source files** (in `source/`):
 ```
-01-track-name.pdf        # Final deliverable
-01-track-name.mscz       # MuseScore source file
-01-track-name.mid        # MIDI (optional, for verification)
-01-track-name.musicxml   # MusicXML (optional, for interchange)
+01-track-name.pdf        # AnthemScore output
+01-track-name.xml        # MusicXML source
+01-track-name.mid        # MIDI file
+```
+
+**Singles** (in `singles/` — consumer-ready):
+```
+Track Name.pdf           # Clean-titled PDF
+Track Name.xml           # Clean-titled MusicXML
+Track Name.mid           # Clean-titled MIDI
+.manifest.json           # Track ordering
 ```
 
 ### What to Keep
@@ -424,12 +436,11 @@ artists/[artist]/albums/[genre]/[album]/sheet-music/
 
 **Automated (preferred)**:
 ```
-1. Run: ./tools/sheet-music/transcribe.sh /path/to/mastered/
-2. Fix titles: python3 tools/sheet-music/fix_titles.py /path/to/sheet-music/
-3. Review generated PDFs
-4. Open XMLs in MuseScore for tracks needing polish
-5. Add dynamics, fix errors
-6. Create songbook: python3 tools/sheet-music/create_songbook.py ... (optional)
+1. Transcribe: python3 tools/sheet-music/transcribe.py /path/to/mastered/
+2. Review source PDFs/XMLs
+3. Open XMLs in MuseScore for tracks needing polish
+4. Prepare singles: python3 tools/sheet-music/prepare_singles.py /path/to/sheet-music/source/
+5. Create songbook: python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/singles/ (optional)
 ```
 
 **Manual (GUI)**:
@@ -515,32 +526,34 @@ Use the provided batch script for easier automation:
 
 ## Post-Transcription Tools
 
-### Fix Titles (fix_titles.py)
+### Prepare Singles (prepare_singles.py)
 
-AnthemScore uses filenames as titles, which includes track numbers. Strip them for publishing:
+Prepare consumer-ready sheet music from numbered source files:
 
 ```bash
-# Fix titles and re-export PDFs
-python3 tools/sheet-music/fix_titles.py /path/to/sheet-music/
+# Prepare singles with clean titles
+python3 tools/sheet-music/prepare_singles.py /path/to/sheet-music/source/
 
 # Options
-python3 tools/sheet-music/fix_titles.py /path/to/sheet-music/ --dry-run   # Preview only
-python3 tools/sheet-music/fix_titles.py /path/to/sheet-music/ --xml-only  # Skip PDF export
+python3 tools/sheet-music/prepare_singles.py /path/to/sheet-music/source/ --dry-run   # Preview only
+python3 tools/sheet-music/prepare_singles.py /path/to/sheet-music/source/ --xml-only  # Skip PDF/MIDI
 ```
 
 **What it does**:
-1. Reads each MusicXML file
-2. Strips track number prefix from `<work-title>` (e.g., "01 - Song" → "Song")
-3. Saves updated XML
-4. Re-exports PDF via MuseScore CLI
+1. Reads numbered source files (PDF, XML, MIDI) from source/
+2. Applies smart title casing (e.g., "01-ocean-of-tears" → "Ocean of Tears")
+3. Updates `<work-title>` in MusicXML files
+4. Writes clean-titled files to singles/ directory
+5. Creates `.manifest.json` for track ordering
+6. Source files are never modified
 
-**Required**: MuseScore must be installed for PDF export.
+**Optional**: MuseScore installed for PDF re-export (otherwise copies source PDFs).
 
 ---
 
 ### Create Songbook (create_songbook.py)
 
-Combine track PDFs into a KDP-ready songbook:
+Combine track PDFs into a distribution-ready songbook:
 
 ```bash
 # Basic usage
@@ -584,19 +597,20 @@ python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/ \
 ## Complete Publishing Workflow
 
 ```bash
-# 1. Transcribe all tracks
-./tools/sheet-music/transcribe.sh /path/to/mastered/
+# 1. Transcribe all tracks (outputs to sheet-music/source/)
+python3 tools/sheet-music/transcribe.py /path/to/mastered/
 
-# 2. Fix titles (strip track numbers)
-python3 tools/sheet-music/fix_titles.py /path/to/sheet-music/
+# 2. Review/polish in MuseScore (manual, as needed)
+open -a "MuseScore 4" /path/to/sheet-music/source/*.xml
 
-# 3. Review/polish in MuseScore (manual, as needed)
-open -a "MuseScore 4" /path/to/sheet-music/*.xml
+# 3. Prepare singles (clean titles → sheet-music/singles/)
+python3 tools/sheet-music/prepare_singles.py /path/to/sheet-music/source/
 
-# 4. Create songbook
-python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/ \
-  --title "Album Name" --artist "Artist" --cover album.png
+# 4. Create songbook (→ sheet-music/songbook/)
+python3 tools/sheet-music/create_songbook.py /path/to/sheet-music/singles/ \
+  --title "Album Name" --artist "Artist"
 
-# 5. Upload to KDP
-# Songbook PDF ready at: /path/to/sheet-music/Album_Name.pdf
+# 5. Upload to website
+# Singles ready in: /path/to/sheet-music/singles/
+# Songbook ready in: /path/to/sheet-music/songbook/
 ```

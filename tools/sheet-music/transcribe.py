@@ -361,7 +361,7 @@ Examples:
     if args.output:
         output_dir = Path(args.output)
     else:
-        output_dir = source_dir / 'sheet-music'
+        output_dir = source_dir / 'sheet-music' / 'source'
 
     # Show summary
     print(f"{Colors.GREEN}AnthemScore Batch Transcription{Colors.NC}")
@@ -428,8 +428,8 @@ Examples:
         print("Next steps:")
         print("  1. Review/edit MusicXML files in MuseScore")
         print("  2. Add dynamics, fix notation errors")
-        print("  3. Run fix_titles.py to clean up titles")
-        print("  4. Export final PDFs from MuseScore")
+        print("  3. Run prepare_singles.py to create clean-titled singles")
+        print("  4. Run create_songbook.py for a combined songbook (optional)")
 
     sys.exit(failed_count)
 

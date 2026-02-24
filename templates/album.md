@@ -10,6 +10,8 @@ streaming:
   apple_music: ""   # Fill in when released
   youtube_music: "" # Fill in when released
   amazon_music: ""  # Fill in when released
+sheet_music:
+  songbook: ""
 # slug: ""  # Optional - only uncomment if you need to override auto-generated slug
 ---
 

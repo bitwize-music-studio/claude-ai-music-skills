@@ -3,6 +3,10 @@ title: "[Track Title]"
 track_number: 0
 explicit: false
 suno_url: ""
+sheet_music:
+  pdf: ""
+  musicxml: ""
+  midi: ""
 ---
 
 # [Track Title]

@@ -10986,19 +10986,19 @@ class TestTranscribeAudio:
 
 
 # =============================================================================
-# Tests for fix_sheet_music_titles tool
+# Tests for prepare_singles tool (renamed from fix_sheet_music_titles)
 # =============================================================================
 
 
-class TestFixSheetMusicTitles:
-    """Tests for the fix_sheet_music_titles MCP tool."""
+class TestPrepareSingles:
+    """Tests for the prepare_singles MCP tool."""
 
     def test_missing_audio_dir(self):
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+            result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
 
     def test_missing_sheet_dir(self, tmp_path):
@@ -11009,45 +11009,61 @@ class TestFixSheetMusicTitles:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(server, "cache", mock_cache):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+            result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
         assert "not found" in result["error"]
 
-    def test_no_xml_files(self, tmp_path):
+    def test_no_source_files(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
         mock_mod = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
-        assert "error" in result
-
-    def test_successful_fix(self, tmp_path):
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
+        mock_mod.prepare_singles.return_value = {"error": "No source files found"}
         mock_mod.find_musescore.return_value = None
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
-        assert "files" in result
-        assert result["fixed_count"] == 1
-        assert result["files"][0]["new_title"] == "Track"
+            result = json.loads(_run(server.prepare_singles("test-album")))
+        assert "error" in result
+
+    def test_successful_prepare(self, tmp_path):
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "01-track.xml").write_text("<work-title>Track</work-title>")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod = MagicMock()
+        mock_mod.prepare_singles.return_value = {
+            "tracks": [{"title": "Track", "files": ["01 - Track.pdf"]}],
+            "manifest": {"tracks": [{"title": "Track", "number": 1}]},
+        }
+        mock_mod.find_musescore.return_value = None
+
+        mock_songbook_mod = MagicMock()
+        mock_songbook_mod.auto_detect_cover_art.return_value = None
+        mock_songbook_mod.get_footer_url_from_config.return_value = None
+
+        def _mock_import(name):
+            if name == "prepare_singles":
+                return mock_mod
+            if name == "create_songbook":
+                return mock_songbook_mod
+            return MagicMock()
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", side_effect=_mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album")))
+        assert "tracks" in result
+        assert result["track_count"] == 1
 
 
 # =============================================================================
@@ -11246,10 +11262,10 @@ class TestImportSheetMusicModule:
         assert hasattr(mod, "find_anthemscore")
         assert hasattr(mod, "transcribe_track")
 
-    def test_imports_fix_titles(self):
-        """Should import fix_titles.py from tools/sheet-music/."""
-        mod = server._import_sheet_music_module("fix_titles")
-        assert hasattr(mod, "fix_xml_title")
+    def test_imports_prepare_singles(self):
+        """Should import prepare_singles.py from tools/sheet-music/."""
+        mod = server._import_sheet_music_module("prepare_singles")
+        assert hasattr(mod, "prepare_singles")
         assert hasattr(mod, "find_musescore")
 
     def test_imports_create_songbook(self):
@@ -11476,7 +11492,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
+        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
@@ -11502,7 +11518,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0)}
+        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
         with patch.object(server, "cache", mock_cache), \
              patch.object(server, "_check_mastering_deps", return_value=None), \
@@ -11850,7 +11866,7 @@ class TestTranscribeAudioComprehensive:
         assert args.midi is True
 
     def test_dry_run_mode(self, tmp_path):
-        """Dry run should not create output directory."""
+        """Dry run should not create output directory or call transcribe_track."""
         audio_dir, state = self._make_audio_dir(tmp_path, 1)
         mock_cache = MockStateCache(state)
 
@@ -11866,9 +11882,11 @@ class TestTranscribeAudioComprehensive:
             )))
 
         assert not (audio_dir / "sheet-music").exists()
-        # Verify dry_run was set in args
-        args = mock_mod.transcribe_track.call_args[0][3]
-        assert args.dry_run is True
+        # Dry run returns title mapping without calling transcribe_track
+        assert result["dry_run"] is True
+        assert "title_map" in result
+        assert "manifest" in result
+        mock_mod.transcribe_track.assert_not_called()
 
     def test_partial_failure(self, tmp_path):
         """Some tracks failing should still report success for others."""
@@ -11896,157 +11914,158 @@ class TestTranscribeAudioComprehensive:
         assert result["summary"]["failed"] == 1
 
 
-class TestFixSheetMusicTitlesComprehensive:
-    """Comprehensive tests for fix_sheet_music_titles: batch, dry_run, PDF export."""
+class TestPrepareSinglesComprehensive:
+    """Comprehensive tests for prepare_singles: batch, dry_run, xml_only."""
 
-    def test_batch_multiple_xmls(self, tmp_path):
-        """Fix titles in multiple XML files."""
+    def _make_mock_modules(self, tracks_result):
+        """Create mock prepare_singles and create_songbook modules."""
+        mock_mod = MagicMock()
+        mock_mod.prepare_singles.return_value = tracks_result
+        mock_mod.find_musescore.return_value = None
+
+        mock_songbook_mod = MagicMock()
+        mock_songbook_mod.auto_detect_cover_art.return_value = None
+        mock_songbook_mod.get_footer_url_from_config.return_value = None
+
+        def _mock_import(name):
+            if name == "prepare_singles":
+                return mock_mod
+            if name == "create_songbook":
+                return mock_songbook_mod
+            return MagicMock()
+
+        return mock_mod, _mock_import
+
+    def test_batch_multiple_tracks(self, tmp_path):
+        """Process multiple source tracks into singles."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
-        (sheet_dir / "02-song.xml").write_text("<work-title>02 - Song</work-title>")
-        (sheet_dir / "03-tune.xml").write_text("<work-title>03 - Tune</work-title>")
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "01-track.xml").write_text("<xml/>")
+        (source_dir / "02-song.xml").write_text("<xml/>")
+        (source_dir / "03-tune.xml").write_text("<xml/>")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.side_effect = ["Track", "Song", "Tune"]
-        mock_mod.find_musescore.return_value = None
+        tracks = [
+            {"title": "Track", "files": ["01 - Track.pdf"]},
+            {"title": "Song", "files": ["02 - Song.pdf"]},
+            {"title": "Tune", "files": ["03 - Tune.pdf"]},
+        ]
+        mock_mod, mock_import = self._make_mock_modules({
+            "tracks": tracks,
+            "manifest": {},
+        })
 
         with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
+             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album")))
 
-        assert result["fixed_count"] == 3
-        assert len(result["files"]) == 3
+        assert result["track_count"] == 3
+        assert len(result["tracks"]) == 3
 
     def test_dry_run_mode(self, tmp_path):
-        """Dry run should not modify files or export PDFs."""
+        """Dry run should pass through to prepare_singles."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "01-track.xml").write_text("<xml/>")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
-        mock_mod.find_musescore.return_value = "/usr/bin/musescore"
+        mock_mod, mock_import = self._make_mock_modules({
+            "tracks": [{"title": "Track", "files": []}],
+            "manifest": {},
+        })
 
         with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album", dry_run=True)))
+             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album", dry_run=True)))
 
-        mock_mod.fix_xml_title.assert_called_once()
-        # dry_run=True passed to fix_xml_title
-        _, kwargs = mock_mod.fix_xml_title.call_args
-        assert kwargs["dry_run"] is True
-        # No PDF export in dry run
-        assert result["pdf_exports"] == []
+        # dry_run=True should be passed to prepare_singles
+        call_kwargs = mock_mod.prepare_singles.call_args
+        assert call_kwargs[1]["dry_run"] is True
 
-    def test_pdf_export_with_musescore(self, tmp_path):
-        """When MuseScore is available and export_pdf=True, should export PDFs."""
+    def test_xml_only_skips_pdf(self, tmp_path):
+        """xml_only=True should skip MuseScore lookup and pass through."""
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
+        (source_dir / "01-track.xml").write_text("<xml/>")
 
         state = _fresh_state()
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
-        mock_mod.find_musescore.return_value = "/usr/bin/musescore"
-        mock_mod.export_pdf.return_value = True
+        mock_mod, mock_import = self._make_mock_modules({
+            "tracks": [{"title": "Track", "files": ["01 - Track.xml"]}],
+            "manifest": {},
+        })
 
         with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles(
-                "test-album", export_pdf=True
-            )))
+             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album", xml_only=True)))
 
-        assert len(result["pdf_exports"]) == 1
-        assert result["pdf_exports"][0]["exported"] is True
-
-    def test_no_pdf_export_when_musescore_missing(self, tmp_path):
-        """When MuseScore is missing, PDF export should be skipped with warning."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
-        mock_mod.find_musescore.return_value = None
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles(
-                "test-album", export_pdf=True
-            )))
-
-        assert any("warning" in p for p in result["pdf_exports"])
-
-    def test_musicxml_extension(self, tmp_path):
-        """Should also find .musicxml files with track number prefixes."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.musicxml").write_text("<work-title>01 - Track</work-title>")
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
-        mock_mod.find_musescore.return_value = None
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles("test-album")))
-
-        assert result["fixed_count"] == 1
-        assert result["files"][0]["filename"] == "01-track.musicxml"
-
-    def test_export_pdf_false_skips_export(self, tmp_path):
-        """When export_pdf=False, no PDF export should be attempted."""
-        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
-        sheet_dir = audio_dir / "sheet-music"
-        sheet_dir.mkdir(parents=True)
-        (sheet_dir / "01-track.xml").write_text("<work-title>01 - Track</work-title>")
-
-        state = _fresh_state()
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test-artist"
-        mock_cache = MockStateCache(state)
-
-        mock_mod = MagicMock()
-        mock_mod.fix_xml_title.return_value = "Track"
-
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
-            result = json.loads(_run(server.fix_sheet_music_titles(
-                "test-album", export_pdf=False
-            )))
-
-        assert result["pdf_exports"] == []
+        assert result["track_count"] == 1
+        # xml_only=True should be passed through
+        call_kwargs = mock_mod.prepare_singles.call_args
+        assert call_kwargs[1]["xml_only"] is True
+        # When xml_only=True, find_musescore should not be called
         mock_mod.find_musescore.assert_not_called()
+
+    def test_error_from_prepare_singles(self, tmp_path):
+        """Error returned by prepare_singles should be propagated."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        source_dir = audio_dir / "sheet-music" / "source"
+        source_dir.mkdir(parents=True)
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod, mock_import = self._make_mock_modules({
+            "error": "No source files found",
+        })
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album")))
+
+        assert "error" in result
+
+    def test_backward_compat_flat_layout(self, tmp_path):
+        """Falls back to flat sheet-music/ dir when source/ doesn't exist."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        sheet_dir = audio_dir / "sheet-music"
+        sheet_dir.mkdir(parents=True)
+        (sheet_dir / "01-track.xml").write_text("<xml/>")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_mod, mock_import = self._make_mock_modules({
+            "tracks": [{"title": "Track", "files": ["01 - Track.pdf"]}],
+            "manifest": {},
+        })
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+            result = json.loads(_run(server.prepare_singles("test-album")))
+
+        assert result["track_count"] == 1
+        # source_dir should be the flat sheet-music/ dir
+        call_kwargs = mock_mod.prepare_singles.call_args
+        assert str(call_kwargs[1]["source_dir"]) == str(sheet_dir)
 
 
 class TestCreateSongbookComprehensive:
@@ -12818,4 +12837,672 @@ class TestGetConfigEdgeCases:
         assert "audio_root" in config
         assert "documents_root" in config
         assert "artist_name" in config
+
+
+# ---------------------------------------------------------------------------
+# _extract_track_number_from_stem
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestExtractTrackNumberFromStem:
+    """Tests for extracting leading track number from a slug stem."""
+
+    def test_two_digit_prefix(self):
+        assert server._extract_track_number_from_stem("01-first-pour") == 1
+
+    def test_double_digit(self):
+        assert server._extract_track_number_from_stem("12-beyond-the-stars") == 12
+
+    def test_no_prefix(self):
+        assert server._extract_track_number_from_stem("first-pour") is None
+
+    def test_empty_string(self):
+        assert server._extract_track_number_from_stem("") is None
+
+    def test_single_digit(self):
+        assert server._extract_track_number_from_stem("3-track") == 3
+
+
+# ---------------------------------------------------------------------------
+# _build_title_map
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestBuildTitleMap:
+    """Tests for building WAV stem -> clean title mappings from state cache."""
+
+    def test_titles_from_cache(self, tmp_path):
+        """When state cache has track data, use it for titles."""
+        state = _fresh_state()
+        mock_cache = MockStateCache(state)
+
+        wav1 = tmp_path / "01-first-track.wav"
+        wav2 = tmp_path / "02-second-track.wav"
+        wav1.touch()
+        wav2.touch()
+
+        with patch.object(server, "cache", mock_cache):
+            title_map = server._build_title_map("test-album", [wav1, wav2])
+
+        assert title_map["01-first-track"] == "First Track"
+        assert title_map["02-second-track"] == "Second Track"
+
+    def test_fallback_to_slug_to_title(self, tmp_path):
+        """When state cache has no matching tracks, fall back to slug_to_title."""
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"] = {}  # Empty tracks
+        mock_cache = MockStateCache(state)
+
+        wav = tmp_path / "01-ocean-of-tears.wav"
+        wav.touch()
+
+        with patch.object(server, "cache", mock_cache):
+            title_map = server._build_title_map("test-album", [wav])
+
+        assert title_map["01-ocean-of-tears"] == "Ocean of Tears"
+
+    def test_no_album_in_cache(self, tmp_path):
+        """When album is not in state cache, fall back to slug_to_title."""
+        state = _fresh_state()
+        mock_cache = MockStateCache(state)
+
+        wav = tmp_path / "01-fire-and-ice.wav"
+        wav.touch()
+
+        with patch.object(server, "cache", mock_cache):
+            title_map = server._build_title_map("nonexistent-album", [wav])
+
+        assert title_map["01-fire-and-ice"] == "Fire and Ice"
+
+    def test_sanitizes_invalid_chars(self, tmp_path):
+        """Titles with invalid filename characters should be sanitized."""
+        state = _fresh_state()
+        # Add a track with special chars in title
+        state["albums"]["test-album"]["tracks"]["03-why"] = {
+            "title": "Why?",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+
+        wav = tmp_path / "03-why.wav"
+        wav.touch()
+
+        with patch.object(server, "cache", mock_cache):
+            title_map = server._build_title_map("test-album", [wav])
+
+        assert title_map["03-why"] == "Why"  # ? removed by sanitize_filename
+
+
+# ---------------------------------------------------------------------------
+# transcribe_audio — symlink flow + manifest
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestTranscribeAudioFlow:
+    """Tests for the transcribe_audio symlink and manifest flow."""
+
+    def test_dry_run_reports_title_mapping(self, tmp_path):
+        """Dry run should report title mapping without creating symlinks."""
+        state = _fresh_state()
+        audio_dir = tmp_path / "audio"
+        originals = audio_dir / "originals"
+        originals.mkdir(parents=True)
+        (originals / "01-first-track.wav").touch()
+        (originals / "02-second-track.wav").touch()
+
+        mock_cache = MockStateCache(state)
+
+        # Mock dependencies
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(server, "_import_sheet_music_module") as mock_import:
+            mock_mod = MagicMock()
+            mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+            mock_import.return_value = mock_mod
+
+            result = json.loads(_run(server.transcribe_audio(
+                album_slug="test-album",
+                formats="pdf,xml",
+                dry_run=True,
+            )))
+
+        assert result["dry_run"] is True
+        assert "title_map" in result
+        assert result["title_map"]["01-first-track"] == "First Track"
+        assert result["title_map"]["02-second-track"] == "Second Track"
+        assert len(result["manifest"]["tracks"]) == 2
+
+    def test_manifest_written_to_source(self, tmp_path):
+        """After transcription, .manifest.json should exist in source/."""
+        state = _fresh_state()
+        audio_dir = tmp_path / "audio"
+        originals = audio_dir / "originals"
+        originals.mkdir(parents=True)
+        (originals / "01-first-track.wav").touch()
+
+        output_dir = audio_dir / "sheet-music" / "source"
+        output_dir.mkdir(parents=True)
+
+        mock_cache = MockStateCache(state)
+
+        def fake_transcribe(anthemscore, wav_file, out_dir, args):
+            # Simulate AnthemScore creating output files
+            (out_dir / f"{wav_file.stem}.pdf").touch()
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(server, "_import_sheet_music_module") as mock_import:
+            mock_mod = MagicMock()
+            mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+            mock_mod.transcribe_track.side_effect = fake_transcribe
+            mock_import.return_value = mock_mod
+
+            result = json.loads(_run(server.transcribe_audio(
+                album_slug="test-album",
+                formats="pdf",
+                dry_run=False,
+            )))
+
+        manifest_path = output_dir / ".manifest.json"
+        assert manifest_path.exists(), ".manifest.json should be written to source/"
+        manifest = json.loads(manifest_path.read_text())
+        assert len(manifest["tracks"]) == 1
+        assert manifest["tracks"][0]["source_slug"] == "01-first-track"
+        assert manifest["tracks"][0]["title"] == "First Track"
+
+    def test_temp_dir_cleaned_up_on_failure(self, tmp_path):
+        """Temp directory should be cleaned up even if transcription fails."""
+        import glob as glob_mod
+
+        state = _fresh_state()
+        audio_dir = tmp_path / "audio"
+        originals = audio_dir / "originals"
+        originals.mkdir(parents=True)
+        (originals / "01-first-track.wav").touch()
+
+        output_dir = audio_dir / "sheet-music" / "source"
+        output_dir.mkdir(parents=True)
+
+        mock_cache = MockStateCache(state)
+
+        def failing_transcribe(anthemscore, wav_file, out_dir, args):
+            return False
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_anthemscore", return_value=None), \
+             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(server, "_import_sheet_music_module") as mock_import:
+            mock_mod = MagicMock()
+            mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
+            mock_mod.transcribe_track.side_effect = failing_transcribe
+            mock_import.return_value = mock_mod
+
+            _run(server.transcribe_audio(
+                album_slug="test-album",
+                formats="pdf",
+                dry_run=False,
+            ))
+
+        # No temp dirs should remain
+        import tempfile
+        temp_dirs = glob_mod.glob(str(Path(tempfile.gettempdir()) / "test-album-transcribe-*"))
+        assert len(temp_dirs) == 0, f"Temp dirs not cleaned up: {temp_dirs}"
+
+
+# =============================================================================
+# Tests for publish_sheet_music tool
+# =============================================================================
+
+
+class TestPublishSheetMusic:
+    """Tests for the publish_sheet_music MCP tool."""
+
+    def test_cloud_not_enabled(self):
+        """Returns error when cloud is not enabled in config."""
+        with patch.object(
+            server, "_check_cloud_enabled",
+            return_value="Cloud uploads not enabled.",
+        ):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+        assert "error" in result
+        assert "not enabled" in result["error"]
+
+    def test_missing_audio_dir(self):
+        """Returns error when audio dir doesn't exist."""
+        state = _fresh_state()
+        state["config"]["audio_root"] = "/nonexistent"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+        assert "error" in result
+
+    def test_missing_sheet_music_dir(self, tmp_path):
+        """Returns error with suggestion when sheet-music dir is missing."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+        assert "error" in result
+        assert "not found" in result["error"]
+        assert "suggestion" in result
+        assert "transcribe" in result["suggestion"].lower()
+
+    def test_dry_run_lists_files(self, tmp_path):
+        """Dry run lists files with R2 keys without uploading."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        songbook_dir = audio_dir / "sheet-music" / "songbook"
+        singles_dir.mkdir(parents=True)
+        songbook_dir.mkdir(parents=True)
+        (singles_dir / "01 - First Track.pdf").write_bytes(b"fakepdf")
+        (singles_dir / "01 - First Track.xml").write_bytes(b"fakexml")
+        (songbook_dir / "My Album - Complete Songbook.pdf").write_bytes(b"fakesongbook")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music(
+                "test-album", dry_run=True
+            )))
+
+        assert result["dry_run"] is True
+        assert result["artist"] == "test-artist"
+        assert result["album_slug"] == "test-album"
+        assert len(result["files"]) == 3
+        # Check R2 keys are properly formed
+        keys = [f["r2_key"] for f in result["files"]]
+        assert any("singles/" in k for k in keys)
+        assert any("songbook/" in k for k in keys)
+        assert all(k.startswith("test-artist/test-album/sheet-music/") for k in keys)
+        # Check summary
+        assert result["summary"]["total"] == 3
+        assert result["summary"]["by_subdir"]["singles"] == 2
+        assert result["summary"]["by_subdir"]["songbook"] == 1
+
+    def test_skips_manifest_files(self, tmp_path):
+        """Manifest files (.manifest.json) are excluded from uploads."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        singles_dir.mkdir(parents=True)
+        (singles_dir / "01 - Track.pdf").write_bytes(b"pdf")
+        (singles_dir / ".manifest.json").write_bytes(b'{"internal": true}')
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music(
+                "test-album", dry_run=True
+            )))
+
+        filenames = [f["filename"] for f in result["files"]]
+        assert ".manifest.json" not in filenames
+        assert "01 - Track.pdf" in filenames
+        assert result["summary"]["total"] == 1
+
+    def test_include_source_flag(self, tmp_path):
+        """Source dir files only included when include_source=True."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        source_dir = audio_dir / "sheet-music" / "source"
+        singles_dir.mkdir(parents=True)
+        source_dir.mkdir(parents=True)
+        (singles_dir / "01 - Track.pdf").write_bytes(b"pdf")
+        (source_dir / "First Track.pdf").write_bytes(b"srcpdf")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        # Without include_source — source files excluded
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music(
+                "test-album", include_source=False, dry_run=True
+            )))
+        subdirs = [f["subdir"] for f in result["files"]]
+        assert "source" not in subdirs
+        assert result["summary"]["total"] == 1
+
+        # With include_source — source files included
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music(
+                "test-album", include_source=True, dry_run=True
+            )))
+        subdirs = [f["subdir"] for f in result["files"]]
+        assert "source" in subdirs
+        assert result["summary"]["total"] == 2
+
+    def test_uploads_singles_and_songbook(self, tmp_path):
+        """Both singles and songbook dirs are collected and uploaded."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        songbook_dir = audio_dir / "sheet-music" / "songbook"
+        singles_dir.mkdir(parents=True)
+        songbook_dir.mkdir(parents=True)
+        (singles_dir / "01 - Track.pdf").write_bytes(b"pdf1")
+        (singles_dir / "01 - Track.mid").write_bytes(b"midi1")
+        (songbook_dir / "Songbook.pdf").write_bytes(b"songbook")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        # Mock cloud module
+        mock_cloud_mod = MagicMock()
+        mock_cloud_mod.retry_upload.return_value = True
+        mock_cloud_mod.get_s3_client.return_value = MagicMock()
+        mock_cloud_mod.get_bucket_name.return_value = "test-bucket"
+
+        mock_config = {
+            "cloud": {"enabled": True, "provider": "r2", "public_read": False},
+        }
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None), \
+             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["summary"]["success"] == 3
+        assert result["summary"]["failed"] == 0
+        assert len(result["uploaded"]) == 3
+        # Verify retry_upload called for each file
+        assert mock_cloud_mod.retry_upload.call_count == 3
+
+    # ------------------------------------------------------------------
+    # Frontmatter persistence tests
+    # ------------------------------------------------------------------
+
+    def _setup_publish_env(self, tmp_path, *, public_url="https://cdn.example.com"):
+        """Create audio + content dirs, state, and mocks for frontmatter tests.
+
+        Returns (state, mock_cloud_mod, mock_config, content_dir, audio_dir).
+        """
+        audio_dir = (
+            tmp_path / "audio" / "artists" / "test-artist"
+            / "albums" / "electronic" / "test-album"
+        )
+        content_dir = (
+            tmp_path / "content" / "artists" / "test-artist"
+            / "albums" / "electronic" / "test-album"
+        )
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        songbook_dir = audio_dir / "sheet-music" / "songbook"
+        tracks_dir = content_dir / "tracks"
+        singles_dir.mkdir(parents=True)
+        songbook_dir.mkdir(parents=True)
+        tracks_dir.mkdir(parents=True)
+
+        # Create sheet music files
+        (singles_dir / "01 - First Track.pdf").write_bytes(b"pdf1")
+        (singles_dir / "01 - First Track.xml").write_bytes(b"xml1")
+        (singles_dir / "02 - Second Track.pdf").write_bytes(b"pdf2")
+        (songbook_dir / "Test Album - Complete Songbook.pdf").write_bytes(b"sb")
+
+        # Create track markdown files with frontmatter
+        track1 = tracks_dir / "01-first-track.md"
+        track1.write_text(
+            "---\ntitle: \"First Track\"\ntrack_number: 1\nexplicit: false\n"
+            "suno_url: \"\"\n---\n\n# First Track\n",
+            encoding="utf-8",
+        )
+        track2 = tracks_dir / "02-second-track.md"
+        track2.write_text(
+            "---\ntitle: \"Second Track\"\ntrack_number: 2\nexplicit: true\n"
+            "suno_url: \"\"\n---\n\n# Second Track\n",
+            encoding="utf-8",
+        )
+
+        # Create album README
+        readme = content_dir / "README.md"
+        readme.write_text(
+            "---\ntitle: \"Test Album\"\nrelease_date: \"\"\ngenres: []\n"
+            "tags: []\nexplicit: false\nstreaming:\n  soundcloud: \"\"\n"
+            "---\n\n# Test Album\n",
+            encoding="utf-8",
+        )
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path / "audio")
+        state["config"]["content_root"] = str(tmp_path / "content")
+        state["config"]["artist_name"] = "test-artist"
+        state["albums"]["test-album"]["path"] = str(content_dir)
+        state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = str(track1)
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["path"] = str(track2)
+
+        mock_cloud_mod = MagicMock()
+        mock_cloud_mod.retry_upload.return_value = True
+        mock_cloud_mod.get_s3_client.return_value = MagicMock()
+        mock_cloud_mod.get_bucket_name.return_value = "test-bucket"
+
+        r2_config = {"bucket": "test-bucket"}
+        if public_url:
+            r2_config["public_url"] = public_url
+
+        mock_config = {
+            "cloud": {
+                "enabled": True,
+                "provider": "r2",
+                "public_read": bool(public_url),
+                "r2": r2_config,
+            },
+        }
+
+        return state, mock_cloud_mod, mock_config, content_dir, audio_dir
+
+    def test_persists_urls_to_track_frontmatter(self, tmp_path):
+        """After upload with public_url, track .md files get sheet_music block."""
+        import yaml
+
+        state, mock_cloud_mod, mock_config, content_dir, _ = (
+            self._setup_publish_env(tmp_path)
+        )
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None), \
+             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["frontmatter_updated"] is True
+        assert "01-first-track" in result["tracks_updated"]
+        assert "02-second-track" in result["tracks_updated"]
+
+        # Verify track 1 frontmatter has sheet_music with pdf + xml
+        track1_text = (content_dir / "tracks" / "01-first-track.md").read_text()
+        assert track1_text.startswith("---")
+        fm_text = track1_text.split("---")[1]
+        fm = yaml.safe_load(fm_text)
+        assert "sheet_music" in fm
+        assert "pdf" in fm["sheet_music"]
+        assert "musicxml" in fm["sheet_music"]
+        assert fm["sheet_music"]["pdf"].startswith("https://cdn.example.com/")
+
+        # Verify track 2 has only pdf (no xml was uploaded for track 2)
+        track2_text = (content_dir / "tracks" / "02-second-track.md").read_text()
+        fm2 = yaml.safe_load(track2_text.split("---")[1])
+        assert "sheet_music" in fm2
+        assert "pdf" in fm2["sheet_music"]
+        assert "musicxml" not in fm2["sheet_music"]
+
+    def test_persists_songbook_url_to_album_readme(self, tmp_path):
+        """Album README gets sheet_music.songbook URL."""
+        import yaml
+
+        state, mock_cloud_mod, mock_config, content_dir, _ = (
+            self._setup_publish_env(tmp_path)
+        )
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None), \
+             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result.get("album_updated") is True
+        readme_text = (content_dir / "README.md").read_text()
+        fm = yaml.safe_load(readme_text.split("---")[1])
+        assert "sheet_music" in fm
+        assert "songbook" in fm["sheet_music"]
+        assert "cdn.example.com" in fm["sheet_music"]["songbook"]
+
+    def test_frontmatter_uses_relative_keys_without_public_url(self, tmp_path):
+        """When no public_url, frontmatter uses relative R2 keys."""
+        import yaml
+
+        state, mock_cloud_mod, mock_config, content_dir, _ = (
+            self._setup_publish_env(tmp_path, public_url=None)
+        )
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None), \
+             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["frontmatter_updated"] is True
+        # Track files should have relative R2 key paths (no https://)
+        track1_text = (content_dir / "tracks" / "01-first-track.md").read_text()
+        fm = yaml.safe_load(track1_text.split("---")[1])
+        assert "sheet_music" in fm
+        assert "pdf" in fm["sheet_music"]
+        assert not fm["sheet_music"]["pdf"].startswith("https://")
+        assert "test-artist/" in fm["sheet_music"]["pdf"]
+
+    def test_idempotent_frontmatter_update(self, tmp_path):
+        """Running publish twice overwrites, doesn't duplicate."""
+        import yaml
+
+        state, mock_cloud_mod, mock_config, content_dir, _ = (
+            self._setup_publish_env(tmp_path)
+        )
+        mock_cache = MockStateCache(state)
+
+        ctx = (
+            patch.object(server, "cache", mock_cache),
+            patch.object(server, "_check_cloud_enabled", return_value=None),
+            patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod),
+            patch("tools.shared.config.load_config", return_value=mock_config),
+        )
+
+        # Run twice
+        with ctx[0], ctx[1], ctx[2], ctx[3]:
+            _run(server.publish_sheet_music("test-album"))
+        with ctx[0], ctx[1], ctx[2], ctx[3]:
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["frontmatter_updated"] is True
+
+        # Verify only one sheet_music block — not duplicated
+        track1_text = (content_dir / "tracks" / "01-first-track.md").read_text()
+        assert track1_text.count("sheet_music") == 1
+        fm = yaml.safe_load(track1_text.split("---")[1])
+        assert "sheet_music" in fm
+
+    def test_dry_run_skips_frontmatter(self, tmp_path):
+        """dry_run=True does not touch markdown files."""
+        state, _, _, content_dir, _ = self._setup_publish_env(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_cloud_enabled", return_value=None):
+            result = json.loads(_run(server.publish_sheet_music(
+                "test-album", dry_run=True
+            )))
+
+        assert result["dry_run"] is True
+        assert "frontmatter_updated" not in result
+        # Track files should be unchanged
+        track1_text = (content_dir / "tracks" / "01-first-track.md").read_text()
+        assert "sheet_music" not in track1_text
+
+
+class TestUpdateFrontmatterBlock:
+    """Tests for the _update_frontmatter_block helper."""
+
+    def test_adds_new_block(self, tmp_path):
+        """Adds sheet_music block when not present."""
+        import yaml
+
+        md = tmp_path / "track.md"
+        md.write_text(
+            '---\ntitle: "My Track"\ntrack_number: 1\n---\n\n# My Track\n',
+            encoding="utf-8",
+        )
+        ok, err = server._update_frontmatter_block(
+            md, "sheet_music", {"pdf": "https://cdn.example.com/t.pdf"}
+        )
+        assert ok is True
+        assert err is None
+
+        text = md.read_text()
+        fm = yaml.safe_load(text.split("---")[1])
+        assert fm["sheet_music"]["pdf"] == "https://cdn.example.com/t.pdf"
+        assert fm["title"] == "My Track"
+        # Body preserved
+        assert "# My Track" in text
+
+    def test_overwrites_existing_block(self, tmp_path):
+        """Replaces existing sheet_music values."""
+        import yaml
+
+        md = tmp_path / "track.md"
+        md.write_text(
+            '---\ntitle: "My Track"\nsheet_music:\n  pdf: "old-url"\n'
+            '---\n\n# My Track\n',
+            encoding="utf-8",
+        )
+        ok, err = server._update_frontmatter_block(
+            md, "sheet_music", {"pdf": "new-url", "xml": "xml-url"}
+        )
+        assert ok is True
+
+        fm = yaml.safe_load(md.read_text().split("---")[1])
+        assert fm["sheet_music"]["pdf"] == "new-url"
+        assert fm["sheet_music"]["xml"] == "xml-url"
+
+    def test_preserves_other_frontmatter(self, tmp_path):
+        """Other keys are untouched when adding sheet_music."""
+        import yaml
+
+        md = tmp_path / "track.md"
+        md.write_text(
+            '---\ntitle: "My Track"\ntrack_number: 3\nexplicit: true\n'
+            'suno_url: "https://suno.com/abc"\n---\n\n# Body\n',
+            encoding="utf-8",
+        )
+        ok, _ = server._update_frontmatter_block(
+            md, "sheet_music", {"pdf": "url"}
+        )
+        assert ok is True
+
+        fm = yaml.safe_load(md.read_text().split("---")[1])
+        assert fm["title"] == "My Track"
+        assert fm["track_number"] == 3
+        assert fm["explicit"] is True
+        assert fm["suno_url"] == "https://suno.com/abc"
+        assert fm["sheet_music"]["pdf"] == "url"
 

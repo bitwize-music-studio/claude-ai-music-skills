@@ -13,11 +13,21 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # Force-mock boto3 before importing the module so tests behave consistently
 # regardless of whether boto3 is installed on this machine.
-sys.modules["boto3"] = MagicMock()
-sys.modules["botocore"] = MagicMock()
-sys.modules["botocore.exceptions"] = MagicMock()
+# Save originals and restore after import to prevent MagicMock pollution
+# leaking into later test files.
+_MOCK_DEPS = ["boto3", "botocore", "botocore.exceptions"]
+_SAVED_DEPS = {dep: sys.modules.get(dep) for dep in _MOCK_DEPS}
+for dep in _MOCK_DEPS:
+    sys.modules[dep] = MagicMock()
 
 from tools.cloud import upload_to_cloud as mod
+
+# Restore original modules to avoid polluting later tests
+for dep, original in _SAVED_DEPS.items():
+    if original is None:
+        sys.modules.pop(dep, None)
+    else:
+        sys.modules[dep] = original
 
 
 # ---------------------------------------------------------------------------

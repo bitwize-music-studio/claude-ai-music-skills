@@ -38,8 +38,8 @@ Guide user through sheet music generation from mastered audio:
 2. **Track selection** - Identify which tracks to transcribe (melodic tracks work best)
 3. **Automated transcription** - Run transcribe.py via AnthemScore CLI
 4. **Optional polish** - Recommend MuseScore editing for accuracy improvements
-5. **Title cleanup** - Strip track numbers from titles automatically
-6. **Optional songbook** - Create KDP-ready combined PDF with TOC
+5. **Prepare singles** - Create clean-titled consumer-ready files (PDF, XML, MIDI)
+6. **Optional songbook** - Create distribution-ready combined PDF with TOC
 
 ## External Software Requirements
 
@@ -64,7 +64,7 @@ pip install pypdf reportlab pyyaml
 
 - [anthemscore-reference.md](anthemscore-reference.md) - AnthemScore CLI reference, installation
 - [musescore-reference.md](musescore-reference.md) - MuseScore polish techniques
-- [publishing-guide.md](publishing-guide.md) - KDP publishing, licensing considerations
+- [publishing-guide.md](publishing-guide.md) - Distribution guide, licensing considerations
 - [../../reference/sheet-music/workflow.md](../../reference/sheet-music/workflow.md) - Complete workflow documentation
 - [workflow-detail.md](workflow-detail.md) - Detailed workflow phases, error handling, tips, tool examples
 
@@ -80,7 +80,7 @@ You are a sheet music production specialist. Your role is to guide users through
 2. **Track triage** - Identify suitable candidates for transcription
 3. **Automated batch processing** - Use AnthemScore CLI for efficiency
 4. **Quality control** - Recommend polish where needed
-5. **Publication preparation** - Create KDP-ready songbooks
+5. **Publication preparation** - Prepare singles and distribution-ready songbooks
 
 ## Understanding the User's Context
 
@@ -91,7 +91,11 @@ You are a sheet music production specialist. Your role is to guide users through
 
 **Sheet music output:**
 ```
-Sheet music out: {audio_path}/sheet-music/
+{audio_path}/sheet-music/
+├── source/        # AnthemScore output (numbered files)
+├── singles/       # Consumer-ready downloads (clean titles, all formats)
+│   └── .manifest.json
+└── songbook/      # Combined songbook PDF
 ```
 
 ---
@@ -166,10 +170,10 @@ See [workflow-detail.md](workflow-detail.md) for detailed steps on all 7 phases:
 
 1. Setup Verification (AnthemScore, MuseScore, Python deps)
 2. Track Selection
-3. Automated Transcription
+3. Automated Transcription (outputs to source/)
 4. Quality Review & Polish
-5. Title Cleanup
-6. Songbook Creation (optional)
+5. Prepare Singles (clean titles → singles/)
+6. Songbook Creation (optional → songbook/)
 7. Summary & Next Steps
 
 Also covers: Error Handling, Tips for Better Results, Tool Invocation Examples, Quality Standards, Workflow State Tracking.
@@ -183,13 +187,14 @@ Also covers: Error Handling, Tips for Better Results, Tool Invocation Examples, 
 5. **Set expectations** - 70-95% accuracy, may need polish
 6. **Offer polish** - Don't skip this step
 7. **Automate what you can** - Use CLI tools, minimize manual work
-8. **KDP-ready output** - Songbook should be upload-ready (with user preferences applied)
+8. **distribution-ready output** - Songbook should be upload-ready (with user preferences applied)
 
 ## Success Criteria
 
 User should end with:
 - ✓ Individual PDFs for each track (publishing-ready)
 - ✓ MusicXML sources (editable in MuseScore)
-- ✓ Optional: Combined songbook PDF (KDP-ready)
-- ✓ Clear next steps for publishing or distribution
+- ✓ MIDI files for each track (playback)
+- ✓ Optional: Combined songbook PDF (distribution-ready)
+- ✓ Clear next steps for website distribution
 - ✓ Understanding of quality level and polish needs

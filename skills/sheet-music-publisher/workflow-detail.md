@@ -134,21 +134,23 @@ transcribe_audio(album_slug)
 **The script will:**
 1. Read config to locate audio files
 2. Find AnthemScore based on OS
-3. Create output directory: `{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/`
+3. Create output directory: `{audio_root}/artists/{artist}/albums/{genre}/{album}/sheet-music/source/`
 4. Process each WAV (~30-60 seconds per track)
-5. Generate PDF + MusicXML for each track
+5. Generate PDF + MusicXML + MIDI for each track
 
 **Monitor progress** and report to user:
 ```
 Transcribing tracks...
 
 ✓ Track 01: ocean-of-tears.wav - Complete
-  → sheet-music/01-ocean-of-tears.pdf
-  → sheet-music/01-ocean-of-tears.xml
+  → sheet-music/source/01-ocean-of-tears.pdf
+  → sheet-music/source/01-ocean-of-tears.xml
+  → sheet-music/source/01-ocean-of-tears.mid
 
 ✓ Track 02: run-away.wav - Complete
-  → sheet-music/02-run-away.pdf
-  → sheet-music/02-run-away.xml
+  → sheet-music/source/02-run-away.pdf
+  → sheet-music/source/02-run-away.xml
+  → sheet-music/source/02-run-away.mid
 
 Transcription complete: N tracks processed
 ```
@@ -197,26 +199,29 @@ After editing in MuseScore:
 I'll wait for your confirmation before proceeding.
 ```
 
-## Phase 5: Title Cleanup
+## Phase 5: Prepare Singles
 
-**After polish (or if skipped)**, automatically fix titles via MCP:
+**After polish (or if skipped)**, prepare consumer-ready singles via MCP:
 ```
-fix_sheet_music_titles(album_slug)
+prepare_singles(album_slug)
 ```
 
 **What this does:**
-- Strips track number prefixes (e.g., "01 - Song Name" → "Song Name")
+- Reads numbered source files from `sheet-music/source/`
+- Applies smart title casing (e.g., "01-ocean-of-tears" → "Ocean of Tears")
 - Updates MusicXML `<work-title>` tags
-- Re-exports PDFs via MuseScore CLI (so PDFs have clean titles)
+- Writes clean-titled files to `sheet-music/singles/` (PDF, XML, MIDI)
+- Creates `.manifest.json` for track ordering
+- Source files are never modified
 
 **Report:**
 ```
-Cleaning up titles...
+Preparing singles...
 
-✓ Fixed 5 titles
-✓ Re-exported 5 PDFs
+✓ Prepared 5 tracks in singles/
+✓ Created .manifest.json
 
-Titles now clean and publishing-ready.
+Files ready for website distribution.
 ```
 
 ## Phase 6: Songbook Creation (Optional)
@@ -225,16 +230,16 @@ Titles now clean and publishing-ready.
 ```
 Create a combined songbook PDF?
 
-This creates a KDP-ready book with:
+This creates a distribution-ready book with:
   - Title page (with album art if available)
   - Copyright page
   - Table of contents
   - All tracks in order
 
 Perfect for:
-  - Amazon KDP publishing
+  - Website distribution (free download)
   - Licensing packages
-  - Premium album editions
+  - Fan resources
 
 Create songbook? [Y/n]
 ```
@@ -267,7 +272,7 @@ Contents:
   - Table of contents (N tracks)
   - N tracks (XX pages total)
 
-Ready for KDP upload or distribution.
+Ready for website distribution.
 ```
 
 ## Phase 7: Summary & Next Steps
@@ -287,11 +292,11 @@ Files generated:
 
 Next steps:
   1. Review PDFs for accuracy
-  2. [Optional] Publish songbook to Amazon KDP
+  2. Upload singles + songbook to your website
   3. [Optional] Include in licensing packages
-  4. [Optional] Distribute with album
+  4. [Optional] Share on social media
 
-See publishing guide for KDP instructions:
+See publishing guide for distribution instructions:
   ${CLAUDE_PLUGIN_ROOT}/skills/sheet-music-publisher/publishing-guide.md
 ```
 
@@ -454,8 +459,8 @@ Goal: Playable by intermediate pianist, captures song essence
    - "preparing licensing package"
    → Suggest: "Sheet music is valuable for sync licensing. Generate now?"
 
-3. **User mentions KDP or publishing:**
-   - "publish to KDP"
+3. **User mentions publishing or distribution:**
+   - "distribute sheet music"
    - "create a songbook"
    → Invoke this skill automatically
 
@@ -505,14 +510,17 @@ transcribe_audio(album_slug, formats="pdf")
 transcribe_audio(album_slug, dry_run=True)
 ```
 
-### fix_sheet_music_titles
+### prepare_singles
 
 ```
-# Fix titles and re-export PDFs
-fix_sheet_music_titles(album_slug)
+# Prepare clean-titled singles (PDF, XML, MIDI)
+prepare_singles(album_slug)
 
 # Dry run (preview only)
-fix_sheet_music_titles(album_slug, dry_run=True)
+prepare_singles(album_slug, dry_run=True)
+
+# XML only (skip PDF/MIDI)
+prepare_singles(album_slug, xml_only=True)
 ```
 
 ### create_songbook

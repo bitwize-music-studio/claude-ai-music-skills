@@ -721,11 +721,6 @@ def process_backing_vocals(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width — spread behind lead
-    stereo_w = settings.get('stereo_width', 1.3)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression — tighter than lead
     comp_threshold = settings.get('compress_threshold_db', -14.0)
     comp_ratio = settings.get('compress_ratio', 3.0)
@@ -733,16 +728,6 @@ def process_backing_vocals(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -844,11 +829,6 @@ def process_synth(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width — pad spread
-    stereo_w = settings.get('stereo_width', 1.2)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression — light, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -16.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -856,16 +836,6 @@ def process_synth(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -909,11 +879,6 @@ def process_guitar(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width
-    stereo_w = settings.get('stereo_width', 1.15)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression — moderate, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -14.0)
     comp_ratio = settings.get('compress_ratio', 2.5)
@@ -921,16 +886,6 @@ def process_guitar(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -974,11 +929,6 @@ def process_keyboard(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width
-    stereo_w = settings.get('stereo_width', 1.1)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression — light, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -16.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -986,16 +936,6 @@ def process_keyboard(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -1040,11 +980,6 @@ def process_strings(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width — wide for orchestral spread
-    stereo_w = settings.get('stereo_width', 1.25)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression — very gentle, preserve orchestral dynamics
     comp_threshold = settings.get('compress_threshold_db', -18.0)
     comp_ratio = settings.get('compress_ratio', 1.5)
@@ -1052,11 +987,6 @@ def process_strings(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
 
     return data
 
@@ -1109,16 +1039,6 @@ def process_brass(data, rate, settings=None):
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
-
     return data
 
 
@@ -1169,16 +1089,6 @@ def process_woodwinds(data, rate, settings=None):
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
-
-    # Lowpass (vintage/lo-fi character)
-    lp_cutoff = settings.get('lowpass_cutoff', 20000)
-    if lp_cutoff < 20000:
-        data = apply_lowpass(data, rate, cutoff=lp_cutoff)
-
     return data
 
 
@@ -1221,11 +1131,6 @@ def process_percussion(data, rate, settings=None):
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
-    # Stereo width — wider than drums
-    stereo_w = settings.get('stereo_width', 1.2)
-    if stereo_w != 1.0:
-        data = apply_stereo_width(data, rate, width=stereo_w)
-
     # Compression
     comp_threshold = settings.get('compress_threshold_db', -15.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -1233,11 +1138,6 @@ def process_percussion(data, rate, settings=None):
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
-
-    # Saturation (genre character)
-    sat_drive = settings.get('saturation_drive', 0)
-    if sat_drive > 0:
-        data = apply_saturation(data, rate, drive=sat_drive)
 
     return data
 

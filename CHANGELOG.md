@@ -6,6 +6,25 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-02-23
+
+### Added
+- **Sheet music URL persistence** — `publish_sheet_music` now writes uploaded R2 URLs back to track and album frontmatter automatically (singles → `sheet_music.pdf`/`musicxml`/`midi` per track, songbook → `sheet_music.songbook` on album README)
+- **`prepare_singles.py`** — replaces `fix_titles.py`; copies source files to `singles/` with clean consumer-ready titles, generates `.manifest.json` for track ordering
+- **Songbook title page, TOC, and footers** — `create_songbook.py` enhanced with professional title page, table of contents, and configurable footer URL
+- **`sheet_music` frontmatter** — new section in track template (`pdf`, `musicxml`, `midi`) and album template (`songbook`) for sheet music download URLs
+- **`_update_frontmatter_block()` helper** — reusable function for adding/updating YAML frontmatter blocks in markdown files
+- **`public_url` config field** — documented in R2 cloud config for custom CDN domain URLs
+- **`enabled` and `footer_url` config fields** — new sheet_music config options for master switch and PDF footer customization
+- **8 new tests** — 5 for frontmatter persistence in `TestPublishSheetMusic`, 3 for `TestUpdateFrontmatterBlock`
+
+### Changed
+- **`xml` → `musicxml`** — sheet music frontmatter key renamed for clarity
+- **Relative R2 key fallback** — when no `public_url` configured, frontmatter is still populated with relative R2 keys instead of skipping entirely
+
+### Removed
+- **`fix_titles.py`** — replaced by `prepare_singles.py` with broader functionality
+
 ## [0.66.0] - 2026-02-22
 
 ### Added
