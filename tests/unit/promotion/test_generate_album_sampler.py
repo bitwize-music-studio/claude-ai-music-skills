@@ -13,10 +13,21 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # Force-mock heavy optional deps before import so tests behave consistently
 # regardless of whether the deps are installed on this machine.
-for dep in ["librosa", "PIL", "PIL.Image", "PIL.ImageDraw", "PIL.ImageFont"]:
+# Save originals and restore after import to prevent MagicMock pollution
+# leaking into later test files (e.g. PIL.__version__ becomes MagicMock).
+_MOCK_DEPS = ["librosa", "PIL", "PIL.Image", "PIL.ImageDraw", "PIL.ImageFont"]
+_SAVED_DEPS = {dep: sys.modules.get(dep) for dep in _MOCK_DEPS}
+for dep in _MOCK_DEPS:
     sys.modules[dep] = MagicMock()
 
 from tools.promotion.generate_album_sampler import get_track_title
+
+# Restore original modules to avoid polluting later tests
+for dep, original in _SAVED_DEPS.items():
+    if original is None:
+        sys.modules.pop(dep, None)
+    else:
+        sys.modules[dep] = original
 
 
 # ---------------------------------------------------------------------------

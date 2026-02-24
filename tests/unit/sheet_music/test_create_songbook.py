@@ -14,8 +14,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # Force-mock heavy optional deps before import so tests behave consistently
 # regardless of whether the deps are installed on this machine.
+# NOTE: Do NOT mock "yaml" — it is always installed and mocking it at module
+# level permanently pollutes sys.modules, breaking yaml.safe_load in later
+# test files (e.g. test_indexer.py sees MagicMock instead of real yaml).
 _MOCK_MODULES = {
-    "yaml": MagicMock(),
     "pypdf": MagicMock(),
     "reportlab": MagicMock(),
     "reportlab.lib": MagicMock(),
@@ -24,6 +26,7 @@ _MOCK_MODULES = {
     "reportlab.pdfgen": MagicMock(),
     "reportlab.pdfgen.canvas": MagicMock(),
 }
+_SAVED_MODULES = {name: sys.modules.get(name) for name in _MOCK_MODULES}
 for name, mock in _MOCK_MODULES.items():
     sys.modules[name] = mock
 
@@ -32,6 +35,13 @@ _module_path = _PROJECT_ROOT / "tools" / "sheet-music" / "create_songbook.py"
 _spec = importlib.util.spec_from_file_location("create_songbook", _module_path)
 songbook = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(songbook)
+
+# Restore original modules so mocks don't leak into later test files
+for name, original in _SAVED_MODULES.items():
+    if original is None:
+        sys.modules.pop(name, None)
+    else:
+        sys.modules[name] = original
 
 from tools.shared.text_utils import sanitize_filename, strip_track_number, slug_to_title
 
