@@ -104,30 +104,54 @@ Before finalizing any lyrics, verify:
 
 ## Song Length
 
-Songs that are too long (800+ words) cause Suno to rush, compress sections, or skip lyrics. Keep songs concise.
+Songs that are too long (800+ words) cause Suno to rush, compress sections, or skip lyrics. Songs that are too short produce tracks under 3 minutes — fine if intentional, but usually not what users want.
 
-### Word Count Targets by Genre
+### Default Target Duration
 
-| Genre | Words | Verses | Lines/Verse |
-|-------|-------|--------|-------------|
-| Pop / Dance-Pop / Synth-Pop | 150–250 | 2 | 4–6 |
-| Punk / Pop-Punk | 150–250 | 2 | 4–6 |
-| Rock / Alt-Rock | 200–350 | 2–3 | 4–8 |
-| Folk / Country / Americana | 200–350 | 2–3 | 4–8 |
-| Hip-Hop / Rap | 300–500 | 2–3 | 8–16 |
-| Ballad (any genre) | 200–300 | 2–3 | 4–6 |
+**3:30–5:00 minutes** for all genres unless the user specifies otherwise. This is the standard range for streaming platforms and what listeners expect.
+
+### Word Count Targets by Genre (Suno)
+
+These targets produce tracks in the 3:30–5:00 range on Suno. The previous lower targets (e.g., 150 words for electronic) produce 2:00–2:30 tracks.
+
+| Genre | Target Duration | Word Count | Structure |
+|-------|-----------------|------------|-----------|
+| Electronic / Synthwave / EDM | 3:30–5:00 | 220–300 | 3 verses + pre-chorus + chorus + bridge + instrumental break |
+| Pop / Synth-Pop | 3:30–4:30 | 250–350 | 2–3 verses + pre-chorus + chorus + bridge |
+| Rock / Alt-Rock | 3:30–5:00 | 250–400 | 2–3 verses + chorus + bridge |
+| Hip-Hop / Rap | 3:30–5:00 | 400–600 | 3 verses + hook + bridge |
+| Folk / Country | 3:30–5:00 | 250–400 | 3 verses + chorus + bridge |
+| Ballad (any) | 3:30–5:00 | 200–300 | 2–3 verses + chorus + bridge (slower tempo = fewer words) |
+| Punk / Pop-Punk | 2:30–3:30 | 150–250 | 2 verses + chorus + bridge (punk is short by design) |
+
+### Instrumental Tags Count as Runtime
+
+Suno instrumental tags (`[Instrumental Break]`, `[Synth Solo]`, `[Guitar Solo]`, `[Drop]`, `[Interlude]`, etc.) add approximately **20–40 seconds each** to the track. Factor these into duration estimates. A track with 220 words + 2 instrumental breaks will run longer than 220 words alone.
 
 ### Structure Defaults
 
-- **Default**: 2 verses + chorus + bridge. 3 verses max unless user explicitly requests more.
+- **Default**: 2–3 verses + chorus + bridge. Use 3 verses to hit duration targets.
 - **Chorus**: 4–6 lines, repeated verbatim — not rewritten each time.
 - **Bridge**: 2–4 lines.
+- **Pre-chorus**: 2–4 lines. Adding a pre-chorus is an effective way to increase duration without bloating sections.
 - **Outro**: Optional, 2–4 lines max. Not a new verse.
+- **Instrumental breaks**: Use `[Instrumental Break]`, `[Synth Solo]`, etc. to add runtime without more words.
+
+### How to Hit Duration Targets
+
+**Add more sections, not longer sections.** Per-section maximums (see Section Length Limits below) are correct for Suno pacing. The way to reach 3:30+ is:
+- Add a **3rd verse** (most effective)
+- Add a **pre-chorus** before each chorus
+- Add an **instrumental break** or solo
+- Add a **bridge** if missing
+
+Do NOT write 10-line verses or 8-line choruses — Suno will rush them.
 
 ### Length Limits
 
-- **If draft exceeds 350 words (non-hip-hop) or 500 words (hip-hop)**: Cut it down before presenting.
-- Count words after drafting. If over target, remove a verse or trim sections — don't just shorten lines.
+- **If draft exceeds 400 words (non-hip-hop) or 600 words (hip-hop)**: Cut it down before presenting.
+- **If draft is under 200 words**: Flag as "likely too short for target duration (3:30–5:00)" — suggest adding sections.
+- Count words after drafting. If over target, remove a verse or trim sections — don't just shorten lines. If under target, add a verse, pre-chorus, or instrumental break.
 
 ### Section Length Limits by Genre
 

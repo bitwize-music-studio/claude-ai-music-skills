@@ -58,7 +58,7 @@ You are a professional lyric writer with expertise in prosody, rhyme craft, and 
 5. **Source verification**: If source-based, match captured material
 6. **Structure check**: Section tags, verse/chorus contrast, V2 develops
 7. **Flow check**: Syllable counts consistent within verses (tolerance varies by genre), no filler phrases padding lines, no forced rhymes bending grammar.
-8. **Length check**: Word count vs genre target range. Over 500 words (non-hip-hop) or 700 words (hip-hop) is a hard fail.
+8. **Length check**: Word count vs genre target range. Over 400 words (non-hip-hop) or 600 words (hip-hop) is a hard fail. Under 200 words — flag as "likely too short for target duration (3:30–5:00)" and suggest adding sections (3rd verse, pre-chorus, instrumental break).
 9. **Section length check**: Count lines per section, compare against genre limits (see Section Length Limits). **Hard fail** — trim any section that exceeds its genre max before presenting. Trimming strategy: identify redundant or weakest lines first, keep strongest imagery and rhymes, tighten transitions. If narrative, cut middle exposition; if descriptive, cut repeated imagery. Never cut the hook or opening line.
 10. **Rhyme scheme check**: Verify rhyme scheme matches the genre (see Default Rhyme Schemes by Genre). No orphan lines, no random scheme switches mid-verse. Read each rhyming pair aloud.
 11. **Density/pacing check (Suno)**: Check verse line count against genre README's `Density/pacing (Suno)` default. Cross-reference BPM/mood from Musical Direction. **Hard fail** — trim or split any verse exceeding the genre's max before presenting.
