@@ -45,6 +45,31 @@ sheet_music:
 - [Theme 2]
 - [Theme 3]
 
+## Motifs & Threads
+
+*(Remove this section if not a concept/narrative/thematic album)*
+
+### Lyrical Motifs
+
+| Motif | Description | First Appears | Recurrences |
+|-------|-------------|---------------|-------------|
+| [phrase/image] | [what it represents] | Track XX | Track XX (context), Track XX (context) |
+
+### Character Threads
+
+| Character/Voice | Arc Summary | Tracks |
+|-----------------|-------------|--------|
+| [name/voice] | [how they develop across the album] | XX, XX, XX |
+
+### Thematic Progression
+
+| Track | Theme Focus | Advances From | Sets Up |
+|-------|-------------|---------------|---------|
+| 01 | [theme] | — | [what it establishes for later] |
+| 02 | [theme] | Track 01's [element] | [what it sets up] |
+
+*Seeded by album-conceptualizer during Phase 4. Updated by lyric-writer as tracks are written.*
+
 ## Sonic Palette
 
 - **Beats**: [Production style description]

@@ -377,3 +377,51 @@ Before finalizing any track, ASK: "Does the verse length match the BPM and mood 
 
 ---
 
+## Refinement Pass Reference
+
+Three-pass schedule for iterative lyric refinement. Each pass targets a different layer.
+
+### Pass 1: Tighten
+
+Remove filler, compress language, eliminate redundancy.
+
+| Pattern | Before | After | Why |
+|---------|--------|-------|-----|
+| Filler phrases | "He stood up and spoke the words" | "He said" | Setup phrases pad lines without adding meaning |
+| Redundant modifiers | "completely destroyed" | "destroyed" | Absolute verbs don't need intensifiers |
+| Passive voice | "The door was opened by her" | "She opened the door" | Active voice is more direct and singable |
+| Pronoun-heavy lines | "He told him that he should go" | "Get out — the message clear" | Ambiguous pronouns weaken imagery |
+| Unnecessary prepositions | "She looked up at the sky above" | "She searched the sky" | Trim directional padding |
+| Throat-clearing openers | "Well, I think that maybe I should" | "I should" | Cut hedging — commit to the statement |
+| Double-saying | "alone and by myself" | "alone" | One expression per idea |
+
+### Pass 2: Strengthen
+
+Upgrade weak imagery, sharpen sensory detail, replace generic with specific.
+
+| Pattern | Before | After | Why |
+|---------|--------|-------|-----|
+| Generic imagery | "The city at night" | "Neon bleeding on wet asphalt" | Specific images stick; generic ones slide |
+| Abstract emotion | "I felt so lost" | "Couldn't find my keys, my name, my street" | Show the feeling through concrete details |
+| Clichés | "Cold as ice" | "Cold as a landlord's smile" | Fresh comparisons earn attention |
+| Single-sense lines | "The room was dark" (sight only) | "Dark — just the hum of pipes and mildew air" | Multi-sensory lines immerse the listener |
+| Weak verbs | "He went across the room" | "He cut across the room" | Strong verbs carry energy and specificity |
+| Telling emotions | "She was angry" | "Her knuckles white around the glass" | Action reveals emotion without naming it |
+| Vague quantities | "A lot of people came" | "Thirty faces in a room for ten" | Numbers create instant visual scale |
+
+### Pass 3: Flow & Ear
+
+Read-aloud test, smooth transitions, singability at target BPM.
+
+| Pattern | Before | After | Why |
+|---------|--------|-------|-----|
+| Consonant clusters | "Sixth street's strict structures" | "Sixth Street's sharp edges" | Tongue-trippers kill vocal delivery |
+| Unsingable vowel sequences | "She oughta allow our hour" | "She gave us the hour" | Stacked diphthongs muddy at tempo |
+| Transition bumps | V1 ends reflective → V2 opens aggressive (no bridge) | Add pre-chorus or transitional line | Jarring shifts break the listener's flow |
+| Missing breath points | 12-syllable line with no natural pause | Split at caesura or add a comma break | Singers need air; dense lines get rushed |
+| Stress misalignment | "into the DARK-ness" on a weak beat | "the DARKness CALLS" on strong beats | Stressed syllables must land on downbeats |
+| Choppy rhythm | "Stop. Go. Wait. No. Run." | "Stop and go — wait, no — run" | Staccato lines need connective tissue to sing |
+| Syllable mismatch | V1 line: 8 syllables, V2 line: 13 syllables | Match within ±2 syllables | Parallel lines should fit the same melodic phrase |
+
+---
+

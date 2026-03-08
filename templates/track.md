@@ -111,6 +111,26 @@ Space is not a constraint. Thoroughness is the priority.]
 
 [Describe the track's narrative, themes, and purpose in the album. What story does this track tell? What emotions should it evoke?]
 
+<!-- CONCEPT/NARRATIVE ALBUMS: Include this section for concept, narrative, thematic, or character study albums. Remove for standalone tracks or collection albums. -->
+
+## Cross-References
+
+### References TO This Track
+
+| From Track | Reference Type | Detail |
+|------------|---------------|--------|
+| — | — | — |
+
+### References FROM This Track
+
+| To Track | Reference Type | Lyric Line | Detail |
+|----------|---------------|------------|--------|
+| — | — | — | — |
+
+**Reference types:** `callback` (echoes earlier lyric/image), `motif` (recurring thematic element), `character` (same character reappears), `contrast` (deliberate inversion of earlier idea), `resolution` (resolves tension from earlier track)
+
+<!-- END CROSS-REFERENCES -->
+
 ## Mood & Imagery
 
 [Key visuals, atmosphere, and sensory details that define this track]

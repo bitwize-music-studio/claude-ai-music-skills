@@ -284,6 +284,13 @@ Discuss visual concept early — actual generation happens later via `/bitwize-m
 - **Sonic motifs**: Recurring sounds, instruments, melodies
 - **Structural motifs**: Parallel song structures
 
+**Document motifs in the album README's Motifs & Threads section** during Phase 4 (Structure Planning):
+- Seed the **Lyrical Motifs** table with planned recurring images/phrases and where they first appear
+- Seed the **Character Threads** table with character arcs across tracks
+- Seed the **Thematic Progression** table showing how each track advances the album's themes
+
+These tables are living documents — the lyric-writer will update them progressively as tracks are written, adding actual lyric references and recurrences.
+
 ### Title Tracks
 **When to have**: Album name is core concept, title track explicates it
 **When not**: Album name is abstract, no single track captures full concept
