@@ -516,7 +516,7 @@ sheet_music:
   # Default (if omitted): auto-detected from urls section
   #
   # Examples:
-  #   footer_url: "https://www.bitwize-music.com"
+  #   footer_url: "https://www.bitwizemusic.com"
   #   footer_url: "https://your-artist.com"
   #
   # footer_url: "https://www.your-website.com"

@@ -235,12 +235,12 @@ class TestGetWebsiteFromConfig:
 
     def test_prefers_website_over_soundcloud(self):
         config = {"urls": {
-            "website": "https://www.bitwize-music.com",
+            "website": "https://www.bitwizemusic.com",
             "soundcloud": "https://soundcloud.com/artist",
         }}
         with patch.object(songbook, "read_config", return_value=config):
             result = songbook.get_website_from_config()
-        assert result == "bitwize-music.com"
+        assert result == "bitwizemusic.com"
 
     def test_falls_back_to_soundcloud(self):
         config = {"urls": {
