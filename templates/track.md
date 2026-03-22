@@ -151,6 +151,13 @@ Space is not a constraint. Thoroughness is the priority.]
 [genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]
 ```
 
+### Exclude Styles
+*Negative prompts — append to Style Box when pasting into Suno (e.g. "no drums, no electric guitar"):*
+
+```
+[exclusions, if any]
+```
+
 ### Lyrics Box
 *Copy this into Suno's "Lyrics" field:*
 

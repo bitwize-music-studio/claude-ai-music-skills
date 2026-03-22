@@ -1625,6 +1625,8 @@ class TestListTrackFiles:
 # =============================================================================
 
 # Sample track markdown content for testing
+_SAMPLE_EXCLUDE_CONTENT = "no acoustic guitar, no autotune"
+
 _SAMPLE_TRACK_MD = """\
 # Test Track
 
@@ -1656,6 +1658,13 @@ This track tells the story of a test that never ends.
 
 ```
 electronic, 120 BPM, energetic, male vocals, synth-driven
+```
+
+### Exclude Styles
+*Negative prompts — append to Style Box when pasting into Suno:*
+
+```
+no acoustic guitar, no autotune
 ```
 
 ### Lyrics Box
@@ -1740,6 +1749,24 @@ class TestExtractSection:
         assert "Testing one two three" in result["content"]
         # Streaming lyrics should NOT have section tags
         assert "[Verse" not in result["content"]
+
+    def test_extract_exclude_styles(self, tmp_path):
+        """Extracting 'exclude-styles' returns the Exclude Styles code block."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "exclude-styles")))
+        assert result["found"] is True
+        assert result["section"] == "Exclude Styles"
+        assert _SAMPLE_EXCLUDE_CONTENT == result["content"]
+
+    def test_extract_exclude_styles_short_alias(self, tmp_path):
+        """The 'exclude' alias resolves to Exclude Styles."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.extract_section("test-album", "01-test-track", "exclude")))
+        assert result["found"] is True
+        assert result["section"] == "Exclude Styles"
+        assert _SAMPLE_EXCLUDE_CONTENT == result["content"]
 
     def test_extract_concept(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
@@ -3833,6 +3860,11 @@ _TRACK_ALL_GATES_PASS = """\
 electronic, 120 BPM, energetic, male vocals, synth-driven
 ```
 
+### Exclude Styles
+```
+[exclusions, if any]
+```
+
 ### Lyrics Box
 ```
 [Verse 1]
@@ -4798,7 +4830,7 @@ class TestExtractLinks:
         assert result["found"] is True
         assert result["count"] == 2
         assert result["links"][0]["text"] == "FBI Press Release"
-        assert "fbi.gov" in result["links"][0]["url"]
+        assert result["links"][0]["url"] == "https://fbi.gov/news/123"
 
     def test_research_md(self, tmp_path):
         """Extract links from RESEARCH.md."""
@@ -9615,7 +9647,7 @@ class TestFormatForClipboardSuno:
         return MockStateCache(state)
 
     def test_suno_returns_json_with_title_style_lyrics(self, tmp_path):
-        """'suno' content_type returns JSON with title, style, and lyrics fields."""
+        """'suno' content_type returns JSON with title, style, exclude_styles, and lyrics fields."""
         mock_cache = self._make_cache_with_file(tmp_path)
         with patch.object(server, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "suno")))
@@ -9624,7 +9656,67 @@ class TestFormatForClipboardSuno:
         payload = json.loads(result["content"])
         assert payload["title"] == "Test Track"
         assert "electronic" in payload["style"]
+        assert "exclude_styles" in payload
+        assert _SAMPLE_EXCLUDE_CONTENT == payload["exclude_styles"]
         assert "[Verse 1]" in payload["lyrics"]
+
+    def test_suno_exclude_styles_empty_when_missing(self, tmp_path):
+        """When Exclude Styles section is absent, exclude_styles is empty string."""
+        track_md = _SAMPLE_TRACK_MD.replace(
+            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "",
+        )
+        track_file = tmp_path / "05-no-exclude.md"
+        track_file.write_text(track_md)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-exclude"] = {
+            "path": str(track_file),
+            "title": "No Exclude Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
+        assert result["found"] is True
+        payload = json.loads(result["content"])
+        assert payload["exclude_styles"] == ""
+
+    def test_all_content_type_includes_exclusions(self, tmp_path):
+        """'all' content_type includes Exclude Styles between style and lyrics."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "all")))
+        assert result["found"] is True
+        assert result["content_type"] == "all"
+        assert f"Exclude: {_SAMPLE_EXCLUDE_CONTENT}" in result["content"]
+
+    def test_all_content_type_omits_exclude_when_empty(self, tmp_path):
+        """'all' content_type omits Exclude section when not present."""
+        track_md = _SAMPLE_TRACK_MD.replace(
+            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "",
+        )
+        track_file = tmp_path / "05-no-exclude.md"
+        track_file.write_text(track_md)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-exclude"] = {
+            "path": str(track_file),
+            "title": "No Exclude Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "all")))
+        assert result["found"] is True
+        assert "Exclude:" not in result["content"]
 
     def test_suno_title_fallback_to_slug(self, tmp_path):
         """When title is missing from track data, uses the matched slug."""
@@ -9959,12 +10051,12 @@ class TestSectionNamesCompleteness:
 
     def test_known_section_count(self):
         """Verify expected number of section name entries."""
-        # As of Round 4 fix: 14 entries
         # style, style-box, lyrics, lyrics-box, streaming, streaming-lyrics,
         # pronunciation, pronunciation-notes, concept, source, original-quote,
         # musical-direction, production-notes, generation-log,
-        # phonetic-review, mood, mood-imagery, lyrical-approach
-        assert len(server._SECTION_NAMES) == 18
+        # phonetic-review, mood, mood-imagery, lyrical-approach,
+        # exclude, exclude-styles
+        assert len(server._SECTION_NAMES) == 20
 
     def test_bidirectional_aliases_consistent(self):
         """Aliases map to the same heading."""
@@ -9973,6 +10065,7 @@ class TestSectionNamesCompleteness:
         assert server._SECTION_NAMES["streaming"] == server._SECTION_NAMES["streaming-lyrics"]
         assert server._SECTION_NAMES["pronunciation"] == server._SECTION_NAMES["pronunciation-notes"]
         assert server._SECTION_NAMES["mood"] == server._SECTION_NAMES["mood-imagery"]
+        assert server._SECTION_NAMES["exclude"] == server._SECTION_NAMES["exclude-styles"]
 
 
 @pytest.mark.unit
@@ -13366,7 +13459,7 @@ class TestPublishSheetMusic:
         fm = yaml.safe_load(readme_text.split("---")[1])
         assert "sheet_music" in fm
         assert "songbook" in fm["sheet_music"]
-        assert "cdn.example.com" in fm["sheet_music"]["songbook"]
+        assert fm["sheet_music"]["songbook"].startswith("https://cdn.example.com/")
 
     def test_frontmatter_uses_relative_keys_without_public_url(self, tmp_path):
         """When no public_url, frontmatter uses relative R2 keys."""

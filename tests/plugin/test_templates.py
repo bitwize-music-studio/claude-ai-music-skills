@@ -222,6 +222,7 @@ TRACK_REQUIRED_SECTIONS = [
     'Musical Direction',
     'Suno Inputs',
     'Style Box',
+    'Exclude Styles',
     'Lyrics Box',
     'Streaming Lyrics',
     'Production Notes',

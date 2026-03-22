@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Exclude Styles field** — New `### Exclude Styles` section in track template for Suno V5 negative prompting (e.g., "no drums, no electric guitar"); documented in suno-engineer skill with max 2–4 items rule; MCP server supports extraction via `get_track_section` and includes in `suno` content type
+
 ## [0.70.0] - 2026-03-20
 
 ### Added

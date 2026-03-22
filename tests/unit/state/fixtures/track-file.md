@@ -38,6 +38,12 @@ Dark server room, blinking lights, the hum of machines.
 electronic synthwave, 120 BPM, driving mechanical, male narrative vocals, synths, drum machine
 ```
 
+### Exclude Styles
+
+```
+[exclusions, if any]
+```
+
 ### Lyrics Box
 
 ```

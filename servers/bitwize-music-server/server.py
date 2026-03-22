@@ -1147,6 +1147,8 @@ _SECTION_NAMES = {
     "mood": "Mood & Imagery",
     "mood-imagery": "Mood & Imagery",
     "lyrical-approach": "Lyrical Approach",
+    "exclude": "Exclude Styles",
+    "exclude-styles": "Exclude Styles",
 }
 
 # Fields that can be updated in the track details table
@@ -1302,7 +1304,7 @@ async def extract_section(album_slug: str, track_slug: str, section: str) -> str
         })
 
     # For code-block sections, extract just the code block
-    code_block_sections = {"Style Box", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
+    code_block_sections = {"Style Box", "Exclude Styles", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
     code_content = None
     if heading in code_block_sections:
         code_content = _extract_code_block(content)
@@ -1670,7 +1672,9 @@ async def load_override(override_name: str) -> str:
 
     override_path = (Path(overrides_dir) / override_name).resolve()
     safe_root = Path(overrides_dir).resolve()
-    if not str(override_path).startswith(str(safe_root) + "/") and override_path != safe_root:
+    try:
+        override_path.relative_to(safe_root)
+    except ValueError:
         return _safe_json({
             "error": "Invalid override path: name must not escape overrides directory",
             "override_name": override_name,
@@ -1721,7 +1725,9 @@ async def get_reference(name: str, section: str = "") -> str:
 
     ref_path = (PLUGIN_ROOT / "reference" / ref_name).resolve()
     safe_root = (PLUGIN_ROOT / "reference").resolve()
-    if not str(ref_path).startswith(str(safe_root) + "/") and ref_path != safe_root:
+    try:
+        ref_path.relative_to(safe_root)
+    except ValueError:
         return _safe_json({
             "error": "Invalid reference path: name must not escape reference directory",
         })
@@ -1849,6 +1855,7 @@ async def format_for_clipboard(
         content = _get_section_content("Streaming Lyrics")
     elif content_type == "all":
         style = _get_section_content("Style Box")
+        exclude = _get_section_content("Exclude Styles")
         lyrics = _get_section_content("Lyrics Box")
         if style is None and lyrics is None:
             content = None
@@ -1856,11 +1863,14 @@ async def format_for_clipboard(
             parts = []
             if style:
                 parts.append(style)
+            if exclude:
+                parts.append(f"Exclude: {exclude}")
             if lyrics:
                 parts.append(lyrics)
             content = "\n\n---\n\n".join(parts)
     elif content_type == "suno":
         style = _get_section_content("Style Box")
+        exclude = _get_section_content("Exclude Styles")
         lyrics = _get_section_content("Lyrics Box")
         title = track_data.get("title", matched_slug)
         if style is None and lyrics is None:
@@ -1869,6 +1879,7 @@ async def format_for_clipboard(
             content = json.dumps({
                 "title": title,
                 "style": style or "",
+                "exclude_styles": exclude or "",
                 "lyrics": lyrics or "",
             }, ensure_ascii=False)
     else:
@@ -3895,7 +3906,7 @@ async def get_album_full(
                     sec_content = _extract_markdown_section(file_text, heading)
                     if sec_content is not None:
                         # For code-block sections, extract just the code block
-                        code_block_sections = {"Style Box", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
+                        code_block_sections = {"Style Box", "Exclude Styles", "Lyrics Box", "Streaming Lyrics", "Original Quote"}
                         if heading in code_block_sections:
                             code = _extract_code_block(sec_content)
                             if code is not None:
@@ -5005,6 +5016,7 @@ async def verify_streaming_urls(album_slug: str) -> str:
     """
     import urllib.request
     import urllib.error
+    import urllib.parse
 
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
@@ -5015,6 +5027,12 @@ async def verify_streaming_urls(album_slug: str) -> str:
     def _check_url(url: str) -> dict:
         """Check a single URL (blocking). Run in executor to avoid blocking the event loop."""
         result_entry = {"url": url}
+        # Validate URL scheme to prevent SSRF (file://, gopher://, etc.)
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            result_entry["reachable"] = False
+            result_entry["error"] = f"Unsupported URL scheme: {parsed.scheme!r}"
+            return result_entry
         for method in ("HEAD", "GET"):
             try:
                 req = urllib.request.Request(
@@ -5023,7 +5041,7 @@ async def verify_streaming_urls(album_slug: str) -> str:
                         "User-Agent": "bitwize-music-mcp/1.0 (link checker)",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - URL validated above
+                with urllib.request.urlopen(req, timeout=10) as resp:  # nosec B310 - URL scheme validated above
                     status_code = resp.getcode()
                     final_url = resp.geturl()
                     result_entry["reachable"] = True
@@ -5051,7 +5069,6 @@ async def verify_streaming_urls(album_slug: str) -> str:
 
         return result_entry
 
-    import asyncio
     loop = asyncio.get_running_loop()
 
     results = {}
