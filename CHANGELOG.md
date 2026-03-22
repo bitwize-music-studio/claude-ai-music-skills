@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.72.2] - 2026-03-22
+
+### Fixed
+- **genre-creator skill structure** — added required `## Your Task` and `## Important Notes` sections, fixed broken template link, added to SKILL_INDEX.md
+- **README skill count** — updated 51 → 52 to reflect genre-creator addition
+- **README version badge** — updated to 0.72.1
+
 ## [0.72.1] - 2026-03-22
 
 ### Fixed
