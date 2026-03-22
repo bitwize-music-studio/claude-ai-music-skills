@@ -349,5 +349,6 @@ When you discover new Suno behavior or techniques, **update the reference docume
 3. **Apply genre mappings** - Use override genre preferences if available
 4. **Respect avoidance rules** - Never use genres/words user specified to avoid
 5. **Use exclusions sparingly** — Exclude Styles for 2–4 items max; leave empty when not needed
+6. **Backfill older tracks** — If an existing track file is missing the `### Exclude Styles` section, add it between Style Box and Lyrics Box (per template)
 
 Simple prompts + good lyrics + section tags + user preferences + targeted exclusions = best results.

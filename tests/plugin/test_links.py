@@ -35,7 +35,7 @@ def _is_skippable_link(link_target, file_path):
     # URL placeholders
     if link_target in ('url', 'URL', 'link', 'path'):
         return True
-    if 'suno.com' in link_target:
+    if link_target.startswith(('https://suno.com', 'http://suno.com')):
         return True
 
     # Bracket placeholders like [artist], [genre]

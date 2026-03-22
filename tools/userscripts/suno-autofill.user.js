@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Suno Auto-Fill (bitwize-music)
 // @namespace    https://github.com/bitwize-music-studio
-// @version      1.1.0
+// @version      1.2.0
 // @description  Auto-fill Suno's create page with title, style, and lyrics from clipboard JSON (SPA-aware)
 // @author       bitwize
 // @match        https://suno.com/*
@@ -31,6 +31,11 @@
         { method: 'data-testid', value: 'style-prompt' },
         { method: 'class-contains', value: 'style' },
         { method: 'dom-position', value: 'first-textarea' },
+      ],
+      exclude_styles: [
+        { method: 'placeholder', value: 'Exclude styles' },
+        { method: 'aria-label', value: 'Exclude styles' },
+        { method: 'data-testid', value: 'exclude-styles' },
       ],
       lyrics: [
         { method: 'aria-label', value: 'Lyrics' },

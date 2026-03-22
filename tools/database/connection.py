@@ -73,6 +73,7 @@ def get_connection(db_config: Dict[str, Any]):
         dbname=db_config.get("name", ""),
         user=db_config.get("user", ""),
         password=db_config.get("password", ""),
+        connect_timeout=5,
     )
     conn.set_client_encoding('UTF8')
     return conn

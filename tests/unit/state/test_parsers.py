@@ -466,7 +466,7 @@ class TestExtractTableValue:
         text = '| **Suno Link** | [Listen](https://suno.com/song/abc) |'
         result = _extract_table_value(text, 'Suno Link')
         assert 'Listen' in result
-        assert 'https://suno.com' in result
+        assert result.startswith('[Listen](https://suno.com')
 
 
 class TestExtractBoldField:

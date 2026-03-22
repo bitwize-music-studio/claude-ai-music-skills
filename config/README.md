@@ -205,12 +205,21 @@ The overrides directory lets you customize any skill or workflow without plugin 
 **Single directory, per-skill files:**
 ```bash
 ~/music-projects/overrides/
-├── CLAUDE.md                 # Override base workflow instructions
-├── pronunciation-guide.md    # Override base pronunciation guide
-├── explicit-words.md         # Custom explicit word list (future)
-├── lyric-writing-guide.md    # Custom lyric writing preferences (future)
-└── mastering-presets.yaml    # Custom mastering settings (future)
+├── CLAUDE.md                    # Override base workflow instructions
+├── pronunciation-guide.md      # Custom phonetic spellings
+├── explicit-words.md            # Custom explicit word list
+├── lyric-writing-guide.md       # Lyric writing preferences
+├── suno-preferences.md          # Suno generation preferences
+├── album-planning-guide.md      # Album conceptualization preferences
+├── album-art-preferences.md     # Visual style preferences
+├── research-preferences.md      # Research depth/standards
+├── release-preferences.md       # Release QA and platform priorities
+├── promotion-preferences.md     # Promotion style preferences
+├── sheet-music-preferences.md   # Sheet music formatting
+└── mastering-presets.yaml       # Custom mastering EQ/dynamics
 ```
+
+**Format convention:** Override files use Markdown (`.md`) for free-form text and guidelines that skills interpret as context. The one exception is `mastering-presets.yaml`, which uses YAML because mastering presets are structured numeric values (EQ curves, LUFS targets) parsed programmatically by the mastering pipeline.
 
 **Each skill checks for its own override:**
 1. Skill reads `~/.bitwize-music/config.yaml` → `paths.overrides`

@@ -141,6 +141,49 @@ class TestSkillSections:
         assert not failures, "Missing sections:\n" + "\n".join(failures)
 
 
+class TestSupportingFiles:
+    """All supporting files referenced in SKILL.md must exist on disk."""
+
+    SUPPORTING_FILE_PATTERN = re.compile(
+        r'\[([^\]]+)\]\(([^)]+)\)',  # Markdown link [text](path)
+    )
+
+    def test_supporting_files_exist(self, all_skill_dirs, project_root):
+        missing = []
+        for skill_dir in all_skill_dirs:
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
+
+            content = skill_md.read_text()
+            # Find the "## Supporting Files" section
+            section_match = re.search(
+                r'^## Supporting Files\s*\n(.*?)(?=\n---|\n## |\Z)',
+                content,
+                re.MULTILINE | re.DOTALL,
+            )
+            if not section_match:
+                continue
+
+            section = section_match.group(1)
+            for match in self.SUPPORTING_FILE_PATTERN.finditer(section):
+                ref_path = match.group(2)
+                # Skip external links and anchors
+                if ref_path.startswith(('http://', 'https://', '#', 'mailto:')):
+                    continue
+                # Absolute paths from plugin root (e.g., /reference/...)
+                if ref_path.startswith('/'):
+                    full_path = project_root / ref_path.lstrip('/')
+                else:
+                    full_path = skill_dir / ref_path
+                if not full_path.exists():
+                    missing.append(f"{skill_dir.name}/{ref_path}")
+
+        assert not missing, (
+            f"Missing supporting files: {', '.join(missing)}"
+        )
+
+
 class TestSkillIndex:
     """All skills must be documented in SKILL_INDEX.md."""
 

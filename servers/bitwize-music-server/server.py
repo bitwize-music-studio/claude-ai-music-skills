@@ -1789,7 +1789,7 @@ async def format_for_clipboard(
     Returns:
         JSON with {content: str, content_type: str, track_slug: str}
     """
-    valid_types = {"lyrics", "style", "streaming", "streaming-lyrics", "all", "suno"}
+    valid_types = {"lyrics", "style", "exclude", "streaming", "streaming-lyrics", "all", "suno"}
     if content_type not in valid_types:
         return _safe_json({
             "error": f"Invalid content_type '{content_type}'. Options: {', '.join(sorted(valid_types))}",
@@ -1848,7 +1848,14 @@ async def format_for_clipboard(
         return code if code is not None else section_text
 
     if content_type == "style":
-        content = _get_section_content("Style Box")
+        style = _get_section_content("Style Box")
+        exclude = _get_section_content("Exclude Styles")
+        if style and exclude:
+            content = f"{style}, {exclude}"
+        else:
+            content = style
+    elif content_type == "exclude":
+        content = _get_section_content("Exclude Styles")
     elif content_type == "lyrics":
         content = _get_section_content("Lyrics Box")
     elif content_type in ("streaming", "streaming-lyrics"):
