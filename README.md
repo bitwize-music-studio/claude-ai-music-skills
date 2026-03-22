@@ -682,6 +682,14 @@ PRs welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for our development 
 
 ---
 
+## Contributors
+
+Thanks to these people for their contributions:
+
+- [@markus-michalski](https://github.com/markus-michalski) — Schlager genre & genre-creator skill ([#69](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/69))
+
+---
+
 ## Disclaimer
 
 Artist and song references in the genre documentation are for educational and reference purposes only. This plugin does not encourage creating infringing content. Users are responsible for ensuring their generated content complies with applicable laws and platform terms of service.
