@@ -9,7 +9,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ### Added
 - **Exclude Styles field** — New `### Exclude Styles` section in track template for Suno V5 negative prompting (e.g., "no drums, no electric guitar"); documented in suno-engineer skill with max 2–4 items rule; MCP server supports extraction via `get_track_section` and includes in `suno` content type
 - **Tampermonkey exclude styles support** — Suno auto-fill userscript (v1.2.0) now fills the "Exclude styles" input field from clipboard JSON
+- **`/clipboard exclude` content type** — Copy just the Exclude Styles section to clipboard
 - **Supporting files test** — New `TestSupportingFiles` plugin test validates all files referenced in skill `## Supporting Files` sections exist on disk
+
+### Changed
+- **`/clipboard style` auto-appends exclusions** — Style content type now combines Style Box + Exclude Styles into a single paste-ready string (no manual appending needed)
+- **Clipboard skill docs** — Updated content type list and `suno` JSON output to reflect `exclude_styles` field
+- **Override docs** — Updated `config/README.md` override directory listing to show all 12 override files with format convention note
+- **Suno-engineer backfill rule** — Added instruction to backfill `### Exclude Styles` section into older track files when editing them
 
 ### Fixed
 - **URL scheme validation** — `verify_streaming_urls` now rejects non-http/https URLs (prevents SSRF via file://, gopher://, etc.)
@@ -18,11 +25,6 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **Duplicate asyncio import** — Removed redundant `import asyncio` inside `verify_streaming_urls`
 - **CodeQL alerts** — Rewrote URL substring checks in tests to use `startswith()`/exact match (resolves 4 "Incomplete URL substring sanitization" alerts)
 - **Co-author line** — Updated from "Claude Opus 4.5" to "Claude Opus 4.6" in PR template and SECURITY.md
-
-### Changed
-- **Override docs** — Updated `config/README.md` override directory listing to show all 12 override files with format convention note
-- **Suno-engineer backfill rule** — Added instruction to backfill `### Exclude Styles` section into older track files when editing them
-
 ## [0.70.0] - 2026-03-20
 
 ### Added

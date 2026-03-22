@@ -9779,6 +9779,49 @@ class TestFormatForClipboardSuno:
         payload = json.loads(result["content"])
         assert payload["title"] == "Tëst Träck café"
 
+    def test_style_auto_appends_exclude_styles(self, tmp_path):
+        """'style' content_type auto-appends Exclude Styles to Style Box."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
+        assert result["found"] is True
+        assert result["content_type"] == "style"
+        assert _SAMPLE_EXCLUDE_CONTENT in result["content"]
+        assert result["content"].endswith(_SAMPLE_EXCLUDE_CONTENT)
+
+    def test_style_without_exclude_returns_style_only(self, tmp_path):
+        """'style' content_type returns just Style Box when no Exclude Styles."""
+        track_md = _SAMPLE_TRACK_MD.replace(
+            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "",
+        )
+        track_file = tmp_path / "05-no-exclude.md"
+        track_file.write_text(track_md)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-no-exclude"] = {
+            "path": str(track_file),
+            "title": "No Exclude Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "05", "style")))
+        assert result["found"] is True
+        assert "no acoustic" not in result["content"]
+
+    def test_exclude_content_type(self, tmp_path):
+        """'exclude' content_type returns just the Exclude Styles section."""
+        mock_cache = self._make_cache_with_file(tmp_path)
+        with patch.object(server, "cache", mock_cache):
+            result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "exclude")))
+        assert result["found"] is True
+        assert result["content_type"] == "exclude"
+        assert result["content"] == _SAMPLE_EXCLUDE_CONTENT
+
 
 @pytest.mark.unit
 class TestDetectPhaseAdditionalRound5:
