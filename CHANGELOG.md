@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.72.1] - 2026-03-22
+
+### Fixed
+- **pypdf CVE fix** — bumped 6.7.5 → 6.9.1 (CVE-2026-31826, CVE-2026-33123)
+- **Test badge** — updated count 2348 → 2358
+
 ## [0.72.0] - 2026-03-22
 
 ### Added
