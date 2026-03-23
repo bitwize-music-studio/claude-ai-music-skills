@@ -1,20 +1,24 @@
-# [Album Name] - TikTok Copy
+# [Album Name] — TikTok
 
-## Album Announcement
+> Campaign strategy: [campaign.md](campaign.md)
+
+---
+
+## Release Announcement
 
 ### Release Video Caption
 
 ```
-[Album Name] out now 🎵
+[Album Name] out now
 
 [One punchy sentence about the album]
 
-#NewMusic #[Genre] #AIMusic #MusicTok #IndieMusic
+#NewMusic #[Genre] #MusicTok #IndieMusic
 ```
 
 ---
 
-## Per-Track Captions
+## Track Captions
 
 ### Track 01: [Title]
 
@@ -39,17 +43,19 @@
 ## Content Ideas
 
 ### Behind the Scenes
-```
-How I made [track/album] with AI 🤖🎵
 
-#AIMusic #MusicProduction #BehindTheScenes
+```
+How I made [track/album] with AI
+
+#MusicProduction #BehindTheScenes
 ```
 
-### Before/After
+### Before / After
+
 ```
 First draft vs final version of [track name]
 
-#MusicProduction #GlowUp #AIMusic
+#MusicProduction #GlowUp
 ```
 
 ---
@@ -57,6 +63,7 @@ First draft vs final version of [track name]
 ## Notes
 
 - Keep captions short (150 chars ideal)
+- Video content does the heavy lifting — captions are secondary
 - Use trending sounds/formats when applicable
 - Post during peak hours (evenings, weekends)
-- Use 3-5 hashtags per post
+- 3-5 hashtags per post

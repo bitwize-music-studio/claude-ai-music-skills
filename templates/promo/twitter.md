@@ -1,6 +1,10 @@
-# [Album Name] - Twitter/X Copy
+# [Album Name] — Twitter/X
 
-## Album Announcement
+> Campaign strategy: [campaign.md](campaign.md)
+
+---
+
+## Release Announcement
 
 ### Release Thread
 
@@ -9,7 +13,7 @@
 
 [One-line hook about the album]
 
-🔗 [Streaming Link]
+[Streaming Link]
 
 2/ [Key fact or angle about the album]
 
@@ -17,19 +21,19 @@
 
 4/ Listen now: [Link]
 
-#NewMusic #[Genre] #AIMusic
+#NewMusic #[Genre]
 ```
 
 ---
 
-## Per-Track Posts
+## Track Posts
 
 ### Track 01: [Title]
 
 ```
 [Post copy — 1-2 sentences about the track]
 
-🎵 [Streaming Link]
+[Streaming Link]
 
 #NewMusic #[Genre]
 ```
@@ -39,7 +43,7 @@
 ```
 [Post copy]
 
-🎵 [Streaming Link]
+[Streaming Link]
 
 #NewMusic #[Genre]
 ```
@@ -56,7 +60,7 @@
 [Interesting detail about the production process]
 ```
 
-### Question/Poll
+### Question / Poll
 
 ```
 [Question to engage audience about the album's themes]
@@ -69,3 +73,4 @@
 - Keep tweets under 280 characters
 - Include streaming link in release posts
 - Space posts 1-2 days apart during release week
+- 1-2 hashtags per tweet, never start with a hashtag
