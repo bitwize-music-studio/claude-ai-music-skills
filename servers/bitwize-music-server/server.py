@@ -7845,6 +7845,9 @@ async def generate_promo_videos(
     style: str = "pulse",
     duration: int = 15,
     track_filename: str = "",
+    color_hex: str = "",
+    glow: float = 0.6,
+    text_color: str = "",
 ) -> str:
     """Generate promo videos with waveform visualization for social media.
 
@@ -7857,6 +7860,9 @@ async def generate_promo_videos(
                "neon", "dual", "bars", "line", "circular" (default: "pulse")
         duration: Video duration in seconds (default: 15)
         track_filename: Optional single track WAV filename (empty = batch all)
+        color_hex: Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork
+        glow: Glow intensity 0.0 (none) to 1.0 (full). Default 0.6
+        text_color: Text color as hex (e.g. "#FFD700"). Empty = white
 
     Returns:
         JSON with per-track results and summary
@@ -7956,6 +7962,9 @@ async def generate_promo_videos(
                 style=style,
                 artist_name=artist,
                 font_path=font_path,
+                color_hex=color_hex,
+                glow=glow,
+                text_color=text_color,
             ),
         )
 
@@ -7986,6 +7995,9 @@ async def generate_promo_videos(
                 artist_name=artist,
                 font_path=font_path,
                 content_dir=content_dir,
+                color_hex=color_hex,
+                glow=glow,
+                text_color=text_color,
             ),
         )
 
@@ -8007,6 +8019,10 @@ async def generate_album_sampler(
     album_slug: str,
     clip_duration: int = 12,
     crossfade: float = 0.5,
+    style: str = "pulse",
+    color_hex: str = "",
+    glow: float = 0.6,
+    text_color: str = "",
 ) -> str:
     """Generate an album sampler video cycling through all tracks.
 
@@ -8017,6 +8033,11 @@ async def generate_album_sampler(
         album_slug: Album slug (e.g., "my-album")
         clip_duration: Duration per track clip in seconds (default: 12)
         crossfade: Crossfade duration between clips in seconds (default: 0.5)
+        style: Visualization style - "pulse", "mirror", "mountains", "colorwave",
+               "neon", "dual", "bars", "line", "circular" (default: "pulse")
+        color_hex: Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork
+        glow: Glow intensity 0.0 (none) to 1.0 (full). Default 0.6
+        text_color: Text color as hex (e.g. "#FFD700"). Empty = white
 
     Returns:
         JSON with output path, tracks included, and duration
@@ -8081,6 +8102,10 @@ async def generate_album_sampler(
             crossfade=crossfade,
             artist_name=artist,
             titles=titles,
+            style=style,
+            color_hex=color_hex,
+            glow=glow,
+            text_color=text_color,
         ),
     )
 

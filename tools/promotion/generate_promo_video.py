@@ -109,7 +109,10 @@ def generate_waveform_video(
     style: str = "bars",
     start_time: Optional[float] = None,
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None
+    font_path: Optional[str] = None,
+    color_hex: str = "",
+    glow: float = 0.6,
+    text_color: str = "",
 ) -> bool:
     """
     Generate promo video with waveform visualization.
@@ -124,6 +127,9 @@ def generate_waveform_video(
         start_time: Start time in audio (auto-detect if None)
         artist_name: Artist name to display
         font_path: Path to TrueType font file
+        color_hex: Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork
+        glow: Glow intensity 0.0 (none) to 1.0 (full). Default 0.6
+        text_color: Text color as hex (e.g. "#FFD700"). Empty = use default white
     """
 
     if font_path is None:
@@ -135,19 +141,34 @@ def generate_waveform_video(
     if start_time is None:
         start_time = find_best_segment(audio_path, duration)
 
-    # Extract colors from album art
-    logger.info("Extracting colors from artwork...")
-    dominant = extract_dominant_color(artwork_path)
-    complementary = get_complementary_color(dominant)
-    analogous1, analogous2 = get_analogous_colors(dominant)
+    # Resolve text color
+    effective_text_color = text_color if text_color else TEXT_COLOR
 
-    # Convert to hex for ffmpeg
-    color1 = rgb_to_hex(dominant)
-    color2 = rgb_to_hex(complementary)
-    color_ana1 = rgb_to_hex(analogous1)
-    color_ana2 = rgb_to_hex(analogous2)
+    # Resolve wave color
+    if color_hex:
+        color2 = color_hex
+        logger.info("Using custom wave color: %s", color2)
+        # Still extract dominant for styles that need it
+        dominant = extract_dominant_color(artwork_path)
+        color1 = rgb_to_hex(dominant)
+        analogous1, analogous2 = get_analogous_colors(dominant)
+        color_ana1 = rgb_to_hex(analogous1)
+        color_ana2 = rgb_to_hex(analogous2)
+    else:
+        # Extract colors from album art
+        logger.info("Extracting colors from artwork...")
+        dominant = extract_dominant_color(artwork_path)
+        complementary = get_complementary_color(dominant)
+        analogous1, analogous2 = get_analogous_colors(dominant)
+        color1 = rgb_to_hex(dominant)
+        color2 = rgb_to_hex(complementary)
+        color_ana1 = rgb_to_hex(analogous1)
+        color_ana2 = rgb_to_hex(analogous2)
 
-    logger.debug("Dominant: %s -> Complementary: %s (hex: %s)", dominant, complementary, color2)
+    logger.debug("Wave color: %s, Text color: %s, Glow: %.1f", color2, effective_text_color, glow)
+
+    # Clamp glow to valid range
+    glow = max(0.0, min(1.0, glow))
 
     # Write title and artist to temp files so ffmpeg reads them via textfile=
     # This avoids all escaping issues with drawtext's text= parameter,
@@ -169,49 +190,75 @@ def generate_waveform_video(
     # Build visualization filter based on style
     viz_height = 600  # Much taller - fills space between art and text
 
+    # Scale glow sigma values (base values multiplied by glow factor)
+    glow_s = max(0.5, glow * 8)     # small glow: 0.5-8
+    glow_m = max(1.0, glow * 13)    # medium glow: 1-13
+    glow_l = max(1.0, glow * 25)    # large glow: 1-25
+
     if style == "mirror":
         # Option A: Mirrored waveform with glow - uses complementary color
-        viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height//2}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_top];
-             [wave_top]split[w1][w2];
-             [w2]vflip[wave_bot];
-             [w1][wave_bot]vstack[wave_stack];
-             [wave_stack]split[ws1][ws2];
-             [ws2]gblur=sigma=8[wave_blur];
-             [ws1][wave_blur]blend=all_mode=screen[wave]"""
+        if glow > 0:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height//2}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_top];
+                 [wave_top]split[w1][w2];
+                 [w2]vflip[wave_bot];
+                 [w1][wave_bot]vstack[wave_stack];
+                 [wave_stack]split[ws1][ws2];
+                 [ws2]gblur=sigma={glow_s:.0f}[wave_blur];
+                 [ws1][wave_blur]blend=all_mode=screen[wave]"""
+        else:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height//2}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_top];
+                 [wave_top]split[w1][w2];
+                 [w2]vflip[wave_bot];
+                 [w1][wave_bot]vstack[wave]"""
 
     elif style == "mountains":
         # Option B: Dual-channel spectrum - uses complementary color
-        viz_filter = f"""[0:a]showfreqs=s={WIDTH}x{viz_height//2}:mode=line:ascale=sqrt:fscale=log:colors={color2}:win_size=1024:overlap=0.7[freq_top];
-             [freq_top]split[f1][f2];
-             [f2]vflip[freq_bot];
-             [f1][freq_bot]vstack[wave_stack];
-             [wave_stack]split[ws1][ws2];
-             [ws2]gblur=sigma=5[wave_blur];
-             [ws1][wave_blur]blend=all_mode=screen[wave]"""
+        if glow > 0:
+            viz_filter = f"""[0:a]showfreqs=s={WIDTH}x{viz_height//2}:mode=line:ascale=sqrt:fscale=log:colors={color2}:win_size=1024:overlap=0.7[freq_top];
+                 [freq_top]split[f1][f2];
+                 [f2]vflip[freq_bot];
+                 [f1][freq_bot]vstack[wave_stack];
+                 [wave_stack]split[ws1][ws2];
+                 [ws2]gblur=sigma={max(1.0, glow * 5):.0f}[wave_blur];
+                 [ws1][wave_blur]blend=all_mode=screen[wave]"""
+        else:
+            viz_filter = f"""[0:a]showfreqs=s={WIDTH}x{viz_height//2}:mode=line:ascale=sqrt:fscale=log:colors={color2}:win_size=1024:overlap=0.7[freq_top];
+                 [freq_top]split[f1][f2];
+                 [f2]vflip[freq_bot];
+                 [f1][freq_bot]vstack[wave]"""
 
     elif style == "colorwave":
         # Option C: Clean waveform with subtle glow - single complementary color
-        viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_raw];
-             [wave_raw]split[wr1][wr2];
-             [wr2]gblur=sigma=4[wave_blur];
-             [wr1][wave_blur]blend=all_mode=screen:all_opacity=0.5[wave]"""
+        if glow > 0:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_raw];
+                 [wave_raw]split[wr1][wr2];
+                 [wr2]gblur=sigma={max(1.0, glow * 4):.0f}[wave_blur];
+                 [wr1][wave_blur]blend=all_mode=screen:all_opacity={glow * 0.8:.1f}[wave]"""
+        else:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave]"""
 
     elif style == "neon":
         # Sharp waveform with punchy glow - bright but not blinding
-        viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_raw];
-             [wave_raw]split[wr1][wr2];
-             [wr2]gblur=sigma=2[wave_glow];
-             [wr1][wave_glow]blend=all_mode=addition:all_opacity=0.6[wave]"""
+        if glow > 0:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_raw];
+                 [wave_raw]split[wr1][wr2];
+                 [wr2]gblur=sigma={max(0.5, glow * 2):.0f}[wave_glow];
+                 [wr1][wave_glow]blend=all_mode=addition:all_opacity={glow:.1f}[wave]"""
+        else:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave]"""
 
     elif style == "pulse":
         # Oscilloscope/EKG style - centered waveform with heavy multi-layer glow
         # Uses complementary color from album art for cohesive look
-        viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_core];
-             [wave_core]split=3[c1][c2][c3];
-             [c2]gblur=sigma=8[glow1];
-             [c3]gblur=sigma=25[glow2];
-             [c1][glow1]blend=all_mode=screen[layer1];
-             [layer1][glow2]blend=all_mode=screen[wave]"""
+        if glow > 0:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave_core];
+                 [wave_core]split=3[c1][c2][c3];
+                 [c2]gblur=sigma={glow_s:.0f}[glow1];
+                 [c3]gblur=sigma={glow_l:.0f}[glow2];
+                 [c1][glow1]blend=all_mode=screen[layer1];
+                 [layer1][glow2]blend=all_mode=screen[wave]"""
+        else:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}[wave]"""
 
     elif style == "dual":
         # Option E: Two separate waveforms - dominant on top, complementary below
@@ -252,7 +299,7 @@ def generate_waveform_video(
     [withwave]drawtext=textfile='{title_file_path}':
          fontfile={font_path}:
          fontsize={TITLE_FONT_SIZE}:
-         fontcolor={TEXT_COLOR}:
+         fontcolor={effective_text_color}:
          x=(w-text_w)/2:
          y=h-130:
          shadowcolor=black:shadowx=2:shadowy=2[withtitle];
@@ -260,7 +307,7 @@ def generate_waveform_video(
     [withtitle]drawtext=textfile='{artist_file_path}':
          fontfile={font_path}:
          fontsize={ARTIST_FONT_SIZE}:
-         fontcolor={TEXT_COLOR}@0.8:
+         fontcolor={effective_text_color}@0.8:
          x=(w-text_w)/2:
          y=h-70:
          shadowcolor=black:shadowx=2:shadowy=2[final]
@@ -343,6 +390,9 @@ def batch_process_album(
     font_path: Optional[str] = None,
     content_dir: Optional[Path] = None,
     jobs: int = 1,
+    color_hex: str = "",
+    glow: float = 0.6,
+    text_color: str = "",
 ):
     """Process all audio files in an album directory."""
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
@@ -396,7 +446,10 @@ def batch_process_album(
             duration=duration,
             style=style,
             artist_name=artist_name,
-            font_path=font_path
+            font_path=font_path,
+            color_hex=color_hex,
+            glow=glow,
+            text_color=text_color,
         )
         return (audio_file.name, output_file.name, success)
 
@@ -474,6 +527,12 @@ Examples:
                         help='Only show warnings and errors')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                         help='Parallel jobs for batch mode (0=auto, default: 1)')
+    parser.add_argument('--color', type=str, default='',
+                        help='Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork')
+    parser.add_argument('--glow', type=float, default=0.6,
+                        help='Glow intensity 0.0 (none) to 1.0 (full). Default: 0.6')
+    parser.add_argument('--text-color', type=str, default='',
+                        help='Text color as hex (e.g. "#FFD700"). Empty = white')
 
     args = parser.parse_args()
 
@@ -565,6 +624,9 @@ Examples:
             font_path=font_path,
             content_dir=album_content_dir,
             jobs=args.jobs,
+            color_hex=args.color,
+            glow=args.glow,
+            text_color=args.text_color,
         )
 
     else:
@@ -587,7 +649,10 @@ Examples:
             style=args.style,
             start_time=args.start,
             artist_name=artist_name,
-            font_path=font_path
+            font_path=font_path,
+            color_hex=args.color,
+            glow=args.glow,
+            text_color=args.text_color,
         )
 
         if success:

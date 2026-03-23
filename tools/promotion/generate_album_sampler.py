@@ -44,6 +44,7 @@ from tools.shared.media_utils import (
     get_audio_duration,
     find_best_segment,
 )
+from tools.promotion.generate_promo_video import generate_waveform_video
 
 logger = logging.getLogger(__name__)
 
@@ -109,105 +110,30 @@ def generate_clip(
     start_time: float,
     color_hex: str,
     artist_name: str,
-    font_path: str
+    font_path: str,
+    style: str = "pulse",
+    glow: float = 0.6,
+    text_color: str = "",
 ) -> bool:
-    """Generate a single clip for one track."""
+    """Generate a single clip for one track.
 
-    # Write title and artist to temp files so ffmpeg reads them via textfile=
-    # This avoids all escaping issues with drawtext's text= parameter,
-    # preventing injection of ffmpeg filter directives through track titles.
-    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
-    os.chmod(title_file.name, 0o600)
-    title_file.write(title)
-    title_file.close()
-    title_file_path = title_file.name
-    _temp_files_to_cleanup.append(title_file_path)
-
-    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
-    os.chmod(artist_file.name, 0o600)
-    artist_file.write(artist_name)
-    artist_file.close()
-    artist_file_path = artist_file.name
-    _temp_files_to_cleanup.append(artist_file_path)
-
-    viz_height = 600
-
-    # Pulse style visualization
-    viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color_hex}:rate={FPS}[wave_core];
-         [wave_core]split=3[c1][c2][c3];
-         [c2]gblur=sigma=8[glow1];
-         [c3]gblur=sigma=25[glow2];
-         [c1][glow1]blend=all_mode=screen[layer1];
-         [layer1][glow2]blend=all_mode=screen[wave]"""
-
-    filter_complex = f"""
-    [1:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,
-         crop={WIDTH}:{HEIGHT},
-         gblur=sigma=30,
-         colorbalance=bs=-.1:bm=-.1:bh=-.1[bg];
-
-    [1:v]scale={WIDTH-200}:-1:force_original_aspect_ratio=decrease[art];
-
-    [bg][art]overlay=(W-w)/2:(H-h)/2-200[base];
-
-    {viz_filter};
-
-    [base][wave]overlay=0:H-750[withwave];
-
-    [withwave]drawtext=textfile='{title_file_path}':
-         fontfile={font_path}:
-         fontsize={TITLE_FONT_SIZE}:
-         fontcolor={TEXT_COLOR}:
-         x=(w-text_w)/2:
-         y=h-130:
-         shadowcolor=black:shadowx=2:shadowy=2[withtitle];
-
-    [withtitle]drawtext=textfile='{artist_file_path}':
-         fontfile={font_path}:
-         fontsize={ARTIST_FONT_SIZE}:
-         fontcolor={TEXT_COLOR}@0.8:
-         x=(w-text_w)/2:
-         y=h-70:
-         shadowcolor=black:shadowx=2:shadowy=2[final]
-    """.replace('\n', '').replace('    ', '')
-
-    cmd = [
-        'ffmpeg', '-y',
-        '-ss', str(start_time),
-        '-t', str(duration),
-        '-i', str(audio_path),
-        '-loop', '1',
-        '-i', str(artwork_path),
-        '-filter_complex', filter_complex,
-        '-map', '[final]',
-        '-map', '0:a',
-        '-c:v', 'libx264',
-        '-preset', 'fast',
-        '-crf', '23',
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-pix_fmt', 'yuv420p',
-        '-t', str(duration),
-        '-r', str(FPS),
-        str(output_path)
-    ]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        return result.returncode == 0
-    except Exception:
-        return False
-    finally:
-        # Clean up temp text files (also remove from atexit list)
-        for tmp in (title_file_path, artist_file_path):
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            try:
-                _temp_files_to_cleanup.remove(tmp)
-            except ValueError:
-                pass
+    Delegates to generate_waveform_video for consistent rendering
+    across promo videos and album sampler clips.
+    """
+    return generate_waveform_video(
+        audio_path=audio_path,
+        artwork_path=artwork_path,
+        title=title,
+        output_path=output_path,
+        duration=duration,
+        style=style,
+        start_time=start_time,
+        artist_name=artist_name,
+        font_path=font_path,
+        color_hex=color_hex,
+        glow=glow,
+        text_color=text_color,
+    )
 
 
 def concatenate_with_crossfade(
@@ -299,6 +225,10 @@ def generate_album_sampler(
     artist_name: str = "bitwize",
     font_path: Optional[str] = None,
     titles: Optional[dict] = None,
+    style: str = "pulse",
+    color_hex: str = "",
+    glow: float = 0.6,
+    text_color: str = "",
 ) -> bool:
     """Generate album sampler video.
 
@@ -306,6 +236,10 @@ def generate_album_sampler(
         titles: Optional dict mapping filename stems to display titles.
                 When provided (e.g. from MCP state cache), these take
                 priority over get_track_title() filename parsing.
+        style: Visualization style (default: "pulse"). Same options as promo videos.
+        color_hex: Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork.
+        glow: Glow intensity 0.0 (none) to 1.0 (full). Default 0.6.
+        text_color: Text color as hex (e.g. "#FFD700"). Empty = white.
     """
 
     if font_path is None:
@@ -330,12 +264,15 @@ def generate_album_sampler(
 
     logger.info("Found %d tracks", len(audio_files))
 
-    # Extract colors from artwork
-    logger.info("Extracting colors from artwork...")
-    dominant = extract_dominant_color(artwork_path)
-    complementary = get_complementary_color(dominant)
-    color_hex = rgb_to_hex(complementary)
-    logger.debug("Using color: %s", color_hex)
+    # Resolve wave color
+    if color_hex:
+        logger.info("Using custom wave color: %s", color_hex)
+    else:
+        logger.info("Extracting colors from artwork...")
+        dominant = extract_dominant_color(artwork_path)
+        complementary = get_complementary_color(dominant)
+        color_hex = rgb_to_hex(complementary)
+        logger.debug("Auto-extracted color: %s", color_hex)
 
     # Create temp directory for clips
     temp_dir = Path(tempfile.mkdtemp(prefix="album_sampler_"))
@@ -363,7 +300,10 @@ def generate_album_sampler(
                 start_time=start_time,
                 color_hex=color_hex,
                 artist_name=artist_name,
-                font_path=font_path
+                font_path=font_path,
+                style=style,
+                glow=glow,
+                text_color=text_color,
             )
 
             if success:
@@ -424,6 +364,15 @@ Examples:
                         help=f'Crossfade duration in seconds (default: {DEFAULT_CROSSFADE})')
     parser.add_argument('--artist', type=str,
                         help='Artist name (read from config if not set)')
+    parser.add_argument('--style', '-s',
+                        choices=['mirror', 'mountains', 'colorwave', 'neon', 'pulse', 'dual', 'bars', 'line', 'circular'],
+                        default='pulse', help='Waveform visualization style (default: pulse)')
+    parser.add_argument('--color', type=str, default='',
+                        help='Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork')
+    parser.add_argument('--glow', type=float, default=0.6,
+                        help='Glow intensity 0.0 (none) to 1.0 (full). Default: 0.6')
+    parser.add_argument('--text-color', type=str, default='',
+                        help='Text color as hex (e.g. "#FFD700"). Empty = white')
     parser.add_argument('--verbose', action='store_true',
                         help='Show debug output')
     parser.add_argument('--quiet', action='store_true',
@@ -511,7 +460,11 @@ Examples:
         output_path=output,
         clip_duration=args.clip_duration,
         crossfade=args.crossfade,
-        artist_name=artist_name
+        artist_name=artist_name,
+        style=args.style,
+        color_hex=args.color,
+        glow=args.glow,
+        text_color=args.text_color,
     )
 
     if not success:
