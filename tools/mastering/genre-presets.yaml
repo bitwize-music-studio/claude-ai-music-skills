@@ -301,6 +301,44 @@ genres:
     cut_highmid: 0
     cut_highs: 0
 
+  # === European Pop ===
+  schlager:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
+  # === Chanson / Cabaret ===
+  chanson:
+    target_lufs: -15.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  cabaret:
+    target_lufs: -15.0
+    cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Middle Eastern ===
+  middle-eastern-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  arabic-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  rai:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  mizrahi:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  mahraganat:
+    target_lufs: -12.0
+    cut_highmid: -2.0
+    cut_highs: 0
+
   # === Latin / World ===
   latin:
     target_lufs: -14.0

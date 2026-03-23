@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Chanson genre** — French chanson documentation covering réaliste, à texte, rive gauche, musette, nouvelle chanson and more
+- **Middle Eastern Pop genre** — Arabic, Israeli, and North African pop covering raï, Mizrahi, khaleeji, mahraganat, and Arabic-electronic fusion
+- **Mastering presets** — Added Schlager, Chanson, and Middle Eastern Pop (with aliases for arabic-pop, rai, mizrahi, mahraganat) to both `genre-presets.yaml` and `genre-presets.md`
+- **Genre-creator skill update** — Added step 9 to genre-creator workflow: update mastering preset files when creating new genres
+
 ## [0.72.2] - 2026-03-22
 
 ### Fixed

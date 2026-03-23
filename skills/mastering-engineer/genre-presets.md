@@ -102,6 +102,45 @@ Detailed mastering settings by genre.
 - Natural room sound
 - Uncompressed peaks
 
+### Schlager
+**LUFS target**: -12 to -14 LUFS
+**Dynamics**: Moderate-to-heavy compression, radio-ready loudness
+**EQ focus**: Vocal presence (2-5 kHz), bass drum punch (60-100 Hz), bright top end (8-12 kHz for shimmer)
+**MCP command**: `master_audio(album_slug, genre="schlager")`
+
+**Characteristics**:
+- Vocals dominant and upfront
+- Kick drum punchy and defined
+- Bright, polished, singalong-ready
+- Synthesizer and brass clarity
+- Party tracks can push to -11 LUFS
+
+### Middle Eastern Pop
+**LUFS target**: -14 LUFS (mahraganat: -12 LUFS)
+**Dynamics**: Moderate compression, preserve vocal ornamentations and melismatic runs
+**EQ focus**: Vocal presence (1-4 kHz), oud/qanun body (200-600 Hz), darbuka attack (3-5 kHz), gentle high-mid cut to tame synth harshness
+**MCP command**: `master_audio(album_slug, genre="middle-eastern-pop")`
+
+**Characteristics**:
+- Melismatic vocals need headroom — avoid over-compressing ornamental runs
+- Quarter-tone melodies require careful limiting to avoid pitch artifacts
+- Darbuka and riq transients should remain crisp and defined
+- Raï tracks: slightly more aggressive compression, accordion warmth preserved
+- Mahraganat: louder target (-12 LUFS), heavier compression, bass-forward mix
+
+### Chanson
+**LUFS target**: -14 to -16 LUFS
+**Dynamics**: Light compression, preserve natural dynamics and rubato phrasing
+**EQ focus**: Vocal transparency (1-4 kHz), accordion warmth (200-800 Hz), gentle high cut above 12 kHz for vintage warmth
+**MCP command**: `master_audio(album_slug, genre="chanson")`
+
+**Characteristics**:
+- Voice is absolute center — pristine clarity without harshness
+- Accordion/guitar body preserved, not thinned out
+- Room ambience and intimacy maintained
+- Dynamic range wider than pop — quiet passages stay quiet
+- Nouvelle chanson with electronic elements can target -14 LUFS; traditional acoustic chanson sits at -15 to -16
+
 ---
 
 ## Problem-Solving
