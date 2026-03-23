@@ -1,4 +1,4 @@
-# [Album Name] - Promo Campaign
+# [Album Name] — Promo Campaign
 
 ## Campaign Overview
 
@@ -8,6 +8,7 @@
 | **Release Date** | [Date] |
 | **Primary Platform** | [SoundCloud / Spotify / etc.] |
 | **Campaign Duration** | [e.g., 2 weeks] |
+| **Language** | [e.g., English / German / Bilingual DE+EN] |
 
 ---
 
@@ -56,6 +57,18 @@
 
 **Primary**: #NewMusic #[Genre] #AIMusic
 **Secondary**: #ClaudeCode #SunoAI #[AlbumSpecific]
+
+---
+
+## Platform Copy
+
+| Platform | File | Status |
+|----------|------|--------|
+| Twitter/X | [twitter.md](twitter.md) | [ ] |
+| Instagram | [instagram.md](instagram.md) | [ ] |
+| TikTok | [tiktok.md](tiktok.md) | [ ] |
+| Facebook | [facebook.md](facebook.md) | [ ] |
+| YouTube | [youtube.md](youtube.md) | [ ] |
 
 ---
 

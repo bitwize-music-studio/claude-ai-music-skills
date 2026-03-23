@@ -1,6 +1,10 @@
-# [Album Name] - Instagram Copy
+# [Album Name] — Instagram
 
-## Album Announcement
+> Campaign strategy: [campaign.md](campaign.md)
+
+---
+
+## Release Announcement
 
 ### Release Post Caption
 
@@ -10,21 +14,27 @@
 [2-3 sentences about the album — concept, key themes, what makes it special]
 
 Stream now — link in bio.
+```
 
-#NewMusic #[Genre] #AIMusic #MusicRelease #NewAlbum #IndieMusic #[AdditionalHashtags]
+**Hashtags** (separate block):
+```
+#NewMusic #[Genre] #MusicRelease #NewAlbum #IndieMusic #[AdditionalHashtags]
 ```
 
 ---
 
-## Per-Track Captions
+## Track Highlights
 
 ### Track 01: [Title]
 
 ```
-[1-2 sentences about the track]
+[1-2 sentences about the track — personal angle, what inspired it]
 
 From [Album Name] — streaming everywhere.
+```
 
+**Hashtags**:
+```
 #NewMusic #[Genre] #[TrackSpecificHashtags]
 ```
 
@@ -34,7 +44,10 @@ From [Album Name] — streaming everywhere.
 [1-2 sentences about the track]
 
 From [Album Name] — streaming everywhere.
+```
 
+**Hashtags**:
+```
 #NewMusic #[Genre] #[TrackSpecificHashtags]
 ```
 
@@ -48,7 +61,7 @@ From [Album Name] — streaming everywhere.
 
 ```
 [Short, punchy text for Instagram Story]
-🎵 OUT NOW 🎵
+OUT NOW
 Swipe up to listen
 ```
 
@@ -56,14 +69,18 @@ Swipe up to listen
 
 ## Hashtag Sets
 
-**Release posts**: #NewMusic #[Genre] #AIMusic #MusicRelease #NewAlbum #IndieMusic #NowPlaying #StreamNow
-**Track posts**: #NewMusic #[Genre] #[SubGenre] #MusicProduction #IndieArtist
-**Story**: #OutNow #NewRelease #LinkInBio
+| Post Type | Hashtags |
+|-----------|----------|
+| **Release** | #NewMusic #[Genre] #MusicRelease #NewAlbum #IndieMusic #NowPlaying #StreamNow |
+| **Track** | #NewMusic #[Genre] #[SubGenre] #MusicProduction #IndieArtist |
+| **Story** | #OutNow #NewRelease #LinkInBio |
 
 ---
 
 ## Notes
 
 - Max 30 hashtags per post (aim for 15-20)
+- Hook must fit in first 125 characters (preview cutoff)
 - Use Reels for promo video posts
 - Post at peak engagement times for your audience
+- Separate hashtags from caption with line breaks

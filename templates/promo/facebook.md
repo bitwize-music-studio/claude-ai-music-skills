@@ -1,29 +1,37 @@
-# [Album Name] - Facebook Copy
+# [Album Name] — Facebook
 
-## Album Announcement
+> Campaign strategy: [campaign.md](campaign.md)
+
+---
+
+## Release Announcement
 
 ### Release Post
 
 ```
 [Album Name] is out now!
 
-[2-3 paragraphs about the album — concept, themes, what listeners can expect]
+[2-3 paragraphs about the album — concept, themes, what listeners can expect.
+Facebook allows longer posts — use that for storytelling.]
 
-Stream it here: [Link]
+Stream it here: [Streaming Link]
 
-#NewMusic #[Genre] #AIMusic
+#NewMusic #[Genre]
 ```
 
 ---
 
-## Per-Track Posts
+## Track Highlights
 
 ### Track 01: [Title]
 
 ```
-[1-2 paragraphs about the track — its story, what inspired it, standout moments]
+[1-2 paragraphs about the track — its story, what inspired it, standout moments.
+Include a personal angle to encourage comments.]
 
-Listen: [Link]
+Listen: [Streaming Link]
+
+#[Genre] #NewMusic
 ```
 
 ### Track 02: [Title]
@@ -31,7 +39,9 @@ Listen: [Link]
 ```
 [1-2 paragraphs about the track]
 
-Listen: [Link]
+Listen: [Streaming Link]
+
+#[Genre] #NewMusic
 ```
 
 <!-- Add more tracks as needed -->
@@ -51,14 +61,15 @@ Listen: [Link]
 ```
 [Album Name] just hit [milestone]! Thanks to everyone who listened.
 
-If you haven't checked it out yet: [Link]
+If you haven't checked it out yet: [Streaming Link]
 ```
 
 ---
 
 ## Notes
 
-- Facebook allows longer posts — use that for storytelling
+- Facebook allows longer posts — use that for storytelling (150-300 words)
 - Include direct streaming links (not "link in bio")
 - Video posts get higher reach
 - Post 1-2 times per week, not daily
+- 3-5 hashtags per post, at end
