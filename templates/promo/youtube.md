@@ -1,6 +1,12 @@
-# [Album Name] - YouTube Descriptions
+# [Album Name] — YouTube
 
-## Full Album Video Description
+> Campaign strategy: [campaign.md](campaign.md)
+
+---
+
+## Full Album Video
+
+### Description
 
 ```
 [Album Name] by [Artist]
@@ -21,12 +27,12 @@ CREDITS:
 Produced with Claude AI Music Skills
 Generated on Suno
 
-#[Genre] #NewMusic #AIMusic #[AlbumSpecific]
+#[Genre] #NewMusic #[AlbumSpecific]
 ```
 
 ---
 
-## Per-Track Video Descriptions
+## Per-Track Videos
 
 ### Track 01: [Title]
 
@@ -38,7 +44,7 @@ From the album [Album Name]
 
 Stream the full album: [Link]
 
-#[Genre] #NewMusic #AIMusic
+#[Genre] #NewMusic
 ```
 
 ### Track 02: [Title]
@@ -51,19 +57,19 @@ From the album [Album Name]
 
 Stream the full album: [Link]
 
-#[Genre] #NewMusic #AIMusic
+#[Genre] #NewMusic
 ```
 
 <!-- Add more tracks as needed -->
 
 ---
 
-## Shorts Descriptions
+## Shorts
 
 ### Track Highlight
 
 ```
-[Track Title] from [Album Name] 🎵 Full track in description!
+[Track Title] from [Album Name] — Full track in description!
 
 #Shorts #NewMusic #[Genre]
 ```
@@ -73,6 +79,7 @@ Stream the full album: [Link]
 ## Notes
 
 - Include timestamps for full album videos
-- Add streaming links for all platforms
-- Use 3-5 hashtags in descriptions
+- Add streaming links for all available platforms
+- 3-5 hashtags in descriptions (first 3 shown above title)
 - Shorts descriptions should be under 100 characters
+- Hook in first 2-3 lines (visible before "Show more")

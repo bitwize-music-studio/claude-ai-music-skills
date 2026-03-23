@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Promo language selection** — New Step 4 in promo-writer workflow asks user which language(s) to generate copy in (English, German, French, Spanish, bilingual, or custom); skipped automatically when `## Language` is set in `promotion-preferences.md` override (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+- **Bilingual promo mode** — Stacked primary + secondary language in one post (separated by `---` divider); Twitter exception uses separate tweets per language due to 280-char limit (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+- **Language Adaptation section** in copy-formulas.md with bilingual post format example and language rules (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+- **Campaign cross-reference links** — All 5 platform template files now link back to campaign.md (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+- **Platform copy overview table** in campaign.md template with links to each platform file (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+
+### Changed
+- **Promo templates reformatted** — Cleaner heading structure, consistent `---` separators across all platform templates; Instagram hashtag sets as table; campaign.md includes Language field in overview (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+- **Promo-writer workflow renumbered** — Steps 5-9 (was 4-8) to accommodate new Language Selection step (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#75](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/75))
+
 ## [0.74.0] - 2026-03-23
 
 ### Added

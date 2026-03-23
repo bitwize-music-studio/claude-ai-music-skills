@@ -324,3 +324,41 @@ new album just dropped. [concept in casual language]
 ```
 
 The key: same message, native format. Never cross-post identical text.
+
+---
+
+## Language Adaptation
+
+When writing in a non-English language or bilingual mode, adapt the copy naturally — don't just translate English templates word-for-word.
+
+### Bilingual Post Format
+
+Primary language first, divider, secondary language second. Hashtags only once (in English).
+
+**Example: Facebook release post (DE + EN)**
+```
+[Album Name] ist ab sofort verfügbar!
+
+[2-3 Absätze auf Deutsch — Konzept, Themen, was Hörer erwartet]
+
+Jetzt streamen: [Streaming Link]
+
+---
+
+[Album Name] is out now!
+
+[2-3 paragraphs in English — same content, not a literal translation]
+
+Stream here: [Streaming Link]
+
+#NewMusic #[Genre] #NewAlbum
+```
+
+### Language Rules
+
+- **Hashtags**: Always in English for international discovery, regardless of copy language
+- **Quoted lyrics**: Keep in original language. Add a brief translation in parentheses if the copy language differs
+  - Example: *"Juste tourner, tourner, tourner"* (Just spinning, spinning, spinning)
+- **Platform notes**: Always in English for consistency
+- **Bilingual mode**: Write each version natively — adapt tone and idioms, don't translate literally
+- **Twitter exception**: Bilingual mode does NOT stack two languages into one tweet — 280 chars is too tight. Instead, post each language as a separate tweet (or thread: Tweet 1 in primary language, Tweet 2 in secondary). All other platforms use stacked format.
