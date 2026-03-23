@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Multi-platform AI art prompts** — Album art director now asks which AI art platform to use (Midjourney, Leonardo.ai, DALL-E, Stable Diffusion) and generates platform-specific prompts with appropriate format, negative prompts, and model/preset recommendations (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#74](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/74))
+- **Leonardo.ai support** — Natural language prompts with separate negative prompt field, model selection (Phoenix, Kino XL), and preset recommendations (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#74](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/74))
+- **Platform comparison table** — Quick reference for choosing the right AI art generator (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#74](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/74))
+- **Platform-specific tips** — Refinement keywords and best practices per platform (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#74](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/74))
+
 ## [0.73.0] - 2026-03-23
 
 ### Added
