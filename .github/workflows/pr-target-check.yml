@@ -1,0 +1,32 @@
+name: PR Target Check
+
+# Block PRs targeting main unless they come from develop.
+# All external contributions must go through develop first.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-base-branch:
+    name: PR Target Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR source branch
+        run: |
+          HEAD_REF="${{ github.head_ref }}"
+          echo "PR source branch: $HEAD_REF"
+          echo "PR target branch: main"
+
+          if [ "$HEAD_REF" != "develop" ]; then
+            echo "::error::PRs into main must come from the develop branch, not '$HEAD_REF'."
+            echo ""
+            echo "Please retarget your PR to the 'develop' branch instead."
+            echo "See CONTRIBUTING.md for the development workflow."
+            exit 1
+          fi
+
+          echo "✓ PR is from develop → main (allowed)"

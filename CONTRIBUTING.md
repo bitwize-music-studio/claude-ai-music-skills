@@ -9,7 +9,7 @@ We use a **two-branch model** with `develop` as the integration branch and `main
 - **`develop`** — active development, receives feature branch PRs, version tagged with `-dev` suffix (e.g., `0.62.0-dev`)
 - **`main`** — stable releases only, receives merges from `develop` when ready to release
 
-CI runs on pushes to `develop` and on PRs into both branches. Direct pushes to `main` skip CI (already validated by the PR gate).
+CI runs on pushes to `develop` and on PRs into both branches. **PRs targeting `main` must come from `develop`** — PRs from feature branches or forks into `main` will be blocked by the "PR Target Gate" check. Always target `develop` for contributions.
 
 **Plugin distribution channels** (both use `marketplace.json`, branch separation handles the split):
 - Stable: `/plugin marketplace add bitwize-music-studio/claude-ai-music-skills` (from `main`)
