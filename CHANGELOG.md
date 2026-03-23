@@ -6,11 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-03-23
+
 ### Added
-- **Chanson genre** — French chanson documentation covering réaliste, à texte, rive gauche, musette, nouvelle chanson and more
-- **Middle Eastern Pop genre** — Arabic, Israeli, and North African pop covering raï, Mizrahi, khaleeji, mahraganat, and Arabic-electronic fusion
-- **Mastering presets** — Added Schlager, Chanson, and Middle Eastern Pop (with aliases for arabic-pop, rai, mizrahi, mahraganat) to both `genre-presets.yaml` and `genre-presets.md`
-- **Genre-creator skill update** — Added step 9 to genre-creator workflow: update mastering preset files when creating new genres
+- **Chanson genre** — French chanson documentation covering réaliste, à texte, rive gauche, musette, nouvelle chanson and more (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#73](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/73))
+- **Middle Eastern Pop genre** — Arabic, Israeli, and North African pop covering raï, Mizrahi, khaleeji, mahraganat, and Arabic-electronic fusion (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#73](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/73))
+- **Mastering presets** — Added Schlager, Chanson, and Middle Eastern Pop (with aliases for arabic-pop, rai, mizrahi, mahraganat) to both `genre-presets.yaml` and `genre-presets.md` (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#73](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/73))
+- **Genre-creator skill update** — Added step 9 to genre-creator workflow: update mastering preset files when creating new genres (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#73](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/73))
 
 ## [0.72.2] - 2026-03-22
 

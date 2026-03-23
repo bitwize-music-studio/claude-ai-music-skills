@@ -12,7 +12,7 @@ A complete AI music production workflow for Suno. Install as a Claude Code plugi
 
 [![Static Validation](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/test.yml)
 [![Model Updater](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml/badge.svg)](https://github.com/bitwize-music-studio/claude-ai-music-skills/actions/workflows/model-updater.yml)
-![Version](https://img.shields.io/badge/version-0.72.2-blue)
+![Version](https://img.shields.io/badge/version-0.73.0-blue)
 ![Skills](https://img.shields.io/badge/skills-52-green)
 ![Tests](https://img.shields.io/badge/tests-2358-brightgreen)
 
@@ -36,6 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 | Version | Highlights |
 |---------|------------|
+| **0.73** | Chanson and Middle Eastern Pop genres, mastering presets for 3 genres, genre-creator skill mastering preset step |
 | **0.71** | Exclude Styles (negative prompting), clipboard exclude integration, security hardening (SSRF, path traversal, CodeQL), supporting files test |
 | **0.70** | OST album type, voice-checker skill, cross-track referencing & iterative refinement for lyric-writer, pypdf CVE fix |
 | **0.69** | Target Duration planning — per-album/track duration targets threaded through planning, writing, prompting, and review; duration-to-word-count mapping |
