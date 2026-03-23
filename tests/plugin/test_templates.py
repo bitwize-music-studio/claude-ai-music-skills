@@ -75,11 +75,11 @@ PROMO_TEMPLATES = [
 
 PROMO_REQUIRED_SECTIONS = {
     'campaign.md': ['Campaign Overview', 'Key Messages', 'Schedule'],
-    'twitter.md': ['Album Announcement', 'Per-Track Posts'],
-    'instagram.md': ['Album Announcement', 'Per-Track Captions', 'Hashtag'],
-    'tiktok.md': ['Album Announcement', 'Per-Track Captions'],
-    'facebook.md': ['Album Announcement', 'Per-Track Posts'],
-    'youtube.md': ['Full Album Video Description', 'Per-Track Video Descriptions'],
+    'twitter.md': ['Release Announcement', 'Track Posts'],
+    'instagram.md': ['Release Announcement', 'Track Highlights', 'Hashtag'],
+    'tiktok.md': ['Release Announcement', 'Track Captions'],
+    'facebook.md': ['Release Announcement', 'Track Highlights'],
+    'youtube.md': ['Full Album Video', 'Per-Track Videos'],
 }
 
 
@@ -240,4 +240,97 @@ class TestTrackTemplateStructure:
         content = track.read_text()
         assert section.lower() in content.lower(), (
             f"track.md missing required section: {section}"
+        )
+
+
+class TestAlbumArtSection:
+    """album.md Album Art section must have platform-agnostic fields (PR #74)."""
+
+    @pytest.mark.parametrize("subsection", [
+        'AI Art Platform',
+        'Image Prompt',
+        'Negative Prompt',
+    ])
+    def test_album_art_subsections(self, templates_dir, subsection):
+        album = templates_dir / "album.md"
+        content = album.read_text()
+        assert subsection.lower() in content.lower(), (
+            f"album.md Album Art missing subsection: {subsection}"
+        )
+
+
+PROMO_PLATFORM_TEMPLATES = ['twitter.md', 'instagram.md', 'tiktok.md', 'facebook.md', 'youtube.md']
+
+
+class TestPromoCampaignCrossRefs:
+    """Platform templates must link back to campaign.md (PR #75)."""
+
+    @pytest.mark.parametrize("template", PROMO_PLATFORM_TEMPLATES)
+    def test_campaign_link(self, templates_dir, template):
+        promo_file = templates_dir / "promo" / template
+        if not promo_file.exists():
+            pytest.skip(f"promo/{template} not found")
+        content = promo_file.read_text()
+        assert 'campaign.md' in content, (
+            f"promo/{template} missing campaign.md cross-reference link"
+        )
+
+
+class TestCampaignLanguageField:
+    """campaign.md must have Language field and Platform Copy table (PR #75)."""
+
+    def test_language_field(self, templates_dir):
+        campaign = templates_dir / "promo" / "campaign.md"
+        if not campaign.exists():
+            pytest.skip("promo/campaign.md not found")
+        content = campaign.read_text()
+        assert 'language' in content.lower(), (
+            "campaign.md missing Language field in overview table"
+        )
+
+    def test_platform_copy_table(self, templates_dir):
+        campaign = templates_dir / "promo" / "campaign.md"
+        if not campaign.exists():
+            pytest.skip("promo/campaign.md not found")
+        content = campaign.read_text()
+        assert 'platform copy' in content.lower(), (
+            "campaign.md missing Platform Copy section"
+        )
+
+    @pytest.mark.parametrize("platform_file", PROMO_PLATFORM_TEMPLATES)
+    def test_platform_copy_links(self, templates_dir, platform_file):
+        campaign = templates_dir / "promo" / "campaign.md"
+        if not campaign.exists():
+            pytest.skip("promo/campaign.md not found")
+        content = campaign.read_text()
+        assert platform_file in content, (
+            f"campaign.md Platform Copy table missing link to {platform_file}"
+        )
+
+
+class TestPromoTemplateFormatting:
+    """Promo templates should have consistent formatting (PR #75)."""
+
+    @pytest.mark.parametrize("template", PROMO_PLATFORM_TEMPLATES)
+    def test_no_emoji_in_templates(self, templates_dir, template):
+        promo_file = templates_dir / "promo" / template
+        if not promo_file.exists():
+            pytest.skip(f"promo/{template} not found")
+        content = promo_file.read_text()
+        # Check for common emoji that were removed in PR #75
+        for emoji in ['🎵', '🤖', '🔗']:
+            assert emoji not in content, (
+                f"promo/{template} contains emoji '{emoji}' — should be removed"
+            )
+
+    @pytest.mark.parametrize("template", PROMO_PLATFORM_TEMPLATES)
+    def test_em_dash_title(self, templates_dir, template):
+        """Platform templates should use em dash in title (PR #75 formatting)."""
+        promo_file = templates_dir / "promo" / template
+        if not promo_file.exists():
+            pytest.skip(f"promo/{template} not found")
+        content = promo_file.read_text()
+        first_line = content.strip().split('\n')[0]
+        assert '—' in first_line or '#' not in first_line, (
+            f"promo/{template} title should use em dash separator"
         )

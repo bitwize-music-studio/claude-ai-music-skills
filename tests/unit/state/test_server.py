@@ -12737,6 +12737,298 @@ class TestGenerateAlbumSamplerComprehensive:
         assert result["success"] is True
 
 
+class TestPromoVideoNewParams:
+    """Tests for color_hex, glow, text_color params added in PR #76."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=1):
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_color_hex_passed(self, tmp_path):
+        """color_hex parameter should be forwarded to generate_waveform_video."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", color_hex="#C9A96E", track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["color_hex"] == "#C9A96E"
+
+    def test_glow_passed(self, tmp_path):
+        """glow parameter should be forwarded to generate_waveform_video."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", glow=0.0, track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["glow"] == 0.0
+
+    def test_text_color_passed(self, tmp_path):
+        """text_color parameter should be forwarded to generate_waveform_video."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", text_color="#FFD700", track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["text_color"] == "#FFD700"
+
+    def test_default_params(self, tmp_path):
+        """Default values should be passed when params not specified."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_generate(**kwargs):
+            captured_kwargs.append(kwargs)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", track_filename="01-track-1.wav"
+            ))
+
+        assert captured_kwargs[0]["color_hex"] == ""
+        assert captured_kwargs[0]["glow"] == 0.6
+        assert captured_kwargs[0]["text_color"] == ""
+
+    def test_batch_passes_new_params(self, tmp_path):
+        """Batch mode should forward color_hex, glow, text_color."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_batch(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_dir = kwargs["output_dir"]
+            output_dir.mkdir(exist_ok=True)
+            (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
+            (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.batch_process_album",
+                   side_effect=mock_batch), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            _run(server.generate_promo_videos(
+                "test-album", color_hex="#FF0000", glow=0.3, text_color="#00FF00"
+            ))
+
+        assert captured_kwargs[0]["color_hex"] == "#FF0000"
+        assert captured_kwargs[0]["glow"] == 0.3
+        assert captured_kwargs[0]["text_color"] == "#00FF00"
+
+
+class TestAlbumSamplerNewParams:
+    """Tests for style, color_hex, glow, text_color params on album sampler (PR #76)."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=3):
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def test_style_passed(self, tmp_path):
+        """style parameter should be forwarded to generate_album_sampler."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album", style="line"))
+
+        assert captured_kwargs[0]["style"] == "line"
+
+    def test_color_hex_passed(self, tmp_path):
+        """color_hex parameter should be forwarded to generate_album_sampler."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album", color_hex="#C9A96E"))
+
+        assert captured_kwargs[0]["color_hex"] == "#C9A96E"
+
+    def test_glow_passed(self, tmp_path):
+        """glow parameter should be forwarded to generate_album_sampler."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album", glow=0.0))
+
+        assert captured_kwargs[0]["glow"] == 0.0
+
+    def test_text_color_passed(self, tmp_path):
+        """text_color parameter should be forwarded to generate_album_sampler."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album", text_color="#FFD700"))
+
+        assert captured_kwargs[0]["text_color"] == "#FFD700"
+
+    def test_default_params(self, tmp_path):
+        """Default values should be passed when params not specified."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler("test-album"))
+
+        assert captured_kwargs[0]["style"] == "pulse"
+        assert captured_kwargs[0]["color_hex"] == ""
+        assert captured_kwargs[0]["glow"] == 0.6
+        assert captured_kwargs[0]["text_color"] == ""
+
+    def test_all_params_combined(self, tmp_path):
+        """All new params should work together."""
+        audio_dir, state = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+
+        captured_kwargs = []
+
+        def mock_gen_sampler(**kwargs):
+            captured_kwargs.append(kwargs)
+            output_path = kwargs["output_path"]
+            output_path.parent.mkdir(exist_ok=True)
+            output_path.write_bytes(b"0" * 1024)
+            return True
+
+        with patch.object(server, "cache", mock_cache), \
+             patch.object(server, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_album_sampler.generate_album_sampler",
+                   side_effect=mock_gen_sampler):
+            _run(server.generate_album_sampler(
+                "test-album",
+                style="circular",
+                color_hex="#FF0000",
+                glow=1.0,
+                text_color="#00FF00",
+            ))
+
+        assert captured_kwargs[0]["style"] == "circular"
+        assert captured_kwargs[0]["color_hex"] == "#FF0000"
+        assert captured_kwargs[0]["glow"] == 1.0
+        assert captured_kwargs[0]["text_color"] == "#00FF00"
+
+
 class TestDepCheckersComprehensive:
     """Additional tests for dependency checker edge cases."""
 
