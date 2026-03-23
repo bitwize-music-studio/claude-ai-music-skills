@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.76.0] - 2026-03-23
+
 ### Added
 - **`color_hex` parameter** for `generate_promo_videos` and `generate_album_sampler` — manually set wave color (e.g. `"#C9A96E"`) instead of auto-extracting from artwork (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#76](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/76))
 - **`glow` parameter** for both tools — control glow intensity from 0.0 (none) to 1.0 (full), default 0.6; replaces hardcoded 3-layer screen blend (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#76](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/76))
