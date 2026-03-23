@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Multi-platform AI art prompts** — Album art director now asks which AI art platform to use (Midjourney, Leonardo.ai, DALL-E, Stable Diffusion) and generates platform-specific prompts with appropriate format, negative prompts, and model/preset recommendations
+- **Leonardo.ai support** — Natural language prompts with separate negative prompt field, model selection (Phoenix, Kino XL), and preset recommendations
+- **Platform comparison table** — Quick reference for choosing the right AI art generator
+- **Platform-specific tips** — Refinement keywords and best practices per platform
+
 ## [0.71.0] - 2026-03-21
 
 ### Added

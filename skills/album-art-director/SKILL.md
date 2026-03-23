@@ -18,8 +18,9 @@ allowed-tools:
 When invoked:
 1. Read album concept, tracklist, and themes
 2. Design visual concept with color palette, composition, style
-3. Generate AI art prompts (for Midjourney, DALL-E, etc.)
-4. Document in album's art section
+3. Ask user which AI art platform they use (see [Platform Selection](#platform-selection))
+4. Generate platform-specific AI art prompts
+5. Document in album's art section
 
 ---
 
@@ -132,6 +133,32 @@ Check for custom album art preferences:
 
 **Output**: 2-3 sentence concept description
 
+### Step 1b: Platform Selection
+
+**Before building prompts, ask the user which AI art platform they use.** Different platforms need fundamentally different prompt styles.
+
+Present this choice:
+
+> **Which AI art platform do you use?**
+>
+> 1. **Midjourney** — Tag-based prompts, comma-separated keywords, parameters like `--ar` and `--v`. Best for: stylized, artistic results with strong composition sense.
+> 2. **Leonardo.ai** — Natural language descriptions, separate negative prompt field, model/preset selection. Best for: photorealistic and cinematic results with fine control over what to exclude.
+> 3. **DALL-E** — Conversational, sentence-based prompts, no negative prompts. Best for: literal interpretations and beginners.
+> 4. **Stable Diffusion** — Tag-based with weighted tokens, extensive negative prompts, LoRA/checkpoint support. Best for: maximum control, local generation, open source.
+> 5. **Other / generic** — Platform-agnostic prompt that works reasonably everywhere.
+
+**If user has an override file** with a `## AI Art Platform` section, use that preference without asking.
+
+**Override file addition** (`{overrides}/album-art-preferences.md`):
+```markdown
+## AI Art Platform
+- Platform: Leonardo.ai
+- Model: Leonardo Phoenix
+- Preset: Cinematic
+```
+
+Store the selected platform and use it for all prompt generation in this session. See [prompt-examples.md](prompt-examples.md) for platform-specific prompt formats.
+
 ### Step 2: Visual Reference
 
 **Gather inspiration**:
@@ -154,7 +181,7 @@ Check for custom album art preferences:
 
 ### Step 4: Prompt Construction
 
-**Anatomy of a good AI art prompt**:
+**Anatomy of a good AI art prompt** (all platforms):
 1. **Subject** (what's in the image)
 2. **Style** (artistic approach)
 3. **Mood/Lighting** (atmosphere)
@@ -162,13 +189,50 @@ Check for custom album art preferences:
 5. **Composition** (framing, angle)
 6. **Technical Details** (quality, resolution)
 
-**Template**:
+**Build the prompt for the selected platform:**
+
+#### Midjourney Format
+Comma-separated tags with parameters. Concise, keyword-driven.
 ```
 [Subject], [style], [mood/lighting], [color palette], [composition],
-[technical details], album cover art
+[technical details], album cover art --ar 1:1 --v 6
 ```
 
-See [prompt-examples.md](prompt-examples.md) for complete examples.
+#### Leonardo.ai Format
+Natural language description as the main prompt. Separate negative prompt for exclusions. Select model and preset.
+```
+Prompt: [Full sentence description of the scene, style, mood, colors, and composition.
+         Write as you would describe the image to another person. Be specific but natural.]
+
+Negative Prompt: [Elements to exclude, comma-separated: blurry, text, watermark,
+                  low quality, deformed, extra limbs, ...]
+
+Model: Leonardo Phoenix (or Leonardo Kino XL for cinematic)
+Preset: Cinematic / Dynamic / Photography (match the concept)
+Aspect Ratio: 1:1
+```
+
+#### DALL-E Format
+Conversational, sentence-based. No negative prompts — state what you want, not what to avoid.
+```
+Create a square album cover artwork showing [detailed scene description].
+The style should be [artistic approach] with [mood/lighting].
+Use [color palette] colors. Frame the composition [composition details].
+```
+
+#### Stable Diffusion Format
+Tag-based with weighted tokens. Extensive negative prompt.
+```
+Prompt: [subject], [style], [mood], [colors], [composition],
+        (album cover art:1.2), (high quality:1.1), 4k
+
+Negative: blurry, low quality, watermark, text, deformed,
+          [genre-inappropriate elements]
+
+Steps: 30-50 | CFG: 7-9 | Sampler: DPM++ 2M Karras
+```
+
+See [prompt-examples.md](prompt-examples.md) for complete examples per platform.
 
 ### Step 5: Iteration Strategy
 

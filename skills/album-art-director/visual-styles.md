@@ -149,21 +149,44 @@ Reference tables for album art visual direction.
 
 ## AI Art Platforms
 
-*Note: AI art platforms evolve rapidly. These are examples - capabilities and recommendations may change.*
+*Note: AI art platforms evolve rapidly. Capabilities change frequently.*
 
-**Midjourney** (Discord-based):
-- Best for artistic, stylized results
-- Strong with composition and mood
+| Platform | Prompt Style | Strengths | Best For |
+|----------|-------------|-----------|----------|
+| **Midjourney** | Tag-based, comma-separated | Artistic composition, stylized results | Stylized album art, abstract concepts |
+| **Leonardo.ai** | Natural language sentences | Photorealism, cinematic quality, fine control | Photorealistic covers, cinematic scenes |
+| **DALL-E** | Conversational sentences | Ease of use, text rendering | Beginners, text-heavy designs |
+| **Stable Diffusion** | Weighted tags + extensive negatives | Maximum control, local/free, LoRA support | Technical users, batch generation |
+
+### Midjourney
+- Discord-based, subscription required
 - Prompt format: `/imagine [prompt] --ar 1:1 --v 6`
+- Strong artistic interpretation — sometimes adds creative elements beyond the prompt
+- `--style raw` for more literal, less stylized results
 
-**DALL-E** (ChatGPT/API):
-- Good for photorealistic and literal interpretations
-- Easier for beginners
-- Handles text better than some alternatives
+### Leonardo.ai
+- Web-based, free tier available
+- **Separate prompt and negative prompt fields** — key differentiator from Midjourney
+- Multiple models: **Phoenix** (versatile), **Kino XL** (cinematic), **SDXL** (stable diffusion based)
+- Presets (Cinematic, Dynamic, Photography) significantly affect output
+- Alchemy mode for higher quality at the cost of generation credits
+- More predictable and controllable than Midjourney — natural language prompts iterate faster
 
-**Stable Diffusion** (Local/Web):
-- Most control and customization
-- Steeper learning curve
-- Free and open source
+### DALL-E
+- Integrated in ChatGPT, API available
+- Conversational prompts — describe what you want in plain English
+- No negative prompt support — state what you want, not what to avoid
+- Better text rendering in images than most alternatives
 
-**General Recommendation**: Look for platforms that produce consistent, professional-quality results with strong composition sense.
+### Stable Diffusion
+- Open source, local or cloud deployment (ComfyUI / Automatic1111)
+- LoRA models for specific artistic styles
+- Most control via CFG scale, samplers, schedulers
+- Steeper learning curve but maximum flexibility
+
+### Choosing a Platform
+
+- **Midjourney**: Maximum artistic quality, less control. Good default for stylized art.
+- **Leonardo.ai**: Photorealistic/cinematic with precise include/exclude control. Natural language iteration.
+- **DALL-E**: Lowest barrier to entry. Best text rendering.
+- **Stable Diffusion**: Full control, local generation, model fine-tuning.
