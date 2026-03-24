@@ -11,7 +11,7 @@ Glob: config/config.example.yaml
 
 ### TEST: config.example.yaml is valid YAML
 ```bash
-python3 -c "import yaml; yaml.safe_load(open('config/config.example.yaml'))"
+~/.bitwize-music/venv/bin/python3 -c "import yaml; yaml.safe_load(open('${CLAUDE_PLUGIN_ROOT}/config/config.example.yaml'))"
 ```
 
 ### TEST: config.example.yaml has all required sections
