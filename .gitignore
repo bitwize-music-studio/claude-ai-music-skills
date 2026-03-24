@@ -1,5 +1,6 @@
 # User content (private)
-artists/
+/artists/
+!genres/**/artists/
 research/
 IDEAS.md
 
