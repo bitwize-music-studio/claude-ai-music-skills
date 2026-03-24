@@ -353,6 +353,24 @@ genres:
     cut_highmid: -1.5
     cut_highs: 0
 
+  # === Children's / Family ===
+  childrens-music:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  childrens:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  kinderlieder:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  lullaby:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
   # === Legacy aliases ===
   indie:
     target_lufs: -14.0
