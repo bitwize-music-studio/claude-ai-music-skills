@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.78.1] - 2026-03-24
+
+### Added
+- **German pronunciation section in Suno pronunciation guide** — documents vowel length fixes (single → double vowel for long sounds, e.g. `juchhe` → `juchee`), umlaut handling, and German interjection pronunciation table (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#79](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/79))
+
 ## [0.78.0] - 2026-03-24
 
 ### Added
