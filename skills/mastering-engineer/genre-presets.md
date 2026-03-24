@@ -141,6 +141,20 @@ Detailed mastering settings by genre.
 - Dynamic range wider than pop — quiet passages stay quiet
 - Nouvelle chanson with electronic elements can target -14 LUFS; traditional acoustic chanson sits at -15 to -16
 
+### Children's Music
+**LUFS target**: -14 LUFS (lullabies: -16 LUFS)
+**Dynamics**: Light compression, consistent volume critical for playback in cars and classrooms
+**EQ focus**: Vocal clarity (2-4 kHz), warmth (200-500 Hz), gentle high-mid cut to avoid harshness on small speakers
+**MCP command**: `master_audio(album_slug, genre="childrens-music")`
+
+**Characteristics**:
+- Vocals must be clear, warm, and front-center at all times
+- Avoid harsh sibilance — small ears are sensitive to high frequencies
+- Lullabies target -16 LUFS with minimal compression for gentle dynamics
+- Singalong/action songs can sit at -14 LUFS with moderate compression
+- Low dynamic range preferred — avoid sudden volume jumps (safety for children's playback)
+- Ukulele and xylophone brightness tamed without losing sparkle
+
 ---
 
 ## Problem-Solving
