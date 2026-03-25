@@ -48,7 +48,7 @@ boto3==1.35.76
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
 # =============================================================================
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
 
 # =============================================================================
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
