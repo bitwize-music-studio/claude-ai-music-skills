@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-03-25
+
+### Added
+- **Rilo Kiley artist deep-dive** — comprehensive artist reference for indie-rock genre covering discography, production techniques, and style characteristics
+
+### Fixed
+- **`line` style ignores `color_hex` and `glow` parameters** — was hardcoded to `colors=white` with no glow support; now uses custom color and glow like all other styles (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#84](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/84))
+- **CI: ignore unfixed pygments CVE-2026-4539 in pip-audit** — added exclusion for upstream vulnerability with no available fix
+
 ## [0.78.1] - 2026-03-24
 
 ### Added
