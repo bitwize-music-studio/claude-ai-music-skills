@@ -32,7 +32,7 @@ noisereduce==3.0.3
 # PROMO VIDEOS (required for /bitwize-music:promo-director)
 # =============================================================================
 pillow==12.1.1
-librosa==0.10.2
+librosa==0.11.0
 
 # =============================================================================
 # SHEET MUSIC (required for /bitwize-music:sheet-music-publisher)
