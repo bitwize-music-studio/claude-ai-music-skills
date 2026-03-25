@@ -99,3 +99,28 @@ jobs:
           echo "2. Add new [Unreleased] section above it"
           echo "3. Commit and push to main"
         fi
+
+    - name: Bump develop to next dev version
+      if: steps.check_tag.outputs.exists == 'false'
+      env:
+        VERSION: ${{ steps.version.outputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Calculate next dev version (bump minor, reset patch, add -dev)
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+        NEXT_MINOR=$((MINOR + 1))
+        DEV_VERSION="${MAJOR}.${NEXT_MINOR}.0-dev"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git fetch origin develop
+        git checkout develop
+
+        # Update version files
+        jq ".version = \"$DEV_VERSION\"" .claude-plugin/plugin.json > /tmp/plugin.json && mv /tmp/plugin.json .claude-plugin/plugin.json
+        jq ".plugins[0].version = \"$DEV_VERSION\"" .claude-plugin/marketplace.json > /tmp/marketplace.json && mv /tmp/marketplace.json .claude-plugin/marketplace.json
+
+        git add .claude-plugin/plugin.json .claude-plugin/marketplace.json
+        git commit -m "chore: bump develop to $DEV_VERSION"
+        git push origin develop
+        echo "Bumped develop to $DEV_VERSION"

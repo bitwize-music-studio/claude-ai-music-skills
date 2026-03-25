@@ -5,6 +5,7 @@ Only activates when editing plugin.json or marketplace.json.
 """
 import json
 import os
+import subprocess
 import sys
 
 
@@ -44,6 +45,21 @@ def check_sync(data: dict) -> list[str]:
         marketplace_version = plugins[0].get("version", "")
 
     if plugin_version and marketplace_version and plugin_version != marketplace_version:
+        # If the other file is also modified in the working tree, this is
+        # a mid-edit pair (user updating both files sequentially). Skip.
+        try:
+            result = subprocess.run(
+                ["git", "diff", "--name-only"],
+                capture_output=True, text=True, timeout=5,
+                cwd=plugin_dir,
+            )
+            modified = set(result.stdout.strip().splitlines())
+            other_file = "marketplace.json" if file_path.endswith("plugin.json") else "plugin.json"
+            if other_file in modified or os.path.join(".claude-plugin", other_file) in modified:
+                return []
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+
         return [
             f"Version mismatch: plugin.json has '{plugin_version}' "
             f"but marketplace.json has '{marketplace_version}'. "

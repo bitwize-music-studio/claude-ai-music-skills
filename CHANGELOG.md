@@ -6,6 +6,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.79.4] - 2026-03-25
+
+### Fixed
+- **Dynamic version badge** — README badge now reads from GitHub releases, never needs manual updating
+- **Automated dev bump** — auto-release workflow bumps develop to next `-dev` version after each release
+- **Version sync hook false positives** — hook now detects sequential edits and skips mid-pair checks
+- **Dependabot grouping** — pip and GitHub Actions updates batched into single PRs instead of 10+ individual PRs
+
 ## [0.79.3] - 2026-03-25
 
 ### Changed
