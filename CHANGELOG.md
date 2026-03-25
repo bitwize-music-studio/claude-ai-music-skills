@@ -6,6 +6,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.79.2] - 2026-03-25
+
+### Changed
+- **Batch dependency update** — 11 pip packages and 3 GitHub Actions bumped to latest versions
+
+### Fixed
+- **pypdf CVE-2026-33699** — bumped pypdf 6.9.1→6.9.2 to resolve security vulnerability
+
 ## [0.79.1] - 2026-03-25
 
 ### Added

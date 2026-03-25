@@ -10,17 +10,17 @@
 # =============================================================================
 # MCP SERVER (required for plugin core functionality)
 # =============================================================================
-mcp[cli]==1.23.0
-pyyaml==6.0.2
+mcp[cli]==1.26.0
+pyyaml==6.0.3
 
 # =============================================================================
 # AUDIO MASTERING (required for /bitwize-music:mastering-engineer)
 # =============================================================================
 matchering==2.0.6
-pyloudnorm==0.1.1
-scipy==1.13.1
+pyloudnorm==0.2.0
+scipy==1.17.1
 numpy==1.26.4
-soundfile==0.12.1
+soundfile==0.13.1
 
 # =============================================================================
 # AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
@@ -32,26 +32,26 @@ noisereduce==3.0.3
 # PROMO VIDEOS (required for /bitwize-music:promo-director)
 # =============================================================================
 pillow==12.1.1
-librosa==0.10.2
+librosa==0.11.0
 
 # =============================================================================
 # SHEET MUSIC (required for /bitwize-music:sheet-music-publisher)
 # =============================================================================
-pypdf==6.9.1
-reportlab==4.2.5
+pypdf==6.9.2
+reportlab==4.4.10
 
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.35.76
+boto3==1.42.76
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
 # =============================================================================
-psycopg2-binary==2.9.10
+psycopg2-binary==2.9.11
 
 # =============================================================================
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================
-playwright==1.48.0
+playwright==1.58.0
