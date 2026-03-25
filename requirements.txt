@@ -20,7 +20,7 @@ matchering==2.0.6
 pyloudnorm==0.1.1
 scipy==1.13.1
 numpy==1.26.4
-soundfile==0.12.1
+soundfile==0.13.1
 
 # =============================================================================
 # AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
