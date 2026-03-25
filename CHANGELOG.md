@@ -6,6 +6,36 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.79.4] - 2026-03-25
+
+### Fixed
+- **Dynamic version badge** — README badge now reads from GitHub releases, never needs manual updating
+- **Automated dev bump** — auto-release workflow bumps develop to next `-dev` version after each release
+- **Version sync hook false positives** — hook now detects sequential edits and skips mid-pair checks
+- **Dependabot grouping** — pip and GitHub Actions updates batched into single PRs instead of 10+ individual PRs
+
+## [0.79.3] - 2026-03-25
+
+### Changed
+- **README reworked** — personal narrative opener, 77% shorter, architecture-focused; skills reference, troubleshooting, and configuration extracted to `docs/`
+
+### Fixed
+- **CI: version badge check skips `-dev` versions** — badge shows last release, dev branches no longer fail on mismatch
+- **CI: removed test count and skills badge checks** — badges removed from README, corresponding CI validations removed
+
+## [0.79.2] - 2026-03-25
+
+### Changed
+- **Batch dependency update** — 11 pip packages and 3 GitHub Actions bumped to latest versions
+
+### Fixed
+- **pypdf CVE-2026-33699** — bumped pypdf 6.9.1→6.9.2 to resolve security vulnerability
+
+## [0.79.1] - 2026-03-25
+
+### Added
+- **Dependabot configuration** — automated weekly dependency update PRs for pip packages and GitHub Actions version pins
+
 ## [0.79.0] - 2026-03-25
 
 ### Added
