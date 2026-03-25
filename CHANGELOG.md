@@ -6,6 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.79.3] - 2026-03-25
+
+### Changed
+- **README reworked** — personal narrative opener, 77% shorter, architecture-focused; skills reference, troubleshooting, and configuration extracted to `docs/`
+
+### Fixed
+- **CI: version badge check skips `-dev` versions** — badge shows last release, dev branches no longer fail on mismatch
+- **CI: removed test count and skills badge checks** — badges removed from README, corresponding CI validations removed
+
 ## [0.79.2] - 2026-03-25
 
 ### Changed
