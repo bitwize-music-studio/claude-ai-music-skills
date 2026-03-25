@@ -7,6 +7,7 @@ from pathlib import Path
 
 from handlers._shared import (
     _normalize_slug, _safe_json, _find_album_or_error, _derive_title_from_slug,
+    _find_track_or_error,
 )
 from handlers import _shared
 
@@ -196,29 +197,14 @@ async def rename_track(
         return error
 
     tracks = album.get("tracks", {})
-    normalized_old = _normalize_slug(old_track_slug)
     normalized_new = _normalize_slug(new_track_slug)
 
-    if normalized_old == normalized_new:
-        return _safe_json({"error": "Old and new track slugs are the same after normalization."})
+    matched_slug, track_data, error = _find_track_or_error(tracks, old_track_slug, album_slug)
+    if error:
+        return error
 
-    # Find old track (exact or prefix match)
-    track_data = tracks.get(normalized_old)
-    matched_slug = normalized_old
-    if not track_data:
-        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_old)}
-        if len(prefix_matches) == 1:
-            matched_slug = next(iter(prefix_matches))
-            track_data = prefix_matches[matched_slug]
-        elif len(prefix_matches) > 1:
-            return _safe_json({
-                "error": f"Multiple tracks match '{old_track_slug}': {', '.join(prefix_matches.keys())}",
-            })
-        else:
-            return _safe_json({
-                "error": f"Track '{old_track_slug}' not found in album '{album_slug}'.",
-                "available_tracks": list(tracks.keys()),
-            })
+    if _normalize_slug(old_track_slug) == normalized_new:
+        return _safe_json({"error": "Old and new track slugs are the same after normalization."})
 
     # Check new slug doesn't already exist
     if normalized_new in tracks:
@@ -286,7 +272,7 @@ async def rename_track(
         except Exception:
             pass
         tracks[normalized_new] = old_track_data
-        state = _shared.cache._state  # same object that album/tracks reference into
+        state = _shared.cache.get_state_ref()  # same object that album/tracks reference into
         if state:
             write_state(state)
     except Exception as e:

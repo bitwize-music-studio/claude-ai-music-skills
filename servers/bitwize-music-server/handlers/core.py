@@ -11,6 +11,7 @@ from tools.state.parsers import parse_track_file
 from handlers._shared import (
     _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
     _SECTION_NAMES, _CODE_BLOCK_SECTIONS,
+    _find_track_or_error,
     TRACK_NOT_STARTED,
     TRACK_IN_PROGRESS, TRACK_GENERATED, TRACK_FINAL,
     TRACK_COMPLETED_STATUSES, STATUS_UNKNOWN,
@@ -779,27 +780,9 @@ async def extract_section(album_slug: str, track_slug: str, section: str) -> str
         })
 
     tracks = album.get("tracks", {})
-    normalized_track = _normalize_slug(track_slug)
-
-    # Exact or prefix match
-    track_data = tracks.get(normalized_track)
-    matched_slug = normalized_track
-    if not track_data:
-        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
-        if len(prefix_matches) == 1:
-            matched_slug = next(iter(prefix_matches))
-            track_data = prefix_matches[matched_slug]
-        elif len(prefix_matches) > 1:
-            return _safe_json({
-                "found": False,
-                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
-            })
-        else:
-            return _safe_json({
-                "found": False,
-                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
-                "available_tracks": list(tracks.keys()),
-            })
+    matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
+    if error:
+        return error
 
     track_path = track_data.get("path", "")
     if not track_path:
@@ -902,26 +885,9 @@ async def update_track_field(
         })
 
     tracks = album.get("tracks", {})
-    normalized_track = _normalize_slug(track_slug)
-
-    # Exact or prefix match
-    track_data = tracks.get(normalized_track)
-    matched_slug = normalized_track
-    if not track_data:
-        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
-        if len(prefix_matches) == 1:
-            matched_slug = next(iter(prefix_matches))
-            track_data = prefix_matches[matched_slug]
-        elif len(prefix_matches) > 1:
-            return _safe_json({
-                "found": False,
-                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
-            })
-        else:
-            return _safe_json({
-                "found": False,
-                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
-            })
+    matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
+    if error:
+        return error
 
     # Validate status transition before any file I/O
     if field_key == "status":

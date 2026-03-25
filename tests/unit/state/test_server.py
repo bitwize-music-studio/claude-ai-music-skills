@@ -260,6 +260,9 @@ class MockStateCache:
     def get_state(self):
         return self._state
 
+    def get_state_ref(self):
+        return self._state or {}
+
     def rebuild(self):
         self._rebuild_called = True
         return self._state

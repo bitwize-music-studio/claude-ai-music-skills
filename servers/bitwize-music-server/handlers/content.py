@@ -3,7 +3,10 @@
 import json
 from pathlib import Path
 
-from handlers._shared import _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block
+from handlers._shared import (
+    _safe_json, _extract_markdown_section, _extract_code_block,
+    _find_album_or_error, _find_track_or_error,
+)
 from handlers import _shared
 
 
@@ -157,39 +160,14 @@ async def format_for_clipboard(
         })
 
     # Resolve track file
-    state = _shared.cache.get_state()
-    albums = state.get("albums", {})
-    normalized_album = _normalize_slug(album_slug)
-    album = albums.get(normalized_album)
-
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-            "available_albums": list(albums.keys()),
-        })
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     tracks = album.get("tracks", {})
-    normalized_track = _normalize_slug(track_slug)
-    track_data = tracks.get(normalized_track)
-    matched_slug = normalized_track
-
-    if not track_data:
-        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
-        if len(prefix_matches) == 1:
-            matched_slug = next(iter(prefix_matches))
-            track_data = prefix_matches[matched_slug]
-        elif len(prefix_matches) > 1:
-            return _safe_json({
-                "found": False,
-                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
-            })
-        else:
-            return _safe_json({
-                "found": False,
-                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
-                "available_tracks": list(tracks.keys()),
-            })
+    matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
+    if error:
+        return error
 
     track_path = track_data.get("path", "")
     if not track_path:

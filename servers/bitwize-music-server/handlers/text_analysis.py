@@ -8,8 +8,10 @@ from typing import Optional
 
 from handlers._shared import (
     _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
+    _find_album_or_error,
     _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS,
     _MARKDOWN_LINK_RE,
+    _find_track_or_error,
 )
 from handlers import _shared
 
@@ -259,37 +261,14 @@ async def check_pronunciation_enforcement(
                    all_applied: bool, unapplied_count: int}
     """
     # Resolve track file
-    state = _shared.cache.get_state()
-    albums = state.get("albums", {})
-    normalized_album = _normalize_slug(album_slug)
-    album = albums.get(normalized_album)
-
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-        })
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     tracks = album.get("tracks", {})
-    normalized_track = _normalize_slug(track_slug)
-    track_data = tracks.get(normalized_track)
-    matched_slug = normalized_track
-
-    if not track_data:
-        prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized_track)}
-        if len(prefix_matches) == 1:
-            matched_slug = next(iter(prefix_matches))
-            track_data = prefix_matches[matched_slug]
-        elif len(prefix_matches) > 1:
-            return _safe_json({
-                "found": False,
-                "error": f"Multiple tracks match '{track_slug}': {', '.join(prefix_matches.keys())}",
-            })
-        else:
-            return _safe_json({
-                "found": False,
-                "error": f"Track '{track_slug}' not found in album '{album_slug}'",
-            })
+    matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
+    if error:
+        return error
 
     track_path = track_data.get("path", "")
     if not track_path:
@@ -539,17 +518,9 @@ async def extract_links(
     Returns:
         JSON with {links: [{text, url, line_number}], count: int}
     """
-    state = _shared.cache.get_state()
-    albums = state.get("albums", {})
-    normalized = _normalize_slug(album_slug)
-    album = albums.get(normalized)
-
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-            "available_albums": list(albums.keys()),
-        })
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     album_path = album.get("path", "")
 
@@ -685,44 +656,18 @@ async def get_lyrics_stats(
     Returns:
         JSON with per-track stats and genre targets
     """
-    state = _shared.cache.get_state()
-    albums = state.get("albums", {})
-    normalized_album = _normalize_slug(album_slug)
-    album = albums.get(normalized_album)
-
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-            "available_albums": list(albums.keys()),
-        })
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     genre = album.get("genre", "").lower()
     all_tracks = album.get("tracks", {})
 
     # Determine which tracks
     if track_slug:
-        normalized_track = _normalize_slug(track_slug)
-        track_data = all_tracks.get(normalized_track)
-        matched_slug = normalized_track
-
-        if not track_data:
-            prefix_matches = {s: d for s, d in all_tracks.items()
-                             if s.startswith(normalized_track)}
-            if len(prefix_matches) == 1:
-                matched_slug = next(iter(prefix_matches))
-                track_data = prefix_matches[matched_slug]
-            elif len(prefix_matches) > 1:
-                return _safe_json({
-                    "found": False,
-                    "error": f"Multiple tracks match '{track_slug}': "
-                             f"{', '.join(prefix_matches.keys())}",
-                })
-            else:
-                return _safe_json({
-                    "found": False,
-                    "error": f"Track '{track_slug}' not found in album '{album_slug}'",
-                })
+        matched_slug, track_data, error = _find_track_or_error(all_tracks, track_slug, album_slug)
+        if error:
+            return error
         tracks_to_check = {matched_slug: track_data}
     else:
         tracks_to_check = all_tracks
@@ -843,17 +788,9 @@ async def check_cross_track_repetition(
     if min_tracks < 2:
         min_tracks = 2
 
-    state = _shared.cache.get_state()
-    albums = state.get("albums", {})
-    normalized_album = _normalize_slug(album_slug)
-    album = albums.get(normalized_album)
-
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-            "available_albums": list(albums.keys()),
-        })
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     all_tracks = album.get("tracks", {})
     if not all_tracks:

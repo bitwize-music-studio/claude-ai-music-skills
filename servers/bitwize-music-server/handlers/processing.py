@@ -2154,7 +2154,7 @@ async def master_album(
     # Use the in-memory state directly rather than re-fetching via
     # cache.get_state(), which could reload from disk and lose any
     # concurrent modifications made during the lengthy processing stages.
-    state = _shared.cache._state or {}
+    state = _shared.cache.get_state_ref()
     albums = state.get("albums", {})
     normalized_album = _normalize_slug(album_slug)
     album_data = albums.get(normalized_album)

@@ -283,6 +283,16 @@ class StateCache:
         except OSError:
             pass
 
+    def get_state_ref(self) -> dict:
+        """Get a direct reference to the current in-memory state dict.
+
+        Unlike get_state(), this does NOT check for staleness or reload from
+        disk. Use only when you need to mutate the state object that album/track
+        references point into (e.g., after writing a file and updating the cache
+        in-place).
+        """
+        return self._state or {}
+
 
 # Global cache instance
 cache = StateCache()

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from handlers._shared import (
     _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
+    _find_album_or_error,
     _SECTION_NAMES, _find_wav_source_dir,
     _CODE_BLOCK_SECTIONS,
     _VALID_GENRES, _GENRE_ALIASES,
@@ -140,19 +141,13 @@ async def validate_album_structure(
     """
     state = _shared.cache.get_state()
     config = state.get("config", {})
-    albums = state.get("albums", {})
 
     if not config:
         return _safe_json({"error": "No config in state. Run rebuild_state first."})
 
-    normalized = _normalize_slug(album_slug)
-    album = albums.get(normalized)
-    if not album:
-        return _safe_json({
-            "found": False,
-            "error": f"Album '{album_slug}' not found",
-            "available_albums": list(albums.keys()),
-        })
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
 
     # Parse check types
     check_set = set()

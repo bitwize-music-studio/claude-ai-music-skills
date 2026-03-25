@@ -385,7 +385,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
     try:
         parsed = parse_album_readme(readme_path)
         album["status"] = parsed.get("status", status)
-        state = _shared.cache._state  # same object album references into
+        state = _shared.cache.get_state_ref()  # same object album references into
         if state:
             write_state(state)
     except Exception as e:

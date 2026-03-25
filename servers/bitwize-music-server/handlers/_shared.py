@@ -264,6 +264,36 @@ def _find_album_or_error(album_slug: str) -> tuple:
     return normalized, album, None
 
 
+def _find_track_or_error(tracks: dict, track_slug: str, album_slug: str = "") -> tuple:
+    """Find track in tracks dict by exact match or prefix match.
+
+    If track found: (matched_slug, track_data, None)
+    If not found: (slug, None, error_json_string)
+    """
+    normalized = _normalize_slug(track_slug)
+    track_data = tracks.get(normalized)
+    if track_data:
+        return normalized, track_data, None
+
+    # Prefix match
+    prefix_matches = {s: d for s, d in tracks.items() if s.startswith(normalized)}
+    if len(prefix_matches) == 1:
+        matched_slug = next(iter(prefix_matches))
+        return matched_slug, prefix_matches[matched_slug], None
+    elif len(prefix_matches) > 1:
+        return normalized, None, _safe_json({
+            "found": False,
+            "error": f"Multiple tracks match '{track_slug}': {', '.join(sorted(prefix_matches.keys()))}",
+        })
+    else:
+        ctx = f" in album '{album_slug}'" if album_slug else ""
+        return normalized, None, _safe_json({
+            "found": False,
+            "error": f"Track '{track_slug}' not found{ctx}.",
+            "available_tracks": list(tracks.keys()),
+        })
+
+
 def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple:
     """Resolve album slug to audio directory path.
 
