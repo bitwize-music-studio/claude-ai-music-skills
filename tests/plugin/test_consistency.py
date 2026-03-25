@@ -17,7 +17,10 @@ class TestSkillCount:
             pytest.skip("README.md not found")
 
         readme_content = readme_path.read_text()
-        match = re.search(r'\*\*(\d+)\s+specialized skills\*\*', readme_content)
+        match = (
+            re.search(r'\*\*(\d+)\s+specialized skills\*\*', readme_content)
+            or re.search(r'Skill System\s*\((\d+)\s+Skills\)', readme_content)
+        )
         if not match:
             pytest.skip("Skill count pattern not found in README")
 
