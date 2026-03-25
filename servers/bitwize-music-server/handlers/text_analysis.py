@@ -1,6 +1,5 @@
 """Text analysis tools — homographs, artist names, pronunciation, explicit content, lyrics stats."""
 
-import json
 import logging
 import re
 import threading

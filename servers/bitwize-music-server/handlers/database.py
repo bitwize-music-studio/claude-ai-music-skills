@@ -1,11 +1,9 @@
 """Database tools — tweet/promo management via PostgreSQL."""
 
-import json
 import logging
-from pathlib import Path
 from typing import Optional
 
-from handlers._shared import _normalize_slug, _safe_json, _find_album_or_error, _STREAMING_PLATFORMS
+from handlers._shared import _normalize_slug, _safe_json, _find_album_or_error
 from handlers import _shared
 
 logger = logging.getLogger("bitwize-music-state")

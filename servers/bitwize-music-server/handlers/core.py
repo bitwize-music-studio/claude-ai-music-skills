@@ -3,22 +3,19 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from tools.state.indexer import (
-    build_state, read_config, read_state, write_state,
-    CURRENT_VERSION, STATE_FILE, CONFIG_FILE,
-)
-from tools.state.parsers import parse_album_readme, parse_track_file
+from tools.state.indexer import write_state
+from tools.state.parsers import parse_track_file
 
 from handlers._shared import (
     _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
     _SECTION_NAMES,
-    TRACK_NOT_STARTED, TRACK_SOURCES_PENDING, TRACK_SOURCES_VERIFIED,
+    TRACK_NOT_STARTED,
     TRACK_IN_PROGRESS, TRACK_GENERATED, TRACK_FINAL,
     TRACK_COMPLETED_STATUSES, STATUS_UNKNOWN,
-    ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
-    ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
+    ALBUM_CONCEPT,
+    ALBUM_COMPLETE, ALBUM_RELEASED,
     _MARKDOWN_LINK_RE,
 )
 from handlers import _shared

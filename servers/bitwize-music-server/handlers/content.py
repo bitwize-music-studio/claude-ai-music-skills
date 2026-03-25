@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from handlers._shared import _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block
 from handlers import _shared
