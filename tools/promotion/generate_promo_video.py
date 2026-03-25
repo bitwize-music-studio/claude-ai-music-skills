@@ -272,9 +272,14 @@ def generate_waveform_video(
         viz_filter = f"""[0:a]showfreqs=s={WIDTH}x{viz_height}:mode=line:ascale=sqrt:fscale=log:
              colors=white:win_size=2048:overlap=0.5[wave]"""
     elif style == "line":
-        # Classic waveform - highly reactive, centered
-        viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:
-             colors=white:rate={FPS}:split_channels=0[wave]"""
+        # Classic waveform - single centered line
+        if glow > 0:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}:split_channels=0[wave_raw];
+                 [wave_raw]split[w1][w2];
+                 [w2]gblur=sigma={glow_s:.0f}[wave_blur];
+                 [w1][wave_blur]blend=all_mode=screen[wave]"""
+        else:
+            viz_filter = f"""[0:a]showwaves=s={WIDTH}x{viz_height}:mode=cline:scale=sqrt:colors={color2}:rate={FPS}:split_channels=0[wave]"""
     else:  # circular
         # Audio vectorscope - creates wild circular patterns
         viz_filter = f"""[0:a]avectorscope=s=600x600:mode=lissajous_xy:
