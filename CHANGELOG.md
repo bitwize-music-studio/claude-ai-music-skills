@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`line` style ignores `color_hex` and `glow` parameters** — was hardcoded to `colors=white` with no glow support; now uses custom color and glow like all other styles
+
 ## [0.78.1] - 2026-03-24
 
 ### Added
