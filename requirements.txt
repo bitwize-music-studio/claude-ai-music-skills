@@ -54,4 +54,4 @@ psycopg2-binary==2.9.10
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================
-playwright==1.48.0
+playwright==1.58.0
