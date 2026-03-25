@@ -17,7 +17,7 @@ pyyaml==6.0.2
 # AUDIO MASTERING (required for /bitwize-music:mastering-engineer)
 # =============================================================================
 matchering==2.0.6
-pyloudnorm==0.1.1
+pyloudnorm==0.2.0
 scipy==1.13.1
 numpy==1.26.4
 soundfile==0.12.1
