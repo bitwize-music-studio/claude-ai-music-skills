@@ -6,6 +6,25 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.80.0] - 2026-03-26
+
+### Added
+- **Modularized MCP server** — broke monolithic `server.py` (10,260 lines, 76 tools) into 16 focused handler modules under `handlers/`, reducing `server.py` to ~480 lines of orchestration ([#85](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/85), closes [#81](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/81))
+- **`_find_track_or_error` shared helper** — deduplicated track lookup boilerplate across 8 call sites in 5 handler modules
+- **`StateCache.get_state_ref()`** — public API for in-place state mutation, replacing 3 direct `cache._state` accesses
+- **Re-export completeness test** — catches missing re-exports when new tools are added to handler modules
+
+### Changed
+- **MCP server architecture** — 79 tools organized across 16 domain modules: core, content, text_analysis, lyrics_analysis, album_ops, gates, streaming, skills, status, promo, health, ideas, rename, processing, database, maintenance
+- **`verify_streaming_urls` runs concurrently** — HTTP checks now use `asyncio.gather` (worst-case latency ~50s → ~10s)
+
+### Fixed
+- **State cache stale after `create_album_structure`** — new albums are now immediately available to subsequent tools like `create_track`
+- **Shadowed `import re as _re`** in processing.py and _shared.py — now uses module-level `re`
+- **19 unused imports** removed across handler modules (F401 lint violations from monolith extraction)
+- **Duplicated constants** — `_STREAMING_PLACEHOLDER_MARKERS`, `_MARKDOWN_LINK_RE`, and `_CODE_BLOCK_SECTIONS` deduplicated into `_shared.py`
+- **Dead code** — removed unused `_words_rhyme` function from lyrics_analysis.py
+
 ## [0.79.4] - 2026-03-25
 
 ### Fixed
