@@ -86,6 +86,18 @@ def _import_server():
 # Import once at module level. This also validates that the server can load.
 server = _import_server()
 
+# Handler modules for mock targeting (attributes moved from server.py during modularization)
+from handlers import text_analysis as _text_analysis_mod
+from handlers import processing as _processing_mod
+from handlers import status as _status_mod
+from handlers import health as _health_mod
+from handlers import ideas as _ideas_mod
+from handlers import _shared as _shared_mod
+
+# For lazy-imported functions that need patching at their source module
+import tools.state.parsers as _parsers_mod
+from handlers import core as _core_mod
+
 
 # ---------------------------------------------------------------------------
 # Sample state used by most tests
@@ -187,6 +199,53 @@ def _fresh_state():
 
 
 # ---------------------------------------------------------------------------
+# Re-export completeness — ensure server.py re-exports all registered tools
+# ---------------------------------------------------------------------------
+
+
+class TestReExportCompleteness:
+    """Verify that every tool function registered by handler modules is
+    re-exported from server.py, so tests using ``server.X()`` don't silently
+    break when new tools are added."""
+
+    def test_all_registered_tools_are_reexported(self):
+        """Every function registered via handler register() should be
+        accessible as an attribute on the server module."""
+        from handlers import (
+            core, content, text_analysis, lyrics_analysis, album_ops,
+            gates, streaming, skills, status, promo, health, ideas, rename,
+            processing, database, maintenance,
+        )
+
+        # Collect all tool functions by calling register() with a recording mcp
+        registered_names = set()
+
+        class _Recorder:
+            def tool(self_inner):
+                def decorator(fn):
+                    registered_names.add(fn.__name__)
+                    return fn
+                return decorator
+
+        recorder = _Recorder()
+        for mod in [
+            core, content, text_analysis, lyrics_analysis, album_ops,
+            gates, streaming, skills, status, promo, health, ideas, rename,
+            processing, database, maintenance,
+        ]:
+            mod.register(recorder)
+
+        missing = [
+            name for name in registered_names
+            if not hasattr(server, name)
+        ]
+        assert not missing, (
+            f"Handler tool(s) not re-exported from server.py: {sorted(missing)}. "
+            f"Add them to the re-exports block in server.py."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Mock StateCache that returns controlled state without touching disk
 # ---------------------------------------------------------------------------
 
@@ -200,6 +259,9 @@ class MockStateCache:
 
     def get_state(self):
         return self._state
+
+    def get_state_ref(self):
+        return self._state or {}
 
     def rebuild(self):
         self._rebuild_called = True
@@ -338,7 +400,7 @@ class TestSafeJson:
                 raise TypeError("test serialization failure")
             return original_dumps(*args, **kwargs)
 
-        with patch.object(server.json, "dumps", side_effect=patched_dumps):
+        with patch.object(_shared_mod.json, "dumps", side_effect=patched_dumps):
             result = json.loads(server._safe_json({"key": "value"}))
         assert "error" in result
         assert "serialization failed" in result["error"].lower()
@@ -662,7 +724,7 @@ class TestFindAlbum:
 
     def test_exact_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("test-album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -671,7 +733,7 @@ class TestFindAlbum:
     def test_exact_match_with_spaces(self):
         """Spaces are normalized to hyphens for exact match."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("test album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -679,7 +741,7 @@ class TestFindAlbum:
     def test_exact_match_with_underscores(self):
         """Underscores are normalized to hyphens for exact match."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("test_album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -687,7 +749,7 @@ class TestFindAlbum:
     def test_exact_match_case_insensitive(self):
         """Mixed case is lowered for exact match."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("Test Album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -708,7 +770,7 @@ class TestFindAlbum:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("rock")))
         assert result["found"] is True
         assert result["slug"] == "cool-rock-anthem"
@@ -717,7 +779,7 @@ class TestFindAlbum:
         """Multiple substring matches returns error with list."""
         mock_cache = MockStateCache()
         # Both "test-album" and "another-album" contain "album"
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("album")))
         assert result["found"] is False
         assert "multiple_matches" in result
@@ -726,7 +788,7 @@ class TestFindAlbum:
     def test_no_match(self):
         """No matches returns error with available albums."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("nonexistent")))
         assert result["found"] is False
         assert "available_albums" in result
@@ -737,7 +799,7 @@ class TestFindAlbum:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("anything")))
         assert result["found"] is False
         assert "No albums found" in result["error"]
@@ -754,7 +816,7 @@ class TestListAlbums:
 
     def test_no_filter(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums()))
         assert result["count"] == 2
         slugs = [a["slug"] for a in result["albums"]]
@@ -763,20 +825,20 @@ class TestListAlbums:
 
     def test_status_filter_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums(status_filter="In Progress")))
         assert result["count"] == 1
         assert result["albums"][0]["slug"] == "test-album"
 
     def test_status_filter_case_insensitive(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums(status_filter="in progress")))
         assert result["count"] == 1
 
     def test_status_filter_no_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums(status_filter="Released")))
         assert result["count"] == 0
         assert result["albums"] == []
@@ -785,14 +847,14 @@ class TestListAlbums:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums()))
         assert result["count"] == 0
 
     def test_album_summary_fields(self):
         """Each album summary includes expected fields."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums()))
         album = next(a for a in result["albums"] if a["slug"] == "test-album")
         assert album["title"] == "Test Album"
@@ -812,7 +874,7 @@ class TestGetTrack:
 
     def test_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("test-album", "01-first-track")))
         assert result["found"] is True
         assert result["track"]["title"] == "First Track"
@@ -820,14 +882,14 @@ class TestGetTrack:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("nonexistent", "01-track")))
         assert result["found"] is False
         assert "available_albums" in result
 
     def test_track_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("test-album", "99-nonexistent")))
         assert result["found"] is False
         assert "available_tracks" in result
@@ -835,7 +897,7 @@ class TestGetTrack:
     def test_normalizes_input(self):
         """Slugs with spaces/underscores/caps are normalized."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("Test Album", "01 First Track")))
         assert result["found"] is True
         assert result["track"]["title"] == "First Track"
@@ -851,7 +913,7 @@ class TestListTracks:
 
     def test_found_with_sorted_tracks(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 2
@@ -862,7 +924,7 @@ class TestListTracks:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("nonexistent")))
         assert result["found"] is False
         assert "available_albums" in result
@@ -870,7 +932,7 @@ class TestListTracks:
     def test_track_fields(self):
         """Each track in list includes expected summary fields."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("test-album")))
         track = result["tracks"][0]
         assert "slug" in track
@@ -882,7 +944,7 @@ class TestListTracks:
 
     def test_normalizes_slug(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("Test Album")))
         assert result["found"] is True
 
@@ -897,7 +959,7 @@ class TestGetSession:
 
     def test_returns_session_data(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_session()))
         session = result["session"]
         assert session["last_album"] == "test-album"
@@ -909,7 +971,7 @@ class TestGetSession:
         state = _fresh_state()
         state["session"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_session()))
         assert result["session"] == {}
 
@@ -924,7 +986,7 @@ class TestUpdateSessionTool:
 
     def test_set_fields(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_session(
                 album="new-album", track="03-track", phase="Generating"
             )))
@@ -935,7 +997,7 @@ class TestUpdateSessionTool:
 
     def test_clear(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_session(clear=True)))
         session = result["session"]
         assert session["last_album"] is None
@@ -945,7 +1007,7 @@ class TestUpdateSessionTool:
     def test_empty_strings_treated_as_no_update(self):
         """Empty string args are converted to None (no update)."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # Empty strings should not overwrite existing values
             result = json.loads(_run(server.update_session(album="", track="")))
         session = result["session"]
@@ -963,7 +1025,7 @@ class TestRebuildStateTool:
 
     def test_success_summary(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert result["success"] is True
         assert result["albums"] == 2
@@ -976,7 +1038,7 @@ class TestRebuildStateTool:
                 return {"error": "Config not found at /path"}
 
         mock_cache = ErrorCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert "error" in result
         assert "Config not found" in result["error"]
@@ -992,7 +1054,7 @@ class TestGetConfig:
 
     def test_config_present(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_config()))
         config = result["config"]
         assert config["content_root"] == "/tmp/test"
@@ -1002,7 +1064,7 @@ class TestGetConfig:
         state = _fresh_state()
         state["config"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_config()))
         assert "error" in result
         assert "No config" in result["error"]
@@ -1011,7 +1073,7 @@ class TestGetConfig:
         """State has no 'config' key at all."""
         state = {"albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_config()))
         assert "error" in result
 
@@ -1073,7 +1135,7 @@ class TestGetIdeas:
 
     def test_no_filter(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_ideas()))
         assert result["total"] == 3
         assert result["counts"]["Pending"] == 2
@@ -1081,20 +1143,20 @@ class TestGetIdeas:
 
     def test_with_filter(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_ideas(status_filter="Pending")))
         assert result["total"] == 2
         assert all(i["status"] == "Pending" for i in result["items"])
 
     def test_filter_case_insensitive(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_ideas(status_filter="pending")))
         assert result["total"] == 2
 
     def test_filter_no_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_ideas(status_filter="Complete")))
         assert result["total"] == 0
         assert result["items"] == []
@@ -1103,7 +1165,7 @@ class TestGetIdeas:
         state = _fresh_state()
         state["ideas"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_ideas()))
         assert result["total"] == 0
         assert result["counts"] == {}
@@ -1119,7 +1181,7 @@ class TestSearch:
 
     def test_all_scope(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("test")))
         assert "albums" in result
         assert "tracks" in result
@@ -1128,7 +1190,7 @@ class TestSearch:
 
     def test_albums_scope(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("test", scope="albums")))
         assert "albums" in result
         assert "tracks" not in result
@@ -1136,7 +1198,7 @@ class TestSearch:
 
     def test_tracks_scope(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("first", scope="tracks")))
         assert "tracks" in result
         assert len(result["tracks"]) == 1
@@ -1144,7 +1206,7 @@ class TestSearch:
 
     def test_ideas_scope(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("cool", scope="ideas")))
         assert "ideas" in result
         assert len(result["ideas"]) == 1
@@ -1152,34 +1214,34 @@ class TestSearch:
 
     def test_case_insensitive(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("TEST ALBUM")))
         assert len(result["albums"]) >= 1
 
     def test_search_by_genre(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("electronic", scope="albums")))
         assert len(result["albums"]) == 1
         assert result["albums"][0]["slug"] == "test-album"
 
     def test_search_ideas_by_genre(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("hip-hop", scope="ideas")))
         assert len(result["ideas"]) == 1
         assert result["ideas"][0]["title"] == "WIP Album"
 
     def test_no_results(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("zzzznonexistent")))
         assert result["total_matches"] == 0
 
     def test_total_matches_counts_all(self):
         """total_matches sums across all result types."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # "rock" appears in album genre and idea genre
             result = json.loads(_run(server.search("rock")))
         total = (
@@ -1192,7 +1254,7 @@ class TestSearch:
     def test_search_track_by_slug(self):
         """Search matches track slug, not just title."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("02-second", scope="tracks")))
         assert len(result["tracks"]) == 1
         assert result["tracks"][0]["track_slug"] == "02-second-track"
@@ -1208,7 +1270,7 @@ class TestGetPendingVerifications:
 
     def test_some_pending(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 1
         assert "test-album" in result["albums_with_pending"]
@@ -1221,7 +1283,7 @@ class TestGetPendingVerifications:
         # Remove the pending track
         state["albums"]["test-album"]["tracks"]["02-second-track"]["sources_verified"] = "Verified"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 0
         assert result["albums_with_pending"] == {}
@@ -1230,7 +1292,7 @@ class TestGetPendingVerifications:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 0
 
@@ -1239,7 +1301,7 @@ class TestGetPendingVerifications:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["01-first-track"]["sources_verified"] = "PENDING"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         # Both tracks now have pending
         assert result["total_pending_tracks"] == 2
@@ -1249,7 +1311,7 @@ class TestGetPendingVerifications:
         state = _fresh_state()
         state["albums"]["another-album"]["tracks"]["01-rock-song"]["sources_verified"] = "Pending"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 2
         assert "test-album" in result["albums_with_pending"]
@@ -1358,7 +1420,7 @@ class TestResolvePath:
 
     def test_audio_path(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "path" in result
         assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/electronic/test-album"
@@ -1367,14 +1429,14 @@ class TestResolvePath:
 
     def test_audio_path_with_explicit_genre(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album", genre="rock")))
         assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/rock/test-album"
         assert result["genre"] == "rock"
 
     def test_documents_path(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "test-album")))
         assert result["path"] == "/tmp/test/docs/artists/test-artist/albums/electronic/test-album"
         assert result["genre"] == "electronic"
@@ -1382,7 +1444,7 @@ class TestResolvePath:
     def test_audio_genre_required_not_found(self):
         """Error when genre not provided and album not in state."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "unknown-album")))
         assert "error" in result
         assert "Genre required" in result["error"]
@@ -1390,14 +1452,14 @@ class TestResolvePath:
     def test_documents_genre_required_not_found(self):
         """Error when genre not provided and album not in state."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "unknown-album")))
         assert "error" in result
         assert "Genre required" in result["error"]
 
     def test_content_path_with_genre(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album", genre="electronic")))
         assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
         assert result["genre"] == "electronic"
@@ -1405,7 +1467,7 @@ class TestResolvePath:
     def test_content_path_genre_from_state(self):
         """Genre is looked up from state cache when not provided."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album")))
         assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
         assert result["genre"] == "electronic"
@@ -1413,21 +1475,21 @@ class TestResolvePath:
     def test_content_path_genre_required_not_found(self):
         """Error when genre not provided and album not in state."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "unknown-album")))
         assert "error" in result
         assert "Genre required" in result["error"]
 
     def test_tracks_path(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("tracks", "test-album")))
         assert result["path"].endswith("/tracks")
         assert "electronic" in result["path"]
 
     def test_overrides_path(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("overrides", "")))
         assert result["path_type"] == "overrides"
         assert result["path"].endswith("/overrides")
@@ -1437,13 +1499,13 @@ class TestResolvePath:
         state = _fresh_state()
         state["config"]["overrides_dir"] = "/custom/overrides"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("overrides", "")))
         assert result["path"] == "/custom/overrides"
 
     def test_invalid_path_type(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("invalid", "test-album")))
         assert "error" in result
         assert "Invalid path_type" in result["error"]
@@ -1453,14 +1515,14 @@ class TestResolvePath:
         state = _fresh_state()
         state["config"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "error" in result
 
     def test_slug_normalization(self):
         """Album slug with spaces is normalized."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test album")))
         assert "test-album" in result["path"]
         assert result["genre"] == "electronic"
@@ -1476,7 +1538,7 @@ class TestResolveTrackFile:
 
     def test_exact_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test-album", "01-first-track")))
         assert result["found"] is True
         assert result["track_slug"] == "01-first-track"
@@ -1487,7 +1549,7 @@ class TestResolveTrackFile:
     def test_prefix_match(self):
         """Track number prefix matches the full slug."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test-album", "01")))
         assert result["found"] is True
         assert result["track_slug"] == "01-first-track"
@@ -1495,35 +1557,35 @@ class TestResolveTrackFile:
     def test_prefix_match_with_hyphen(self):
         """Track number with trailing content still matches."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test-album", "02")))
         assert result["found"] is True
         assert result["track_slug"] == "02-second-track"
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("nonexistent", "01")))
         assert result["found"] is False
         assert "available_albums" in result
 
     def test_track_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test-album", "99-missing")))
         assert result["found"] is False
         assert "available_tracks" in result
 
     def test_includes_album_path(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test-album", "01-first-track")))
         assert result["album_path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
 
     def test_slug_normalization(self):
         """Spaces and underscores in input are normalized."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("test album", "01 first track")))
         assert result["found"] is True
 
@@ -1541,7 +1603,7 @@ class TestResolveTrackFile:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_track_file("prefix-album", "01")))
         assert result["found"] is False
         assert "Multiple tracks" in result["error"]
@@ -1558,7 +1620,7 @@ class TestListTrackFiles:
 
     def test_all_tracks(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 2
@@ -1569,7 +1631,7 @@ class TestListTrackFiles:
     def test_tracks_include_paths(self):
         """Each track includes its file path."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album")))
         for track in result["tracks"]:
             assert "path" in track
@@ -1577,7 +1639,7 @@ class TestListTrackFiles:
 
     def test_status_filter(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album", status_filter="Final")))
         assert result["track_count"] == 1
         assert result["total_tracks"] == 2
@@ -1585,27 +1647,27 @@ class TestListTrackFiles:
 
     def test_status_filter_case_insensitive(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album", status_filter="final")))
         assert result["track_count"] == 1
 
     def test_status_filter_no_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album", status_filter="Generated")))
         assert result["track_count"] == 0
         assert result["total_tracks"] == 2
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("nonexistent")))
         assert result["found"] is False
         assert "available_albums" in result
 
     def test_tracks_sorted_by_slug(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album")))
         slugs = [t["slug"] for t in result["tracks"]]
         assert slugs == sorted(slugs)
@@ -1613,7 +1675,7 @@ class TestListTrackFiles:
     def test_track_fields_present(self):
         """Each track has all expected fields."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_track_files("test-album")))
         expected_fields = {"slug", "title", "status", "path", "explicit", "has_suno_link", "sources_verified"}
         for track in result["tracks"]:
@@ -1726,7 +1788,7 @@ class TestExtractSection:
 
     def test_extract_style_box(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "style")))
         assert result["found"] is True
         assert "electronic" in result["content"]
@@ -1735,7 +1797,7 @@ class TestExtractSection:
 
     def test_extract_lyrics_box(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "lyrics")))
         assert result["found"] is True
         assert "[Verse 1]" in result["content"]
@@ -1743,7 +1805,7 @@ class TestExtractSection:
 
     def test_extract_streaming_lyrics(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "streaming")))
         assert result["found"] is True
         assert "Testing one two three" in result["content"]
@@ -1753,7 +1815,7 @@ class TestExtractSection:
     def test_extract_exclude_styles(self, tmp_path):
         """Extracting 'exclude-styles' returns the Exclude Styles code block."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "exclude-styles")))
         assert result["found"] is True
         assert result["section"] == "Exclude Styles"
@@ -1762,7 +1824,7 @@ class TestExtractSection:
     def test_extract_exclude_styles_short_alias(self, tmp_path):
         """The 'exclude' alias resolves to Exclude Styles."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "exclude")))
         assert result["found"] is True
         assert result["section"] == "Exclude Styles"
@@ -1770,14 +1832,14 @@ class TestExtractSection:
 
     def test_extract_concept(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "concept")))
         assert result["found"] is True
         assert "test that never ends" in result["content"]
 
     def test_extract_pronunciation(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "pronunciation")))
         assert result["found"] is True
         assert "pytest" in result["content"]
@@ -1785,14 +1847,14 @@ class TestExtractSection:
 
     def test_extract_musical_direction(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "musical-direction")))
         assert result["found"] is True
         assert "120 BPM" in result["content"]
 
     def test_extract_production_notes(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "production-notes")))
         assert result["found"] is True
         assert "energy high" in result["content"]
@@ -1800,7 +1862,7 @@ class TestExtractSection:
     def test_code_block_sections_return_raw(self, tmp_path):
         """Code block sections include raw_content with full section."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "style")))
         assert result["raw_content"] is not None
         assert "Copy this" in result["raw_content"]
@@ -1808,20 +1870,20 @@ class TestExtractSection:
     def test_non_code_block_sections_no_raw(self, tmp_path):
         """Non-code-block sections don't set raw_content."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "concept")))
         assert result["raw_content"] is None
 
     def test_unknown_section(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "nonexistent")))
         assert "error" in result
         assert "Unknown section" in result["error"]
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("nonexistent", "01", "lyrics")))
         assert result["found"] is False
 
@@ -1840,7 +1902,7 @@ class TestExtractSection:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "05", "concept")))
         assert result["found"] is True
         assert result["track_slug"] == "05-unique-track"
@@ -1848,7 +1910,7 @@ class TestExtractSection:
     def test_missing_section_in_file(self, tmp_path):
         """Section that exists in schema but not in file."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "source")))
         assert result["found"] is False
         assert "not found in track file" in result["error"]
@@ -2010,7 +2072,7 @@ class TestUpdateTrackField:
 
     def test_update_status(self, tmp_path):
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated", force=True
@@ -2024,7 +2086,7 @@ class TestUpdateTrackField:
 
     def test_update_explicit(self, tmp_path):
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "explicit", "Yes"
@@ -2035,7 +2097,7 @@ class TestUpdateTrackField:
 
     def test_update_sources_verified(self, tmp_path):
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -2060,7 +2122,7 @@ class TestUpdateTrackField:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "05", "status", "Generated", force=True
@@ -2071,7 +2133,7 @@ class TestUpdateTrackField:
     def test_update_preserves_other_fields(self, tmp_path):
         """Updating one field doesn't affect others."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         content = track_file.read_text()
@@ -2080,7 +2142,7 @@ class TestUpdateTrackField:
 
     def test_unknown_field(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "invalid_field", "value"
             )))
@@ -2089,7 +2151,7 @@ class TestUpdateTrackField:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "nonexistent", "01", "status", "Final"
             )))
@@ -2097,7 +2159,7 @@ class TestUpdateTrackField:
 
     def test_track_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "99-missing", "status", "Final"
             )))
@@ -2106,7 +2168,7 @@ class TestUpdateTrackField:
     def test_returns_parsed_track(self, tmp_path):
         """Result includes re-parsed track metadata."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated", force=True
@@ -2117,8 +2179,8 @@ class TestUpdateTrackField:
         """State cache is updated in memory after field change."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "write_state", mock_write):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_core_mod, "write_state", mock_write):
             _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         # write_state should have been called to persist
         mock_write.assert_called_once()
@@ -2131,7 +2193,7 @@ class TestUpdateTrackField:
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         # Make write_state raise an exception
         mock_write = MagicMock(side_effect=OSError("disk full"))
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated", force=True
@@ -2147,7 +2209,7 @@ class TestUpdateTrackField:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "status", "Final", force=True
             )))
@@ -2157,7 +2219,7 @@ class TestUpdateTrackField:
     def test_update_field_with_pipe_in_value(self, tmp_path):
         """Values containing markdown pipe characters are handled."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -2170,7 +2232,7 @@ class TestUpdateTrackField:
     def test_update_field_with_unicode_value(self, tmp_path):
         """Unicode characters in field values are preserved."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -2184,7 +2246,7 @@ class TestUpdateTrackField:
         """Track file deleted after cache load returns error."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         track_file.unlink()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated", force=True
             )))
@@ -2196,7 +2258,7 @@ class TestUpdateTrackField:
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
         track_file.chmod(0o444)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.update_track_field(
                     "test-album", "01-test-track", "status", "Generated", force=True
                 )))
@@ -2208,7 +2270,7 @@ class TestUpdateTrackField:
     def test_rapid_sequential_updates(self, tmp_path):
         """Multiple updates to same track don't corrupt file."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             # In Progress → Generated (valid transition, force to bypass gates)
             _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
@@ -2229,8 +2291,8 @@ class TestUpdateTrackField:
         import logging
         mock_cache, _ = self._make_cache_with_file(tmp_path)
         mock_write = MagicMock(side_effect=OSError("disk full"))
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "write_state", mock_write), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_core_mod, "write_state", mock_write), \
              caplog.at_level(logging.WARNING):
             _run(server.update_track_field("test-album", "01-test-track", "status", "Generated", force=True))
         assert any("cache update failed" in r.message.lower() for r in caplog.records)
@@ -2250,7 +2312,7 @@ class TestFindAlbumAutoRebuild:
         state["albums"] = {}
         mock_cache = MockStateCache(state)
         # After rebuild, mock still returns empty — should report rebuilt
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("anything")))
         assert result["found"] is False
         assert result.get("rebuilt") is True
@@ -2259,7 +2321,7 @@ class TestFindAlbumAutoRebuild:
     def test_no_rebuild_when_albums_exist(self):
         """Does NOT rebuild when albums are present."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             _run(server.find_album("test-album"))
         assert mock_cache._rebuild_called is False
 
@@ -2276,7 +2338,7 @@ class TestFindAlbumAutoRebuild:
                 return self._state
 
         mock_cache = RebuildingCache(empty_state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("test-album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -2292,7 +2354,7 @@ class TestGetAlbumProgress:
 
     def test_basic_progress(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         assert result["found"] is True
         assert result["album_slug"] == "test-album"
@@ -2305,7 +2367,7 @@ class TestGetAlbumProgress:
 
     def test_tracks_by_status_counts(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         counts = result["tracks_by_status"]
         assert counts.get("Final") == 1
@@ -2314,41 +2376,41 @@ class TestGetAlbumProgress:
     def test_completion_percentage(self):
         """Completed = Final + Generated out of total."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         # 1 Final out of 2 tracks = 50%
         assert result["completion_percentage"] == 50.0
 
     def test_complete_album(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("another-album")))
         assert result["completion_percentage"] == 100.0
         assert result["album_status"] == "Complete"
 
     def test_sources_pending_count(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         assert result["sources_pending"] == 1  # 02-second-track has "Pending"
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("nonexistent")))
         assert result["found"] is False
         assert "available_albums" in result
 
     def test_slug_normalization(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("Test Album")))
         assert result["found"] is True
 
     def test_phase_writing(self):
         """Album with Not Started/In Progress tracks is in Writing phase."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("test-album")))
         # test-album has 1 Final + 1 In Progress with Pending sources
         assert result["phase"] == "Source Verification"
@@ -2363,7 +2425,7 @@ class TestGetAlbumProgress:
             "tracks": {},
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("concept-album")))
         assert result["phase"] == "Planning"
 
@@ -2379,7 +2441,7 @@ class TestGetAlbumProgress:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("done-album")))
         assert result["phase"] == "Released"
 
@@ -2397,7 +2459,7 @@ class TestGetAlbumProgress:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("ready-album")))
         assert result["phase"] == "Ready to Write"
 
@@ -2415,7 +2477,7 @@ class TestGetAlbumProgress:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("gen-album")))
         assert result["phase"] == "Mastering"
 
@@ -2429,7 +2491,7 @@ class TestGetAlbumProgress:
             "tracks": {},
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("empty-album")))
         assert result["completion_percentage"] == 0.0
         assert result["track_count"] == 0
@@ -2452,7 +2514,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("pronunciation-guide.md")))
         assert result["found"] is True
         assert "Custom content" in result["content"]
@@ -2465,14 +2527,14 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("nonexistent.md")))
         assert result["found"] is False
 
     def test_default_overrides_dir(self):
         """Falls back to {content_root}/overrides when overrides_dir not set."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("anything.md")))
         # /tmp/test/overrides won't exist, so should be not found
         assert result["found"] is False
@@ -2481,7 +2543,7 @@ class TestLoadOverride:
     def test_no_config(self):
         state = {"albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("anything.md")))
         assert "error" in result
 
@@ -2493,7 +2555,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("test.md")))
         assert result["size"] == len("Hello World")
 
@@ -2508,7 +2570,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("../secret.txt")))
         assert "error" in result
         assert "must not escape" in result["error"]
@@ -2522,7 +2584,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("../../etc/passwd")))
         assert "error" in result
         assert result.get("found") is not True
@@ -2536,7 +2598,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("empty.md")))
         assert result["found"] is True
         assert result["content"] == ""
@@ -2552,7 +2614,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("pronunciation-guide.md")))
         assert result["found"] is True
         assert "résumé" in result["content"]
@@ -2569,7 +2631,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(link_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("test.md")))
         assert result["found"] is True
         assert "Symlinked content" in result["content"]
@@ -2585,7 +2647,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("subdir/../../secret.txt")))
         assert "error" in result
         assert result.get("found") is not True
@@ -2600,7 +2662,7 @@ class TestLoadOverride:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("custom/guide.md")))
         assert result["found"] is True
         assert "Nested content" in result["content"]
@@ -2619,7 +2681,7 @@ class TestGetReference:
         ref_dir.mkdir(parents=True)
         (ref_dir / "test-guide.md").write_text("# Test Guide\n\nContent here.")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("suno/test-guide")))
         assert result["found"] is True
         assert "Test Guide" in result["content"]
@@ -2629,7 +2691,7 @@ class TestGetReference:
         ref_dir.mkdir(parents=True)
         (ref_dir / "guide.md").write_text("content")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("suno/guide")))
         assert result["found"] is True
 
@@ -2640,7 +2702,7 @@ class TestGetReference:
             "# Guide\n\n## Section A\nContent A\n\n## Section B\nContent B\n"
         )
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("guide", section="Section A")))
         assert result["found"] is True
         assert "Content A" in result["content"]
@@ -2651,13 +2713,13 @@ class TestGetReference:
         ref_dir.mkdir(parents=True)
         (ref_dir / "guide.md").write_text("# Guide\n\n## Section A\nContent")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("guide", section="Missing")))
         assert "error" in result
         assert "not found" in result["error"]
 
     def test_file_not_found(self, tmp_path):
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("suno/nonexistent")))
         assert "error" in result
 
@@ -2667,7 +2729,7 @@ class TestGetReference:
         content = "Hello World"
         (ref_dir / "test.md").write_text(content)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("test")))
         assert result["size"] == len(content)
 
@@ -2679,7 +2741,7 @@ class TestGetReference:
         secret = tmp_path / "secret.md"
         secret.write_text("top secret")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("../secret")))
         assert "error" in result
         assert "must not escape" in result["error"]
@@ -2690,7 +2752,7 @@ class TestGetReference:
         ref_dir = tmp_path / "reference"
         ref_dir.mkdir(parents=True)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("../../etc/passwd")))
         assert "error" in result
         assert result.get("found") is not True
@@ -2702,7 +2764,7 @@ class TestGetReference:
         content = "# Guide\n\nRésumé → REZ-oo-may\nCafé → kah-FAY\n"
         (ref_dir / "guide.md").write_text(content)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("guide")))
         assert result["found"] is True
         assert "Résumé" in result["content"]
@@ -2716,7 +2778,7 @@ class TestGetReference:
         real_file.write_text("Real content")
         (ref_dir / "alias.md").symlink_to(real_file)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("alias")))
         assert result["found"] is True
         assert "Real content" in result["content"]
@@ -2728,7 +2790,7 @@ class TestGetReference:
         secret = tmp_path / "secret.md"
         secret.write_text("top secret")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("suno/../../secret")))
         assert "error" in result
         assert result.get("found") is not True
@@ -2742,7 +2804,7 @@ class TestGetReference:
             "```yaml\nkey: value\n```\n\n## Next"
         )
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("guide", section="Config")))
         assert result["found"] is True
         assert "`config.yaml`" in result["content"]
@@ -2754,7 +2816,7 @@ class TestGetReference:
         ref_dir.mkdir(parents=True)
         (ref_dir / "empty.md").write_text("")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("empty")))
         assert result["found"] is True
         assert result["size"] == 0
@@ -2765,7 +2827,7 @@ class TestGetReference:
         ref_dir.mkdir(parents=True)
         (ref_dir / "guide.md").write_text("Content")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("  guide  ")))
         assert result["found"] is True
 
@@ -2795,7 +2857,7 @@ class TestFormatForClipboard:
 
     def test_lyrics(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "lyrics")))
         assert result["found"] is True
         assert "[Verse 1]" in result["content"]
@@ -2803,21 +2865,21 @@ class TestFormatForClipboard:
 
     def test_style(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
         assert result["found"] is True
         assert "electronic" in result["content"]
 
     def test_streaming(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "streaming")))
         assert result["found"] is True
         assert "[Verse" not in result["content"]
 
     def test_all_combined(self, tmp_path):
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "all")))
         assert result["found"] is True
         assert "electronic" in result["content"]  # style
@@ -2826,20 +2888,20 @@ class TestFormatForClipboard:
 
     def test_invalid_type(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01", "invalid")))
         assert "error" in result
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("nonexistent", "01", "lyrics")))
         assert result["found"] is False
 
     def test_ambiguous_prefix_returns_error(self, tmp_path):
         """Ambiguous prefix (matches multiple tracks) returns an error."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01", "style")))
         # "01" matches both 01-first-track (SAMPLE_STATE) and 01-test-track (added by helper)
         assert result["found"] is False
@@ -2859,7 +2921,7 @@ class TestFormatForClipboard:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "lyrics")))
         assert result["found"] is True
         assert result["track_slug"] == "05-clip-track"
@@ -2867,7 +2929,7 @@ class TestFormatForClipboard:
     def test_track_not_found(self):
         """Track slug that doesn't match any track returns error."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "99-missing", "lyrics")))
         assert result["found"] is False
         assert "not found" in result["error"]
@@ -2885,7 +2947,7 @@ class TestFormatForClipboard:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "streaming")))
         assert result["found"] is False
         assert "not found" in result["error"]
@@ -2899,7 +2961,7 @@ class TestFormatForClipboard:
             "path": "",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05-no-path", "lyrics")))
         assert "error" in result
         assert "No path" in result["error"]
@@ -3007,7 +3069,7 @@ class TestScanArtistNames:
 
     def test_finds_blocked_name(self):
         # Ensure blocklist is loaded from real file
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("aggressive dubstep like Skrillex with heavy drops")))
         assert result["clean"] is False
         assert result["count"] >= 1
@@ -3015,7 +3077,7 @@ class TestScanArtistNames:
         assert "Skrillex" in names
 
     def test_clean_text(self):
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("aggressive dubstep, heavy drops, distorted bass")))
         assert result["clean"] is True
         assert result["count"] == 0
@@ -3026,7 +3088,7 @@ class TestScanArtistNames:
         assert result["count"] == 0
 
     def test_returns_alternative(self):
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Daft Punk")))
         assert result["count"] >= 1
         entry = result["matches"][0]
@@ -3034,12 +3096,12 @@ class TestScanArtistNames:
         assert len(entry["alternative"]) > 0
 
     def test_case_insensitive(self):
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("heavy like METALLICA")))
         assert result["clean"] is False
 
     def test_multiple_names(self):
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("mix of Eminem and Drake style")))
         names = [r["name"] for r in result["matches"]]
         assert "Eminem" in names
@@ -3047,14 +3109,14 @@ class TestScanArtistNames:
 
     def test_word_boundary_no_partial(self):
         """Should not match artist names embedded in other words."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("Drakeford is not a musician")))
         # "Drake" should NOT match inside "Drakeford" due to word boundaries
         assert result["clean"] is True
 
     def test_genre_returned(self):
         """Each found artist includes the genre category."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Skrillex")))
         assert result["count"] >= 1
         assert "genre" in result["matches"][0]
@@ -3062,8 +3124,8 @@ class TestScanArtistNames:
 
     def test_blocklist_file_missing(self, tmp_path):
         """Gracefully handles missing blocklist file."""
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.scan_artist_names("sounds like Metallica")))
         # With no blocklist file, nothing should be found
         assert result["clean"] is True
@@ -3071,7 +3133,7 @@ class TestScanArtistNames:
 
     def test_same_artist_mentioned_twice(self):
         """Artist mentioned multiple times appears once in results."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names(
                 "Skrillex-style drops and Skrillex-like bass"
             )))
@@ -3087,7 +3149,7 @@ class TestScanArtistNames:
 
     def test_multiline_text(self):
         """Artist names found across multiple lines."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names(
                 "First line is clean\nSecond line has Eminem vibes\n"
                 "Third line mentions Drake flow"
@@ -3098,7 +3160,7 @@ class TestScanArtistNames:
 
     def test_special_characters_near_name(self):
         """Artist names at punctuation boundaries are detected."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names(
                 "like (Skrillex) or [Deadmau5]"
             )))
@@ -3107,7 +3169,7 @@ class TestScanArtistNames:
 
     def test_each_found_entry_has_all_fields(self):
         """Every found entry includes name, alternative, and genre."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.scan_artist_names("sounds like Drake")))
         for entry in result["matches"]:
             assert "name" in entry
@@ -3194,7 +3256,7 @@ class TestCheckPronunciationEnforcement:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-pron-track")))
         assert result["found"] is True
         # Rah-mohs and F-B-I are in lyrics, but Lin-ucks is not
@@ -3212,7 +3274,7 @@ class TestCheckPronunciationEnforcement:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-unapplied")))
         assert result["all_applied"] is False
         assert result["unapplied_count"] == 2  # Both Rah-mohs and F-B-I not in lyrics
@@ -3227,14 +3289,14 @@ class TestCheckPronunciationEnforcement:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-empty-pron")))
         # The _SAMPLE_TRACK_MD has "pytest | PY-test" which IS a valid entry
         assert result["found"] is True
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("nonexistent", "01")))
         assert result["found"] is False
 
@@ -3248,7 +3310,7 @@ class TestCheckPronunciationEnforcement:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05")))
         assert result["found"] is True
         assert result["track_slug"] == "05-pron-track"
@@ -3256,7 +3318,7 @@ class TestCheckPronunciationEnforcement:
     def test_track_not_found(self):
         """Track slug that doesn't match any track returns found=False."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "99-missing")))
         assert result["found"] is False
         assert "not found" in result["error"]
@@ -3273,7 +3335,7 @@ class TestCheckPronunciationEnforcement:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-no-pron")))
         assert result["found"] is True
         assert result["all_applied"] is True
@@ -3293,7 +3355,7 @@ class TestCheckPronunciationEnforcement:
             "path": str(track_file2), "title": "Track B", "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05")))
         assert result["found"] is False
         assert "Multiple" in result["error"]
@@ -3309,7 +3371,7 @@ class TestGetAlbumFull:
 
     def test_metadata_only(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album")))
         assert result["found"] is True
         assert result["slug"] == "test-album"
@@ -3330,7 +3392,7 @@ class TestGetAlbumFull:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album", include_sections="lyrics,style")))
 
         # The test-track should have sections extracted
@@ -3343,27 +3405,27 @@ class TestGetAlbumFull:
 
     def test_fuzzy_match(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("another")))
         assert result["found"] is True
         assert result["slug"] == "another-album"
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("nonexistent")))
         assert result["found"] is False
 
     def test_multiple_matches(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("album")))
         assert result["found"] is False
         assert "Multiple albums" in result["error"]
 
     def test_album_fields(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album")))
         album = result["album"]
         assert album["title"] == "Test Album"
@@ -3384,7 +3446,7 @@ class TestGetAlbumFull:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album", include_sections="lyrics,invalid-section")))
         test_track = result["tracks"].get("01-test-track", {})
         sections = test_track.get("sections", {})
@@ -3400,7 +3462,7 @@ class TestGetAlbumFull:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album", include_sections="lyrics")))
         # Track should appear but without sections (file read failed)
         track = result["tracks"].get("05-missing-file", {})
@@ -3410,7 +3472,7 @@ class TestGetAlbumFull:
     def test_tracks_sorted(self):
         """Tracks in result are sorted by slug key."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album")))
         slugs = list(result["tracks"].keys())
         assert slugs == sorted(slugs)
@@ -3418,7 +3480,7 @@ class TestGetAlbumFull:
     def test_track_metadata_fields(self, tmp_path):
         """Each track entry includes all expected metadata fields."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album")))
         track = result["tracks"]["01-first-track"]
         assert "title" in track
@@ -3460,7 +3522,7 @@ class TestValidateAlbumStructure:
 
     def test_all_pass(self, tmp_path):
         mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album")))
         assert result["found"] is True
         assert result["failed"] == 0
@@ -3469,7 +3531,7 @@ class TestValidateAlbumStructure:
     def test_missing_tracks_dir(self, tmp_path):
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
         shutil.rmtree(str(album_dir / "tracks"))
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("tracks/ directory" in m for m in failed_msgs)
@@ -3482,7 +3544,7 @@ class TestValidateAlbumStructure:
         wrong_dir.mkdir(parents=True)
         (wrong_dir / "01-test.wav").write_text("")
 
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="audio")))
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("wrong location" in m for m in failed_msgs)
@@ -3490,7 +3552,7 @@ class TestValidateAlbumStructure:
 
     def test_specific_checks(self, tmp_path):
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="art")))
         categories = set(c["category"] for c in result["checks"])
         assert "art" in categories
@@ -3498,20 +3560,20 @@ class TestValidateAlbumStructure:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("nonexistent")))
         assert result["found"] is False
 
     def test_no_config(self):
         state = {"albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album")))
         assert "error" in result
 
     def test_track_validation(self, tmp_path):
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="tracks")))
         track_checks = [c for c in result["checks"] if c["category"] == "tracks"]
         assert len(track_checks) > 0
@@ -3520,7 +3582,7 @@ class TestValidateAlbumStructure:
         """Missing README.md in album dir is a FAIL."""
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
         (album_dir / "README.md").unlink()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("README.md" in m for m in failed_msgs)
@@ -3531,7 +3593,7 @@ class TestValidateAlbumStructure:
         # Remove all .md files from tracks/
         for f in (album_dir / "tracks").glob("*.md"):
             f.unlink()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
         warn_msgs = [c["message"] for c in result["checks"] if c["status"] == "WARN"]
         assert any("No track files" in m for m in warn_msgs)
@@ -3539,7 +3601,7 @@ class TestValidateAlbumStructure:
     def test_art_found_in_audio(self, tmp_path):
         """album.png in audio dir is a PASS."""
         mock_cache, _, audio_dir = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="art")))
         pass_msgs = [c["message"] for c in result["checks"] if c["status"] == "PASS"]
         assert any("album.png" in m for m in pass_msgs)
@@ -3550,7 +3612,7 @@ class TestValidateAlbumStructure:
         mastered = audio_dir / "mastered"
         mastered.mkdir()
         (mastered / "01-test-mastered.wav").write_text("")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="audio")))
         pass_msgs = [c["message"] for c in result["checks"] if c["status"] == "PASS"]
         assert any("WAV" in m for m in pass_msgs)
@@ -3561,7 +3623,7 @@ class TestValidateAlbumStructure:
         mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
         # Remove entire audio tree
         shutil.rmtree(str(audio_dir.parent))
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="audio")))
         skip_msgs = [c["message"] for c in result["checks"] if c["status"] == "SKIP"]
         assert any("No audio" in m for m in skip_msgs)
@@ -3569,7 +3631,7 @@ class TestValidateAlbumStructure:
     def test_all_checks_run_by_default(self, tmp_path):
         """When checks='all', all categories are included."""
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album")))
         categories = set(c["category"] for c in result["checks"])
         assert "structure" in categories
@@ -3580,7 +3642,7 @@ class TestValidateAlbumStructure:
     def test_track_with_pending_sources_warns(self, tmp_path):
         """Track with sources_verified='Pending' triggers a warning."""
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="tracks")))
         # 02-second-track in SAMPLE_STATE has sources_verified: "Pending"
         warn_msgs = [c["message"] for c in result["checks"] if c["status"] == "WARN"]
@@ -3595,7 +3657,7 @@ class TestValidateAlbumStructure:
         # Point state at the symlink
         state = mock_cache.get_state()
         state["albums"]["test-album"]["path"] = str(link_dir)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
         assert result["found"] is True
         assert result["failed"] == 0
@@ -3611,7 +3673,7 @@ class TestValidateAlbumStructure:
         # Point config at the symlinked root
         state = mock_cache.get_state()
         state["config"]["audio_root"] = str(tmp_path / "audio-link")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="audio")))
         assert result["found"] is True
         pass_msgs = [c["message"] for c in result["checks"] if c["status"] == "PASS"]
@@ -3625,7 +3687,7 @@ class TestValidateAlbumStructure:
         broken_link.symlink_to(tmp_path / "nonexistent-target")
         state = mock_cache.get_state()
         state["albums"]["test-album"]["path"] = str(broken_link)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("missing" in m.lower() for m in failed_msgs)
@@ -3635,7 +3697,7 @@ class TestValidateAlbumStructure:
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
         (album_dir / "tracks").chmod(0o000)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
             assert result["found"] is True
             # tracks/ exists but can't be read — should still pass is_dir check
@@ -3647,7 +3709,7 @@ class TestValidateAlbumStructure:
     def test_multiple_check_types(self, tmp_path):
         """Comma-separated check types work correctly."""
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="structure,art")))
         categories = set(c["category"] for c in result["checks"])
         assert "structure" in categories
@@ -3658,7 +3720,7 @@ class TestValidateAlbumStructure:
     def test_invalid_check_type_ignored(self, tmp_path):
         """Invalid check type falls back to all checks."""
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album", checks="invalid")))
         categories = set(c["category"] for c in result["checks"])
         # Invalid type → empty check_set → defaults to all
@@ -3668,7 +3730,7 @@ class TestValidateAlbumStructure:
     def test_result_counts_consistent(self, tmp_path):
         """passed + failed + warnings + skipped matches total checks."""
         mock_cache, _, _ = self._make_album_on_disk(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.validate_album_structure("test-album")))
         total = result["passed"] + result["failed"] + result["warnings"] + result["skipped"]
         assert total == len(result["checks"])
@@ -3691,8 +3753,8 @@ class TestCreateAlbumStructure:
 
     def test_create_basic(self, tmp_path):
         mock_cache, content = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("new-album", "electronic")))
         assert result["created"] is True
         assert "new-album" in result["path"]
@@ -3706,8 +3768,8 @@ class TestCreateAlbumStructure:
 
     def test_create_documentary(self, tmp_path):
         mock_cache, content = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("doc-album", "hip-hop", documentary=True)))
         assert result["created"] is True
         assert result["documentary"] is True
@@ -3720,7 +3782,7 @@ class TestCreateAlbumStructure:
         album_dir = content / "artists" / "test-artist" / "albums" / "rock" / "existing"
         album_dir.mkdir(parents=True)
 
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("existing", "rock")))
         assert result["created"] is False
         assert "already exists" in result["error"]
@@ -3728,14 +3790,14 @@ class TestCreateAlbumStructure:
     def test_no_config(self):
         state = {"albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("test", "rock")))
         assert "error" in result
 
     def test_slug_normalization(self, tmp_path):
         mock_cache, content = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("My New Album", "Hip Hop")))
         assert result["created"] is True
         assert "my-new-album" in result["path"]
@@ -3746,7 +3808,7 @@ class TestCreateAlbumStructure:
         state = _fresh_state()
         state["config"]["content_root"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("test", "rock")))
         assert "error" in result
 
@@ -3756,8 +3818,8 @@ class TestCreateAlbumStructure:
         fake_plugin = tmp_path / "fake-plugin"
         fake_plugin.mkdir()
         # No templates/ dir under fake_plugin
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", fake_plugin):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", fake_plugin):
             result = json.loads(_run(server.create_album_structure("no-templates", "rock")))
         assert result["created"] is True
         # tracks/ still created, but README.md might not be in files list
@@ -3785,15 +3847,15 @@ class TestGenreValidation:
     def test_valid_genre_accepted(self, tmp_path):
         """Valid genre 'electronic' is accepted."""
         mock_cache, content = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("genre-test", "electronic")))
         assert result["created"] is True
 
     def test_invalid_genre_rejected(self, tmp_path):
         """Invalid genre 'boom-bap' is rejected with valid genres list."""
         mock_cache, _ = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("genre-test", "boom-bap")))
         assert "error" in result
         assert "Invalid genre" in result["error"]
@@ -3802,8 +3864,8 @@ class TestGenreValidation:
     def test_genre_alias_resolved(self, tmp_path):
         """Genre alias 'R&B' resolves to 'rnb' directory."""
         mock_cache, content = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
         assert result["created"] is True
         assert "/rnb/" in result["path"]
@@ -3811,7 +3873,7 @@ class TestGenreValidation:
     def test_genre_typo_rejected(self, tmp_path):
         """Genre typo 'elctronic' is rejected."""
         mock_cache, _ = self._make_state_with_tmp(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("typo-test", "elctronic")))
         assert "error" in result
         assert "Invalid genre" in result["error"]
@@ -3821,8 +3883,8 @@ class TestGenreValidation:
         mock_cache, content = self._make_state_with_tmp(tmp_path)
         state = mock_cache.get_state()
         state["config"]["generation"] = {"additional_genres": ["synthwave", "lo-fi"]}
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("synth-test", "synthwave")))
         assert result["created"] is True
 
@@ -3831,7 +3893,7 @@ class TestGenreValidation:
         mock_cache, _ = self._make_state_with_tmp(tmp_path)
         state = mock_cache.get_state()
         state["config"]["generation"] = {"additional_genres": ["synthwave"]}
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_album_structure("bad-test", "nope")))
         assert "error" in result
         assert "synthwave" in result["error"]
@@ -3937,8 +3999,8 @@ class TestRunPreGenerationGates:
         }
         mock_cache = MockStateCache(state)
         # Reset blocklist cache so it loads from real file
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         assert result["found"] is True
         track = result["tracks"][0]
@@ -3959,8 +4021,8 @@ class TestRunPreGenerationGates:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         track = result["tracks"][0]
         assert track["verdict"] == "NOT READY"
@@ -3983,8 +4045,8 @@ class TestRunPreGenerationGates:
             "explicit": None, "sources_verified": "Pending",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
         # Should have results for all tracks (the original 2 + our 2)
         assert result["total_tracks"] >= 2
@@ -3992,13 +4054,13 @@ class TestRunPreGenerationGates:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.run_pre_generation_gates("nonexistent")))
         assert result["found"] is False
 
     def test_track_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "99")))
         assert result["found"] is False
 
@@ -4013,8 +4075,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         gates = result["tracks"][0]["gates"]
         gate_names = [g["gate"] for g in gates]
@@ -4039,8 +4101,8 @@ class TestRunPreGenerationGates:
             "path": "",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-no-file")))
         track = result["tracks"][0]
         # Pronunciation should SKIP because no file text
@@ -4061,8 +4123,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         explicit_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Explicit Flag Set")
         assert explicit_gate["status"] == "PASS"
@@ -4079,8 +4141,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         explicit_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Explicit Flag Set")
         assert explicit_gate["status"] == "FAIL"
@@ -4102,7 +4164,7 @@ class TestRunPreGenerationGates:
             "explicit": False, "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05")))
         assert result["found"] is False
         assert "Multiple" in result["error"]
@@ -4127,8 +4189,8 @@ class TestRunPreGenerationGates:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
         assert result["total_tracks"] == 2
         assert result["total_blocking"] >= 1
@@ -4148,8 +4210,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-unreadable")))
         assert result["found"] is True
         track = result["tracks"][0]
@@ -4170,8 +4232,8 @@ class TestRunPreGenerationGates:
         }
         mock_cache = MockStateCache(state)
         try:
-            with patch.object(server, "cache", mock_cache), \
-                 patch.object(server, "_artist_blocklist_cache", None):
+            with patch.object(_shared_mod, "cache", mock_cache), \
+                 patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
@@ -4192,8 +4254,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
              caplog.at_level(logging.WARNING):
             _run(server.run_pre_generation_gates("test-album", "05-bad"))
         assert any("Cannot read" in r.message for r in caplog.records)
@@ -4216,8 +4278,8 @@ class TestRunPreGenerationGates:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
         assert result["total_tracks"] == 2
         assert result["total_blocking"] == 0
@@ -4236,8 +4298,8 @@ class TestRunPreGenerationGates:
             "sources_verified": "N/A",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-src")))
         src_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Sources Verified")
         assert src_gate["status"] == "PASS"
@@ -4254,8 +4316,8 @@ class TestRunPreGenerationGates:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
         assert result["album_verdict"] == "NOT READY"
         assert result["total_blocking"] >= 1
@@ -4280,8 +4342,8 @@ class TestHomographGate:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-clean")))
         homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
         assert homograph_gate["status"] == "PASS"
@@ -4301,8 +4363,8 @@ class TestHomographGate:
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-homo")))
         homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
         assert homograph_gate["status"] == "FAIL"
@@ -4319,8 +4381,8 @@ class TestHomographGate:
             "explicit": True, "sources_verified": "Verified", "path": "",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-no-lyrics")))
         homograph_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Homograph Check")
         assert homograph_gate["status"] == "SKIP"
@@ -4355,8 +4417,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
             ""
         )
         mock_cache, _ = self._make_cache_with_track(tmp_path, content)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
             )))
@@ -4371,8 +4433,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
             "We live for the night"
         )
         mock_cache, _ = self._make_cache_with_track(tmp_path, content)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
             )))
@@ -4386,8 +4448,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         mock_cache, _ = self._make_cache_with_track(
             tmp_path, _TRACK_ALL_GATES_PASS, sources_verified="Verified"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
@@ -4401,8 +4463,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
             "We live for the night"
         )
         mock_cache, _ = self._make_cache_with_track(tmp_path, content)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated", force=True
@@ -4414,8 +4476,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         mock_cache, _ = self._make_cache_with_track(
             tmp_path, _TRACK_ALL_GATES_PASS, sources_verified="Verified",
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "01-test-track")))
         length_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Lyric Length")
@@ -4434,8 +4496,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         mock_cache, _ = self._make_cache_with_track(
             tmp_path, content, sources_verified="Verified",
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "01-test-track")))
         length_gate = next(g for g in result["tracks"][0]["gates"] if g["gate"] == "Lyric Length")
         assert length_gate["status"] == "FAIL"
@@ -4453,8 +4515,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         mock_cache, _ = self._make_cache_with_track(
             tmp_path, content, sources_verified="Verified",
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
             )))
@@ -4477,8 +4539,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         )
         state = mock_cache.get_state()
         state["config"]["generation"] = {"max_lyric_words": 1000}
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
@@ -4491,8 +4553,8 @@ class TestPreGenGateEnforcementInUpdateTrackField:
             tmp_path, _TRACK_ALL_GATES_PASS,
             sources_verified="Verified", explicit=None,
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Generated"
             )))
@@ -4511,7 +4573,7 @@ class TestPreGenGateEnforcementInUpdateTrackField:
         mock_cache, _ = self._make_cache_with_track(
             tmp_path, content, status="Not Started"
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "In Progress"
@@ -4549,7 +4611,7 @@ class TestSunoLinkFinalGate:
     def test_final_blocked_no_suno_link(self, tmp_path):
         """Generated → Final blocked when has_suno_link is False."""
         mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final"
             )))
@@ -4559,7 +4621,7 @@ class TestSunoLinkFinalGate:
     def test_final_passes_with_suno_link(self, tmp_path):
         """Generated → Final succeeds when has_suno_link is True."""
         mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=True)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final"
@@ -4569,7 +4631,7 @@ class TestSunoLinkFinalGate:
     def test_force_bypasses_suno_link_check(self, tmp_path):
         """force=True bypasses the Suno link requirement."""
         mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final", force=True
@@ -4581,7 +4643,7 @@ class TestSunoLinkFinalGate:
         mock_cache, _ = self._make_cache_with_track(tmp_path, has_suno_link=False)
         state = mock_cache.get_state()
         state["config"]["generation"] = {"require_suno_link_for_final": False}
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final"
@@ -4599,7 +4661,7 @@ class TestCheckExplicitContent:
 
     def test_finds_explicit_words(self):
         text = "[Verse 1]\nWhat the fuck is going on\nThis shit is broken"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is True
         words = [r["word"] for r in result["matches"]]
@@ -4608,7 +4670,7 @@ class TestCheckExplicitContent:
 
     def test_clean_text(self):
         text = "[Verse 1]\nThe sun is shining bright\nBirds sing along"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is False
         assert result["total_count"] == 0
@@ -4619,14 +4681,14 @@ class TestCheckExplicitContent:
 
     def test_counts_occurrences(self):
         text = "Fuck this, fuck that, everything is fucked"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         # "fuck" x2 + "fucked" x1 = at least 3 total
         assert result["total_count"] >= 3
 
     def test_case_insensitive(self):
         text = "SHIT happens\nWhat the FUCK"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is True
         assert result["unique_words"] >= 2
@@ -4634,20 +4696,20 @@ class TestCheckExplicitContent:
     def test_word_boundary_no_partial(self):
         """Should not match 'bass' in 'bassist' or 'hit' in 'shitty' incorrectly."""
         text = "The classic hit song played on the radio"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is False
 
     def test_skips_section_tags(self):
         text = "[Fuck]\nClean lyrics here"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         # [Fuck] is a section tag, should be skipped
         assert result["has_explicit"] is False
 
     def test_returns_line_numbers(self):
         text = "Line one is clean\nThis line has shit in it\nLine three clean"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["matches"][0]["lines"][0]["line_number"] == 2
 
@@ -4661,8 +4723,8 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("This has a customword")))
         assert result["has_explicit"] is True
         assert result["matches"][0]["word"] == "customword"
@@ -4677,8 +4739,8 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("This is shit")))
         # "shit" was removed from the list
         assert result["has_explicit"] is False
@@ -4686,7 +4748,7 @@ class TestCheckExplicitContent:
     def test_multiple_lines_same_word(self):
         """Same word on multiple lines gets consolidated."""
         text = "Fuck on line one\nAnother fuck on line two"
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         fuck_entry = next(r for r in result["matches"] if r["word"] == "fuck")
         assert fuck_entry["count"] == 2
@@ -4704,8 +4766,8 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
              caplog.at_level(logging.WARNING):
             result = json.loads(_run(server.check_explicit_content("clean text")))
         # Should still work (falls back to base words)
@@ -4724,8 +4786,8 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("This has shit")))
         # Base words should still be loaded
         assert result["has_explicit"] is True
@@ -4737,20 +4799,20 @@ class TestCheckExplicitContent:
 
     def test_section_tag_with_dash_not_scanned(self):
         """Section tags like [Verse-Hook] are skipped."""
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("[Fuck-Chorus]\nClean lyrics")))
         assert result["has_explicit"] is False
 
     def test_explicit_word_at_line_start(self):
         """Explicit word at beginning of line is detected."""
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("Shit, that was loud")))
         assert result["has_explicit"] is True
         assert result["matches"][0]["lines"][0]["line_number"] == 1
 
     def test_explicit_word_at_line_end(self):
         """Explicit word at end of line is detected."""
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("Oh that's some shit")))
         assert result["has_explicit"] is True
 
@@ -4759,7 +4821,7 @@ class TestCheckExplicitContent:
         lines = ["Clean line number {}".format(i) for i in range(500)]
         lines[250] = "This line has the word fuck in it"
         text = "\n".join(lines)
-        with patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content(text)))
         assert result["has_explicit"] is True
         assert result["matches"][0]["lines"][0]["line_number"] == 251
@@ -4774,8 +4836,8 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None):
             result = json.loads(_run(server.check_explicit_content("Clean text here")))
         assert result["has_explicit"] is False
 
@@ -4791,14 +4853,14 @@ class TestCheckExplicitContent:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
             # "damn" removed from base, should be clean
             result1 = json.loads(_run(server.check_explicit_content("Well damn")))
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
             # "badterm" added, should be explicit
             result2 = json.loads(_run(server.check_explicit_content("That's a badterm")))
         assert result1["has_explicit"] is False
@@ -4825,7 +4887,7 @@ class TestExtractLinks:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
         assert result["found"] is True
         assert result["count"] == 2
@@ -4842,7 +4904,7 @@ class TestExtractLinks:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "RESEARCH.md")))
         assert result["count"] == 1
 
@@ -4857,7 +4919,7 @@ class TestExtractLinks:
             "path": str(track_file), "title": "Track", "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "05-track")))
         assert result["found"] is True
         assert result["count"] == 1
@@ -4871,21 +4933,21 @@ class TestExtractLinks:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
         assert result["found"] is True
         assert result["count"] == 0
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("nonexistent")))
         assert result["found"] is False
 
     def test_file_not_found(self):
         """File that doesn't exist in album dir returns error."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "NONEXISTENT.md")))
         assert result["found"] is False
 
@@ -4898,7 +4960,7 @@ class TestExtractLinks:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
         assert result["links"][0]["line_number"] == 4
         assert result["links"][1]["line_number"] == 6
@@ -4912,7 +4974,7 @@ class TestExtractLinks:
             "path": str(track_file), "title": "My Track", "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "05")))
         assert result["found"] is True
         assert result["count"] == 1
@@ -4927,7 +4989,7 @@ class TestExtractLinks:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album", "SOURCES.md")))
         assert result["count"] == 2
 
@@ -4950,7 +5012,7 @@ class TestGetLyricsStats:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         assert result["found"] is True
         track = result["tracks"][0]
@@ -4962,7 +5024,7 @@ class TestGetLyricsStats:
     def test_genre_target(self):
         """Result includes genre-appropriate word count targets."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album")))
         assert result["genre"] == "electronic"
         assert "target" in result
@@ -4979,7 +5041,7 @@ class TestGetLyricsStats:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album")))
         # Should have results for all tracks (original 2 + ours)
         assert len(result["tracks"]) >= 3
@@ -4994,7 +5056,7 @@ class TestGetLyricsStats:
             "status": "Not Started",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         assert result["tracks"][0]["status"] == "EMPTY"
         assert result["tracks"][0]["word_count"] == 0
@@ -5013,7 +5075,7 @@ class TestGetLyricsStats:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         track = result["tracks"][0]
         assert track["status"] in ("OVER", "DANGER")
@@ -5032,7 +5094,7 @@ class TestGetLyricsStats:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         track = result["tracks"][0]
         assert track["status"] == "DANGER"
@@ -5040,13 +5102,13 @@ class TestGetLyricsStats:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("nonexistent")))
         assert result["found"] is False
 
     def test_track_not_found(self):
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "99")))
         assert result["found"] is False
 
@@ -5057,7 +5119,7 @@ class TestGetLyricsStats:
             "title": "No Path", "status": "In Progress", "path": "",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05-no-path")))
         assert "error" in result["tracks"][0]
 
@@ -5074,7 +5136,7 @@ class TestGetLyricsStats:
             "status": "In Progress",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         track = result["tracks"][0]
         assert track["word_count"] == 5  # "One two three" + "Four five"
@@ -5153,7 +5215,7 @@ class TestListSkills:
     def test_list_all_returns_all(self):
         """No filters returns all skills."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         assert result["count"] == 5
         assert result["total"] == 5
@@ -5163,7 +5225,7 @@ class TestListSkills:
     def test_filter_by_model_opus(self):
         """Model filter returns only matching tier."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="opus")))
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "lyric-writer"
@@ -5171,7 +5233,7 @@ class TestListSkills:
     def test_filter_by_model_sonnet(self):
         """Sonnet filter returns all sonnet skills."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="sonnet")))
         assert result["count"] == 3
         names = {s["name"] for s in result["skills"]}
@@ -5180,7 +5242,7 @@ class TestListSkills:
     def test_filter_by_model_haiku(self):
         """Haiku filter returns help skill only."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="haiku")))
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "help"
@@ -5188,7 +5250,7 @@ class TestListSkills:
     def test_filter_model_case_insensitive(self):
         """Model filter is case-insensitive."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="OPUS")))
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "lyric-writer"
@@ -5196,7 +5258,7 @@ class TestListSkills:
     def test_filter_by_category(self):
         """Category filter matches keyword in description."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(category="lyrics")))
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "lyric-writer"
@@ -5204,7 +5266,7 @@ class TestListSkills:
     def test_filter_category_case_insensitive(self):
         """Category filter is case-insensitive."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(category="COURT")))
         assert result["count"] == 1
         assert result["skills"][0]["name"] == "researchers-legal"
@@ -5212,7 +5274,7 @@ class TestListSkills:
     def test_combined_model_and_category(self):
         """Both filters applied simultaneously."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(
                 model_filter="sonnet", category="court"
             )))
@@ -5222,7 +5284,7 @@ class TestListSkills:
     def test_combined_filter_no_match(self):
         """Both filters that don't overlap return empty."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(
                 model_filter="opus", category="court"
             )))
@@ -5232,7 +5294,7 @@ class TestListSkills:
     def test_unknown_model_filter(self):
         """Model filter for nonexistent tier returns empty."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="gpt")))
         assert result["count"] == 0
         assert result["skills"] == []
@@ -5240,7 +5302,7 @@ class TestListSkills:
     def test_no_match_category(self):
         """Category that matches nothing returns empty."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(category="blockchain")))
         assert result["count"] == 0
 
@@ -5249,7 +5311,7 @@ class TestListSkills:
         state = _fresh_state()
         state["skills"] = {"count": 0, "model_counts": {}, "items": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         assert result["count"] == 0
         assert result["total"] == 0
@@ -5259,7 +5321,7 @@ class TestListSkills:
         """State with no skills key at all returns empty."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         assert result["count"] == 0
         assert result["skills"] == []
@@ -5267,7 +5329,7 @@ class TestListSkills:
     def test_total_reflects_unfiltered_count(self):
         """Total always shows unfiltered skill count, even when filtering."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills(model_filter="opus")))
         assert result["count"] == 1  # filtered
         assert result["total"] == 5  # unfiltered
@@ -5275,7 +5337,7 @@ class TestListSkills:
     def test_result_item_fields(self):
         """Each skill result has expected fields."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         for skill in result["skills"]:
             assert "name" in skill
@@ -5289,7 +5351,7 @@ class TestListSkills:
         state = _skills_state()
         del state["skills"]["items"]["researchers-legal"]["user_invocable"]
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         legal = [s for s in result["skills"] if s["name"] == "researchers-legal"][0]
         assert legal["user_invocable"] is True
@@ -5297,7 +5359,7 @@ class TestListSkills:
     def test_model_counts_in_response(self):
         """model_counts shows per-tier breakdown."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         assert result["model_counts"]["opus"] == 1
         assert result["model_counts"]["sonnet"] == 3
@@ -5306,7 +5368,7 @@ class TestListSkills:
     def test_skills_sorted_by_name(self):
         """Skills are returned sorted alphabetically."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         names = [s["name"] for s in result["skills"]]
         assert names == sorted(names)
@@ -5319,7 +5381,7 @@ class TestListSkills:
         }
         state["skills"]["count"] = 5
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         broken = [s for s in result["skills"] if s["name"] == "broken"][0]
         assert broken["description"] == ""
@@ -5332,7 +5394,7 @@ class TestListSkills:
         }
         state["skills"]["count"] = 5
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_skills()))
         no_tier = [s for s in result["skills"] if s["name"] == "no-tier"][0]
         assert no_tier["model_tier"] == "unknown"
@@ -5350,7 +5412,7 @@ class TestGetSkill:
     def test_exact_match(self):
         """Exact name returns found=True."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("lyric-writer")))
         assert result["found"] is True
         assert result["name"] == "lyric-writer"
@@ -5359,7 +5421,7 @@ class TestGetSkill:
     def test_exact_match_returns_full_data(self):
         """Exact match includes all skill fields."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("suno-engineer")))
         assert result["found"] is True
         skill = result["skill"]
@@ -5370,7 +5432,7 @@ class TestGetSkill:
     def test_fuzzy_single_match(self):
         """Partial name that matches one skill returns it."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("lyric")))
         assert result["found"] is True
         assert result["name"] == "lyric-writer"
@@ -5378,7 +5440,7 @@ class TestGetSkill:
     def test_fuzzy_multiple_matches(self):
         """Partial name matching multiple skills returns error."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("researcher")))
         assert result["found"] is False
         assert "multiple_matches" in result
@@ -5386,7 +5448,7 @@ class TestGetSkill:
     def test_no_match(self):
         """Name matching nothing returns error with available list."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("nonexistent")))
         assert result["found"] is False
         assert "available_skills" in result
@@ -5397,7 +5459,7 @@ class TestGetSkill:
         state = _fresh_state()
         state["skills"] = {"count": 0, "items": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("anything")))
         assert result["found"] is False
         assert "No skills" in result["error"]
@@ -5406,14 +5468,14 @@ class TestGetSkill:
         """Missing skills key in state returns error."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("anything")))
         assert result["found"] is False
 
     def test_case_normalization(self):
         """Name is normalized to slug (lowercase, hyphens)."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("Lyric Writer")))
         assert result["found"] is True
         assert result["name"] == "lyric-writer"
@@ -5421,7 +5483,7 @@ class TestGetSkill:
     def test_underscore_normalization(self):
         """Underscores are converted to hyphens."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("lyric_writer")))
         assert result["found"] is True
         assert result["name"] == "lyric-writer"
@@ -5429,35 +5491,35 @@ class TestGetSkill:
     def test_returns_user_invocable_true(self):
         """Regular skills have user_invocable=True."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("lyric-writer")))
         assert result["skill"]["user_invocable"] is True
 
     def test_returns_user_invocable_false(self):
         """Internal skills have user_invocable=False."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("researchers-legal")))
         assert result["skill"]["user_invocable"] is False
 
     def test_returns_context_field(self):
         """Skills with context field include it."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("researchers-legal")))
         assert result["skill"]["context"] == "fork"
 
     def test_available_skills_sorted(self):
         """Available skills in error response are sorted."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_skill("zzz-not-found")))
         assert result["available_skills"] == sorted(result["available_skills"])
 
     def test_reverse_fuzzy_match(self):
         """Query longer than skill name (skill_name in normalized) also matches."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # "help-system" contains "help" — and "help" is in "help-system"
             # But the reverse check is: skill_name in normalized
             # "help" in "help-system" → True
@@ -5478,7 +5540,7 @@ class TestSearchEdgeCases:
     def test_search_in_skills_scope(self):
         """Search with scope='skills' only searches skills."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("lyric", scope="skills")))
         assert "skills" in result
         assert "albums" not in result
@@ -5487,21 +5549,21 @@ class TestSearchEdgeCases:
     def test_search_skills_by_description(self):
         """Search finds skills by description content."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("court", scope="skills")))
         assert result["skills"][0]["name"] == "researchers-legal"
 
     def test_search_skills_by_model_tier(self):
         """Search finds skills by model_tier."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("haiku", scope="skills")))
         assert any(s["name"] == "help" for s in result["skills"])
 
     def test_search_all_scopes(self):
         """Scope 'all' searches albums, tracks, ideas, and skills."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("test", scope="all")))
         assert "albums" in result
         assert "tracks" in result
@@ -5511,42 +5573,42 @@ class TestSearchEdgeCases:
     def test_search_empty_query(self):
         """Empty string matches everything (substring of all strings)."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("", scope="all")))
         assert result["total_matches"] > 0
 
     def test_search_no_matches(self):
         """Query matching nothing returns 0 total."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("xyzzynotfound123", scope="all")))
         assert result["total_matches"] == 0
 
     def test_search_case_insensitive(self):
         """Search is case-insensitive."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("TEST ALBUM", scope="albums")))
         assert len(result["albums"]) >= 1
 
     def test_search_invalid_scope_returns_empty(self):
         """Unrecognized scope returns no result keys."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("test", scope="invalid")))
         assert result["total_matches"] == 0
 
     def test_search_tracks_returns_album_slug(self):
         """Track results include the parent album slug."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("first", scope="tracks")))
         assert result["tracks"][0]["album_slug"] == "test-album"
 
     def test_search_ideas_by_genre(self):
         """Ideas are searchable by genre."""
         mock_cache = MockStateCache(_skills_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("hip-hop", scope="ideas")))
         assert len(result["ideas"]) >= 1
 
@@ -5565,7 +5627,7 @@ class TestGetPendingVerificationsEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["02-second-track"]["sources_verified"] = "PENDING"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] >= 1
 
@@ -5575,7 +5637,7 @@ class TestGetPendingVerificationsEdgeCases:
         for t in state["albums"]["test-album"]["tracks"].values():
             t["sources_verified"] = "Verified (2025-01-01)"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 0
 
@@ -5585,7 +5647,7 @@ class TestGetPendingVerificationsEdgeCases:
         for t in state["albums"]["test-album"]["tracks"].values():
             t.pop("sources_verified", None)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert "test-album" not in result.get("albums_with_pending", {})
 
@@ -5594,7 +5656,7 @@ class TestGetPendingVerificationsEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["02-second-track"]["sources_verified"] = "Pending Review"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         # "pending review".lower() != "pending" — should NOT match
         assert result["total_pending_tracks"] == 0
@@ -5604,7 +5666,7 @@ class TestGetPendingVerificationsEdgeCases:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 0
         assert result["albums_with_pending"] == {}
@@ -5615,7 +5677,7 @@ class TestGetPendingVerificationsEdgeCases:
         state["albums"]["test-album"]["tracks"]["02-second-track"]["sources_verified"] = "Pending"
         state["albums"]["another-album"]["tracks"]["01-rock-song"]["sources_verified"] = "Pending"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_pending_verifications()))
         assert result["total_pending_tracks"] == 2
         assert "test-album" in result["albums_with_pending"]
@@ -5672,7 +5734,7 @@ class TestUpdateAlbumStatus:
     def test_updates_status_in_readme(self, tmp_path):
         """Status is written to the README.md file."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["success"] is True
@@ -5684,7 +5746,7 @@ class TestUpdateAlbumStatus:
     def test_preserves_other_fields(self, tmp_path):
         """Other table fields are not modified."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             _run(server.update_album_status("test-album", "Complete"))
         text = readme_path.read_text()
@@ -5694,7 +5756,7 @@ class TestUpdateAlbumStatus:
     def test_invalid_status_rejected(self):
         """Invalid status string is rejected with error."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "InvalidStatus")))
         assert "error" in result
         assert "Invalid status" in result["error"]
@@ -5702,7 +5764,7 @@ class TestUpdateAlbumStatus:
     def test_album_not_found(self):
         """Returns error when album doesn't exist."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("no-such-album", "Complete")))
         assert result["found"] is False
 
@@ -5712,7 +5774,7 @@ class TestUpdateAlbumStatus:
         state["albums"]["test-album"]["path"] = ""
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "No path" in result["error"]
@@ -5723,7 +5785,7 @@ class TestUpdateAlbumStatus:
         state["albums"]["test-album"]["path"] = str(tmp_path)
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "README.md not found" in result["error"]
@@ -5731,7 +5793,7 @@ class TestUpdateAlbumStatus:
     def test_case_insensitive_status_validation(self, tmp_path):
         """Status validation is case-insensitive."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "complete")))
         assert result["success"] is True
@@ -5740,7 +5802,7 @@ class TestUpdateAlbumStatus:
         """All valid statuses are accepted (using force to bypass transition rules)."""
         for status in ["Concept", "Research Complete", "Sources Verified", "In Progress", "Complete", "Released"]:
             mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-            with patch.object(server, "cache", mock_cache), \
+            with patch.object(_shared_mod, "cache", mock_cache), \
                  patch.object(server, "write_state"):
                 result = json.loads(_run(server.update_album_status("test-album", status, force=True)))
             assert result["success"] is True, f"Failed for status: {status}"
@@ -5748,7 +5810,7 @@ class TestUpdateAlbumStatus:
     def test_returns_old_and_new_status(self, tmp_path):
         """Response includes both old and new status."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["old_status"] == "In Progress"
@@ -5766,7 +5828,7 @@ class TestUpdateAlbumStatus:
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.update_album_status("test-album", "Complete")))
             assert "error" in result
             assert "Cannot read" in result["error"]
@@ -5782,7 +5844,7 @@ class TestUpdateAlbumStatus:
         state["albums"]["test-album"]["path"] = str(tmp_path)
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "Status field not found" in result["error"]
@@ -5797,7 +5859,7 @@ class TestUpdateAlbumStatus:
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(Path, "write_text", side_effect=OSError("disk full")):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
@@ -5806,8 +5868,8 @@ class TestUpdateAlbumStatus:
     def test_cache_update_failure_still_succeeds(self, tmp_path):
         """File is written even if cache update raises an exception."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "parse_album_readme", side_effect=Exception("parse fail")), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_parsers_mod, "parse_album_readme", side_effect=Exception("parse fail")), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["success"] is True
@@ -5817,7 +5879,7 @@ class TestUpdateAlbumStatus:
     def test_whitespace_in_status_param(self, tmp_path):
         """Status with leading/trailing whitespace is accepted."""
         mock_cache, readme_path = self._make_cache_with_readme(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "  complete  ")))
         assert result["success"] is True
@@ -5850,8 +5912,8 @@ class TestCreateTrack:
         (template_dir / "track.md").write_text(
             "# [Track Title]\n\n| **Track #** | XX |\n| **Title** | [Track Title] |\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "03", "New Song")))
         assert result["created"] is True
         assert result["track_slug"] == "03-new-song"
@@ -5867,15 +5929,15 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("template")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "03", "New Song")))
         assert result["created"] is False
 
     def test_album_not_found(self):
         """Returns error for nonexistent album."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_track("no-such", "01", "Track")))
         assert result["found"] is False
 
@@ -5887,7 +5949,7 @@ class TestCreateTrack:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
         assert "error" in result
         assert "tracks/" in result["error"]
@@ -5898,8 +5960,8 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("# [Track Title]\n| **Track #** | XX |")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "5", "Song")))
         assert result["created"] is True
         assert result["track_slug"] == "05-song"
@@ -5911,8 +5973,8 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("# [Track Title]")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "My Cool Track")))
         assert result["track_slug"] == "01-my-cool-track"
 
@@ -5921,8 +5983,8 @@ class TestCreateTrack:
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
         empty_root = tmp_path / "empty"
         empty_root.mkdir()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", empty_root):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", empty_root):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
         assert "error" in result
         assert "template not found" in result["error"]
@@ -5936,8 +5998,8 @@ class TestCreateTrack:
             "# [Track Title]\n| **Track #** | XX |\n| **Title** | [Track Title] |\n"
             "| **Album** | [Album Name](../README.md) |\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "07", "My Track")))
         content = (tracks_dir / "07-my-track.md").read_text()
         assert "# My Track" in content
@@ -5949,7 +6011,7 @@ class TestCreateTrack:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
         assert "error" in result
         assert "No path" in result["error"]
@@ -5960,8 +6022,8 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("# [Track Title]\n| **Track #** | XX |")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "00", "Intro")))
         assert result["created"] is True
         assert result["track_slug"] == "00-intro"
@@ -5973,8 +6035,8 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("# [Track Title]")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "The Big Track")))
         assert result["created"] is True
         assert result["track_slug"] == "01-the-big-track"
@@ -5985,8 +6047,8 @@ class TestCreateTrack:
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
         (template_dir / "track.md").write_text("# [Track Title]")
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             # Whitespace-only title produces a filename via slug normalization
             result = json.loads(_run(server.create_track("test-album", "01", "   ")))
         # The tool should either create a file or return an error — either way no crash
@@ -6005,8 +6067,8 @@ class TestCreateTrack:
             "<!-- END DOCUMENTARY SECTIONS -->\n"
             "## Concept\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Doc Track", documentary=True)))
         assert result["created"] is True
         content = (tracks_dir / "01-doc-track.md").read_text()
@@ -6026,8 +6088,8 @@ class TestCreateTrack:
             "<!-- END DOCUMENTARY SECTIONS -->\n"
             "## Concept\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Non Doc", documentary=False)))
         assert result["created"] is True
         content = (tracks_dir / "01-non-doc.md").read_text()
@@ -6044,8 +6106,8 @@ class TestCreateTrack:
         template_file.write_text("template")
         template_file.chmod(0o000)
         try:
-            with patch.object(server, "cache", mock_cache), \
-                 patch.object(server, "PLUGIN_ROOT", tmp_path):
+            with patch.object(_shared_mod, "cache", mock_cache), \
+                 patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
                 result = json.loads(_run(server.create_track("test-album", "01", "Track")))
             assert "error" in result
             assert "Cannot read" in result["error"]
@@ -6061,8 +6123,8 @@ class TestCreateTrack:
         # Make tracks dir read-only
         tracks_dir.chmod(0o555)
         try:
-            with patch.object(server, "cache", mock_cache), \
-                 patch.object(server, "PLUGIN_ROOT", tmp_path):
+            with patch.object(_shared_mod, "cache", mock_cache), \
+                 patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
                 result = json.loads(_run(server.create_track("test-album", "01", "Track")))
             assert "error" in result
             assert "Cannot write" in result["error"]
@@ -6080,8 +6142,8 @@ class TestCreateTrack:
             "<!-- END SOURCE SECTIONS -->\n"
             "## Concept\nKeep this.\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
         content = (tracks_dir / "01-track.md").read_text()
         assert "## Source" not in content
@@ -6096,8 +6158,8 @@ class TestCreateTrack:
             '---\ntitle: "[Track Title]"\ntrack_number: 0\nexplicit: false\n---\n'
             "# [Track Title]\n| **Track #** | XX |\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "07", "My Track")))
         assert result["created"] is True
         content = (tracks_dir / "07-my-track.md").read_text()
@@ -6122,8 +6184,8 @@ class TestCreateTrack:
             '---\ntitle: "[Track Title]"\ntrack_number: 0\nexplicit: false\n---\n'
             "# [Track Title]\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Explicit Track")))
         assert result["created"] is True
         content = (tracks_dir / "01-explicit-track.md").read_text()
@@ -6159,7 +6221,7 @@ class TestGetPromoStatus:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert result["promo_exists"] is False
         assert result["populated"] == 0
@@ -6168,7 +6230,7 @@ class TestGetPromoStatus:
     def test_empty_promo_dir(self, tmp_path):
         """Reports zero populated when promo/ has no files."""
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert result["promo_exists"] is True
         assert result["populated"] == 0
@@ -6180,7 +6242,7 @@ class TestGetPromoStatus:
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
             "campaign.md": long_content,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert result["populated"] == 1
         campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
@@ -6194,7 +6256,7 @@ class TestGetPromoStatus:
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
             "campaign.md": template_content,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
         assert campaign["populated"] is False
@@ -6202,10 +6264,10 @@ class TestGetPromoStatus:
     def test_all_populated_shows_ready(self, tmp_path):
         """ready=True when all 6 files are populated."""
         files = {}
-        for fname in server._PROMO_FILES:
+        for fname in _status_mod._PROMO_FILES:
             files[fname] = "# Promo\n\n" + "Real promo copy for distribution. " * 20
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, files)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert result["populated"] == 6
         assert result["ready"] is True
@@ -6213,24 +6275,24 @@ class TestGetPromoStatus:
     def test_album_not_found(self):
         """Returns error for nonexistent album."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("no-such-album")))
         assert result["found"] is False
 
     def test_reports_all_six_files(self, tmp_path):
         """All 6 expected promo files are checked regardless of what exists."""
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         filenames = [f["file"] for f in result["files"]]
-        assert filenames == server._PROMO_FILES
+        assert filenames == _status_mod._PROMO_FILES
 
     def test_empty_album_path(self):
         """Returns error when album path is empty."""
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert "error" in result
 
@@ -6241,7 +6303,7 @@ class TestGetPromoStatus:
         })
         (promo_dir / "campaign.md").chmod(0o000)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.get_promo_status("test-album")))
             campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
             assert campaign["exists"] is True
@@ -6257,7 +6319,7 @@ class TestGetPromoStatus:
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
             "campaign.md": content,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
         assert campaign["word_count"] == 20
@@ -6269,7 +6331,7 @@ class TestGetPromoStatus:
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
             "campaign.md": content,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
         assert campaign["word_count"] == 21
@@ -6281,7 +6343,7 @@ class TestGetPromoStatus:
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
             "campaign.md": content,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_status("test-album")))
         campaign = next(f for f in result["files"] if f["file"] == "campaign.md")
         assert campaign["word_count"] == 0
@@ -6305,7 +6367,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert result["found"] is True
         assert result["platform"] == "twitter"
@@ -6314,7 +6376,7 @@ class TestGetPromoContent:
     def test_invalid_platform(self):
         """Returns error for invalid platform name."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "snapchat")))
         assert "error" in result
         assert "Unknown platform" in result["error"]
@@ -6326,14 +6388,14 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert result["found"] is False
 
     def test_album_not_found(self):
         """Returns error for nonexistent album."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("no-such-album", "twitter")))
         assert result["found"] is False
 
@@ -6348,7 +6410,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             for p in ["campaign", "twitter", "instagram", "tiktok", "facebook", "youtube"]:
                 result = json.loads(_run(server.get_promo_content("test-album", p)))
                 assert result["found"] is True, f"Failed for platform: {p}"
@@ -6363,7 +6425,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "Twitter")))
         assert result["found"] is True
 
@@ -6372,7 +6434,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert "error" in result
 
@@ -6389,7 +6451,7 @@ class TestGetPromoContent:
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
             assert "error" in result
             assert "Cannot read" in result["error"]
@@ -6406,7 +6468,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "  twitter  ")))
         assert result["found"] is True
 
@@ -6420,7 +6482,7 @@ class TestGetPromoContent:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_promo_content("test-album", "instagram")))
         assert result["platform"] == "instagram"
         assert "path" in result
@@ -6444,8 +6506,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text('{"version": "0.44.0"}')
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["stored_version"] == "0.43.0"
         assert result["current_version"] == "0.44.0"
@@ -6461,8 +6523,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text('{"version": "0.44.0"}')
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["needs_upgrade"] is False
 
@@ -6476,8 +6538,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text('{"version": "0.44.0"}')
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["stored_version"] is None
         assert result["needs_upgrade"] is True
@@ -6488,8 +6550,8 @@ class TestGetPluginVersion:
         state["plugin_version"] = "0.43.0"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] is None
         assert result["stored_version"] == "0.43.0"
@@ -6504,8 +6566,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text("{invalid json!")
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] is None
         assert result["stored_version"] == "0.43.0"
@@ -6520,8 +6582,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text('{"name": "test"}')
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] is None
 
@@ -6531,8 +6593,8 @@ class TestGetPluginVersion:
         # No plugin_version key at all
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["needs_upgrade"] is False
 
@@ -6546,8 +6608,8 @@ class TestGetPluginVersion:
         plugin_dir.mkdir()
         (plugin_dir / "plugin.json").write_text('{"version": ""}')
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] == ""
 
@@ -6564,8 +6626,8 @@ class TestGetPluginVersion:
         plugin_file.chmod(0o000)
 
         try:
-            with patch.object(server, "cache", mock_cache), \
-                 patch.object(server, "PLUGIN_ROOT", tmp_path):
+            with patch.object(_shared_mod, "cache", mock_cache), \
+                 patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
                 result = json.loads(_run(server.get_plugin_version()))
             assert result["current_version"] is None
         finally:
@@ -6575,8 +6637,8 @@ class TestGetPluginVersion:
         """Response includes plugin_root path."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["plugin_root"] == str(tmp_path)
 
@@ -6593,62 +6655,62 @@ class TestParseRequirements:
         """Parses standard == pinned versions."""
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\nflask==3.0.0\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"requests": "2.31.0", "flask": "3.0.0"}
 
     def test_skips_comments_and_blanks(self, tmp_path):
         """Skips comment lines and blank lines."""
         req = tmp_path / "requirements.txt"
         req.write_text("# This is a comment\n\nrequests==2.31.0\n\n# Another\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"requests": "2.31.0"}
 
     def test_strips_extras(self, tmp_path):
         """Strips extras markers like [cli]."""
         req = tmp_path / "requirements.txt"
         req.write_text("mcp[cli]==1.23.0\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"mcp": "1.23.0"}
 
     def test_lowercases_names(self, tmp_path):
         """Package names are lowercased."""
         req = tmp_path / "requirements.txt"
         req.write_text("PyYAML==6.0.2\nNumPy==1.26.4\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert "pyyaml" in result
         assert "numpy" in result
 
     def test_missing_file_returns_empty(self, tmp_path):
         """Missing file returns empty dict."""
-        result = server._parse_requirements(tmp_path / "nonexistent.txt")
+        result = _health_mod._parse_requirements(tmp_path / "nonexistent.txt")
         assert result == {}
 
     def test_empty_file_returns_empty(self, tmp_path):
         """Empty file returns empty dict."""
         req = tmp_path / "requirements.txt"
         req.write_text("")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {}
 
     def test_ignores_non_pinned_lines(self, tmp_path):
         """Ignores lines without == (bare names, >=, etc.)."""
         req = tmp_path / "requirements.txt"
         req.write_text("requests>=2.0\nflask\nnumpy==1.26.4\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"numpy": "1.26.4"}
 
     def test_handles_inline_comments(self, tmp_path):
         """Strips inline comments after version."""
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0  # HTTP library\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"requests": "2.31.0"}
 
     def test_handles_hyphenated_names(self, tmp_path):
         """Handles hyphenated package names."""
         req = tmp_path / "requirements.txt"
         req.write_text("psycopg2-binary==2.9.10\n")
-        result = server._parse_requirements(req)
+        result = _health_mod._parse_requirements(req)
         assert result == {"psycopg2-binary": "2.9.10"}
 
 
@@ -6675,7 +6737,7 @@ class TestCheckVenvHealth:
         venv_dir.mkdir(parents=True)
         (venv_dir / "python3").touch()
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
@@ -6693,7 +6755,7 @@ class TestCheckVenvHealth:
         venv_dir.mkdir(parents=True)
         (venv_dir / "python3").touch()
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", return_value="2.28.0"), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
@@ -6715,7 +6777,7 @@ class TestCheckVenvHealth:
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
@@ -6740,7 +6802,7 @@ class TestCheckVenvHealth:
         (venv_dir / "python3").touch()
         # No requirements.txt in PLUGIN_ROOT
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "error"
@@ -6761,7 +6823,7 @@ class TestCheckVenvHealth:
         venv_dir.mkdir(parents=True)
         (venv_dir / "python3").touch()
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
@@ -6782,7 +6844,7 @@ class TestCheckVenvHealth:
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path), \
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
              patch.object(Path, "home", return_value=tmp_path / "fakehome"):
             result = json.loads(_run(server.check_venv_health()))
@@ -6815,7 +6877,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea(
                 "Cyberpunk Dreams", genre="electronic", concept="Neon city vibes"
             )))
@@ -6830,7 +6892,7 @@ class TestCreateIdea:
     def test_creates_file_if_missing(self, tmp_path):
         """Creates IDEAS.md if it doesn't exist."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("New Idea")))
         assert result["created"] is True
         assert (content_root / "IDEAS.md").exists()
@@ -6840,7 +6902,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Ideas\n\n## Ideas\n\n### Existing Idea\n\n**Status**: Pending\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Existing Idea")))
         assert result["created"] is False
         assert "already exists" in result["error"]
@@ -6848,7 +6910,7 @@ class TestCreateIdea:
     def test_empty_title_rejected(self):
         """Rejects empty title."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("")))
         assert "error" in result
         assert "empty" in result["error"].lower()
@@ -6858,7 +6920,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Minimal Idea")))
         assert result["created"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -6872,7 +6934,7 @@ class TestCreateIdea:
         state = _fresh_state()
         state["config"]["content_root"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Test")))
         assert "error" in result
 
@@ -6888,7 +6950,7 @@ class TestCreateIdea:
         state["config"]["content_root"] = str(content_root)
         mock_cache = MockStateCache(state)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.create_idea("Test Idea")))
             assert "error" in result
             assert "Cannot read" in result["error"]
@@ -6900,7 +6962,7 @@ class TestCreateIdea:
         state = _fresh_state()
         state["config"]["content_root"] = "/tmp/test"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("   ")))
         assert "error" in result
         assert "empty" in result["error"].lower()
@@ -6910,7 +6972,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea(
                 "Full Idea", genre="rock", idea_type="Documentary", concept="A doc album"
             )))
@@ -6926,7 +6988,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Typed Idea", idea_type="Narrative")))
         text = (content_root / "IDEAS.md").read_text()
         assert "**Type**: Narrative" in text
@@ -6936,7 +6998,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Track #1: The [Best] & More")))
         assert result["created"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -6947,7 +7009,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(Path, "write_text", side_effect=OSError("permission denied")):
             result = json.loads(_run(server.create_idea("New Idea")))
         assert "error" in result
@@ -6958,7 +7020,7 @@ class TestCreateIdea:
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
         mock_cache.rebuild = MagicMock(side_effect=Exception("rebuild failed"))
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Survive Rebuild", genre="rock")))
         assert result["created"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -6969,7 +7031,7 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.create_idea("Path Test")))
         assert result["path"] == str(content_root / "IDEAS.md")
 
@@ -7015,7 +7077,7 @@ class TestUpdateIdea:
     def test_updates_status(self, tmp_path):
         """Status field is updated in IDEAS.md."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "status", "In Progress")))
         assert result["success"] is True
         assert result["old_value"] == "Pending"
@@ -7026,7 +7088,7 @@ class TestUpdateIdea:
     def test_updates_genre(self, tmp_path):
         """Genre field is updated."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "genre", "synthwave")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7035,14 +7097,14 @@ class TestUpdateIdea:
     def test_idea_not_found(self, tmp_path):
         """Returns error for nonexistent idea."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("No Such Idea", "status", "Pending")))
         assert result["found"] is False
 
     def test_invalid_field(self, tmp_path):
         """Returns error for invalid field name."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "tracks", "12")))
         assert "error" in result
         assert "Unknown field" in result["error"]
@@ -7050,7 +7112,7 @@ class TestUpdateIdea:
     def test_preserves_other_ideas(self, tmp_path):
         """Updating one idea doesn't affect others."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             _run(server.update_idea("Cyberpunk Dreams", "status", "Complete"))
         text = (content_root / "IDEAS.md").read_text()
         # Outlaw Stories should be unchanged
@@ -7064,14 +7126,14 @@ class TestUpdateIdea:
         state = _fresh_state()
         state["config"]["content_root"] = str(content_root)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Test", "status", "Pending")))
         assert "error" in result
 
     def test_updates_concept(self, tmp_path):
         """Concept field is updated."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "concept", "Dark future vibes")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7080,14 +7142,14 @@ class TestUpdateIdea:
     def test_case_insensitive_field(self, tmp_path):
         """Field name is case-insensitive."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "STATUS", "Complete")))
         assert result["success"] is True
 
     def test_updates_type_field(self, tmp_path):
         """Type field is correctly updated."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "type", "Documentary")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7112,7 +7174,7 @@ class TestUpdateIdea:
         state = _fresh_state()
         state["config"]["content_root"] = str(content_root)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Minimal Idea", "genre", "rock")))
         assert "error" in result
         assert "not found" in result["error"].lower()
@@ -7120,7 +7182,7 @@ class TestUpdateIdea:
     def test_last_idea_in_file(self, tmp_path):
         """Correctly updates the last idea (no trailing ### to bound section)."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Outlaw Stories", "status", "Complete")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7132,7 +7194,7 @@ class TestUpdateIdea:
     def test_empty_value(self, tmp_path):
         """Can set a field to an empty value."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "concept", "")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7141,7 +7203,7 @@ class TestUpdateIdea:
     def test_special_chars_in_value(self, tmp_path):
         """Special characters in value are preserved."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea(
                 "Cyberpunk Dreams", "concept", "Neon & chrome [2026] {version}"
             )))
@@ -7161,7 +7223,7 @@ class TestUpdateIdea:
         state["config"]["content_root"] = str(content_root)
         mock_cache = MockStateCache(state)
         try:
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.update_idea("Test", "status", "Pending")))
             assert "error" in result
             assert "Cannot read" in result["error"]
@@ -7172,7 +7234,7 @@ class TestUpdateIdea:
         """Returns error when IDEAS.md cannot be written."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
         # Make file read-only after first read
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # Use patch on Path.write_text to simulate write failure
             original_write = Path.write_text
 
@@ -7191,7 +7253,7 @@ class TestUpdateIdea:
         """Idea is updated even if cache rebuild throws."""
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
         mock_cache.rebuild = MagicMock(side_effect=Exception("rebuild failed"))
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Cyberpunk Dreams", "status", "Complete")))
         assert result["success"] is True
         text = (content_root / "IDEAS.md").read_text()
@@ -7202,7 +7264,7 @@ class TestUpdateIdea:
         state = _fresh_state()
         state["config"]["content_root"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_idea("Test", "status", "Pending")))
         assert "error" in result
 
@@ -7220,23 +7282,23 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = "/nonexistent/path"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert isinstance(words, set)
         assert "fuck" in words
         assert "shit" in words
-        assert len(words) == len(server._BASE_EXPLICIT_WORDS)
+        assert len(words) == len(_text_analysis_mod._BASE_EXPLICIT_WORDS)
 
     def test_cache_hit_returns_immediately(self):
         """Second call returns cached result when override file mtime unchanged."""
         cached_words = {"cached", "word", "set"}
         mock_cache = MockStateCache()
-        with patch.object(server, "_explicit_word_cache", cached_words), \
-             patch.object(server, "_explicit_word_mtime", 0.0), \
-             patch.object(server, "cache", mock_cache):
-            result = server._load_explicit_words()
+        with patch.object(_text_analysis_mod, "_explicit_word_cache", cached_words), \
+             patch.object(_text_analysis_mod, "_explicit_word_mtime", 0.0), \
+             patch.object(_shared_mod, "cache", mock_cache):
+            result = _text_analysis_mod._load_explicit_words()
         assert result is cached_words
 
     def test_fallback_to_content_root_overrides(self, tmp_path):
@@ -7250,10 +7312,10 @@ class TestLoadExplicitWords:
         state["config"]["content_root"] = str(tmp_path)
         state["config"]["overrides_dir"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "testword123" in words
 
     def test_add_word_with_parenthetical_note(self, tmp_path):
@@ -7268,10 +7330,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "customterm" in words
         assert "anotherword" in words
         # Parenthetical text should not be part of the word
@@ -7289,10 +7351,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "fuck" not in words
         assert "shit" not in words
         # Other base words should still be present
@@ -7308,10 +7370,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         # Only base words + "realword" should be present, no empty strings
         assert "" not in words
         assert "realword" in words
@@ -7326,10 +7388,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "uppercase" in words
         assert "mixed" in words
         assert "UPPERCASE" not in words
@@ -7339,11 +7401,11 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
-            patterns = server._explicit_word_patterns
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
+            patterns = _text_analysis_mod._explicit_word_patterns
         assert patterns is not None
         assert len(patterns) == len(words)
         for w in words:
@@ -7354,11 +7416,11 @@ class TestLoadExplicitWords:
     def test_key_error_in_config_falls_back_to_base(self):
         """KeyError from missing config keys falls back to base words."""
         mock_cache = MockStateCache({})  # empty state, no "config" key
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
-        assert words == server._BASE_EXPLICIT_WORDS
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
+        assert words == _text_analysis_mod._BASE_EXPLICIT_WORDS
 
     def test_unicode_decode_error_falls_back_to_base(self, tmp_path):
         """UnicodeDecodeError when reading override file falls back to base words."""
@@ -7369,11 +7431,11 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
-        assert words == server._BASE_EXPLICIT_WORDS
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
+        assert words == _text_analysis_mod._BASE_EXPLICIT_WORDS
 
     def test_both_add_and_remove_sections(self, tmp_path):
         """Both add and remove sections work together."""
@@ -7387,10 +7449,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "newword" in words
         assert "fuck" not in words
         assert "shit" in words  # other base words unaffected
@@ -7409,10 +7471,10 @@ class TestLoadExplicitWords:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(override_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_explicit_word_cache", None), \
-             patch.object(server, "_explicit_word_patterns", None):
-            words = server._load_explicit_words()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_explicit_word_cache", None), \
+             patch.object(_text_analysis_mod, "_explicit_word_patterns", None):
+            words = _text_analysis_mod._load_explicit_words()
         assert "validword" in words
         assert "bullet" not in words
 
@@ -7433,17 +7495,17 @@ class TestLoadArtistBlocklist:
             mtime = blocklist_path.stat().st_mtime
         except OSError:
             mtime = 0.0
-        with patch.object(server, "_artist_blocklist_cache", cached), \
-             patch.object(server, "_artist_blocklist_mtime", mtime):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", cached), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_mtime", mtime):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert result is cached
 
     def test_missing_file_returns_empty(self, tmp_path):
         """Returns empty list when blocklist file doesn't exist."""
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert result == []
 
     def test_read_error_returns_empty(self, tmp_path):
@@ -7452,10 +7514,10 @@ class TestLoadArtistBlocklist:
         blocklist_dir.mkdir(parents=True)
         # Create a directory where file is expected — triggers IsADirectoryError
         (blocklist_dir / "artist-blocklist.md").mkdir()
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert result == []
 
     def test_parses_table_rows_with_genre(self, tmp_path):
@@ -7474,10 +7536,10 @@ class TestLoadArtistBlocklist:
             "| --- | --- |\n"
             "| Skrillex | Aggressive dubstep wobble |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert len(result) == 3
         names = [e["name"] for e in result]
         assert "Metallica" in names
@@ -7500,10 +7562,10 @@ class TestLoadArtistBlocklist:
             "| --- | --- |\n"
             "| AC/DC | Hard blues riffs |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         # Should only have AC/DC, not "Don't Say"
         assert len(result) == 1
         assert result[0]["name"] == "AC/DC"
@@ -7518,10 +7580,10 @@ class TestLoadArtistBlocklist:
             "| --- | --- |\n"
             "| Taylor Swift | Catchy pop melodies |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert len(result) == 1
         names = [e["name"] for e in result]
         assert "---" not in names
@@ -7537,10 +7599,10 @@ class TestLoadArtistBlocklist:
             "| Valid Name | Valid Alt |\n"
             "| Incomplete\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert len(result) == 1
         assert result[0]["name"] == "Valid Name"
 
@@ -7555,10 +7617,10 @@ class TestLoadArtistBlocklist:
             "|  | Some alternative |\n"
             "| Metallica | Heavy riffs |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert len(result) == 1
         assert result[0]["name"] == "Metallica"
 
@@ -7572,11 +7634,11 @@ class TestLoadArtistBlocklist:
             "| --- | --- |\n"
             "| Metallica | Heavy riffs |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            server._load_artist_blocklist()
-            patterns = server._artist_blocklist_patterns
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            _text_analysis_mod._load_artist_blocklist()
+            patterns = _text_analysis_mod._artist_blocklist_patterns
         assert "Metallica" in patterns
         assert patterns["Metallica"].search("Metallica") is not None
         assert patterns["Metallica"].search("metallica") is not None  # case-insensitive
@@ -7591,10 +7653,10 @@ class TestLoadArtistBlocklist:
             "| --- | --- |\n"
             "| SomeArtist | Some description |\n"
         )
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
         assert len(result) == 1
         assert result[0]["genre"] == ""
 
@@ -7603,11 +7665,11 @@ class TestLoadArtistBlocklist:
         blocklist_dir = tmp_path / "reference" / "suno"
         blocklist_dir.mkdir(parents=True)
         (blocklist_dir / "artist-blocklist.md").write_text("")
-        with patch.object(server, "_artist_blocklist_cache", None), \
-             patch.object(server, "_artist_blocklist_patterns", None), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
-            result = server._load_artist_blocklist()
-            assert server._artist_blocklist_patterns == {}
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_patterns", None), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = _text_analysis_mod._load_artist_blocklist()
+            assert _text_analysis_mod._artist_blocklist_patterns == {}
         assert result == []
 
 
@@ -7622,7 +7684,7 @@ class TestFindAlbumOrError:
     def test_found_album(self):
         """Returns album data when album exists."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("test-album")
         assert slug == "test-album"
         assert data is not None
@@ -7632,7 +7694,7 @@ class TestFindAlbumOrError:
     def test_not_found(self):
         """Returns error JSON when album doesn't exist."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("nonexistent")
         assert slug == "nonexistent"
         assert data is None
@@ -7645,7 +7707,7 @@ class TestFindAlbumOrError:
     def test_normalizes_slug(self):
         """Input is normalized via _normalize_slug."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("Test Album")
         assert slug == "test-album"
         assert data is not None
@@ -7656,7 +7718,7 @@ class TestFindAlbumOrError:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("any-album")
         assert data is None
         error_data = json.loads(error)
@@ -7665,7 +7727,7 @@ class TestFindAlbumOrError:
     def test_case_insensitive_lookup(self):
         """Slug normalization enables case-insensitive album lookup."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("TEST-ALBUM")
         assert slug == "test-album"
         assert data is not None
@@ -7673,7 +7735,7 @@ class TestFindAlbumOrError:
     def test_spaces_normalized_to_hyphens(self):
         """Spaces in input are converted to hyphens for lookup."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             slug, data, error = server._find_album_or_error("test album")
         assert slug == "test-album"
         assert data is not None
@@ -7690,8 +7752,8 @@ class TestResolveIdeasPath:
     def test_returns_path_with_content_root(self):
         """Returns Path to IDEAS.md when content_root is set."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
-            result = server._resolve_ideas_path()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = _ideas_mod._resolve_ideas_path()
         assert result is not None
         assert isinstance(result, Path)
         assert str(result).endswith("IDEAS.md")
@@ -7702,22 +7764,22 @@ class TestResolveIdeasPath:
         state = _fresh_state()
         state["config"]["content_root"] = ""
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = server._resolve_ideas_path()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = _ideas_mod._resolve_ideas_path()
         assert result is None
 
     def test_returns_none_when_no_config(self):
         """Returns None when config is entirely missing."""
         mock_cache = MockStateCache({})
-        with patch.object(server, "cache", mock_cache):
-            result = server._resolve_ideas_path()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = _ideas_mod._resolve_ideas_path()
         assert result is None
 
     def test_returns_none_when_config_has_no_content_root(self):
         """Returns None when config exists but has no content_root key."""
         mock_cache = MockStateCache({"config": {}})
-        with patch.object(server, "cache", mock_cache):
-            result = server._resolve_ideas_path()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = _ideas_mod._resolve_ideas_path()
         assert result is None
 
     def test_path_combines_content_root_and_filename(self):
@@ -7725,8 +7787,8 @@ class TestResolveIdeasPath:
         state = _fresh_state()
         state["config"]["content_root"] = "/custom/content"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
-            result = server._resolve_ideas_path()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = _ideas_mod._resolve_ideas_path()
         assert result == Path("/custom/content/IDEAS.md")
 
 
@@ -7774,19 +7836,19 @@ class TestDetectPhase:
 
     def test_released_album(self):
         album = {"status": "Released", "tracks": {}}
-        assert server._detect_phase(album) == "Released"
+        assert _core_mod._detect_phase(album) == "Released"
 
     def test_complete_album(self):
         album = {"status": "Complete", "tracks": {}}
-        assert server._detect_phase(album) == "Ready to Release"
+        assert _core_mod._detect_phase(album) == "Ready to Release"
 
     def test_concept_album(self):
         album = {"status": "Concept", "tracks": {}}
-        assert server._detect_phase(album) == "Planning"
+        assert _core_mod._detect_phase(album) == "Planning"
 
     def test_no_tracks(self):
         album = {"status": "In Progress", "tracks": {}}
-        assert server._detect_phase(album) == "Planning"
+        assert _core_mod._detect_phase(album) == "Planning"
 
     def test_all_not_started(self):
         album = {
@@ -7796,7 +7858,7 @@ class TestDetectPhase:
                 "02": {"status": "Not Started", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_source_verification_pending(self):
         album = {
@@ -7806,7 +7868,7 @@ class TestDetectPhase:
                 "02": {"status": "Final", "sources_verified": "Verified"},
             },
         }
-        assert server._detect_phase(album) == "Source Verification"
+        assert _core_mod._detect_phase(album) == "Source Verification"
 
     def test_all_final(self):
         album = {
@@ -7816,7 +7878,7 @@ class TestDetectPhase:
                 "02": {"status": "Final", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Ready to Release"
+        assert _core_mod._detect_phase(album) == "Ready to Release"
 
     def test_all_generated_none_final(self):
         """All tracks generated but none final -> Mastering."""
@@ -7827,7 +7889,7 @@ class TestDetectPhase:
                 "02": {"status": "Generated", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Mastering"
+        assert _core_mod._detect_phase(album) == "Mastering"
 
     def test_mixed_generated_and_final_partial(self):
         """Some generated + some final but not all -> Generating."""
@@ -7840,7 +7902,7 @@ class TestDetectPhase:
             },
         }
         # not_started > 0 -> Writing (checked before generated)
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_sources_verified_status_falls_through_counters(self):
         """Tracks with status 'Sources Verified' are not counted by any
@@ -7857,7 +7919,7 @@ class TestDetectPhase:
                 "02": {"status": "Sources Verified", "sources_verified": "Verified"},
             },
         }
-        assert server._detect_phase(album) == "Ready to Write"
+        assert _core_mod._detect_phase(album) == "Ready to Write"
 
     def test_sources_pending_status_falls_through(self):
         """Tracks with status 'Sources Pending' are not counted but
@@ -7870,7 +7932,7 @@ class TestDetectPhase:
                 "02": {"status": "Sources Pending", "sources_verified": "Pending"},
             },
         }
-        assert server._detect_phase(album) == "Source Verification"
+        assert _core_mod._detect_phase(album) == "Source Verification"
 
     def test_generating_phase(self):
         """Some generated but not all completed -> Generating."""
@@ -7884,7 +7946,7 @@ class TestDetectPhase:
             },
         }
         # generated=2, final=1, total=4, (generated+final)=3 < 4 -> Generating
-        assert server._detect_phase(album) == "Generating"
+        assert _core_mod._detect_phase(album) == "Generating"
 
     def test_in_progress_fallthrough(self):
         """Mixed statuses that don't fit any specific phase fall through."""
@@ -7899,7 +7961,7 @@ class TestDetectPhase:
         # generated > 0 and final > 0 -> doesn't match "generated > 0 and final == 0"
         # final != total (final=1, total=2)
         # Falls through to "In Progress"
-        assert server._detect_phase(album) == "In Progress"
+        assert _core_mod._detect_phase(album) == "In Progress"
 
 
 class TestGetTrackEdgeCases:
@@ -7908,14 +7970,14 @@ class TestGetTrackEdgeCases:
     def test_empty_album_slug(self):
         """Empty string album slug returns not found."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("", "01-track")))
         assert result["found"] is False
 
     def test_empty_track_slug(self):
         """Empty string track slug returns not found."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_track("test-album", "")))
         assert result["found"] is False
 
@@ -7928,7 +7990,7 @@ class TestUpdateSessionToolEdgeCases:
         state = _fresh_state()
         state["session"]["pending_actions"] = ["existing action"]
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_session(action="new action")))
         session = result["session"]
         assert len(session["pending_actions"]) == 2
@@ -7938,7 +8000,7 @@ class TestUpdateSessionToolEdgeCases:
     def test_multiple_fields_set_at_once(self):
         """Multiple session fields can be set in a single call."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_session(
                 album="new", track="01", phase="Writing", action="do stuff"
             )))
@@ -7966,7 +8028,7 @@ class TestGetAlbumProgressEdgeCases:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("sv-album")))
         assert result["completion_percentage"] == 0.0
         assert result["tracks_by_status"]["Sources Verified"] == 2
@@ -7984,7 +8046,7 @@ class TestGetAlbumProgressEdgeCases:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_progress("single")))
         assert result["completion_percentage"] == 100.0
         assert result["tracks_completed"] == 1
@@ -8006,8 +8068,8 @@ class TestCreateIdeaFormatting:
         state["config"]["content_root"] = str(tmp_path)
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_resolve_ideas_path", return_value=ideas_file):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_ideas_mod, "_resolve_ideas_path", return_value=ideas_file):
             result = json.loads(_run(server.create_idea(
                 title="Test Idea",
                 genre="rock",
@@ -8034,8 +8096,8 @@ class TestCreateIdeaFormatting:
         state["config"]["content_root"] = str(tmp_path)
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_resolve_ideas_path", return_value=ideas_file):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_ideas_mod, "_resolve_ideas_path", return_value=ideas_file):
             result = json.loads(_run(server.create_idea(
                 title="Field Test",
                 genre="electronic",
@@ -8058,8 +8120,8 @@ class TestCreateIdeaFormatting:
         state["config"]["content_root"] = str(tmp_path)
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_resolve_ideas_path", return_value=ideas_file):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_ideas_mod, "_resolve_ideas_path", return_value=ideas_file):
             result = json.loads(_run(server.create_idea(title="Minimal Idea")))
 
         assert result["created"] is True
@@ -8101,8 +8163,8 @@ class TestCreateTrackAlbumLink:
             "# [Track Title]\n"
             "| **Album** | [Album Name](../README.md) |\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Song")))
 
         assert result["created"] is True
@@ -8122,8 +8184,8 @@ class TestCreateTrackAlbumLink:
         (template_dir / "track.md").write_text(
             "| **Album** | [Album Name](../README.md) |\n"
         )
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "01", "Song")))
 
         content = (tracks_dir / "01-song.md").read_text()
@@ -8157,8 +8219,8 @@ class TestPreGenGatesPartialVerdict:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
 
         assert result["total_tracks"] == 2
@@ -8184,8 +8246,8 @@ class TestPreGenGatesPartialVerdict:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
 
         assert result["album_verdict"] == "ALL READY"
@@ -8209,8 +8271,8 @@ class TestPreGenGatesPartialVerdict:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates("test-album")))
 
         assert result["album_verdict"] == "NOT READY"
@@ -8283,7 +8345,7 @@ class TestCheckPronunciationEdgeCases:
             "status": "In Progress", "sources_verified": "N/A",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.check_pronunciation_enforcement("test-album", "01-test")
             ))
@@ -8307,7 +8369,7 @@ class TestCheckPronunciationEdgeCases:
             "status": "In Progress", "sources_verified": "N/A",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.check_pronunciation_enforcement("test-album", "01-simple")
             ))
@@ -8333,7 +8395,7 @@ class TestCheckPronunciationEdgeCases:
             "status": "In Progress", "sources_verified": "N/A",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.check_pronunciation_enforcement("test-album", "01-pron")
             ))
@@ -8350,7 +8412,7 @@ class TestGetAlbumFullEdgeCases:
     def test_no_include_sections(self):
         """Without include_sections, returns metadata only."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("test-album")))
 
         assert result["found"] is True
@@ -8364,7 +8426,7 @@ class TestGetAlbumFullEdgeCases:
         """Fuzzy match via substring when exact match fails."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # "test" is a substring of "test-album"
             result = json.loads(_run(server.get_album_full("test")))
 
@@ -8375,7 +8437,7 @@ class TestGetAlbumFullEdgeCases:
     def test_album_not_found(self):
         """Nonexistent album returns error with available albums."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_album_full("nonexistent-xyz")))
 
         assert result["found"] is False
@@ -8392,7 +8454,7 @@ class TestGetAlbumFullEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = str(track_file)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.get_album_full("test-album", include_sections="style,lyrics")
             ))
@@ -8410,7 +8472,7 @@ class TestUpdateAlbumStatusEdgeCases:
     def test_invalid_status_rejected(self):
         """Invalid status value is rejected."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Invalid Status")))
         assert "error" in result
         assert "Invalid status" in result["error"]
@@ -8425,7 +8487,7 @@ class TestUpdateAlbumStatusEdgeCases:
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "complete")))
         assert result["success"] is True
@@ -8433,7 +8495,7 @@ class TestUpdateAlbumStatusEdgeCases:
     def test_album_not_found(self):
         """Nonexistent album returns error."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("no-such", "Complete")))
         assert result["found"] is False
 
@@ -8444,7 +8506,7 @@ class TestUpdateAlbumStatusEdgeCases:
         state["albums"]["test-album"]["tracks"]["02-second-track"]["status"] = "Generated"
         mock_cache = MockStateCache(state)
         # tmp_path exists but has no README.md
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "README.md" in result["error"]
@@ -8483,7 +8545,7 @@ class TestAlbumTrackConsistencyCheck:
             "01-track": "Not Started",
             "02-track": "Not Started",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
         assert "error" in result
         assert "all tracks are still" in result["error"]
@@ -8494,7 +8556,7 @@ class TestAlbumTrackConsistencyCheck:
             "01-track": "Final",
             "02-track": "In Progress",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "below 'Generated'" in result["error"]
@@ -8506,7 +8568,7 @@ class TestAlbumTrackConsistencyCheck:
             "01-track": "Final",
             "02-track": "Generated",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert "not Final" in result["error"]
@@ -8518,7 +8580,7 @@ class TestAlbumTrackConsistencyCheck:
             "01-track": "Generated",
             "02-track": "Final",
         })
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["success"] is True
@@ -8526,7 +8588,7 @@ class TestAlbumTrackConsistencyCheck:
     def test_empty_album_allowed_at_any_level(self, tmp_path):
         """Albums with no tracks pass consistency check at any status."""
         mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {})
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert result["success"] is True
@@ -8536,7 +8598,7 @@ class TestAlbumTrackConsistencyCheck:
         mock_cache, _ = self._make_cache_with_tracks(tmp_path, "In Progress", {
             "01-track": "Not Started",
         })
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Complete", force=True
@@ -8548,7 +8610,7 @@ class TestAlbumTrackConsistencyCheck:
         mock_cache, _ = self._make_cache_with_tracks(tmp_path, "Concept", {
             "01-track": "Not Started",
         })
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Research Complete"
@@ -8605,7 +8667,7 @@ class TestReleaseReadinessGate:
     def test_released_blocked_no_audio(self, tmp_path):
         """Released blocked when no audio directory."""
         mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert "issues" in result
@@ -8614,7 +8676,7 @@ class TestReleaseReadinessGate:
     def test_released_blocked_no_mastered(self, tmp_path):
         """Released blocked when no mastered files."""
         mock_cache = self._make_release_env(tmp_path, has_mastered=False, has_art=True)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert any("mastered" in i.lower() for i in result["issues"])
@@ -8622,7 +8684,7 @@ class TestReleaseReadinessGate:
     def test_released_blocked_no_art(self, tmp_path):
         """Released blocked when no album art."""
         mock_cache = self._make_release_env(tmp_path, has_art=False)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert any("album art" in i.lower() for i in result["issues"])
@@ -8630,7 +8692,7 @@ class TestReleaseReadinessGate:
     def test_released_passes_all_prerequisites(self, tmp_path):
         """Released passes when all prerequisites met."""
         mock_cache = self._make_release_env(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert result["success"] is True
@@ -8638,7 +8700,7 @@ class TestReleaseReadinessGate:
     def test_force_bypasses_release_gate(self, tmp_path):
         """force=True bypasses all release checks."""
         mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released", force=True
@@ -8648,7 +8710,7 @@ class TestReleaseReadinessGate:
     def test_multiple_issues_reported_together(self, tmp_path):
         """All release issues are collected and reported in one response."""
         mock_cache = self._make_release_env(tmp_path, has_audio=False, has_mastered=False, has_art=False)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "issues" in result
         # Should report at least audio, mastered, and art issues
@@ -8661,7 +8723,7 @@ class TestReleaseReadinessGate:
         state = mock_cache.get_state()
         track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
         Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert any("streaming lyrics" in i.lower() for i in result["issues"])
@@ -8675,7 +8737,7 @@ class TestReleaseReadinessGate:
             "# Track\n\n## Streaming Lyrics\n\n```\n"
             "Plain lyrics here\nCapitalize first letter of each line\n```\n"
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
         assert any("streaming lyrics" in i.lower() for i in result["issues"])
@@ -8683,7 +8745,7 @@ class TestReleaseReadinessGate:
     def test_released_passes_with_valid_streaming_lyrics(self, tmp_path):
         """Released passes when streaming lyrics are valid (no placeholders)."""
         mock_cache = self._make_release_env(tmp_path)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert result["success"] is True
@@ -8712,7 +8774,7 @@ class TestDocumentaryAlbumSourcePath:
     def test_concept_to_in_progress_blocked_with_sources(self, tmp_path):
         """Concept → In Progress blocked when SOURCES.md exists (documentary album)."""
         mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
         assert "error" in result
         assert "SOURCES.md" in result["error"]
@@ -8721,7 +8783,7 @@ class TestDocumentaryAlbumSourcePath:
     def test_concept_to_in_progress_allowed_without_sources(self, tmp_path):
         """Concept → In Progress allowed when no SOURCES.md exists."""
         mock_cache = self._make_cache_with_album(tmp_path, has_sources=False, status="Concept")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
         assert result["success"] is True
@@ -8729,7 +8791,7 @@ class TestDocumentaryAlbumSourcePath:
     def test_concept_to_research_complete_allowed_with_sources(self, tmp_path):
         """Concept → Research Complete works fine even with SOURCES.md."""
         mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "Research Complete")))
         assert result["success"] is True
@@ -8737,7 +8799,7 @@ class TestDocumentaryAlbumSourcePath:
     def test_force_bypasses_documentary_check(self, tmp_path):
         """force=True bypasses the documentary album check."""
         mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "In Progress", force=True
@@ -8749,7 +8811,7 @@ class TestDocumentaryAlbumSourcePath:
         mock_cache = self._make_cache_with_album(tmp_path, has_sources=True, status="Concept")
         state = mock_cache.get_state()
         state["config"]["generation"] = {"require_source_path_for_documentary": False}
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status("test-album", "In Progress")))
         assert result["success"] is True
@@ -8775,7 +8837,7 @@ class TestDetectPhaseAdditional:
         }
         # not_started=1, sources_verified as status falls through
         # not_started > 0 -> "Writing"
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_all_sources_pending_status_no_verification_field(self):
         """All tracks with status='Sources Pending' but sources_verified='N/A'.
@@ -8793,7 +8855,7 @@ class TestDetectPhaseAdditional:
         }
         # sources_pending=0 (checks field, not status), not_started=0,
         # in_progress=0, generated=0, final=0 -> "Ready to Write"
-        assert server._detect_phase(album) == "Ready to Write"
+        assert _core_mod._detect_phase(album) == "Ready to Write"
 
     def test_mixed_generated_final_equals_total(self):
         """When generated + final == total but generated > 0 and final > 0,
@@ -8814,7 +8876,7 @@ class TestDetectPhaseAdditional:
         # generated>0 and final==0 is False
         # final==total is False (1!=2)
         # Falls through to "In Progress"
-        assert server._detect_phase(album) == "In Progress"
+        assert _core_mod._detect_phase(album) == "In Progress"
 
 
 class TestValidateAlbumStructureEdgeCases:
@@ -8824,7 +8886,7 @@ class TestValidateAlbumStructureEdgeCases:
         """Empty checks parameter defaults to all checks."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.validate_album_structure("test-album", checks="")
             ))
@@ -8837,7 +8899,7 @@ class TestValidateAlbumStructureEdgeCases:
         """Running only 'structure' check skips other categories."""
         state = _fresh_state()
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.validate_album_structure("test-album", checks="structure")
             ))
@@ -8849,7 +8911,7 @@ class TestValidateAlbumStructureEdgeCases:
     def test_album_not_found(self):
         """Nonexistent album returns error."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.validate_album_structure("nonexistent")
             ))
@@ -8860,7 +8922,7 @@ class TestValidateAlbumStructureEdgeCases:
         state = _fresh_state()
         state["config"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.validate_album_structure("test-album")
             ))
@@ -8873,7 +8935,7 @@ class TestSearchScopeFiltering:
     def test_scope_albums_only(self):
         """Scope 'albums' only returns album results."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("test", scope="albums")))
         assert "albums" in result
         assert "tracks" not in result
@@ -8882,7 +8944,7 @@ class TestSearchScopeFiltering:
     def test_scope_tracks_only(self):
         """Scope 'tracks' only returns track results."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("first", scope="tracks")))
         assert "tracks" in result
         assert "albums" not in result
@@ -8890,7 +8952,7 @@ class TestSearchScopeFiltering:
     def test_scope_ideas_only(self):
         """Scope 'ideas' only returns idea results."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("cool", scope="ideas")))
         assert "ideas" in result
         assert "albums" not in result
@@ -8903,7 +8965,7 @@ class TestSearchScopeFiltering:
             "user_invocable": True,
         }}, "count": 1}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("lyric", scope="skills")))
         assert "skills" in result
         assert len(result["skills"]) == 1
@@ -8911,7 +8973,7 @@ class TestSearchScopeFiltering:
     def test_empty_query(self):
         """Empty query returns all items."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.search("", scope="all")))
         # Empty string is a substring of everything
         assert result["total_matches"] > 0
@@ -8923,7 +8985,7 @@ class TestLoadOverrideEdgeCases:
     def test_path_traversal_blocked(self):
         """Path traversal attempts are blocked."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("../../etc/passwd")))
         assert "error" in result
         assert "escape" in result["error"].lower()
@@ -8933,7 +8995,7 @@ class TestLoadOverrideEdgeCases:
         state = _fresh_state()
         state["config"]["overrides_dir"] = str(tmp_path)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.load_override("nonexistent.md")))
         assert result["found"] is False
 
@@ -8944,7 +9006,7 @@ class TestGetReferenceEdgeCases:
     def test_path_traversal_blocked(self):
         """Path traversal attempts are blocked."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_reference("../../etc/passwd")))
         assert "error" in result
 
@@ -8954,7 +9016,7 @@ class TestGetReferenceEdgeCases:
         ref_dir.mkdir()
         (ref_dir / "test-guide.md").write_text("# Guide Content")
 
-        with patch.object(server, "PLUGIN_ROOT", tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_reference("test-guide")))
         assert result["found"] is True
         assert "Guide Content" in result["content"]
@@ -8975,7 +9037,7 @@ class TestGetLyricsStatsEdgeCases:
         state["albums"]["test-album"]["genre"] = "unknown-genre"
         state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = str(track_file)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "01")))
         assert result["found"] is True
         # Default target is 150-350
@@ -8990,7 +9052,7 @@ class TestGetLyricsStatsEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["01-first-track"]["path"] = str(track_file)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "01")))
         track = result["tracks"][0]
         assert track["status"] == "EMPTY"
@@ -9009,7 +9071,7 @@ class TestExtractLinksEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album")))
         assert result["found"] is True
         assert result["count"] == 0
@@ -9029,7 +9091,7 @@ class TestExtractLinksEdgeCases:
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_links("test-album")))
         assert result["count"] == 2
         assert result["links"][0]["line_number"] == 4
@@ -9042,7 +9104,7 @@ class TestFindAlbumFuzzyMatch:
     def test_substring_match_bidirectional(self):
         """Fuzzy match works with substring in both directions."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             # "test" is a substring of "test-album"
             result = json.loads(_run(server.find_album("test-album")))
         assert result["found"] is True
@@ -9054,7 +9116,7 @@ class TestFindAlbumFuzzyMatch:
         state["albums"]["test-one"] = {"title": "Test One", "status": "Concept"}
         state["albums"]["test-two"] = {"title": "Test Two", "status": "Concept"}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("test")))
         # "test" matches test-album, test-one, test-two, another-album possibly
         # Actually "test" is in "test-album", "test-one", "test-two" but NOT "another-album"
@@ -9093,7 +9155,7 @@ class TestExtractSectionNewSectionNames:
         """'mood' maps to 'Mood & Imagery' heading."""
         extra = "\n## Mood & Imagery\n\nDark, atmospheric, digital noir\n"
         mock_cache = self._make_track_with_sections(tmp_path, extra)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "mood")))
         assert result["found"] is True
         assert "Dark, atmospheric" in result["content"]
@@ -9103,7 +9165,7 @@ class TestExtractSectionNewSectionNames:
         """'mood-imagery' also maps to 'Mood & Imagery' heading."""
         extra = "\n## Mood & Imagery\n\nCyberpunk vibes\n"
         mock_cache = self._make_track_with_sections(tmp_path, extra)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "mood-imagery")))
         assert result["found"] is True
         assert "Cyberpunk vibes" in result["content"]
@@ -9112,7 +9174,7 @@ class TestExtractSectionNewSectionNames:
         """'lyrical-approach' maps to 'Lyrical Approach' heading."""
         extra = "\n## Lyrical Approach\n\nFirst person, stream of consciousness\n"
         mock_cache = self._make_track_with_sections(tmp_path, extra)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "lyrical-approach")))
         assert result["found"] is True
         assert "First person" in result["content"]
@@ -9122,7 +9184,7 @@ class TestExtractSectionNewSectionNames:
         """'phonetic-review' maps to 'Phonetic Review Checklist' heading."""
         extra = "\n## Phonetic Review Checklist\n\n- [x] No homographs\n- [x] No proper nouns\n"
         mock_cache = self._make_track_with_sections(tmp_path, extra)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.extract_section("test-album", "01-test-track", "phonetic-review")))
         assert result["found"] is True
         assert "No homographs" in result["content"]
@@ -9178,7 +9240,7 @@ class TestUpdateTrackFieldStatusValidation:
     def test_invalid_status_rejected(self):
         """Completely invalid status string is rejected."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "status", "InvalidStatus"
             )))
@@ -9188,7 +9250,7 @@ class TestUpdateTrackFieldStatusValidation:
     def test_empty_status_rejected(self):
         """Empty string as status value is rejected."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "status", ""
             )))
@@ -9202,7 +9264,7 @@ class TestUpdateTrackFieldStatusValidation:
         state = mock_cache.get_state()
         # Use a track that exists — force=True to bypass transition check
         mock_cache_with_file_state = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache_with_file_state):
+        with patch.object(_shared_mod, "cache", mock_cache_with_file_state):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "status", "  Final  ", force=True
             )))
@@ -9213,7 +9275,7 @@ class TestUpdateTrackFieldStatusValidation:
     def test_mixed_case_status_accepted(self):
         """Mixed case status like 'in progress' passes validation."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-first-track", "status", "in progress", force=True
             )))
@@ -9226,7 +9288,7 @@ class TestUpdateTrackFieldStatusValidation:
                  "In Progress", "Generated", "Final"]
         for status in valid:
             mock_cache = MockStateCache()
-            with patch.object(server, "cache", mock_cache):
+            with patch.object(_shared_mod, "cache", mock_cache):
                 result = json.loads(_run(server.update_track_field(
                     "test-album", "01-first-track", "status", status, force=True
                 )))
@@ -9259,7 +9321,7 @@ class TestTrackStatusTransitionEnforcement:
     def test_valid_transition_not_started_to_sources_pending(self, tmp_path):
         """Not Started → Sources Pending is allowed."""
         mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Sources Pending"
@@ -9269,7 +9331,7 @@ class TestTrackStatusTransitionEnforcement:
     def test_valid_skip_not_started_to_in_progress(self, tmp_path):
         """Not Started → In Progress is allowed (non-documentary albums)."""
         mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "In Progress"
@@ -9279,7 +9341,7 @@ class TestTrackStatusTransitionEnforcement:
     def test_invalid_skip_not_started_to_final(self, tmp_path):
         """Not Started → Final is rejected (skips required steps)."""
         mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final"
             )))
@@ -9290,7 +9352,7 @@ class TestTrackStatusTransitionEnforcement:
     def test_terminal_state_final_rejected(self, tmp_path):
         """Final → anything is rejected (terminal state)."""
         mock_cache, _ = self._make_cache_with_status(tmp_path, "Final")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "In Progress"
             )))
@@ -9301,7 +9363,7 @@ class TestTrackStatusTransitionEnforcement:
     def test_force_override_bypasses_validation(self, tmp_path):
         """force=True allows any transition."""
         mock_cache, _ = self._make_cache_with_status(tmp_path, "Not Started")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "status", "Final", force=True
@@ -9331,7 +9393,7 @@ class TestAlbumStatusTransitionEnforcement:
     def test_valid_transition_concept_to_research_complete(self, tmp_path):
         """Concept → Research Complete is allowed."""
         mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Research Complete"
@@ -9341,7 +9403,7 @@ class TestAlbumStatusTransitionEnforcement:
     def test_invalid_skip_concept_to_complete(self, tmp_path):
         """Concept → Complete is rejected (skips required steps)."""
         mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Complete"
             )))
@@ -9357,7 +9419,7 @@ class TestAlbumStatusTransitionEnforcement:
                 "02-second-track": "Sources Pending",
             }
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Sources Verified"
             )))
@@ -9374,7 +9436,7 @@ class TestAlbumStatusTransitionEnforcement:
                 "02-second-track": "Sources Verified",
             }
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Sources Verified"
@@ -9384,7 +9446,7 @@ class TestAlbumStatusTransitionEnforcement:
     def test_force_override_bypasses_album_validation(self, tmp_path):
         """force=True allows any album transition."""
         mock_cache, _ = self._make_cache_with_album_status(tmp_path, "Concept")
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.update_album_status(
                 "test-album", "Released", force=True
@@ -9536,7 +9598,7 @@ class TestListAlbumsEdgeCasesRound5:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums()))
         assert result["count"] == 0
         assert result["albums"] == []
@@ -9544,7 +9606,7 @@ class TestListAlbumsEdgeCasesRound5:
     def test_status_filter_case_insensitive(self):
         """Status filter matching is case-insensitive."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums("in progress")))
         # Should match "In Progress" status
         assert result["count"] >= 1
@@ -9554,7 +9616,7 @@ class TestListAlbumsEdgeCasesRound5:
     def test_status_filter_no_match(self):
         """Non-matching status filter returns empty list."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_albums("NonexistentStatus")))
         assert result["count"] == 0
         assert result["albums"] == []
@@ -9567,7 +9629,7 @@ class TestFindAlbumEdgeCasesRound5:
     def test_empty_string_name(self):
         """Empty string album name normalizes to empty, no exact match."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("")))
         # Empty string won't match any slug exactly
         # But it IS a substring of every slug, so it matches all
@@ -9577,7 +9639,7 @@ class TestFindAlbumEdgeCasesRound5:
     def test_whitespace_only_name(self):
         """Whitespace-only name normalizes to hyphens."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.find_album("   ")))
         # "   " -> "---" after normalize_slug
         # Won't match any slug
@@ -9603,7 +9665,7 @@ class TestFormatForClipboardEdgeCasesRound5:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "streaming-lyrics")))
         assert result["found"] is True
         assert result["content_type"] == "streaming-lyrics"
@@ -9621,7 +9683,7 @@ class TestFormatForClipboardEdgeCasesRound5:
         mock_cache = MockStateCache(state)
         # Delete the file
         track_file.unlink()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "lyrics")))
         assert "error" in result
         assert "Cannot read" in result["error"]
@@ -9649,7 +9711,7 @@ class TestFormatForClipboardSuno:
     def test_suno_returns_json_with_title_style_lyrics(self, tmp_path):
         """'suno' content_type returns JSON with title, style, exclude_styles, and lyrics fields."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "suno")))
         assert result["found"] is True
         assert result["content_type"] == "suno"
@@ -9679,7 +9741,7 @@ class TestFormatForClipboardSuno:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
         assert result["found"] is True
         payload = json.loads(result["content"])
@@ -9688,7 +9750,7 @@ class TestFormatForClipboardSuno:
     def test_all_content_type_includes_exclusions(self, tmp_path):
         """'all' content_type includes Exclude Styles between style and lyrics."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "all")))
         assert result["found"] is True
         assert result["content_type"] == "all"
@@ -9713,7 +9775,7 @@ class TestFormatForClipboardSuno:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "all")))
         assert result["found"] is True
         assert "Exclude:" not in result["content"]
@@ -9732,7 +9794,7 @@ class TestFormatForClipboardSuno:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
         assert result["found"] is True
         payload = json.loads(result["content"])
@@ -9750,7 +9812,7 @@ class TestFormatForClipboardSuno:
             "status": "Not Started",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
         assert result["found"] is False
         assert "not found" in result["error"]
@@ -9771,7 +9833,7 @@ class TestFormatForClipboardSuno:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "suno")))
         assert result["found"] is True
         # Content should contain actual unicode, not \\u escapes
@@ -9782,7 +9844,7 @@ class TestFormatForClipboardSuno:
     def test_style_auto_appends_exclude_styles(self, tmp_path):
         """'style' content_type auto-appends Exclude Styles to Style Box."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
         assert result["found"] is True
         assert result["content_type"] == "style"
@@ -9808,7 +9870,7 @@ class TestFormatForClipboardSuno:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "05", "style")))
         assert result["found"] is True
         assert "no acoustic" not in result["content"]
@@ -9816,7 +9878,7 @@ class TestFormatForClipboardSuno:
     def test_exclude_content_type(self, tmp_path):
         """'exclude' content_type returns just the Exclude Styles section."""
         mock_cache = self._make_cache_with_file(tmp_path)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "exclude")))
         assert result["found"] is True
         assert result["content_type"] == "exclude"
@@ -9835,7 +9897,7 @@ class TestDetectPhaseAdditionalRound5:
                 "01": {"status": "Not Started", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_single_track_in_progress(self):
         """Single in-progress track = Writing phase."""
@@ -9845,7 +9907,7 @@ class TestDetectPhaseAdditionalRound5:
                 "01": {"status": "In Progress", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_single_track_generated(self):
         """Single generated track = Mastering (all generated, none final)."""
@@ -9855,7 +9917,7 @@ class TestDetectPhaseAdditionalRound5:
                 "01": {"status": "Generated", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Mastering"
+        assert _core_mod._detect_phase(album) == "Mastering"
 
     def test_single_track_final(self):
         """Single final track = Ready to Release."""
@@ -9865,7 +9927,7 @@ class TestDetectPhaseAdditionalRound5:
                 "01": {"status": "Final", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Ready to Release"
+        assert _core_mod._detect_phase(album) == "Ready to Release"
 
     def test_all_in_progress(self):
         """All tracks in progress = Writing."""
@@ -9876,12 +9938,12 @@ class TestDetectPhaseAdditionalRound5:
                 "02": {"status": "In Progress", "sources_verified": "N/A"},
             },
         }
-        assert server._detect_phase(album) == "Writing"
+        assert _core_mod._detect_phase(album) == "Writing"
 
     def test_research_complete_status(self):
         """Album with Research Complete status."""
         album = {"status": "Research Complete", "tracks": {}}
-        assert server._detect_phase(album) == "Planning"
+        assert _core_mod._detect_phase(album) == "Planning"
 
     def test_ready_to_write_all_sources_verified(self):
         """All tracks 'Sources Verified' → Ready to Write."""
@@ -9893,7 +9955,7 @@ class TestDetectPhaseAdditionalRound5:
                 "03": {"status": "Sources Verified", "sources_verified": "Verified"},
             },
         }
-        assert server._detect_phase(album) == "Ready to Write"
+        assert _core_mod._detect_phase(album) == "Ready to Write"
 
 
 @pytest.mark.unit
@@ -9943,7 +10005,7 @@ class TestUpdateTrackFieldNonStatusFields:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "suno-link",
@@ -9968,7 +10030,7 @@ class TestUpdateTrackFieldNonStatusFields:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources-verified",
@@ -10015,7 +10077,7 @@ class TestSourceVerificationGate:
         mock_cache, _ = self._make_cache_with_track_and_album(
             tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
         )
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
                 "✅ Verified (2026-02-19)"
@@ -10028,7 +10090,7 @@ class TestSourceVerificationGate:
         mock_cache, _ = self._make_cache_with_track_and_album(
             tmp_path, _SAMPLE_TRACK_MD, album_has_sources=True
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -10042,7 +10104,7 @@ class TestSourceVerificationGate:
         mock_cache, _ = self._make_cache_with_track_and_album(
             tmp_path, track_with_source, album_has_sources=False
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -10056,7 +10118,7 @@ class TestSourceVerificationGate:
             tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
         )
         for val in ["❌ Pending", "N/A", "Pending"]:
-            with patch.object(server, "cache", mock_cache), \
+            with patch.object(_shared_mod, "cache", mock_cache), \
                  patch.object(server, "write_state", MagicMock()):
                 result = json.loads(_run(server.update_track_field(
                     "test-album", "01-test-track", "sources_verified", val
@@ -10068,7 +10130,7 @@ class TestSourceVerificationGate:
         mock_cache, _ = self._make_cache_with_track_and_album(
             tmp_path, _SAMPLE_TRACK_MD, album_has_sources=False
         )
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", MagicMock()):
             result = json.loads(_run(server.update_track_field(
                 "test-album", "01-test-track", "sources_verified",
@@ -10117,18 +10179,18 @@ class TestUpdatableFieldsCompleteness:
 
     def test_all_updatable_keys_lowercase(self):
         """All keys in _UPDATABLE_FIELDS are lowercase."""
-        for key in server._UPDATABLE_FIELDS:
+        for key in _core_mod._UPDATABLE_FIELDS:
             assert key == key.lower(), f"Key '{key}' is not lowercase"
 
     def test_suno_link_both_variants(self):
         """Both suno-link and suno_link map to 'Suno Link'."""
-        assert server._UPDATABLE_FIELDS["suno-link"] == "Suno Link"
-        assert server._UPDATABLE_FIELDS["suno_link"] == "Suno Link"
+        assert _core_mod._UPDATABLE_FIELDS["suno-link"] == "Suno Link"
+        assert _core_mod._UPDATABLE_FIELDS["suno_link"] == "Suno Link"
 
     def test_sources_verified_both_variants(self):
         """Both sources-verified and sources_verified map to 'Sources Verified'."""
-        assert server._UPDATABLE_FIELDS["sources-verified"] == "Sources Verified"
-        assert server._UPDATABLE_FIELDS["sources_verified"] == "Sources Verified"
+        assert _core_mod._UPDATABLE_FIELDS["sources-verified"] == "Sources Verified"
+        assert _core_mod._UPDATABLE_FIELDS["sources_verified"] == "Sources Verified"
 
 
 @pytest.mark.unit
@@ -10231,7 +10293,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["success"] is True
@@ -10244,7 +10306,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             _run(server.rename_album("test-album", "new-album"))
         # Check state was updated
@@ -10260,7 +10322,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album(
                 "test-album", "new-album", new_title="My New Album"
@@ -10279,7 +10341,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "cool-new-name")))
         assert result["title"] == "Cool New Name"
@@ -10287,7 +10349,7 @@ class TestRenameAlbum:
     def test_rename_album_not_found(self):
         """Returns error when old slug doesn't exist."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_album("nonexistent", "new-name")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -10295,7 +10357,7 @@ class TestRenameAlbum:
     def test_rename_album_already_exists(self):
         """Returns error when new slug collides with existing album."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_album("test-album", "another-album")))
         assert "error" in result
         assert "already exists" in result["error"]
@@ -10303,7 +10365,7 @@ class TestRenameAlbum:
     def test_rename_album_same_slug(self):
         """Returns error when old == new after normalization."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_album("test-album", "test_album")))
         assert "error" in result
         assert "same" in result["error"].lower()
@@ -10313,7 +10375,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["audio_moved"] is True
@@ -10328,7 +10390,7 @@ class TestRenameAlbum:
         shutil.rmtree(tmp_path / "audio" / "artists" / "test-artist" / "albums" / "electronic" / "test-album")
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["success"] is True
@@ -10339,7 +10401,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["documents_moved"] is True
@@ -10352,7 +10414,7 @@ class TestRenameAlbum:
         shutil.rmtree(tmp_path / "docs" / "artists" / "test-artist" / "albums" / "electronic" / "test-album")
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert result["success"] is True
@@ -10363,7 +10425,7 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_album("test album", "new_album_name")))
         assert result["success"] is True
@@ -10375,8 +10437,9 @@ class TestRenameAlbum:
         state = self._make_state_with_dirs(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "write_state", mock_write):
+        import tools.state.indexer as _indexer
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_indexer, "write_state", mock_write):
             _run(server.rename_album("test-album", "new-album"))
         albums = mock_cache.get_state()["albums"]
         assert "test-album" not in albums
@@ -10393,7 +10456,7 @@ class TestRenameAlbum:
         )
         shutil.rmtree(content_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert "error" in result
         assert "Content directory not found" in result["error"]
@@ -10403,7 +10466,7 @@ class TestRenameAlbum:
         state = _fresh_state()
         state["config"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_album("test-album", "new-album")))
         assert "error" in result
         assert "config" in result["error"].lower()
@@ -10444,7 +10507,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-old-track", "01-new-track"
@@ -10462,7 +10525,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-old-track", "01-new-track",
@@ -10478,7 +10541,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-old-track", "01-cool-new-track"
@@ -10490,7 +10553,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             _run(server.rename_track(
                 "test-album", "01-old-track", "01-new-track"
@@ -10505,7 +10568,7 @@ class TestRenameTrack:
     def test_rename_track_not_found(self):
         """Returns error when track doesn't exist."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "test-album", "99-missing", "99-new-name"
             )))
@@ -10515,7 +10578,7 @@ class TestRenameTrack:
     def test_rename_track_album_not_found(self):
         """Returns error when album doesn't exist."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "nonexistent-album", "01-track", "01-new-track"
             )))
@@ -10538,7 +10601,7 @@ class TestRenameTrack:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-old-track", "02-existing"
             )))
@@ -10548,7 +10611,7 @@ class TestRenameTrack:
     def test_rename_track_same_slug(self):
         """Returns error when old == new after normalization."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-first-track", "01_first_track"
             )))
@@ -10562,7 +10625,7 @@ class TestRenameTrack:
         state["albums"]["test-album"]["tracks"].pop("01-first-track", None)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01", "01-new-track"
@@ -10586,7 +10649,7 @@ class TestRenameTrack:
             "mtime": 1234567890.0,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01", "01-new-track"
             )))
@@ -10598,7 +10661,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         mock_cache = MockStateCache(state)
         mock_write = MagicMock()
-        with patch.object(server, "cache", mock_cache), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(server, "write_state", mock_write):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01_old_track", "01_new_track"
@@ -10612,7 +10675,7 @@ class TestRenameTrack:
         state, track_file = self._make_state_with_track(tmp_path)
         track_file.unlink()  # Remove the file
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rename_track(
                 "test-album", "01-old-track", "01-new-track"
             )))
@@ -10635,7 +10698,7 @@ class TestResolveAudioDir:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             err, path = server._resolve_audio_dir("test-album")
         assert err is None
         assert path == audio_dir
@@ -10645,7 +10708,7 @@ class TestResolveAudioDir:
         state["config"]["audio_root"] = "/nonexistent/path"
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             err, path = server._resolve_audio_dir("test-album")
         assert path is None
         result = json.loads(err)
@@ -10655,7 +10718,7 @@ class TestResolveAudioDir:
     def test_returns_error_when_config_missing(self):
         state = {"config": {}, "albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             err, path = server._resolve_audio_dir("test-album")
         assert path is None
         result = json.loads(err)
@@ -10668,7 +10731,7 @@ class TestResolveAudioDir:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             err, path = server._resolve_audio_dir("test-album", "mastered")
         assert err is None
         assert path == audio_dir
@@ -10680,7 +10743,7 @@ class TestResolveAudioDir:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             err, path = server._resolve_audio_dir("Test Album")
         assert err is None
         assert path == audio_dir
@@ -10696,7 +10759,7 @@ class TestDepCheckers:
 
     def test_check_mastering_deps_returns_none_when_available(self):
         # These deps are installed in the test environment
-        result = server._check_mastering_deps()
+        result = _processing_mod._check_mastering_deps()
         # May or may not be installed, just verify return type
         assert result is None or isinstance(result, str)
 
@@ -10709,26 +10772,26 @@ class TestDepCheckers:
                     raise ImportError("mocked")
                 return original_import(name, *args, **kwargs)
             with patch("builtins.__import__", side_effect=mock_import):
-                result = server._check_mastering_deps()
+                result = _processing_mod._check_mastering_deps()
             if result is not None:
                 assert "numpy" in result
 
     def test_check_ffmpeg_returns_string_type(self):
-        result = server._check_ffmpeg()
+        result = _processing_mod._check_ffmpeg()
         assert result is None or isinstance(result, str)
 
     def test_check_ffmpeg_when_missing(self):
         with patch.object(shutil, "which", return_value=None):
-            result = server._check_ffmpeg()
+            result = _processing_mod._check_ffmpeg()
         assert result is not None
         assert "ffmpeg" in result
 
     def test_check_matchering_returns_string_type(self):
-        result = server._check_matchering()
+        result = _processing_mod._check_matchering()
         assert result is None or isinstance(result, str)
 
     def test_check_songbook_deps_returns_string_type(self):
-        result = server._check_songbook_deps()
+        result = _processing_mod._check_songbook_deps()
         assert result is None or isinstance(result, str)
 
 
@@ -10741,7 +10804,7 @@ class TestAnalyzeAudio:
     """Tests for the analyze_audio MCP tool."""
 
     def test_missing_deps_returns_error(self):
-        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
         assert "Missing deps" in result["error"]
@@ -10750,8 +10813,8 @@ class TestAnalyzeAudio:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
 
@@ -10762,8 +10825,8 @@ class TestAnalyzeAudio:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
         assert "No WAV" in result["error"]
@@ -10791,8 +10854,8 @@ class TestAnalyzeAudio:
             "tinniness_ratio": 0.4,
         }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -10819,8 +10882,8 @@ class TestAnalyzeAudio:
             "tinniness_ratio": 0.3,
         }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
             result = json.loads(_run(server.analyze_audio("test-album", subfolder="mastered")))
         assert "tracks" in result
@@ -10835,7 +10898,7 @@ class TestMasterAudio:
     """Tests for the master_audio MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -10843,8 +10906,8 @@ class TestMasterAudio:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -10855,8 +10918,8 @@ class TestMasterAudio:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -10868,8 +10931,8 @@ class TestMasterAudio:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album", genre="nonexistent-genre")))
         assert "error" in result
         assert "Unknown genre" in result["error"]
@@ -10887,8 +10950,8 @@ class TestMasterAudio:
         mock_data = MagicMock()
         mock_data.shape = (44100, 2)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data, 44100)), \
              patch("pyloudnorm.Meter") as mock_meter_cls:
             mock_meter = MagicMock()
@@ -10917,8 +10980,8 @@ class TestMasterAudio:
             "gain_applied": 6.0, "final_peak": -1.0,
         }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", return_value=mock_master_result), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -10937,7 +11000,7 @@ class TestFixDynamicTrack:
     """Tests for the fix_dynamic_track MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(server, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
         assert "error" in result
 
@@ -10945,8 +11008,8 @@ class TestFixDynamicTrack:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
         assert "error" in result
 
@@ -10957,8 +11020,8 @@ class TestFixDynamicTrack:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "nonexistent.wav")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -10973,7 +11036,7 @@ class TestMasterWithReference:
     """Tests for the master_with_reference MCP tool."""
 
     def test_missing_matchering(self):
-        with patch.object(server, "_check_matchering", return_value="matchering not installed"):
+        with patch.object(_processing_mod, "_check_matchering", return_value="matchering not installed"):
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "error" in result
         assert "matchering" in result["error"]
@@ -10985,8 +11048,8 @@ class TestMasterWithReference:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None):
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11007,8 +11070,8 @@ class TestMasterWithReference:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         mod_patch, _ = self._patch_ref_master()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "nonexistent.wav"
@@ -11027,8 +11090,8 @@ class TestMasterWithReference:
         mock_cache = MockStateCache(state)
 
         mod_patch, _ = self._patch_ref_master()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "01-track.wav"
@@ -11049,8 +11112,8 @@ class TestMasterWithReference:
         mock_cache = MockStateCache(state)
 
         mod_patch, _ = self._patch_ref_master()
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "tracks" in result
@@ -11067,7 +11130,7 @@ class TestTranscribeAudio:
     """Tests for the transcribe_audio MCP tool."""
 
     def test_missing_anthemscore(self):
-        with patch.object(server, "_check_anthemscore", return_value="AnthemScore not found"):
+        with patch.object(_processing_mod, "_check_anthemscore", return_value="AnthemScore not found"):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
         assert "AnthemScore" in result["error"]
@@ -11076,8 +11139,8 @@ class TestTranscribeAudio:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
 
@@ -11093,9 +11156,9 @@ class TestTranscribeAudio:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
         mock_mod.transcribe_track.return_value = True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
         assert "No WAV" in result["error"]
@@ -11111,9 +11174,9 @@ class TestTranscribeAudio:
         mock_mod = MagicMock()
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", track_filename="nonexistent.wav"
             )))
@@ -11133,7 +11196,7 @@ class TestPrepareSingles:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
 
@@ -11144,7 +11207,7 @@ class TestPrepareSingles:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11162,8 +11225,8 @@ class TestPrepareSingles:
         mock_mod.prepare_singles.return_value = {"error": "No source files found"}
         mock_mod.find_musescore.return_value = None
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
 
@@ -11195,8 +11258,8 @@ class TestPrepareSingles:
                 return mock_songbook_mod
             return MagicMock()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=_mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=_mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "tracks" in result
         assert result["track_count"] == 1
@@ -11211,7 +11274,7 @@ class TestCreateSongbook:
     """Tests for the create_songbook MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(server, "_check_songbook_deps", return_value="Missing pypdf"):
+        with patch.object(_processing_mod, "_check_songbook_deps", return_value="Missing pypdf"):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
         assert "pypdf" in result["error"]
@@ -11220,8 +11283,8 @@ class TestCreateSongbook:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
 
@@ -11232,8 +11295,8 @@ class TestCreateSongbook:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11248,7 +11311,7 @@ class TestGeneratePromoVideos:
     """Tests for the generate_promo_videos MCP tool."""
 
     def test_missing_ffmpeg(self):
-        with patch.object(server, "_check_ffmpeg", return_value="ffmpeg not found"):
+        with patch.object(_processing_mod, "_check_ffmpeg", return_value="ffmpeg not found"):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
         assert "ffmpeg" in result["error"]
@@ -11257,8 +11320,8 @@ class TestGeneratePromoVideos:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
 
@@ -11269,8 +11332,8 @@ class TestGeneratePromoVideos:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
         assert "artwork" in result["error"].lower()
@@ -11283,8 +11346,8 @@ class TestGeneratePromoVideos:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos(
                 "test-album", track_filename="nonexistent.wav"
             )))
@@ -11318,8 +11381,8 @@ class TestGeneratePromoVideos:
             captured_title.append(kwargs.get("title"))
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -11341,7 +11404,7 @@ class TestGenerateAlbumSampler:
     """Tests for the generate_album_sampler MCP tool."""
 
     def test_missing_ffmpeg(self):
-        with patch.object(server, "_check_ffmpeg", return_value="ffmpeg not found"):
+        with patch.object(_processing_mod, "_check_ffmpeg", return_value="ffmpeg not found"):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
 
@@ -11349,8 +11412,8 @@ class TestGenerateAlbumSampler:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
 
@@ -11361,8 +11424,8 @@ class TestGenerateAlbumSampler:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
         assert "artwork" in result["error"].lower()
@@ -11377,8 +11440,8 @@ class TestGenerateAlbumSampler:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler", return_value=False):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
@@ -11394,13 +11457,13 @@ class TestImportSheetMusicModule:
 
     def test_imports_existing_module(self):
         """Should import transcribe.py from tools/sheet-music/."""
-        mod = server._import_sheet_music_module("transcribe")
+        mod = _processing_mod._import_sheet_music_module("transcribe")
         assert hasattr(mod, "find_anthemscore")
         assert hasattr(mod, "transcribe_track")
 
     def test_imports_prepare_singles(self):
         """Should import prepare_singles.py from tools/sheet-music/."""
-        mod = server._import_sheet_music_module("prepare_singles")
+        mod = _processing_mod._import_sheet_music_module("prepare_singles")
         assert hasattr(mod, "prepare_singles")
         assert hasattr(mod, "find_musescore")
 
@@ -11415,16 +11478,16 @@ class TestImportSheetMusicModule:
                 mods_to_mock[mod_name] = MagicMock()
         if mods_to_mock:
             with patch.dict("sys.modules", mods_to_mock):
-                mod = server._import_sheet_music_module("create_songbook")
+                mod = _processing_mod._import_sheet_music_module("create_songbook")
         else:
-            mod = server._import_sheet_music_module("create_songbook")
+            mod = _processing_mod._import_sheet_music_module("create_songbook")
         assert hasattr(mod, "create_songbook")
         assert hasattr(mod, "auto_detect_cover_art")
 
     def test_nonexistent_module_raises(self):
         """Should raise on a module that doesn't exist."""
         with pytest.raises(Exception):
-            server._import_sheet_music_module("nonexistent_module")
+            _processing_mod._import_sheet_music_module("nonexistent_module")
 
 
 # =============================================================================
@@ -11473,8 +11536,8 @@ class TestAnalyzeAudioComprehensive:
             call_count.append(name)
             return self._mock_result(name)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11492,8 +11555,8 @@ class TestAnalyzeAudioComprehensive:
             tinniness = 0.8 if "01" in name else 0.3
             return self._mock_result(name, tinniness=tinniness)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11509,8 +11572,8 @@ class TestAnalyzeAudioComprehensive:
         def mock_analyze(filepath):
             return self._mock_result(Path(filepath).name, lufs=-20.0)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11531,8 +11594,8 @@ class TestAnalyzeAudioComprehensive:
             lufs = -12.0 if idx == 0 else -16.0
             return self._mock_result(Path(filepath).name, lufs=lufs)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11548,8 +11611,8 @@ class TestAnalyzeAudioComprehensive:
         def mock_analyze(filepath):
             return self._mock_result(Path(filepath).name, lufs=-14.0, tinniness=0.2)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11582,8 +11645,8 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11604,8 +11667,8 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11630,8 +11693,8 @@ class TestMasterAudioComprehensive:
 
         presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
             result = json.loads(_run(server.master_audio("test-album", genre="hip-hop")))
@@ -11656,8 +11719,8 @@ class TestMasterAudioComprehensive:
 
         presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
             result = json.loads(_run(server.master_audio(
@@ -11683,8 +11746,8 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio(
@@ -11715,8 +11778,8 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11742,8 +11805,8 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11769,8 +11832,8 @@ class TestFixDynamicTrackComprehensive:
 
         mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
              patch("soundfile.write") as mock_write, \
              patch("pyloudnorm.Meter") as mock_meter_cls:
@@ -11801,8 +11864,8 @@ class TestFixDynamicTrackComprehensive:
         import numpy as np
         mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_mastering_deps", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
              patch("soundfile.write"), \
              patch("pyloudnorm.Meter") as mock_meter_cls:
@@ -11848,8 +11911,8 @@ class TestMasterWithReferenceComprehensive:
 
         mock_fn.side_effect = side_effect
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
 
@@ -11873,8 +11936,8 @@ class TestMasterWithReferenceComprehensive:
 
         mod_patch, mock_fn = self._patch_ref_master()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
 
@@ -11895,8 +11958,8 @@ class TestMasterWithReferenceComprehensive:
 
         mod_patch, _ = self._patch_ref_master()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             _run(server.master_with_reference("test-album", "ref.wav"))
 
@@ -11916,8 +11979,8 @@ class TestMasterWithReferenceComprehensive:
 
         mod_patch, _ = self._patch_ref_master()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_matchering", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "01-track.wav"
@@ -11948,9 +12011,9 @@ class TestTranscribeAudioComprehensive:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
         mock_mod.transcribe_track.return_value = True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
 
         assert result["summary"]["success"] == 3
@@ -11967,9 +12030,9 @@ class TestTranscribeAudioComprehensive:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
         mock_mod.transcribe_track.return_value = True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", track_filename="01-track.wav"
             )))
@@ -11987,9 +12050,9 @@ class TestTranscribeAudioComprehensive:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
         mock_mod.transcribe_track.return_value = True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", formats="pdf,xml,midi"
             )))
@@ -12010,9 +12073,9 @@ class TestTranscribeAudioComprehensive:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
         mock_mod.transcribe_track.return_value = True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", dry_run=True
             )))
@@ -12041,9 +12104,9 @@ class TestTranscribeAudioComprehensive:
 
         mock_mod.transcribe_track.side_effect = mock_transcribe
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
 
         assert result["summary"]["success"] == 2
@@ -12096,8 +12159,8 @@ class TestPrepareSinglesComprehensive:
             "manifest": {},
         })
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert result["track_count"] == 3
@@ -12120,8 +12183,8 @@ class TestPrepareSinglesComprehensive:
             "manifest": {},
         })
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album", dry_run=True)))
 
         # dry_run=True should be passed to prepare_singles
@@ -12145,8 +12208,8 @@ class TestPrepareSinglesComprehensive:
             "manifest": {},
         })
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album", xml_only=True)))
 
         assert result["track_count"] == 1
@@ -12171,8 +12234,8 @@ class TestPrepareSinglesComprehensive:
             "error": "No source files found",
         })
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert "error" in result
@@ -12194,8 +12257,8 @@ class TestPrepareSinglesComprehensive:
             "manifest": {},
         })
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_import_sheet_music_module", side_effect=mock_import):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert result["track_count"] == 1
@@ -12228,9 +12291,9 @@ class TestCreateSongbookComprehensive:
 
         mock_mod = self._mock_songbook_module()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert result["success"] is True
@@ -12251,9 +12314,9 @@ class TestCreateSongbookComprehensive:
 
         mock_mod = self._mock_songbook_module()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook(
                 "test-album", "My Songbook", page_size="9x12"
             )))
@@ -12276,9 +12339,9 @@ class TestCreateSongbookComprehensive:
 
         mock_mod = self._mock_songbook_module()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert result["artist"] == "custom-artist"
@@ -12299,9 +12362,9 @@ class TestCreateSongbookComprehensive:
         mock_mod = self._mock_songbook_module()
         mock_mod.create_songbook.return_value = False
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert "error" in result
@@ -12319,9 +12382,9 @@ class TestCreateSongbookComprehensive:
 
         mock_mod = self._mock_songbook_module()
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_songbook_deps", return_value=None), \
-             patch.object(server, "_import_sheet_music_module", return_value=mock_mod):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook(
                 "test-album", "My Album / Songbook"
             )))
@@ -12356,8 +12419,8 @@ class TestGeneratePromoVideosComprehensive:
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -12380,8 +12443,8 @@ class TestGeneratePromoVideosComprehensive:
             captured_title.append(kwargs.get("title"))
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12401,8 +12464,8 @@ class TestGeneratePromoVideosComprehensive:
         audio_dir, state = self._make_audio_dir(tmp_path, 1, artwork_name="album.jpg")
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12417,8 +12480,8 @@ class TestGeneratePromoVideosComprehensive:
         audio_dir, state = self._make_audio_dir(tmp_path, 1, artwork_name="cover.png")
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12439,8 +12502,8 @@ class TestGeneratePromoVideosComprehensive:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12461,8 +12524,8 @@ class TestGeneratePromoVideosComprehensive:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12480,8 +12543,8 @@ class TestGeneratePromoVideosComprehensive:
         (mastered_dir / "01-track.wav").write_bytes(b"")
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12496,8 +12559,8 @@ class TestGeneratePromoVideosComprehensive:
         audio_dir, state = self._make_audio_dir(tmp_path, 1)
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=False), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12521,8 +12584,8 @@ class TestGeneratePromoVideosComprehensive:
         def mock_batch(**kwargs):
             captured_kwargs.append(kwargs)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -12558,8 +12621,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024 * 1024)  # 1MB fake file
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
@@ -12583,8 +12646,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12605,8 +12668,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12626,8 +12689,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12650,8 +12713,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12672,8 +12735,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -12701,8 +12764,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -12728,8 +12791,8 @@ class TestGenerateAlbumSamplerComprehensive:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
@@ -12762,8 +12825,8 @@ class TestPromoVideoNewParams:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12784,8 +12847,8 @@ class TestPromoVideoNewParams:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12806,8 +12869,8 @@ class TestPromoVideoNewParams:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12828,8 +12891,8 @@ class TestPromoVideoNewParams:
             captured_kwargs.append(kwargs)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12855,8 +12918,8 @@ class TestPromoVideoNewParams:
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -12898,8 +12961,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", style="line"))
@@ -12920,8 +12983,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", color_hex="#C9A96E"))
@@ -12942,8 +13005,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", glow=0.0))
@@ -12964,8 +13027,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", text_color="#FFD700"))
@@ -12986,8 +13049,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -13011,8 +13074,8 @@ class TestAlbumSamplerNewParams:
             output_path.write_bytes(b"0" * 1024)
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_ffmpeg", return_value=None), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler(
@@ -13044,7 +13107,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(_builtins, "__import__", side_effect=mock_import):
-            result = server._check_mastering_deps()
+            result = _processing_mod._check_mastering_deps()
 
         assert result is not None
         for mod in missing_set:
@@ -13053,7 +13116,7 @@ class TestDepCheckersComprehensive:
     def test_check_ffmpeg_when_available(self):
         """Should return None when ffmpeg is found."""
         with patch.object(shutil, "which", return_value="/usr/bin/ffmpeg"):
-            result = server._check_ffmpeg()
+            result = _processing_mod._check_ffmpeg()
         assert result is None
 
     def test_check_matchering_when_missing(self):
@@ -13067,7 +13130,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(builtins, "__import__", side_effect=mock_import):
-            result = server._check_matchering()
+            result = _processing_mod._check_matchering()
 
         assert result is not None
         assert "matchering" in result
@@ -13083,7 +13146,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(builtins, "__import__", side_effect=mock_import):
-            result = server._check_songbook_deps()
+            result = _processing_mod._check_songbook_deps()
 
         assert result is not None
         assert "pypdf" in result
@@ -13114,7 +13177,7 @@ class TestListTracksEdgeCases:
             "tracks": {},
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("empty-album")))
         assert result["found"] is True
         assert result["track_count"] == 0
@@ -13129,7 +13192,7 @@ class TestListTracksEdgeCases:
             "status": "Concept",
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("bare-album")))
         assert result["found"] is True
         assert result["track_count"] == 0
@@ -13139,7 +13202,7 @@ class TestListTracksEdgeCases:
         state = _fresh_state()
         state["albums"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.list_tracks("anything")))
         assert result["found"] is False
         assert result["available_albums"] == []
@@ -13152,7 +13215,7 @@ class TestGetSessionEdgeCases:
         """State has no 'session' key at all."""
         state = {"config": {}, "albums": {}, "ideas": {}}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_session()))
         assert result["session"] == {}
 
@@ -13161,7 +13224,7 @@ class TestGetSessionEdgeCases:
         state = _fresh_state()
         state["session"]["pending_actions"] = ["Review track 3", "Fix pronunciation"]
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_session()))
         assert result["session"]["pending_actions"] == ["Review track 3", "Fix pronunciation"]
 
@@ -13176,7 +13239,7 @@ class TestGetSessionEdgeCases:
             "updated_at": None,
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_session()))
         assert result["session"]["last_album"] is None
         assert result["session"]["last_track"] is None
@@ -13200,7 +13263,7 @@ class TestRebuildStateEdgeCases:
                 return state
 
         mock_cache = EmptyCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert result["success"] is True
         assert result["albums"] == 0
@@ -13212,7 +13275,7 @@ class TestRebuildStateEdgeCases:
         state = _fresh_state()
         # test-album has 2 tracks, another-album has 1 = 3 total
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert result["tracks"] == 3
 
@@ -13221,7 +13284,7 @@ class TestRebuildStateEdgeCases:
         state = _fresh_state()
         state["skills"] = {"count": 42, "items": []}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert result["skills"] == 42
 
@@ -13234,7 +13297,7 @@ class TestRebuildStateEdgeCases:
                 return state
 
         mock_cache = NoIdeasCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.rebuild_state()))
         assert result["success"] is True
         assert result["ideas"] == 0
@@ -13248,7 +13311,7 @@ class TestGetConfigEdgeCases:
         state = _fresh_state()
         state["config"] = {"artist_name": "bitwize"}  # missing paths
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_config()))
         assert "config" in result
         assert result["config"]["artist_name"] == "bitwize"
@@ -13258,7 +13321,7 @@ class TestGetConfigEdgeCases:
     def test_config_returns_all_fields(self):
         """Full config should include all expected fields."""
         mock_cache = MockStateCache()
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_config()))
         config = result["config"]
         assert "content_root" in config
@@ -13276,19 +13339,19 @@ class TestExtractTrackNumberFromStem:
     """Tests for extracting leading track number from a slug stem."""
 
     def test_two_digit_prefix(self):
-        assert server._extract_track_number_from_stem("01-first-pour") == 1
+        assert _processing_mod._extract_track_number_from_stem("01-first-pour") == 1
 
     def test_double_digit(self):
-        assert server._extract_track_number_from_stem("12-beyond-the-stars") == 12
+        assert _processing_mod._extract_track_number_from_stem("12-beyond-the-stars") == 12
 
     def test_no_prefix(self):
-        assert server._extract_track_number_from_stem("first-pour") is None
+        assert _processing_mod._extract_track_number_from_stem("first-pour") is None
 
     def test_empty_string(self):
-        assert server._extract_track_number_from_stem("") is None
+        assert _processing_mod._extract_track_number_from_stem("") is None
 
     def test_single_digit(self):
-        assert server._extract_track_number_from_stem("3-track") == 3
+        assert _processing_mod._extract_track_number_from_stem("3-track") == 3
 
 
 # ---------------------------------------------------------------------------
@@ -13309,8 +13372,8 @@ class TestBuildTitleMap:
         wav1.touch()
         wav2.touch()
 
-        with patch.object(server, "cache", mock_cache):
-            title_map = server._build_title_map("test-album", [wav1, wav2])
+        with patch.object(_shared_mod, "cache", mock_cache):
+            title_map = _processing_mod._build_title_map("test-album", [wav1, wav2])
 
         assert title_map["01-first-track"] == "First Track"
         assert title_map["02-second-track"] == "Second Track"
@@ -13324,8 +13387,8 @@ class TestBuildTitleMap:
         wav = tmp_path / "01-ocean-of-tears.wav"
         wav.touch()
 
-        with patch.object(server, "cache", mock_cache):
-            title_map = server._build_title_map("test-album", [wav])
+        with patch.object(_shared_mod, "cache", mock_cache):
+            title_map = _processing_mod._build_title_map("test-album", [wav])
 
         assert title_map["01-ocean-of-tears"] == "Ocean of Tears"
 
@@ -13337,8 +13400,8 @@ class TestBuildTitleMap:
         wav = tmp_path / "01-fire-and-ice.wav"
         wav.touch()
 
-        with patch.object(server, "cache", mock_cache):
-            title_map = server._build_title_map("nonexistent-album", [wav])
+        with patch.object(_shared_mod, "cache", mock_cache):
+            title_map = _processing_mod._build_title_map("nonexistent-album", [wav])
 
         assert title_map["01-fire-and-ice"] == "Fire and Ice"
 
@@ -13355,8 +13418,8 @@ class TestBuildTitleMap:
         wav = tmp_path / "03-why.wav"
         wav.touch()
 
-        with patch.object(server, "cache", mock_cache):
-            title_map = server._build_title_map("test-album", [wav])
+        with patch.object(_shared_mod, "cache", mock_cache):
+            title_map = _processing_mod._build_title_map("test-album", [wav])
 
         assert title_map["03-why"] == "Why"  # ? removed by sanitize_filename
 
@@ -13381,10 +13444,10 @@ class TestTranscribeAudioFlow:
         mock_cache = MockStateCache(state)
 
         # Mock dependencies
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(server, "_import_sheet_music_module") as mock_import:
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_import.return_value = mock_mod
@@ -13419,10 +13482,10 @@ class TestTranscribeAudioFlow:
             (out_dir / f"{wav_file.stem}.pdf").touch()
             return True
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(server, "_import_sheet_music_module") as mock_import:
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = fake_transcribe
@@ -13459,10 +13522,10 @@ class TestTranscribeAudioFlow:
         def failing_transcribe(anthemscore, wav_file, out_dir, args):
             return False
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_anthemscore", return_value=None), \
-             patch.object(server, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(server, "_import_sheet_music_module") as mock_import:
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = failing_transcribe
@@ -13491,7 +13554,7 @@ class TestPublishSheetMusic:
     def test_cloud_not_enabled(self):
         """Returns error when cloud is not enabled in config."""
         with patch.object(
-            server, "_check_cloud_enabled",
+            _processing_mod, "_check_cloud_enabled",
             return_value="Cloud uploads not enabled.",
         ):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
@@ -13503,8 +13566,8 @@ class TestPublishSheetMusic:
         state = _fresh_state()
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
         assert "error" in result
 
@@ -13516,8 +13579,8 @@ class TestPublishSheetMusic:
         state["config"]["audio_root"] = str(tmp_path)
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -13540,8 +13603,8 @@ class TestPublishSheetMusic:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))
@@ -13573,8 +13636,8 @@ class TestPublishSheetMusic:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))
@@ -13600,8 +13663,8 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         # Without include_source — source files excluded
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", include_source=False, dry_run=True
             )))
@@ -13610,8 +13673,8 @@ class TestPublishSheetMusic:
         assert result["summary"]["total"] == 1
 
         # With include_source — source files included
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", include_source=True, dry_run=True
             )))
@@ -13645,9 +13708,9 @@ class TestPublishSheetMusic:
             "cloud": {"enabled": True, "provider": "r2", "public_read": False},
         }
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None), \
-             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -13747,9 +13810,9 @@ class TestPublishSheetMusic:
         )
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None), \
-             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -13783,9 +13846,9 @@ class TestPublishSheetMusic:
         )
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None), \
-             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -13805,9 +13868,9 @@ class TestPublishSheetMusic:
         )
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None), \
-             patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod), \
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -13830,9 +13893,9 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         ctx = (
-            patch.object(server, "cache", mock_cache),
-            patch.object(server, "_check_cloud_enabled", return_value=None),
-            patch.object(server, "_import_cloud_module", return_value=mock_cloud_mod),
+            patch.object(_shared_mod, "cache", mock_cache),
+            patch.object(_processing_mod, "_check_cloud_enabled", return_value=None),
+            patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod),
             patch("tools.shared.config.load_config", return_value=mock_config),
         )
 
@@ -13855,8 +13918,8 @@ class TestPublishSheetMusic:
         state, _, _, content_dir, _ = self._setup_publish_env(tmp_path)
         mock_cache = MockStateCache(state)
 
-        with patch.object(server, "cache", mock_cache), \
-             patch.object(server, "_check_cloud_enabled", return_value=None):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))

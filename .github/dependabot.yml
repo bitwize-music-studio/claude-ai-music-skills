@@ -4,6 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "develop"
     commit-message:
       prefix: "chore(deps):"
     labels:
@@ -18,6 +19,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    target-branch: "develop"
     commit-message:
       prefix: "chore(deps):"
     labels:

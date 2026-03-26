@@ -83,6 +83,26 @@ def _import_server():
 
 server = _import_server()
 
+# Handler modules for mock targeting
+from handlers import text_analysis as _text_analysis_mod
+from handlers import processing as _processing_mod
+from handlers import _shared as _shared_mod
+
+
+@pytest.fixture(autouse=True)
+def _ensure_shared_cache():
+    """Ensure _shared.cache points to this test file's server cache.
+
+    Multiple test files load server.py via importlib, each creating a new
+    StateCache and setting _shared.cache. Integration tests use the real
+    cache (no mocking), so they need _shared.cache to always point to
+    their server's cache instance.
+    """
+    _shared_mod.cache = server.cache
+    _shared_mod.PLUGIN_ROOT = server.PLUGIN_ROOT
+    yield
+    # Restore is implicit — the next _import_server() sets it again
+
 
 def _run(coro):
     """Run an async coroutine synchronously."""
@@ -703,7 +723,7 @@ class TestToolsWithRealState:
 
     def test_run_pre_generation_gates(self, integration_env):
         """Pre-generation gates against real track content."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album", "01"
             )))
@@ -1021,7 +1041,7 @@ class TestRemainingToolsCoverage:
 
     def test_scan_artist_names_clean(self, integration_env, monkeypatch):
         """scan_artist_names on clean text with real blocklist."""
-        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         result = json.loads(_run(server.scan_artist_names(
             "electronic synth-driven ambient pads"
         )))
@@ -1030,9 +1050,9 @@ class TestRemainingToolsCoverage:
 
     def test_scan_artist_names_finds_match(self, integration_env, monkeypatch):
         """scan_artist_names detects a real artist name from the blocklist."""
-        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         # Load the real blocklist to find an artist name to test with
-        blocklist = server._load_artist_blocklist()
+        blocklist = _text_analysis_mod._load_artist_blocklist()
         if blocklist:
             artist_name = blocklist[0]["name"]
             result = json.loads(_run(server.scan_artist_names(
@@ -1077,7 +1097,7 @@ class TestRemainingToolsCoverage:
 
     def test_check_explicit_content_clean(self, integration_env, monkeypatch):
         """check_explicit_content on clean lyrics with real word list."""
-        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_explicit_word_cache", None)
         result = json.loads(_run(server.check_explicit_content(
             "Testing the pipeline one two three\nMaking sure everything works"
         )))
@@ -1086,7 +1106,7 @@ class TestRemainingToolsCoverage:
 
     def test_check_explicit_content_finds_words(self, integration_env, monkeypatch):
         """check_explicit_content detects explicit words from base list."""
-        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_explicit_word_cache", None)
         result = json.loads(_run(server.check_explicit_content(
             "What the fuck is going on\nThis shit is real"
         )))
@@ -1098,7 +1118,7 @@ class TestRemainingToolsCoverage:
 
     def test_check_explicit_content_respects_overrides(self, integration_env, monkeypatch):
         """check_explicit_content merges user override additions."""
-        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_explicit_word_cache", None)
         # "heck" was added via explicit-words.md override
         result = json.loads(_run(server.check_explicit_content(
             "What the heck is happening"
@@ -1539,7 +1559,7 @@ class TestRunPreGenerationGatesExtended:
 
     def test_track_02_has_blocking_gates(self, integration_env):
         """Track 02 should fail sources gate (pending verification)."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album", "02"
             )))
@@ -1550,7 +1570,7 @@ class TestRunPreGenerationGatesExtended:
 
     def test_all_tracks(self, integration_env):
         """run_pre_generation_gates on all tracks returns results for each."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album"
             )))
@@ -1564,7 +1584,7 @@ class TestRunPreGenerationGatesExtended:
 
     def test_eight_gates_per_track(self, integration_env):
         """Each track should be checked against all 8 gates."""
-        with patch.object(server, "_artist_blocklist_cache", None):
+        with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album", "01"
             )))
@@ -1911,14 +1931,14 @@ class TestScanArtistNamesExtended:
 
     def test_empty_text(self, integration_env, monkeypatch):
         """scan_artist_names returns clean for empty text."""
-        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         result = json.loads(_run(server.scan_artist_names("")))
         assert result["clean"] is True
 
     def test_found_entry_has_alternative(self, integration_env, monkeypatch):
         """scan_artist_names found entries include an alternative suggestion."""
-        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
-        blocklist = server._load_artist_blocklist()
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
+        blocklist = _text_analysis_mod._load_artist_blocklist()
         if blocklist:
             name = blocklist[0]["name"]
             result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
@@ -1928,8 +1948,8 @@ class TestScanArtistNamesExtended:
 
     def test_case_insensitive(self, integration_env, monkeypatch):
         """scan_artist_names matches regardless of case."""
-        monkeypatch.setattr(server, "_artist_blocklist_cache", None)
-        blocklist = server._load_artist_blocklist()
+        monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
+        blocklist = _text_analysis_mod._load_artist_blocklist()
         if blocklist:
             name = blocklist[0]["name"]
             result = json.loads(_run(server.scan_artist_names(name.upper())))
@@ -1968,7 +1988,7 @@ class TestCheckExplicitContentExtended:
 
     def test_line_numbers(self, integration_env, monkeypatch):
         """check_explicit_content returns correct line numbers."""
-        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_explicit_word_cache", None)
         result = json.loads(_run(server.check_explicit_content(
             "Clean line\nWhat the fuck\nAnother clean line"
         )))
@@ -1977,7 +1997,7 @@ class TestCheckExplicitContentExtended:
 
     def test_empty_text(self, integration_env, monkeypatch):
         """check_explicit_content returns clean for empty text."""
-        monkeypatch.setattr(server, "_explicit_word_cache", None)
+        monkeypatch.setattr(_text_analysis_mod, "_explicit_word_cache", None)
         result = json.loads(_run(server.check_explicit_content("")))
         assert result["has_explicit"] is False
         assert result["unique_words"] == 0

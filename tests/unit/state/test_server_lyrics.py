@@ -72,6 +72,9 @@ def _import_server():
 
 
 server = _import_server()
+from handlers import _shared as _shared_mod
+from handlers import text_analysis as _text_analysis_mod
+from handlers import lyrics_analysis as _lyrics_analysis_mod
 
 
 # ---------------------------------------------------------------------------
@@ -209,50 +212,50 @@ class TestTokenizeLyricsByLine:
 
     def test_basic_tokenization(self):
         lyrics = "Walking through shadows\nBurning down the night"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert len(result) == 2
         assert result[0] == ["walking", "through", "shadows"]
         assert result[1] == ["burning", "down", "the", "night"]
 
     def test_section_tags_skipped(self):
         lyrics = "[Verse 1]\nHello world\n[Chorus]\nGoodbye world"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert len(result) == 2
         assert result[0] == ["hello", "world"]
         assert result[1] == ["goodbye", "world"]
 
     def test_empty_lines_skipped(self):
         lyrics = "First line\n\n\nSecond line"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert len(result) == 2
 
     def test_single_char_words_filtered(self):
         lyrics = "I am a test"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         # "I" and "a" are single chars, filtered out
         assert result == [["am", "test"]]
 
     def test_apostrophe_stripping(self):
         lyrics = "'bout the morning"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result[0][0] == "bout"
 
     def test_empty_input(self):
-        assert server._tokenize_lyrics_by_line("") == []
+        assert _text_analysis_mod._tokenize_lyrics_by_line("") == []
 
     def test_only_section_tags(self):
         lyrics = "[Verse 1]\n[Chorus]\n[Bridge]"
-        assert server._tokenize_lyrics_by_line(lyrics) == []
+        assert _text_analysis_mod._tokenize_lyrics_by_line(lyrics) == []
 
     def test_case_normalization(self):
         lyrics = "SHADOWS Falling EVERYWHERE"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result == [["shadows", "falling", "everywhere"]]
 
     def test_contractions_become_stopwords(self):
         """don't -> dont, which is in the stopword list."""
         lyrics = "Don't stop believing"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         # "don't" -> regex splits to ["don", "t"] or finds "don't" as one token
         # then strip apostrophe -> "don't" -> "dont"
         # Actually _WORD_TOKEN_RE is [a-zA-Z']+ so "don't" is one token
@@ -264,43 +267,43 @@ class TestTokenizeLyricsByLine:
     def test_punctuation_stripped_by_regex(self):
         """Commas, periods, etc. are not matched by _WORD_TOKEN_RE."""
         lyrics = "Hello, world! This is... great?"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result == [["hello", "world", "this", "is", "great"]]
 
     def test_numbers_excluded(self):
         """Digits aren't matched by [a-zA-Z']+ regex."""
         lyrics = "Track 42 is the best 100"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result == [["track", "is", "the", "best"]]
 
     def test_hyphenated_words_split(self):
         """Hyphens aren't in the regex, so 'broken-hearted' becomes two tokens."""
         lyrics = "She was broken-hearted"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result == [["she", "was", "broken", "hearted"]]
 
     def test_whitespace_only_lines_skipped(self):
         lyrics = "First line\n   \n  \t  \nSecond line"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert len(result) == 2
 
     def test_line_with_only_single_chars_produces_no_output(self):
         """If every word on a line is single-char, the line is omitted."""
         lyrics = "I a\nReal words here"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert len(result) == 1
         assert result[0] == ["real", "words", "here"]
 
     def test_trailing_apostrophe(self):
         """Words like rockin' should have trailing apostrophe stripped."""
         lyrics = "Rockin' all night long"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result[0][0] == "rockin"
 
     def test_multiple_apostrophes(self):
         """Leading AND trailing apostrophes stripped: 'bout' -> bout."""
         lyrics = "'bout'"
-        result = server._tokenize_lyrics_by_line(lyrics)
+        result = _text_analysis_mod._tokenize_lyrics_by_line(lyrics)
         assert result == [["bout"]]
 
 
@@ -310,28 +313,28 @@ class TestNgramsFromLines:
 
     def test_basic_bigrams(self):
         lines = [["burning", "shadows", "tonight"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert "burning shadows" in result
         assert "shadows tonight" in result
 
     def test_trigrams(self):
         lines = [["burning", "shadows", "tonight"]]
-        result = server._ngrams_from_lines(lines, min_n=3, max_n=3)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=3, max_n=3)
         assert "burning shadows tonight" in result
 
     def test_no_cross_line_ngrams(self):
         lines = [["end"], ["start"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert "end start" not in result
 
     def test_all_stopword_ngrams_skipped(self):
         lines = [["the", "and", "is", "to"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert result == []
 
     def test_mixed_stopword_ngrams_kept(self):
         lines = [["burning", "the", "shadows"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=3)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=3)
         # "burning the" has one non-stopword -> kept
         assert "burning the" in result
         # "the shadows" has one non-stopword -> kept
@@ -340,22 +343,22 @@ class TestNgramsFromLines:
         assert "burning the shadows" in result
 
     def test_empty_lines(self):
-        assert server._ngrams_from_lines([], min_n=2, max_n=4) == []
+        assert _text_analysis_mod._ngrams_from_lines([], min_n=2, max_n=4) == []
 
     def test_short_line_no_ngrams(self):
         lines = [["alone"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=4)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=4)
         assert result == []
 
     def test_four_grams(self):
         lines = [["burning", "shadows", "fall", "tonight"]]
-        result = server._ngrams_from_lines(lines, min_n=4, max_n=4)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=4, max_n=4)
         assert "burning shadows fall tonight" in result
         assert len(result) == 1
 
     def test_default_range_produces_2_3_4_grams(self):
         lines = [["burning", "shadows", "fall", "tonight"]]
-        result = server._ngrams_from_lines(lines)  # default min_n=2, max_n=4
+        result = _text_analysis_mod._ngrams_from_lines(lines)  # default min_n=2, max_n=4
         bigrams = [r for r in result if len(r.split()) == 2]
         trigrams = [r for r in result if len(r.split()) == 3]
         fourgrams = [r for r in result if len(r.split()) == 4]
@@ -365,12 +368,12 @@ class TestNgramsFromLines:
 
     def test_exactly_n_words_produces_one_ngram(self):
         lines = [["burning", "shadows"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert result == ["burning shadows"]
 
     def test_multiple_lines_independent(self):
         lines = [["burning", "shadows"], ["falling", "rain"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert "burning shadows" in result
         assert "falling rain" in result
         assert "shadows falling" not in result
@@ -378,13 +381,13 @@ class TestNgramsFromLines:
     def test_partially_stopword_ngram_kept(self):
         """An n-gram with at least one non-stopword is kept."""
         lines = [["the", "thunder"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert "the thunder" in result
 
     def test_duplicate_ngrams_from_repeated_phrase(self):
         """Same phrase appearing twice on a line produces two entries."""
         lines = [["burning", "shadows", "burning", "shadows"]]
-        result = server._ngrams_from_lines(lines, min_n=2, max_n=2)
+        result = _text_analysis_mod._ngrams_from_lines(lines, min_n=2, max_n=2)
         assert result.count("burning shadows") == 2
 
 
@@ -399,7 +402,7 @@ class TestCheckCrossTrackRepetition:
 
     def test_album_not_found(self):
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("nonexistent")))
         assert result["found"] is False
         assert "not found" in result["error"]
@@ -408,7 +411,7 @@ class TestCheckCrossTrackRepetition:
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"] = {}
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 0
@@ -420,7 +423,7 @@ class TestCheckCrossTrackRepetition:
         mock_cache = _build_state_with_tracks(tmp_path, {
             "01-only-track": "[Verse 1]\nShadows falling everywhere\nShadows in my dreams",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 1
@@ -435,7 +438,7 @@ class TestCheckCrossTrackRepetition:
             "03-track": "[Verse 1]\nShadows on the wall tonight",
             "04-track": "[Verse 1]\nSomething completely different here",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["found"] is True
         words = {w["word"]: w for w in result["repeated_words"]}
@@ -449,7 +452,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nSee the burning shadows fall",
             "03-track": "[Verse 1]\nBurning shadows in my mind",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         phrases = {p["phrase"]: p for p in result["repeated_phrases"]}
         assert "burning shadows" in phrases
@@ -462,7 +465,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nOcean waves crashing",
             "03-track": "[Verse 1]\nDesert winds blowing",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["repeated_words"] == []
         assert result["repeated_phrases"] == []
@@ -474,7 +477,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nSomething else entirely",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album", min_tracks=2)))
         assert result["min_tracks_threshold"] == 2
         words = {w["word"]: w for w in result["repeated_words"]}
@@ -488,7 +491,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nThe love and the heart in the day",
             "03-track": "[Verse 1]\nThe love and the heart all the time",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         flagged_words = [w["word"] for w in result["repeated_words"]]
         # These are all stopwords/common song vocab — none should be flagged
@@ -505,7 +508,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nUnique word beta",
             "03-track": "[Verse 1]\nUnique word gamma",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         flagged_words = [w["word"] for w in result["repeated_words"]]
         assert "verse" not in flagged_words
@@ -533,7 +536,7 @@ class TestCheckCrossTrackRepetition:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         # Only 1 track with lyrics analyzed
         assert result["track_count"] == 1
@@ -545,7 +548,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nShadows waiting",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         summary = result["summary"]
         assert "flagged_words" in summary
@@ -559,7 +562,7 @@ class TestCheckCrossTrackRepetition:
             "01-track": "[Verse 1]\nShadows falling",
             "02-track": "[Verse 1]\nShadows rising",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album", min_tracks=1)))
         assert result["min_tracks_threshold"] == 2
 
@@ -571,7 +574,7 @@ class TestCheckCrossTrackRepetition:
             "03-track": "[Verse 1]\nShadows and rolling thunder",
             "04-track": "[Verse 1]\nShadows everywhere tonight",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.check_cross_track_repetition("test-album", min_tracks=2)
             ))
@@ -587,7 +590,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows shadows",
             "03-track": "[Verse 1]\nShadows here",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         assert "shadows" in words
@@ -605,7 +608,7 @@ class TestCheckCrossTrackRepetition:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 0
@@ -615,7 +618,7 @@ class TestCheckCrossTrackRepetition:
         mock_cache = _build_state_with_tracks(tmp_path, {
             "01-track": "[Verse 1]\nShadows everywhere",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("Test Album")))
         assert result["found"] is True
 
@@ -624,7 +627,7 @@ class TestCheckCrossTrackRepetition:
         mock_cache = _build_state_with_tracks(tmp_path, {
             "01-track": "[Verse 1]\nShadows everywhere",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("TEST-ALBUM")))
         assert result["found"] is True
 
@@ -640,7 +643,7 @@ class TestCheckCrossTrackRepetition:
             },
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["found"] is True
         assert result["track_count"] == 0
@@ -651,7 +654,7 @@ class TestCheckCrossTrackRepetition:
             "01-track": "[Verse 1]\nShadows falling",
             "02-track": "[Verse 1]\nShadows rising",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album", min_tracks=0)))
         assert result["min_tracks_threshold"] == 2
 
@@ -661,7 +664,7 @@ class TestCheckCrossTrackRepetition:
             "01-track": "[Verse 1]\nShadows falling",
             "02-track": "[Verse 1]\nShadows rising",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album", min_tracks=-5)))
         assert result["min_tracks_threshold"] == 2
 
@@ -672,7 +675,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nshadows falling",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         assert "shadows" in words
@@ -685,7 +688,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nBurning shadows rise again",
             "03-track": "[Verse 1]\nBurning shadows call my name",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         phrases = {p["phrase"]: p for p in result["repeated_phrases"]}
@@ -700,7 +703,7 @@ class TestCheckCrossTrackRepetition:
             "01-alpha": "[Verse 1]\nShadows calling",
             "02-bravo": "[Verse 1]\nShadows waiting",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         assert words["shadows"]["tracks"] == ["01-alpha", "02-bravo", "03-charlie"]
@@ -712,7 +715,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nOcean waves crashing",
             "03-track": "[Verse 1]\nDesert winds blowing",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["summary"]["most_repeated_word"] is None
         assert result["summary"]["most_repeated_phrase"] is None
@@ -727,7 +730,7 @@ class TestCheckCrossTrackRepetition:
             "03-track": "[Verse 1]\nShadows and thunder here",
             "04-track": "[Verse 1]\nShadows everywhere tonight",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(
                 server.check_cross_track_repetition("test-album", min_tracks=2)
             ))
@@ -740,7 +743,7 @@ class TestCheckCrossTrackRepetition:
     def test_available_albums_in_not_found(self):
         """Not-found response should list available album slugs."""
         mock_cache = MockStateCache(_fresh_state())
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("nonexistent")))
         assert "available_albums" in result
         assert "test-album" in result["available_albums"]
@@ -752,7 +755,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nZebra and alpha singing",
             "03-track": "[Verse 1]\nZebra and alpha running",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = result["repeated_words"]
         # alpha, dancing/singing/running unique, zebra — both alpha and zebra in 3
@@ -769,7 +772,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nZebra dancing and alpha singing forever",
             "03-track": "[Verse 1]\nZebra dancing and alpha singing always",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         phrases = result["repeated_phrases"]
         phrase_names = [p["phrase"] for p in phrases]
@@ -785,7 +788,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nDont stop moving",
             "03-track": "[Verse 1]\nDont stop trying",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         flagged_words = [w["word"] for w in result["repeated_words"]]
         assert "dont" not in flagged_words
@@ -797,7 +800,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nBurning shadows here",
             "03-track": "[Verse 1]\nBurning shadows there",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         phrases = {p["phrase"]: p for p in result["repeated_phrases"]}
         assert "burning shadows" in phrases
@@ -827,7 +830,7 @@ class TestCheckCrossTrackRepetition:
             "06-no-path": {"title": "No Path", "mtime": 6.0},
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["track_count"] == 3
         words = {w["word"]: w for w in result["repeated_words"]}
@@ -846,7 +849,7 @@ class TestCheckCrossTrackRepetition:
             "02-real": {"title": "Real", "path": str(real_track), "mtime": 2.0},
         }
         mock_cache = MockStateCache(state)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["track_count"] == 1
 
@@ -857,7 +860,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nSomething else entirely",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         # shadows in 2 tracks < threshold 3
@@ -870,7 +873,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nShadows waiting",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album", min_tracks=10)))
         assert result["repeated_words"] == []
         assert result["repeated_phrases"] == []
@@ -885,7 +888,7 @@ class TestCheckCrossTrackRepetition:
                 f"Unique{num} word here\nSomething different{num}"
             )
         mock_cache = _build_state_with_tracks(tmp_path, track_lyrics)
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert result["track_count"] == 10
         words = {w["word"]: w for w in result["repeated_words"]}
@@ -901,7 +904,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising here",
             "03-track": "[Verse 1]\nShadows waiting there",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             raw = _run(server.check_cross_track_repetition("test-album"))
         assert isinstance(raw, str)
         result = json.loads(raw)  # should not raise
@@ -912,7 +915,7 @@ class TestCheckCrossTrackRepetition:
         mock_cache = _build_state_with_tracks(tmp_path, {
             "01-track": "[Verse 1]\nShadows falling",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         expected_keys = {
             "found", "album_slug", "track_count", "min_tracks_threshold",
@@ -927,7 +930,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nShadows rising",
             "03-track": "[Verse 1]\nShadows waiting",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         assert len(result["repeated_words"]) > 0
         word_entry = result["repeated_words"][0]
@@ -944,7 +947,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Verse 1]\nBurning shadows rising",
             "03-track": "[Verse 1]\nBurning shadows falling",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         phrases = [p for p in result["repeated_phrases"] if p["phrase"] == "burning shadows"]
         assert len(phrases) == 1
@@ -962,7 +965,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": "[Chorus]\nOh yeah na na la la",
             "03-track": "[Chorus]\nOh yeah na na la la",
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         flagged = [w["word"] for w in result["repeated_words"]]
         assert "oh" not in flagged
@@ -1004,7 +1007,7 @@ class TestCheckCrossTrackRepetition:
             "02-track": lyrics_b,
             "03-track": lyrics_c,
         })
-        with patch.object(server, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         words = {w["word"]: w for w in result["repeated_words"]}
         assert "ember" in words
@@ -1026,7 +1029,7 @@ class TestTokenizeLyricsWithSections:
 
     def test_basic_section_tracking(self):
         lyrics = "[Verse 1]\nWalking through shadows\n[Chorus]\nBurning tonight"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert len(result) == 2
         assert result[0]["section"] == "Verse 1"
         assert result[0]["section_type"] == "verse"
@@ -1036,47 +1039,47 @@ class TestTokenizeLyricsWithSections:
     def test_section_inheritance(self):
         """Lines after a section tag inherit that section until next tag."""
         lyrics = "[Verse 1]\nFirst line\nSecond line\n[Chorus]\nThird line"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["section"] == "Verse 1"
         assert result[1]["section"] == "Verse 1"
         assert result[2]["section"] == "Chorus"
 
     def test_line_numbers_preserved(self):
         lyrics = "[Verse 1]\nFirst line\n\nSecond line"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["line_number"] == 2
         assert result[1]["line_number"] == 4
 
     def test_section_tag_numbering_stripped(self):
         """'Verse 2' should normalize to section_type 'verse'."""
         lyrics = "[Verse 2]\nHello world"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["section_type"] == "verse"
         assert result[0]["section"] == "Verse 2"
 
     def test_empty_input(self):
-        assert server._tokenize_lyrics_with_sections("") == []
+        assert _lyrics_analysis_mod._tokenize_lyrics_with_sections("") == []
 
     def test_whitespace_only(self):
-        assert server._tokenize_lyrics_with_sections("   \n  \n  ") == []
+        assert _lyrics_analysis_mod._tokenize_lyrics_with_sections("   \n  \n  ") == []
 
     def test_only_section_tags(self):
-        assert server._tokenize_lyrics_with_sections("[Verse]\n[Chorus]") == []
+        assert _lyrics_analysis_mod._tokenize_lyrics_with_sections("[Verse]\n[Chorus]") == []
 
     def test_raw_line_preserved(self):
         lyrics = "[Verse]\nBurning Shadows Fall Tonight!"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["raw_line"] == "Burning Shadows Fall Tonight!"
 
     def test_words_lowercased_and_cleaned(self):
         lyrics = "[Verse]\n'Bout the MORNING light"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["words"] == ["bout", "the", "morning", "light"]
 
     def test_default_section_for_no_tag(self):
         """Lines before any section tag get 'Unknown' section."""
         lyrics = "Walking through shadows"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["section"] == "Unknown"
         assert result[0]["section_type"] == "verse"
 
@@ -1085,17 +1088,17 @@ class TestTokenizeLyricsWithSections:
         for section_type in ["chorus", "hook", "pre-chorus", "bridge", "outro", "verse", "intro"]:
             tag = f"[{section_type.title()}]"
             lyrics = f"{tag}\nTest words here"
-            result = server._tokenize_lyrics_with_sections(lyrics)
+            result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
             assert result[0]["section_type"] == section_type, f"Failed for {section_type}"
 
     def test_unknown_section_defaults_to_verse(self):
         lyrics = "[Breakdown]\nHeavy riff here"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["section_type"] == "verse"
 
     def test_single_char_words_filtered(self):
         lyrics = "[Verse]\nI am a hero"
-        result = server._tokenize_lyrics_with_sections(lyrics)
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
         assert result[0]["words"] == ["am", "hero"]
 
 
@@ -1112,7 +1115,7 @@ class TestExtractDistinctiveNgrams:
         lines = [{"words": ["burning", "shadows", "fall", "tonight"],
                   "section": "Chorus", "section_type": "chorus",
                   "line_number": 1, "raw_line": "Burning shadows fall tonight"}]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         phrases = [r["phrase"] for r in result]
         assert "burning shadows fall tonight" in phrases
 
@@ -1121,7 +1124,7 @@ class TestExtractDistinctiveNgrams:
         lines = [{"words": ["burning", "shadows", "fall"],
                   "section": "Verse", "section_type": "verse",
                   "line_number": 1, "raw_line": "Burning shadows fall"}]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         assert len(result) == 0  # only 3 words, can't make 4-gram
 
     def test_max_n_enforced(self):
@@ -1129,7 +1132,7 @@ class TestExtractDistinctiveNgrams:
         words = ["one", "two", "three", "four", "five", "six", "seven", "eight"]
         lines = [{"words": words, "section": "Verse", "section_type": "verse",
                   "line_number": 1, "raw_line": " ".join(words)}]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         max_wc = max(r["word_count"] for r in result)
         assert max_wc <= 7
 
@@ -1139,7 +1142,7 @@ class TestExtractDistinctiveNgrams:
         lines = [{"words": ["middle", "of", "the", "night"],
                   "section": "Chorus", "section_type": "chorus",
                   "line_number": 1, "raw_line": "Middle of the night"}]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         phrases = [r["phrase"] for r in result]
         assert "middle of the night" not in phrases
 
@@ -1148,7 +1151,7 @@ class TestExtractDistinctiveNgrams:
         lines = [{"words": ["the", "and", "is", "but", "with"],
                   "section": "Verse", "section_type": "verse",
                   "line_number": 1, "raw_line": "The and is but with"}]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         assert len(result) == 0
 
     def test_dedup_keeps_highest_priority(self):
@@ -1161,7 +1164,7 @@ class TestExtractDistinctiveNgrams:
              "section": "Chorus", "section_type": "chorus",
              "line_number": 8, "raw_line": "Burning shadows fall tonight"},
         ]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         match = [r for r in result if r["phrase"] == "burning shadows fall tonight"]
         assert len(match) == 1
         assert match[0]["section"] == "Chorus"
@@ -1177,7 +1180,7 @@ class TestExtractDistinctiveNgrams:
              "section": "Chorus", "section_type": "chorus",
              "line_number": 5, "raw_line": "..."},
         ]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         # Chorus items (priority 3) should come before verse items (priority 1)
         chorus_indices = [i for i, r in enumerate(result) if r["priority"] == 3]
         verse_indices = [i for i, r in enumerate(result) if r["priority"] == 1]
@@ -1185,14 +1188,14 @@ class TestExtractDistinctiveNgrams:
             assert max(chorus_indices) < min(verse_indices)
 
     def test_empty_input(self):
-        assert server._extract_distinctive_ngrams([]) == []
+        assert _lyrics_analysis_mod._extract_distinctive_ngrams([]) == []
 
     def test_custom_min_max_n(self):
         """Custom min_n=5, max_n=5 should only produce 5-grams."""
         lines = [{"words": ["one", "two", "three", "four", "five", "six"],
                   "section": "Verse", "section_type": "verse",
                   "line_number": 1, "raw_line": "..."}]
-        result = server._extract_distinctive_ngrams(lines, min_n=5, max_n=5)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines, min_n=5, max_n=5)
         for r in result:
             assert r["word_count"] == 5
 
@@ -1206,7 +1209,7 @@ class TestExtractDistinctiveNgrams:
              "section": "Verse", "section_type": "verse",
              "line_number": 2, "raw_line": "..."},
         ]
-        result = server._extract_distinctive_ngrams(lines)
+        result = _lyrics_analysis_mod._extract_distinctive_ngrams(lines)
         phrases = [r["phrase"] for r in result]
         # Should have 4-grams from each line independently
         assert "alpha beta gamma delta" in phrases
@@ -1356,46 +1359,46 @@ class TestCountSyllablesWord:
     """Tests for the _count_syllables_word helper."""
 
     def test_monosyllabic(self):
-        assert server._count_syllables_word("cat") == 1
-        assert server._count_syllables_word("dog") == 1
-        assert server._count_syllables_word("the") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("cat") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("dog") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("the") == 1
 
     def test_polysyllabic(self):
-        assert server._count_syllables_word("beautiful") == 3
-        assert server._count_syllables_word("amazing") == 3
-        assert server._count_syllables_word("yesterday") == 3
+        assert _lyrics_analysis_mod._count_syllables_word("beautiful") == 3
+        assert _lyrics_analysis_mod._count_syllables_word("amazing") == 3
+        assert _lyrics_analysis_mod._count_syllables_word("yesterday") == 3
 
     def test_silent_e(self):
-        assert server._count_syllables_word("make") == 1
-        assert server._count_syllables_word("fire") == 1
-        assert server._count_syllables_word("love") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("make") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("fire") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("love") == 1
 
     def test_consonant_le(self):
-        assert server._count_syllables_word("bottle") == 2
-        assert server._count_syllables_word("apple") == 2
-        assert server._count_syllables_word("little") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("bottle") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("apple") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("little") == 2
 
     def test_y_as_vowel(self):
-        assert server._count_syllables_word("my") == 1
-        assert server._count_syllables_word("mystery") == 3
-        assert server._count_syllables_word("baby") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("my") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("mystery") == 3
+        assert _lyrics_analysis_mod._count_syllables_word("baby") == 2
 
     def test_apostrophe_words(self):
-        assert server._count_syllables_word("don't") == 1
-        assert server._count_syllables_word("I'm") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("don't") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("I'm") == 1
         # "couldn't" — vowel-cluster heuristic counts 1 (the 'ou' group);
         # the contraction drops the vowel from "not", a known limitation
-        assert server._count_syllables_word("couldn't") >= 1
+        assert _lyrics_analysis_mod._count_syllables_word("couldn't") >= 1
 
     def test_empty_and_edge(self):
-        assert server._count_syllables_word("") == 0
-        assert server._count_syllables_word("a") == 1
-        assert server._count_syllables_word("I") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("") == 0
+        assert _lyrics_analysis_mod._count_syllables_word("a") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("I") == 1
 
     def test_floor_at_one(self):
         # Any non-empty word should return at least 1
-        assert server._count_syllables_word("hmm") >= 1
-        assert server._count_syllables_word("nth") >= 1
+        assert _lyrics_analysis_mod._count_syllables_word("hmm") >= 1
+        assert _lyrics_analysis_mod._count_syllables_word("nth") >= 1
 
 
 # ===========================================================================
@@ -1537,34 +1540,34 @@ class TestGetRhymeTail:
     """Tests for the _get_rhyme_tail helper."""
 
     def test_basic_suffix(self):
-        assert server._get_rhyme_tail("night") == "ight"
-        assert server._get_rhyme_tail("light") == "ight"
-        assert server._get_rhyme_tail("fight") == "ight"
+        assert _lyrics_analysis_mod._get_rhyme_tail("night") == "ight"
+        assert _lyrics_analysis_mod._get_rhyme_tail("light") == "ight"
+        assert _lyrics_analysis_mod._get_rhyme_tail("fight") == "ight"
 
     def test_silent_e_words(self):
-        tail_fire = server._get_rhyme_tail("fire")
-        tail_desire = server._get_rhyme_tail("desire")
+        tail_fire = _lyrics_analysis_mod._get_rhyme_tail("fire")
+        tail_desire = _lyrics_analysis_mod._get_rhyme_tail("desire")
         assert tail_fire == tail_desire
 
     def test_plural_stripping(self):
         # "nights" should strip 's' and match "night"
-        tail_nights = server._get_rhyme_tail("nights")
-        tail_night = server._get_rhyme_tail("night")
+        tail_nights = _lyrics_analysis_mod._get_rhyme_tail("nights")
+        tail_night = _lyrics_analysis_mod._get_rhyme_tail("night")
         assert tail_nights == tail_night
 
     def test_short_words(self):
         # Should handle very short words gracefully
-        tail = server._get_rhyme_tail("go")
+        tail = _lyrics_analysis_mod._get_rhyme_tail("go")
         assert len(tail) >= 1
 
     def test_empty(self):
-        assert server._get_rhyme_tail("") == ""
+        assert _lyrics_analysis_mod._get_rhyme_tail("") == ""
 
     def test_rhyme_pair_match(self):
         # Words that rhyme should have same tail
-        assert server._get_rhyme_tail("away") == server._get_rhyme_tail("day")
-        assert server._get_rhyme_tail("shore") == server._get_rhyme_tail("more")
-        assert server._get_rhyme_tail("fire") == server._get_rhyme_tail("desire")
+        assert _lyrics_analysis_mod._get_rhyme_tail("away") == _lyrics_analysis_mod._get_rhyme_tail("day")
+        assert _lyrics_analysis_mod._get_rhyme_tail("shore") == _lyrics_analysis_mod._get_rhyme_tail("more")
+        assert _lyrics_analysis_mod._get_rhyme_tail("fire") == _lyrics_analysis_mod._get_rhyme_tail("desire")
 
 
 # ===========================================================================
@@ -1929,41 +1932,6 @@ class TestValidateSectionStructure:
 
 
 # ===========================================================================
-# _words_rhyme helper tests
-# ===========================================================================
-
-class TestWordsRhyme:
-    """Tests for the _words_rhyme helper."""
-
-    def test_empty_inputs(self):
-        assert server._words_rhyme("", "night") is False
-        assert server._words_rhyme("night", "") is False
-        assert server._words_rhyme("", "") is False
-
-    def test_identical_words_return_false(self):
-        assert server._words_rhyme("night", "night") is False
-
-    def test_case_insensitive_identity(self):
-        assert server._words_rhyme("Night", "night") is False
-
-    def test_short_tail_no_match(self):
-        # Single-char tails should not match
-        assert server._words_rhyme("a", "ma") is False
-
-    def test_true_rhyme_pair(self):
-        assert server._words_rhyme("night", "light") is True
-        assert server._words_rhyme("fire", "desire") is True
-
-    def test_false_rhyme_pair(self):
-        assert server._words_rhyme("night", "book") is False
-        assert server._words_rhyme("cat", "dog") is False
-
-    def test_apostrophe_handling(self):
-        # Apostrophes should be stripped before comparison
-        assert server._words_rhyme("night", "light") is True
-
-
-# ===========================================================================
 # Additional _count_syllables_word edge case tests
 # ===========================================================================
 
@@ -1972,28 +1940,28 @@ class TestCountSyllablesWordEdgeCases:
 
     def test_apostrophe_only_input(self):
         """After stripping apostrophes, empty string returns 0."""
-        assert server._count_syllables_word("'''") == 0
+        assert _lyrics_analysis_mod._count_syllables_word("'''") == 0
 
     def test_silent_e_and_consonant_le_interaction(self):
         """Both silent-e and consonant-le rules on same word."""
         # "crumble" — silent-e removes 1, consonant-le adds 1
-        count = server._count_syllables_word("crumble")
+        count = _lyrics_analysis_mod._count_syllables_word("crumble")
         assert count == 2
 
     def test_vowel_before_le_no_extra_syllable(self):
         """Words ending in vowel + 'le' should NOT trigger consonant-le rule."""
         # "ale" has vowel 'a' before 'le'
-        assert server._count_syllables_word("ale") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("ale") == 1
 
     def test_consecutive_vowel_clusters(self):
         """Diphthongs count as one vowel cluster."""
-        assert server._count_syllables_word("beau") == 1
-        assert server._count_syllables_word("queue") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("beau") == 1
+        assert _lyrics_analysis_mod._count_syllables_word("queue") == 1
 
     def test_uppercase_input(self):
         """Case normalization should work."""
-        assert server._count_syllables_word("HELLO") == 2
-        assert server._count_syllables_word("APPLE") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("HELLO") == 2
+        assert _lyrics_analysis_mod._count_syllables_word("APPLE") == 2
 
 
 # ===========================================================================
@@ -2004,33 +1972,33 @@ class TestGetRhymeTailEdgeCases:
     """Additional edge case tests for _get_rhyme_tail."""
 
     def test_apostrophe_only_input(self):
-        assert server._get_rhyme_tail("'''") == ""
+        assert _lyrics_analysis_mod._get_rhyme_tail("'''") == ""
 
     def test_no_vowels_returns_whole_word(self):
         """Words with no vowels should return the entire word."""
-        assert server._get_rhyme_tail("brr") == "brr"
+        assert _lyrics_analysis_mod._get_rhyme_tail("brr") == "brr"
 
     def test_double_s_not_stripped(self):
         """Words ending in 'ss' should NOT have trailing 's' stripped."""
-        tail_boss = server._get_rhyme_tail("boss")
-        tail_toss = server._get_rhyme_tail("toss")
+        tail_boss = _lyrics_analysis_mod._get_rhyme_tail("boss")
+        tail_toss = _lyrics_analysis_mod._get_rhyme_tail("toss")
         assert tail_boss == tail_toss  # Both keep 'ss'
 
     def test_short_word_no_strip(self):
         """Two-letter words ending in 's' should NOT be stripped."""
         # "is" — len(2) <= 2, so no strip
-        tail = server._get_rhyme_tail("is")
+        tail = _lyrics_analysis_mod._get_rhyme_tail("is")
         assert len(tail) >= 1
 
     def test_word_ending_e_vowel_before(self):
         """Words ending in vowel + 'e' should NOT activate silent-e scan."""
         # "free" — 'e' preceded by 'e' (vowel), no silent-e adjustment
-        tail_free = server._get_rhyme_tail("free")
-        tail_see = server._get_rhyme_tail("see")
+        tail_free = _lyrics_analysis_mod._get_rhyme_tail("free")
+        tail_see = _lyrics_analysis_mod._get_rhyme_tail("see")
         assert tail_free == tail_see  # Both should end the same way
 
     def test_uppercase_normalization(self):
-        assert server._get_rhyme_tail("NIGHT") == server._get_rhyme_tail("night")
+        assert _lyrics_analysis_mod._get_rhyme_tail("NIGHT") == _lyrics_analysis_mod._get_rhyme_tail("night")
 
 
 # ===========================================================================
