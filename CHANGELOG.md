@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.81.1] - 2026-03-27
+
+### Fixed
+- **`[End]` tag misclassification** — `validate_section_structure` now recognizes `[End]` as a dedicated section type instead of defaulting to `verse` ([#111](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/111), closes [#108](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/108))
+
 ## [0.81.0] - 2026-03-26
 
 ### Added
