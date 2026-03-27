@@ -507,8 +507,17 @@ async def search(query: str, scope: str = "all") -> str:
     return _safe_json(results)
 
 
-async def get_pending_verifications() -> str:
+async def get_pending_verifications(
+    album_slug: str = "",
+    summary_only: bool = False,
+) -> str:
     """Get albums and tracks with pending source verification.
+
+    Args:
+        album_slug: Filter to a single album (empty = all albums, default)
+        summary_only: When True, return only counts
+                     (total_pending_tracks, albums_with_pending_count),
+                     skip the full albums_with_pending dict (default False)
 
     Returns:
         JSON with tracks where sources_verified is 'Pending', grouped by album
@@ -516,8 +525,13 @@ async def get_pending_verifications() -> str:
     state = _shared.cache.get_state()
     albums = state.get("albums", {})
 
+    # Optional album filter
+    if album_slug:
+        normalized = _normalize_slug(album_slug)
+        albums = {s: d for s, d in albums.items() if s == normalized}
+
     pending = {}
-    for album_slug, album in albums.items():
+    for slug, album in albums.items():
         tracks = album.get("tracks", {})
         pending_tracks = [
             {"slug": t_slug, "title": t.get("title", t_slug)}
@@ -525,14 +539,22 @@ async def get_pending_verifications() -> str:
             if t.get("sources_verified", "").lower() == "pending"
         ]
         if pending_tracks:
-            pending[album_slug] = {
-                "album_title": album.get("title", album_slug),
+            pending[slug] = {
+                "album_title": album.get("title", slug),
                 "tracks": pending_tracks,
             }
 
+    total = sum(len(a["tracks"]) for a in pending.values())
+
+    if summary_only:
+        return _safe_json({
+            "total_pending_tracks": total,
+            "albums_with_pending_count": len(pending),
+        })
+
     return _safe_json({
         "albums_with_pending": pending,
-        "total_pending_tracks": sum(len(a["tracks"]) for a in pending.values()),
+        "total_pending_tracks": total,
     })
 
 
