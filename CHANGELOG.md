@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.81.0] - 2026-03-26
+
+### Added
+- **mypy strict type checking** — full type annotations across all 51 source files (handlers, tools, server) with strict settings (`disallow_untyped_defs`, `disallow_any_generics`, `warn_unreachable`, etc.), integrated into CI lint job ([#110](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/110), closes [#102](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/102))
+- **`types-PyYAML` stubs** — proper yaml typing, eliminated all `import-untyped` suppressions
+- **Extended ruff rules** — added I (isort), UP (pyupgrade), B (bugbear), SIM (simplify), RUF rule sets; auto-fixed 216 import/syntax issues, manually fixed 44 remaining across tools/ and handlers/
+
+### Fixed
+- **Ambiguous variable names** — renamed `l` to `lightness`/`line` in media_utils and lyrics_analysis
+- **Mutable default argument** — `reset_mastering` parameter annotated with noqa
+- **Bare generic types** — all `dict`, `list`, `tuple`, `Pattern` given explicit type parameters
+
 ## [0.80.0] - 2026-03-26
 
 ### Added
