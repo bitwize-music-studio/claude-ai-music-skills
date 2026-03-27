@@ -919,7 +919,7 @@ class TestCheckCrossTrackRepetition:
             result = json.loads(_run(server.check_cross_track_repetition("test-album")))
         expected_keys = {
             "found", "album_slug", "track_count", "min_tracks_threshold",
-            "repeated_words", "repeated_phrases", "summary",
+            "repeated_words", "repeated_phrases", "summary", "truncated",
         }
         assert expected_keys == set(result.keys())
 
@@ -1016,6 +1016,125 @@ class TestCheckCrossTrackRepetition:
         phrases = {p["phrase"]: p for p in result["repeated_phrases"]}
         assert "the ember" in phrases
         assert "remember the" in phrases
+
+    # --- summary_only tests ---
+
+    def test_summary_only_omits_arrays(self, tmp_path):
+        """summary_only=True returns summary but no repeated_words/phrases."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows falling everywhere",
+            "02-track": "[Verse 1]\nWalking through the shadows",
+            "03-track": "[Verse 1]\nShadows on the wall tonight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", summary_only=True,
+            )))
+        assert result["found"] is True
+        assert "summary" in result
+        assert "repeated_words" not in result
+        assert "repeated_phrases" not in result
+        assert "truncated" not in result
+
+    def test_summary_only_counts_accurate(self, tmp_path):
+        """summary_only totals match full query totals."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows falling everywhere",
+            "02-track": "[Verse 1]\nWalking through the shadows",
+            "03-track": "[Verse 1]\nShadows on the wall tonight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            full = json.loads(_run(server.check_cross_track_repetition("test-album")))
+            summary = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", summary_only=True,
+            )))
+        assert summary["summary"]["flagged_words"] == full["summary"]["flagged_words"]
+        assert summary["summary"]["flagged_phrases"] == full["summary"]["flagged_phrases"]
+
+    def test_summary_only_false_default(self, tmp_path):
+        """Default summary_only=False includes arrays — backward compat."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows falling",
+            "02-track": "[Verse 1]\nShadows rising",
+            "03-track": "[Verse 1]\nShadows burning",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_cross_track_repetition("test-album")))
+        assert "repeated_words" in result
+        assert "repeated_phrases" in result
+
+    # --- max_results tests ---
+
+    def test_max_results_zero_returns_all(self, tmp_path):
+        """max_results=0 (default) returns all items — backward compat."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows burning midnight",
+            "02-track": "[Verse 1]\nShadows burning midnight",
+            "03-track": "[Verse 1]\nShadows burning midnight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2, max_results=0,
+            )))
+        assert result["summary"]["flagged_words"] == len(result["repeated_words"])
+
+    def test_max_results_truncates(self, tmp_path):
+        """max_results=1 truncates repeated_words to 1 entry."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows burning midnight",
+            "02-track": "[Verse 1]\nShadows burning midnight",
+            "03-track": "[Verse 1]\nShadows burning midnight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            full = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2,
+            )))
+            result = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2, max_results=1,
+            )))
+        # Arrays truncated
+        assert len(result["repeated_words"]) == 1
+        assert len(result["repeated_phrases"]) <= 1
+        # Summary still reflects full counts
+        assert result["summary"]["flagged_words"] == full["summary"]["flagged_words"]
+        assert result["summary"]["flagged_phrases"] == full["summary"]["flagged_phrases"]
+        assert result["truncated"] is True
+
+    def test_max_results_exact_boundary_not_truncated(self, tmp_path):
+        """max_results == flagged count should not set truncated."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows burning midnight",
+            "02-track": "[Verse 1]\nShadows burning midnight",
+            "03-track": "[Verse 1]\nShadows burning midnight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            full = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2,
+            )))
+            n_words = full["summary"]["flagged_words"]
+            n_phrases = full["summary"]["flagged_phrases"]
+            max_n = max(n_words, n_phrases)
+            result = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2, max_results=max_n,
+            )))
+        assert result["truncated"] is False
+        assert len(result["repeated_words"]) == n_words
+        assert len(result["repeated_phrases"]) == n_phrases
+
+    def test_max_results_summary_only_no_arrays(self, tmp_path):
+        """summary_only=True with max_results still omits arrays."""
+        mock_cache = _build_state_with_tracks(tmp_path, {
+            "01-track": "[Verse 1]\nShadows burning midnight",
+            "02-track": "[Verse 1]\nShadows burning midnight",
+            "03-track": "[Verse 1]\nShadows burning midnight",
+        })
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_cross_track_repetition(
+                "test-album", min_tracks=2, summary_only=True, max_results=1,
+            )))
+        assert "repeated_words" not in result
+        assert "repeated_phrases" not in result
+        assert "truncated" not in result
 
 
 # =============================================================================
@@ -1232,6 +1351,7 @@ class TestExtractDistinctivePhrases:
         result = json.loads(_run(server.extract_distinctive_phrases("")))
         assert result["phrases"] == []
         assert result["total_phrases"] == 0
+        assert result["truncated"] is False
         assert result["sections_found"] == []
         assert result["search_suggestions"] == []
 
@@ -1255,7 +1375,8 @@ class TestExtractDistinctivePhrases:
         lyrics = "[Verse]\nBurning shadows fall tonight across the wire"
         result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
         assert set(result.keys()) == {
-            "phrases", "total_phrases", "sections_found", "search_suggestions",
+            "phrases", "total_phrases", "truncated", "sections_found",
+            "search_suggestions",
         }
 
     def test_phrase_entry_structure(self):
@@ -1349,6 +1470,87 @@ class TestExtractDistinctivePhrases:
         for phrase_entry in result["phrases"]:
             actual_words = len(phrase_entry["phrase"].split())
             assert phrase_entry["word_count"] == actual_words
+
+    # --- max_phrases tests ---
+
+    def test_max_phrases_zero_returns_all(self):
+        """max_phrases=0 (default) returns all phrases — backward compat."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta eta theta"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics, max_phrases=0)))
+        assert result["total_phrases"] == len(result["phrases"])
+        assert result["truncated"] is False
+
+    def test_max_phrases_truncates(self):
+        """max_phrases=N returns at most N phrases."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta eta theta"
+        full = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert full["total_phrases"] > 3, "Need enough phrases to truncate"
+
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics, max_phrases=3)))
+        assert len(result["phrases"]) == 3
+        assert result["total_phrases"] == full["total_phrases"]
+        assert result["truncated"] is True
+
+    def test_max_phrases_exact_match_not_truncated(self):
+        """max_phrases == total_phrases should not set truncated."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta eta theta"
+        full = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        n = full["total_phrases"]
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics, max_phrases=n)))
+        assert len(result["phrases"]) == n
+        assert result["truncated"] is False
+
+    def test_max_phrases_larger_than_total(self):
+        """max_phrases > total_phrases returns all, not truncated."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta"
+        full = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics, max_phrases=9999)))
+        assert len(result["phrases"]) == full["total_phrases"]
+        assert result["truncated"] is False
+
+    def test_max_phrases_preserves_search_suggestions(self):
+        """search_suggestions are always from the full set, not truncated."""
+        lines = ["[Verse 1]"]
+        for i in range(20):
+            lines.append(f"unique{i} alpha{i} beta{i} gamma{i} delta{i} epsilon{i} zeta{i}")
+        lyrics = "\n".join(lines)
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics, max_phrases=2)))
+        assert len(result["phrases"]) == 2
+        # search_suggestions are built from full ngrams, not truncated phrases
+        assert len(result["search_suggestions"]) > 0
+
+    # --- include_raw_lines tests ---
+
+    def test_include_raw_lines_true_default(self):
+        """Default include_raw_lines=True includes raw_line in entries."""
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
+        assert len(result["phrases"]) > 0
+        assert "raw_line" in result["phrases"][0]
+
+    def test_include_raw_lines_false_omits_field(self):
+        """include_raw_lines=False omits raw_line from phrase entries."""
+        lyrics = "[Chorus]\nBurning shadows fall tonight across the wire"
+        result = json.loads(_run(server.extract_distinctive_phrases(
+            lyrics, include_raw_lines=False,
+        )))
+        assert len(result["phrases"]) > 0
+        assert "raw_line" not in result["phrases"][0]
+        # Other fields still present
+        assert "phrase" in result["phrases"][0]
+        assert "word_count" in result["phrases"][0]
+        assert "priority" in result["phrases"][0]
+
+    def test_max_phrases_and_include_raw_lines_combined(self):
+        """Both params work together."""
+        lyrics = "[Verse]\nAlpha beta gamma delta epsilon zeta eta theta"
+        result = json.loads(_run(server.extract_distinctive_phrases(
+            lyrics, max_phrases=2, include_raw_lines=False,
+        )))
+        assert len(result["phrases"]) <= 2
+        assert result["truncated"] is True
+        for entry in result["phrases"]:
+            assert "raw_line" not in entry
 
 
 # ===========================================================================

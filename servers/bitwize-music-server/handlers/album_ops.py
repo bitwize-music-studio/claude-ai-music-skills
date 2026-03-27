@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 async def get_album_full(
     album_slug: str,
     include_sections: str = "",
+    track_slugs: str = "",
+    summary_only: bool = False,
 ) -> str:
     """Get full album data including track content sections in one call.
 
@@ -45,6 +47,11 @@ async def get_album_full(
         include_sections: Comma-separated section names to extract from each track
                          (e.g., "lyrics,style,pronunciation,streaming")
                          Empty = metadata only (no file reads)
+        track_slugs: Comma-separated track slugs to include (empty = all tracks,
+                    default). Only matching tracks are returned.
+        summary_only: When True, return album metadata + track list with
+                     statuses only (no sections, no paths). Overrides
+                     include_sections. (default False)
 
     Returns:
         JSON with album data + embedded track sections
@@ -87,44 +94,62 @@ async def get_album_full(
         "tracks": {},
     }
 
-    # Parse requested sections
-    sections = []
-    if include_sections:
+    # Parse track slug filter
+    track_filter: set[str] = set()
+    if track_slugs:
+        track_filter = {_normalize_slug(s) for s in track_slugs.split(",") if s.strip()}
+
+    # Parse requested sections (ignored if summary_only)
+    sections: list[str] = []
+    if include_sections and not summary_only:
         sections = [s.strip().lower() for s in include_sections.split(",") if s.strip()]
 
     tracks = album.get("tracks", {})
     for track_slug_key, track in sorted(tracks.items()):
-        track_entry = {
-            "title": track.get("title", track_slug_key),
-            "status": track.get("status", STATUS_UNKNOWN),
-            "explicit": track.get("explicit", False),
-            "has_suno_link": track.get("has_suno_link", False),
-            "sources_verified": track.get("sources_verified", "N/A"),
-            "path": track.get("path", ""),
-        }
+        # Apply track filter
+        if track_filter and track_slug_key not in track_filter:
+            continue
 
-        # Read sections from disk if requested
-        if sections and track.get("path"):
-            try:
-                file_text = Path(track["path"]).read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as e:
-                logger.warning("Cannot read track file %s: %s", track["path"], e)
-                file_text = None
+        if summary_only:
+            track_entry: dict[str, Any] = {
+                "title": track.get("title", track_slug_key),
+                "status": track.get("status", STATUS_UNKNOWN),
+                "explicit": track.get("explicit", False),
+                "has_suno_link": track.get("has_suno_link", False),
+                "sources_verified": track.get("sources_verified", "N/A"),
+            }
+        else:
+            track_entry = {
+                "title": track.get("title", track_slug_key),
+                "status": track.get("status", STATUS_UNKNOWN),
+                "explicit": track.get("explicit", False),
+                "has_suno_link": track.get("has_suno_link", False),
+                "sources_verified": track.get("sources_verified", "N/A"),
+                "path": track.get("path", ""),
+            }
 
-            if file_text:
-                track_entry["sections"] = {}
-                for sec in sections:
-                    heading = _SECTION_NAMES.get(sec)
-                    if not heading:
-                        continue
-                    sec_content = _extract_markdown_section(file_text, heading)
-                    if sec_content is not None:
-                        # For code-block sections, extract just the code block
-                        if heading in _CODE_BLOCK_SECTIONS:
-                            code = _extract_code_block(sec_content)
-                            if code is not None:
-                                sec_content = code
-                        track_entry["sections"][sec] = sec_content
+            # Read sections from disk if requested
+            if sections and track.get("path"):
+                try:
+                    file_text = Path(track["path"]).read_text(encoding="utf-8")
+                except (OSError, UnicodeDecodeError) as e:
+                    logger.warning("Cannot read track file %s: %s", track["path"], e)
+                    file_text = None
+
+                if file_text:
+                    track_entry["sections"] = {}
+                    for sec in sections:
+                        heading = _SECTION_NAMES.get(sec)
+                        if not heading:
+                            continue
+                        sec_content = _extract_markdown_section(file_text, heading)
+                        if sec_content is not None:
+                            # For code-block sections, extract just the code block
+                            if heading in _CODE_BLOCK_SECTIONS:
+                                code = _extract_code_block(sec_content)
+                                if code is not None:
+                                    sec_content = code
+                            track_entry["sections"][sec] = sec_content
 
         result["tracks"][track_slug_key] = track_entry
 

@@ -1317,6 +1317,85 @@ class TestGetPendingVerifications:
         assert "test-album" in result["albums_with_pending"]
         assert "another-album" in result["albums_with_pending"]
 
+    # --- album_slug filter tests ---
+
+    def test_album_slug_filters_to_one_album(self):
+        """album_slug returns only pending tracks from that album."""
+        state = _fresh_state()
+        state["albums"]["another-album"]["tracks"]["01-rock-song"]["sources_verified"] = "Pending"
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(album_slug="test-album")))
+        assert result["total_pending_tracks"] == 1
+        assert "test-album" in result["albums_with_pending"]
+        assert "another-album" not in result["albums_with_pending"]
+
+    def test_album_slug_normalizes_input(self):
+        """album_slug normalizes case, underscores, and spaces."""
+        state = _fresh_state()
+        state["albums"]["another-album"]["tracks"]["01-rock-song"]["sources_verified"] = "Pending"
+        mock_cache = MockStateCache(state)
+        for variant in ("Test-Album", "test_album", "TEST ALBUM"):
+            with patch.object(_shared_mod, "cache", mock_cache):
+                result = json.loads(_run(server.get_pending_verifications(album_slug=variant)))
+            assert result["total_pending_tracks"] == 1, f"Failed for variant: {variant!r}"
+            assert "test-album" in result["albums_with_pending"], f"Failed for variant: {variant!r}"
+
+    def test_album_slug_no_match(self):
+        """album_slug for nonexistent album returns empty."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(album_slug="nonexistent")))
+        assert result["total_pending_tracks"] == 0
+
+    def test_album_slug_empty_returns_all(self):
+        """album_slug='' (default) returns all albums — backward compat."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(album_slug="")))
+        assert result["total_pending_tracks"] == 1
+        assert "test-album" in result["albums_with_pending"]
+
+    # --- summary_only tests ---
+
+    def test_summary_only_returns_counts(self):
+        """summary_only=True returns counts without full album dict."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(summary_only=True)))
+        assert result["total_pending_tracks"] == 1
+        assert result["albums_with_pending_count"] == 1
+        assert "albums_with_pending" not in result
+
+    def test_summary_only_false_default(self):
+        """summary_only=False (default) returns full dict — backward compat."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(summary_only=False)))
+        assert "albums_with_pending" in result
+
+    def test_summary_only_with_album_slug(self):
+        """summary_only and album_slug work together."""
+        state = _fresh_state()
+        state["albums"]["another-album"]["tracks"]["01-rock-song"]["sources_verified"] = "Pending"
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(
+                album_slug="test-album", summary_only=True,
+            )))
+        assert result["total_pending_tracks"] == 1
+        assert result["albums_with_pending_count"] == 1
+
+    def test_summary_only_no_pending(self):
+        """summary_only with no pending tracks returns zero counts."""
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["02-second-track"]["sources_verified"] = "Verified"
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_pending_verifications(summary_only=True)))
+        assert result["total_pending_tracks"] == 0
+        assert result["albums_with_pending_count"] == 0
+
 
 # =============================================================================
 # Tests for StateCache thread safety
@@ -3489,6 +3568,114 @@ class TestGetAlbumFull:
         assert "has_suno_link" in track
         assert "sources_verified" in track
         assert "path" in track
+
+    # --- track_slugs filter tests ---
+
+    def test_track_slugs_filters_tracks(self):
+        """track_slugs returns only specified tracks."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", track_slugs="01-first-track",
+            )))
+        assert "01-first-track" in result["tracks"]
+        assert "02-second-track" not in result["tracks"]
+
+    def test_track_slugs_multiple(self):
+        """Comma-separated track_slugs returns multiple tracks."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", track_slugs="01-first-track,02-second-track",
+            )))
+        assert "01-first-track" in result["tracks"]
+        assert "02-second-track" in result["tracks"]
+
+    def test_track_slugs_empty_returns_all(self):
+        """track_slugs='' (default) returns all tracks — backward compat."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album", track_slugs="")))
+        assert len(result["tracks"]) == 2
+
+    def test_track_slugs_normalizes_input(self):
+        """track_slugs normalizes case, underscores, and spaces."""
+        mock_cache = MockStateCache()
+        for variant in ("01-First-Track", "01_first_track", "01 first track"):
+            with patch.object(_shared_mod, "cache", mock_cache):
+                result = json.loads(_run(server.get_album_full(
+                    "test-album", track_slugs=variant,
+                )))
+            assert "01-first-track" in result["tracks"], f"Failed for variant: {variant!r}"
+            assert len(result["tracks"]) == 1, f"Failed for variant: {variant!r}"
+
+    def test_track_slugs_no_match(self):
+        """track_slugs for nonexistent track returns empty tracks dict."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", track_slugs="nonexistent-track",
+            )))
+        assert result["found"] is True
+        assert result["tracks"] == {}
+
+    # --- summary_only tests ---
+
+    def test_summary_only_omits_path(self):
+        """summary_only=True omits path from track entries."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", summary_only=True,
+            )))
+        assert result["found"] is True
+        track = result["tracks"]["01-first-track"]
+        assert "path" not in track
+        # Metadata fields still present
+        assert "title" in track
+        assert "status" in track
+        assert "explicit" in track
+
+    def test_summary_only_ignores_include_sections(self, tmp_path):
+        """summary_only=True overrides include_sections — no file reads."""
+        track_file = tmp_path / "01-test-track.md"
+        track_file.write_text(_SAMPLE_TRACK_MD)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["01-test-track"] = {
+            "path": str(track_file),
+            "title": "Test Track",
+            "status": "In Progress",
+            "explicit": False,
+            "has_suno_link": False,
+            "sources_verified": "N/A",
+            "mtime": 1234567890.0,
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", include_sections="lyrics", summary_only=True,
+            )))
+        track = result["tracks"].get("01-test-track", {})
+        assert "sections" not in track
+        assert "path" not in track
+
+    def test_summary_only_false_default(self):
+        """summary_only=False (default) includes path — backward compat."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full("test-album")))
+        assert "path" in result["tracks"]["01-first-track"]
+
+    def test_summary_only_with_track_slugs(self):
+        """summary_only and track_slugs work together."""
+        mock_cache = MockStateCache()
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.get_album_full(
+                "test-album", track_slugs="01-first-track", summary_only=True,
+            )))
+        assert len(result["tracks"]) == 1
+        assert "01-first-track" in result["tracks"]
+        assert "path" not in result["tracks"]["01-first-track"]
 
 
 # =============================================================================
