@@ -5,8 +5,12 @@ from __future__ import annotations
 import statistics
 from typing import Any
 
-from handlers._shared import _safe_json, _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS
-
+from handlers._shared import (
+    _CROSS_TRACK_STOPWORDS,
+    _SECTION_TAG_RE,
+    _WORD_TOKEN_RE,
+    _safe_json,
+)
 
 # =============================================================================
 # Plagiarism / Distinctive Phrase Extraction
@@ -379,7 +383,7 @@ async def count_syllables(text: str) -> str:
         if _SECTION_TAG_RE.match(stripped):
             # Save previous section if it has lines
             if current_lines:
-                avg = sum(l["syllable_count"] for l in current_lines) / len(current_lines)
+                avg = sum(line["syllable_count"] for line in current_lines) / len(current_lines)
                 sections.append({
                     "section": current_section,
                     "lines": current_lines,
@@ -404,7 +408,7 @@ async def count_syllables(text: str) -> str:
 
     # Don't forget last section
     if current_lines:
-        avg = sum(l["syllable_count"] for l in current_lines) / len(current_lines)
+        avg = sum(line["syllable_count"] for line in current_lines) / len(current_lines)
         sections.append({
             "section": current_section,
             "lines": current_lines,

@@ -7,17 +7,16 @@ Automated Mastering Script for Album
 - Preserves dynamics while ensuring consistency
 """
 
+import argparse
 import logging
 import os
 import sys
-import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
-import soundfile as sf
 import pyloudnorm as pyln
+import soundfile as sf
 from scipy import signal
 
 try:
@@ -58,7 +57,7 @@ def _load_yaml_file(path: Path) -> dict:
         return {}
 
 
-def _get_overrides_path() -> Optional[Path]:
+def _get_overrides_path() -> Path | None:
     """Resolve the user's overrides directory from config."""
     config = _load_yaml_file(_CONFIG_PATH)
     if not config:

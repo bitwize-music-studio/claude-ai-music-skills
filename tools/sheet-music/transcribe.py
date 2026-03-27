@@ -35,6 +35,7 @@ import os
 import platform
 import subprocess
 import sys
+
 try:
     import yaml
 except ImportError:

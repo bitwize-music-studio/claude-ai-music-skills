@@ -11,7 +11,6 @@ The mirrored path structure:
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from tools.shared.config import load_config
 
@@ -19,9 +18,9 @@ from tools.shared.config import load_config
 def resolve_path(
     path_type: str,
     album: str,
-    artist: Optional[str] = None,
-    genre: Optional[str] = None,
-    config: Optional[dict] = None,
+    artist: str | None = None,
+    genre: str | None = None,
+    config: dict | None = None,
 ) -> Path:
     """Resolve a path for the given type and album.
 
@@ -69,8 +68,8 @@ def resolve_path(
 def resolve_tracks_dir(
     album: str,
     genre: str,
-    artist: Optional[str] = None,
-    config: Optional[dict] = None,
+    artist: str | None = None,
+    config: dict | None = None,
 ) -> Path:
     """Resolve the tracks/ directory for an album.
 
@@ -88,7 +87,7 @@ def resolve_tracks_dir(
     return resolve_path("content", album, artist=artist, genre=genre, config=config) / "tracks"
 
 
-def resolve_overrides_dir(config: Optional[dict] = None) -> Path:
+def resolve_overrides_dir(config: dict | None = None) -> Path:
     """Resolve the overrides directory path.
 
     Args:

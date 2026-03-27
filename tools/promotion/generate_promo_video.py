@@ -26,15 +26,14 @@ Usage:
     python generate_promo_video.py track.wav art.png "Song" --duration 30 --style circular
 """
 
+import argparse
 import atexit
 import os
-import sys
-import argparse
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,17 +43,19 @@ if str(_PROJECT_ROOT) not in sys.path:
 import logging
 
 from tools.shared.config import load_config as _load_config
-from tools.shared.progress import ProgressBar
 from tools.shared.fonts import find_font
 from tools.shared.logging_config import setup_logging
 from tools.shared.media_utils import (
-    extract_dominant_color,
-    get_complementary_color,
-    get_analogous_colors,
-    rgb_to_hex,
     check_ffmpeg as _check_ffmpeg,
-    find_best_segment,
 )
+from tools.shared.media_utils import (
+    extract_dominant_color,
+    find_best_segment,
+    get_analogous_colors,
+    get_complementary_color,
+    rgb_to_hex,
+)
+from tools.shared.progress import ProgressBar
 
 logger = logging.getLogger(__name__)
 
@@ -107,9 +108,9 @@ def generate_waveform_video(
     output_path: Path,
     duration: int = DEFAULT_DURATION,
     style: str = "bars",
-    start_time: Optional[float] = None,
+    start_time: float | None = None,
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None,
+    font_path: str | None = None,
     color_hex: str = "",
     glow: float = 0.6,
     text_color: str = "",
@@ -363,7 +364,7 @@ def generate_waveform_video(
                 pass
 
 
-def get_title_from_markdown(track_md_path: Path) -> Optional[str]:
+def get_title_from_markdown(track_md_path: Path) -> str | None:
     """Extract title from track markdown frontmatter."""
     try:
         content = track_md_path.read_text()
@@ -392,8 +393,8 @@ def batch_process_album(
     duration: int = DEFAULT_DURATION,
     style: str = "bars",
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None,
-    content_dir: Optional[Path] = None,
+    font_path: str | None = None,
+    content_dir: Path | None = None,
     jobs: int = 1,
     color_hex: str = "",
     glow: float = 0.6,

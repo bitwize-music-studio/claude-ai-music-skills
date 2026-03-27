@@ -7,13 +7,17 @@ import re
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import (
-    _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error, _find_track_or_error,
-    _SECTION_TAG_RE, _STREAMING_PLACEHOLDER_MARKERS,
-)
 from handlers import _shared
 from handlers import text_analysis as _text_analysis
+from handlers._shared import (
+    _SECTION_TAG_RE,
+    _STREAMING_PLACEHOLDER_MARKERS,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_track_or_error,
+    _safe_json,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -153,9 +157,8 @@ def _check_pre_gen_gates_for_track(
             if stripped.startswith("[") and stripped.endswith("]"):
                 continue
             for word, pattern in _text_analysis._HOMOGRAPH_PATTERNS.items():
-                if pattern.search(line):
-                    if word not in found_homographs:
-                        found_homographs.append(word)
+                if pattern.search(line) and word not in found_homographs:
+                    found_homographs.append(word)
         if found_homographs:
             gates.append({"gate": "Homograph Check", "status": "FAIL", "severity": "BLOCKING",
                           "detail": f"Unresolved homographs: {', '.join(found_homographs)}"})

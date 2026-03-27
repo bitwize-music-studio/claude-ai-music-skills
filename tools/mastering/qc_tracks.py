@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Technical audio QC checks for pre/post mastering validation."""
 
+import argparse
 import logging
 import os
 import sys
-import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -250,11 +250,7 @@ def _check_silence(data, rate):
         else:
             break
     trailing_sec = trailing / rate
-    if trailing_sec > 5.0:
-        if status != "FAIL":
-            status = "WARN"
-        issues.append(f"Trailing silence: {trailing_sec:.1f}s")
-    elif trailing_sec > 3.0:
+    if trailing_sec > 5.0 or trailing_sec > 3.0:
         if status != "FAIL":
             status = "WARN"
         issues.append(f"Trailing silence: {trailing_sec:.1f}s")

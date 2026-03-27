@@ -11,7 +11,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Shared state — set by server.py at startup
 # ---------------------------------------------------------------------------

@@ -21,13 +21,14 @@ import logging
 import os
 import re
 import sys
+
 try:
     import yaml
 except ImportError:
     print("ERROR: pyyaml required. Install: pip install pyyaml")
     sys.exit(1)
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -39,15 +40,15 @@ from tools.shared.logging_config import setup_logging
 logger = logging.getLogger(__name__)
 
 
-from tools.shared.text_utils import strip_track_number  # noqa: E402
-
+from tools.shared.text_utils import strip_track_number
 
 try:
+    import io
+
     from pypdf import PdfReader, PdfWriter
-    from reportlab.lib.pagesizes import letter, A4
+    from reportlab.lib.pagesizes import A4, letter
     from reportlab.lib.units import inch
     from reportlab.pdfgen import canvas
-    import io
 except ImportError:
     print("Missing dependencies. Install with:")
     print("  pip install pypdf reportlab")
@@ -427,7 +428,7 @@ def create_songbook(
     manifest = None
     if manifest_path.exists():
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 manifest = json.load(f)
             logger.info("Using track order from .manifest.json")
         except (json.JSONDecodeError, OSError) as e:

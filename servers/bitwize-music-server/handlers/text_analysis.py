@@ -8,14 +8,19 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error,
-    _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS,
-    _MARKDOWN_LINK_RE,
-    _find_track_or_error,
-)
 from handlers import _shared
+from handlers._shared import (
+    _CROSS_TRACK_STOPWORDS,
+    _MARKDOWN_LINK_RE,
+    _SECTION_TAG_RE,
+    _WORD_TOKEN_RE,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -265,7 +270,7 @@ async def check_pronunciation_enforcement(
                    all_applied: bool, unapplied_count: int}
     """
     # Resolve track file
-    normalized_album, album, error = _find_album_or_error(album_slug)
+    _normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
     assert album is not None
@@ -754,7 +759,7 @@ async def get_lyrics_stats(
             note = f"Under target ({target['min']} min for {genre})"
         else:
             status = "OK"
-            note = f"Within target ({target['min']}–{target['max']} for {genre})"
+            note = f"Within target ({target['min']}\u2013{target['max']} for {genre})"
 
         track_results.append({
             "track_slug": t_slug,

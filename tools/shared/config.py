@@ -3,7 +3,7 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import yaml
@@ -31,8 +31,8 @@ OVERRIDE_FILES = {
 
 def load_config(
     required: bool = False,
-    fallback: Optional[Dict[str, Any]] = None
-) -> Optional[Dict[str, Any]]:
+    fallback: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Load ~/.bitwize-music/config.yaml.
 
     Args:
@@ -65,7 +65,7 @@ def load_config(
         return fallback
 
 
-def validate_overrides(overrides_dir: Path) -> List[Dict[str, str]]:
+def validate_overrides(overrides_dir: Path) -> list[dict[str, str]]:
     """Validate override files in the given directory.
 
     Checks that override files follow expected format:
@@ -80,7 +80,7 @@ def validate_overrides(overrides_dir: Path) -> List[Dict[str, str]]:
         List of issue dicts with 'file', 'level' ('error'|'warning'), and 'message' keys.
         Empty list means all overrides are valid.
     """
-    issues: List[Dict[str, str]] = []
+    issues: list[dict[str, str]] = []
 
     if not overrides_dir.exists():
         return issues  # No overrides dir is fine (optional)

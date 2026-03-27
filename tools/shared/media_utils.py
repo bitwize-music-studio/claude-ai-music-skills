@@ -8,16 +8,16 @@ import colorsys
 import logging
 import subprocess
 from pathlib import Path
-from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
+def extract_dominant_color(image_path: Path) -> tuple[int, int, int]:
     """Extract the dominant color from an image using PIL."""
     try:
-        from PIL import Image
         from collections import Counter
+
+        from PIL import Image
         with Image.open(image_path) as img:
             img = img.convert('RGB')
             img = img.resize((100, 100))
@@ -40,7 +40,7 @@ def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
         return (0, 255, 255)
 
 
-def get_complementary_color(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+def get_complementary_color(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     """Get complementary color with boosted visibility."""
     r, g, b = [x / 255.0 for x in rgb]
     h, l, s = colorsys.rgb_to_hls(r, g, b)
@@ -51,7 +51,7 @@ def get_complementary_color(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def get_analogous_colors(rgb: Tuple[int, int, int]) -> Tuple[Tuple[int, int, int], Tuple[int, int, int]]:
+def get_analogous_colors(rgb: tuple[int, int, int]) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """Get two analogous colors (30 degrees on each side)."""
     r, g, b = [x / 255.0 for x in rgb]
     h, l, s = colorsys.rgb_to_hls(r, g, b)
@@ -68,7 +68,7 @@ def get_analogous_colors(rgb: Tuple[int, int, int]) -> Tuple[Tuple[int, int, int
     )
 
 
-def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Convert RGB tuple to hex string for ffmpeg."""
     return f"0x{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 

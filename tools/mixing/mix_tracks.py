@@ -15,7 +15,6 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import soundfile as sf
@@ -147,7 +146,7 @@ def _load_yaml_file(path: Path) -> dict:
         return {}
 
 
-def _get_overrides_path() -> Optional[Path]:
+def _get_overrides_path() -> Path | None:
     """Resolve the user's overrides directory from config."""
     config = _load_yaml_file(_CONFIG_PATH)
     if not config:

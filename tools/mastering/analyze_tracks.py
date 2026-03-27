@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Analyze audio tracks for mastering decisions."""
 
+import argparse
 import logging
 import os
 import sys
-import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
 import pyloudnorm as pyln
+import soundfile as sf
 from scipy import signal
 
 # Ensure project root is on sys.path

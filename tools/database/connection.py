@@ -2,14 +2,14 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 
 
-def check_db_deps() -> Optional[str]:
+def check_db_deps() -> str | None:
     """Return error message if database deps missing, else None."""
     try:
         import psycopg2  # noqa: F401
@@ -21,7 +21,7 @@ def check_db_deps() -> Optional[str]:
     return None
 
 
-def get_db_config() -> Optional[Dict[str, Any]]:
+def get_db_config() -> dict[str, Any] | None:
     """Read database config from ~/.bitwize-music/config.yaml.
 
     Returns:
@@ -51,7 +51,7 @@ def get_db_config() -> Optional[Dict[str, Any]]:
     return db_config
 
 
-def get_connection(db_config: Dict[str, Any]):
+def get_connection(db_config: dict[str, Any]):
     """Create a psycopg2 connection from config dict.
 
     Args:

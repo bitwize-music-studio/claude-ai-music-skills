@@ -7,8 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import _normalize_slug, _safe_json, _resolve_audio_dir
 from handlers import _shared
+from handlers._shared import _normalize_slug, _resolve_audio_dir, _safe_json
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -28,7 +28,7 @@ _LEGACY_VENV_DIRS = ["mastering-env", "promotion-env", "cloud-env"]
 
 async def reset_mastering(
     album_slug: str,
-    subfolders: list[str] = ["mastered"],
+    subfolders: list[str] = ["mastered"],  # noqa: B006 — MCP tool default, not mutated
     dry_run: bool = True,
 ) -> str:
     """Remove mastered/ and/or polished/ subfolders so the mastering pipeline can be re-run.

@@ -10,19 +10,19 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from handlers import _shared
 from handlers._shared import (
-    _normalize_slug,
-    _safe_json,
-    _find_album_or_error,
-    _find_wav_source_dir,
-    _update_frontmatter_block,
-    _resolve_audio_dir,
-    TRACK_NOT_STARTED,
+    ALBUM_COMPLETE,
     TRACK_FINAL,
     TRACK_GENERATED,
-    ALBUM_COMPLETE,
+    TRACK_NOT_STARTED,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _resolve_audio_dir,
+    _safe_json,
+    _update_frontmatter_block,
 )
-from handlers import _shared
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -43,7 +43,7 @@ def _build_title_map(album_slug: str, wav_files: list[Path]) -> dict[str, str]:
 
     Returns dict: {stem: clean_title} e.g. {"01-first-pour": "First Pour"}
     """
-    from tools.shared.text_utils import slug_to_title, sanitize_filename
+    from tools.shared.text_utils import sanitize_filename, slug_to_title
 
     # Try to get track titles from state cache
     state = _shared.cache.get_state()
@@ -324,7 +324,7 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
         return err
     assert audio_dir is not None
 
-    from tools.mastering.qc_tracks import qc_track, ALL_CHECKS
+    from tools.mastering.qc_tracks import ALL_CHECKS, qc_track
 
     source_dir = _find_wav_source_dir(audio_dir) if not subfolder else audio_dir
     wav_files = sorted(source_dir.glob("*.wav"))
@@ -425,13 +425,16 @@ async def master_audio(
     else:
         source_dir = _find_wav_source_dir(audio_dir)
 
+    import numpy as np
+    import pyloudnorm as pyln
+    import soundfile as sf
+
     from tools.mastering.master_tracks import (
-        master_track as _master_track,
         load_genre_presets,
     )
-    import numpy as np
-    import soundfile as sf
-    import pyloudnorm as pyln
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+    )
 
     # Apply genre preset if specified
     effective_lufs = target_lufs
@@ -658,7 +661,9 @@ async def master_with_reference(
     output_dir.mkdir(exist_ok=True)
 
     try:
-        from tools.mastering.reference_master import master_with_reference as _ref_master
+        from tools.mastering.reference_master import (
+            master_with_reference as _ref_master,
+        )
     except (ImportError, SystemExit):
         return _safe_json({
             "error": "matchering not installed. Install: pip install matchering",
@@ -982,7 +987,8 @@ async def prepare_singles(
     album = albums.get(_normalize_slug(album_slug), {})
     cache_tracks = album.get("tracks", {})
     if cache_tracks:
-        from tools.shared.text_utils import sanitize_filename, slug_to_title as _s2t
+        from tools.shared.text_utils import sanitize_filename
+        from tools.shared.text_utils import slug_to_title as _s2t
         title_map = {}
         for slug, track in cache_tracks.items():
             title_map[slug] = sanitize_filename(track.get("title", _s2t(slug)))
@@ -1424,8 +1430,8 @@ async def generate_promo_videos(
         })
 
     from tools.promotion.generate_promo_video import (
-        generate_waveform_video,
         batch_process_album,
+        generate_waveform_video,
     )
     from tools.shared.fonts import find_font
 
@@ -1768,11 +1774,14 @@ async def master_album(
     }
 
     # Resolve genre presets and effective settings (same logic as master_audio)
+    import numpy as np
+
     from tools.mastering.master_tracks import (
-        master_track as _master_track,
         load_genre_presets,
     )
-    import numpy as np
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+    )
 
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
@@ -2331,10 +2340,10 @@ async def polish_audio(
     assert audio_dir is not None
 
     from tools.mixing.mix_tracks import (
-        mix_track_stems,
-        mix_track_full,
-        load_mix_presets,
         discover_stems,
+        load_mix_presets,
+        mix_track_full,
+        mix_track_stems,
     )
 
     # Validate genre if specified
@@ -2676,7 +2685,7 @@ async def polish_album(
 
     for wav in polished_files:
         def _verify(path: Path) -> dict[str, Any]:
-            data, rate = sf.read(str(path))
+            data, _rate = sf.read(str(path))
             peak = float(np.max(np.abs(data)))
             rms = float(np.sqrt(np.mean(data ** 2)))
             finite = bool(np.all(np.isfinite(data)))

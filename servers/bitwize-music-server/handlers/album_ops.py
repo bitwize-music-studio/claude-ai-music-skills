@@ -7,15 +7,21 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error,
-    _SECTION_NAMES, _find_wav_source_dir,
-    _CODE_BLOCK_SECTIONS,
-    _VALID_GENRES, _GENRE_ALIASES,
-    STATUS_UNKNOWN, TRACK_COMPLETED_STATUSES,
-)
 from handlers import _shared
+from handlers._shared import (
+    _CODE_BLOCK_SECTIONS,
+    _GENRE_ALIASES,
+    _SECTION_NAMES,
+    _VALID_GENRES,
+    STATUS_UNKNOWN,
+    TRACK_COMPLETED_STATUSES,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger(__name__)
 

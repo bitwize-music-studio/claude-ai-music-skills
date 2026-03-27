@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from handlers._shared import _normalize_slug, _safe_json
 from handlers import _shared
+from handlers._shared import _normalize_slug, _safe_json
 
 
 async def list_skills(model_filter: str = "", category: str = "") -> str:
@@ -25,9 +25,8 @@ async def list_skills(model_filter: str = "", category: str = "") -> str:
     result_items = []
     for name, skill in sorted(items.items()):
         # Apply model filter
-        if model_filter:
-            if skill.get("model_tier", "").lower() != model_filter.lower():
-                continue
+        if model_filter and skill.get("model_tier", "").lower() != model_filter.lower():
+            continue
 
         # Apply category/description filter
         if category:

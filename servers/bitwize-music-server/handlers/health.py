@@ -8,8 +8,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import _safe_json
 from handlers import _shared
+from handlers._shared import _safe_json
 
 logger = logging.getLogger(__name__)
 

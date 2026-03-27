@@ -3,18 +3,19 @@
 
 import logging
 import sys
-import numpy as np
-import soundfile as sf
-import pyloudnorm as pyln
 from pathlib import Path
+
+import numpy as np
+import pyloudnorm as pyln
+import soundfile as sf
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from tools.shared.logging_config import setup_logging
 from tools.mastering.master_tracks import apply_eq, soft_clip
+from tools.shared.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 

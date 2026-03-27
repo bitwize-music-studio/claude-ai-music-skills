@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import _normalize_slug, _safe_json, _find_album_or_error
 from handlers import _shared
+from handlers._shared import _find_album_or_error, _normalize_slug, _safe_json
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -34,7 +34,7 @@ def _get_db_connection() -> tuple[Any, str | None]:
     Returns:
         (connection, None) on success, (None, error_json) on failure.
     """
-    from tools.database.connection import get_db_config, get_connection
+    from tools.database.connection import get_connection, get_db_config
 
     db_config = get_db_config()
     if db_config is None:

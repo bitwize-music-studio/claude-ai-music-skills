@@ -7,21 +7,28 @@ import re
 from pathlib import Path
 from typing import Any
 
+from handlers import _shared
+from handlers._shared import (
+    _CODE_BLOCK_SECTIONS,
+    _MARKDOWN_LINK_RE,
+    _SECTION_NAMES,
+    ALBUM_COMPLETE,
+    ALBUM_CONCEPT,
+    ALBUM_RELEASED,
+    STATUS_UNKNOWN,
+    TRACK_COMPLETED_STATUSES,
+    TRACK_FINAL,
+    TRACK_GENERATED,
+    TRACK_IN_PROGRESS,
+    TRACK_NOT_STARTED,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 from tools.state.indexer import write_state
 from tools.state.parsers import parse_track_file
-
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _SECTION_NAMES, _CODE_BLOCK_SECTIONS,
-    _find_track_or_error,
-    TRACK_NOT_STARTED,
-    TRACK_IN_PROGRESS, TRACK_GENERATED, TRACK_FINAL,
-    TRACK_COMPLETED_STATUSES, STATUS_UNKNOWN,
-    ALBUM_CONCEPT,
-    ALBUM_COMPLETE, ALBUM_RELEASED,
-    _MARKDOWN_LINK_RE,
-)
-from handlers import _shared
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -851,11 +858,13 @@ async def update_track_field(
         JSON with update result or error
     """
     # Lazy imports to avoid circular dependencies
-    from handlers.text_analysis import _load_artist_blocklist
     from handlers.gates import _check_pre_gen_gates_for_track
     from handlers.status import (
-        _VALID_TRACK_STATUSES, _CANONICAL_TRACK_STATUS, _validate_track_transition,
+        _CANONICAL_TRACK_STATUS,
+        _VALID_TRACK_STATUSES,
+        _validate_track_transition,
     )
+    from handlers.text_analysis import _load_artist_blocklist
 
     # Validate field
     field_key = field.lower().strip()

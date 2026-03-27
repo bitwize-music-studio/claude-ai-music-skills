@@ -8,11 +8,14 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _find_album_or_error, _derive_title_from_slug,
-    _find_track_or_error,
-)
 from handlers import _shared
+from handlers._shared import (
+    _derive_title_from_slug,
+    _find_album_or_error,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +148,7 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         album_data["title"] = title
 
         # Update track paths
-        for track_slug, track_data in album_data.get("tracks", {}).items():
+        for _track_slug, track_data in album_data.get("tracks", {}).items():
             old_track_path = track_data.get("path", "")
             if old_track_path:
                 track_data["path"] = old_track_path.replace(
@@ -192,8 +195,8 @@ async def rename_track(
     Returns:
         JSON with rename result or error
     """
-    from tools.state.parsers import parse_track_file
     from tools.state.indexer import write_state
+    from tools.state.parsers import parse_track_file
 
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:

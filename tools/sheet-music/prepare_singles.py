@@ -37,7 +37,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.shared.logging_config import setup_logging
-from tools.shared.text_utils import sanitize_filename, slug_to_title  # noqa: E402
+from tools.shared.text_utils import slug_to_title
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +169,7 @@ def prepare_xml(source_xml, singles_dir, title, dry_run=False, output_name=None)
     """
     out_stem = output_name or title
 
-    with open(source_xml, 'r', encoding='utf-8') as f:
+    with open(source_xml, encoding='utf-8') as f:
         content = f.read()
 
     # Update work-title
@@ -277,7 +277,7 @@ def _read_source_manifest(source_path):
     manifest_path = source_path / ".manifest.json"
     if manifest_path.exists():
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
+            with open(manifest_path, encoding='utf-8') as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to read source manifest: %s", e)

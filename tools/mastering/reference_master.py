@@ -4,9 +4,9 @@ Reference-Based Mastering Script
 Uses matchering to match your tracks to a professionally mastered reference.
 """
 
+import argparse
 import logging
 import sys
-import argparse
 from pathlib import Path
 
 # Ensure project root is on sys.path

@@ -7,20 +7,30 @@ import re
 from pathlib import Path
 from typing import Any
 
+from handlers import _shared
 from handlers._shared import (
-    _normalize_slug, _safe_json, _find_album_or_error,
-    _extract_markdown_section, _extract_code_block,
-    _find_wav_source_dir,
     _STREAMING_PLACEHOLDER_MARKERS,
-    TRACK_NOT_STARTED, TRACK_SOURCES_PENDING,
-    TRACK_SOURCES_VERIFIED, TRACK_IN_PROGRESS,
-    TRACK_GENERATED, TRACK_FINAL,
-    ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
-    ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
+    ALBUM_COMPLETE,
+    ALBUM_CONCEPT,
+    ALBUM_IN_PROGRESS,
+    ALBUM_RELEASED,
+    ALBUM_RESEARCH_COMPLETE,
+    ALBUM_SOURCES_VERIFIED,
     ALBUM_VALID_STATUSES,
     STATUS_UNKNOWN,
+    TRACK_FINAL,
+    TRACK_GENERATED,
+    TRACK_IN_PROGRESS,
+    TRACK_NOT_STARTED,
+    TRACK_SOURCES_PENDING,
+    TRACK_SOURCES_VERIFIED,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _safe_json,
 )
-from handlers import _shared
 
 logger = logging.getLogger(__name__)
 
@@ -206,8 +216,8 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
     Returns:
         JSON with update result or error
     """
-    from tools.state.parsers import parse_album_readme
     from tools.state.indexer import write_state
+    from tools.state.parsers import parse_album_readme
 
     # Validate status
     if status.lower().strip() not in _VALID_ALBUM_STATUSES:
