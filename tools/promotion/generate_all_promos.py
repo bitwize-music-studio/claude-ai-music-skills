@@ -10,6 +10,8 @@ Usage:
     python generate_all_promos.py /path/to/album --sampler-only
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import subprocess
@@ -48,7 +50,7 @@ def find_mastered_dir(album_dir: Path) -> Path:
     return album_dir
 
 
-def find_artwork(album_dir: Path) -> Path:
+def find_artwork(album_dir: Path) -> Path | None:
     """Find album artwork."""
     # Check common locations and names
     # Note: import-art skill saves as album.png in audio_root
@@ -86,7 +88,7 @@ def find_artwork(album_dir: Path) -> Path:
     return None
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Generate all promo videos for an album (individual tracks + sampler)',
         formatter_class=argparse.RawDescriptionHelpFormatter,

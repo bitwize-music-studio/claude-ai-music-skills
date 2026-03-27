@@ -1,9 +1,16 @@
 """Lyrics analysis tools — plagiarism detection, syllable counting, readability, rhyme analysis."""
 
+from __future__ import annotations
+
 import statistics
+from typing import Any
 
-from handlers._shared import _safe_json, _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS
-
+from handlers._shared import (
+    _CROSS_TRACK_STOPWORDS,
+    _SECTION_TAG_RE,
+    _WORD_TOKEN_RE,
+    _safe_json,
+)
 
 # =============================================================================
 # Plagiarism / Distinctive Phrase Extraction
@@ -80,7 +87,7 @@ _SECTION_PRIORITY = {
 }
 
 
-def _tokenize_lyrics_with_sections(lyrics: str) -> list:
+def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
     """Split lyrics into per-line dicts tracking section context.
 
     Returns a list of dicts, each with:
@@ -134,10 +141,10 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list:
 
 
 def _extract_distinctive_ngrams(
-    lines_with_sections: list,
+    lines_with_sections: list[dict[str, Any]],
     min_n: int = 4,
     max_n: int = 7,
-) -> list:
+) -> list[dict[str, Any]]:
     """Extract distinctive n-grams from section-aware tokenized lines.
 
     Generates n-grams of length min_n..max_n, filters out:
@@ -147,7 +154,7 @@ def _extract_distinctive_ngrams(
     Returns sorted by priority descending, then word count descending.
     """
     # phrase -> best entry (highest priority)
-    seen: dict = {}
+    seen: dict[str, dict[str, Any]] = {}
 
     for line_data in lines_with_sections:
         words = line_data["words"]
@@ -365,8 +372,8 @@ async def count_syllables(text: str) -> str:
 
     sections = []
     current_section = "Unknown"
-    current_lines = []
-    all_syllable_counts = []
+    current_lines: list[dict[str, Any]] = []
+    all_syllable_counts: list[int] = []
 
     for line_num, line in enumerate(text.split("\n"), 1):
         stripped = line.strip()
@@ -376,7 +383,7 @@ async def count_syllables(text: str) -> str:
         if _SECTION_TAG_RE.match(stripped):
             # Save previous section if it has lines
             if current_lines:
-                avg = sum(l["syllable_count"] for l in current_lines) / len(current_lines)
+                avg = sum(line["syllable_count"] for line in current_lines) / len(current_lines)
                 sections.append({
                     "section": current_section,
                     "lines": current_lines,
@@ -401,7 +408,7 @@ async def count_syllables(text: str) -> str:
 
     # Don't forget last section
     if current_lines:
-        avg = sum(l["syllable_count"] for l in current_lines) / len(current_lines)
+        avg = sum(line["syllable_count"] for line in current_lines) / len(current_lines)
         sections.append({
             "section": current_section,
             "lines": current_lines,
@@ -626,7 +633,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
                 })
 
         # Build rhyme groups
-        rhyme_labels = {}  # rhyme_tail -> label letter
+        rhyme_labels: dict[str, str] = {}  # rhyme_tail -> label letter
         next_label = 0
         lines_data = []
 
@@ -662,7 +669,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
         section_issues = []
 
         # Self-rhymes: same word used as end word in multiple lines
-        word_lines = {}
+        word_lines: dict[str, list[int]] = {}
         for ld in lines_data:
             w = ld["end_word"].lower()
             if w not in word_lines:
@@ -738,8 +745,8 @@ async def validate_section_structure(text: str) -> str:
             },
         })
 
-    sections = []
-    issues = []
+    sections: list[dict[str, Any]] = []
+    issues: list[dict[str, Any]] = []
     current_tag = None
     current_tag_line = 0
     content_line_count = 0
@@ -884,7 +891,7 @@ async def validate_section_structure(text: str) -> str:
     })
 
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register lyrics analysis tools with the MCP server."""
     mcp.tool()(extract_distinctive_phrases)
     mcp.tool()(count_syllables)

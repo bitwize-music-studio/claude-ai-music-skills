@@ -3,10 +3,11 @@
 Reference-Based Mastering Script
 Uses matchering to match your tracks to a professionally mastered reference.
 """
+from __future__ import annotations
 
+import argparse
 import logging
 import sys
-import argparse
 from pathlib import Path
 
 # Ensure project root is on sys.path
@@ -27,7 +28,8 @@ except ImportError:
     sys.exit(1)
 
 
-def master_with_reference(target_path, reference_path, output_path):
+def master_with_reference(target_path: Path | str, reference_path: Path | str,
+                          output_path: Path | str) -> None:
     """Master a single track using a reference.
 
     Args:
@@ -49,7 +51,7 @@ def master_with_reference(target_path, reference_path, output_path):
     logger.info("  Done!")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Master tracks using a reference track',
         formatter_class=argparse.RawDescriptionHelpFormatter,

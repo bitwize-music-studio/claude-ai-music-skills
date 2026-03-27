@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 """Fix tracks with excessive dynamic range that won't reach target LUFS."""
+from __future__ import annotations
 
 import logging
 import sys
-import numpy as np
-import soundfile as sf
-import pyloudnorm as pyln
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pyloudnorm as pyln
+import soundfile as sf
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from tools.shared.logging_config import setup_logging
 from tools.mastering.master_tracks import apply_eq, soft_clip
+from tools.shared.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
 
-def fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
+                eq_settings: list[tuple[float, float, float]] | None = None,
+                ceiling_db: float = -1.0) -> tuple[Any, dict[str, float]]:
     """Core dynamic range fix: EQ → compress → normalize → limit.
 
     Args:
@@ -73,7 +78,9 @@ def fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0
     return data, metrics
 
 
-def gentle_compress(data, threshold_db=-10, ratio=3.0, attack_ms=10, release_ms=100, rate=44100):
+def gentle_compress(data: Any, threshold_db: float = -10, ratio: float = 3.0,
+                    attack_ms: float = 10, release_ms: float = 100,
+                    rate: int = 44100) -> Any:
     """Apply gentle compression to reduce dynamic range."""
     threshold = 10 ** (threshold_db / 20)
 
@@ -107,7 +114,7 @@ def gentle_compress(data, threshold_db=-10, ratio=3.0, attack_ms=10, release_ms=
         return data * gain[:, np.newaxis]
     return data * gain
 
-def main():
+def main() -> None:
     setup_logging(__name__)
 
     if len(sys.argv) < 2:

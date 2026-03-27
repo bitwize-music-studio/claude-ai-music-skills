@@ -1,26 +1,28 @@
 """Processing tools — audio mastering, sheet music, promo videos, mix polishing."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
+from handlers import _shared
 from handlers._shared import (
-    _normalize_slug,
-    _safe_json,
-    _find_album_or_error,
-    _find_wav_source_dir,
-    _update_frontmatter_block,
-    _resolve_audio_dir,
-    TRACK_NOT_STARTED,
+    ALBUM_COMPLETE,
     TRACK_FINAL,
     TRACK_GENERATED,
-    ALBUM_COMPLETE,
+    TRACK_NOT_STARTED,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _resolve_audio_dir,
+    _safe_json,
+    _update_frontmatter_block,
 )
-from handlers import _shared
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -30,18 +32,18 @@ logger = logging.getLogger("bitwize-music-state")
 # =============================================================================
 
 
-def _extract_track_number_from_stem(stem: str) -> Optional[int]:
+def _extract_track_number_from_stem(stem: str) -> int | None:
     """Extract leading digits from a stem like '01-first-pour' -> 1."""
     match = re.match(r'^(\d+)', stem)
     return int(match.group(1)) if match else None
 
 
-def _build_title_map(album_slug: str, wav_files: list) -> dict:
+def _build_title_map(album_slug: str, wav_files: list[Path]) -> dict[str, str]:
     """Map WAV stems to clean titles from state cache, falling back to slug_to_title.
 
     Returns dict: {stem: clean_title} e.g. {"01-first-pour": "First Pour"}
     """
-    from tools.shared.text_utils import slug_to_title, sanitize_filename
+    from tools.shared.text_utils import sanitize_filename, slug_to_title
 
     # Try to get track titles from state cache
     state = _shared.cache.get_state()
@@ -68,7 +70,7 @@ def _build_title_map(album_slug: str, wav_files: list) -> dict:
     return title_map
 
 
-def _check_mastering_deps() -> Optional[str]:
+def _check_mastering_deps() -> str | None:
     """Return error message if mastering deps missing, else None."""
     missing = []
     for mod in ("numpy", "scipy", "soundfile", "pyloudnorm"):
@@ -84,7 +86,7 @@ def _check_mastering_deps() -> Optional[str]:
     return None
 
 
-def _check_ffmpeg() -> Optional[str]:
+def _check_ffmpeg() -> str | None:
     """Return error message if ffmpeg not found, else None."""
     if not shutil.which("ffmpeg"):
         return (
@@ -94,7 +96,7 @@ def _check_ffmpeg() -> Optional[str]:
     return None
 
 
-def _check_matchering() -> Optional[str]:
+def _check_matchering() -> str | None:
     """Return error message if matchering not installed, else None."""
     try:
         __import__("matchering")
@@ -103,31 +105,37 @@ def _check_matchering() -> Optional[str]:
     return None
 
 
-def _import_sheet_music_module(module_name: str):
+def _import_sheet_music_module(module_name: str) -> Any:
     """Import a module from tools/sheet-music/ using importlib (hyphenated dir)."""
     import importlib.util
+    assert _shared.PLUGIN_ROOT is not None
     module_path = _shared.PLUGIN_ROOT / "tools" / "sheet-music" / f"{module_name}.py"
     spec = importlib.util.spec_from_file_location(
         f"sheet_music_{module_name}", str(module_path)
     )
+    if spec is None or spec.loader is None:
+        return None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-def _import_cloud_module(module_name: str):
+def _import_cloud_module(module_name: str) -> Any:
     """Import a module from tools/cloud/ using importlib (hyphenated dir)."""
     import importlib.util
+    assert _shared.PLUGIN_ROOT is not None
     module_path = _shared.PLUGIN_ROOT / "tools" / "cloud" / f"{module_name}.py"
     spec = importlib.util.spec_from_file_location(
         f"cloud_{module_name}", str(module_path)
     )
+    if spec is None or spec.loader is None:
+        return None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
 
 
-def _check_cloud_enabled() -> Optional[str]:
+def _check_cloud_enabled() -> str | None:
     """Return error message if cloud uploads not enabled, else None."""
     try:
         from tools.shared.config import load_config
@@ -148,7 +156,7 @@ def _check_cloud_enabled() -> Optional[str]:
     return None
 
 
-def _check_anthemscore() -> Optional[str]:
+def _check_anthemscore() -> str | None:
     """Return error message if AnthemScore not found, else None."""
     try:
         transcribe_mod = _import_sheet_music_module("transcribe")
@@ -172,7 +180,7 @@ def _check_anthemscore() -> Optional[str]:
     return None
 
 
-def _check_songbook_deps() -> Optional[str]:
+def _check_songbook_deps() -> str | None:
     """Return error message if songbook deps missing, else None."""
     missing = []
     for mod in ("pypdf", "reportlab"):
@@ -188,7 +196,7 @@ def _check_songbook_deps() -> Optional[str]:
     return None
 
 
-def _check_mixing_deps() -> Optional[str]:
+def _check_mixing_deps() -> str | None:
     """Return error message if mixing deps missing, else None."""
     missing = []
     for mod in ("numpy", "scipy", "soundfile", "noisereduce"):
@@ -240,6 +248,7 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
     err, audio_dir = _resolve_audio_dir(album_slug, subfolder)
     if err:
         return err
+    assert audio_dir is not None
 
     from tools.mastering.analyze_tracks import analyze_track
 
@@ -313,8 +322,9 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
     err, audio_dir = _resolve_audio_dir(album_slug, subfolder)
     if err:
         return err
+    assert audio_dir is not None
 
-    from tools.mastering.qc_tracks import qc_track, ALL_CHECKS
+    from tools.mastering.qc_tracks import ALL_CHECKS, qc_track
 
     source_dir = _find_wav_source_dir(audio_dir) if not subfolder else audio_dir
     wav_files = sorted(source_dir.glob("*.wav"))
@@ -402,6 +412,7 @@ async def master_audio(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     # If source_subfolder specified, read from that subfolder
     if source_subfolder:
@@ -414,13 +425,16 @@ async def master_audio(
     else:
         source_dir = _find_wav_source_dir(audio_dir)
 
+    import numpy as np
+    import pyloudnorm as pyln
+    import soundfile as sf
+
     from tools.mastering.master_tracks import (
-        master_track as _master_track,
         load_genre_presets,
     )
-    import numpy as np
-    import soundfile as sf
-    import pyloudnorm as pyln
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+    )
 
     # Apply genre preset if specified
     effective_lufs = target_lufs
@@ -451,9 +465,9 @@ async def master_audio(
     # Build EQ settings
     eq_settings = []
     if effective_highmid != 0:
-        eq_settings.append((3500, effective_highmid, 1.5))
+        eq_settings.append((3500.0, effective_highmid, 1.5))
     if effective_highs != 0:
-        eq_settings.append((8000, effective_highs, 0.7))
+        eq_settings.append((8000.0, effective_highs, 0.7))
 
     output_dir = audio_dir / "mastered"
     if not dry_run:
@@ -474,7 +488,7 @@ async def master_audio(
         output_path = output_dir / wav_file.name
         if dry_run:
             # Dry run: just measure current loudness
-            def _dry_run_measure(path):
+            def _dry_run_measure(path: Path) -> dict[str, Any] | None:
                 data, rate = sf.read(str(path))
                 if len(data.shape) == 1:
                     data = np.column_stack([data, data])
@@ -503,7 +517,7 @@ async def master_audio(
                 if track_info.get("fade_out") is not None:
                     fade_out_val = track_info["fade_out"]
 
-            def _do_master(in_path, out_path, fo):
+            def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
@@ -564,6 +578,7 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     input_path = audio_dir / track_filename
     if not input_path.exists():
@@ -580,7 +595,7 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
 
     from tools.mastering.fix_dynamic_track import fix_dynamic
 
-    def _do_fix(in_path, out_path):
+    def _do_fix(in_path: Path, out_path: Path) -> dict[str, Any]:
         import numpy as np
         import soundfile as sf
 
@@ -631,6 +646,7 @@ async def master_with_reference(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     reference_path = audio_dir / reference_filename
     if not reference_path.exists():
@@ -645,7 +661,9 @@ async def master_with_reference(
     output_dir.mkdir(exist_ok=True)
 
     try:
-        from tools.mastering.reference_master import master_with_reference as _ref_master
+        from tools.mastering.reference_master import (
+            master_with_reference as _ref_master,
+        )
     except (ImportError, SystemExit):
         return _safe_json({
             "error": "matchering not installed. Install: pip install matchering",
@@ -739,6 +757,7 @@ async def transcribe_audio(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     transcribe_mod = _import_sheet_music_module("transcribe")
     find_anthemscore = transcribe_mod.find_anthemscore
@@ -762,12 +781,12 @@ async def transcribe_audio(
     class Args:
         pass
     args = Args()
-    args.pdf = "pdf" in fmt_list
-    args.xml = "xml" in fmt_list
-    args.midi = "midi" in fmt_list
-    args.treble = False
-    args.bass = False
-    args.dry_run = dry_run
+    args.pdf = "pdf" in fmt_list  # type: ignore[attr-defined]
+    args.xml = "xml" in fmt_list  # type: ignore[attr-defined]
+    args.midi = "midi" in fmt_list  # type: ignore[attr-defined]
+    args.treble = False  # type: ignore[attr-defined]
+    args.bass = False  # type: ignore[attr-defined]
+    args.dry_run = dry_run  # type: ignore[attr-defined]
 
     if track_filename:
         wav_files = [audio_dir / track_filename]
@@ -815,7 +834,7 @@ async def transcribe_audio(
         tmp_dir = Path(tempfile.mkdtemp(prefix=f"{album_slug}-transcribe-"))
 
         # Disambiguate duplicate titles
-        used_titles = {}
+        used_titles: dict[str, int] = {}
         symlink_map = {}  # clean_title -> (symlink_path, original_wav)
         for wav_file in wav_files:
             stem = wav_file.stem
@@ -920,6 +939,7 @@ async def prepare_singles(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     # Try new structure first, fall back to flat layout
     source_dir = audio_dir / "sheet-music" / "source"
@@ -967,7 +987,8 @@ async def prepare_singles(
     album = albums.get(_normalize_slug(album_slug), {})
     cache_tracks = album.get("tracks", {})
     if cache_tracks:
-        from tools.shared.text_utils import sanitize_filename, slug_to_title as _s2t
+        from tools.shared.text_utils import sanitize_filename
+        from tools.shared.text_utils import slug_to_title as _s2t
         title_map = {}
         for slug, track in cache_tracks.items():
             title_map[slug] = sanitize_filename(track.get("title", _s2t(slug)))
@@ -1027,6 +1048,7 @@ async def create_songbook(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     # Try new structure first (singles/), fall back to flat layout
     singles_dir = audio_dir / "sheet-music" / "singles"
@@ -1117,6 +1139,7 @@ async def publish_sheet_music(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     sheet_music_dir = audio_dir / "sheet-music"
     if not sheet_music_dir.is_dir():
@@ -1162,7 +1185,7 @@ async def publish_sheet_music(
     normalized_slug = _normalize_slug(album_slug)
 
     # Build R2 keys
-    upload_plan = []
+    upload_plan: list[dict[str, Any]] = []
     for local_path, subdir, filename in files_to_upload:
         r2_key = f"{artist}/{normalized_slug}/sheet-music/{subdir}/{filename}"
         upload_plan.append({
@@ -1200,6 +1223,7 @@ async def publish_sheet_music(
 
     from tools.shared.config import load_config
     config = load_config()
+    assert config is not None
 
     try:
         s3_client = cloud_mod.get_s3_client(config)
@@ -1219,8 +1243,8 @@ async def publish_sheet_music(
 
     public_read = config.get("cloud", {}).get("public_read", False)
 
-    uploaded = []
-    failed = []
+    uploaded: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
     for item in upload_plan:
         local_path = Path(item["local_path"])
         r2_key = item["r2_key"]
@@ -1273,13 +1297,14 @@ async def publish_sheet_music(
         if album_err:
             fm_reason = f"Album not found in state: {normalized_slug}"
         else:
+            assert album_data is not None
             album_content_path = album_data.get("path", "")
             state_tracks = album_data.get("tracks", {})
 
             # Group single URLs by track number
             # Singles are named like "01 - The Mountain.pdf"
-            track_urls = {}  # {1: {"pdf": url, "musicxml": url, "midi": url}, ...}
-            songbook_urls = {}  # {"songbook": url}
+            track_urls: dict[int, dict[str, str]] = {}  # {1: {"pdf": url, "musicxml": url, "midi": url}, ...}
+            songbook_urls: dict[str, str] = {}  # {"songbook": url}
             ext_to_key = {".pdf": "pdf", ".xml": "musicxml", ".mid": "midi", ".midi": "midi"}
 
             for item in uploaded:
@@ -1384,6 +1409,7 @@ async def generate_promo_videos(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     # Find artwork
     artwork_patterns = [
@@ -1404,8 +1430,8 @@ async def generate_promo_videos(
         })
 
     from tools.promotion.generate_promo_video import (
-        generate_waveform_video,
         batch_process_album,
+        generate_waveform_video,
     )
     from tools.shared.fonts import find_font
 
@@ -1557,6 +1583,7 @@ async def generate_album_sampler(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     # Find artwork
     artwork_patterns = [
@@ -1677,8 +1704,8 @@ async def master_album(
     from tools.state.indexer import write_state
     from tools.state.parsers import parse_track_file
 
-    stages = {}
-    warnings = []
+    stages: dict[str, Any] = {}
+    warnings: list[Any] = []
 
     # --- Stage 1: Pre-flight ---
     dep_err = _check_mastering_deps()
@@ -1700,6 +1727,7 @@ async def master_album(
             "failed_stage": "pre_flight",
             "failure_detail": json.loads(err),
         })
+    assert audio_dir is not None
 
     # If source_subfolder specified, read from that subfolder
     if source_subfolder:
@@ -1746,11 +1774,14 @@ async def master_album(
     }
 
     # Resolve genre presets and effective settings (same logic as master_audio)
+    import numpy as np
+
     from tools.mastering.master_tracks import (
-        master_track as _master_track,
         load_genre_presets,
     )
-    import numpy as np
+    from tools.mastering.master_tracks import (
+        master_track as _master_track,
+    )
 
     effective_lufs = target_lufs
     effective_highmid = cut_highmid
@@ -1878,9 +1909,9 @@ async def master_album(
     # --- Stage 4: Mastering ---
     eq_settings = []
     if effective_highmid != 0:
-        eq_settings.append((3500, effective_highmid, 1.5))
+        eq_settings.append((3500.0, effective_highmid, 1.5))
     if effective_highs != 0:
-        eq_settings.append((8000, effective_highs, 0.7))
+        eq_settings.append((8000.0, effective_highs, 0.7))
 
     output_dir = audio_dir / "mastered"
     output_dir.mkdir(exist_ok=True)
@@ -1901,7 +1932,7 @@ async def master_album(
         track_meta = album_tracks.get(track_slug, {})
         fade_out_val = track_meta.get("fade_out")
 
-        def _do_master(in_path, out_path, lufs, eq, ceil, fade, comp):
+        def _do_master(in_path: Path, out_path: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float, fade: float | None, comp: float) -> dict[str, Any]:
             return _master_track(
                 str(in_path), str(out_path),
                 target_lufs=lufs,
@@ -1966,7 +1997,7 @@ async def master_album(
             out_of_spec.append({"filename": r["filename"], "issues": issues})
 
     album_range_fail = verify_range >= 1.0
-    auto_recovered = []
+    auto_recovered: list[dict[str, Any]] = []
 
     if out_of_spec or album_range_fail:
         # --- Auto-recovery: fix recoverable dynamic range issues ---
@@ -1998,7 +2029,7 @@ async def master_album(
                 if not raw_path.exists():
                     continue
 
-                def _do_recovery(src, dst, lufs, eq, ceil):
+                def _do_recovery(src: Path, dst: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float) -> dict[str, Any]:
                     import soundfile as sf
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
@@ -2060,7 +2091,7 @@ async def master_album(
 
         # If still failing after recovery attempt, return failure
         if out_of_spec or album_range_fail:
-            fail_detail = {}
+            fail_detail: dict[str, Any] = {}
             if out_of_spec:
                 fail_detail["tracks_out_of_spec"] = out_of_spec
             if album_range_fail:
@@ -2306,12 +2337,13 @@ async def polish_audio(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     from tools.mixing.mix_tracks import (
-        mix_track_stems,
-        mix_track_full,
-        load_mix_presets,
         discover_stems,
+        load_mix_presets,
+        mix_track_full,
+        mix_track_stems,
     )
 
     # Validate genre if specified
@@ -2352,7 +2384,7 @@ async def polish_audio(
 
             out_path = str(output_dir / f"{track_dir.name}.wav")
 
-            def _do_stems(sp, op, g, dr):
+            def _do_stems(sp: dict[str, str | list[str]], op: str, g: str | None, dr: bool) -> dict[str, Any]:
                 return mix_track_stems(sp, op, genre=g, dry_run=dr)
 
             result = await loop.run_in_executor(
@@ -2378,7 +2410,7 @@ async def polish_audio(
         for wav_file in wav_files:
             out_path = str(output_dir / wav_file.name)
 
-            def _do_full(ip, op, g, dr):
+            def _do_full(ip: str, op: str, g: str | None, dr: bool) -> dict[str, Any]:
                 return mix_track_full(ip, op, genre=g, dry_run=dr)
 
             result = await loop.run_in_executor(
@@ -2429,6 +2461,7 @@ async def analyze_mix_issues(
     err, audio_dir = _resolve_audio_dir(album_slug)
     if err:
         return err
+    assert audio_dir is not None
 
     import numpy as np
     import soundfile as sf
@@ -2444,12 +2477,12 @@ async def analyze_mix_issues(
     if not wav_files:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
-    def _analyze_one(wav_path):
+    def _analyze_one(wav_path: Path) -> dict[str, Any]:
         data, rate = sf.read(str(wav_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
 
-        result = {"filename": wav_path.name, "issues": [], "recommendations": {}}
+        result: dict[str, Any] = {"filename": wav_path.name, "issues": [], "recommendations": {}}
 
         # Overall metrics
         peak = float(np.max(np.abs(data)))
@@ -2519,7 +2552,7 @@ async def analyze_mix_issues(
         track_analyses.append(analysis)
 
     # Album-level summary
-    all_issues = set()
+    all_issues: set[str] = set()
     for a in track_analyses:
         all_issues.update(i for i in a["issues"] if i != "none_detected")
 
@@ -2568,8 +2601,9 @@ async def polish_album(
             "failed_stage": "pre_flight",
             "failure_detail": json.loads(err),
         })
+    assert audio_dir is not None
 
-    stages = {}
+    stages: dict[str, Any] = {}
 
     # Determine mode: stems or full mix
     stems_dir = audio_dir / "stems"
@@ -2650,8 +2684,8 @@ async def polish_album(
     verify_results = []
 
     for wav in polished_files:
-        def _verify(path):
-            data, rate = sf.read(str(path))
+        def _verify(path: Path) -> dict[str, Any]:
+            data, _rate = sf.read(str(path))
             peak = float(np.max(np.abs(data)))
             rms = float(np.sqrt(np.mean(data ** 2)))
             finite = bool(np.all(np.isfinite(data)))
@@ -2692,7 +2726,7 @@ async def polish_album(
 # =============================================================================
 
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register all processing tools with the MCP server."""
     # Mastering tools
     mcp.tool()(analyze_audio)

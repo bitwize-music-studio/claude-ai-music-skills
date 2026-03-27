@@ -21,6 +21,8 @@ Backward compatibility:
     If given a flat sheet-music/ directory (no source/ subdir), treats it as source.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -30,6 +32,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -37,12 +40,12 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.shared.logging_config import setup_logging
-from tools.shared.text_utils import sanitize_filename, slug_to_title  # noqa: E402
+from tools.shared.text_utils import slug_to_title
 
 logger = logging.getLogger(__name__)
 
 
-def find_musescore():
+def find_musescore() -> str | None:
     """Find MuseScore executable based on OS"""
     system = platform.system().lower()
 
@@ -94,7 +97,7 @@ def find_musescore():
     return None
 
 
-def show_install_instructions(system):
+def show_install_instructions(system: str) -> None:
     """Show OS-specific MuseScore install instructions"""
     print("\nMuseScore not found. Install from: https://musescore.org/\n")
 
@@ -119,7 +122,7 @@ def show_install_instructions(system):
     print("\nMuseScore is free and open source.")
 
 
-def export_pdf(xml_path, pdf_path, musescore_path, dry_run=False):
+def export_pdf(xml_path: Path, pdf_path: Path, musescore_path: str, dry_run: bool = False) -> bool:
     """Export MusicXML to PDF using MuseScore."""
     if dry_run:
         logger.info("  Would export: %s", pdf_path.name)
@@ -148,13 +151,13 @@ def export_pdf(xml_path, pdf_path, musescore_path, dry_run=False):
         return False
 
 
-def _extract_track_number(stem):
+def _extract_track_number(stem: str) -> int | None:
     """Extract numeric track number from a filename stem like '01-ocean-of-tears'."""
     match = re.match(r'^(\d+)', stem)
     return int(match.group(1)) if match else None
 
 
-def prepare_xml(source_xml, singles_dir, title, dry_run=False, output_name=None):
+def prepare_xml(source_xml: Path, singles_dir: Path, title: str, dry_run: bool = False, output_name: str | None = None) -> Path:
     """Update <work-title> in MusicXML and write to singles/ with clean filename.
 
     Args:
@@ -169,7 +172,7 @@ def prepare_xml(source_xml, singles_dir, title, dry_run=False, output_name=None)
     """
     out_stem = output_name or title
 
-    with open(source_xml, 'r', encoding='utf-8') as f:
+    with open(source_xml, encoding='utf-8') as f:
         content = f.read()
 
     # Update work-title
@@ -191,7 +194,7 @@ def prepare_xml(source_xml, singles_dir, title, dry_run=False, output_name=None)
     return out_path
 
 
-def _add_title_page_and_footer(pdf_path, title, artist, cover_image, footer_url, page_size_name):
+def _add_title_page_and_footer(pdf_path: Path, title: str, artist: str | None, cover_image: str | None, footer_url: str | None, page_size_name: str) -> None:
     """Prepend a title page and add footer URL to every page of a single PDF.
 
     Uses shared helpers from create_songbook module. Gracefully skips
@@ -202,6 +205,8 @@ def _add_title_page_and_footer(pdf_path, title, artist, cover_image, footer_url,
         import importlib.util
         songbook_path = Path(__file__).parent / "create_songbook.py"
         spec = importlib.util.spec_from_file_location("create_songbook", songbook_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load create_songbook")
         songbook_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(songbook_mod)
 
@@ -238,7 +243,7 @@ def _add_title_page_and_footer(pdf_path, title, artist, cover_image, footer_url,
         logger.warning("  Could not add title page to %s: %s", pdf_path.name, e)
 
 
-def resolve_source_dir(given_path):
+def resolve_source_dir(given_path: str | Path) -> tuple[Path, Path]:
     """Resolve the source directory, handling backward compatibility.
 
     If given a path ending in source/, use it directly.
@@ -269,7 +274,7 @@ def resolve_source_dir(given_path):
     return given, given / 'singles'
 
 
-def _read_source_manifest(source_path):
+def _read_source_manifest(source_path: Path) -> dict[str, Any] | None:
     """Read .manifest.json from source directory if it exists.
 
     Returns manifest dict or None.
@@ -277,16 +282,17 @@ def _read_source_manifest(source_path):
     manifest_path = source_path / ".manifest.json"
     if manifest_path.exists():
         try:
-            with open(manifest_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            with open(manifest_path, encoding='utf-8') as f:
+                data: dict[str, Any] = json.load(f)
+                return data
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to read source manifest: %s", e)
     return None
 
 
-def prepare_singles(source_dir, singles_dir, musescore=None, dry_run=False, xml_only=False,
-                     artist=None, cover_image=None, footer_url=None, page_size_name="letter",
-                     title_map=None):
+def prepare_singles(source_dir: str | Path, singles_dir: str | Path, musescore: str | None = None, dry_run: bool = False, xml_only: bool = False,
+                     artist: str | None = None, cover_image: str | None = None, footer_url: str | None = None, page_size_name: str = "letter",
+                     title_map: dict[str, str] | None = None) -> dict[str, object]:
     """Prepare consumer-ready singles from source files.
 
     Supports two source layouts:
@@ -327,11 +333,11 @@ def prepare_singles(source_dir, singles_dir, musescore=None, dry_run=False, xml_
         pdf_by_title = {f.stem: f for f in source_path.glob("*.pdf")}
         mid_by_title = {f.stem: f for f in source_path.glob("*.mid")}
 
-        ordered_tracks = []
+        ordered_tracks: list[tuple[int | None, str, str]] = []
         for entry in track_entries:
-            title = entry.get("title", "")
-            source_slug = entry.get("source_slug", "")
-            track_num = entry.get("number")
+            title = str(entry.get("title", ""))
+            source_slug = str(entry.get("source_slug", ""))
+            track_num: int | None = entry.get("number")
             ordered_tracks.append((track_num, source_slug, title))
     else:
         # --- Legacy flow: numbered source files ---
@@ -406,7 +412,7 @@ def prepare_singles(source_dir, singles_dir, musescore=None, dry_run=False, xml_
             "filename": singles_name,
         })
 
-        track_result = {"source": source_slug, "title": title, "filename": singles_name, "files": []}
+        track_result: dict[str, Any] = {"source": source_slug, "title": title, "filename": singles_name, "files": []}
 
         # Process XML/MusicXML
         xml_match = xml_by_title.get(lookup_key)
@@ -423,9 +429,9 @@ def prepare_singles(source_dir, singles_dir, musescore=None, dry_run=False, xml_
             pdf_written = False
 
             if xml_match and musescore and not xml_only:
-                out_xml = xml_processed.get(singles_name)
-                if out_xml and not dry_run:
-                    exported = export_pdf(out_xml, pdf_dst, musescore, dry_run)
+                cached_xml = xml_processed.get(singles_name)
+                if cached_xml and not dry_run:
+                    exported = export_pdf(cached_xml, pdf_dst, musescore, dry_run)
                     if exported:
                         pdf_written = True
                     else:
@@ -466,15 +472,15 @@ def prepare_singles(source_dir, singles_dir, musescore=None, dry_run=False, xml_
     manifest = {"tracks": manifest_tracks}
     manifest_path = singles_path / ".manifest.json"
     if not dry_run:
-        with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2)
+        with open(manifest_path, 'w', encoding='utf-8') as mf:
+            json.dump(manifest, mf, indent=2)
         print(f"\nWrote manifest: {manifest_path}")
 
     print(f"\nPrepared {len(results)} track(s) in {singles_path}")
     return {"tracks": results, "manifest": manifest}
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Prepare consumer-ready sheet music singles from numbered source files'
     )
@@ -536,6 +542,8 @@ def main():
         import importlib.util
         songbook_path = Path(__file__).parent / "create_songbook.py"
         spec = importlib.util.spec_from_file_location("create_songbook", songbook_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load create_songbook")
         songbook_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(songbook_mod)
         cover_image = songbook_mod.auto_detect_cover_art(str(source_path))

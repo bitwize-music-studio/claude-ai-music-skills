@@ -1,12 +1,15 @@
 """Plugin version and venv health check tools."""
 
+from __future__ import annotations
+
 import importlib.metadata
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
-from handlers._shared import _safe_json
 from handlers import _shared
+from handlers._shared import _safe_json
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +19,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _parse_requirements(path: Path) -> dict:
+def _parse_requirements(path: Path) -> dict[str, str]:
     """Parse requirements.txt into {package_name: version} dict.
 
     Handles ``==`` pins only (our format), skips comments and blank lines.
@@ -27,7 +30,7 @@ def _parse_requirements(path: Path) -> dict:
         dict mapping lowercased package names to pinned version strings.
         Empty dict on missing or unreadable file.
     """
-    result = {}
+    result: dict[str, str] = {}
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -71,6 +74,7 @@ async def get_plugin_version() -> str:
     stored = state.get("plugin_version")
 
     # Read current version from plugin.json
+    assert _shared.PLUGIN_ROOT is not None
     plugin_json = _shared.PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
     current = None
     try:
@@ -112,6 +116,7 @@ async def check_venv_health() -> str:
             "message": "Venv not found at ~/.bitwize-music/venv",
         })
 
+    assert _shared.PLUGIN_ROOT is not None
     req_path = _shared.PLUGIN_ROOT / "requirements.txt"
     requirements = _parse_requirements(req_path)
     if not requirements:
@@ -164,7 +169,7 @@ async def check_venv_health() -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register plugin version and venv health tools with the MCP server."""
     mcp.tool()(get_plugin_version)
     mcp.tool()(check_venv_health)

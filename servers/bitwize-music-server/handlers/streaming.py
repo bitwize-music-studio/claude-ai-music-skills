@@ -1,11 +1,14 @@
 """Streaming URL management tools."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from pathlib import Path
+from typing import Any
 
-from handlers._shared import _safe_json, _find_album_or_error, _STREAMING_PLATFORMS
 from handlers import _shared
+from handlers._shared import _STREAMING_PLATFORMS, _find_album_or_error, _safe_json
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +52,7 @@ async def get_streaming_urls(album_slug: str) -> str:
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     # Get streaming URLs from state cache
     streaming = album.get("streaming_urls", {})
@@ -109,6 +113,7 @@ async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     album_path = album.get("path", "")
     if not album_path:
@@ -182,8 +187,8 @@ async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
         return _safe_json({"error": f"Cannot write README.md: {e}"})
 
     # Re-parse and update state cache
-    from tools.state.parsers import parse_album_readme
     from tools.state.indexer import write_state
+    from tools.state.parsers import parse_album_readme
 
     album_data = parse_album_readme(readme_path)
     state = _shared.cache.get_state()
@@ -237,19 +242,20 @@ async def verify_streaming_urls(album_slug: str) -> str:
     Returns:
         JSON with per-platform reachability results
     """
-    import urllib.request
     import urllib.error
     import urllib.parse
+    import urllib.request
 
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     streaming = album.get("streaming_urls", {})
 
-    def _check_url(url: str) -> dict:
+    def _check_url(url: str) -> dict[str, Any]:
         """Check a single URL (blocking). Run in executor to avoid blocking the event loop."""
-        result_entry = {"url": url}
+        result_entry: dict[str, Any] = {"url": url}
         # Validate URL scheme to prevent SSRF (file://, gopher://, etc.)
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme not in ("http", "https"):
@@ -318,7 +324,7 @@ async def verify_streaming_urls(album_slug: str) -> str:
         check_results = await asyncio.gather(*tasks)
 
         # Merge results back
-        for (key, _url), result_entry in zip(keys_to_check, check_results):
+        for (key, _url), result_entry in zip(keys_to_check, check_results, strict=True):
             results[key] = result_entry
             if result_entry.get("reachable"):
                 reachable_count += 1
@@ -342,7 +348,7 @@ async def verify_streaming_urls(album_slug: str) -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register streaming URL tools with the MCP server."""
     mcp.tool()(get_streaming_urls)
     mcp.tool()(update_streaming_url)

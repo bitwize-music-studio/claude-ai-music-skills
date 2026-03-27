@@ -1,9 +1,11 @@
 """Shared text utilities for track naming and formatting."""
 
+from __future__ import annotations
+
 import re
 
 
-def sanitize_filename(title):
+def sanitize_filename(title: str) -> str:
     """Remove characters invalid in filenames (Windows + macOS + Linux).
 
     Strips < > : " / \\ | ? * and collapses whitespace.
@@ -14,7 +16,7 @@ def sanitize_filename(title):
     return sanitized or "Untitled"
 
 
-def strip_track_number(name):
+def strip_track_number(name: str) -> str:
     """Remove track number prefix from filename/title.
 
     Handles patterns like:
@@ -33,7 +35,7 @@ _TITLE_CASE_SMALL = {
 }
 
 
-def slug_to_title(slug):
+def slug_to_title(slug: str) -> str:
     """Convert '01-ocean-of-tears' → 'Ocean of Tears'.
 
     Strips track number prefix, replaces hyphens with spaces,

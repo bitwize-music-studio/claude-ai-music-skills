@@ -29,12 +29,14 @@ Tool handlers are organized into modules under ``handlers/``:
     database        - Tweet/promo management via PostgreSQL
     maintenance     - Reset mastering, legacy cleanup, audio layout migration
 """
+from __future__ import annotations
+
 import logging
 import os
 import sys
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 # Derive plugin root from environment or file location
 # Check CLAUDE_PLUGIN_ROOT first (standard env var), then PLUGIN_ROOT (legacy), then derive from file
@@ -88,14 +90,16 @@ except ImportError:
     sys.exit(1)
 
 # Import from plugin's tools
+from datetime import UTC
+
 from tools.state.indexer import (
+    CONFIG_FILE,
+    CURRENT_VERSION,
+    STATE_FILE,
     build_state,
     read_config,
     read_state,
     write_state,
-    CURRENT_VERSION,
-    STATE_FILE,
-    CONFIG_FILE,
 )
 from tools.state.parsers import parse_album_readme, parse_track_file  # noqa: F401
 
@@ -113,13 +117,13 @@ class StateCache:
     Thread-safe: all public methods acquire a lock before accessing state.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._state: Optional[dict] = None
+        self._state: dict[str, Any] | None = None
         self._state_mtime: float = 0.0
         self._config_mtime: float = 0.0
 
-    def get_state(self) -> dict:
+    def get_state(self) -> dict[str, Any]:
         """Get state, loading from disk if needed or stale."""
         with self._lock:
             if self._is_stale() or self._state is None:
@@ -127,7 +131,7 @@ class StateCache:
                 self._load_from_disk()
             return self._state or {}
 
-    def rebuild(self) -> dict:
+    def rebuild(self) -> dict[str, Any]:
         """Force full rebuild from markdown files.
 
         Thread-safe: holds the lock for the session-preservation and
@@ -164,13 +168,13 @@ class StateCache:
         )
         return state
 
-    def update_session(self, **kwargs) -> dict:
+    def update_session(self, **kwargs: Any) -> dict[str, Any]:
         """Update session fields and persist.
 
         Thread-safe: holds the lock for the entire read-modify-write cycle
         to prevent concurrent updates from overwriting each other.
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         with self._lock:
             if self._is_stale() or self._state is None:
@@ -207,11 +211,11 @@ class StateCache:
                     actions.append(kwargs["action"])
                     session["pending_actions"] = actions
 
-            session["updated_at"] = datetime.now(timezone.utc).isoformat()
+            session["updated_at"] = datetime.now(UTC).isoformat()
             state["session"] = session
             write_state(state)
             self._update_mtimes()
-            return session
+            return session  # type: ignore[no-any-return]
 
     def _is_stale(self) -> bool:
         """Check if cached state is stale."""
@@ -231,7 +235,7 @@ class StateCache:
             return True
         return False
 
-    def _load_from_disk(self):
+    def _load_from_disk(self) -> None:
         """Load state from disk into memory.
 
         If the on-disk state has a different schema version than the running
@@ -273,7 +277,7 @@ class StateCache:
                 album_count = len(self._state.get("albums", {}))
                 logger.debug("Loaded state from disk: %d albums", album_count)
 
-    def _update_mtimes(self):
+    def _update_mtimes(self) -> None:
         """Update cached mtime values."""
         try:
             if STATE_FILE.exists():
@@ -283,7 +287,7 @@ class StateCache:
         except OSError:
             pass
 
-    def get_state_ref(self) -> dict:
+    def get_state_ref(self) -> dict[str, Any]:
         """Get a direct reference to the current in-memory state dict.
 
         Unlike get_state(), this does NOT check for staleness or reload from
@@ -303,6 +307,7 @@ cache = StateCache()
 # ---------------------------------------------------------------------------
 
 from handlers import _shared
+
 _shared.cache = cache
 _shared.PLUGIN_ROOT = PLUGIN_ROOT
 
@@ -312,22 +317,22 @@ _shared.PLUGIN_ROOT = PLUGIN_ROOT
 # ---------------------------------------------------------------------------
 
 from handlers import (
-    core,
-    content,
-    text_analysis,
-    lyrics_analysis,
     album_ops,
+    content,
+    core,
+    database,
     gates,
-    streaming,
-    skills,
-    status,
-    promo,
     health,
     ideas,
-    rename,
-    processing,
-    database,
+    lyrics_analysis,
     maintenance,
+    processing,
+    promo,
+    rename,
+    skills,
+    status,
+    streaming,
+    text_analysis,
 )
 
 core.register(mcp)
@@ -353,126 +358,201 @@ maintenance.register(mcp)
 # ---------------------------------------------------------------------------
 
 # Status constants and shared helpers (used by tests)
-from handlers._shared import (  # noqa: E402, F401
-    TRACK_NOT_STARTED, TRACK_SOURCES_PENDING, TRACK_SOURCES_VERIFIED,
-    TRACK_IN_PROGRESS, TRACK_GENERATED, TRACK_FINAL,
-    ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
-    ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
-    TRACK_COMPLETED_STATUSES, ALBUM_VALID_STATUSES, STATUS_UNKNOWN,
-    _VALID_GENRES, _GENRE_ALIASES,
-    _normalize_slug, _safe_json,
-    _extract_markdown_section, _extract_code_block,
-    _update_frontmatter_block, _find_album_or_error,
-    _resolve_audio_dir, _derive_title_from_slug,
-    _find_wav_source_dir, _SECTION_NAMES, _STREAMING_PLATFORMS,
-    _RE_SECTION, _RE_CODE_BLOCK,
-    _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS,
+from handlers._shared import (  # noqa: F401
+    _CROSS_TRACK_STOPWORDS,
+    _GENRE_ALIASES,
     _MARKDOWN_LINK_RE,
-)
-
-# Core tools
-from handlers.core import (  # noqa: E402, F401
-    find_album, list_albums, get_track, list_tracks,
-    get_session, update_session, rebuild_state, get_config,
-    get_python_command, get_ideas, search, get_pending_verifications,
-    resolve_path, resolve_track_file, list_track_files,
-    extract_section, update_track_field, get_album_progress,
-)
-
-# Content tools
-from handlers.content import (  # noqa: E402, F401
-    load_override, get_reference, format_for_clipboard,
-)
-
-# Text analysis tools
-from handlers.text_analysis import (  # noqa: E402, F401
-    check_homographs, scan_artist_names, check_pronunciation_enforcement,
-    check_explicit_content, extract_links, get_lyrics_stats,
-    check_cross_track_repetition,
-)
-
-# Lyrics analysis tools
-from handlers.lyrics_analysis import (  # noqa: E402, F401
-    extract_distinctive_phrases, count_syllables,
-    analyze_readability, analyze_rhyme_scheme, validate_section_structure,
+    _RE_CODE_BLOCK,
+    _RE_SECTION,
+    _SECTION_NAMES,
+    _SECTION_TAG_RE,
+    _STREAMING_PLATFORMS,
+    _VALID_GENRES,
+    _WORD_TOKEN_RE,
+    ALBUM_COMPLETE,
+    ALBUM_CONCEPT,
+    ALBUM_IN_PROGRESS,
+    ALBUM_RELEASED,
+    ALBUM_RESEARCH_COMPLETE,
+    ALBUM_SOURCES_VERIFIED,
+    ALBUM_VALID_STATUSES,
+    STATUS_UNKNOWN,
+    TRACK_COMPLETED_STATUSES,
+    TRACK_FINAL,
+    TRACK_GENERATED,
+    TRACK_IN_PROGRESS,
+    TRACK_NOT_STARTED,
+    TRACK_SOURCES_PENDING,
+    TRACK_SOURCES_VERIFIED,
+    _derive_title_from_slug,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _resolve_audio_dir,
+    _safe_json,
+    _update_frontmatter_block,
 )
 
 # Album ops tools
-from handlers.album_ops import (  # noqa: E402, F401
-    get_album_full, validate_album_structure, create_album_structure,
+from handlers.album_ops import (  # noqa: F401
+    create_album_structure,
+    get_album_full,
+    validate_album_structure,
 )
 
-# Gates tools
-from handlers.gates import (  # noqa: E402, F401
-    run_pre_generation_gates, check_streaming_lyrics,
+# Content tools
+from handlers.content import (  # noqa: F401
+    format_for_clipboard,
+    get_reference,
+    load_override,
 )
 
-# Streaming tools
-from handlers.streaming import (  # noqa: E402, F401
-    get_streaming_urls, update_streaming_url, verify_streaming_urls,
-)
-
-# Skills tools
-from handlers.skills import (  # noqa: E402, F401
-    list_skills, get_skill,
-)
-
-# Status tools
-from handlers.status import (  # noqa: E402, F401
-    update_album_status, create_track,
-    _VALID_TRACK_STATUSES, _VALID_TRACK_TRANSITIONS, _VALID_ALBUM_TRANSITIONS,
-    _CANONICAL_TRACK_STATUS, _CANONICAL_ALBUM_STATUS,
-    _TRACK_STATUS_LEVEL, _ALBUM_STATUS_LEVEL,
-    _validate_track_transition, _validate_album_transition,
-    _check_album_track_consistency,
-)
-
-# Promo tools
-from handlers.promo import (  # noqa: E402, F401
-    get_promo_status, get_promo_content,
-)
-
-# Health tools
-from handlers.health import (  # noqa: E402, F401
-    get_plugin_version, check_venv_health,
-)
-
-# Ideas tools
-from handlers.ideas import (  # noqa: E402, F401
-    create_idea, update_idea,
-)
-
-# Rename tools
-from handlers.rename import (  # noqa: E402, F401
-    rename_album, rename_track,
-)
-
-# Processing tools
-from handlers.processing import (  # noqa: E402, F401
-    analyze_audio, qc_audio, master_audio, fix_dynamic_track,
-    master_with_reference, transcribe_audio, prepare_singles,
-    create_songbook, publish_sheet_music,
-    generate_promo_videos, generate_album_sampler,
-    master_album, polish_audio, analyze_mix_issues, polish_album,
+# Core tools
+from handlers.core import (  # noqa: F401
+    extract_section,
+    find_album,
+    get_album_progress,
+    get_config,
+    get_ideas,
+    get_pending_verifications,
+    get_python_command,
+    get_session,
+    get_track,
+    list_albums,
+    list_track_files,
+    list_tracks,
+    rebuild_state,
+    resolve_path,
+    resolve_track_file,
+    search,
+    update_session,
+    update_track_field,
 )
 
 # Database tools
-from handlers.database import (  # noqa: E402, F401
-    db_init, db_list_tweets, db_create_tweet, db_update_tweet,
-    db_delete_tweet, db_search_tweets, db_sync_album, db_get_tweet_stats,
+from handlers.database import (  # noqa: F401
+    db_create_tweet,
+    db_delete_tweet,
+    db_get_tweet_stats,
+    db_init,
+    db_list_tweets,
+    db_search_tweets,
+    db_sync_album,
+    db_update_tweet,
+)
+
+# Gates tools
+from handlers.gates import (  # noqa: F401
+    check_streaming_lyrics,
+    run_pre_generation_gates,
+)
+
+# Health tools
+from handlers.health import (  # noqa: F401
+    check_venv_health,
+    get_plugin_version,
+)
+
+# Ideas tools
+from handlers.ideas import (  # noqa: F401
+    create_idea,
+    update_idea,
+)
+
+# Lyrics analysis tools
+from handlers.lyrics_analysis import (  # noqa: F401
+    analyze_readability,
+    analyze_rhyme_scheme,
+    count_syllables,
+    extract_distinctive_phrases,
+    validate_section_structure,
 )
 
 # Maintenance tools
-from handlers.maintenance import (  # noqa: E402, F401
-    reset_mastering, cleanup_legacy_venvs, migrate_audio_layout,
+from handlers.maintenance import (  # noqa: F401
+    cleanup_legacy_venvs,
+    migrate_audio_layout,
+    reset_mastering,
 )
 
+# Processing tools
+from handlers.processing import (  # noqa: F401
+    analyze_audio,
+    analyze_mix_issues,
+    create_songbook,
+    fix_dynamic_track,
+    generate_album_sampler,
+    generate_promo_videos,
+    master_album,
+    master_audio,
+    master_with_reference,
+    polish_album,
+    polish_audio,
+    prepare_singles,
+    publish_sheet_music,
+    qc_audio,
+    transcribe_audio,
+)
+
+# Promo tools
+from handlers.promo import (  # noqa: F401
+    get_promo_content,
+    get_promo_status,
+)
+
+# Rename tools
+from handlers.rename import (  # noqa: F401
+    rename_album,
+    rename_track,
+)
+
+# Skills tools
+from handlers.skills import (  # noqa: F401
+    get_skill,
+    list_skills,
+)
+
+# Status tools
+from handlers.status import (  # noqa: F401
+    _ALBUM_STATUS_LEVEL,
+    _CANONICAL_ALBUM_STATUS,
+    _CANONICAL_TRACK_STATUS,
+    _TRACK_STATUS_LEVEL,
+    _VALID_ALBUM_TRANSITIONS,
+    _VALID_TRACK_STATUSES,
+    _VALID_TRACK_TRANSITIONS,
+    _check_album_track_consistency,
+    _validate_album_transition,
+    _validate_track_transition,
+    create_track,
+    update_album_status,
+)
+
+# Streaming tools
+from handlers.streaming import (  # noqa: F401
+    get_streaming_urls,
+    update_streaming_url,
+    verify_streaming_urls,
+)
+
+# Text analysis tools
+from handlers.text_analysis import (  # noqa: F401
+    check_cross_track_repetition,
+    check_explicit_content,
+    check_homographs,
+    check_pronunciation_enforcement,
+    extract_links,
+    get_lyrics_stats,
+    scan_artist_names,
+)
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main():
+def main() -> None:
     """Start the MCP server."""
     # Enable file-based debug logging if configured
     from tools.shared.logging_config import configure_file_logging

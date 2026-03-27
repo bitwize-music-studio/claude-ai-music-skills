@@ -1,18 +1,27 @@
 """Album operation tools — full album query, structure validation, album creation."""
 
+from __future__ import annotations
+
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error,
-    _SECTION_NAMES, _find_wav_source_dir,
-    _CODE_BLOCK_SECTIONS,
-    _VALID_GENRES, _GENRE_ALIASES,
-    STATUS_UNKNOWN, TRACK_COMPLETED_STATUSES,
-)
 from handlers import _shared
+from handlers._shared import (
+    _CODE_BLOCK_SECTIONS,
+    _GENRE_ALIASES,
+    _SECTION_NAMES,
+    _VALID_GENRES,
+    STATUS_UNKNOWN,
+    TRACK_COMPLETED_STATUSES,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +73,7 @@ async def get_album_full(
                 "available_albums": list(albums.keys()),
             })
 
-    result = {
+    result: dict[str, Any] = {
         "found": True,
         "slug": matched_slug,
         "album": {
@@ -148,6 +157,7 @@ async def validate_album_structure(
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     # Parse check types
     check_set = set()
@@ -174,24 +184,24 @@ async def validate_album_structure(
     results = []
     issues = []
 
-    def _pass(category, msg):
+    def _pass(category: str, msg: str) -> None:
         nonlocal passed
         passed += 1
         results.append({"status": "PASS", "category": category, "message": msg})
 
-    def _fail(category, msg, fix=""):
+    def _fail(category: str, msg: str, fix: str = "") -> None:
         nonlocal failed
         failed += 1
         results.append({"status": "FAIL", "category": category, "message": msg})
         if fix:
             issues.append({"message": msg, "fix": fix})
 
-    def _warn(category, msg):
+    def _warn(category: str, msg: str) -> None:
         nonlocal warnings
         warnings += 1
         results.append({"status": "WARN", "category": category, "message": msg})
 
-    def _skip(category, msg):
+    def _skip(category: str, msg: str) -> None:
         nonlocal skipped
         skipped += 1
         results.append({"status": "SKIP", "category": category, "message": msg})
@@ -340,6 +350,7 @@ async def create_album_structure(
 
     album_path = Path(content_root) / "artists" / artist / "albums" / genre_slug / normalized
     tracks_path = album_path / "tracks"
+    assert _shared.PLUGIN_ROOT is not None
     templates_path = _shared.PLUGIN_ROOT / "templates"
 
     # Check if already exists
@@ -397,7 +408,7 @@ async def create_album_structure(
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register album operation tools with the MCP server."""
     mcp.tool()(get_album_full)
     mcp.tool()(validate_album_structure)

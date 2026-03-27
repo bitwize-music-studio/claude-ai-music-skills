@@ -1,12 +1,14 @@
 """Idea management tools — create and update album ideas."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from handlers._shared import _safe_json
 from handlers import _shared
+from handlers._shared import _safe_json
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _resolve_ideas_path() -> Optional[Path]:
+def _resolve_ideas_path() -> Path | None:
     """Resolve the path to IDEAS.md using config."""
     state = _shared.cache.get_state()
     config = state.get("config", {})
@@ -209,7 +211,7 @@ async def update_idea(title: str, field: str, value: str) -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register idea management tools with the MCP server."""
     mcp.tool()(create_idea)
     mcp.tool()(update_idea)

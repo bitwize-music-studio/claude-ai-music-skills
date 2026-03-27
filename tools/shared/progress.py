@@ -1,5 +1,7 @@
 """Progress indicators for long-running operations."""
 
+from __future__ import annotations
+
 import sys
 
 
@@ -15,14 +17,14 @@ class ProgressBar:
         bar.finish()
     """
 
-    def __init__(self, total, prefix="", width=40):
+    def __init__(self, total: int, prefix: str = "", width: int = 40) -> None:
         self.total = total
         self.prefix = prefix
         self.width = width
         self.current = 0
         self.is_tty = sys.stderr.isatty()
 
-    def update(self, item_name=""):
+    def update(self, item_name: str = "") -> None:
         """Advance the progress bar by one step."""
         self.current += 1
         if self.is_tty:
@@ -40,7 +42,7 @@ class ProgressBar:
             if self.current == self.total:
                 sys.stderr.write("\n")
 
-    def finish(self):
+    def finish(self) -> None:
         """Ensure the progress bar ends with a newline."""
         if self.is_tty and self.current < self.total:
             sys.stderr.write("\n")

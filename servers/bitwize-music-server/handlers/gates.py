@@ -1,17 +1,23 @@
 """Pre-generation gates and release readiness checks."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from handlers._shared import (
-    _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error, _find_track_or_error,
-    _SECTION_TAG_RE, _STREAMING_PLACEHOLDER_MARKERS,
-)
 from handlers import _shared
 from handlers import text_analysis as _text_analysis
+from handlers._shared import (
+    _SECTION_TAG_RE,
+    _STREAMING_PLACEHOLDER_MARKERS,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_track_or_error,
+    _safe_json,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -22,14 +28,14 @@ logger = logging.getLogger("bitwize-music-state")
 
 
 def _check_pre_gen_gates_for_track(
-    t_data: dict, file_text: Optional[str], blocklist: list,
+    t_data: dict[str, Any], file_text: str | None, blocklist: list[dict[str, str]],
     max_lyric_words: int = 800,
-) -> tuple[int, int, list[dict]]:
+) -> tuple[int, int, list[dict[str, Any]]]:
     """Run pre-generation gates on a single track.
 
     Returns (blocking_count, warning_count, gates_list).
     """
-    gates: list[dict] = []
+    gates: list[dict[str, Any]] = []
     blocking = 0
     warning_count = 0
 
@@ -126,6 +132,7 @@ def _check_pre_gen_gates_for_track(
         found_artists = []
         for entry in blocklist:
             name = entry["name"]
+            assert _text_analysis._artist_blocklist_patterns is not None
             pattern = _text_analysis._artist_blocklist_patterns.get(name)
             if pattern and pattern.search(style_content):
                 found_artists.append(name)
@@ -150,9 +157,8 @@ def _check_pre_gen_gates_for_track(
             if stripped.startswith("[") and stripped.endswith("]"):
                 continue
             for word, pattern in _text_analysis._HOMOGRAPH_PATTERNS.items():
-                if pattern.search(line):
-                    if word not in found_homographs:
-                        found_homographs.append(word)
+                if pattern.search(line) and word not in found_homographs:
+                    found_homographs.append(word)
         if found_homographs:
             gates.append({"gate": "Homograph Check", "status": "FAIL", "severity": "BLOCKING",
                           "detail": f"Unresolved homographs: {', '.join(found_homographs)}"})
@@ -212,6 +218,7 @@ async def run_pre_generation_gates(
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     all_tracks = album.get("tracks", {})
 
@@ -220,7 +227,8 @@ async def run_pre_generation_gates(
         matched_slug, track_data, error = _find_track_or_error(all_tracks, track_slug, album_slug)
         if error:
             return error
-        tracks_to_check = {matched_slug: track_data}
+        assert track_data is not None
+        tracks_to_check: dict[str, Any] = {matched_slug: track_data}
     else:
         tracks_to_check = all_tracks
 
@@ -233,7 +241,7 @@ async def run_pre_generation_gates(
     gen_cfg = state_config.get("generation", {})
     max_lyric_words = gen_cfg.get("max_lyric_words", 800)
 
-    track_results = []
+    track_results: list[dict[str, Any]] = []
     total_blocking = 0
     total_warnings = 0
 
@@ -317,6 +325,7 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     all_tracks = album.get("tracks", {})
 
@@ -325,16 +334,17 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
         matched_slug, track_data, error = _find_track_or_error(all_tracks, track_slug, album_slug)
         if error:
             return error
-        tracks_to_check = {matched_slug: track_data}
+        assert track_data is not None
+        tracks_to_check: dict[str, Any] = {matched_slug: track_data}
     else:
         tracks_to_check = all_tracks
 
-    track_results = []
+    track_results: list[dict[str, Any]] = []
     total_blocking = 0
     total_warnings = 0
 
     for t_slug, t_data in sorted(tracks_to_check.items()):
-        checks = []
+        checks: list[dict[str, Any]] = []
         blocking = 0
         warning_count = 0
         streaming_word_count = 0
@@ -545,6 +555,6 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
 # =============================================================================
 
 
-def register(mcp):
+def register(mcp: Any) -> None:
     mcp.tool()(run_pre_generation_gates)
     mcp.tool()(check_streaming_lyrics)

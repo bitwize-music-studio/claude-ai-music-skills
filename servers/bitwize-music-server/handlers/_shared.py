@@ -4,18 +4,19 @@
 module's ``register()`` function is called.
 """
 
+from __future__ import annotations
+
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional
-
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Shared state — set by server.py at startup
 # ---------------------------------------------------------------------------
 
-cache = None  # StateCache instance
-PLUGIN_ROOT = None  # Path to plugin root
+cache: Any = None  # StateCache instance
+PLUGIN_ROOT: Path | None = None  # Path to plugin root
 
 # ---------------------------------------------------------------------------
 # Status constants — single source of truth for track and album statuses.
@@ -88,8 +89,8 @@ def _safe_json(data: Any) -> str:
 
 
 def _update_frontmatter_block(
-    file_path: Path, key: str, values: dict
-) -> tuple:
+    file_path: Path, key: str, values: dict[str, Any]
+) -> tuple[bool, str | None]:
     """Add or update a top-level YAML frontmatter block in a markdown file.
 
     Parses the ``---`` delimited frontmatter, sets *key* to *values* using
@@ -152,7 +153,7 @@ _RE_SECTION = re.compile(r'^(#{1,3})\s+(.+)$', re.MULTILINE)
 _RE_CODE_BLOCK = re.compile(r'```(?:[^\n]*\n)(.*?)```|```(.*?)```', re.DOTALL)
 
 
-def _extract_markdown_section(text: str, heading: str) -> Optional[str]:
+def _extract_markdown_section(text: str, heading: str) -> str | None:
     """Extract content under a specific markdown heading.
 
     Returns the text between the target heading and the next heading
@@ -178,6 +179,7 @@ def _extract_markdown_section(text: str, heading: str) -> Optional[str]:
     # Find next heading at same or higher level
     for m in matches[target_idx + 1:]:
         level = len(m.group(1))
+        assert target_level is not None
         if level <= target_level:
             end = m.start()
             return text[start:end].strip()
@@ -186,7 +188,7 @@ def _extract_markdown_section(text: str, heading: str) -> Optional[str]:
     return text[start:].strip()
 
 
-def _extract_code_block(section_text: str) -> Optional[str]:
+def _extract_code_block(section_text: str) -> str | None:
     """Extract the first code block from section text.
 
     Handles both fenced code blocks with language identifiers
@@ -243,7 +245,7 @@ _CROSS_TRACK_STOPWORDS = frozenset({
 })
 
 
-def _find_album_or_error(album_slug: str) -> tuple:
+def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, str | None]:
     """Find album in state cache, return (normalized_slug, album_data, error_json).
 
     If album found: (slug, data, None)
@@ -264,7 +266,7 @@ def _find_album_or_error(album_slug: str) -> tuple:
     return normalized, album, None
 
 
-def _find_track_or_error(tracks: dict, track_slug: str, album_slug: str = "") -> tuple:
+def _find_track_or_error(tracks: dict[str, Any], track_slug: str, album_slug: str = "") -> tuple[str, dict[str, Any] | None, str | None]:
     """Find track in tracks dict by exact match or prefix match.
 
     If track found: (matched_slug, track_data, None)
@@ -294,7 +296,7 @@ def _find_track_or_error(tracks: dict, track_slug: str, album_slug: str = "") ->
         })
 
 
-def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple:
+def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple[str | None, Path | None]:
     """Resolve album slug to audio directory path.
 
     Returns (error_json_or_None, Path_or_None).

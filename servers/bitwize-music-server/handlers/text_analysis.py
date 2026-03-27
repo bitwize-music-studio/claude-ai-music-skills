@@ -1,19 +1,26 @@
 """Text analysis tools — homographs, artist names, pronunciation, explicit content, lyrics stats."""
 
+from __future__ import annotations
+
 import logging
 import re
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _find_album_or_error,
-    _SECTION_TAG_RE, _WORD_TOKEN_RE, _CROSS_TRACK_STOPWORDS,
-    _MARKDOWN_LINK_RE,
-    _find_track_or_error,
-)
 from handlers import _shared
+from handlers._shared import (
+    _CROSS_TRACK_STOPWORDS,
+    _MARKDOWN_LINK_RE,
+    _SECTION_TAG_RE,
+    _WORD_TOKEN_RE,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -133,13 +140,13 @@ async def check_homographs(text: str) -> str:
 
 
 # Artist blocklist cache — loaded lazily from reference file
-_artist_blocklist_cache: Optional[list] = None
-_artist_blocklist_patterns: Optional[dict] = None  # name -> compiled re.Pattern
+_artist_blocklist_cache: list[dict[str, str]] | None = None
+_artist_blocklist_patterns: dict[str, re.Pattern[str]] | None = None  # name -> compiled re.Pattern
 _artist_blocklist_mtime: float = 0.0
 _artist_blocklist_lock = threading.Lock()
 
 
-def _load_artist_blocklist() -> list:
+def _load_artist_blocklist() -> list[dict[str, str]]:
     """Load and parse the artist blocklist from the reference file.
 
     Automatically reloads when the source file changes on disk.
@@ -148,6 +155,7 @@ def _load_artist_blocklist() -> list:
     global _artist_blocklist_cache, _artist_blocklist_patterns
     global _artist_blocklist_mtime
     with _artist_blocklist_lock:
+        assert _shared.PLUGIN_ROOT is not None
         blocklist_path = _shared.PLUGIN_ROOT / "reference" / "suno" / "artist-blocklist.md"
         try:
             current_mtime = blocklist_path.stat().st_mtime if blocklist_path.exists() else 0.0
@@ -156,7 +164,7 @@ def _load_artist_blocklist() -> list:
         if _artist_blocklist_cache is not None and current_mtime == _artist_blocklist_mtime:
             return _artist_blocklist_cache
 
-        entries = []
+        entries: list[dict[str, str]] = []
 
         if not blocklist_path.exists():
             logger.warning("Artist blocklist not found at %s", blocklist_path)
@@ -228,6 +236,7 @@ async def scan_artist_names(text: str) -> str:
 
     for entry in blocklist:
         name = entry["name"]
+        assert _artist_blocklist_patterns is not None
         pattern = _artist_blocklist_patterns.get(name)
         if pattern and pattern.search(text):
             matches.append({
@@ -261,14 +270,16 @@ async def check_pronunciation_enforcement(
                    all_applied: bool, unapplied_count: int}
     """
     # Resolve track file
-    normalized_album, album, error = _find_album_or_error(album_slug)
+    _normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     tracks = album.get("tracks", {})
     matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
     if error:
         return error
+    assert track_data is not None
 
     track_path = track_data.get("path", "")
     if not track_path:
@@ -365,13 +376,13 @@ _BASE_EXPLICIT_WORDS = {
     "goddamn", "goddammit",
 }
 
-_explicit_word_cache: Optional[set] = None
-_explicit_word_patterns: Optional[dict] = None  # word -> compiled re.Pattern
+_explicit_word_cache: set[str] | None = None
+_explicit_word_patterns: dict[str, re.Pattern[str]] | None = None  # word -> compiled re.Pattern
 _explicit_word_mtime: float = 0.0
 _explicit_word_lock = threading.Lock()
 
 
-def _load_explicit_words() -> set:
+def _load_explicit_words() -> set[str]:
     """Load the explicit word set, merging base list with user overrides.
 
     Automatically reloads when the user override file changes on disk.
@@ -461,9 +472,10 @@ async def check_explicit_content(text: str) -> str:
         })
 
     _load_explicit_words()
+    assert _explicit_word_patterns is not None
 
     # Scan line by line using pre-compiled patterns
-    hits: dict = {}  # word -> {count, lines: [{line, line_number}]}
+    hits: dict[str, Any] = {}  # word -> {count, lines: [{line, line_number}]}
     for line_num, line in enumerate(text.split("\n"), 1):
         stripped = line.strip()
         # Skip section tags
@@ -521,6 +533,7 @@ async def extract_links(
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     album_path = album.get("path", "")
 
@@ -600,7 +613,7 @@ _GENRE_WORD_TARGETS = {
 }
 
 
-def _tokenize_lyrics_by_line(lyrics: str) -> list:
+def _tokenize_lyrics_by_line(lyrics: str) -> list[list[str]]:
     """Split lyrics into per-line word lists, skipping section tags.
 
     Lowercases all words, strips leading/trailing apostrophes, and filters
@@ -622,7 +635,7 @@ def _tokenize_lyrics_by_line(lyrics: str) -> list:
     return result
 
 
-def _ngrams_from_lines(lines: list, min_n: int = 2, max_n: int = 4) -> list:
+def _ngrams_from_lines(lines: list[list[str]], min_n: int = 2, max_n: int = 4) -> list[str]:
     """Generate n-grams from per-line word lists, never crossing line boundaries.
 
     Skips n-grams where every word is a stopword.
@@ -659,6 +672,7 @@ async def get_lyrics_stats(
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     genre = album.get("genre", "").lower()
     all_tracks = album.get("tracks", {})
@@ -668,7 +682,8 @@ async def get_lyrics_stats(
         matched_slug, track_data, error = _find_track_or_error(all_tracks, track_slug, album_slug)
         if error:
             return error
-        tracks_to_check = {matched_slug: track_data}
+        assert track_data is not None
+        tracks_to_check: dict[str, Any] = {matched_slug: track_data}
     else:
         tracks_to_check = all_tracks
 
@@ -744,7 +759,7 @@ async def get_lyrics_stats(
             note = f"Under target ({target['min']} min for {genre})"
         else:
             status = "OK"
-            note = f"Within target ({target['min']}–{target['max']} for {genre})"
+            note = f"Within target ({target['min']}\u2013{target['max']} for {genre})"
 
         track_results.append({
             "track_slug": t_slug,
@@ -791,6 +806,7 @@ async def check_cross_track_repetition(
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     all_tracks = album.get("tracks", {})
     if not all_tracks:
@@ -811,11 +827,11 @@ async def check_cross_track_repetition(
 
     # Per-track word and phrase sets, plus occurrence counts
     # word -> set of track slugs where it appears
-    word_tracks: dict[str, set] = {}
+    word_tracks: dict[str, set[str]] = {}
     # word -> total count across all tracks
     word_total: dict[str, int] = {}
     # phrase -> set of track slugs
-    phrase_tracks: dict[str, set] = {}
+    phrase_tracks: dict[str, set[str]] = {}
     # phrase -> total count across all tracks
     phrase_total: dict[str, int] = {}
 
@@ -871,7 +887,7 @@ async def check_cross_track_repetition(
             phrase_total[p] += count
 
     # Filter to items in >= min_tracks, exclude stopwords for words
-    repeated_words = []
+    repeated_words: list[dict[str, Any]] = []
     for w, track_set in word_tracks.items():
         if len(track_set) >= min_tracks and w not in _CROSS_TRACK_STOPWORDS:
             repeated_words.append({
@@ -881,7 +897,7 @@ async def check_cross_track_repetition(
                 "total_occurrences": word_total[w],
             })
 
-    repeated_phrases = []
+    repeated_phrases: list[dict[str, Any]] = []
     for p, track_set in phrase_tracks.items():
         if len(track_set) >= min_tracks:
             repeated_phrases.append({
@@ -913,7 +929,7 @@ async def check_cross_track_repetition(
     })
 
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register text analysis tools with the MCP server."""
     mcp.tool()(check_homographs)
     mcp.tool()(scan_artist_names)

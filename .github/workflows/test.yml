@@ -240,6 +240,10 @@ jobs:
       run: |
         bandit -r tools/ servers/ -ll -q -s B108
 
+    - name: Run mypy type checker
+      run: |
+        mypy
+
     - name: Validation summary
       run: |
         echo "================================"

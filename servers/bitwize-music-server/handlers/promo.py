@@ -1,7 +1,10 @@
 """Promo directory tools — promo status and content retrieval."""
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
+from typing import Any
 
 from handlers._shared import _find_album_or_error, _safe_json
 from handlers.status import _PROMO_FILES
@@ -29,6 +32,7 @@ async def get_promo_status(album_slug: str) -> str:
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     album_path = album.get("path", "")
     if not album_path:
@@ -118,6 +122,7 @@ async def get_promo_content(album_slug: str, platform: str) -> str:
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     album_path = album.get("path", "")
     if not album_path:
@@ -150,7 +155,7 @@ async def get_promo_content(album_slug: str, platform: str) -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register promo tools with the MCP server."""
     mcp.tool()(get_promo_status)
     mcp.tool()(get_promo_content)

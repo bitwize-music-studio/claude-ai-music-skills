@@ -1,15 +1,21 @@
 """Rename tools — album and track renaming with mirrored path updates."""
 
+from __future__ import annotations
+
 import logging
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
-from handlers._shared import (
-    _normalize_slug, _safe_json, _find_album_or_error, _derive_title_from_slug,
-    _find_track_or_error,
-)
 from handlers import _shared
+from handlers._shared import (
+    _derive_title_from_slug,
+    _find_album_or_error,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +148,7 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         album_data["title"] = title
 
         # Update track paths
-        for track_slug, track_data in album_data.get("tracks", {}).items():
+        for _track_slug, track_data in album_data.get("tracks", {}).items():
             old_track_path = track_data.get("path", "")
             if old_track_path:
                 track_data["path"] = old_track_path.replace(
@@ -189,12 +195,13 @@ async def rename_track(
     Returns:
         JSON with rename result or error
     """
-    from tools.state.parsers import parse_track_file
     from tools.state.indexer import write_state
+    from tools.state.parsers import parse_track_file
 
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     tracks = album.get("tracks", {})
     normalized_new = _normalize_slug(new_track_slug)
@@ -202,6 +209,7 @@ async def rename_track(
     matched_slug, track_data, error = _find_track_or_error(tracks, old_track_slug, album_slug)
     if error:
         return error
+    assert track_data is not None
 
     if _normalize_slug(old_track_slug) == normalized_new:
         return _safe_json({"error": "Old and new track slugs are the same after normalization."})
@@ -295,7 +303,7 @@ async def rename_track(
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register rename tools with the MCP server."""
     mcp.tool()(rename_album)
     mcp.tool()(rename_track)

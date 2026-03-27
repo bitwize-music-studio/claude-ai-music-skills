@@ -1,21 +1,23 @@
 """Configuration loading and override validation for bitwize-music tools."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 
 logger = logging.getLogger(__name__)
 
 # Known override files and their expected format
-OVERRIDE_FILES = {
+OVERRIDE_FILES: dict[str, dict[str, Any]] = {
     'CLAUDE.md': {
         'extension': '.md',
         'must_contain': None,  # Free-form markdown instructions
@@ -31,8 +33,8 @@ OVERRIDE_FILES = {
 
 def load_config(
     required: bool = False,
-    fallback: Optional[Dict[str, Any]] = None
-) -> Optional[Dict[str, Any]]:
+    fallback: dict[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Load ~/.bitwize-music/config.yaml.
 
     Args:
@@ -51,7 +53,7 @@ def load_config(
         return fallback
 
     if yaml is None:
-        logger.error("pyyaml is not installed. Install with: pip install pyyaml")
+        logger.error("pyyaml is not installed. Install with: pip install pyyaml")  # type: ignore[unreachable]
         return fallback
 
     try:
@@ -65,7 +67,7 @@ def load_config(
         return fallback
 
 
-def validate_overrides(overrides_dir: Path) -> List[Dict[str, str]]:
+def validate_overrides(overrides_dir: Path) -> list[dict[str, str]]:
     """Validate override files in the given directory.
 
     Checks that override files follow expected format:
@@ -80,7 +82,7 @@ def validate_overrides(overrides_dir: Path) -> List[Dict[str, str]]:
         List of issue dicts with 'file', 'level' ('error'|'warning'), and 'message' keys.
         Empty list means all overrides are valid.
     """
-    issues: List[Dict[str, str]] = []
+    issues: list[dict[str, str]] = []
 
     if not overrides_dir.exists():
         return issues  # No overrides dir is fine (optional)

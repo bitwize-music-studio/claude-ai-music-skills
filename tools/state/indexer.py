@@ -18,7 +18,10 @@ Usage (either form works):
     python3 -m tools.state.indexer rebuild
 """
 
+from __future__ import annotations
+
 import argparse
+import contextlib
 import copy
 import errno
 import fcntl
@@ -28,9 +31,9 @@ import os
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, cast
 
 # Lock timeout in seconds (prevents indefinite blocking)
 LOCK_TIMEOUT_SECONDS = 10
@@ -73,7 +76,7 @@ LOCK_FILE = CACHE_DIR / "state.lock"
 
 CONFIG_FILE = CONFIG_PATH
 
-def _read_plugin_version(plugin_root: Path) -> Optional[str]:
+def _read_plugin_version(plugin_root: Path) -> str | None:
     """Read plugin version from .claude-plugin/plugin.json.
 
     Args:
@@ -95,7 +98,7 @@ def _read_plugin_version(plugin_root: Path) -> Optional[str]:
         return None
 
 
-def _migrate_1_0_to_1_1(state: Dict[str, Any]) -> Dict[str, Any]:
+def _migrate_1_0_to_1_1(state: dict[str, Any]) -> dict[str, Any]:
     """Migrate state from 1.0.0 to 1.1.0: add skills section."""
     if 'skills' not in state:
         state['skills'] = {
@@ -108,7 +111,7 @@ def _migrate_1_0_to_1_1(state: Dict[str, Any]) -> Dict[str, Any]:
     return state
 
 
-def _migrate_1_1_to_1_2(state: Dict[str, Any]) -> Dict[str, Any]:
+def _migrate_1_1_to_1_2(state: dict[str, Any]) -> dict[str, Any]:
     """Migrate state from 1.1.0 to 1.2.0: add plugin_version field."""
     if 'plugin_version' not in state:
         state['plugin_version'] = None
@@ -117,13 +120,13 @@ def _migrate_1_1_to_1_2(state: Dict[str, Any]) -> Dict[str, Any]:
 
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
-MIGRATIONS: Dict[str, tuple] = {
+MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.0.0": (_migrate_1_0_to_1_1, "1.1.0"),
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
 }
 
 
-def read_config() -> Optional[Dict[str, Any]]:
+def read_config() -> dict[str, Any] | None:
     """Read ~/.bitwize-music/config.yaml.
 
     Returns:
@@ -152,7 +155,7 @@ def get_config_mtime() -> float:
         return 0.0
 
 
-def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
+def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
     paths = config.get('paths', {})
     artist = config.get('artist', {})
@@ -197,7 +200,7 @@ def build_config_section(config: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any]]:
+def scan_albums(content_root: Path, artist_name: str) -> dict[str, dict[str, Any]]:
     """Scan all album READMEs and their tracks.
 
     Args:
@@ -207,7 +210,7 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
     Returns:
         Dict mapping album slug to album data.
     """
-    albums: Dict[str, Dict[str, Any]] = {}
+    albums: dict[str, dict[str, Any]] = {}
     albums_dir = content_root / "artists" / artist_name / "albums"
 
     if not albums_dir.exists():
@@ -249,7 +252,7 @@ def scan_albums(content_root: Path, artist_name: str) -> Dict[str, Dict[str, Any
     return albums
 
 
-def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
+def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     """Scan all track files in an album's tracks/ directory.
 
     Args:
@@ -258,7 +261,7 @@ def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
     Returns:
         Dict mapping track slug to track data.
     """
-    tracks: Dict[str, Dict[str, Any]] = {}
+    tracks: dict[str, dict[str, Any]] = {}
     tracks_dir = album_dir / "tracks"
 
     if not tracks_dir.exists():
@@ -290,7 +293,7 @@ def scan_tracks(album_dir: Path) -> Dict[str, Dict[str, Any]]:
     return tracks
 
 
-def scan_ideas(config: Dict[str, Any], content_root: Path) -> Dict[str, Any]:
+def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     """Scan IDEAS.md file.
 
     Args:
@@ -334,7 +337,7 @@ def scan_ideas(config: Dict[str, Any], content_root: Path) -> Dict[str, Any]:
     }
 
 
-def scan_skills(plugin_root: Path) -> Dict[str, Any]:
+def scan_skills(plugin_root: Path) -> dict[str, Any]:
     """Scan all skill SKILL.md files and build skills index.
 
     Args:
@@ -344,7 +347,7 @@ def scan_skills(plugin_root: Path) -> Dict[str, Any]:
         Dict with skills_root, skills_root_mtime, count, model_counts, items.
     """
     skills_dir = plugin_root / "skills"
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         'skills_root': str(skills_dir),
         'skills_root_mtime': 0.0,
         'count': 0,
@@ -355,13 +358,11 @@ def scan_skills(plugin_root: Path) -> Dict[str, Any]:
     if not skills_dir.exists():
         return result
 
-    try:
+    with contextlib.suppress(OSError):
         result['skills_root_mtime'] = skills_dir.stat().st_mtime
-    except OSError:
-        pass
 
-    model_counts: Dict[str, int] = {}
-    items: Dict[str, Dict[str, Any]] = {}
+    model_counts: dict[str, int] = {}
+    items: dict[str, dict[str, Any]] = {}
 
     for skill_path in sorted(skills_dir.glob("*/SKILL.md")):
         skill_data = parse_skill_file(skill_path)
@@ -381,8 +382,8 @@ def scan_skills(plugin_root: Path) -> Dict[str, Any]:
     return result
 
 
-def build_state(config: Dict[str, Any],
-                plugin_root: Optional[Path] = None) -> Dict[str, Any]:
+def build_state(config: dict[str, Any],
+                plugin_root: Path | None = None) -> dict[str, Any]:
     """Build complete state from scratch.
 
     Args:
@@ -402,7 +403,7 @@ def build_state(config: Dict[str, Any],
 
     return {
         'version': CURRENT_VERSION,
-        'generated_at': datetime.now(timezone.utc).isoformat(),
+        'generated_at': datetime.now(UTC).isoformat(),
         'plugin_version': _read_plugin_version(plugin_root),
         'config': config_section,
         'albums': scan_albums(content_root, artist_name),
@@ -418,7 +419,7 @@ def build_state(config: Dict[str, Any],
     }
 
 
-def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
     """Incrementally update state, only re-parsing changed files.
 
     Compares mtime of each file against stored mtime. Only re-parses
@@ -437,7 +438,7 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
 
     state = copy.deepcopy(existing_state)
     state['config'] = config_section
-    state['generated_at'] = datetime.now(timezone.utc).isoformat()
+    state['generated_at'] = datetime.now(UTC).isoformat()
 
     # Update plugin_version from current plugin.json
     state['plugin_version'] = _read_plugin_version(_PROJECT_ROOT)
@@ -563,7 +564,7 @@ def incremental_update(existing_state: Dict[str, Any], config: Dict[str, Any]) -
     return state
 
 
-def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
+def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
     """Update individual tracks within an album incrementally."""
     tracks_dir = album_dir / "tracks"
     if not tracks_dir.exists():
@@ -612,7 +613,7 @@ def _update_tracks_incremental(album: Dict[str, Any], album_dir: Path):
     )
 
 
-def _acquire_lock_with_timeout(lock_fd, timeout: int = LOCK_TIMEOUT_SECONDS):
+def _acquire_lock_with_timeout(lock_fd: Any, timeout: int = LOCK_TIMEOUT_SECONDS) -> None:
     """Acquire an exclusive file lock with timeout and stale lock recovery.
 
     Args:
@@ -658,7 +659,7 @@ def _acquire_lock_with_timeout(lock_fd, timeout: int = LOCK_TIMEOUT_SECONDS):
         time.sleep(0.1)
 
 
-def write_state(state: Dict[str, Any]):
+def write_state(state: dict[str, Any]) -> None:
     """Write state to cache file atomically with file locking.
 
     Acquires an exclusive lock (with timeout) to prevent concurrent writes,
@@ -672,11 +673,11 @@ def write_state(state: Dict[str, Any]):
     tmp_fd = None
     tmp_path = None
     try:
-        lock_fd = open(LOCK_FILE, 'w')
+        lock_fd = open(LOCK_FILE, 'w')  # noqa: SIM115
         _acquire_lock_with_timeout(lock_fd)
 
         # Use tempfile for unpredictable filename in the same directory
-        tmp_fd = tempfile.NamedTemporaryFile(
+        tmp_fd = tempfile.NamedTemporaryFile(  # noqa: SIM115
             mode='w', dir=CACHE_DIR, suffix='.tmp',
             prefix='.state_', delete=False
         )
@@ -696,10 +697,8 @@ def write_state(state: Dict[str, Any]):
         if tmp_fd is not None:
             tmp_fd.close()
         if tmp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
         raise
     finally:
         if lock_fd is not None:
@@ -707,7 +706,7 @@ def write_state(state: Dict[str, Any]):
             lock_fd.close()
 
 
-def read_state() -> Optional[Dict[str, Any]]:
+def read_state() -> dict[str, Any] | None:
     """Read state from cache file.
 
     Returns:
@@ -717,13 +716,13 @@ def read_state() -> Optional[Dict[str, Any]]:
         return None
     try:
         with open(STATE_FILE) as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Corrupted state file: %s", e)
         return None
 
 
-def migrate_state(state: Dict[str, Any]) -> Dict[str, Any]:
+def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
     """Apply all needed migrations in sequence.
 
     Args:
@@ -763,8 +762,8 @@ def _version_compare(a: str, b: str) -> int:
     Handles variable-length versions (e.g., "1.0" vs "1.0.0") by
     zero-padding the shorter one. Non-numeric parts are treated as 0.
     """
-    def _parts(v):
-        parts = []
+    def _parts(v: str) -> list[int]:
+        parts: list[int] = []
         for x in v.split('.'):
             try:
                 parts.append(int(x))
@@ -776,7 +775,7 @@ def _version_compare(a: str, b: str) -> int:
     max_len = max(len(pa), len(pb))
     pa.extend([0] * (max_len - len(pa)))
     pb.extend([0] * (max_len - len(pb)))
-    for x, y in zip(pa, pb):
+    for x, y in zip(pa, pb, strict=True):
         if x < y:
             return -1
         if x > y:
@@ -784,7 +783,7 @@ def _version_compare(a: str, b: str) -> int:
     return 0
 
 
-def validate_state(state: Dict[str, Any]) -> List[str]:
+def validate_state(state: dict[str, Any]) -> list[str]:
     """Validate state against expected schema.
 
     Returns:
@@ -793,7 +792,7 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
     errors = []
 
     if not isinstance(state, dict):
-        return ["State is not a dict"]
+        return ["State is not a dict"]  # type: ignore[unreachable]
 
     # Required top-level keys
     required_keys = {'version', 'generated_at', 'plugin_version', 'config', 'albums', 'ideas', 'skills', 'session'}
@@ -887,7 +886,7 @@ def validate_state(state: Dict[str, Any]) -> List[str]:
 # CLI Commands
 # ==========================================================================
 
-def cmd_rebuild(args):
+def cmd_rebuild(args: argparse.Namespace) -> int:
     """Full rebuild of state cache."""
     logger.info("Building project index...")
 
@@ -924,7 +923,7 @@ def cmd_rebuild(args):
     return 0
 
 
-def cmd_update(args):
+def cmd_update(args: argparse.Namespace) -> int:
     """Incremental update of state cache."""
     config = read_config()
     if config is None:
@@ -949,7 +948,7 @@ def cmd_update(args):
     return 0
 
 
-def cmd_validate(args):
+def cmd_validate(args: argparse.Namespace) -> int:
     """Validate state.json against schema."""
     state = read_state()
     if state is None:
@@ -974,7 +973,7 @@ def cmd_validate(args):
     return 0
 
 
-def _validate_session_value(value: str, field: str, max_len: int = 256) -> Optional[str]:
+def _validate_session_value(value: str, field: str, max_len: int = 256) -> str | None:
     """Validate a session context value. Returns error message or None."""
     if len(value) > max_len:
         return f"{field} too long ({len(value)} chars, max {max_len})"
@@ -983,7 +982,7 @@ def _validate_session_value(value: str, field: str, max_len: int = 256) -> Optio
     return None
 
 
-def cmd_session(args):
+def cmd_session(args: argparse.Namespace) -> int:
     """Update session context in state.json."""
     state = read_state()
     if state is None:
@@ -1023,7 +1022,7 @@ def cmd_session(args):
             actions.append(args.add_action)
             session['pending_actions'] = actions
 
-    session['updated_at'] = datetime.now(timezone.utc).isoformat()
+    session['updated_at'] = datetime.now(UTC).isoformat()
     state['session'] = session
     write_state(state)
 
@@ -1039,7 +1038,7 @@ def cmd_session(args):
     return 0
 
 
-def cmd_cleanup(args):
+def cmd_cleanup(args: argparse.Namespace) -> int:
     """Remove albums from cache that no longer exist on disk."""
     state = read_state()
     if state is None:
@@ -1079,7 +1078,7 @@ def cmd_cleanup(args):
     return 0
 
 
-def cmd_show(args):
+def cmd_show(args: argparse.Namespace) -> int:
     """Pretty-print current state summary."""
     state = read_state()
     if state is None:
@@ -1162,7 +1161,7 @@ def cmd_show(args):
     return 0
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description='State cache indexer for claude-ai-music-skills',
         formatter_class=argparse.RawDescriptionHelpFormatter,

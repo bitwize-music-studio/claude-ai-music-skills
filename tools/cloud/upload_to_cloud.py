@@ -31,16 +31,18 @@ Usage:
     python upload_to_cloud.py my-album --audio-root /path/to/audio
 """
 
+from __future__ import annotations
+
+import argparse
+import mimetypes
 import os
 import sys
-import argparse
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
-import mimetypes
+from typing import Any
 
 try:
-    import yaml
+    import yaml  # noqa: F401
 except ImportError:
     print("Error: pyyaml not installed.")
     print("Set up venv:")
@@ -74,12 +76,14 @@ from tools.shared.progress import ProgressBar
 logger = logging.getLogger(__name__)
 
 
-def load_config() -> Dict[str, Any]:
+def load_config() -> dict[str, Any]:
     """Load bitwize-music config file (required)."""
-    return _load_config(required=True)
+    config = _load_config(required=True)
+    assert config is not None  # required=True ensures this
+    return config
 
 
-def get_s3_client(config: Dict[str, Any]) -> Any:
+def get_s3_client(config: dict[str, Any]) -> Any:
     """Create S3 client based on provider configuration."""
     cloud_config = config.get("cloud", {})
     provider = cloud_config.get("provider", "r2")
@@ -127,7 +131,7 @@ def get_s3_client(config: Dict[str, Any]) -> Any:
         sys.exit(1)
 
 
-def get_bucket_name(config: Dict[str, Any]) -> str:
+def get_bucket_name(config: dict[str, Any]) -> str:
     """Get bucket name from config."""
     cloud_config = config.get("cloud", {})
     provider = cloud_config.get("provider", "r2")
@@ -141,7 +145,7 @@ def get_bucket_name(config: Dict[str, Any]) -> str:
         logger.error("Bucket name not configured in cloud.%s.bucket", provider)
         sys.exit(1)
 
-    return bucket
+    return str(bucket)
 
 
 def _is_within(child: Path, parent: Path) -> bool:
@@ -153,7 +157,7 @@ def _is_within(child: Path, parent: Path) -> bool:
         return False
 
 
-def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override: Optional[str] = None) -> Path:
+def find_album_path(config: dict[str, Any], album_name: str, audio_root_override: str | None = None) -> Path:
     """Find the album directory in audio_root.
 
     Tries multiple path patterns in order:
@@ -166,8 +170,8 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     else:
         audio_root = Path(config["paths"]["audio_root"]).expanduser()
 
-    artist = config["artist"]["name"]
-    checked = []
+    artist: str = config["artist"]["name"]
+    checked: list[str] = []
 
     # Try mirrored structure: {audio_root}/artists/{artist}/albums/{genre}/{album}
     genre_glob = audio_root / "artists" / artist / "albums" / "*" / album_name
@@ -209,7 +213,7 @@ def find_album_path(config: Dict[str, Any], album_name: str, audio_root_override
     sys.exit(1)
 
 
-def get_files_to_upload(album_path: Path, upload_type: str) -> List[Path]:
+def get_files_to_upload(album_path: Path, upload_type: str) -> list[Path]:
     """Get list of files to upload based on type."""
     files = []
 
@@ -236,7 +240,7 @@ def get_content_type(file_path: Path) -> str:
     return mime_type or "application/octet-stream"
 
 
-def format_size(size_bytes: int) -> str:
+def format_size(size_bytes: float) -> str:
     """Format file size in human-readable format."""
     for unit in ["B", "KB", "MB", "GB"]:
         if size_bytes < 1024:
@@ -321,7 +325,7 @@ def retry_upload(
     return False
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Upload promo videos to Cloudflare R2 or AWS S3",
         formatter_class=argparse.RawDescriptionHelpFormatter,

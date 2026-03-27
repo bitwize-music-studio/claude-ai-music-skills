@@ -1,24 +1,36 @@
 """Album status transitions and track creation tools."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
+from handlers import _shared
 from handlers._shared import (
-    _normalize_slug, _safe_json, _find_album_or_error,
-    _extract_markdown_section, _extract_code_block,
-    _find_wav_source_dir,
     _STREAMING_PLACEHOLDER_MARKERS,
-    TRACK_NOT_STARTED, TRACK_SOURCES_PENDING,
-    TRACK_SOURCES_VERIFIED, TRACK_IN_PROGRESS,
-    TRACK_GENERATED, TRACK_FINAL,
-    ALBUM_CONCEPT, ALBUM_RESEARCH_COMPLETE, ALBUM_SOURCES_VERIFIED,
-    ALBUM_IN_PROGRESS, ALBUM_COMPLETE, ALBUM_RELEASED,
+    ALBUM_COMPLETE,
+    ALBUM_CONCEPT,
+    ALBUM_IN_PROGRESS,
+    ALBUM_RELEASED,
+    ALBUM_RESEARCH_COMPLETE,
+    ALBUM_SOURCES_VERIFIED,
     ALBUM_VALID_STATUSES,
     STATUS_UNKNOWN,
+    TRACK_FINAL,
+    TRACK_GENERATED,
+    TRACK_IN_PROGRESS,
+    TRACK_NOT_STARTED,
+    TRACK_SOURCES_PENDING,
+    TRACK_SOURCES_VERIFIED,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_wav_source_dir,
+    _normalize_slug,
+    _safe_json,
 )
-from handlers import _shared
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +85,7 @@ _ALBUM_STATUS_LEVEL = {
 }
 
 
-def _validate_track_transition(current: str, new: str, *, force: bool = False) -> Optional[str]:
+def _validate_track_transition(current: str, new: str, *, force: bool = False) -> str | None:
     """Return error message if transition is invalid, or None if OK."""
     if force:
         return None
@@ -91,7 +103,7 @@ def _validate_track_transition(current: str, new: str, *, force: bool = False) -
     return None
 
 
-def _validate_album_transition(current: str, new: str, *, force: bool = False) -> Optional[str]:
+def _validate_album_transition(current: str, new: str, *, force: bool = False) -> str | None:
     """Return error message if transition is invalid, or None if OK."""
     if force:
         return None
@@ -109,7 +121,7 @@ def _validate_album_transition(current: str, new: str, *, force: bool = False) -
     return None
 
 
-def _check_album_track_consistency(album: dict, new_status: str) -> Optional[str]:
+def _check_album_track_consistency(album: dict[str, Any], new_status: str) -> str | None:
     """Check if album status is consistent with its tracks' statuses.
 
     Returns error message if inconsistent, or None if OK.
@@ -204,8 +216,8 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
     Returns:
         JSON with update result or error
     """
-    from tools.state.parsers import parse_album_readme
     from tools.state.indexer import write_state
+    from tools.state.parsers import parse_album_readme
 
     # Validate status
     if status.lower().strip() not in _VALID_ALBUM_STATUSES:
@@ -219,6 +231,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     # Validate status transition
     current_status = album.get("status", ALBUM_CONCEPT)
@@ -422,6 +435,7 @@ async def create_track(
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
         return error
+    assert album is not None
 
     album_path = album.get("path", "")
     if not album_path:
@@ -448,6 +462,7 @@ async def create_track(
         })
 
     # Read template
+    assert _shared.PLUGIN_ROOT is not None
     template_path = _shared.PLUGIN_ROOT / "templates" / "track.md"
     if not template_path.exists():
         return _safe_json({"error": f"Track template not found at {template_path}"})
@@ -507,7 +522,7 @@ async def create_track(
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register album status transition and track creation tools with the MCP server."""
     mcp.tool()(update_album_status)
     mcp.tool()(create_track)

@@ -1,7 +1,11 @@
 """Skills listing tools — query and filter plugin skills."""
 
-from handlers._shared import _normalize_slug, _safe_json
+from __future__ import annotations
+
+from typing import Any
+
 from handlers import _shared
+from handlers._shared import _normalize_slug, _safe_json
 
 
 async def list_skills(model_filter: str = "", category: str = "") -> str:
@@ -21,9 +25,8 @@ async def list_skills(model_filter: str = "", category: str = "") -> str:
     result_items = []
     for name, skill in sorted(items.items()):
         # Apply model filter
-        if model_filter:
-            if skill.get("model_tier", "").lower() != model_filter.lower():
-                continue
+        if model_filter and skill.get("model_tier", "").lower() != model_filter.lower():
+            continue
 
         # Apply category/description filter
         if category:
@@ -109,7 +112,7 @@ async def get_skill(name: str) -> str:
 # Registration
 # ---------------------------------------------------------------------------
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register skills listing tools with the MCP server."""
     mcp.tool()(list_skills)
     mcp.tool()(get_skill)

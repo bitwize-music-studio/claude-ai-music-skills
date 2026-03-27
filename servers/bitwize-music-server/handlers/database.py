@@ -1,10 +1,13 @@
 """Database tools — tweet/promo management via PostgreSQL."""
 
-import logging
-from typing import Optional
+from __future__ import annotations
 
-from handlers._shared import _normalize_slug, _safe_json, _find_album_or_error
+import logging
+from pathlib import Path
+from typing import Any
+
 from handlers import _shared
+from handlers._shared import _find_album_or_error, _normalize_slug, _safe_json
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -13,7 +16,7 @@ logger = logging.getLogger("bitwize-music-state")
 # ---------------------------------------------------------------------------
 
 
-def _check_db_deps() -> Optional[str]:
+def _check_db_deps() -> str | None:
     """Return error message if database deps missing, else None."""
     try:
         import psycopg2  # noqa: F401
@@ -25,13 +28,13 @@ def _check_db_deps() -> Optional[str]:
     return None
 
 
-def _get_db_connection():
+def _get_db_connection() -> tuple[Any, str | None]:
     """Get a psycopg2 connection using config credentials.
 
     Returns:
         (connection, None) on success, (None, error_json) on failure.
     """
-    from tools.database.connection import get_db_config, get_connection
+    from tools.database.connection import get_connection, get_db_config
 
     db_config = get_db_config()
     if db_config is None:
@@ -49,14 +52,16 @@ def _get_db_connection():
 
 def _get_schema_sql() -> str:
     """Read the schema.sql file from tools/database/."""
+    assert _shared.PLUGIN_ROOT is not None
     schema_path = _shared.PLUGIN_ROOT / "tools" / "database" / "schema.sql"
     if not schema_path.exists():
         return ""
     return schema_path.read_text(encoding="utf-8")
 
 
-def _get_migration_files() -> list:
+def _get_migration_files() -> list[Path]:
     """Get sorted list of migration SQL files."""
+    assert _shared.PLUGIN_ROOT is not None
     migrations_dir = _shared.PLUGIN_ROOT / "tools" / "database" / "migrations"
     if not migrations_dir.exists():
         return []
@@ -180,7 +185,7 @@ async def db_list_tweets(
             LEFT JOIN tracks tr ON t.track_id = tr.id
             WHERE 1=1
         """
-        params = []
+        params: list[Any] = []
 
         if album_slug:
             query += " AND a.slug = %s"
@@ -366,8 +371,8 @@ async def db_update_tweet(
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Build dynamic SET clause
-        updates = []
-        params = []
+        updates: list[str] = []
+        params: list[Any] = []
 
         if tweet_text:
             updates.append("tweet_text = %s")
@@ -571,6 +576,7 @@ async def db_sync_album(album_slug: str) -> str:
     slug, album_data, err = _find_album_or_error(album_slug)
     if err:
         return err
+    assert album_data is not None
 
     conn, conn_err = _get_db_connection()
     if conn_err:
@@ -785,7 +791,7 @@ async def db_get_tweet_stats(album_slug: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
-def register(mcp):
+def register(mcp: Any) -> None:
     mcp.tool()(db_init)
     mcp.tool()(db_list_tweets)
     mcp.tool()(db_create_tweet)

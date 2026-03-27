@@ -26,15 +26,18 @@ Usage:
     python generate_promo_video.py track.wav art.png "Song" --duration 30 --style circular
 """
 
-import atexit
-import os
-import sys
+from __future__ import annotations
+
 import argparse
+import atexit
+import contextlib
+import os
 import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,30 +47,30 @@ if str(_PROJECT_ROOT) not in sys.path:
 import logging
 
 from tools.shared.config import load_config as _load_config
-from tools.shared.progress import ProgressBar
 from tools.shared.fonts import find_font
 from tools.shared.logging_config import setup_logging
 from tools.shared.media_utils import (
-    extract_dominant_color,
-    get_complementary_color,
-    get_analogous_colors,
-    rgb_to_hex,
     check_ffmpeg as _check_ffmpeg,
-    find_best_segment,
 )
+from tools.shared.media_utils import (
+    extract_dominant_color,
+    find_best_segment,
+    get_analogous_colors,
+    get_complementary_color,
+    rgb_to_hex,
+)
+from tools.shared.progress import ProgressBar
 
 logger = logging.getLogger(__name__)
 
 # Safety-net cleanup for temp files left behind on abnormal exit
-_temp_files_to_cleanup: list = []
+_temp_files_to_cleanup: list[str] = []
 
 
-def _cleanup_temp_files():
+def _cleanup_temp_files() -> None:
     for path in _temp_files_to_cleanup:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(path)
-        except OSError:
-            pass
     _temp_files_to_cleanup.clear()
 
 
@@ -76,7 +79,7 @@ atexit.register(_cleanup_temp_files)
 _DEFAULT_CONFIG = {"artist": {"name": "bitwize"}}
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     """Load bitwize-music config file."""
     return _load_config(fallback=_DEFAULT_CONFIG) or _DEFAULT_CONFIG
 
@@ -95,7 +98,7 @@ TITLE_FONT_SIZE = 64
 ARTIST_FONT_SIZE = 48
 
 
-def check_ffmpeg():
+def check_ffmpeg() -> bool:
     """Verify ffmpeg is installed with showwaves filter."""
     return _check_ffmpeg(require_showwaves=True)
 
@@ -107,9 +110,9 @@ def generate_waveform_video(
     output_path: Path,
     duration: int = DEFAULT_DURATION,
     style: str = "bars",
-    start_time: Optional[float] = None,
+    start_time: float | None = None,
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None,
+    font_path: str | None = None,
     color_hex: str = "",
     glow: float = 0.6,
     text_color: str = "",
@@ -152,8 +155,8 @@ def generate_waveform_video(
         dominant = extract_dominant_color(artwork_path)
         color1 = rgb_to_hex(dominant)
         analogous1, analogous2 = get_analogous_colors(dominant)
-        color_ana1 = rgb_to_hex(analogous1)
-        color_ana2 = rgb_to_hex(analogous2)
+        _color_ana1 = rgb_to_hex(analogous1)
+        _color_ana2 = rgb_to_hex(analogous2)
     else:
         # Extract colors from album art
         logger.info("Extracting colors from artwork...")
@@ -162,8 +165,8 @@ def generate_waveform_video(
         analogous1, analogous2 = get_analogous_colors(dominant)
         color1 = rgb_to_hex(dominant)
         color2 = rgb_to_hex(complementary)
-        color_ana1 = rgb_to_hex(analogous1)
-        color_ana2 = rgb_to_hex(analogous2)
+        _color_ana1 = rgb_to_hex(analogous1)
+        _color_ana2 = rgb_to_hex(analogous2)
 
     logger.debug("Wave color: %s, Text color: %s, Glow: %.1f", color2, effective_text_color, glow)
 
@@ -173,14 +176,14 @@ def generate_waveform_video(
     # Write title and artist to temp files so ffmpeg reads them via textfile=
     # This avoids all escaping issues with drawtext's text= parameter,
     # preventing injection of ffmpeg filter directives through track titles.
-    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)  # noqa: SIM115
     os.chmod(title_file.name, 0o600)
     title_file.write(title)
     title_file.close()
     title_file_path = title_file.name
     _temp_files_to_cleanup.append(title_file_path)
 
-    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)  # noqa: SIM115
     os.chmod(artist_file.name, 0o600)
     artist_file.write(artist_name)
     artist_file.close()
@@ -192,7 +195,7 @@ def generate_waveform_video(
 
     # Scale glow sigma values (base values multiplied by glow factor)
     glow_s = max(0.5, glow * 8)     # small glow: 0.5-8
-    glow_m = max(1.0, glow * 13)    # medium glow: 1-13
+    _glow_m = max(1.0, glow * 13)    # medium glow: 1-13
     glow_l = max(1.0, glow * 25)    # large glow: 1-25
 
     if style == "mirror":
@@ -353,17 +356,13 @@ def generate_waveform_video(
     finally:
         # Clean up temp text files (also remove from atexit list)
         for tmp in (title_file_path, artist_file_path):
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(tmp)
-            except OSError:
-                pass
-            try:
+            with contextlib.suppress(ValueError):
                 _temp_files_to_cleanup.remove(tmp)
-            except ValueError:
-                pass
 
 
-def get_title_from_markdown(track_md_path: Path) -> Optional[str]:
+def get_title_from_markdown(track_md_path: Path) -> str | None:
     """Extract title from track markdown frontmatter."""
     try:
         content = track_md_path.read_text()
@@ -392,20 +391,20 @@ def batch_process_album(
     duration: int = DEFAULT_DURATION,
     style: str = "bars",
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None,
-    content_dir: Optional[Path] = None,
+    font_path: str | None = None,
+    content_dir: Path | None = None,
     jobs: int = 1,
     color_hex: str = "",
     glow: float = 0.6,
     text_color: str = "",
-):
+) -> None:
     """Process all audio files in an album directory."""
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Find audio files
-    audio_files = []
+    audio_files: list[Path] = []
     for ext in audio_extensions:
         audio_files.extend(album_dir.glob(f'*{ext}'))
 
@@ -419,7 +418,7 @@ def batch_process_album(
 
     sorted_audio = sorted(audio_files)
 
-    def _resolve_title(audio_file):
+    def _resolve_title(audio_file: Path) -> str:
         """Resolve track title from markdown or filename."""
         import re
         title = None
@@ -439,7 +438,7 @@ def batch_process_album(
             title = title.title()
         return title
 
-    def _process_one(audio_file):
+    def _process_one(audio_file: Path) -> tuple[str, str, bool]:
         """Generate promo video for a single track. Returns (name, success)."""
         title = _resolve_title(audio_file)
         output_file = output_dir / f"{audio_file.stem}_promo.mp4"
@@ -483,7 +482,7 @@ def batch_process_album(
                     logger.error("  [FAIL] %s", af.name)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Generate promo videos for social media ads',
         formatter_class=argparse.RawDescriptionHelpFormatter,

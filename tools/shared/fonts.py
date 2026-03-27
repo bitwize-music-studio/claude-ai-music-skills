@@ -1,10 +1,9 @@
 """System font discovery for video generation."""
 
 from pathlib import Path
-from typing import Optional
 
 
-def find_font() -> Optional[str]:
+def find_font() -> str | None:
     """Find an available system font for video text rendering."""
     font_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",

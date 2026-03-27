@@ -1,25 +1,34 @@
 """Core query tools — albums, tracks, sessions, config, search, paths."""
 
+from __future__ import annotations
+
 import logging
 import re
 from pathlib import Path
 from typing import Any
 
+from handlers import _shared
+from handlers._shared import (
+    _CODE_BLOCK_SECTIONS,
+    _MARKDOWN_LINK_RE,
+    _SECTION_NAMES,
+    ALBUM_COMPLETE,
+    ALBUM_CONCEPT,
+    ALBUM_RELEASED,
+    STATUS_UNKNOWN,
+    TRACK_COMPLETED_STATUSES,
+    TRACK_FINAL,
+    TRACK_GENERATED,
+    TRACK_IN_PROGRESS,
+    TRACK_NOT_STARTED,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_track_or_error,
+    _normalize_slug,
+    _safe_json,
+)
 from tools.state.indexer import write_state
 from tools.state.parsers import parse_track_file
-
-from handlers._shared import (
-    _normalize_slug, _safe_json, _extract_markdown_section, _extract_code_block,
-    _SECTION_NAMES, _CODE_BLOCK_SECTIONS,
-    _find_track_or_error,
-    TRACK_NOT_STARTED,
-    TRACK_IN_PROGRESS, TRACK_GENERATED, TRACK_FINAL,
-    TRACK_COMPLETED_STATUSES, STATUS_UNKNOWN,
-    ALBUM_CONCEPT,
-    ALBUM_COMPLETE, ALBUM_RELEASED,
-    _MARKDOWN_LINK_RE,
-)
-from handlers import _shared
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -45,7 +54,7 @@ _UPDATABLE_FIELDS = {
 # Helper functions
 # =============================================================================
 
-def _detect_phase(album: dict) -> str:
+def _detect_phase(album: dict[str, Any]) -> str:
     """Detect the current workflow phase for an album.
 
     Matches the decision tree from the resume skill.
@@ -433,7 +442,7 @@ async def search(query: str, scope: str = "all") -> str:
     """
     state = _shared.cache.get_state()
     query_lower = query.lower()
-    results: dict = {"query": query, "scope": scope}
+    results: dict[str, Any] = {"query": query, "scope": scope}
 
     if scope in ("all", "albums"):
         album_matches = []
@@ -783,6 +792,7 @@ async def extract_section(album_slug: str, track_slug: str, section: str) -> str
     matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
     if error:
         return error
+    assert track_data is not None
 
     track_path = track_data.get("path", "")
     if not track_path:
@@ -848,11 +858,13 @@ async def update_track_field(
         JSON with update result or error
     """
     # Lazy imports to avoid circular dependencies
-    from handlers.text_analysis import _load_artist_blocklist
     from handlers.gates import _check_pre_gen_gates_for_track
     from handlers.status import (
-        _VALID_TRACK_STATUSES, _CANONICAL_TRACK_STATUS, _validate_track_transition,
+        _CANONICAL_TRACK_STATUS,
+        _VALID_TRACK_STATUSES,
+        _validate_track_transition,
     )
+    from handlers.text_analysis import _load_artist_blocklist
 
     # Validate field
     field_key = field.lower().strip()
@@ -888,6 +900,7 @@ async def update_track_field(
     matched_slug, track_data, error = _find_track_or_error(tracks, track_slug, album_slug)
     if error:
         return error
+    assert track_data is not None
 
     # Validate status transition before any file I/O
     if field_key == "status":
@@ -1050,7 +1063,7 @@ async def get_album_progress(album_slug: str) -> str:
     track_count = len(tracks)
 
     # Count by status
-    status_counts = {}
+    status_counts: dict[str, int] = {}
     for track in tracks.values():
         s = track.get("status", STATUS_UNKNOWN)
         status_counts[s] = status_counts.get(s, 0) + 1
@@ -1086,7 +1099,7 @@ async def get_album_progress(album_slug: str) -> str:
 # Registration
 # =============================================================================
 
-def register(mcp):
+def register(mcp: Any) -> None:
     """Register core query tools with the MCP server."""
     mcp.tool()(find_album)
     mcp.tool()(list_albums)

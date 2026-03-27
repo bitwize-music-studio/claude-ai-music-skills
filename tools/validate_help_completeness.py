@@ -6,10 +6,11 @@ Cross-platform validation to ensure no skill is forgotten in documentation.
 Run this before committing changes that add new skills.
 """
 
+from __future__ import annotations
+
 import logging
 import sys
 from pathlib import Path
-from typing import List
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -29,7 +30,7 @@ GREEN = Colors.GREEN
 YELLOW = Colors.YELLOW
 NC = Colors.NC
 
-def get_all_skills(plugin_root: Path) -> List[str]:
+def get_all_skills(plugin_root: Path) -> list[str]:
     """Find all skills (directories under skills/ with SKILL.md)."""
     skills_dir = plugin_root / "skills"
     skills = []
@@ -42,7 +43,7 @@ def get_all_skills(plugin_root: Path) -> List[str]:
 
     return skills
 
-def check_claude_md(plugin_root: Path, skills: List[str]) -> List[str]:
+def check_claude_md(plugin_root: Path, skills: list[str]) -> list[str]:
     """Check which skills are missing from CLAUDE.md."""
     claude_file = plugin_root / "CLAUDE.md"
 
@@ -67,7 +68,7 @@ def check_claude_md(plugin_root: Path, skills: List[str]) -> List[str]:
 
     return missing
 
-def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
+def check_help_skill(plugin_root: Path, skills: list[str]) -> list[str]:
     """Check which skills are missing from skills/help/SKILL.md."""
     help_file = plugin_root / "skills" / "help" / "SKILL.md"
 
@@ -90,7 +91,7 @@ def check_help_skill(plugin_root: Path, skills: List[str]) -> List[str]:
 
     return missing
 
-def main():
+def main() -> int:
     setup_logging(__name__)
 
     logger.info("Validating skill documentation completeness...")
