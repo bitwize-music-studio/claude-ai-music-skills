@@ -6,6 +6,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.81.2] - 2026-03-27
+
+### Changed
+- **boto3** bumped 1.42.76 → 1.42.77
+
 ## [0.81.1] - 2026-03-27
 
 ### Fixed
