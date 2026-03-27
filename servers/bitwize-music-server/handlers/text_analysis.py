@@ -931,7 +931,7 @@ async def check_cross_track_repetition(
         "most_repeated_phrase": repeated_phrases[0] if repeated_phrases else None,
     }
 
-    result: dict[str, Any] = {
+    result = {
         "found": True,
         "album_slug": normalized_album,
         "track_count": tracks_analyzed,
