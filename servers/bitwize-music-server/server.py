@@ -447,6 +447,7 @@ from handlers.database import (  # noqa: F401
 from handlers.gates import (  # noqa: F401
     check_streaming_lyrics,
     run_pre_generation_gates,
+    run_pre_release_gates,
 )
 
 # Health tools

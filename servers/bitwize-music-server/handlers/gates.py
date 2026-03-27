@@ -10,12 +10,14 @@ from typing import Any
 from handlers import _shared
 from handlers import text_analysis as _text_analysis
 from handlers._shared import (
+    TRACK_FINAL,
     _SECTION_TAG_RE,
     _STREAMING_PLACEHOLDER_MARKERS,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _find_wav_source_dir,
     _safe_json,
 )
 
@@ -551,6 +553,257 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
 
 
 # =============================================================================
+# Pre-Release Gates
+# =============================================================================
+
+# Album art file patterns (mirrored from status.py to avoid cross-handler import)
+_ALBUM_ART_PATTERNS = [
+    "album.png", "album.jpg", "album-art.png", "album-art.jpg",
+    "artwork.png", "artwork.jpg", "cover.png", "cover.jpg",
+]
+
+
+def _check_pre_release_gates(
+    album: dict[str, Any],
+    normalized_slug: str,
+    audio_path: Path | None,
+) -> tuple[int, int, list[dict[str, Any]]]:
+    """Run pre-release gates on an album.
+
+    Returns (blocking_count, warning_count, gates_list).
+    """
+    gates: list[dict[str, Any]] = []
+    blocking = 0
+    warnings = 0
+    tracks = album.get("tracks", {})
+
+    # Gate 1: All Tracks Final
+    non_final = [
+        slug for slug, t in tracks.items()
+        if t.get("status") != TRACK_FINAL
+    ]
+    if non_final:
+        gates.append({
+            "gate": "All Tracks Final", "status": "FAIL", "severity": "BLOCKING",
+            "detail": f"{len(non_final)} track(s) not Final: {', '.join(sorted(non_final)[:5])}",
+        })
+        blocking += 1
+    else:
+        gates.append({
+            "gate": "All Tracks Final", "status": "PASS",
+            "detail": f"All {len(tracks)} track(s) are Final",
+        })
+
+    # Gate 2: Audio Files Exist
+    if audio_path is None:
+        gates.append({
+            "gate": "Audio Files Exist", "status": "FAIL", "severity": "BLOCKING",
+            "detail": "Audio directory not found — check config and album genre",
+        })
+        blocking += 1
+    else:
+        wav_dir = _find_wav_source_dir(audio_path)
+        wav_files = list(wav_dir.glob("*.wav"))
+        if not wav_files:
+            gates.append({
+                "gate": "Audio Files Exist", "status": "FAIL", "severity": "BLOCKING",
+                "detail": f"No WAV files in {wav_dir}",
+            })
+            blocking += 1
+        else:
+            gates.append({
+                "gate": "Audio Files Exist", "status": "PASS",
+                "detail": f"{len(wav_files)} WAV file(s) in {wav_dir.name}/",
+            })
+
+    # Gate 3: Mastered Audio Exists
+    if audio_path is None:
+        gates.append({
+            "gate": "Mastered Audio Exists", "status": "FAIL", "severity": "BLOCKING",
+            "detail": "Audio directory not found",
+        })
+        blocking += 1
+    else:
+        mastered_dir = audio_path / "mastered"
+        mastered_files = list(mastered_dir.glob("*.wav")) if mastered_dir.is_dir() else []
+        if not mastered_files:
+            gates.append({
+                "gate": "Mastered Audio Exists", "status": "FAIL", "severity": "BLOCKING",
+                "detail": "No mastered WAV files — run mastering-engineer first",
+            })
+            blocking += 1
+        else:
+            gates.append({
+                "gate": "Mastered Audio Exists", "status": "PASS",
+                "detail": f"{len(mastered_files)} mastered WAV file(s)",
+            })
+
+    # Gate 4: Album Art Exists
+    if audio_path is None:
+        gates.append({
+            "gate": "Album Art Exists", "status": "FAIL", "severity": "BLOCKING",
+            "detail": "Audio directory not found",
+        })
+        blocking += 1
+    else:
+        has_art = any((audio_path / p).exists() for p in _ALBUM_ART_PATTERNS)
+        if not has_art:
+            gates.append({
+                "gate": "Album Art Exists", "status": "FAIL", "severity": "BLOCKING",
+                "detail": f"No album art found in {audio_path} — expected one of: "
+                          + ", ".join(_ALBUM_ART_PATTERNS[:4]),
+            })
+            blocking += 1
+        else:
+            gates.append({
+                "gate": "Album Art Exists", "status": "PASS",
+                "detail": "Album art found",
+            })
+
+    # Gate 5: Streaming Lyrics Ready
+    streaming_issues: list[str] = []
+    for t_slug, t_data in sorted(tracks.items()):
+        track_path_str = t_data.get("path", "")
+        if not track_path_str:
+            streaming_issues.append(f"{t_slug}: no track path")
+            continue
+        try:
+            tfile = Path(track_path_str).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            streaming_issues.append(f"{t_slug}: cannot read track file")
+            continue
+        section = _extract_markdown_section(tfile, "Streaming Lyrics")
+        if not section:
+            streaming_issues.append(f"{t_slug}: missing section")
+            continue
+        block = _extract_code_block(section)
+        if not block or not block.strip():
+            streaming_issues.append(f"{t_slug}: empty")
+            continue
+        if any(m.lower() in block.lower() for m in _STREAMING_PLACEHOLDER_MARKERS):
+            streaming_issues.append(f"{t_slug}: placeholder content")
+
+    if streaming_issues:
+        gates.append({
+            "gate": "Streaming Lyrics Ready", "status": "FAIL", "severity": "BLOCKING",
+            "detail": f"{len(streaming_issues)} track(s) not ready: "
+                      + ", ".join(streaming_issues[:5]),
+        })
+        blocking += 1
+    else:
+        gates.append({
+            "gate": "Streaming Lyrics Ready", "status": "PASS",
+            "detail": f"All {len(tracks)} track(s) have streaming lyrics",
+        })
+
+    # Gate 6: Explicit Flag Consistency
+    album_explicit = album.get("explicit", False)
+    explicit_tracks = [
+        slug for slug, t in tracks.items()
+        if t.get("explicit") is True
+    ]
+    if explicit_tracks and not album_explicit:
+        gates.append({
+            "gate": "Explicit Flag Consistency", "status": "FAIL", "severity": "BLOCKING",
+            "detail": f"Album marked clean but {len(explicit_tracks)} track(s) are explicit: "
+                      + ", ".join(sorted(explicit_tracks)[:5])
+                      + " — set album explicit: true",
+        })
+        blocking += 1
+    elif not explicit_tracks and album_explicit:
+        gates.append({
+            "gate": "Explicit Flag Consistency", "status": "WARN", "severity": "WARNING",
+            "detail": "Album marked explicit but no tracks are flagged explicit — verify this is intentional",
+        })
+        warnings += 1
+    else:
+        label = "explicit" if album_explicit else "clean"
+        gates.append({
+            "gate": "Explicit Flag Consistency", "status": "PASS",
+            "detail": f"Album and tracks consistently {label}",
+        })
+
+    # Gate 7: Streaming URLs Set
+    streaming_urls = album.get("streaming_urls", {})
+    set_urls = {k: v for k, v in streaming_urls.items() if v}
+    if not set_urls:
+        gates.append({
+            "gate": "Streaming URLs Set", "status": "WARN", "severity": "WARNING",
+            "detail": "No streaming URLs set — add after platform uploads with update_streaming_url",
+        })
+        warnings += 1
+    else:
+        gates.append({
+            "gate": "Streaming URLs Set", "status": "PASS",
+            "detail": f"{len(set_urls)} platform(s) set: {', '.join(sorted(set_urls.keys()))}",
+        })
+
+    return blocking, warnings, gates
+
+
+async def run_pre_release_gates(album_slug: str) -> str:
+    """Run all 7 pre-release validation gates on an album.
+
+    Checks that an album is ready for release by verifying audio files,
+    mastering, artwork, streaming lyrics, and metadata consistency.
+
+    Gates:
+        1. All Tracks Final — every track must be at Final status
+        2. Audio Files Exist — WAV files present in audio directory
+        3. Mastered Audio Exists — mastered/ subdirectory has WAV files
+        4. Album Art Exists — album art file in audio directory
+        5. Streaming Lyrics Ready — all tracks have non-placeholder streaming lyrics
+        6. Explicit Flag Consistency — album explicit flag matches track flags
+        7. Streaming URLs Set — at least one streaming URL is populated
+
+    Gates 1-5 are BLOCKING (must pass before release).
+    Gate 6 is BLOCKING if album is clean but tracks are explicit, WARNING if reverse.
+    Gate 7 is WARNING only (URLs are typically added after upload).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+
+    Returns:
+        JSON with gate results and overall verdict
+    """
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+    assert album is not None
+
+    # Resolve audio directory
+    state = _shared.cache.get_state()
+    state_config = state.get("config", {})
+    audio_root = state_config.get("audio_root", "")
+    artist_name = state_config.get("artist_name", "")
+    genre = album.get("genre", "")
+
+    audio_path: Path | None = None
+    if audio_root and artist_name and genre:
+        candidate = Path(audio_root) / "artists" / artist_name / "albums" / genre / normalized
+        if candidate.is_dir():
+            audio_path = candidate
+
+    blocking, warnings, gates = _check_pre_release_gates(album, normalized, audio_path)
+
+    if blocking == 0 and warnings == 0:
+        verdict = "READY"
+    elif blocking == 0:
+        verdict = "READY (with warnings)"
+    else:
+        verdict = "NOT READY"
+
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "verdict": verdict,
+        "blocking": blocking,
+        "warnings": warnings,
+        "gates": gates,
+    })
+
+
+# =============================================================================
 # Registration
 # =============================================================================
 
@@ -558,3 +811,4 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
 def register(mcp: Any) -> None:
     mcp.tool()(run_pre_generation_gates)
     mcp.tool()(check_streaming_lyrics)
+    mcp.tool()(run_pre_release_gates)

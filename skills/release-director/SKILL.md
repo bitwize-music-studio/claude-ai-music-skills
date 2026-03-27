@@ -147,18 +147,34 @@ Check for custom release preferences:
 
 ### Step 2: Pre-Release QA
 
-**QA Domains**:
+**First**: Run the automated pre-release gates to catch blocking issues early:
+
+```
+run_pre_release_gates(album_slug)
+```
+
+This validates 7 gates:
+1. **All Tracks Final** — every track at Final status
+2. **Audio Files Exist** — WAV files in audio directory
+3. **Mastered Audio Exists** — mastered/ has WAV files
+4. **Album Art Exists** — art file in audio directory
+5. **Streaming Lyrics Ready** — all tracks have non-placeholder streaming lyrics
+6. **Explicit Flag Consistency** — album explicit flag matches track flags
+7. **Streaming URLs Set** — at least one platform URL populated (warning only)
+
+**If any BLOCKING gate fails**: resolve the issue before continuing. Do NOT proceed past this step with blocking failures.
+
+**Then** run manual QA across these domains:
 1. **Audio Quality** - Files play, no corruption, consistent loudness
 2. **Metadata Completeness** - All album/track info filled
 3. **Source Verification** - If source-based, all verified
 4. **Lyrics Accuracy** - Match source material, pronunciation checked
-5. **Artwork Quality** - Resolution, format, specs met
+5. **Artwork Quality** - Resolution, format, specs met (3000x3000px)
 6. **File Organization** - Correct structure, naming conventions
 7. **Documentation** - README complete, generation logs filled
-8. **Explicit Content** - Flagged correctly
-9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
+8. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
 
-**QA Gate**: All checks must pass before proceeding
+**QA Gate**: All automated gates and manual checks must pass before proceeding
 
 ### Step 3: Distribution Prep
 
