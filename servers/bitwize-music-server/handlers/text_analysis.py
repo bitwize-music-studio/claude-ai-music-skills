@@ -784,6 +784,8 @@ async def get_lyrics_stats(
 async def check_cross_track_repetition(
     album_slug: str,
     min_tracks: int = 3,
+    summary_only: bool = False,
+    max_results: int = 0,
 ) -> str:
     """Scan all tracks in an album for words/phrases repeated across multiple tracks.
 
@@ -795,6 +797,12 @@ async def check_cross_track_repetition(
         album_slug: Album slug (e.g., "my-album")
         min_tracks: Minimum number of tracks a word/phrase must appear in
                     to be flagged (default 3, floor 2)
+        summary_only: When True, return only the summary block (counts +
+                     most-repeated items), skip repeated_words and
+                     repeated_phrases arrays (default False)
+        max_results: Maximum number of items in repeated_words and
+                    repeated_phrases arrays (0 = all, default).
+                    Summary totals always reflect untruncated counts.
 
     Returns:
         JSON with flagged words, phrases, and summary stats
@@ -810,20 +818,24 @@ async def check_cross_track_repetition(
 
     all_tracks = album.get("tracks", {})
     if not all_tracks:
-        return _safe_json({
+        empty_summary = {
+            "flagged_words": 0,
+            "flagged_phrases": 0,
+            "most_repeated_word": None,
+            "most_repeated_phrase": None,
+        }
+        result: dict[str, Any] = {
             "found": True,
             "album_slug": normalized_album,
             "track_count": 0,
             "min_tracks_threshold": min_tracks,
-            "repeated_words": [],
-            "repeated_phrases": [],
-            "summary": {
-                "flagged_words": 0,
-                "flagged_phrases": 0,
-                "most_repeated_word": None,
-                "most_repeated_phrase": None,
-            },
-        })
+            "summary": empty_summary,
+        }
+        if not summary_only:
+            result["repeated_words"] = []
+            result["repeated_phrases"] = []
+            result["truncated"] = False
+        return _safe_json(result)
 
     # Per-track word and phrase sets, plus occurrence counts
     # word -> set of track slugs where it appears
@@ -911,6 +923,7 @@ async def check_cross_track_repetition(
     repeated_words.sort(key=lambda x: (-x["track_count"], x["word"]))
     repeated_phrases.sort(key=lambda x: (-x["track_count"], x["phrase"]))
 
+    # Summary always reflects untruncated totals
     summary = {
         "flagged_words": len(repeated_words),
         "flagged_phrases": len(repeated_phrases),
@@ -918,15 +931,26 @@ async def check_cross_track_repetition(
         "most_repeated_phrase": repeated_phrases[0] if repeated_phrases else None,
     }
 
-    return _safe_json({
+    result = {
         "found": True,
         "album_slug": normalized_album,
         "track_count": tracks_analyzed,
         "min_tracks_threshold": min_tracks,
-        "repeated_words": repeated_words,
-        "repeated_phrases": repeated_phrases,
         "summary": summary,
-    })
+    }
+
+    if not summary_only:
+        # Apply max_results truncation (summary totals remain untruncated)
+        words_out = repeated_words[:max_results] if max_results > 0 else repeated_words
+        phrases_out = repeated_phrases[:max_results] if max_results > 0 else repeated_phrases
+        result["repeated_words"] = words_out
+        result["repeated_phrases"] = phrases_out
+        result["truncated"] = (
+            max_results > 0
+            and (len(repeated_words) > max_results or len(repeated_phrases) > max_results)
+        )
+
+    return _safe_json(result)
 
 
 def register(mcp: Any) -> None:

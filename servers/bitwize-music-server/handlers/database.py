@@ -149,6 +149,8 @@ async def db_list_tweets(
     posted: str = "",
     enabled: str = "",
     platform: str = "",
+    limit: int = 50,
+    offset: int = 0,
 ) -> str:
     """List tweets with optional filtering by album, posted/enabled status, or platform.
 
@@ -158,9 +160,11 @@ async def db_list_tweets(
         enabled: Filter by enabled status ("true", "false", or empty for all)
         platform: Filter by platform ("twitter", "instagram", "tiktok",
                   "facebook", "youtube", or empty for all)
+        limit: Maximum rows to return (default 50, 0 = all)
+        offset: Skip first N results (default 0)
 
     Returns:
-        JSON with tweets list and count
+        JSON with tweets list, total count, and pagination metadata
     """
     dep_err = _check_db_deps()
     if dep_err:
@@ -174,7 +178,39 @@ async def db_list_tweets(
         import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        query = """
+        where = "WHERE 1=1"
+        params: list[Any] = []
+
+        if album_slug:
+            where += " AND a.slug = %s"
+            params.append(_normalize_slug(album_slug))
+
+        if posted.lower() in ("true", "false"):
+            where += " AND t.posted = %s"
+            params.append(posted.lower() == "true")
+
+        if enabled.lower() in ("true", "false"):
+            where += " AND t.enabled = %s"
+            params.append(enabled.lower() == "true")
+
+        if platform:
+            where += " AND t.platform = %s"
+            params.append(platform.lower())
+
+        # Total count (before pagination)
+        # nosec B608 — where clause built from hardcoded strings, values via %s params
+        count_sql = f"""
+            SELECT COUNT(*) as total
+            FROM tweets t
+            JOIN albums a ON t.album_id = a.id
+            LEFT JOIN tracks tr ON t.track_id = tr.id
+            {where}
+        """  # nosec B608
+        cur.execute(count_sql, params)
+        total = cur.fetchone()["total"]
+
+        # Data query with pagination
+        query = f"""
             SELECT t.id, t.tweet_text, t.platform, t.content_type,
                    t.media_path, t.posted, t.enabled, t.times_posted,
                    t.created_at, t.posted_at,
@@ -183,27 +219,17 @@ async def db_list_tweets(
             FROM tweets t
             JOIN albums a ON t.album_id = a.id
             LEFT JOIN tracks tr ON t.track_id = tr.id
-            WHERE 1=1
-        """
-        params: list[Any] = []
+            {where}
+            ORDER BY a.slug, t.id
+        """  # nosec B608
 
-        if album_slug:
-            query += " AND a.slug = %s"
-            params.append(_normalize_slug(album_slug))
+        if offset > 0:
+            query += " OFFSET %s"
+            params.append(offset)
 
-        if posted.lower() in ("true", "false"):
-            query += " AND t.posted = %s"
-            params.append(posted.lower() == "true")
-
-        if enabled.lower() in ("true", "false"):
-            query += " AND t.enabled = %s"
-            params.append(enabled.lower() == "true")
-
-        if platform:
-            query += " AND t.platform = %s"
-            params.append(platform.lower())
-
-        query += " ORDER BY a.slug, t.id"
+        if limit > 0:
+            query += " LIMIT %s"
+            params.append(limit)
 
         cur.execute(query, params)
         rows = cur.fetchall()
@@ -227,7 +253,14 @@ async def db_list_tweets(
                 "track_title": row["track_title"],
             })
 
-        return _safe_json({"tweets": tweets, "count": len(tweets)})
+        effective_limit = limit if limit > 0 else total
+        return _safe_json({
+            "tweets": tweets,
+            "total": total,
+            "offset": offset,
+            "limit": effective_limit,
+            "has_more": (offset + len(tweets)) < total,
+        })
     except Exception as e:
         return _safe_json({"error": f"Query failed: {e}"})
     finally:
@@ -477,6 +510,8 @@ async def db_search_tweets(
     query: str,
     album_slug: str = "",
     platform: str = "",
+    limit: int = 50,
+    offset: int = 0,
 ) -> str:
     """Search post text with optional album and platform filters.
 
@@ -486,9 +521,11 @@ async def db_search_tweets(
         query: Search text (case-insensitive)
         album_slug: Optional album slug to narrow search
         platform: Optional platform filter ("twitter", "instagram", etc.)
+        limit: Maximum rows to return (default 50, 0 = all)
+        offset: Skip first N results (default 0)
 
     Returns:
-        JSON with matching posts and count
+        JSON with matching posts, total count, and pagination metadata
     """
     dep_err = _check_db_deps()
     if dep_err:
@@ -505,7 +542,31 @@ async def db_search_tweets(
         import psycopg2.extras
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        sql = """
+        where = "WHERE t.tweet_text ILIKE %s"
+        params: list[Any] = [f"%{query}%"]
+
+        if album_slug:
+            where += " AND a.slug = %s"
+            params.append(_normalize_slug(album_slug))
+
+        if platform:
+            where += " AND t.platform = %s"
+            params.append(platform.lower())
+
+        # Total count (before pagination)
+        # nosec B608 — where clause built from hardcoded strings, values via %s params
+        count_sql = f"""
+            SELECT COUNT(*) as total
+            FROM tweets t
+            JOIN albums a ON t.album_id = a.id
+            LEFT JOIN tracks tr ON t.track_id = tr.id
+            {where}
+        """  # nosec B608
+        cur.execute(count_sql, params)
+        total = cur.fetchone()["total"]
+
+        # Data query with pagination
+        sql = f"""
             SELECT t.id, t.tweet_text, t.platform, t.content_type,
                    t.posted, t.enabled, t.times_posted,
                    t.created_at, t.posted_at,
@@ -514,19 +575,17 @@ async def db_search_tweets(
             FROM tweets t
             JOIN albums a ON t.album_id = a.id
             LEFT JOIN tracks tr ON t.track_id = tr.id
-            WHERE t.tweet_text ILIKE %s
-        """
-        params = [f"%{query}%"]
+            {where}
+            ORDER BY a.slug, t.id
+        """  # nosec B608
 
-        if album_slug:
-            sql += " AND a.slug = %s"
-            params.append(_normalize_slug(album_slug))
+        if offset > 0:
+            sql += " OFFSET %s"
+            params.append(offset)
 
-        if platform:
-            sql += " AND t.platform = %s"
-            params.append(platform.lower())
-
-        sql += " ORDER BY a.slug, t.id"
+        if limit > 0:
+            sql += " LIMIT %s"
+            params.append(limit)
 
         cur.execute(sql, params)
         rows = cur.fetchall()
@@ -549,7 +608,15 @@ async def db_search_tweets(
                 "track_title": row["track_title"],
             })
 
-        return _safe_json({"query": query, "tweets": tweets, "count": len(tweets)})
+        effective_limit = limit if limit > 0 else total
+        return _safe_json({
+            "query": query,
+            "tweets": tweets,
+            "total": total,
+            "offset": offset,
+            "limit": effective_limit,
+            "has_more": (offset + len(tweets)) < total,
+        })
     except Exception as e:
         return _safe_json({"error": f"Search failed: {e}"})
     finally:

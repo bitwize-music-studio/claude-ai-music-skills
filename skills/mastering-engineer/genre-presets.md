@@ -102,6 +102,34 @@ Detailed mastering settings by genre.
 - Natural room sound
 - Uncompressed peaks
 
+### Soundtrack / Film Theme Songs
+**LUFS target**: -14 LUFS (power ballads: -13 LUFS; intimate film ballads: -15 LUFS)
+**Dynamics**: Moderate compression — vocal always intelligible and forward; preserve dynamic arc from quiet verse to full-belt chorus; avoid over-compressing orchestral builds
+**EQ focus**: Vocal presence (2-5 kHz), orchestral warmth (200-600 Hz), gentle high-mid cut to control brass brightness without losing sparkle
+**MCP command**: `master_audio(album_slug, genre="soundtrack")`
+
+**Characteristics**:
+- Voice absolutely upfront — this is a song, not underscore; lyrics must be heard
+- Power ballads (-13 LUFS) compete with mainstream pop — aggressive but controlled limiting
+- Bond-style themes: wide dynamic range, brass transients need headroom, tremolo guitar clarity at 2-4 kHz
+- Disco soundtracks: punchy kick at 60-80 Hz, four-on-the-floor energy; treat like Funk at -14 LUFS
+- Intimate Golden Age ballads (-15 LUFS): preserve natural room acoustic, minimal processing
+- Needle drops use their original mastering — no remastering needed for compilation context
+
+### Musicals / Musical Theater
+**LUFS target**: -16 LUFS (contemporary rock musicals: -14 LUFS)
+**Dynamics**: Wide dynamic range preserved — intimate ballads must stay quiet, showstoppers can soar; avoid over-compression that flattens the emotional arc
+**EQ focus**: Vocal intelligibility (1-4 kHz), pit orchestra warmth (200-600 Hz), gentle high-mid cut to tame bright Suno-generated brass
+**MCP command**: `master_audio(album_slug, genre="musicals")`
+
+**Characteristics**:
+- Voice always upfront and intelligible — lyrics carry the drama
+- Wide dynamic swing between ballad passages and full-company numbers
+- Pit orchestra body in 200-600 Hz range needs warmth without muddiness
+- Brass and strings must coexist without harshness above 4 kHz
+- Contemporary/rock musicals (Hamilton style) can push to -14 LUFS with more compression
+- Cast album aesthetic: theatrical room ambience preserved, not over-dried
+
 ### Schlager
 **LUFS target**: -12 to -14 LUFS
 **Dynamics**: Moderate-to-heavy compression, radio-ready loudness

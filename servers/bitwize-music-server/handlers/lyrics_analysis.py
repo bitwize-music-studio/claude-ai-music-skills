@@ -195,7 +195,11 @@ def _extract_distinctive_ngrams(
     return results
 
 
-async def extract_distinctive_phrases(text: str) -> str:
+async def extract_distinctive_phrases(
+    text: str,
+    max_phrases: int = 0,
+    include_raw_lines: bool = True,
+) -> str:
     """Extract distinctive phrases from lyrics for plagiarism checking.
 
     Takes raw lyrics text, extracts 4-7 word n-grams with section awareness,
@@ -205,15 +209,19 @@ async def extract_distinctive_phrases(text: str) -> str:
 
     Args:
         text: Lyrics text to scan (with [Section] tags)
+        max_phrases: Maximum number of phrases to return (0 = all, default)
+        include_raw_lines: Include raw_line field in each phrase entry
+                          (default True; set False to reduce payload size)
 
     Returns:
-        JSON with {phrases: [...], total_phrases: int,
+        JSON with {phrases: [...], total_phrases: int, truncated: bool,
                    sections_found: [...], search_suggestions: [...]}
     """
     if not text or not text.strip():
         return _safe_json({
             "phrases": [],
             "total_phrases": 0,
+            "truncated": False,
             "sections_found": [],
             "search_suggestions": [],
         })
@@ -231,16 +239,22 @@ async def extract_distinctive_phrases(text: str) -> str:
     })
 
     # Build phrases list
+    total_phrases = len(ngrams)
+    truncated = max_phrases > 0 and total_phrases > max_phrases
+    output_ngrams = ngrams[:max_phrases] if max_phrases > 0 else ngrams
+
     phrases = []
-    for ng in ngrams:
-        phrases.append({
+    for ng in output_ngrams:
+        entry: dict[str, Any] = {
             "phrase": ng["phrase"],
             "word_count": ng["word_count"],
             "section": ng["section"],
             "line_number": ng["line_number"],
-            "raw_line": ng["raw_line"],
             "priority": ng["priority"],
-        })
+        }
+        if include_raw_lines:
+            entry["raw_line"] = ng["raw_line"]
+        phrases.append(entry)
 
     # Build search suggestions — top 15, formatted for WebSearch
     search_suggestions = []
@@ -253,7 +267,8 @@ async def extract_distinctive_phrases(text: str) -> str:
 
     return _safe_json({
         "phrases": phrases,
-        "total_phrases": len(phrases),
+        "total_phrases": total_phrases,
+        "truncated": truncated,
         "sections_found": sections_found,
         "search_suggestions": search_suggestions,
     })
