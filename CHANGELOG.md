@@ -6,6 +6,10 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Musicals genre** — integrated theatrical form from Golden Age Broadway (Rodgers & Hammerstein) to contemporary hip-hop musicals (Hamilton); 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
+- **Soundtrack genre** — vocal songs and curated compilations for film/TV, distinct from instrumental Cinematic scoring; covers Bond themes, disco soundtracks, needle drops, animated features, and power ballads; 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
+
 ## [0.81.2] - 2026-03-27
 
 ### Changed
