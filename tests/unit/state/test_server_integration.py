@@ -2630,7 +2630,7 @@ class TestWorkflowMultiFieldAtomicity:
         assert r2["success"] is True
 
         # Read back — both changes should be present
-        track = json.loads(_run(server.get_track(
+        json.loads(_run(server.get_track(
             "integration-test-album", "03-third-track"
         )))
         # The file should have both values updated

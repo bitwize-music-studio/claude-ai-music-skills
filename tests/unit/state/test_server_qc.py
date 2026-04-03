@@ -1324,7 +1324,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
-            result = json.loads(_run(server.master_album("test-album")))
+            json.loads(_run(server.master_album("test-album")))
 
         assert len(captured_kwargs) == 1
         assert captured_kwargs[0]["fade_out"] == 3.0

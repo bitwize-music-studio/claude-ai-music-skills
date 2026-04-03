@@ -4780,7 +4780,6 @@ class TestSunoLinkFinalGate:
     def _make_cache_with_track(self, tmp_path, has_suno_link=False):
         """Create a mock cache with a Generated track."""
         track_file = tmp_path / "01-test-track.md"
-        suno_link_value = "https://suno.com/song/abc123" if has_suno_link else "—"
         track_file.write_text(_TRACK_ALL_GATES_PASS.replace(
             "| **Status** | In Progress |", "| **Status** | Generated |"
         ))
@@ -6188,7 +6187,7 @@ class TestCreateTrack:
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
-            result = json.loads(_run(server.create_track("test-album", "07", "My Track")))
+            json.loads(_run(server.create_track("test-album", "07", "My Track")))
         content = (tracks_dir / "07-my-track.md").read_text()
         assert "# My Track" in content
         assert "| **Track #** | 07 |" in content
@@ -6332,7 +6331,7 @@ class TestCreateTrack:
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
-            result = json.loads(_run(server.create_track("test-album", "01", "Track")))
+            json.loads(_run(server.create_track("test-album", "01", "Track")))
         content = (tracks_dir / "01-track.md").read_text()
         assert "## Source" not in content
         assert "## Concept" in content
@@ -7177,7 +7176,7 @@ class TestCreateIdea:
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
         with patch.object(_shared_mod, "cache", mock_cache):
-            result = json.loads(_run(server.create_idea("Typed Idea", idea_type="Narrative")))
+            json.loads(_run(server.create_idea("Typed Idea", idea_type="Narrative")))
         text = (content_root / "IDEAS.md").read_text()
         assert "**Type**: Narrative" in text
 
@@ -8374,7 +8373,7 @@ class TestCreateTrackAlbumLink:
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
-            result = json.loads(_run(server.create_track("test-album", "01", "Song")))
+            json.loads(_run(server.create_track("test-album", "01", "Song")))
 
         content = (tracks_dir / "01-song.md").read_text()
         assert "[The Album (Deluxe)](../README.md)" in content
@@ -9695,8 +9694,6 @@ class TestMasterAlbumStage7TransitionLogic:
                 "mtime": 1234567890.0,
             },
         }
-        mock_cache = MockStateCache(state)
-
         # Can't call master_album directly (needs audio processing),
         # so verify the transition maps match Stage 7 logic
         err_generated = server._validate_track_transition("Generated", "Final")
@@ -11859,7 +11856,7 @@ class TestMasterAudioComprehensive:
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
-            result = json.loads(_run(server.master_audio("test-album")))
+            json.loads(_run(server.master_audio("test-album")))
 
         assert (audio_dir / "mastered").is_dir()
 
@@ -11938,7 +11935,7 @@ class TestMasterAudioComprehensive:
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
-            result = json.loads(_run(server.master_audio(
+            json.loads(_run(server.master_audio(
                 "test-album", cut_highmid=-2.0, cut_highs=-1.5
             )))
 
@@ -12373,7 +12370,7 @@ class TestPrepareSinglesComprehensive:
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
-            result = json.loads(_run(server.prepare_singles("test-album", dry_run=True)))
+            json.loads(_run(server.prepare_singles("test-album", dry_run=True)))
 
         # dry_run=True should be passed to prepare_singles
         call_kwargs = mock_mod.prepare_singles.call_args
@@ -13679,7 +13676,7 @@ class TestTranscribeAudioFlow:
             mock_mod.transcribe_track.side_effect = fake_transcribe
             mock_import.return_value = mock_mod
 
-            result = json.loads(_run(server.transcribe_audio(
+            json.loads(_run(server.transcribe_audio(
                 album_slug="test-album",
                 formats="pdf",
                 dry_run=False,

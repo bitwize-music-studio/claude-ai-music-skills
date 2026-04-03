@@ -1392,12 +1392,12 @@ class TestMixTrackFull:
 
     def test_with_genre_preset(self, noise_wav, output_path):
         """Genre preset should be applied."""
-        result = mix_track_full(noise_wav, output_path, genre='hip-hop')
+        mix_track_full(noise_wav, output_path, genre='hip-hop')
         assert Path(output_path).exists()
 
     def test_mono_input(self, mono_wav, output_path):
         """Mono input should produce mono output."""
-        result = mix_track_full(mono_wav, output_path)
+        mix_track_full(mono_wav, output_path)
         data, _ = sf.read(output_path)
         assert len(data.shape) == 1  # Mono output for mono input
 
