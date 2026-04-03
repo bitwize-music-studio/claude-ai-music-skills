@@ -6,9 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-04-03
+
 ### Added
 - **Musicals genre** — integrated theatrical form from Golden Age Broadway (Rodgers & Hammerstein) to contemporary hip-hop musicals (Hamilton); 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
 - **Soundtrack genre** — vocal songs and curated compilations for film/TV, distinct from instrumental Cinematic scoring; covers Bond themes, disco soundtracks, needle drops, animated features, and power ballads; 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
+- **Database query pagination** — `db_list_tweets` and `db_search_tweets` support `limit`/`offset` parameters ([#114](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/114))
+- **MCP payload pagination** — summary modes and top-N limiting for large-payload MCP tools ([#113](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/113))
 
 ## [0.81.2] - 2026-03-27
 
