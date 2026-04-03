@@ -89,6 +89,7 @@ server = _import_server()
 # Handler modules for mock targeting (attributes moved from server.py during modularization)
 from handlers import text_analysis as _text_analysis_mod
 from handlers import processing as _processing_mod
+from handlers.processing import _helpers as _processing_helpers
 from handlers import status as _status_mod
 from handlers import health as _health_mod
 from handlers import ideas as _ideas_mod
@@ -10946,7 +10947,7 @@ class TestDepCheckers:
 
     def test_check_mastering_deps_returns_none_when_available(self):
         # These deps are installed in the test environment
-        result = _processing_mod._check_mastering_deps()
+        result = _processing_helpers._check_mastering_deps()
         # May or may not be installed, just verify return type
         assert result is None or isinstance(result, str)
 
@@ -10959,26 +10960,26 @@ class TestDepCheckers:
                     raise ImportError("mocked")
                 return original_import(name, *args, **kwargs)
             with patch("builtins.__import__", side_effect=mock_import):
-                result = _processing_mod._check_mastering_deps()
+                result = _processing_helpers._check_mastering_deps()
             if result is not None:
                 assert "numpy" in result
 
     def test_check_ffmpeg_returns_string_type(self):
-        result = _processing_mod._check_ffmpeg()
+        result = _processing_helpers._check_ffmpeg()
         assert result is None or isinstance(result, str)
 
     def test_check_ffmpeg_when_missing(self):
         with patch.object(shutil, "which", return_value=None):
-            result = _processing_mod._check_ffmpeg()
+            result = _processing_helpers._check_ffmpeg()
         assert result is not None
         assert "ffmpeg" in result
 
     def test_check_matchering_returns_string_type(self):
-        result = _processing_mod._check_matchering()
+        result = _processing_helpers._check_matchering()
         assert result is None or isinstance(result, str)
 
     def test_check_songbook_deps_returns_string_type(self):
-        result = _processing_mod._check_songbook_deps()
+        result = _processing_helpers._check_songbook_deps()
         assert result is None or isinstance(result, str)
 
 
@@ -10991,7 +10992,7 @@ class TestAnalyzeAudio:
     """Tests for the analyze_audio MCP tool."""
 
     def test_missing_deps_returns_error(self):
-        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_helpers, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
         assert "Missing deps" in result["error"]
@@ -11001,7 +11002,7 @@ class TestAnalyzeAudio:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
 
@@ -11013,7 +11014,7 @@ class TestAnalyzeAudio:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.analyze_audio("test-album")))
         assert "error" in result
         assert "No WAV" in result["error"]
@@ -11042,7 +11043,7 @@ class TestAnalyzeAudio:
         }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11070,7 +11071,7 @@ class TestAnalyzeAudio:
         }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", return_value=mock_result):
             result = json.loads(_run(server.analyze_audio("test-album", subfolder="mastered")))
         assert "tracks" in result
@@ -11085,7 +11086,7 @@ class TestMasterAudio:
     """Tests for the master_audio MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_helpers, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -11094,7 +11095,7 @@ class TestMasterAudio:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -11106,7 +11107,7 @@ class TestMasterAudio:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album")))
         assert "error" in result
 
@@ -11119,7 +11120,7 @@ class TestMasterAudio:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_audio("test-album", genre="nonexistent-genre")))
         assert "error" in result
         assert "Unknown genre" in result["error"]
@@ -11138,7 +11139,7 @@ class TestMasterAudio:
         mock_data.shape = (44100, 2)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data, 44100)), \
              patch("pyloudnorm.Meter") as mock_meter_cls:
             mock_meter = MagicMock()
@@ -11168,7 +11169,7 @@ class TestMasterAudio:
         }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", return_value=mock_master_result), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11187,7 +11188,7 @@ class TestFixDynamicTrack:
     """Tests for the fix_dynamic_track MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_helpers, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
         assert "error" in result
 
@@ -11196,7 +11197,7 @@ class TestFixDynamicTrack:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "01-test.wav")))
         assert "error" in result
 
@@ -11208,7 +11209,7 @@ class TestFixDynamicTrack:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.fix_dynamic_track("test-album", "nonexistent.wav")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11223,7 +11224,7 @@ class TestMasterWithReference:
     """Tests for the master_with_reference MCP tool."""
 
     def test_missing_matchering(self):
-        with patch.object(_processing_mod, "_check_matchering", return_value="matchering not installed"):
+        with patch.object(_processing_helpers, "_check_matchering", return_value="matchering not installed"):
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "error" in result
         assert "matchering" in result["error"]
@@ -11236,7 +11237,7 @@ class TestMasterWithReference:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None):
+             patch.object(_processing_helpers, "_check_matchering", return_value=None):
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11258,7 +11259,7 @@ class TestMasterWithReference:
         mock_cache = MockStateCache(state)
         mod_patch, _ = self._patch_ref_master()
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "nonexistent.wav"
@@ -11278,7 +11279,7 @@ class TestMasterWithReference:
 
         mod_patch, _ = self._patch_ref_master()
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "01-track.wav"
@@ -11300,7 +11301,7 @@ class TestMasterWithReference:
 
         mod_patch, _ = self._patch_ref_master()
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
         assert "tracks" in result
@@ -11317,7 +11318,7 @@ class TestTranscribeAudio:
     """Tests for the transcribe_audio MCP tool."""
 
     def test_missing_anthemscore(self):
-        with patch.object(_processing_mod, "_check_anthemscore", return_value="AnthemScore not found"):
+        with patch.object(_processing_helpers, "_check_anthemscore", return_value="AnthemScore not found"):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
         assert "AnthemScore" in result["error"]
@@ -11327,7 +11328,7 @@ class TestTranscribeAudio:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
 
@@ -11344,8 +11345,8 @@ class TestTranscribeAudio:
         mock_mod.transcribe_track.return_value = True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
         assert "error" in result
         assert "No WAV" in result["error"]
@@ -11362,8 +11363,8 @@ class TestTranscribeAudio:
         mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", track_filename="nonexistent.wav"
             )))
@@ -11413,7 +11414,7 @@ class TestPrepareSingles:
         mock_mod.find_musescore.return_value = None
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "error" in result
 
@@ -11446,7 +11447,7 @@ class TestPrepareSingles:
             return MagicMock()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=_mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=_mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
         assert "tracks" in result
         assert result["track_count"] == 1
@@ -11461,7 +11462,7 @@ class TestCreateSongbook:
     """Tests for the create_songbook MCP tool."""
 
     def test_missing_deps(self):
-        with patch.object(_processing_mod, "_check_songbook_deps", return_value="Missing pypdf"):
+        with patch.object(_processing_helpers, "_check_songbook_deps", return_value="Missing pypdf"):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
         assert "pypdf" in result["error"]
@@ -11471,7 +11472,7 @@ class TestCreateSongbook:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
 
@@ -11483,7 +11484,7 @@ class TestCreateSongbook:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -11498,7 +11499,7 @@ class TestGeneratePromoVideos:
     """Tests for the generate_promo_videos MCP tool."""
 
     def test_missing_ffmpeg(self):
-        with patch.object(_processing_mod, "_check_ffmpeg", return_value="ffmpeg not found"):
+        with patch.object(_processing_helpers, "_check_ffmpeg", return_value="ffmpeg not found"):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
         assert "ffmpeg" in result["error"]
@@ -11508,7 +11509,7 @@ class TestGeneratePromoVideos:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
 
@@ -11520,7 +11521,7 @@ class TestGeneratePromoVideos:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos("test-album")))
         assert "error" in result
         assert "artwork" in result["error"].lower()
@@ -11534,7 +11535,7 @@ class TestGeneratePromoVideos:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_promo_videos(
                 "test-album", track_filename="nonexistent.wav"
             )))
@@ -11569,7 +11570,7 @@ class TestGeneratePromoVideos:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -11591,7 +11592,7 @@ class TestGenerateAlbumSampler:
     """Tests for the generate_album_sampler MCP tool."""
 
     def test_missing_ffmpeg(self):
-        with patch.object(_processing_mod, "_check_ffmpeg", return_value="ffmpeg not found"):
+        with patch.object(_processing_helpers, "_check_ffmpeg", return_value="ffmpeg not found"):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
 
@@ -11600,7 +11601,7 @@ class TestGenerateAlbumSampler:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
 
@@ -11612,7 +11613,7 @@ class TestGenerateAlbumSampler:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None):
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
         assert "artwork" in result["error"].lower()
@@ -11628,7 +11629,7 @@ class TestGenerateAlbumSampler:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler", return_value=False):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
         assert "error" in result
@@ -11644,13 +11645,13 @@ class TestImportSheetMusicModule:
 
     def test_imports_existing_module(self):
         """Should import transcribe.py from tools/sheet-music/."""
-        mod = _processing_mod._import_sheet_music_module("transcribe")
+        mod = _processing_helpers._import_sheet_music_module("transcribe")
         assert hasattr(mod, "find_anthemscore")
         assert hasattr(mod, "transcribe_track")
 
     def test_imports_prepare_singles(self):
         """Should import prepare_singles.py from tools/sheet-music/."""
-        mod = _processing_mod._import_sheet_music_module("prepare_singles")
+        mod = _processing_helpers._import_sheet_music_module("prepare_singles")
         assert hasattr(mod, "prepare_singles")
         assert hasattr(mod, "find_musescore")
 
@@ -11665,16 +11666,16 @@ class TestImportSheetMusicModule:
                 mods_to_mock[mod_name] = MagicMock()
         if mods_to_mock:
             with patch.dict("sys.modules", mods_to_mock):
-                mod = _processing_mod._import_sheet_music_module("create_songbook")
+                mod = _processing_helpers._import_sheet_music_module("create_songbook")
         else:
-            mod = _processing_mod._import_sheet_music_module("create_songbook")
+            mod = _processing_helpers._import_sheet_music_module("create_songbook")
         assert hasattr(mod, "create_songbook")
         assert hasattr(mod, "auto_detect_cover_art")
 
     def test_nonexistent_module_raises(self):
         """Should raise on a module that doesn't exist."""
         with pytest.raises(Exception):
-            _processing_mod._import_sheet_music_module("nonexistent_module")
+            _processing_helpers._import_sheet_music_module("nonexistent_module")
 
 
 # =============================================================================
@@ -11724,7 +11725,7 @@ class TestAnalyzeAudioComprehensive:
             return self._mock_result(name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11743,7 +11744,7 @@ class TestAnalyzeAudioComprehensive:
             return self._mock_result(name, tinniness=tinniness)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11760,7 +11761,7 @@ class TestAnalyzeAudioComprehensive:
             return self._mock_result(Path(filepath).name, lufs=-20.0)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11782,7 +11783,7 @@ class TestAnalyzeAudioComprehensive:
             return self._mock_result(Path(filepath).name, lufs=lufs)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11799,7 +11800,7 @@ class TestAnalyzeAudioComprehensive:
             return self._mock_result(Path(filepath).name, lufs=-14.0, tinniness=0.2)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
             result = json.loads(_run(server.analyze_audio("test-album")))
 
@@ -11833,7 +11834,7 @@ class TestMasterAudioComprehensive:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11855,7 +11856,7 @@ class TestMasterAudioComprehensive:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11881,7 +11882,7 @@ class TestMasterAudioComprehensive:
         presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
             result = json.loads(_run(server.master_audio("test-album", genre="hip-hop")))
@@ -11907,7 +11908,7 @@ class TestMasterAudioComprehensive:
         presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets):
             result = json.loads(_run(server.master_audio(
@@ -11934,7 +11935,7 @@ class TestMasterAudioComprehensive:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio(
@@ -11966,7 +11967,7 @@ class TestMasterAudioComprehensive:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -11993,7 +11994,7 @@ class TestMasterAudioComprehensive:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_audio("test-album")))
@@ -12020,7 +12021,7 @@ class TestFixDynamicTrackComprehensive:
         mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
              patch("soundfile.write") as mock_write, \
              patch("pyloudnorm.Meter") as mock_meter_cls:
@@ -12052,7 +12053,7 @@ class TestFixDynamicTrackComprehensive:
         mock_data = np.random.randn(44100, 2).astype(np.float32) * 0.5
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("soundfile.read", return_value=(mock_data.copy(), 44100)), \
              patch("soundfile.write"), \
              patch("pyloudnorm.Meter") as mock_meter_cls:
@@ -12099,7 +12100,7 @@ class TestMasterWithReferenceComprehensive:
         mock_fn.side_effect = side_effect
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
 
@@ -12124,7 +12125,7 @@ class TestMasterWithReferenceComprehensive:
         mod_patch, mock_fn = self._patch_ref_master()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference("test-album", "ref.wav")))
 
@@ -12146,7 +12147,7 @@ class TestMasterWithReferenceComprehensive:
         mod_patch, _ = self._patch_ref_master()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             _run(server.master_with_reference("test-album", "ref.wav"))
 
@@ -12167,7 +12168,7 @@ class TestMasterWithReferenceComprehensive:
         mod_patch, _ = self._patch_ref_master()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_matchering", return_value=None), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
              mod_patch:
             result = json.loads(_run(server.master_with_reference(
                 "test-album", "ref.wav", "01-track.wav"
@@ -12199,8 +12200,8 @@ class TestTranscribeAudioComprehensive:
         mock_mod.transcribe_track.return_value = True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
 
         assert result["summary"]["success"] == 3
@@ -12218,8 +12219,8 @@ class TestTranscribeAudioComprehensive:
         mock_mod.transcribe_track.return_value = True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", track_filename="01-track.wav"
             )))
@@ -12238,8 +12239,8 @@ class TestTranscribeAudioComprehensive:
         mock_mod.transcribe_track.return_value = True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", formats="pdf,xml,midi"
             )))
@@ -12261,8 +12262,8 @@ class TestTranscribeAudioComprehensive:
         mock_mod.transcribe_track.return_value = True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio(
                 "test-album", dry_run=True
             )))
@@ -12292,8 +12293,8 @@ class TestTranscribeAudioComprehensive:
         mock_mod.transcribe_track.side_effect = mock_transcribe
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.transcribe_audio("test-album")))
 
         assert result["summary"]["success"] == 2
@@ -12347,7 +12348,7 @@ class TestPrepareSinglesComprehensive:
         })
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert result["track_count"] == 3
@@ -12371,7 +12372,7 @@ class TestPrepareSinglesComprehensive:
         })
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album", dry_run=True)))
 
         # dry_run=True should be passed to prepare_singles
@@ -12396,7 +12397,7 @@ class TestPrepareSinglesComprehensive:
         })
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album", xml_only=True)))
 
         assert result["track_count"] == 1
@@ -12422,7 +12423,7 @@ class TestPrepareSinglesComprehensive:
         })
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert "error" in result
@@ -12445,7 +12446,7 @@ class TestPrepareSinglesComprehensive:
         })
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_import_sheet_music_module", side_effect=mock_import):
+             patch.object(_processing_helpers, "_import_sheet_music_module", side_effect=mock_import):
             result = json.loads(_run(server.prepare_singles("test-album")))
 
         assert result["track_count"] == 1
@@ -12479,8 +12480,8 @@ class TestCreateSongbookComprehensive:
         mock_mod = self._mock_songbook_module()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert result["success"] is True
@@ -12502,8 +12503,8 @@ class TestCreateSongbookComprehensive:
         mock_mod = self._mock_songbook_module()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook(
                 "test-album", "My Songbook", page_size="9x12"
             )))
@@ -12527,8 +12528,8 @@ class TestCreateSongbookComprehensive:
         mock_mod = self._mock_songbook_module()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert result["artist"] == "custom-artist"
@@ -12550,8 +12551,8 @@ class TestCreateSongbookComprehensive:
         mock_mod.create_songbook.return_value = False
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook("test-album", "My Songbook")))
 
         assert "error" in result
@@ -12570,8 +12571,8 @@ class TestCreateSongbookComprehensive:
         mock_mod = self._mock_songbook_module()
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_songbook_deps", return_value=None), \
-             patch.object(_processing_mod, "_import_sheet_music_module", return_value=mock_mod):
+             patch.object(_processing_helpers, "_check_songbook_deps", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_mod):
             result = json.loads(_run(server.create_songbook(
                 "test-album", "My Album / Songbook"
             )))
@@ -12607,7 +12608,7 @@ class TestGeneratePromoVideosComprehensive:
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -12631,7 +12632,7 @@ class TestGeneratePromoVideosComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12652,7 +12653,7 @@ class TestGeneratePromoVideosComprehensive:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12668,7 +12669,7 @@ class TestGeneratePromoVideosComprehensive:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12690,7 +12691,7 @@ class TestGeneratePromoVideosComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12712,7 +12713,7 @@ class TestGeneratePromoVideosComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12731,7 +12732,7 @@ class TestGeneratePromoVideosComprehensive:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=True), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12747,7 +12748,7 @@ class TestGeneratePromoVideosComprehensive:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    return_value=False), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -12772,7 +12773,7 @@ class TestGeneratePromoVideosComprehensive:
             captured_kwargs.append(kwargs)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -12809,7 +12810,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
@@ -12834,7 +12835,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12856,7 +12857,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12877,7 +12878,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12901,7 +12902,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler(
@@ -12923,7 +12924,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -12952,7 +12953,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -12979,7 +12980,7 @@ class TestGenerateAlbumSamplerComprehensive:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             result = json.loads(_run(server.generate_album_sampler("test-album")))
@@ -13013,7 +13014,7 @@ class TestPromoVideoNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -13035,7 +13036,7 @@ class TestPromoVideoNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -13057,7 +13058,7 @@ class TestPromoVideoNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -13079,7 +13080,7 @@ class TestPromoVideoNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video",
                    side_effect=mock_generate), \
              patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
@@ -13106,7 +13107,7 @@ class TestPromoVideoNewParams:
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_promo_video.batch_process_album",
                    side_effect=mock_batch), \
              patch("tools.promotion.generate_promo_video.generate_waveform_video"), \
@@ -13149,7 +13150,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", style="line"))
@@ -13171,7 +13172,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", color_hex="#C9A96E"))
@@ -13193,7 +13194,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", glow=0.0))
@@ -13215,7 +13216,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album", text_color="#FFD700"))
@@ -13237,7 +13238,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler("test-album"))
@@ -13262,7 +13263,7 @@ class TestAlbumSamplerNewParams:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_ffmpeg", return_value=None), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
              patch("tools.promotion.generate_album_sampler.generate_album_sampler",
                    side_effect=mock_gen_sampler):
             _run(server.generate_album_sampler(
@@ -13294,7 +13295,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(_builtins, "__import__", side_effect=mock_import):
-            result = _processing_mod._check_mastering_deps()
+            result = _processing_helpers._check_mastering_deps()
 
         assert result is not None
         for mod in missing_set:
@@ -13303,7 +13304,7 @@ class TestDepCheckersComprehensive:
     def test_check_ffmpeg_when_available(self):
         """Should return None when ffmpeg is found."""
         with patch.object(shutil, "which", return_value="/usr/bin/ffmpeg"):
-            result = _processing_mod._check_ffmpeg()
+            result = _processing_helpers._check_ffmpeg()
         assert result is None
 
     def test_check_matchering_when_missing(self):
@@ -13317,7 +13318,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(builtins, "__import__", side_effect=mock_import):
-            result = _processing_mod._check_matchering()
+            result = _processing_helpers._check_matchering()
 
         assert result is not None
         assert "matchering" in result
@@ -13333,7 +13334,7 @@ class TestDepCheckersComprehensive:
             return original_import(name, *args, **kwargs)
 
         with patch.object(builtins, "__import__", side_effect=mock_import):
-            result = _processing_mod._check_songbook_deps()
+            result = _processing_helpers._check_songbook_deps()
 
         assert result is not None
         assert "pypdf" in result
@@ -13526,19 +13527,19 @@ class TestExtractTrackNumberFromStem:
     """Tests for extracting leading track number from a slug stem."""
 
     def test_two_digit_prefix(self):
-        assert _processing_mod._extract_track_number_from_stem("01-first-pour") == 1
+        assert _processing_helpers._extract_track_number_from_stem("01-first-pour") == 1
 
     def test_double_digit(self):
-        assert _processing_mod._extract_track_number_from_stem("12-beyond-the-stars") == 12
+        assert _processing_helpers._extract_track_number_from_stem("12-beyond-the-stars") == 12
 
     def test_no_prefix(self):
-        assert _processing_mod._extract_track_number_from_stem("first-pour") is None
+        assert _processing_helpers._extract_track_number_from_stem("first-pour") is None
 
     def test_empty_string(self):
-        assert _processing_mod._extract_track_number_from_stem("") is None
+        assert _processing_helpers._extract_track_number_from_stem("") is None
 
     def test_single_digit(self):
-        assert _processing_mod._extract_track_number_from_stem("3-track") == 3
+        assert _processing_helpers._extract_track_number_from_stem("3-track") == 3
 
 
 # ---------------------------------------------------------------------------
@@ -13560,7 +13561,7 @@ class TestBuildTitleMap:
         wav2.touch()
 
         with patch.object(_shared_mod, "cache", mock_cache):
-            title_map = _processing_mod._build_title_map("test-album", [wav1, wav2])
+            title_map = _processing_helpers._build_title_map("test-album", [wav1, wav2])
 
         assert title_map["01-first-track"] == "First Track"
         assert title_map["02-second-track"] == "Second Track"
@@ -13575,7 +13576,7 @@ class TestBuildTitleMap:
         wav.touch()
 
         with patch.object(_shared_mod, "cache", mock_cache):
-            title_map = _processing_mod._build_title_map("test-album", [wav])
+            title_map = _processing_helpers._build_title_map("test-album", [wav])
 
         assert title_map["01-ocean-of-tears"] == "Ocean of Tears"
 
@@ -13588,7 +13589,7 @@ class TestBuildTitleMap:
         wav.touch()
 
         with patch.object(_shared_mod, "cache", mock_cache):
-            title_map = _processing_mod._build_title_map("nonexistent-album", [wav])
+            title_map = _processing_helpers._build_title_map("nonexistent-album", [wav])
 
         assert title_map["01-fire-and-ice"] == "Fire and Ice"
 
@@ -13606,7 +13607,7 @@ class TestBuildTitleMap:
         wav.touch()
 
         with patch.object(_shared_mod, "cache", mock_cache):
-            title_map = _processing_mod._build_title_map("test-album", [wav])
+            title_map = _processing_helpers._build_title_map("test-album", [wav])
 
         assert title_map["03-why"] == "Why"  # ? removed by sanitize_filename
 
@@ -13632,9 +13633,9 @@ class TestTranscribeAudioFlow:
 
         # Mock dependencies
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_import.return_value = mock_mod
@@ -13670,9 +13671,9 @@ class TestTranscribeAudioFlow:
             return True
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = fake_transcribe
@@ -13710,9 +13711,9 @@ class TestTranscribeAudioFlow:
             return False
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_anthemscore", return_value=None), \
-             patch.object(_processing_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_processing_mod, "_import_sheet_music_module") as mock_import:
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import:
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = failing_transcribe
@@ -13741,7 +13742,7 @@ class TestPublishSheetMusic:
     def test_cloud_not_enabled(self):
         """Returns error when cloud is not enabled in config."""
         with patch.object(
-            _processing_mod, "_check_cloud_enabled",
+            _processing_helpers, "_check_cloud_enabled",
             return_value="Cloud uploads not enabled.",
         ):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
@@ -13754,7 +13755,7 @@ class TestPublishSheetMusic:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
         assert "error" in result
 
@@ -13767,7 +13768,7 @@ class TestPublishSheetMusic:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
         assert "error" in result
         assert "not found" in result["error"]
@@ -13791,7 +13792,7 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))
@@ -13824,7 +13825,7 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))
@@ -13851,7 +13852,7 @@ class TestPublishSheetMusic:
 
         # Without include_source — source files excluded
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", include_source=False, dry_run=True
             )))
@@ -13861,7 +13862,7 @@ class TestPublishSheetMusic:
 
         # With include_source — source files included
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", include_source=True, dry_run=True
             )))
@@ -13896,8 +13897,8 @@ class TestPublishSheetMusic:
         }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
-             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -13998,8 +13999,8 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
-             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -14034,8 +14035,8 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
-             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -14056,8 +14057,8 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None), \
-             patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
              patch("tools.shared.config.load_config", return_value=mock_config):
             result = json.loads(_run(server.publish_sheet_music("test-album")))
 
@@ -14081,8 +14082,8 @@ class TestPublishSheetMusic:
 
         ctx = (
             patch.object(_shared_mod, "cache", mock_cache),
-            patch.object(_processing_mod, "_check_cloud_enabled", return_value=None),
-            patch.object(_processing_mod, "_import_cloud_module", return_value=mock_cloud_mod),
+            patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None),
+            patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod),
             patch("tools.shared.config.load_config", return_value=mock_config),
         )
 
@@ -14106,7 +14107,7 @@ class TestPublishSheetMusic:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_cloud_enabled", return_value=None):
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None):
             result = json.loads(_run(server.publish_sheet_music(
                 "test-album", dry_run=True
             )))
