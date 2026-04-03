@@ -88,7 +88,6 @@ server = _import_server()
 
 # Handler modules for mock targeting (attributes moved from server.py during modularization)
 from handlers import text_analysis as _text_analysis_mod
-from handlers import processing as _processing_mod
 from handlers.processing import _helpers as _processing_helpers
 from handlers import status as _status_mod
 from handlers import health as _health_mod

@@ -85,7 +85,6 @@ server = _import_server()
 
 # Handler modules for mock targeting
 from handlers import text_analysis as _text_analysis_mod
-from handlers import processing as _processing_mod
 from handlers import _shared as _shared_mod
 
 

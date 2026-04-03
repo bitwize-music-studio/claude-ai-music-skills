@@ -74,7 +74,6 @@ def _import_server():
 server = _import_server()
 
 # Handler modules for mock targeting
-from handlers import processing as _processing_mod
 from handlers.processing import _helpers as _processing_helpers
 from handlers import _shared as _shared_mod
 
