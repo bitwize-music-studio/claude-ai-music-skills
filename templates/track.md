@@ -1,6 +1,7 @@
 ---
 title: "[Track Title]"
 track_number: 0
+instrumental: false
 explicit: false
 suno_url: ""
 sheet_music:
@@ -21,6 +22,7 @@ sheet_music:
 | **Status** | Not Started |
 | **Suno Link** | — |
 | **Stems** | No |
+| **Instrumental** | No |
 | **Explicit** | Yes / No |
 | **POV** | [Character/Perspective] |
 | **Role** | [Track's role in the album narrative] |
@@ -161,7 +163,11 @@ Space is not a constraint. Thoroughness is the priority.]
 ### Lyrics Box
 *Copy this into Suno's "Lyrics" field:*
 
-<!-- WARNING: Suno sings EVERYTHING literally including parenthetical directions.
+<!-- INSTRUMENTAL TRACKS: If instrumental: true, use only section tags (no sung lyrics).
+     Example: [Intro]\n\n[Main Theme]\n\n[Bridge]\n\n[Outro]\n\n[End]
+     Set "Instrumental: On" in Suno. -->
+
+<!-- VOCAL TRACKS: WARNING: Suno sings EVERYTHING literally including parenthetical directions.
      NEVER use (whispered), (softly), (screaming), (spoken), (laughing), etc.
      Use metatags like [Whispered] or put delivery notes in the Style Box instead. -->
 
@@ -183,6 +189,8 @@ Space is not a constraint. Thoroughness is the priority.]
 ```
 <!-- /SERVICE: suno -->
 
+<!-- VOCAL TRACKS ONLY: Remove this section for instrumental tracks -->
+
 ## Streaming Lyrics
 
 *For distributor submission (Spotify, Apple Music, etc.). No section tags, repeats written out, plain text.*
@@ -195,6 +203,8 @@ Write out all repeats fully
 Blank lines between sections only]
 ```
 
+<!-- END VOCAL ONLY -->
+
 ## Production Notes
 
 - [Technical considerations]
@@ -203,6 +213,8 @@ Blank lines between sections only]
 <!-- SERVICE: suno -->
 - [V5 optimization tips if applicable]
 <!-- /SERVICE: suno -->
+
+<!-- VOCAL TRACKS ONLY: Remove these sections for instrumental tracks -->
 
 ## Pronunciation Notes
 
@@ -229,6 +241,8 @@ Blank lines between sections only]
 |------|---------|----------|--------|
 | — | — | — | — |
 <!-- /SERVICE: suno -->
+
+<!-- END VOCAL ONLY -->
 
 ## Generation Log
 
