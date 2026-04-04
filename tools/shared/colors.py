@@ -1,5 +1,7 @@
 """ANSI color utilities for terminal output."""
 
+from __future__ import annotations
+
 import sys
 
 
@@ -14,7 +16,7 @@ class Colors:
     NC = '\033[0m'  # No Color
 
     @classmethod
-    def disable(cls):
+    def disable(cls) -> None:
         """Disable colors for non-TTY output."""
         cls.RED = ''
         cls.GREEN = ''
@@ -25,7 +27,7 @@ class Colors:
         cls.NC = ''
 
     @classmethod
-    def auto(cls):
+    def auto(cls) -> None:
         """Disable colors if stdout is not a TTY."""
         if not sys.stdout.isatty():
             cls.disable()

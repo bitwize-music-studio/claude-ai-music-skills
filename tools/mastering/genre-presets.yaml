@@ -287,7 +287,7 @@ genres:
     cut_highmid: 0
     cut_highs: 0
 
-  # === Classical / Cinematic ===
+  # === Classical / Cinematic / Theatrical ===
   classical:
     target_lufs: -18.0
     cut_highmid: 0
@@ -295,6 +295,30 @@ genres:
   opera:
     target_lufs: -18.0
     cut_highmid: 0
+    cut_highs: 0
+  musicals:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  musical-theater:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  broadway:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  soundtrack:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  film-theme:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  title-song:
+    target_lufs: -14.0
+    cut_highmid: -1.0
     cut_highs: 0
   cinematic:
     target_lufs: -16.0
@@ -351,6 +375,24 @@ genres:
   reggae:
     target_lufs: -14.0
     cut_highmid: -1.5
+    cut_highs: 0
+
+  # === Children's / Family ===
+  childrens-music:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  childrens:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  kinderlieder:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  lullaby:
+    target_lufs: -16.0
+    cut_highmid: -1.0
     cut_highs: 0
 
   # === Legacy aliases ===

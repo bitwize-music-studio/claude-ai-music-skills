@@ -30,13 +30,16 @@ Examples:
     python3 transcribe.py /path/to/mastered/ --midi --dry-run
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import platform
 import subprocess
 import sys
+
 try:
-    import yaml
+    import yaml  # noqa: F401
 except ImportError:
     print("ERROR: pyyaml required. Install: pip install pyyaml")
     sys.exit(1)
@@ -49,6 +52,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
 from tools.shared.colors import Colors
 from tools.shared.logging_config import setup_logging
@@ -59,7 +63,7 @@ logger = logging.getLogger(__name__)
 Colors.auto()
 
 
-def find_anthemscore():
+def find_anthemscore() -> str | None:
     """Detect AnthemScore based on OS"""
     system = platform.system().lower()
 
@@ -98,7 +102,7 @@ def find_anthemscore():
     return None
 
 
-def show_install_instructions(system):
+def show_install_instructions(system: str) -> None:
     """Show OS-specific installation instructions"""
     print(f"{Colors.RED}AnthemScore not found on your system.{Colors.NC}\n")
     print("Install from: https://www.lunaverus.com/\n")
@@ -121,13 +125,13 @@ def show_install_instructions(system):
     print("\nThen run this command again.")
 
 
-def read_config():
+def read_config() -> dict[str, Any] | None:
     """Read ~/.bitwize-music/config.yaml"""
     from tools.shared.config import load_config
     return load_config()
 
 
-def resolve_album_path(album_name):
+def resolve_album_path(album_name: str) -> Path | None:
     """Resolve album name to audio path using config"""
     config = read_config()
 
@@ -137,11 +141,11 @@ def resolve_album_path(album_name):
         return None
 
     try:
-        audio_root = config['paths']['audio_root']
-        artist = config['artist']['name']
+        audio_root_str: str = config['paths']['audio_root']
+        artist: str = config['artist']['name']
 
         # Expand ~ to home directory
-        audio_root = Path(audio_root).expanduser()
+        audio_root = Path(audio_root_str).expanduser()
 
         # Construct: {audio_root}/artists/{artist}/albums/{genre}/{album}/
         album_path = audio_root / artist / album_name
@@ -165,7 +169,7 @@ def resolve_album_path(album_name):
         return None
 
 
-def get_wav_files(source):
+def get_wav_files(source: str | Path) -> tuple[list[Path], Path]:
     """Get list of WAV files from source (file or directory)"""
     source_path = Path(source)
 
@@ -186,7 +190,7 @@ def get_wav_files(source):
         sys.exit(1)
 
 
-def transcribe_track(anthemscore, wav_file, output_dir, args):
+def transcribe_track(anthemscore: str, wav_file: Path, output_dir: Path, args: argparse.Namespace) -> bool:
     """Transcribe a single WAV file"""
     basename = wav_file.stem
 
@@ -246,7 +250,7 @@ def transcribe_track(anthemscore, wav_file, output_dir, args):
         return False
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Batch convert WAV files to sheet music using AnthemScore',
         formatter_class=argparse.RawDescriptionHelpFormatter,

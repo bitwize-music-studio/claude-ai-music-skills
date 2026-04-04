@@ -9,6 +9,8 @@ pyyaml>=6.0
 
 # Linting
 ruff>=0.4.0
+mypy>=1.10.0
+types-PyYAML>=6.0
 
 # Security
 bandit>=1.7.0

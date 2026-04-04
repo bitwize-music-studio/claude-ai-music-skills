@@ -328,6 +328,47 @@ Style prompt: Include both language indicators: "bilingual, Spanish verse, Engli
 
 ---
 
+## German Pronunciation
+
+Suno interprets German vowels using English phonetic rules, which causes specific mispronunciations. These fixes apply to **all German-language lyrics**, regardless of genre.
+
+### Short vs Long Vowels
+
+Suno treats single German vowels as short English vowels. To force the correct long German pronunciation, **double the vowel**.
+
+| German Word | Suno Reads As | Fix | Why |
+|-------------|---------------|-----|-----|
+| juchhe | "juch-heh" (short e) | **juchee** | Double-e forces long "ee" sound |
+| Schnee | "schneh" (short e) | **Schnee** (usually OK) | Double-e already present |
+| See | "seh" (short e) | **See** (usually OK) | Double-e already present |
+
+**Rule of thumb**: If a German word ends in a single vowel that should be long, double it for Suno. Test by generating — if the vowel sounds clipped, double it.
+
+### German Umlauts
+
+Suno handles umlauts inconsistently. Test first, fix if needed.
+
+| Character | Suno Behavior | Fix If Wrong |
+|-----------|--------------|--------------|
+| ä | Sometimes reads as "a" | Use "ae" |
+| ö | Sometimes reads as "o" | Use "oe" |
+| ü | Sometimes reads as "u" | Use "ue" |
+| ß | Usually reads as "ss" | Usually OK |
+
+### German Interjections
+
+Common German exclamations that Suno may mispronounce:
+
+| Word | Expected | Suno Risk | Fix |
+|------|----------|-----------|-----|
+| juchhe | "juch-HEE" | Short clipped "heh" | **juchee** |
+| juhu | "yoo-HOO" | May stress wrong syllable | Usually OK |
+| hurra | "hoo-RAH" | Usually OK | — |
+| ach | "ahh" (guttural) | May say "atch" | Usually OK |
+| oho | "oh-HOH" | Usually OK | — |
+
+---
+
 ## Quick Reference Card
 
 ```

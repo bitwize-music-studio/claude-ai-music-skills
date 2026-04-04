@@ -88,7 +88,7 @@ At the beginning of a fresh session:
    - `get_config` → verify config is loaded
    - `list_albums` → get album statuses
    - `get_ideas` → get idea counts
-   - `get_pending_verifications` → check for pending source verifications
+   - `get_pending_verifications(summary_only=True)` → check for pending source verifications (count only)
    - `get_session` → resume last session context
    - If MCP returns errors about missing/stale cache → `rebuild_state()` MCP tool
 4.5. **Check for plugin upgrades** — Compare `plugin_version` in state.json vs `.claude-plugin/plugin.json`:
@@ -100,7 +100,7 @@ At the beginning of a fresh session:
    - Venv health warnings (from step 1.5 — omit if ok, warn if stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`")
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
-   - Pending source verifications (from `get_pending_verifications`)
+   - Pending source verifications (from `get_pending_verifications(summary_only=True)`)
    - Last session context (from `get_session`)
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`

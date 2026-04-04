@@ -4,24 +4,26 @@ Provides color extraction, audio analysis, and ffmpeg helpers used by
 generate_promo_video.py and generate_album_sampler.py.
 """
 
+from __future__ import annotations
+
 import colorsys
 import logging
 import subprocess
 from pathlib import Path
-from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
+def extract_dominant_color(image_path: Path) -> tuple[int, int, int]:
     """Extract the dominant color from an image using PIL."""
     try:
-        from PIL import Image
         from collections import Counter
-        with Image.open(image_path) as img:
-            img = img.convert('RGB')
-            img = img.resize((100, 100))
-            pixels = list(img.getdata())
+
+        from PIL import Image
+        with Image.open(image_path) as raw_img:
+            converted = raw_img.convert('RGB')
+            resized = converted.resize((100, 100))
+            pixels = list(resized.getdata())
 
         # Filter out very dark and very light pixels
         filtered = [p for p in pixels if 30 < sum(p)/3 < 225]
@@ -40,27 +42,27 @@ def extract_dominant_color(image_path: Path) -> Tuple[int, int, int]:
         return (0, 255, 255)
 
 
-def get_complementary_color(rgb: Tuple[int, int, int]) -> Tuple[int, int, int]:
+def get_complementary_color(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     """Get complementary color with boosted visibility."""
     r, g, b = [x / 255.0 for x in rgb]
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    h, lightness, s = colorsys.rgb_to_hls(r, g, b)
     h = (h + 0.5) % 1.0  # Rotate 180°
-    l = max(l, 0.6)  # Ensure visible
+    lightness = max(lightness, 0.6)  # Ensure visible
     s = max(s, 0.8)  # Vibrant
-    r, g, b = colorsys.hls_to_rgb(h, l, s)
+    r, g, b = colorsys.hls_to_rgb(h, lightness, s)
     return (int(r * 255), int(g * 255), int(b * 255))
 
 
-def get_analogous_colors(rgb: Tuple[int, int, int]) -> Tuple[Tuple[int, int, int], Tuple[int, int, int]]:
+def get_analogous_colors(rgb: tuple[int, int, int]) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
     """Get two analogous colors (30 degrees on each side)."""
     r, g, b = [x / 255.0 for x in rgb]
-    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    h, lightness, s = colorsys.rgb_to_hls(r, g, b)
 
     h1 = (h + 0.083) % 1.0  # +30 degrees
     h2 = (h - 0.083) % 1.0  # -30 degrees
 
-    r1, g1, b1 = colorsys.hls_to_rgb(h1, l, s)
-    r2, g2, b2 = colorsys.hls_to_rgb(h2, l, s)
+    r1, g1, b1 = colorsys.hls_to_rgb(h1, lightness, s)
+    r2, g2, b2 = colorsys.hls_to_rgb(h2, lightness, s)
 
     return (
         (int(r1 * 255), int(g1 * 255), int(b1 * 255)),
@@ -68,7 +70,7 @@ def get_analogous_colors(rgb: Tuple[int, int, int]) -> Tuple[Tuple[int, int, int
     )
 
 
-def rgb_to_hex(rgb: Tuple[int, int, int]) -> str:
+def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
     """Convert RGB tuple to hex string for ffmpeg."""
     return f"0x{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
@@ -129,8 +131,8 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
         times = librosa.times_like(rms, sr=sr, hop_length=hop_length)
 
         window_samples = int(duration * sr / hop_length)
-        best_start = 0
-        best_energy = 0
+        best_start: float = 0.0
+        best_energy: float = 0.0
 
         for i in range(len(rms) - window_samples):
             window_energy = np.mean(rms[i:i + window_samples])

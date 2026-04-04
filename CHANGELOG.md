@@ -6,6 +6,104 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.82.0] - 2026-04-03
+
+### Added
+- **Musicals genre** — integrated theatrical form from Golden Age Broadway (Rodgers & Hammerstein) to contemporary hip-hop musicals (Hamilton); 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
+- **Soundtrack genre** — vocal songs and curated compilations for film/TV, distinct from instrumental Cinematic scoring; covers Bond themes, disco soundtracks, needle drops, animated features, and power ballads; 8 subgenres, 15 artists, 14 reference tracks, Suno keywords, lyric conventions, and mastering presets
+- **Database query pagination** — `db_list_tweets` and `db_search_tweets` support `limit`/`offset` parameters ([#114](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/114))
+- **MCP payload pagination** — summary modes and top-N limiting for large-payload MCP tools ([#113](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/113))
+
+## [0.81.2] - 2026-03-27
+
+### Changed
+- **boto3** bumped 1.42.76 → 1.42.77
+
+## [0.81.1] - 2026-03-27
+
+### Fixed
+- **`[End]` tag misclassification** — `validate_section_structure` now recognizes `[End]` as a dedicated section type instead of defaulting to `verse` ([#111](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/111), closes [#108](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/108))
+
+## [0.81.0] - 2026-03-26
+
+### Added
+- **mypy strict type checking** — full type annotations across all 51 source files (handlers, tools, server) with strict settings (`disallow_untyped_defs`, `disallow_any_generics`, `warn_unreachable`, etc.), integrated into CI lint job ([#110](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/110), closes [#102](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/102))
+- **`types-PyYAML` stubs** — proper yaml typing, eliminated all `import-untyped` suppressions
+- **Extended ruff rules** — added I (isort), UP (pyupgrade), B (bugbear), SIM (simplify), RUF rule sets; auto-fixed 216 import/syntax issues, manually fixed 44 remaining across tools/ and handlers/
+
+### Fixed
+- **Ambiguous variable names** — renamed `l` to `lightness`/`line` in media_utils and lyrics_analysis
+- **Mutable default argument** — `reset_mastering` parameter annotated with noqa
+- **Bare generic types** — all `dict`, `list`, `tuple`, `Pattern` given explicit type parameters
+
+## [0.80.0] - 2026-03-26
+
+### Added
+- **Modularized MCP server** — broke monolithic `server.py` (10,260 lines, 76 tools) into 16 focused handler modules under `handlers/`, reducing `server.py` to ~480 lines of orchestration ([#85](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/85), closes [#81](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/81))
+- **`_find_track_or_error` shared helper** — deduplicated track lookup boilerplate across 8 call sites in 5 handler modules
+- **`StateCache.get_state_ref()`** — public API for in-place state mutation, replacing 3 direct `cache._state` accesses
+- **Re-export completeness test** — catches missing re-exports when new tools are added to handler modules
+
+### Changed
+- **MCP server architecture** — 79 tools organized across 16 domain modules: core, content, text_analysis, lyrics_analysis, album_ops, gates, streaming, skills, status, promo, health, ideas, rename, processing, database, maintenance
+- **`verify_streaming_urls` runs concurrently** — HTTP checks now use `asyncio.gather` (worst-case latency ~50s → ~10s)
+
+### Fixed
+- **State cache stale after `create_album_structure`** — new albums are now immediately available to subsequent tools like `create_track`
+- **Shadowed `import re as _re`** in processing.py and _shared.py — now uses module-level `re`
+- **19 unused imports** removed across handler modules (F401 lint violations from monolith extraction)
+- **Duplicated constants** — `_STREAMING_PLACEHOLDER_MARKERS`, `_MARKDOWN_LINK_RE`, and `_CODE_BLOCK_SECTIONS` deduplicated into `_shared.py`
+- **Dead code** — removed unused `_words_rhyme` function from lyrics_analysis.py
+
+## [0.79.4] - 2026-03-25
+
+### Fixed
+- **Dynamic version badge** — README badge now reads from GitHub releases, never needs manual updating
+- **Automated dev bump** — auto-release workflow bumps develop to next `-dev` version after each release
+- **Version sync hook false positives** — hook now detects sequential edits and skips mid-pair checks
+- **Dependabot grouping** — pip and GitHub Actions updates batched into single PRs instead of 10+ individual PRs
+
+## [0.79.3] - 2026-03-25
+
+### Changed
+- **README reworked** — personal narrative opener, 77% shorter, architecture-focused; skills reference, troubleshooting, and configuration extracted to `docs/`
+
+### Fixed
+- **CI: version badge check skips `-dev` versions** — badge shows last release, dev branches no longer fail on mismatch
+- **CI: removed test count and skills badge checks** — badges removed from README, corresponding CI validations removed
+
+## [0.79.2] - 2026-03-25
+
+### Changed
+- **Batch dependency update** — 11 pip packages and 3 GitHub Actions bumped to latest versions
+
+### Fixed
+- **pypdf CVE-2026-33699** — bumped pypdf 6.9.1→6.9.2 to resolve security vulnerability
+
+## [0.79.1] - 2026-03-25
+
+### Added
+- **Dependabot configuration** — automated weekly dependency update PRs for pip packages and GitHub Actions version pins
+
+## [0.79.0] - 2026-03-25
+
+### Added
+- **Rilo Kiley artist deep-dive** — comprehensive artist reference for indie-rock genre covering discography, production techniques, and style characteristics
+
+### Fixed
+- **`line` style ignores `color_hex` and `glow` parameters** — was hardcoded to `colors=white` with no glow support; now uses custom color and glow like all other styles (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#84](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/84))
+- **CI: ignore unfixed pygments CVE-2026-4539 in pip-audit** — added exclusion for upstream vulnerability with no available fix
+
+## [0.78.1] - 2026-03-24
+
+### Added
+- **German pronunciation section in Suno pronunciation guide** — documents vowel length fixes (single → double vowel for long sounds, e.g. `juchhe` → `juchee`), umlaut handling, and German interjection pronunciation table (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#79](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/79))
+
+## [0.78.0] - 2026-03-24
+
+### Added
+- **Children's Music genre** — comprehensive documentation covering nursery rhymes, educational music, Kinderlieder, lullabies, kids pop, singalong, musical storytelling, action/movement songs, animated/TV soundtrack, and family folk subgenres; 18 artists from Woody Guthrie (1947) to Cocomelon (2006+); mastering presets with lullaby variant (-16 LUFS) (contributed by [@markus-michalski](https://github.com/markus-michalski) in [#78](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/78))
+
 ## [0.77.1] - 2026-03-23
 
 ### Fixed

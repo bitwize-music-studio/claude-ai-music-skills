@@ -7,16 +7,18 @@ Uses regex against the exact markdown table format in templates:
   | **Key** | Value |
 """
 
+from __future__ import annotations
+
 import re
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # Try to import yaml, provide helpful error if missing
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 # =============================================================================
 # Pre-compiled regex patterns (F2: avoid recompilation on every call)
@@ -30,7 +32,7 @@ _RE_IDEAS_SECTION = re.compile(r'^##\s+Ideas\b', re.MULTILINE)
 _RE_IDEAS_SPLIT = re.compile(r'^###\s+', re.MULTILINE)
 
 
-def parse_frontmatter(text: str) -> Dict[str, Any]:
+def parse_frontmatter(text: str) -> dict[str, Any]:
     """Parse YAML frontmatter from markdown content.
 
     Expects content starting with '---' delimiter.
@@ -57,7 +59,7 @@ def parse_frontmatter(text: str) -> Dict[str, Any]:
         return {}
 
     if yaml is None:
-        return {'_error': 'PyYAML not installed'}
+        return {'_error': 'PyYAML not installed'}  # type: ignore[unreachable]
 
     try:
         result = yaml.safe_load(frontmatter_text) or {}
@@ -68,10 +70,10 @@ def parse_frontmatter(text: str) -> Dict[str, Any]:
         return {'_error': f'Invalid YAML: {e}'}
 
 
-_table_value_cache: Dict[str, re.Pattern] = {}
+_table_value_cache: dict[str, re.Pattern[str]] = {}
 
 
-def _extract_table_value(text: str, key: str) -> Optional[str]:
+def _extract_table_value(text: str, key: str) -> str | None:
     """Extract a value from a markdown table row matching | **Key** | Value |.
 
     Args:
@@ -93,7 +95,7 @@ def _extract_table_value(text: str, key: str) -> Optional[str]:
     return None
 
 
-def _normalize_status(raw: Optional[str]) -> str:
+def _normalize_status(raw: str | None) -> str:
     """Normalize a status string to canonical form.
 
     Handles common variations and template placeholders.
@@ -129,7 +131,7 @@ def _normalize_status(raw: Optional[str]) -> str:
     return status
 
 
-def parse_album_readme(path: Path) -> Dict[str, Any]:
+def parse_album_readme(path: Path) -> dict[str, Any]:
     """Parse an album README.md into structured data.
 
     Extracts:
@@ -150,7 +152,7 @@ def parse_album_readme(path: Path) -> Dict[str, Any]:
     except (OSError, UnicodeDecodeError) as e:
         return {'_error': f'Cannot read file: {e}'}
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     # Parse frontmatter
     fm = parse_frontmatter(text)
@@ -213,7 +215,7 @@ def _extract_genre_from_path(path: Path) -> str:
     return ''
 
 
-def _parse_track_count(raw: Optional[str]) -> int:
+def _parse_track_count(raw: str | None) -> int:
     """Parse track count from string like '12' or '[Number]'."""
     if not raw:
         return 0
@@ -221,7 +223,7 @@ def _parse_track_count(raw: Optional[str]) -> int:
     return int(match.group(1)) if match else 0
 
 
-def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
+def _parse_tracklist_table(text: str) -> list[dict[str, str]]:
     """Parse the Tracklist table from album README.
 
     Flexibly handles any number of columns (3+). Expects:
@@ -234,7 +236,7 @@ def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
     | # | Title | POV | Concept | Status |
     | # | Title | POV | Concept | Duration | Status |
     """
-    tracks = []
+    tracks: list[dict[str, str]] = []
 
     # Find the Tracklist section
     tracklist_match = _RE_TRACKLIST_SECTION.search(text)
@@ -290,7 +292,7 @@ def _parse_tracklist_table(text: str) -> List[Dict[str, str]]:
     return tracks
 
 
-def parse_track_file(path: Path) -> Dict[str, Any]:
+def parse_track_file(path: Path) -> dict[str, Any]:
     """Parse a track markdown file into structured data.
 
     Extracts:
@@ -310,7 +312,7 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
     except (OSError, UnicodeDecodeError) as e:
         return {'_error': f'Cannot read file: {e}'}
 
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
 
     # Parse frontmatter (optional — older files may not have it)
     fm = parse_frontmatter(text)
@@ -341,7 +343,7 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
 
     # Suno Link
     suno_link_raw = _extract_table_value(text, 'Suno Link')
-    if suno_link_raw and suno_link_raw.strip() not in ('—', '–', '-', ''):
+    if suno_link_raw and suno_link_raw.strip() not in ('—', '\u2013', '-', ''):
         result['has_suno_link'] = True
     else:
         result['has_suno_link'] = False
@@ -353,7 +355,7 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
 
     # Fade Out (duration in seconds, or None)
     fade_out_raw = _extract_table_value(text, 'Fade Out')
-    if fade_out_raw and fade_out_raw.strip() not in ('—', '–', '-', ''):
+    if fade_out_raw and fade_out_raw.strip() not in ('—', '\u2013', '-', ''):
         # Extract numeric value: "5s" → 5.0, "5" → 5.0, "10.5s" → 10.5
         fade_match = re.search(r'(\d+(?:\.\d+)?)', fade_out_raw)
         if fade_match:
@@ -387,7 +389,7 @@ def parse_track_file(path: Path) -> Dict[str, Any]:
     return result
 
 
-def parse_ideas_file(path: Path) -> Dict[str, Any]:
+def parse_ideas_file(path: Path) -> dict[str, Any]:
     """Parse IDEAS.md into structured data.
 
     Extracts:
@@ -406,8 +408,8 @@ def parse_ideas_file(path: Path) -> Dict[str, Any]:
     except (OSError, UnicodeDecodeError) as e:
         return {'_error': f'Cannot read file: {e}'}
 
-    items: List[Dict[str, str]] = []
-    counts: Dict[str, int] = {}
+    items: list[dict[str, str]] = []
+    counts: dict[str, int] = {}
 
     # Split into sections by ### headings (idea entries)
     # Skip template section and preamble
@@ -458,10 +460,10 @@ def parse_ideas_file(path: Path) -> Dict[str, Any]:
     }
 
 
-_bold_field_cache: Dict[str, re.Pattern] = {}
+_bold_field_cache: dict[str, re.Pattern[str]] = {}
 
 
-def _extract_bold_field(text: str, key: str) -> Optional[str]:
+def _extract_bold_field(text: str, key: str) -> str | None:
     """Extract value from **Key**: Value pattern in text."""
     if key not in _bold_field_cache:
         _bold_field_cache[key] = re.compile(
@@ -499,7 +501,7 @@ def _derive_model_tier(model: str) -> str:
     return 'unknown'
 
 
-def parse_skill_file(path: Path) -> Dict[str, Any]:
+def parse_skill_file(path: Path) -> dict[str, Any]:
     """Parse a SKILL.md file into structured metadata.
 
     Extracts YAML frontmatter and normalizes field names (hyphens to
@@ -528,7 +530,7 @@ def parse_skill_file(path: Path) -> Dict[str, Any]:
         return {'_error': 'No frontmatter found'}
 
     # Normalize hyphenated keys to underscores
-    normalized: Dict[str, Any] = {}
+    normalized: dict[str, Any] = {}
     for key, value in fm.items():
         normalized[key.replace('-', '_')] = value
 

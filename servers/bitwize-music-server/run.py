@@ -40,4 +40,4 @@ if "CLAUDE_PLUGIN_ROOT" not in os.environ:
     os.environ["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
 
 # Execute the server with the selected Python
-sys.exit(subprocess.call([python_cmd, str(SERVER_PY)] + sys.argv[1:]))
+sys.exit(subprocess.call([python_cmd, str(SERVER_PY), *sys.argv[1:]]))

@@ -8,6 +8,7 @@ cleanup and EQ, then remixes into a polished stereo WAV ready for mastering.
 
 Falls back to full-mix processing when stems are not available.
 """
+from __future__ import annotations
 
 import argparse
 import logging
@@ -15,7 +16,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import numpy as np
 import soundfile as sf
@@ -29,7 +30,7 @@ except ImportError:
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -75,7 +76,7 @@ _STEM_KEYWORDS = [
 ]
 
 
-def discover_stems(track_dir):
+def discover_stems(track_dir: Path | str) -> dict[str, str | list[str]]:
     """Discover and categorize stem WAV files in a directory.
 
     Every WAV file is included — nothing is ever dropped.  Files are
@@ -106,7 +107,7 @@ def discover_stems(track_dir):
     if not wav_files:
         return {}
 
-    categorized = {name: [] for name in STEM_NAMES}
+    categorized: dict[str, list[str]] = {name: [] for name in STEM_NAMES}
 
     for wav_file in wav_files:
         name_lower = wav_file.stem.lower()
@@ -119,7 +120,7 @@ def discover_stems(track_dir):
         if not matched:
             categorized["other"].append(str(wav_file))
 
-    result = {}
+    result: dict[str, str | list[str]] = {}
     for stem_name, paths in categorized.items():
         if len(paths) == 1:
             result[stem_name] = paths[0]
@@ -132,12 +133,12 @@ def discover_stems(track_dir):
 # ─── YAML / Config Helpers ───────────────────────────────────────────
 
 
-def _load_yaml_file(path: Path) -> dict:
+def _load_yaml_file(path: Path) -> dict[str, Any]:
     """Load a YAML file, returning empty dict on failure."""
     if not path.exists():
         return {}
     if yaml is None:
-        logger.debug("PyYAML not installed, cannot load %s", path)
+        logger.debug("PyYAML not installed, cannot load %s", path)  # type: ignore[unreachable]
         return {}
     try:
         with open(path) as f:
@@ -147,7 +148,7 @@ def _load_yaml_file(path: Path) -> dict:
         return {}
 
 
-def _get_overrides_path() -> Optional[Path]:
+def _get_overrides_path() -> Path | None:
     """Resolve the user's overrides directory from config."""
     config = _load_yaml_file(_CONFIG_PATH)
     if not config:
@@ -161,7 +162,7 @@ def _get_overrides_path() -> Optional[Path]:
     return None
 
 
-def _deep_merge(base: dict, override: dict) -> dict:
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge override dict into base dict (override wins).
 
     Skips None values from override to handle bare YAML keys gracefully.
@@ -177,7 +178,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return merged
 
 
-def load_mix_presets() -> dict:
+def load_mix_presets() -> dict[str, Any]:
     """Load mix presets from YAML, merging built-in with user overrides.
 
     Returns:
@@ -212,7 +213,7 @@ MIX_PRESETS = load_mix_presets()
 # ─── Audio Processing Functions ──────────────────────────────────────
 
 
-def reduce_noise(data, rate, strength=0.5):
+def reduce_noise(data: Any, rate: int, strength: float = 0.5) -> Any:
     """Apply spectral gating noise reduction for AI artifact cleanup.
 
     Args:
@@ -252,7 +253,7 @@ def reduce_noise(data, rate, strength=0.5):
         return result
 
 
-def apply_highpass(data, rate, cutoff=30):
+def apply_highpass(data: Any, rate: int, cutoff: int = 30) -> Any:
     """Apply Butterworth highpass filter for rumble removal.
 
     Args:
@@ -266,7 +267,7 @@ def apply_highpass(data, rate, cutoff=30):
     nyquist = rate / 2
     if cutoff <= 0 or cutoff >= nyquist:
         if cutoff > 0:
-            logger.warning("Highpass cutoff %d Hz out of range (0–%.0f Hz), skipping", cutoff, nyquist)
+            logger.warning("Highpass cutoff %d Hz out of range (0\u2013%.0f Hz), skipping", cutoff, nyquist)
         return data
 
     normalized_cutoff = cutoff / nyquist
@@ -288,7 +289,7 @@ def apply_highpass(data, rate, cutoff=30):
         return result
 
 
-def apply_eq(data, rate, freq, gain_db, q=1.0):
+def apply_eq(data: Any, rate: int, freq: float, gain_db: float, q: float = 1.0) -> Any:
     """Apply parametric EQ (peaking filter) to audio data.
 
     Reuses the same biquad design as master_tracks.py.
@@ -302,7 +303,7 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
     """
     nyquist = rate / 2
     if not (20 <= freq < nyquist):
-        logger.warning("EQ freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        logger.warning("EQ freq %.1f Hz out of valid range (20\u2013%.0f Hz), skipping", freq, nyquist)
         return data
     if q <= 0:
         logger.warning("EQ Q factor must be positive (got %.4f), skipping", q)
@@ -338,7 +339,7 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
         return result
 
 
-def apply_high_shelf(data, rate, freq, gain_db):
+def apply_high_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
     """Apply high shelf EQ for taming brightness/sibilance.
 
     Args:
@@ -384,8 +385,8 @@ def apply_high_shelf(data, rate, freq, gain_db):
         return result
 
 
-def gentle_compress(data, rate, threshold_db=-15.0, ratio=2.5, attack_ms=10.0,
-                    release_ms=100.0):
+def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: float = 2.5,
+                    attack_ms: float = 10.0, release_ms: float = 100.0) -> Any:
     """Apply gentle dynamic compression using envelope following.
 
     Args:
@@ -408,7 +409,7 @@ def gentle_compress(data, rate, threshold_db=-15.0, ratio=2.5, attack_ms=10.0,
     attack_coeff = np.exp(-1.0 / (rate * attack_ms / 1000.0))
     release_coeff = np.exp(-1.0 / (rate * release_ms / 1000.0))
 
-    def _compress_channel(channel):
+    def _compress_channel(channel: Any) -> Any:
         envelope = np.zeros_like(channel)
         abs_signal = np.abs(channel)
 
@@ -443,7 +444,7 @@ def gentle_compress(data, rate, threshold_db=-15.0, ratio=2.5, attack_ms=10.0,
         return result
 
 
-def remove_clicks(data, rate, threshold=6.0):
+def remove_clicks(data: Any, rate: int, threshold: float = 6.0) -> Any:
     """Detect and remove clicks/pops via interpolation.
 
     Looks for sudden amplitude spikes relative to local neighborhood
@@ -460,7 +461,7 @@ def remove_clicks(data, rate, threshold=6.0):
     if threshold <= 0:
         return data
 
-    def _remove_clicks_channel(channel):
+    def _remove_clicks_channel(channel: Any) -> Any:
         # Calculate first-order difference
         diff = np.diff(channel, prepend=channel[0])
 
@@ -505,7 +506,7 @@ def remove_clicks(data, rate, threshold=6.0):
         return result
 
 
-def enhance_stereo(data, rate, amount=0.2):
+def enhance_stereo(data: Any, rate: int, amount: float = 0.2) -> Any:
     """Enhance stereo width using mid-side processing.
 
     Args:
@@ -538,7 +539,7 @@ def enhance_stereo(data, rate, amount=0.2):
     return result
 
 
-def remix_stems(stems_dict, gains_dict=None):
+def remix_stems(stems_dict: dict[str, tuple[Any, int]], gains_dict: dict[str, float] | None = None) -> tuple[Any, int]:
     """Combine processed stems into a stereo mix.
 
     Args:
@@ -601,7 +602,7 @@ def remix_stems(stems_dict, gains_dict=None):
 # ─── Per-Stem Processing Chains ──────────────────────────────────────
 
 
-def _get_stem_settings(stem_name, genre=None):
+def _get_stem_settings(stem_name: str, genre: str | None = None) -> dict[str, Any]:
     """Get processing settings for a specific stem type.
 
     Args:
@@ -622,10 +623,11 @@ def _get_stem_settings(stem_name, genre=None):
         genre_stem = genre_presets.get(stem_name, {})
         return _deep_merge(stem_defaults, genre_stem)
 
-    return stem_defaults.copy()
+    result: dict[str, Any] = stem_defaults.copy()
+    return result
 
 
-def _get_full_mix_settings(genre=None):
+def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
     """Get processing settings for full-mix fallback mode.
 
     Args:
@@ -644,10 +646,11 @@ def _get_full_mix_settings(genre=None):
         genre_full_mix = genre_presets.get('full_mix', {})
         return _deep_merge(full_mix_defaults, genre_full_mix)
 
-    return full_mix_defaults.copy()
+    result: dict[str, Any] = full_mix_defaults.copy()
+    return result
 
 
-def process_vocals(data, rate, settings=None):
+def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process vocal stem: noise reduction -> presence boost -> high tame -> compress.
 
     Args:
@@ -688,7 +691,7 @@ def process_vocals(data, rate, settings=None):
     return data
 
 
-def process_backing_vocals(data, rate, settings=None):
+def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process backing vocal stem: noise reduction -> presence boost -> high tame -> width -> compress.
 
     Lighter presence than lead vocals so backing sits behind. Wider stereo
@@ -732,7 +735,7 @@ def process_backing_vocals(data, rate, settings=None):
     return data
 
 
-def process_drums(data, rate, settings=None):
+def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process drum stem: click removal -> compress (fast attack).
 
     Args:
@@ -761,7 +764,7 @@ def process_drums(data, rate, settings=None):
     return data
 
 
-def process_bass(data, rate, settings=None):
+def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process bass stem: highpass -> mud cut -> compress.
 
     Args:
@@ -796,7 +799,7 @@ def process_bass(data, rate, settings=None):
     return data
 
 
-def process_synth(data, rate, settings=None):
+def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process synth stem: highpass -> mid boost -> high tame -> width -> compress.
 
     Highpass avoids bass competition. Mid boost adds body/presence.
@@ -840,7 +843,7 @@ def process_synth(data, rate, settings=None):
     return data
 
 
-def process_guitar(data, rate, settings=None):
+def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process guitar stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
 
     Mud cut at 250 Hz targets guitar-specific boxiness. Presence at 3 kHz
@@ -890,7 +893,7 @@ def process_guitar(data, rate, settings=None):
     return data
 
 
-def process_keyboard(data, rate, settings=None):
+def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process keyboard stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
 
     Low highpass (40 Hz) preserves piano bass notes. Presence at 2.5 kHz avoids
@@ -940,7 +943,7 @@ def process_keyboard(data, rate, settings=None):
     return data
 
 
-def process_strings(data, rate, settings=None):
+def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process strings stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> lp.
 
     Lightest processing of all stems. Very gentle compression (1.5:1) preserves
@@ -991,7 +994,7 @@ def process_strings(data, rate, settings=None):
     return data
 
 
-def process_brass(data, rate, settings=None):
+def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process brass stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
 
     Presence at 2 kHz for brass "bite" (below vocals). Aggressive high tame
@@ -1042,7 +1045,7 @@ def process_brass(data, rate, settings=None):
     return data
 
 
-def process_woodwinds(data, rate, settings=None):
+def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process woodwinds stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
 
     Tuned for reed/breath instruments. Light high tame preserves breathiness.
@@ -1092,7 +1095,7 @@ def process_woodwinds(data, rate, settings=None):
     return data
 
 
-def process_percussion(data, rate, settings=None):
+def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process percussion stem: highpass -> click removal -> presence -> high tame -> width -> compress -> sat.
 
     Distinct from drums — handles congas, shakers, tambourines etc. Presence at
@@ -1142,7 +1145,7 @@ def process_percussion(data, rate, settings=None):
     return data
 
 
-def process_other(data, rate, settings=None):
+def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
     """Process 'other' stem (instruments, synths): noise reduction -> mud cut -> high tame.
 
     Args:
@@ -1195,7 +1198,8 @@ STEM_PROCESSORS = {
 # ─── Full Pipeline Functions ─────────────────────────────────────────
 
 
-def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
+def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | str,
+                    genre: str | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Full stems pipeline: load stems, process each, remix, write output.
 
     Args:
@@ -1208,15 +1212,16 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
     Returns:
         Dict with processing results and metrics.
     """
-    result = {
+    stems_processed: list[dict[str, Any]] = []
+    result: dict[str, Any] = {
         'mode': 'stems',
-        'stems_processed': [],
+        'stems_processed': stems_processed,
         'dry_run': dry_run,
     }
 
     # Load and process each stem
-    processed_stems = {}
-    gains = {}
+    processed_stems: dict[str, tuple[Any, int]] = {}
+    gains: dict[str, float] = {}
 
     for stem_name in STEM_NAMES:
         if stem_name not in stem_paths:
@@ -1227,10 +1232,10 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
         paths = [raw] if isinstance(raw, str) else list(raw)
 
         # Read and combine all files for this stem category
-        data = None
-        rate = None
-        for p in paths:
-            p = Path(p)
+        data: Any | None = None
+        rate: int | None = None
+        for p_str in paths:
+            p = Path(p_str)
             if not p.exists():
                 logger.warning("Stem file not found: %s", p)
                 continue
@@ -1256,17 +1261,18 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
                 # Pad shorter to match longer
                 max_len = max(data.shape[0], chunk.shape[0])
                 if data.shape[0] < max_len:
-                    padded = np.zeros((max_len,) + data.shape[1:], dtype=np.float64)
+                    padded = np.zeros((max_len, *data.shape[1:]), dtype=np.float64)
                     padded[:data.shape[0]] = data
                     data = padded
                 if chunk.shape[0] < max_len:
-                    padded = np.zeros((max_len,) + chunk.shape[1:], dtype=np.float64)
+                    padded = np.zeros((max_len, *chunk.shape[1:]), dtype=np.float64)
                     padded[:chunk.shape[0]] = chunk
                     chunk = padded
                 data = data + chunk.astype(np.float64)
 
         if data is None:
             continue
+        assert rate is not None  # rate is always set when data is set
 
         # Measure pre-processing level
         pre_peak = float(np.max(np.abs(data)))
@@ -1315,7 +1321,8 @@ def mix_track_stems(stem_paths, output_path, genre=None, dry_run=False):
     return result
 
 
-def mix_track_full(input_path, output_path, genre=None, dry_run=False):
+def mix_track_full(input_path: Path | str, output_path: Path | str,
+                   genre: str | None = None, dry_run: bool = False) -> dict[str, Any]:
     """Full-mix fallback: process a stereo mix directly (no stems).
 
     Args:
@@ -1419,7 +1426,8 @@ def mix_track_full(input_path, output_path, genre=None, dry_run=False):
     return result
 
 
-def _process_one_track(track_dir, output_path, genre, dry_run):
+def _process_one_track(track_dir: Path | str, output_path: Path | str,
+                       genre: str | None, dry_run: bool) -> tuple[str, dict[str, Any] | None]:
     """Process a single track's stems (used by both sequential and parallel paths).
 
     Args:
@@ -1441,7 +1449,8 @@ def _process_one_track(track_dir, output_path, genre, dry_run):
     return (track_dir.name, result)
 
 
-def _process_one_full_mix(wav_file, output_path, genre, dry_run):
+def _process_one_full_mix(wav_file: Path | str, output_path: Path | str,
+                          genre: str | None, dry_run: bool) -> tuple[str, dict[str, Any]]:
     """Process a single full-mix WAV file.
 
     Returns:
@@ -1454,7 +1463,7 @@ def _process_one_full_mix(wav_file, output_path, genre, dry_run):
 # ─── CLI ─────────────────────────────────────────────────────────────
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Polish audio tracks (stems or full mix)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1606,7 +1615,7 @@ Examples:
             for track_dir in track_dirs:
                 progress.update(track_dir.name)
                 out_path = output_dir / f"{track_dir.name}.wav"
-                name, result = _process_one_track(
+                name, result = _process_one_track(  # type: ignore[assignment]
                     track_dir, out_path, args.genre, args.dry_run
                 )
                 if result:
@@ -1621,7 +1630,7 @@ Examples:
             with ProcessPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(
-                        _process_one_track, td, output_dir / f"{td.name}.wav",
+                        _process_one_track, td, output_dir / f"{td.name}.wav",  # type: ignore[arg-type]
                         args.genre, args.dry_run
                     ): i
                     for i, td in tasks

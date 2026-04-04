@@ -6,24 +6,25 @@ Automated Mastering Script for Album
 - True peak limiting to prevent clipping
 - Preserves dynamics while ensuring consistency
 """
+from __future__ import annotations
 
+import argparse
 import logging
 import os
 import sys
-import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 import numpy as np
-import soundfile as sf
 import pyloudnorm as pyln
+import soundfile as sf
 from scipy import signal
 
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -43,12 +44,12 @@ _BUILTIN_PRESETS_FILE = Path(__file__).parent / "genre-presets.yaml"
 _CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
 
 
-def _load_yaml_file(path: Path) -> dict:
+def _load_yaml_file(path: Path) -> dict[str, Any]:
     """Load a YAML file, returning empty dict on failure."""
     if not path.exists():
         return {}
     if yaml is None:
-        logger.debug("PyYAML not installed, cannot load %s", path)
+        logger.debug("PyYAML not installed, cannot load %s", path)  # type: ignore[unreachable]
         return {}
     try:
         with open(path) as f:
@@ -58,7 +59,7 @@ def _load_yaml_file(path: Path) -> dict:
         return {}
 
 
-def _get_overrides_path() -> Optional[Path]:
+def _get_overrides_path() -> Path | None:
     """Resolve the user's overrides directory from config."""
     config = _load_yaml_file(_CONFIG_PATH)
     if not config:
@@ -72,7 +73,7 @@ def _get_overrides_path() -> Optional[Path]:
     return None
 
 
-def load_genre_presets() -> dict:
+def load_genre_presets() -> dict[str, tuple[float, float, float, float]]:
     """Load genre presets from YAML, merging built-in with user overrides.
 
     Returns:
@@ -119,7 +120,7 @@ def load_genre_presets() -> dict:
 # Load presets at import time (fast — just two small YAML reads)
 GENRE_PRESETS = load_genre_presets()
 
-def apply_eq(data, rate, freq, gain_db, q=1.0):
+def apply_eq(data: Any, rate: int, freq: float, gain_db: float, q: float = 1.0) -> Any:
     """Apply parametric EQ to audio data.
 
     Args:
@@ -131,7 +132,7 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
     """
     nyquist = rate / 2
     if not (20 <= freq < nyquist):
-        logger.warning("EQ freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        logger.warning("EQ freq %.1f Hz out of valid range (20\u2013%.0f Hz), skipping", freq, nyquist)
         return data
     if q <= 0:
         logger.warning("EQ Q factor must be positive (got %.4f), skipping", q)
@@ -169,11 +170,11 @@ def apply_eq(data, rate, freq, gain_db, q=1.0):
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
         return result
 
-def apply_high_shelf(data, rate, freq, gain_db):
+def apply_high_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
     """Apply high shelf EQ."""
     nyquist = rate / 2
     if not (20 <= freq < nyquist):
-        logger.warning("High shelf freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        logger.warning("High shelf freq %.1f Hz out of valid range (20\u2013%.0f Hz), skipping", freq, nyquist)
         return data
 
     A = 10 ** (gain_db / 40)
@@ -207,7 +208,7 @@ def apply_high_shelf(data, rate, freq, gain_db):
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
         return result
 
-def apply_fade_out(data, rate, duration=5.0, curve='exponential'):
+def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'exponential') -> Any:
     """Apply a fade-out to the end of audio data.
 
     Args:
@@ -249,7 +250,7 @@ def apply_fade_out(data, rate, duration=5.0, curve='exponential'):
     return result
 
 
-def soft_clip(data, threshold=0.95):
+def soft_clip(data: Any, threshold: float = 0.95) -> Any:
     """Soft clipping limiter to prevent harsh digital clipping."""
     # Soft knee limiter using tanh
     above_thresh = np.abs(data) > threshold
@@ -261,7 +262,7 @@ def soft_clip(data, threshold=0.95):
     result[above_thresh] = np.sign(data[above_thresh]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[above_thresh]) - threshold) / (1 - threshold)))
     return result
 
-def limit_peaks(data, ceiling_db=-1.0):
+def limit_peaks(data: Any, ceiling_db: float = -1.0) -> Any:
     """Simple peak limiter to prevent clipping.
 
     Args:
@@ -278,9 +279,11 @@ def limit_peaks(data, ceiling_db=-1.0):
 
     return soft_clip(data, ceiling_linear)
 
-def master_track(input_path, output_path, target_lufs=-14.0,
-                 eq_settings=None, ceiling_db=-1.0, fade_out=None,
-                 compress_ratio=1.5):
+def master_track(input_path: Path | str, output_path: Path | str,
+                 target_lufs: float = -14.0,
+                 eq_settings: list[tuple[float, float, float]] | None = None,
+                 ceiling_db: float = -1.0, fade_out: float | None = None,
+                 compress_ratio: float = 1.5) -> dict[str, Any]:
     """Master a single track.
 
     Args:
@@ -364,8 +367,11 @@ def master_track(input_path, output_path, target_lufs=-14.0,
         'final_peak': final_peak,
     }
 
-def _process_one_track(wav_file, output_path, target_lufs, eq_settings,
-                       ceiling_db, dry_run, compress_ratio=1.5):
+def _process_one_track(wav_file: Path | str, output_path: Path | str,
+                       target_lufs: float,
+                       eq_settings: list[tuple[float, float, float]] | None,
+                       ceiling_db: float, dry_run: bool,
+                       compress_ratio: float = 1.5) -> tuple[str, dict[str, Any] | None]:
     """Process a single track (used by both sequential and parallel paths).
 
     Returns (wav_file_name, result_dict) or (wav_file_name, None) if skipped.
@@ -401,7 +407,7 @@ def _process_one_track(wav_file, output_path, target_lufs, eq_settings,
     return (str(wav_file), result)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Master audio tracks for streaming',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -500,12 +506,12 @@ Examples:
                        and 'venv' not in str(f)])
 
     # Build EQ settings
-    eq_settings = []
+    eq_settings: list[tuple[float, float, float]] = []
     if args.cut_highmid != 0:
-        eq_settings.append((3500, args.cut_highmid, 1.5))  # 3.5kHz with moderate Q
+        eq_settings.append((3500.0, args.cut_highmid, 1.5))  # 3.5kHz with moderate Q
     if args.cut_highs != 0:
         # For high shelf, we'd need different handling - simplified here
-        eq_settings.append((8000, args.cut_highs, 0.7))
+        eq_settings.append((8000.0, args.cut_highs, 0.7))
 
     print("=" * 70)
     print("MASTERING SESSION")

@@ -6,3 +6,44 @@ markers = [
     "slow: tests that take longer than 5 seconds",
     "integration: cross-skill integration tests",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "servers/bitwize-music-server"
+files = ["servers/bitwize-music-server", "tools"]
+namespace_packages = true
+explicit_package_bases = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true
+disallow_any_generics = true
+follow_imports = "silent"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort — import ordering
+    "UP",   # pyupgrade — modern Python patterns
+    "B",    # flake8-bugbear — common bug patterns
+    "SIM",  # flake8-simplify — simplifiable code
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "E501",   # line length — handled by formatter, not linter
+    "SIM108", # ternary operator — not always more readable
+    "E402",   # module-level import not at top — tools/ uses sys.path before imports
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tools", "handlers"]

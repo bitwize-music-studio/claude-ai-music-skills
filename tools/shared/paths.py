@@ -9,9 +9,11 @@ The mirrored path structure:
     {documents_root}/artists/[artist]/albums/[genre]/[album]/ # Documents
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from tools.shared.config import load_config
 
@@ -19,9 +21,9 @@ from tools.shared.config import load_config
 def resolve_path(
     path_type: str,
     album: str,
-    artist: Optional[str] = None,
-    genre: Optional[str] = None,
-    config: Optional[dict] = None,
+    artist: str | None = None,
+    genre: str | None = None,
+    config: dict[str, Any] | None = None,
 ) -> Path:
     """Resolve a path for the given type and album.
 
@@ -44,7 +46,9 @@ def resolve_path(
         )
 
     if config is None:
-        config = load_config(required=True)
+        loaded = load_config(required=True)
+        assert loaded is not None  # required=True exits on failure
+        config = loaded
 
     if artist is None:
         artist = config.get("artist", {}).get("name", "")
@@ -69,8 +73,8 @@ def resolve_path(
 def resolve_tracks_dir(
     album: str,
     genre: str,
-    artist: Optional[str] = None,
-    config: Optional[dict] = None,
+    artist: str | None = None,
+    config: dict[str, Any] | None = None,
 ) -> Path:
     """Resolve the tracks/ directory for an album.
 
@@ -88,7 +92,7 @@ def resolve_tracks_dir(
     return resolve_path("content", album, artist=artist, genre=genre, config=config) / "tracks"
 
 
-def resolve_overrides_dir(config: Optional[dict] = None) -> Path:
+def resolve_overrides_dir(config: dict[str, Any] | None = None) -> Path:
     """Resolve the overrides directory path.
 
     Args:
@@ -98,7 +102,9 @@ def resolve_overrides_dir(config: Optional[dict] = None) -> Path:
         Path to overrides directory.
     """
     if config is None:
-        config = load_config(required=True)
+        loaded = load_config(required=True)
+        assert loaded is not None  # required=True exits on failure
+        config = loaded
 
     paths = config.get("paths", {})
     overrides_raw = paths.get("overrides", "")

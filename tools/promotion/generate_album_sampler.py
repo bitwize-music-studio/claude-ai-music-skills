@@ -14,16 +14,19 @@ Usage:
     python generate_album_sampler.py /path/to/mastered --clip-duration 10
 """
 
-import atexit
-import os
-import sys
+from __future__ import annotations
+
 import argparse
-import subprocess
-import tempfile
-import shutil
-from pathlib import Path
-from typing import Optional, List
+import atexit
+import contextlib
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -32,32 +35,30 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import logging
 
+from tools.promotion.generate_promo_video import generate_waveform_video
 from tools.shared.config import load_config as _load_config
 from tools.shared.fonts import find_font
 from tools.shared.logging_config import setup_logging
-from tools.shared.progress import ProgressBar
 from tools.shared.media_utils import (
+    check_ffmpeg,
     extract_dominant_color,
+    find_best_segment,
+    get_audio_duration,
     get_complementary_color,
     rgb_to_hex,
-    check_ffmpeg,
-    get_audio_duration,
-    find_best_segment,
 )
-from tools.promotion.generate_promo_video import generate_waveform_video
+from tools.shared.progress import ProgressBar
 
 logger = logging.getLogger(__name__)
 
 # Safety-net cleanup for temp files left behind on abnormal exit
-_temp_files_to_cleanup: list = []
+_temp_files_to_cleanup: list[str] = []
 
 
-def _cleanup_temp_files():
+def _cleanup_temp_files() -> None:
     for path in _temp_files_to_cleanup:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(path)
-        except OSError:
-            pass
     _temp_files_to_cleanup.clear()
 
 
@@ -66,7 +67,7 @@ atexit.register(_cleanup_temp_files)
 _DEFAULT_CONFIG = {"artist": {"name": "bitwize"}}
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     """Load bitwize-music config file."""
     return _load_config(fallback=_DEFAULT_CONFIG) or _DEFAULT_CONFIG
 
@@ -137,7 +138,7 @@ def generate_clip(
 
 
 def concatenate_with_crossfade(
-    clip_paths: List[Path],
+    clip_paths: list[Path],
     output_path: Path,
     crossfade: float = 0.5,
     clip_duration: int = DEFAULT_CLIP_DURATION
@@ -223,8 +224,8 @@ def generate_album_sampler(
     clip_duration: int = DEFAULT_CLIP_DURATION,
     crossfade: float = DEFAULT_CROSSFADE,
     artist_name: str = "bitwize",
-    font_path: Optional[str] = None,
-    titles: Optional[dict] = None,
+    font_path: str | None = None,
+    titles: dict[str, str] | None = None,
     style: str = "pulse",
     color_hex: str = "",
     glow: float = 0.6,
@@ -250,7 +251,7 @@ def generate_album_sampler(
 
     # Find audio files
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
-    audio_files = []
+    audio_files: list[Path] = []
     for ext in audio_extensions:
         audio_files.extend(tracks_dir.glob(f'*{ext}'))
 
@@ -341,7 +342,7 @@ def generate_album_sampler(
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description='Generate album sampler video for Twitter/social media',
         formatter_class=argparse.RawDescriptionHelpFormatter,
