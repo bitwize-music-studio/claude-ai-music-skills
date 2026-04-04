@@ -106,6 +106,12 @@ Next steps:
   Option 2 - Manual:
     1. Edit README.md with your album concept
     2. Create tracks with /import-track or manually in tracks/
+
+Tip: For OST/soundtrack albums with a mix of vocal and instrumental
+tracks, the album-conceptualizer will ask about the vocal/instrumental
+split per track. Set `instrumental: true` in track frontmatter for
+instrumental tracks — they skip the lyrics workflow and go directly
+to /bitwize-music:suno-engineer.
 ```
 
 ## Error Handling

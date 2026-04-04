@@ -45,7 +45,9 @@ You analyze the current state of albums and tracks and recommend the optimal nex
 
 ## Decision Tree
 
-Analyze album and track statuses to determine the optimal next action:
+Analyze album and track statuses to determine the optimal next action.
+
+**Instrumental detection**: Check each track's frontmatter for `instrumental: true` or Track Details table for `**Instrumental** | Yes`. Instrumental tracks bypass the lyrics workflow (lyric-writer, pronunciation-specialist, lyric-reviewer) and go directly to `/bitwize-music:suno-engineer` for Style Box creation.
 
 ```
 Album Status = "Concept"
@@ -54,10 +56,14 @@ Album Status = "Concept"
 Album Status = "Research Complete"
   → Any tracks Sources Pending?
     YES → "Sources need verification. Review SOURCES.md and verify each source."
-    NO  → "Ready to write! Pick a track and use /bitwize-music:lyric-writer"
+    NO  → First "Not Started" track instrumental?
+      YES → "Create Style Box for instrumental track [name]. Use /bitwize-music:suno-engineer"
+      NO  → "Ready to write! Pick a track and use /bitwize-music:lyric-writer"
 
 Album has tracks with status "Not Started"
-  → "Write lyrics for track [first not-started track]. Use /bitwize-music:lyric-writer"
+  → First not-started track instrumental?
+    YES → "Create Style Box for instrumental track [name]. Use /bitwize-music:suno-engineer directly"
+    NO  → "Write lyrics for track [first not-started track]. Use /bitwize-music:lyric-writer"
 
 Album has tracks with status "In Progress" (lyrics partially written)
   → "Finish lyrics for track [first in-progress track]. Use /bitwize-music:lyric-writer"
@@ -65,8 +71,10 @@ Album has tracks with status "In Progress" (lyrics partially written)
 Album has tracks with status "Sources Pending"
   → "Verify sources for track [name]. Check SOURCES.md, then update sources_verified field."
 
-All tracks have lyrics, none generated
-  → "All lyrics complete! Style prompts should be ready. Run /bitwize-music:pronunciation-specialist to check for pronunciation risks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates before generating on Suno."
+All tracks have lyrics (or Style Box for instrumentals), none generated
+  → Has vocal tracks?
+    YES → "Run /bitwize-music:pronunciation-specialist on vocal tracks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates (instrumental tracks auto-skip lyrics gates)."
+    NO (all instrumental) → "All Style Boxes ready! Run /bitwize-music:pre-generation-check to validate gates before generating on Suno."
 
 Some tracks generated, some not
   → Any Generated tracks without ✓ in Generation Log Rating?

@@ -36,6 +36,16 @@ lyric-writer (+ suno-engineer) → pronunciation-specialist → lyric-reviewer �
 
 ---
 
+## Instrumental Track Detection
+
+**Before running gates**, check the track's frontmatter for `instrumental: true` or the Track Details table for `**Instrumental** | Yes`.
+
+**If instrumental**: Skip Gates 2 (Lyrics Reviewed), 3 (Pronunciation Resolved), and 4 (Explicit Flag). Mark them as `SKIP — Instrumental track`. Only run Gates 1, 5, and 6.
+
+**Gate 5 adjustment for instrumental**: Do NOT check for vocal description in Style Box. Instead verify the Style Box has genre/instrumentation/mood. Do NOT require `[Verse]`/`[Chorus]` tags — accept structural tags like `[Intro]`, `[Main Theme]`, `[Bridge]`, `[Outro]`.
+
+---
+
 ## The 6 Gates
 
 ### Gate 1: Sources Verified
@@ -158,5 +168,6 @@ lyric-writer (+ suno-engineer) → pronunciation-specialist → lyric-reviewer �
 3. **Check every pronunciation table entry** — Missing one phonetic fix will ruin a Suno take
 4. **Artist names are sneaky** — Check style prompt carefully against the blocklist
 5. **Be specific** — "Gate failed" is useless. "live in V2:L3 unresolved" is actionable
+6. **Instrumental tracks skip lyrics gates** — Gates 2, 3, 4 are N/A for instrumental tracks
 
 **Your deliverable**: Pass/fail report with album-level verdict.
