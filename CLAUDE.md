@@ -180,17 +180,28 @@ Album target duration set during Phase 3 (Sonic Direction). Tracks inherit unles
 - `Generated`: Track generated on Suno, audio exists. User listens and either approves (mark ✓ in Generation Log → advance to `Final`) or rejects (see Regeneration Workflow below)
 - `Final`: Approved and ready for mastering
 
-**Album statuses** (in order):
+**Album statuses** — two flows depending on album type:
+
+**Documentary/true-story albums** (full flow):
 `Concept` → `Research Complete` → `Sources Verified` → `In Progress` → `Complete` → `Released`
 
+**Standard albums** (non-documentary, skip research statuses):
+`Concept` → `In Progress` → `Complete` → `Released`
+
 - `Concept`: Initial planning, album README created
-- `Research Complete`: All research done, sources gathered (documentary albums)
-- `Sources Verified`: Human verified all track sources
+- `Research Complete`: All research done, sources gathered (documentary albums only)
+- `Sources Verified`: Human verified all track sources (documentary albums only)
 - `In Progress`: Active writing/generation work
 - `Complete`: All tracks Final, ready for mastering/release
 - `Released`: Published to streaming platforms
 
 **Transition rules**: Album status advances when ALL tracks reach the corresponding level. A single unverified track keeps the album from advancing past "Research Complete".
+
+**Auto-advancement**: Skills that complete a phase should advance the album status automatically:
+- `/bitwize-music:verify-sources` → when all tracks verified, advance album to `Sources Verified`
+- When all tracks are `Final` → album advances to `Complete`
+
+**Batch operations**: To mark all Generated tracks as Final after QA, use `update_track_field(album_slug, track_slug, "status", "Final")` for each track via MCP, or ask Claude to batch-approve all tracks when all have ✓ in their Generation Logs.
 
 ### Regeneration Workflow
 

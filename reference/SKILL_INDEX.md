@@ -24,6 +24,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...see album progress at a glance | `/album-dashboard <album-name>` |
 | ...know what to do next | `/resume [album-name]` (includes next-step advice) |
 | ...check if album structure is correct | `/validate-album <album-name>` |
+| ...approve all generated tracks at once | Batch-approve via `update_track_field` MCP tool per track |
 | ...release my finished album | `/release-director` |
 
 ### Writing & Quality

@@ -79,12 +79,15 @@ Some tracks generated, some not
 All tracks generated, none Final
   → "All tracks generated! Review each track:
      Mark keepers with ✓ in Generation Log, regenerate rejected ones.
-     Once all approved, set Status: Final for each."
+     Once all approved, batch-approve:
+     Use update_track_field(album_slug, track_slug, 'status', 'Final') for each.
+     Once all Final, album advances to Complete."
 
 All tracks generated, some Final
   → Any Generated (non-Final) without ✓?
     YES → "Review track [name] — approve (✓) or regenerate"
-    NO  → "All reviewed! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+    NO  → "All reviewed! Batch-approve remaining: update_track_field(album_slug, track_slug, 'status', 'Final') for each.
+           Then import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
 
 All tracks Final
   → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
