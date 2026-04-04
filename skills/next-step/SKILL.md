@@ -71,8 +71,14 @@ All tracks have lyrics, none generated
 Some tracks generated, some not
   → "Generate track [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"
 
-All tracks generated
-  → "All tracks generated! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+All tracks generated, none "Final"
+  → "All tracks generated! Listen to each and approve:
+     Mark keepers with ✓ in Generation Log, then batch-approve:
+     Use update_track_field(album_slug, track_slug, 'status', 'Final') for each.
+     Once all Final, album advances to Complete."
+
+All tracks "Final"
+  → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
 
 Album Status = "Complete"
   → "Album is complete! Release with /bitwize-music:release-director"

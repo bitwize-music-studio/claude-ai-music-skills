@@ -6,6 +6,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Album status management improvements** — auto-advancement, batch operations, and documented status flows ([#118](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/118))
+  - CLAUDE.md: documented non-documentary status flow (Concept → In Progress, skipping Research/Sources phases), auto-advancement rules, and batch-approve workflow
+  - Verify-sources: auto-advances album from Research Complete → Sources Verified when all tracks verified, with partial verification progress reports
+  - Resume: phase table covers both documentary and standard album flows, batch-approve path for Generated → Final
+  - Next-step: batch-approve path for all-generated albums
+  - SKILL_INDEX: batch-approve entry in Album Lifecycle table
+
 ## [0.82.0] - 2026-04-03
 
 ### Added
