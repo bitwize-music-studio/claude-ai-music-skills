@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Guided regeneration workflow** — structured path for rejecting and regenerating tracks that don't meet quality standards ([#116](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/116))
+  - CLAUDE.md: regeneration workflow documented in Status Tracking section
+  - Resume: detects Generated tracks without approval (✓), offers style/lyrics/retry regeneration paths
+  - Next-step: recommends review and regeneration for unapproved Generated tracks
+  - SKILL_INDEX: new "Track Regeneration" workflow sequence and decision tree entries
+
 ## [0.82.0] - 2026-04-03
 
 ### Added

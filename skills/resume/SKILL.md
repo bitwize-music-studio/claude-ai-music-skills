@@ -55,7 +55,8 @@ Based on album and track statuses, identify the workflow phase:
 | In Progress | Mixed, some "Not Started" | Writing - Need to complete lyrics |
 | In Progress | Some "Sources Pending" | Verification - Need human verification of sources |
 | In Progress | All have lyrics | Ready to Generate - Run Ready to Generate checkpoint |
-| In Progress | Some "Generated" | Generating - Continue generating on Suno |
+| In Progress | Some "Generated" | Generating - Continue generating on Suno. Check Generation Logs for rejected tracks needing regeneration |
+| In Progress | All "Generated", none "Final" | Review & Approve - Listen to generated tracks, mark keepers with ✓, regenerate rejected ones |
 | Complete | All "Final" | Mastering - Ready to master audio |
 | Released | All "Final" | Released - Album is live |
 
@@ -116,10 +117,28 @@ All tracks have lyrics, none generated
   → "All lyrics complete! Style prompts should be ready. Run /bitwize-music:pronunciation-specialist to check for pronunciation risks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates before generating on Suno."
 
 Some tracks generated, some not
-  → "Generate [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"
+  → Any Generated tracks without ✓ in Generation Log Rating?
+    YES → "Track [name] was generated but not approved. Listen and decide:
+           - Happy? Mark ✓ in Generation Log and set Status: Final
+           - Not happy? Log the reason, then:
+             Style issue → /bitwize-music:suno-engineer to revise Style Box
+             Lyrics issue → /bitwize-music:lyric-writer to fix, then regenerate
+             Bad luck → Regenerate on Suno with same settings (it's non-deterministic)"
+    NO  → "Generate [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"
 
-All tracks generated
-  → "All tracks generated! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+All tracks generated, none Final
+  → "All tracks generated! Listen to each track and approve:
+     - Mark keepers with ✓ in Generation Log Rating column
+     - Reject and regenerate any that don't meet quality standards
+     - Once all have ✓, advance Status to Final for each"
+
+All tracks generated, some Final
+  → Any Generated (non-Final) tracks without ✓?
+    YES → "Review track [name] — listen and approve (✓) or regenerate"
+    NO  → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+
+All tracks Final
+  → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
 
 Album Status = "Complete"
   → "Album is complete! Release with /bitwize-music:release-director"

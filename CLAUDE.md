@@ -177,7 +177,7 @@ Album target duration set during Phase 3 (Sonic Direction). Tracks inherit unles
 - `Sources Pending`: Sources gathered, awaiting human verification
 - `Sources Verified`: Human confirmed all sources via `/bitwize-music:verify-sources`
 - `In Progress`: Lyrics being written or revised
-- `Generated`: Track generated on Suno, audio exists
+- `Generated`: Track generated on Suno, audio exists. User listens and either approves (mark ✓ in Generation Log → advance to `Final`) or rejects (see Regeneration Workflow below)
 - `Final`: Approved and ready for mastering
 
 **Album statuses** (in order):
@@ -191,6 +191,24 @@ Album target duration set during Phase 3 (Sonic Direction). Tracks inherit unles
 - `Released`: Published to streaming platforms
 
 **Transition rules**: Album status advances when ALL tracks reach the corresponding level. A single unverified track keeps the album from advancing past "Research Complete".
+
+### Regeneration Workflow
+
+When a user rejects a generated track (doesn't like the result, wrong style, pronunciation issues, etc.):
+
+1. **Log the rejection**: Add a row in the Generation Log with the reason (e.g., "wrong tempo", "vocal too high", "mispronounced name")
+2. **Decide the fix path**:
+   - **Style issue** (wrong genre, tempo, mood) → Revise Style Box via `/bitwize-music:suno-engineer`, then regenerate on Suno
+   - **Lyrics issue** (wrong words, pronunciation) → Fix lyrics via `/bitwize-music:lyric-writer`, re-run `/bitwize-music:pronunciation-specialist`, then regenerate
+   - **Suno interpretation** (right prompt, wrong result) → Regenerate on Suno with same settings (Suno is non-deterministic)
+3. **Regenerate**: Generate again on Suno, log the new attempt
+4. **When satisfied**: Mark the keeper with ✓ in the Generation Log Rating column, then advance Status to `Final`
+
+**Status stays `Generated`** during regeneration — no backward transition needed. The Generation Log tracks all attempts. A track is only `Final` when it has a ✓ in the Rating column.
+
+**Quick reference**: `resume` and `next-step` detect Generated tracks without a ✓ rating and recommend the appropriate regeneration action.
+
+See `/reference/workflows/error-recovery.md` for detailed recovery procedures.
 
 See `/reference/state-schema.md` for the full state cache schema.
 

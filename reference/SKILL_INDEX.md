@@ -37,11 +37,13 @@ Quick-reference guide for finding the right skill for any task.
 | ...check lyrics for plagiarism | `/plagiarism-checker` |
 | ...check lyrics/prose for AI-sounding patterns | `/voice-checker` |
 
-### Suno Generation
+### Suno Generation & Regeneration
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...create Suno prompts and settings | `/suno-engineer` |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
+| ...regenerate a track I'm not happy with | See Regeneration Workflow below |
+| ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
 ### Research (True-Story Albums)
 | I need to... | Use this skill |
@@ -252,6 +254,25 @@ What to have ready before using each skill:
     -> /validate-album <album>
 ```
 
+### Track Regeneration (Rejected Generation)
+```
+[Listen to generated track — not happy?]
+    -> Log rejection reason in Generation Log
+    -> IF style issue:
+        -> /suno-engineer (revise Style Box)
+        -> [Regenerate on Suno]
+    -> IF lyrics issue:
+        -> /lyric-writer (fix lyrics)
+        -> /pronunciation-specialist (re-check)
+        -> [Regenerate on Suno]
+    -> IF bad luck (right prompt, wrong result):
+        -> [Regenerate on Suno with same settings — Suno is non-deterministic]
+    -> Log new attempt in Generation Log
+    -> [Repeat until satisfied]
+    -> Mark ✓ in Generation Log Rating
+    -> Set Status: Final
+```
+
 ### Post-Generation to Release
 ```
 /mix-engineer <album> (optional: polish raw audio)
@@ -369,4 +390,5 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - **Building true-story album?** Always start with `/researcher` before writing
 - **Before Suno?** Run `/lyric-reviewer` to catch issues
 - **Weird pronunciations?** Run `/pronunciation-specialist` on every track
+- **Track sounds wrong?** Log the reason in Generation Log, fix prompt or lyrics, regenerate. See Regeneration Workflow
 - **Not sure what's available?** Run `/help` for categorized skill list
