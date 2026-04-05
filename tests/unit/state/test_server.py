@@ -14181,3 +14181,142 @@ class TestUpdateFrontmatterBlock:
         assert fm["suno_url"] == "https://suno.com/abc"
         assert fm["sheet_music"]["pdf"] == "url"
 
+
+# =============================================================================
+# Tests for diagnose
+# =============================================================================
+
+
+class TestDiagnose:
+    """Tests for the diagnose() comprehensive health check tool."""
+
+    def _make_healthy_env(self, tmp_path):
+        """Create a state and filesystem that passes all checks."""
+        state = _fresh_state()
+        state["config"]["content_root"] = str(tmp_path / "content")
+        state["config"]["audio_root"] = str(tmp_path / "audio")
+        state["config"]["documents_root"] = str(tmp_path / "docs")
+        state["config"]["artist_name"] = "test-artist"
+        (tmp_path / "content").mkdir()
+        (tmp_path / "audio").mkdir()
+        (tmp_path / "docs").mkdir()
+
+        # State cache file (at patched home)
+        cache_dir = tmp_path / ".bitwize-music" / "cache"
+        cache_dir.mkdir(parents=True)
+        (cache_dir / "state.json").write_text(
+            json.dumps({"schema_version": "1.2.0", "albums": {}})
+        )
+
+        # Fake venv (at patched home)
+        venv_bin = tmp_path / ".bitwize-music" / "venv" / "bin"
+        venv_bin.mkdir(parents=True)
+        (venv_bin / "python3").touch()
+
+        # Plugin version
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
+
+        # Requirements
+        (tmp_path / "requirements.txt").write_text("pyyaml==6.0.2\n")
+
+        return MockStateCache(state)
+
+    def test_healthy_environment(self, tmp_path):
+        mock_cache = self._make_healthy_env(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        assert result["status"] in ("ok", "warn")
+        assert result["total"] >= 7
+        assert result["fail"] == 0
+
+    def test_missing_config_fields(self, tmp_path):
+        state = _fresh_state()
+        state["config"] = {}  # empty config
+        mock_cache = MockStateCache(state)
+
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
+        (tmp_path / "requirements.txt").write_text("")
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        config_check = next(c for c in result["checks"] if c["name"] == "config")
+        assert config_check["status"] == "fail"
+        assert result["status"] == "fail"
+
+    def test_missing_state_cache(self, tmp_path):
+        mock_cache = self._make_healthy_env(tmp_path)
+        # No state.json at the patched home
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path / "nonexistent"):
+            result = json.loads(_run(server.diagnose()))
+        cache_check = next(c for c in result["checks"] if c["name"] == "state_cache")
+        assert cache_check["status"] == "warn"
+
+    def test_database_not_enabled(self, tmp_path):
+        mock_cache = self._make_healthy_env(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        db_check = next(c for c in result["checks"] if c["name"] == "database")
+        assert db_check["status"] == "ok"
+        assert "Not enabled" in db_check["detail"]
+
+    def test_cloud_not_enabled(self, tmp_path):
+        mock_cache = self._make_healthy_env(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
+        assert cloud_check["status"] == "ok"
+
+    def test_cloud_enabled_missing_creds(self, tmp_path):
+        state = _fresh_state()
+        state["config"]["cloud"] = {"enabled": True, "provider": "r2", "r2": {}}
+        state["config"]["content_root"] = str(tmp_path)
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["documents_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test"
+        mock_cache = MockStateCache(state)
+
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
+        (tmp_path / "requirements.txt").write_text("")
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
+        assert cloud_check["status"] == "fail"
+        assert "missing" in cloud_check["detail"].lower()
+
+    def test_overall_status_worst_of_all(self, tmp_path):
+        """Overall status should be the worst of any individual check."""
+        state = _fresh_state()
+        state["config"] = {}  # Will cause config fail
+        mock_cache = MockStateCache(state)
+
+        plugin_dir = tmp_path / ".claude-plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
+        (tmp_path / "requirements.txt").write_text("")
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("handlers.health.Path.home", return_value=tmp_path):
+            result = json.loads(_run(server.diagnose()))
+        assert result["status"] == "fail"
+        assert result["ok"] + result["warn"] + result["fail"] == result["total"]
+
