@@ -186,6 +186,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
+  nu-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
   industrial:
     target_lufs: -14.0
     cut_highmid: -2.5

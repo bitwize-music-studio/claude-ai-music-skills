@@ -58,6 +58,20 @@ Detailed mastering settings by genre.
 - Drum impact
 - Vocal cut-through
 
+### Nu-Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the groove and bounce that define the genre; nu-metal's quiet-loud dynamics between restrained verses and explosive choruses need headroom -- over-compression flattens the emotional contrast
+**EQ focus**: Low-end weight from downtuned guitars and bass (60-200 Hz), vocal clarity across all styles (rapped, screamed, sung) at 2-5 kHz, gentle high-mid cut to tame scooped-mid guitar harshness (3-5 kHz), bass guitar presence (80-200 Hz)
+**MCP command**: `master_audio(album_slug, genre="nu-metal")`
+
+**Characteristics**:
+- Bass guitar is more prominent than in most metal subgenres -- often funk-influenced slap style or heavily distorted; keep it defined and punchy, not buried
+- Downtuned seven-string guitars produce heavy low-mid content (100-300 Hz); careful separation from bass guitar prevents mud
+- Vocal styles vary wildly within a single song (rapping, singing, screaming) -- mastering must accommodate all three without favoring one; vocal clarity at 2-5 kHz critical
+- DJ scratching and electronic samples sit in the upper-mid range (2-6 kHz); preserve their presence without harshness
+- Groove and rhythmic clarity are the priority -- kick and snare punch must cut through the low-end density; triggered-sounding kicks acceptable
+- Scooped-mid guitar tone is intentional to the genre -- do not try to "fix" the mid-scoop; it leaves room for vocals and bass
+
 ### Stoner Rock
 **LUFS target**: -14 LUFS (stoner doom: -16 LUFS; desert rock/fuzz rock: -14 LUFS)
 **Dynamics**: Moderate compression; preserve the natural weight and sustain of fuzz-drenched riffs; avoid squashing the groove -- stoner rock lives in the space between riff hits, and over-compression kills the head-nodding feel
