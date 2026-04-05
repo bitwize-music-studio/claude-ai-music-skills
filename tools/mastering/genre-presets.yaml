@@ -132,6 +132,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
+  post-punk:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
   hardcore-punk:
     target_lufs: -14.0
     cut_highmid: -2.5
