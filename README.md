@@ -54,7 +54,7 @@ Then run `/bitwize-music:setup` to detect your environment and install dependenc
 
 This is where the engineering lives. The plugin is a case study in how far you can push Claude Code's plugin system.
 
-### Skill System (52 Skills)
+### Skill System (51 Skills)
 
 Each skill is a self-contained markdown file with a YAML frontmatter that declares its model, description, and when it should activate. Skills range from simple clipboard operations to multi-step creative workflows. Claude routes to skills automatically based on context, or you invoke them directly with `/bitwize-music:<name>`.
 
@@ -113,7 +113,7 @@ Nothing ships without passing gates:
 ## Project Structure
 
 ```
-skills/              52 skill definitions (markdown + YAML frontmatter)
+skills/              51 skill definitions (markdown + YAML frontmatter)
 servers/             MCP server (Python, 80+ tools)
 tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
@@ -129,7 +129,7 @@ config/              Example config and setup docs
 
 | Topic | Location |
 |-------|----------|
-| All 52 skills | [docs/skills.md](docs/skills.md) |
+| All 51 skills | [docs/skills.md](docs/skills.md) |
 | Configuration | [docs/configuration.md](docs/configuration.md) |
 | Troubleshooting | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |
