@@ -58,6 +58,20 @@ Detailed mastering settings by genre.
 - Drum impact
 - Vocal cut-through
 
+### Post-Punk
+**LUFS target**: -14 LUFS (atmospheric/gothic: -15 LUFS)
+**Dynamics**: Moderate compression; preserve the interplay between bass and guitar textures; avoid squashing reverb tails and delay effects that define the genre's spatial character
+**EQ focus**: Bass presence and clarity (80-300 Hz), guitar texture preservation (800 Hz-3 kHz with gentle high-mid cut to tame angular guitar harshness), vocal clarity without brightness
+**MCP command**: `master_audio(album_slug, genre="post-punk")`
+
+**Characteristics**:
+- Bass is the melodic center — must remain clear, present, and defined; do not let it become muddy or buried
+- Angular guitar sits in the upper-mid range; cut harshness at 3-4 kHz but preserve the chorus/flanger/delay textures that define the genre
+- Reverb and delay are compositional elements, not decoration — over-compression collapses the spatial depth that post-punk depends on
+- Atmospheric/gothic tracks can target -15 LUFS for wider dynamics and more reverb headroom
+- Dance-punk subgenre: tighter compression, punchier kick and bass, can push to -14 LUFS
+- Vocals should sit within the mix, not on top of it — post-punk often buries vocals slightly behind instrumentation
+
 ### Electronic / EDM
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
