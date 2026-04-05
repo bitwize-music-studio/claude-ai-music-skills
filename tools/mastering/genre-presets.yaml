@@ -118,6 +118,10 @@ genres:
     target_lufs: -16.0
     cut_highmid: -1.5
     cut_highs: 0
+  stoner-rock:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
   progressive-rock:
     target_lufs: -16.0
     cut_highmid: -1.5

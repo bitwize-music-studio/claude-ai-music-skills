@@ -58,6 +58,21 @@ Detailed mastering settings by genre.
 - Drum impact
 - Vocal cut-through
 
+### Stoner Rock
+**LUFS target**: -14 LUFS (stoner doom: -16 LUFS; desert rock/fuzz rock: -14 LUFS)
+**Dynamics**: Moderate compression; preserve the natural weight and sustain of fuzz-drenched riffs; avoid squashing the groove -- stoner rock lives in the space between riff hits, and over-compression kills the head-nodding feel
+**EQ focus**: Low-end body and warmth (60-200 Hz), guitar fuzz presence (800 Hz-3 kHz with gentle high-mid cut to tame fizzy harshness without killing the distortion character), bass guitar definition (80-200 Hz)
+**MCP command**: `master_audio(album_slug, genre="stoner-rock")`
+
+**Characteristics**:
+- Fuzz guitar tone is the genre's identity -- preserve the thick, saturated distortion with its harmonic overtones; do not over-cut the upper harmonics that give fuzz its character
+- Bass and guitar often occupy similar frequency ranges due to shared downtuning; careful low-mid separation (150-400 Hz) prevents mud without thinning the combined wall of sound
+- High-mid harshness at 3-5 kHz from fuzz pedals: moderate cuts (-2 to -2.5 dB); aggressive cutting removes the bite that defines the tone
+- Stoner doom tracks (-16 LUFS): wider dynamics, preserve the crushing weight of slow riffs; minimal compression to maintain the natural sag and swell
+- Desert rock and fuzz rock (-14 LUFS): tighter compression acceptable, punchier drums, more energy and drive
+- Psychedelic stoner tracks with extended jams: preserve reverb tails and delay effects; these are compositional elements
+- Warm, analog-sounding master preferred -- avoid overly bright or clinical limiting; the genre's retro production aesthetic should carry through to mastering
+
 ### Post-Punk
 **LUFS target**: -14 LUFS (atmospheric/gothic: -15 LUFS)
 **Dynamics**: Moderate compression; preserve the interplay between bass and guitar textures; avoid squashing reverb tails and delay effects that define the genre's spatial character
