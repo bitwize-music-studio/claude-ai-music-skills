@@ -766,6 +766,328 @@ Detailed mastering settings by genre.
 - For ska-punk mastering, use the ska-punk preset instead (more aggressive high-mid cuts)
 - Drum transients (especially hi-hat and rim clicks) should stay sharp to drive the rhythm
 
+### Pop Punk
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; punchy and radio-ready but preserve the dynamic contrast between verse restraint and chorus energy; the sing-along hooks need headroom
+**EQ focus**: Vocal clarity and brightness (2-5 kHz), palm-muted guitar punch (800 Hz-2 kHz), bass definition (80-200 Hz), snare crack (1-3 kHz)
+**MCP command**: `master_audio(album_slug, genre="pop-punk")`
+
+**Characteristics**:
+- Vocals are melodic and upfront -- they carry the hooks and must be clear and present at all times
+- Palm-muted power chord chugs need punch in the low-mids without muddiness
+- Snare should be bright and snappy; it drives the fast tempos and singalong energy
+- Green Day-style: tighter, punchier, radio-ready; Blink-182/early 2000s: slightly scooped, more bass-forward
+- Pop-punk revival (Modern Baseball, PUP): slightly rawer, more dynamic; classic: polished and compressed
+- Double-tracked vocals and gang vocals are common; keep them full but not smeared
+
+### Screamo
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; preserve the explosive dynamics between quiet passages and screamed eruptions; the emotional contrast is the genre's core
+**EQ focus**: Screamed vocal presence (1-4 kHz), guitar dissonance and texture (800 Hz-3 kHz), bass weight (60-200 Hz), high-mid cut to tame harshness without losing aggression (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="screamo")`
+
+**Characteristics**:
+- Screamed vocals are raw and emotionally intense; preserve their urgency without introducing painful harshness
+- Quiet-to-explosive dynamic shifts are compositional; over-compression destroys the emotional arc
+- Guitar work ranges from angular post-hardcore riffs to tremolo-picked walls of sound; preserve both clearly
+- Saetia/Orchid-style chaotic screamo: rawer, more dynamic, lo-fi tolerance; post-screamo (Touche Amore): tighter, more produced
+- Bass guitar often provides melodic counterpoint; keep it defined and present
+- Short song formats (1-3 minutes) mean every second is dense; clarity is critical throughout
+
+### Groove Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression; sustain the crushing rhythmic weight; the mid-tempo groove must feel relentless and physically heavy
+**EQ focus**: Low-end tightness and weight (60-200 Hz), guitar groove articulation (800 Hz-3 kHz), vocal presence (1-4 kHz), high-mid cut for guitar harshness (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="groove-metal")`
+
+**Characteristics**:
+- The rhythmic groove is everything -- mid-tempo riffs must hit hard with each note clearly articulated; over-compression blurs the groove into mush
+- Kick drum and bass guitar lock together; tight low-end definition is critical
+- Vocals range from shouted to clean; both need to cut through the heavy instrumentation
+- Pantera-style: tighter, more aggressive, guitar-forward; Lamb of God-style: slightly more polished, modern production
+- Guitar tone is scooped but with aggressive high-mid attack; do not over-cut the bite
+- Breakdowns and half-time sections need maximum impact; preserve dynamic contrast for these moments
+
+### Sludge Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; preserve the abrasive, crushing weight; sludge metal's oppressive atmosphere depends on sustained heaviness with dynamic breathing room
+**EQ focus**: Low-end body and distortion (40-200 Hz), vocal rawness (1-4 kHz), guitar sludge and feedback (800 Hz-3 kHz), high-mid harshness controlled but not removed (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="sludge-metal")`
+
+**Characteristics**:
+- Slow, heavy, and abrasive is the point -- do not try to clean up the raw, ugly tone; it is intentional
+- Bass and guitar distortion create a wall of low-mid content; separation is less important than combined weight
+- Vocals are often screamed or shouted through heavy distortion; preserve their abrasive character
+- Eyehategod/Crowbar-style: rawer, more punk-influenced, lo-fi tolerant; Neurosis/Isis-style: more atmospheric, wider dynamics
+- Feedback and sustained distortion are compositional elements; do not gate or compress them out
+- The genre benefits from a thick, oppressive master; clinical brightness is the enemy
+
+### Progressive Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the wide dynamic range from quiet clean passages to heavy sections; the complexity and nuance of arrangements must remain clear
+**EQ focus**: Guitar clarity across clean and distorted tones (800 Hz-4 kHz), keyboard/synth layers (200-600 Hz), vocal intelligibility (2-5 kHz), bass articulation (80-200 Hz), drum precision (3-6 kHz)
+**MCP command**: `master_audio(album_slug, genre="progressive-metal")`
+
+**Characteristics**:
+- Dynamic range is critical -- quiet interludes, acoustic passages, and heavy sections must each have their own space
+- Complex time signatures and polyrhythms require precise transient preservation; over-compression blurs technical passages
+- Dream Theater-style: polished, wide dynamics, keyboard prominence; Tool-style: darker, heavier, more bass-focused
+- Extended compositions (10+ minutes) need consistent energy management without fatigue
+- Clean and distorted guitar tones alternate frequently; both need clarity in the mix
+- Bass guitar often carries complex melodic lines; keep it defined and articulate throughout
+
+### Speed Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression; sustain the relentless energy and velocity; the genre's defining speed must translate as controlled aggression, not chaotic mush
+**EQ focus**: Guitar speed and articulation (1-4 kHz), vocal power and clarity (2-5 kHz), bass drum attack (60-100 Hz), bass guitar definition (80-200 Hz), high-mid cut for pick noise (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="speed-metal")`
+
+**Characteristics**:
+- Speed is the defining characteristic -- fast alternate picking and double bass must remain articulate at high tempos
+- Vocals are powerful and melodic (cleaner than thrash); they must soar above the fast instrumentation
+- Motorhead-style: rawer, punk-influenced, louder; Exciter/Agent Steel-style: more traditional metal, tighter production
+- Guitar solos are a focal point; preserve their presence and clarity in the fast rhythmic backdrop
+- Bass drum patterns are rapid and relentless; tight definition at 60-100 Hz prevents low-end blur
+- The genre bridges NWOBHM melody with thrash aggression; balance both qualities
+
+### Electroswing
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; balance the vintage swing elements with modern electronic production; preserve the dynamic swing feel while maintaining dancefloor energy
+**EQ focus**: Brass and horn clarity (1-4 kHz), electronic bass punch (40-100 Hz), vocal warmth (2-5 kHz), hi-hat and percussion detail (8-12 kHz), vintage sample warmth (200-500 Hz)
+**MCP command**: `master_audio(album_slug, genre="electroswing")`
+
+**Characteristics**:
+- Vintage swing samples (brass, vocals, piano) meet modern electronic production; both worlds need presence
+- Brass and horn samples should sound warm and vintage, not harsh or over-bright
+- Electronic kick and bass must punch through without overwhelming the acoustic swing elements
+- Parov Stelar-style: more bass-heavy, club-oriented; Caravan Palace-style: more energetic, vocal-forward
+- The swing rhythm must remain bouncy and danceable; over-compression kills the swing feel
+- Vintage warmth in the mid-range is essential; do not over-modernize the retro aesthetic
+
+### Future Bass
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the lush, layered supersaw chords and melodic dynamics; the genre's emotional impact comes from dynamic builds and drops
+**EQ focus**: Supersaw warmth and width (200 Hz-2 kHz), vocal chop clarity (2-6 kHz), sub-bass weight (30-60 Hz), sparkle and air (10-14 kHz)
+**MCP command**: `master_audio(album_slug, genre="future-bass")`
+
+**Characteristics**:
+- Supersaw chord stacks are the genre's signature -- they must be wide, warm, and lush without muddiness
+- Vocal chops and pitched vocal samples need clarity and presence in the upper-mid range
+- Sub-bass is heavy but melodic; keep it defined and separate from the mid-range
+- Flume-style: grittier, more textured, experimental; ODESZA-style: warmer, more organic, cinematic
+- Build-ups and drops are the emotional core; preserve the dynamic contrast between quiet breaks and full drops
+- Side-chain compression effects are compositional; preserve the pumping feel if present
+
+### Minimal Techno
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the hypnotic, repetitive groove and subtle textural details; minimal techno's power comes from micro-variations, not loudness
+**EQ focus**: Kick definition (40-80 Hz), hi-hat crispness (8-12 kHz), subtle textural detail (1-6 kHz), sub-bass separation from kick (30-50 Hz)
+**MCP command**: `master_audio(album_slug, genre="minimal-techno")`
+
+**Characteristics**:
+- Less is more -- every element must be precisely placed and clearly audible; do not over-process
+- Kick drum is the rhythmic and tonal center; it must be tight, deep, and defined
+- Hi-hats and micro-percussion drive the groove with subtle variations; preserve transient detail
+- Richie Hawtin-style: stark, precise, digital; Ricardo Villalobos-style: warmer, more organic, longer-form
+- Stereo field placement is critical; many elements are positioned carefully in the panorama
+- The genre rewards restraint in mastering; aggressive processing destroys the minimalist aesthetic
+
+### Gabber
+**LUFS target**: -12 LUFS
+**Dynamics**: Heavy compression; gabber is intentionally loud, aggressive, and relentless; the distorted kick drum must physically pound
+**EQ focus**: Kick drum distortion and body (40-200 Hz), synth stab clarity (1-4 kHz), vocal/MC presence (2-5 kHz), hi-hat energy (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="gabber")`
+
+**Characteristics**:
+- The distorted kick drum IS the genre -- it must be massive, distorted, and felt in the chest; do not tame the distortion
+- 160+ BPM tempos create relentless energy; the master must sustain this without fatigue (difficult balance)
+- Synth stabs and hoover sounds need to cut through the kick wall
+- Angerfist/Rotterdam style: maximum aggression, push to -10 LUFS; early gabber: slightly rawer, more industrial
+- Vocal samples and MC shouts add intensity; keep them present above the kick
+- The genre expects loudness and aggression; subtlety is not the goal
+
+### Neo-Soul
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the warm, organic dynamics and live-instrument feel; neo-soul's intimacy depends on dynamic breathing room
+**EQ focus**: Vocal warmth and presence (2-5 kHz), bass groove (60-150 Hz), keyboard/Rhodes warmth (200-600 Hz), drum kit naturalness (3-6 kHz), gentle top-end air
+**MCP command**: `master_audio(album_slug, genre="neo-soul")`
+
+**Characteristics**:
+- Vocals are warm, intimate, and emotionally nuanced; preserve dynamic expression and subtle inflections
+- Rhodes/Wurlitzer electric piano is the harmonic bed; keep it warm and present without muddiness
+- Bass is melodic and groovy (jazz/hip-hop influenced); warm and round, not aggressive
+- Erykah Badu-style: more experimental, lo-fi-tolerant, spacious; D'Angelo-style: denser, groovier, more layered
+- Live-instrument feel is essential; do not over-process or make it sound clinical
+- The genre rewards a warm, analog-sounding master; digital harshness is the enemy
+
+### Motown
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; capture the classic Motown punch and warmth; the Funk Brothers' tight rhythm section must remain punchy and defined
+**EQ focus**: Vocal clarity and warmth (2-5 kHz), bass punch (60-150 Hz), tambourine and percussion brightness (6-10 kHz), horn warmth (800 Hz-3 kHz), string sweetness (200-600 Hz)
+**MCP command**: `master_audio(album_slug, genre="motown")`
+
+**Characteristics**:
+- Vocals are always the centerpiece -- clear, warm, powerful, and upfront; the Motown vocal sound is polished and professional
+- The Funk Brothers rhythm section (bass, drums, piano) drives the groove; tight, punchy, locked-in
+- James Jamerson-style bass is melodic and prominent; keep it warm, round, and clearly defined
+- Tambourine is the secret weapon of Motown percussion; its brightness drives the energy without harshness
+- Horn and string arrangements add sophistication; keep them lush but supportive, not competing with vocals
+- Warm, slightly compressed master preferred; vintage warmth over modern clinical brightness
+
+### Outlaw Country
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the raw, unpolished feel that defines the anti-Nashville aesthetic; dynamics should feel natural, not radio-processed
+**EQ focus**: Vocal presence and character (2-5 kHz), acoustic/electric guitar warmth (200 Hz-2 kHz), bass definition (80-200 Hz), pedal steel shimmer (3-6 kHz)
+**MCP command**: `master_audio(album_slug, genre="outlaw-country")`
+
+**Characteristics**:
+- The raw, unpolished aesthetic is intentional -- do not over-process or make it sound Nashville-slick
+- Vocals should be present and characterful; imperfections are part of the authenticity
+- Willie Nelson-style: spare, acoustic-forward, wider dynamics; Waylon Jennings-style: heavier, more electric, tighter compression
+- Guitar tones range from clean acoustic to overdriven electric; preserve their natural character
+- The rhythm section is stripped-down and groove-focused; keep it tight without making it mechanical
+- A warm, slightly rough master captures the outlaw spirit better than clinical perfection
+
+### Zydeco
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the infectious dance energy and accordion-driven groove; the bouncy, propulsive rhythm must stay alive
+**EQ focus**: Accordion presence and warmth (800 Hz-3 kHz), frottoir (rubboard) brightness (4-8 kHz), bass punch (80-200 Hz), drum groove (1-4 kHz)
+**MCP command**: `master_audio(album_slug, genre="zydeco")`
+
+**Characteristics**:
+- Accordion is the genre's voice -- it must be clear, warm, and prominent in the mix
+- Frottoir (rubboard) provides the rhythmic drive; its metallic scrape should be bright and percussive without harshness
+- Bass and drums provide the two-step dance rhythm; punchy and defined, driving the dance energy
+- Clifton Chenier-style traditional: warmer, more organic; modern zydeco: can be tighter, more polished
+- The genre is dance music at heart; the groove and energy must translate through the master
+- Warm, live-sounding master preferred; zydeco thrives on feel and authenticity
+
+### Tropicalia
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the eclectic, psychedelic production aesthetic; the genre's experimental spirit depends on dynamic variety and textural surprises
+**EQ focus**: Guitar and berimbau clarity (800 Hz-3 kHz), bass warmth (60-200 Hz), vocal presence (2-5 kHz), percussion detail (4-8 kHz), psychedelic effects preservation
+**MCP command**: `master_audio(album_slug, genre="tropicalia")`
+
+**Characteristics**:
+- Eclectic instrumentation (electric guitar, berimbau, traditional Brazilian percussion, electric bass) all need space in the mix
+- Psychedelic production elements (distortion, panning, tape effects) are compositional; preserve their character
+- Caetano Veloso-style: more acoustic, vocal-forward; Os Mutantes-style: heavier, more psychedelic, distorted
+- Brazilian rhythmic foundations (bossa nova, samba, baiao) underpin the experimentation; preserve rhythmic clarity
+- Vocals range from intimate singing to experimental spoken word; both need intelligibility
+- The genre is intentionally boundary-crossing; the master should not impose a single sonic framework
+
+### Zouk
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the sensual, rhythmic groove and warm Caribbean feel; the dance rhythm must remain bouncy and inviting
+**EQ focus**: Synth pad warmth (200-500 Hz), bass groove (60-150 Hz), percussion crispness (4-8 kHz), vocal sweetness (2-5 kHz), guitar clarity (800 Hz-2 kHz)
+**MCP command**: `master_audio(album_slug, genre="zouk")`
+
+**Characteristics**:
+- The rhythmic groove is sensual and danceable; over-compression kills the gentle bounce
+- Synth pads and keyboards provide warm harmonic beds; keep them lush without muddiness
+- Bass is warm, round, and groove-focused; not aggressive or sub-heavy
+- Kassav'-style: full band energy, horn and guitar elements; zouk love: slower, more intimate, vocal-focused
+- Percussion (ka, ti-bwa, shakers) drives the rhythm; preserve transient detail and clarity
+- The genre rewards a warm, polished master that preserves the tropical atmosphere
+
+### Gnawa
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the hypnotic, trance-inducing quality; the repetitive patterns build spiritual intensity through subtle dynamic growth
+**EQ focus**: Sintir (bass lute) warmth and depth (60-300 Hz), krakeb (metal castanets) brightness (3-8 kHz), vocal chant presence (1-4 kHz), handclap rhythm (4-6 kHz)
+**MCP command**: `master_audio(album_slug, genre="gnawa")`
+
+**Characteristics**:
+- The sintir (three-stringed bass lute) is the tonal and rhythmic foundation; its deep, buzzy tone must be warm and prominent
+- Krakebs (large metal castanets) provide the hypnotic rhythmic pulse; their metallic ring should be clear without being harsh
+- Call-and-response vocal chanting builds intensity over time; preserve the gradual dynamic arc
+- Traditional gnawa (Maalem musicians): wider dynamics, more acoustic, trance-ceremony atmosphere; fusion gnawa: tighter, more produced
+- The trance-inducing quality depends on repetition and subtle variation; do not over-process the hypnotic groove
+- Warm, organic master preferred; the spiritual quality of the music should carry through
+
+### Bhangra
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; punchy, energetic, and dancefloor-ready; the dhol-driven rhythm must hit hard and propel movement
+**EQ focus**: Dhol punch and body (60-200 Hz), tumbi brightness (2-6 kHz), vocal clarity (2-5 kHz), synth/bass weight (40-100 Hz), percussion detail (4-8 kHz)
+**MCP command**: `master_audio(album_slug, genre="bhangra")`
+
+**Characteristics**:
+- The dhol is the genre's heartbeat -- its double-headed punch must be powerful, tight, and felt physically
+- Tumbi (single-stringed instrument) provides the iconic melodic hook; keep it bright and cutting
+- Vocals are energetic and call-and-response oriented; clear and present above the dense rhythmic production
+- Traditional bhangra: more acoustic, dhol-forward; UK British Asian bhangra: heavier electronic production, bass-forward
+- Modern bhangra-pop fusion: treat more like mainstream pop with dhol elements; keep it radio-ready
+- The genre is party music -- energy, punch, and dancefloor impact are the priorities
+
+### Enka
+**LUFS target**: -16 LUFS
+**Dynamics**: Light compression; preserve the wide dynamic range and emotional delivery; enka's melismatic vocal technique (kobushi) requires headroom for ornamental expression
+**EQ focus**: Vocal warmth and presence (1-4 kHz), shamisen/koto clarity (2-6 kHz), string arrangement body (200-600 Hz), gentle high-frequency air
+**MCP command**: `master_audio(album_slug, genre="enka")`
+
+**Characteristics**:
+- The vocal is everything -- kobushi (melismatic vibrato technique) requires careful dynamic preservation; over-compression flattens the ornamental delivery
+- Yonanuki (pentatonic) scale gives the genre its distinctive Japanese melancholy; preserve the tonal purity
+- Traditional instruments (shamisen, koto, shakuhachi) sit alongside Western strings; both need clear presence
+- Classic enka: wider dynamics, more orchestral; modern enka: slightly tighter, pop-influenced production
+- The emotional arc from quiet restraint to powerful climax defines the genre; protect this dynamic range
+- A warm, spacious master captures enka's melancholy better than aggressive processing
+
+### Boogaloo
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the funky, loose groove and party energy; the dance rhythm must feel alive and bouncy
+**EQ focus**: Bass groove (60-150 Hz), horn brightness (1-4 kHz), piano and organ warmth (200-600 Hz), percussion clarity (3-6 kHz), vocal presence (2-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="boogaloo")`
+
+**Characteristics**:
+- The fusion of Afro-Cuban rhythms with R&B creates a unique dance groove; preserve the rhythmic interplay
+- Bass lines are melodic and funky (R&B influenced); keep them warm, round, and groove-driving
+- Horn sections carry the melody; bright and punchy without harshness
+- Piano/organ comping provides harmonic bed; warm and rhythmic, locked to the percussion
+- Joe Cuba/Pete Rodriguez-style: tighter, more produced; raw boogaloo: looser, more live-sounding
+- The genre bridges Latin and soul; the master should honor both traditions with warmth and punch
+
+### Musical Comedy
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; vocal clarity is paramount as comedic timing depends on every word being heard; preserve dynamic contrasts for comedic effect
+**EQ focus**: Vocal presence and clarity (2-5 kHz), backing track warmth (200-500 Hz), instrument separation for comedic timing, sibilance control (6-8 kHz)
+**MCP command**: `master_audio(album_slug, genre="musical-comedy")`
+
+**Characteristics**:
+- Every word must be heard -- comedic timing depends on perfect vocal intelligibility; this is non-negotiable
+- Musical style varies wildly (parody can mimic any genre); adapt EQ approach to the style being parodied while keeping vocals forward
+- Weird Al-style parody: match the production style of the original genre but keep vocals clearer than the original would
+- Bo Burnham-style comedy songs: more intimate, singer-songwriter production; preserve the dry delivery
+- Spoken word comedy sections within songs need the same clarity standard as sung sections
+- Dynamic contrasts for comedic effect (sudden quiet, loud punchlines) are intentional; do not flatten them
+
+### Video Game Music
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the wide dynamic range from quiet ambient exploration to epic boss battle themes; the cinematic scope must translate
+**EQ focus**: Orchestral warmth (200-600 Hz), synth clarity (1-4 kHz), chiptune brightness (2-8 kHz), bass definition (60-150 Hz), percussion impact (3-6 kHz)
+**MCP command**: `master_audio(album_slug, genre="video-game-music")`
+
+**Characteristics**:
+- Style ranges from chiptune 8-bit to full orchestral; identify the subgenre and master accordingly
+- Chiptune/retro (Koji Kondo NES era): preserve the bright, square-wave character; do not over-smooth the digital aesthetic
+- Orchestral (Nobuo Uematsu, Yoko Shimomura): treat like cinematic/classical mastering with wider dynamics
+- Electronic/modern (Doom, Celeste): treat like electronic or rock mastering depending on the style
+- Boss battle themes need maximum impact and energy; exploration/ambient themes need space and subtlety
+- The genre often includes wide tonal variety within a single album; master each track to its style while maintaining album cohesion
+
+### Cabaret
+**LUFS target**: -15 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the theatrical dynamics and vocal performance; the intimate-to-dramatic range defines the genre's emotional power
+**EQ focus**: Vocal clarity and theatricality (2-5 kHz), piano/accordion warmth (200-600 Hz), bass definition (80-200 Hz), brass presence (1-4 kHz)
+**MCP command**: `master_audio(album_slug, genre="cabaret")`
+
+**Characteristics**:
+- The vocal performance is the centerpiece -- theatrical, intimate, and dynamic; every word and inflection matters
+- Weimar cabaret: darker, more intimate, wider dynamics; dark cabaret (Dresden Dolls, Tiger Lillies): edgier, can push to -14 LUFS
+- Burlesque/neo-cabaret: more polished, showier; vintage warmth appropriate
+- Piano is the primary accompaniment; keep it warm and supportive without competing with the voice
+- Brass and wind instruments add color; clear without harshness
+- The intimate venue atmosphere should carry through; do not over-brighten or make it sound like a stadium
+
 ---
 
 ## Problem-Solving
