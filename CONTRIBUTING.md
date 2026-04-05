@@ -34,7 +34,21 @@ git checkout -b feat/your-feature-name  # or fix/, docs/, chore/
 - `docs/` - Documentation changes
 - `chore/` - Maintenance tasks
 
-### 2. Make Your Changes
+### 2. Set Up Local Development
+
+```bash
+make test    # creates .venv, installs deps, runs tests with coverage
+```
+
+That's it. The Makefile handles venv creation and dependency installation automatically. Other useful targets:
+
+```bash
+make lint    # ruff + bandit + mypy
+make check   # lint + test (full pre-PR check)
+make clean   # remove venv and caches
+```
+
+### 3. Make Your Changes
 
 Follow the existing code patterns and documentation style.
 
@@ -77,22 +91,15 @@ When adding a new skill, you MUST update all of these files:
 - ❌ Inconsistent naming between files
 - ❌ Breaking alphabetical order in lists
 
-### 3. Test Your Changes
-
-Run the automated test suite:
+### 4. Test Your Changes
 
 ```bash
-# Run all tests
-/bitwize-music:test all
-
-# Or run specific categories
-/bitwize-music:test skills
-/bitwize-music:test workflow
+make test    # or: make check (lint + test)
 ```
 
 All tests must pass before submitting PR.
 
-### 4. Commit Your Changes
+### 5. Commit Your Changes
 
 We use [Conventional Commits](https://conventionalcommits.org/).
 
@@ -129,7 +136,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 | `docs:` | None | Documentation only |
 | `chore:` | None | Maintenance |
 
-### 5. Push and Create PR
+### 6. Push and Create PR
 
 ```bash
 git push origin feat/your-feature-name
@@ -137,7 +144,7 @@ git push origin feat/your-feature-name
 
 Then create a PR targeting **`develop`** (not `main`).
 
-### 6. PR Review Process
+### 7. PR Review Process
 
 **Automated checks (run on GitHub Actions):**
 - JSON/YAML validation
@@ -162,7 +169,7 @@ If your PR introduces filesystem changes (new directories, moved files), depende
 3. Add markdown body with context
 4. See `migrations/README.md` for format details and action types
 
-### 7. Release to Stable
+### 8. Release to Stable
 
 When `develop` is ready to release:
 
@@ -188,15 +195,20 @@ When `develop` is ready to release:
 ### Running Tests Locally
 
 ```bash
-# All tests
-/bitwize-music:test all
+make test     # run tests with coverage (creates .venv if needed)
+make lint     # ruff + bandit + mypy
+make check    # lint + test (full pre-PR check)
+make clean    # remove .venv and caches
+```
 
-# Specific categories
-/bitwize-music:test config      # Configuration tests
-/bitwize-music:test skills      # Skill structure tests
-/bitwize-music:test workflow    # Workflow documentation
-/bitwize-music:test consistency # Cross-reference checks
-/bitwize-music:test quality     # Code quality
+The Makefile manages a `.venv/` directory automatically. If dependencies in `requirements.txt` or `requirements-test.txt` change, `make test` will reinstall them.
+
+You can also use the `/bitwize-music:test` skill inside a Claude Code session:
+
+```bash
+/bitwize-music:test all         # all categories
+/bitwize-music:test skills      # skill structure tests
+/bitwize-music:test consistency # cross-reference checks
 ```
 
 ### Adding New Tests

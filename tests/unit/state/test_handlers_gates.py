@@ -796,3 +796,288 @@ class TestRunPreGenerationGates:
         gates = result["tracks"][0]["gates"]
         length_gate = next(g for g in gates if g["gate"] == "Lyric Length")
         assert length_gate["status"] == "FAIL"
+
+
+# =============================================================================
+# Tests for check_streaming_lyrics
+# =============================================================================
+
+
+STREAMING_READY_FILE = """\
+---
+title: Test Track
+status: In Progress
+---
+
+## Lyrics Box
+
+```
+[Verse 1]
+Walking down the road tonight
+Stars are shining bright
+Every step I take
+Keeps me wide awake
+And the wind blows through the trees
+Rustling all the leaves
+Moonlight on the ground
+Not a single sound
+```
+
+## Streaming Lyrics
+
+```
+Walking down the road tonight
+Stars are shining bright
+Every step I take
+Keeps me wide awake
+And the wind blows through the trees
+Rustling all the leaves
+Moonlight on the ground
+Not a single sound
+```
+"""
+
+STREAMING_WITH_TAGS = """\
+---
+title: Tagged Track
+---
+
+## Streaming Lyrics
+
+```
+[Verse 1]
+Walking down the road tonight
+Stars are shining bright
+[Chorus]
+Every step I take
+Keeps me wide awake
+And the wind blows softly now
+Through the trees and how
+```
+"""
+
+STREAMING_UNCAPITALIZED = """\
+---
+title: Uncapped Track
+---
+
+## Streaming Lyrics
+
+```
+Walking down the road tonight
+stars are shining bright
+Every step I take
+keeps me wide awake
+And the wind blows softly now
+Through the trees and how
+```
+"""
+
+STREAMING_WITH_PUNCTUATION = """\
+---
+title: Punctuated Track
+---
+
+## Streaming Lyrics
+
+```
+Walking down the road tonight.
+Stars are shining bright,
+Every step I take;
+Keeps me wide awake
+And the wind blows softly now
+Through the trees and how
+```
+"""
+
+STREAMING_PLACEHOLDER = """\
+---
+title: Placeholder Track
+---
+
+## Streaming Lyrics
+
+```
+Plain lyrics here
+Capitalize first letter of each line
+No end punctuation
+```
+"""
+
+STREAMING_EMPTY = """\
+---
+title: Empty Streaming
+---
+
+## Streaming Lyrics
+
+```
+```
+"""
+
+STREAMING_MISSING_SECTION = """\
+---
+title: No Streaming Section
+---
+
+## Lyrics Box
+
+```
+Walking down the road tonight
+```
+"""
+
+STREAMING_FEW_WORDS = """\
+---
+title: Short Streaming
+---
+
+## Streaming Lyrics
+
+```
+Just a few words here
+```
+"""
+
+
+class TestCheckStreamingLyrics:
+    """Tests for the check_streaming_lyrics handler."""
+
+    def setup_method(self):
+        state = _fresh_state()
+        self._mock_cache = MockStateCache(state)
+        _shared_mod.cache = self._mock_cache
+
+    def test_ready_track_passes_all(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_READY_FILE):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        assert track["verdict"] == "READY"
+        assert track["blocking"] == 0
+        assert track["warnings"] == 0
+        statuses = [c["status"] for c in track["checks"]]
+        assert "FAIL" not in statuses
+
+    def test_section_tags_warned(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_WITH_TAGS):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        tag_check = next(c for c in track["checks"] if c["check"] == "No Section Tags")
+        assert tag_check["status"] == "WARN"
+        assert track["warnings"] >= 1
+
+    def test_uncapitalized_warned(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_UNCAPITALIZED):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        cap_check = next(c for c in track["checks"] if c["check"] == "Lines Capitalized")
+        assert cap_check["status"] == "WARN"
+
+    def test_end_punctuation_warned(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_WITH_PUNCTUATION):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        punct_check = next(c for c in track["checks"] if c["check"] == "No End Punctuation")
+        assert punct_check["status"] == "WARN"
+
+    def test_placeholder_blocked(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_PLACEHOLDER):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        placeholder_check = next(c for c in track["checks"] if c["check"] == "Not Placeholder")
+        assert placeholder_check["status"] == "FAIL"
+        assert track["blocking"] >= 1
+        assert track["verdict"] == "NOT READY"
+
+    def test_empty_content_blocked(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_EMPTY):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        empty_check = next(c for c in track["checks"] if c["check"] == "Not Empty")
+        assert empty_check["status"] == "FAIL"
+
+    def test_missing_section_blocked(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_MISSING_SECTION):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        section_check = next(c for c in track["checks"] if c["check"] == "Section Exists")
+        assert section_check["status"] == "FAIL"
+        assert track["verdict"] == "NOT READY"
+
+    def test_low_word_count_warned(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_FEW_WORDS):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        word_check = next(c for c in track["checks"] if c["check"] == "Word Count")
+        assert word_check["status"] == "WARN"
+
+    def test_all_tracks_checked_when_no_slug(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_READY_FILE):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album")
+            ))
+        assert result["total_tracks"] == 2
+        assert len(result["tracks"]) == 2
+
+    def test_all_ready_verdict(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_READY_FILE):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album")
+            ))
+        assert result["album_verdict"] == "ALL READY"
+
+    def test_not_ready_verdict_all_fail(self):
+        with patch("pathlib.Path.read_text", return_value=STREAMING_MISSING_SECTION):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album")
+            ))
+        assert result["album_verdict"] == "NOT READY"
+
+    def test_album_not_found(self):
+        result = json.loads(_run(
+            _gates_mod.check_streaming_lyrics("nonexistent-album")
+        ))
+        assert result["found"] is False
+
+    def test_track_not_found(self):
+        result = json.loads(_run(
+            _gates_mod.check_streaming_lyrics("test-album", "99-missing")
+        ))
+        assert result["found"] is False
+
+    def test_word_count_vs_suno(self):
+        """Word count check compares to Suno lyrics when available."""
+        with patch("pathlib.Path.read_text", return_value=STREAMING_READY_FILE):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        word_check = next(c for c in track["checks"] if c["check"] == "Word Count")
+        assert word_check["status"] == "PASS"
+        assert track["word_count"] > 0
+
+    def test_file_read_error_handled(self):
+        """OSError reading track file → FAIL for Section Exists."""
+        with patch("pathlib.Path.read_text", side_effect=OSError("disk error")):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        track = result["tracks"][0]
+        section_check = next(c for c in track["checks"] if c["check"] == "Section Exists")
+        assert section_check["status"] == "FAIL"
