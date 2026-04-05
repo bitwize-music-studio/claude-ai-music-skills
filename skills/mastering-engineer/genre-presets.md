@@ -183,6 +183,21 @@ Detailed mastering settings by genre.
 - Low dynamic range preferred — avoid sudden volume jumps (safety for children's playback)
 - Ukulele and xylophone brightness tamed without losing sparkle
 
+### Bollywood
+**LUFS target**: -14 LUFS (classical filmi/ghazal: -15 LUFS; bhangra/item numbers: -13 LUFS)
+**Dynamics**: Moderate compression; preserve vocal ornamentation (meend glides and taan runs need headroom); allow natural dynamic arc from intimate verse to full-orchestra chorus
+**EQ focus**: Vocal clarity (2-5 kHz), tabla and dholak attack (3-5 kHz), string warmth (200-600 Hz), gentle high-mid cut to tame Suno-generated brightness in orchestral layers
+**MCP command**: `master_audio(album_slug, genre="bollywood")`
+
+**Characteristics**:
+- Playback vocal is always the center — strings, tabla, and harmonium exist to support it, never overwhelm
+- Ornamental vocal runs (meend, taan) require headroom — over-compression smears them into muddy sustain
+- Tabla transients should remain crisp and defined; dholak body (150-250 Hz) needs warmth without muddiness
+- Classical filmi tracks (-15 LUFS): preserve the wide dynamic range between intimate vocal passages and full orchestral moments
+- Bhangra and item numbers (-13 LUFS): more compression acceptable, dhol punch at 60-100 Hz, bright top end for dancefloor energy
+- Sitar and bansuri harmonics sit in 1.5-4 kHz range — avoid over-cutting here or they disappear in the mix
+- Contemporary Bollywood pop with electronic production: treat sub-bass and EDM elements like mainstream pop; maintain vocal warmth on top
+
 ---
 
 ## Problem-Solving
