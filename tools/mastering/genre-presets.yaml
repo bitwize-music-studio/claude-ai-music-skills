@@ -32,6 +32,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  mandopop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
   hyperpop:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -67,6 +71,18 @@ genres:
     cut_highmid: -1.5
     cut_highs: 0
   nerdcore:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  boom-bap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  cloud-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  conscious-hip-hop:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
@@ -202,6 +218,26 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
+  power-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  symphonic-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  folk-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  deathcore:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: -1.0
+  djent:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
   industrial:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -256,6 +292,18 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  breakbeat:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  electro:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  hardstyle:
+    target_lufs: -12.0
+    cut_highmid: -2.0
+    cut_highs: 0
 
   # === Ambient / Chill / Atmospheric ===
   ambient:
@@ -285,6 +333,18 @@ genres:
   shoegaze:
     target_lufs: -16.0
     cut_highmid: -1.5
+    cut_highs: 0
+  downtempo:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  idm:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  new-age:
+    target_lufs: -16.0
+    cut_highmid: -1.0
     cut_highs: 0
 
   # === Folk / Country / Americana ===
@@ -403,8 +463,38 @@ genres:
     cut_highmid: -2.0
     cut_highs: 0
 
+  # === European Pop / World ===
+  fado:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  flamenco:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  afro-cuban:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  reggaeton:
+    target_lufs: -12.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  amapiano:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  afroswing:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
   # === South Asian ===
   bollywood:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  qawwali:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
@@ -485,6 +575,12 @@ genres:
   lullaby:
     target_lufs: -16.0
     cut_highmid: -1.0
+    cut_highs: 0
+
+  # === Other ===
+  spoken-word:
+    target_lufs: -14.0
+    cut_highmid: 0
     cut_highs: 0
 
   # === Legacy aliases ===
