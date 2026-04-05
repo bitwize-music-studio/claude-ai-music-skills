@@ -6,6 +6,22 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-04-05
+
+### Added
+- **62 new genres** — expanded genre library from 74 to 136 genres with full documentation, mastering presets, and INDEX integration
+  - **Rock/Punk**: Ska, Post-Punk, Noise Rock, Math Rock, Stoner Rock, Nu-Metal, Pop Punk, Screamo
+  - **Metal**: Death Metal, Power Metal, Symphonic Metal, Folk Metal, Deathcore, Djent, Groove Metal, Sludge Metal, Progressive Metal, Speed Metal
+  - **Electronic**: Jungle, UK Garage, Breakbeat, Downtempo, IDM, Electro, Hardstyle, Electroswing, Future Bass, Minimal Techno, Gabber
+  - **Hip-Hop**: Boom Bap, Cloud Rap, Conscious Hip-Hop
+  - **R&B/Soul**: Neo-Soul, Motown
+  - **Country/Folk**: Outlaw Country, Zydeco
+  - **Latin/Caribbean**: Cumbia, Samba, Reggaeton, Afro-Cuban, Boogaloo, Tropicália, Zouk
+  - **African**: Highlife, Amapiano, Afroswing, Gnawa
+  - **Asian**: J-Pop, City Pop, Mandopop, Enka, Qawwali, Bhangra
+  - **Christian/Faith**: Contemporary Christian, Worship
+  - **Other**: Dub, Flamenco, Fado, New Age, Spoken Word, Musical Comedy, Video Game Music, Cabaret
+
 ## [0.84.1] - 2026-04-05
 
 ### Removed
