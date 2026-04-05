@@ -72,6 +72,21 @@ Detailed mastering settings by genre.
 - Dance-punk subgenre: tighter compression, punchier kick and bass, can push to -14 LUFS
 - Vocals should sit within the mix, not on top of it — post-punk often buries vocals slightly behind instrumentation
 
+### Noise Rock
+**LUFS target**: -14 LUFS (sludge-noise: -12 to -14 LUFS)
+**Dynamics**: Minimal compression — noise rock's dynamics come from the instruments themselves; over-compression flattens the contrast between feedback swells and rhythmic attacks that define the genre
+**EQ focus**: Low-end weight (60-200 Hz for bass distortion body), high-mid presence preserved but harsh resonances tamed (3-5 kHz), avoid cutting too much — harshness is intentional
+**MCP command**: `master_audio(album_slug, genre="noise-rock")`
+
+**Characteristics**:
+- Distortion and feedback are compositional elements — do not treat them as problems to solve
+- Bass distortion needs body and weight; cutting low-mids too aggressively thins the genre's fundamental sound
+- High-mid harshness at 3-5 kHz: gentle cuts only, -2 to -3 dB; aggressive cutting removes the abrasive edge that defines noise rock
+- Lo-fi and room sound are features — do not over-process or "clean up" the recording
+- Sludge-noise (Melvins, Unsane style): heavier limiting acceptable, push to -12 LUFS for crushing weight
+- Power-duo acts (Lightning Bolt style): bass guitar fills the entire low-mid spectrum; ensure it doesn't mud up but retains its massive presence
+- Art-noise and no-wave-derived tracks: wider dynamics, may sit at -15 LUFS to preserve quiet/loud contrasts
+
 ### Electronic / EDM
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
