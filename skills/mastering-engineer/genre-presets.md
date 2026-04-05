@@ -429,6 +429,328 @@ Detailed mastering settings by genre.
 - Guitar work (jazz-influenced chord voicings, funky rhythm parts) needs clarity in the mid-range
 - The internet revival aesthetic appreciates the genre's vintage warmth -- do not over-modernize the sound
 
+### Power Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; preserve the speed and energy of double bass drumming while keeping soaring vocals clear and forward
+**EQ focus**: Vocal brightness and clarity (2-5 kHz), guitar speed and articulation (1-4 kHz), bass drum definition (60-100 Hz), orchestral/keyboard layers (200-600 Hz)
+**MCP command**: `master_audio(album_slug, genre="power-metal")`
+
+**Characteristics**:
+- Soaring clean vocals are the genre's centerpiece -- they must cut through dense, fast instrumentation with clarity and power
+- Double bass drum patterns need tight definition at 60-100 Hz; avoid muddiness from the rapid-fire kick
+- Fast guitar riffs and solos need articulation in the 1-4 kHz range; over-compression blurs speed picking into mush
+- Keyboard and orchestral layers support the epic atmosphere; keep them present but behind vocals and guitars
+- Power metal masters tend to be bright -- be careful not to over-cut high-mids or the genre loses its soaring quality
+- Epic/symphonic power metal (Rhapsody style): wider dynamics for orchestral passages; speed metal-influenced power metal: tighter compression
+
+### Symphonic Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; balance the orchestral dynamics with metal heaviness; preserve the wide dynamic range from quiet orchestral intros to full metal choruses
+**EQ focus**: Vocal clarity across operatic and harsh styles (2-5 kHz), orchestral warmth (200-600 Hz), guitar heaviness (80-200 Hz), gentle high-mid cut to manage combined orchestral and guitar brightness
+**MCP command**: `master_audio(album_slug, genre="symphonic-metal")`
+
+**Characteristics**:
+- Operatic vocals need headroom for dynamic range and vibrato -- over-compression flattens the operatic delivery
+- Orchestral and metal elements compete for the same frequency space; careful separation prevents mud without thinning either
+- String and brass sections add richness in the 200-600 Hz range; keep them full without masking guitar and bass
+- Choral passages and group vocals need space; over-limiting smears layered voices
+- Beauty-and-the-beast vocal contrast (clean female + harsh male) requires both styles to remain intelligible
+- Nightwish-style cinematic approach benefits from slightly wider dynamics than typical metal
+
+### Folk Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the interplay between folk instruments and metal elements; the contrast between acoustic passages and heavy sections is key
+**EQ focus**: Folk instrument clarity (tin whistle, fiddle, hurdy-gurdy at 1-6 kHz), guitar heaviness (80-300 Hz), vocal presence (2-5 kHz), gentle high-mid cut for combined brightness
+**MCP command**: `master_audio(album_slug, genre="folk-metal")`
+
+**Characteristics**:
+- Folk instruments (fiddle, flute, hurdy-gurdy, bagpipes) sit in the mid-to-upper-mid range; preserve their character without harshness
+- Acoustic-to-heavy transitions are compositional; maintain dynamic contrast between folk passages and metal sections
+- Harsh and clean vocals often alternate; both need intelligibility without one dominating
+- Bass drum and bass guitar provide the metal foundation; keep tight and defined under the folk instrumentation
+- Viking/pagan metal (Amon Amarth, Bathory): heavier, darker treatment; Celtic folk metal (Eluveitie): brighter, more acoustic-forward
+- Drinking song passages with group vocals: keep them rowdy and full, not over-polished
+
+### Deathcore
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression; sustain the crushing density of breakdowns and blast beats; preserve kick drum attack through low-tuned chaos
+**EQ focus**: Low-end tightness (40-200 Hz for drop-tuned guitars and bass), vocal presence (1-4 kHz), high-mid cut to tame fizzy guitar harshness (3-5 kHz), high shelf cut for cymbal wash control
+**MCP command**: `master_audio(album_slug, genre="deathcore")`
+
+**Characteristics**:
+- Breakdowns are the genre's signature -- the low-end impact must be felt without becoming muddy; tight sub-bass definition critical
+- Drop-tuned guitars (often drop A or lower) produce massive low-mid content; careful separation from bass prevents mud
+- Guttural vocals (gutturals, pig squeals, tunnel throat) sit inside the mix; preserve intelligibility without pushing them artificially forward
+- Blast beats generate dense cymbal wash; high shelf cut (-1 dB at 8 kHz) prevents listening fatigue
+- Modern deathcore (Lorna Shore style): cleaner, more produced; old-school deathcore (Whitechapel): rawer, heavier limiting acceptable
+- Orchestral/symphonic deathcore elements need space alongside the heaviness; balance carefully
+
+### Djent
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; preserve the polyrhythmic precision and percussive guitar attack; the tight, articulate palm muting that defines the genre must remain clear
+**EQ focus**: Guitar palm-mute clarity (800 Hz-3 kHz), bass tightness (60-200 Hz), drum precision (3-6 kHz for snare and ghost notes), vocal clarity across clean and harsh styles
+**MCP command**: `master_audio(album_slug, genre="djent")`
+
+**Characteristics**:
+- The palm-muted polyrhythmic guitar tone is the genre's identity -- preserve its percussive, staccato character; over-compression smears the rhythmic precision
+- Extended-range guitars (7-8 string) produce dense low-end content; tight low-mid control essential without thinning the tone
+- Drum programming or triggered drums need precise transient preservation; ghost notes and complex fills define the groove
+- Clean vocal passages and ambient interludes contrast with heavy sections; maintain dynamic range for these transitions
+- Meshuggah-style rhythmic djent: heavier, more relentless; Periphery/TesseracT-style progressive djent: wider dynamics, more melodic space
+- Bass guitar often mirrors guitar patterns; keep it defined and locked in with the kick drum
+
+### Breakbeat
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the chopped break dynamics and transient impact; the sampled drum breaks must retain their punch and character
+**EQ focus**: Break clarity (2-5 kHz), bass weight (40-80 Hz), vocal/sample presence (1-4 kHz), percussion detail (6-10 kHz)
+**MCP command**: `master_audio(album_slug, genre="breakbeat")`
+
+**Characteristics**:
+- Sampled breakbeats are the foundation -- preserve their original dynamics, transients, and character; over-compression kills the groove
+- Big beat (Chemical Brothers, Fatboy Slim style): louder, more compressed, can push to -12 LUFS
+- Nu skool breaks: tighter, more modern production; closer to drum and bass energy
+- Bass should be powerful and defined; sub-bass separate from the break energy above
+- Vocal samples and hooks need clarity without competing with the breaks
+- The genre's energy comes from the interplay between chopped breaks and bass; keep both articulate
+
+### Downtempo
+**LUFS target**: -16 LUFS
+**Dynamics**: Light compression; preserve the spacious, atmospheric quality; downtempo lives in the subtlety and texture of its production
+**EQ focus**: Bass warmth (40-100 Hz), pad and texture detail (200-600 Hz), vocal/sample presence (2-4 kHz), gentle high-frequency air
+**MCP command**: `master_audio(album_slug, genre="downtempo")`
+
+**Characteristics**:
+- Spacious production is essential -- over-compression collapses the atmospheric depth that defines the genre
+- Bass should be warm, round, and enveloping; not punchy or aggressive
+- Organic textures (field recordings, nature sounds, acoustic instruments) need preservation; do not over-process
+- Psybient/psychill: more reverb-tolerant, wider dynamics; lounge/chill-out: slightly tighter, more polished
+- Vocal elements (when present) sit within the texture, not on top of it
+- The genre rewards patient, minimal mastering -- less processing is more
+
+### IDM
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the complex rhythmic patterns and micro-details that define the genre; over-compression flattens the intricate sound design
+**EQ focus**: Detail preservation across full spectrum, micro-transient clarity (3-8 kHz), bass precision (40-100 Hz), high-frequency sparkle for digital textures
+**MCP command**: `master_audio(album_slug, genre="idm")`
+
+**Characteristics**:
+- Complex rhythmic patterns and glitchy textures must remain articulate; over-compression blurs the rhythmic detail
+- Sound design is the focus -- every frequency range may contain intentional, carefully crafted elements; avoid broad EQ moves
+- Aphex Twin-style melodic IDM: warmer treatment, melodic elements need presence; Autechre-style abstract IDM: more clinical, preserve harsh textures
+- Bass can range from sub-heavy to absent; follow the production intent, do not impose expectations
+- Quiet passages and dynamic contrast are often compositional; preserve them
+- Digital artifacts and glitches are intentional -- do not treat them as problems
+
+### Electro
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the mechanical, precise quality of drum machine patterns; the 808-driven sound needs tight, controlled dynamics
+**EQ focus**: 808 kick definition (40-80 Hz), synth clarity (200 Hz-4 kHz), vocoder presence (1-4 kHz), hi-hat crispness (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="electro")`
+
+**Characteristics**:
+- 808 drum machines define the rhythmic backbone -- kick and snare must be tight and punchy
+- Vocoder and talk box vocals need clear mid-range presence without harshness
+- Synth lines (Kraftwerk-lineage) should be clean and precise; preserve the mechanical aesthetic
+- Classic electro (Egyptian Lover, Afrika Bambaataa): warmer, more analog; modern electro: cleaner, more polished
+- Bass synths need definition without overwhelming the kick drum; careful low-end separation
+- The genre's retro-futurist aesthetic benefits from a polished but not overly clinical master
+
+### Hardstyle
+**LUFS target**: -12 LUFS
+**Dynamics**: Heavy compression; the distorted kick drum and euphoric leads need aggressive limiting; hardstyle is intentionally loud
+**EQ focus**: Kick drum distortion and body (40-200 Hz), lead synth clarity (1-4 kHz), vocal/chant presence (2-5 kHz), high-frequency energy (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="hardstyle")`
+
+**Characteristics**:
+- The distorted kick drum is the genre's signature -- it must be powerful, defined, and felt physically; do not tame the distortion
+- Euphoric leads and melodies need to soar above the kick; clear mid-range separation essential
+- Reverse bass kicks and screeches are intentional sonic elements; preserve their character
+- Euphoric hardstyle: brighter, more melodic leads, vocal chants; rawstyle: darker, heavier, more distorted
+- The genre expects loudness -- -12 LUFS is the target; pushing to -10 is acceptable for peak-time tracks
+- Build-ups and breakdowns create the live-set energy; preserve the dynamic arc from quiet to full-blast
+
+### Boom Bap
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the punchy, sample-based drum character; the boom (kick) and bap (snare) must hit hard and clean
+**EQ focus**: Kick punch (60-100 Hz), snare crack (200 Hz-1 kHz), vocal clarity and presence (2-5 kHz), sample warmth (200-500 Hz)
+**MCP command**: `master_audio(album_slug, genre="boom-bap")`
+
+**Characteristics**:
+- Sampled drums define the genre -- preserve the dusty, vinyl-sourced character of chopped breaks; do not over-clean
+- Kick and snare must be punchy and forward; they drive the head-nod groove
+- Lyrical content is the focus -- vocal clarity is paramount; the MC must cut through clearly
+- Sample-based production (jazz, soul, funk chops) needs warmth; preserve the vinyl/analog aesthetic
+- Golden age revival (Joey Bada$$, Griselda): slightly rawer, lo-fi-tolerant; classic boom bap (Pete Rock, DJ Premier): polished but warm
+- Bass lines are melodic and warm, not sub-heavy; keep them defined alongside the kick
+
+### Cloud Rap
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the dreamy, atmospheric quality; the ethereal production needs space and air
+**EQ focus**: Vocal presence with auto-tune warmth (2-5 kHz), pad/synth atmosphere (200-600 Hz), sub-bass weight (30-60 Hz), high-frequency shimmer
+**MCP command**: `master_audio(album_slug, genre="cloud-rap")`
+
+**Characteristics**:
+- Atmospheric, reverb-heavy production is the genre's identity -- over-compression collapses the dreamy space
+- Auto-tuned vocals need warmth and clarity; preserve the melodic, pitch-corrected character without harshness
+- Sub-bass is often heavy but slow-moving; keep it warm and enveloping, not aggressive
+- Synth pads and ambient textures create the cloudy atmosphere; preserve their depth and layering
+- Yung Lean/Bladee-style: more lo-fi, dreamier; A$AP Rocky/Travis Scott: more polished, heavier bass
+- The genre rewards a spacious, airy master -- avoid anything that makes it feel tight or compressed
+
+### Conscious Hip-Hop
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve vocal dynamics and emotional delivery; the message is the priority -- every word must be heard
+**EQ focus**: Vocal clarity and warmth (2-5 kHz), beat warmth (200-500 Hz), bass definition (60-100 Hz), sample texture preservation
+**MCP command**: `master_audio(album_slug, genre="conscious-hip-hop")`
+
+**Characteristics**:
+- Lyrical content carries the message -- vocal clarity and intelligibility are non-negotiable
+- Beats tend to be more musical and organic than mainstream hip-hop; preserve the soulful, jazz, or live-instrument quality
+- Dynamic vocal delivery (quiet introspection to passionate emphasis) needs headroom; do not flatten the emotional range
+- Kendrick Lamar/J. Cole style: modern, polished production; Common/Mos Def style: warmer, more sample-based
+- Live instrumentation elements (piano, bass, strings) need natural presence; do not over-process
+- Spoken word passages within tracks need the same clarity standard as rapped sections
+
+### Flamenco
+**LUFS target**: -16 LUFS
+**Dynamics**: Light compression; preserve the wide dynamic range from intimate guitar passages to explosive cante jondo vocal outbursts; flamenco's emotional power comes from dynamic contrast
+**EQ focus**: Guitar body and attack (200 Hz-3 kHz), vocal presence and rawness (1-5 kHz), palmas (hand claps) and cajon clarity (3-6 kHz), zapateado (footwork) impact (80-200 Hz)
+**MCP command**: `master_audio(album_slug, genre="flamenco")`
+
+**Characteristics**:
+- Nylon-string guitar is the harmonic and melodic center; preserve its warmth, attack, and rasgueado (strumming) energy
+- Cante jondo vocals are raw, emotional, and dynamic; over-compression destroys the passionate delivery
+- Palmas (hand claps) and cajon drive the compas rhythm; preserve their transient snap
+- Zapateado (footwork) adds percussive low-end impact; keep it present but not boomy
+- Traditional flamenco: wider dynamics, more acoustic; nuevo flamenco (Paco de Lucia, Rosalia): tighter, can push to -14 LUFS
+- The room acoustic matters -- flamenco's intimate tablao setting should carry through in the master
+
+### Fado
+**LUFS target**: -16 LUFS
+**Dynamics**: Light compression; preserve the intimate, emotional delivery and natural dynamics; fado's saudade (longing) depends on dynamic vulnerability
+**EQ focus**: Vocal warmth and presence (1-4 kHz), guitarra portuguesa shimmer (2-6 kHz), viola (acoustic guitar) body (200-500 Hz), gentle high-frequency air
+**MCP command**: `master_audio(album_slug, genre="fado")`
+
+**Characteristics**:
+- The voice carries the saudade -- it must be warm, present, and emotionally transparent; avoid harsh sibilance
+- Guitarra portuguesa (Portuguese guitar) has a distinctive bright, mandolin-like tone; preserve its shimmer without harshness
+- Viola (classical guitar) provides harmonic foundation; keep it warm and supportive
+- Traditional fado (Amalia Rodrigues): wider dynamics, vintage warmth; novo fado (Mariza, Ana Moura): slightly more polished, can sit at -15 LUFS
+- The intimate cafe/fado house acoustic should be preserved; do not over-dry or over-brighten
+- Quiet passages are as important as powerful moments; protect the dynamic range
+
+### Afro-Cuban
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the clave-based rhythmic interplay between percussion layers; the polyrhythmic complexity must remain articulate
+**EQ focus**: Conga/bongo warmth (200-500 Hz), horn brightness (1-4 kHz), bass (tumbao) definition (80-200 Hz), timbales and cowbell clarity (3-6 kHz), clave snap
+**MCP command**: `master_audio(album_slug, genre="afro-cuban")`
+
+**Characteristics**:
+- The clave pattern is the rhythmic foundation -- all other instruments relate to it; preserve the polyrhythmic clarity
+- Congas and bongos provide rhythmic and melodic content; keep their warmth and attack defined
+- Horn sections (trumpet, trombone, saxophone) carry melodies; clarity without harshness above 3 kHz
+- Bass (tumbao pattern) is both rhythmic and melodic; keep it warm and locked to the clave
+- Son: warmer, more acoustic; mambo: brighter, more horn-forward; rumba: more percussion-focused
+- Timba (modern Cuban): louder, more compressed; traditional son: wider dynamics, more acoustic
+
+### Qawwali
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the ecstatic dynamic builds from quiet devotional passages to full-ensemble crescendos; the gradual build to spiritual ecstasy is the genre's emotional arc
+**EQ focus**: Vocal group clarity (2-5 kHz), harmonium warmth (200-600 Hz), tabla definition (3-5 kHz), hand-clap rhythm (4-6 kHz)
+**MCP command**: `master_audio(album_slug, genre="qawwali")`
+
+**Characteristics**:
+- Lead vocal must soar above the ensemble; preserve its dynamic range from whispered devotion to ecstatic crescendo
+- Group vocals (chorus response) create call-and-response energy; keep them full and present behind the lead
+- Harmonium drone provides the harmonic bed; warm, sustained, not muddy
+- Tabla and dholak drive the accelerating rhythm; preserve transient clarity as tempos increase
+- Hand claps (taali) are essential to the rhythmic texture; crisp and defined
+- Nusrat Fateh Ali Khan-style: epic dynamics, minimal compression; modern/fusion qawwali: slightly tighter treatment acceptable
+
+### Mandopop
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; polished, radio-ready production similar to mainstream pop; vocal clarity and warmth are the priority
+**EQ focus**: Vocal presence and sweetness (2-5 kHz), piano/keyboard warmth (200-500 Hz), string arrangement body (300-600 Hz), clean top end
+**MCP command**: `master_audio(album_slug, genre="mandopop")`
+
+**Characteristics**:
+- Vocals are the centerpiece -- clear, warm, and emotionally present; Mandopop emphasizes vocal beauty and lyrical delivery
+- Ballads dominate the genre; preserve the emotional dynamic arc from quiet verses to full choruses
+- Piano and string arrangements are common accompaniment; keep them lush but not competing with vocals
+- Jay Chou-style R&B-influenced: warmer bass, groove-forward; ballad-focused (Teresa Teng lineage): wider dynamics, more delicate
+- Production tends to be clean and polished; avoid overly aggressive processing
+- High-end should be bright but not harsh; the genre favors a sweet, refined sonic character
+
+### Amapiano
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the laid-back groove and rhythmic interplay between log drums, bass, and percussion; the bounce and swing are essential
+**EQ focus**: Log drum presence (200-600 Hz), bass warmth (60-150 Hz), jazz chord voicings (300-800 Hz), shaker/percussion detail (6-10 kHz)
+**MCP command**: `master_audio(album_slug, genre="amapiano")`
+
+**Characteristics**:
+- Log drums are the genre's signature sound -- their woody, melodic percussion must sit prominently in the mix
+- Bass is warm, deep, and groovy; not aggressive or sub-heavy; it drives the slow-bounce feel
+- Jazz-influenced chord voicings (piano, keys) provide harmonic sophistication; preserve their warmth
+- Vocal elements range from spoken word to melodic singing; keep them clear and present
+- The 108-120 BPM tempo creates a relaxed but danceable energy; over-compression kills the groove
+- South African production aesthetics favor warmth and space; do not over-brighten or over-process
+
+### Afroswing
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; polished, pop-forward production with Afrobeats-influenced groove; radio-ready loudness with bounce
+**EQ focus**: Vocal clarity (2-5 kHz), bass warmth and punch (60-150 Hz), percussion detail (4-8 kHz), synth/pad warmth (200-500 Hz)
+**MCP command**: `master_audio(album_slug, genre="afroswing")`
+
+**Characteristics**:
+- UK-born fusion: distinct from Nigerian Afrobeats; more polished, pop-leaning production
+- Vocals should be clear, warm, and forward; melodic delivery is key
+- Bass should be warm and bouncy; not as sub-heavy as UK grime or drill
+- Percussion blends Afrobeats rhythms with UK production aesthetics; preserve the swing
+- J Hus/Not3s-style: more melodic, pop-forward; darker UK Afro: more rhythm-focused
+- The genre sits between Afrobeats and UK pop; master accordingly -- polished but with groove
+
+### New Age
+**LUFS target**: -16 LUFS
+**Dynamics**: Minimal compression; preserve the spacious, meditative quality; new age music depends on wide dynamics and natural breathing room
+**EQ focus**: Synth pad warmth (200-600 Hz), nature sound clarity (2-8 kHz), Celtic/world instrument presence (800 Hz-3 kHz), gentle high-frequency air and shimmer
+**MCP command**: `master_audio(album_slug, genre="new-age")`
+
+**Characteristics**:
+- Spaciousness and atmosphere are paramount -- over-compression destroys the meditative quality
+- Synth pads and drones should be warm, enveloping, and sustained; no harshness
+- Nature sounds (water, birds, wind) are compositional elements; preserve their natural character
+- Celtic elements (harp, flute, tin whistle) need clear mid-range presence; warm and inviting
+- Enya-style layered vocals: preserve the choir-like depth; pure instrumental: focus on texture and space
+- The genre is designed for relaxation and meditation; the master should feel effortless and natural
+
+### Reggaeton
+**LUFS target**: -12 LUFS
+**Dynamics**: Heavy compression; reggaeton is club and radio music designed for impact and loudness; punchy, aggressive mastering is appropriate
+**EQ focus**: Dembow kick punch (60-100 Hz), snare/rim shot crack (1-3 kHz), vocal presence (2-5 kHz), bass weight (40-80 Hz), hi-hat crispness (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="reggaeton")`
+
+**Characteristics**:
+- The dembow rhythm is the genre's backbone -- kick and snare must be punchy and relentless
+- Bass should be heavy, defined, and felt physically; sub-bass is essential to the club experience
+- Vocals need to cut through the heavy production; clear and present, often processed with effects
+- Daddy Yankee/classic reggaeton: more raw, heavier; Bad Bunny/modern: more experimental, varied production
+- Perreo tracks can push to -10 LUFS for maximum dancefloor impact
+- Latin trap crossover tracks: slightly less compressed, more atmospheric; pure reggaeton: full loudness
+
+### Spoken Word
+**LUFS target**: -14 LUFS
+**Dynamics**: Light compression; the voice is everything -- preserve the full dynamic range of the performance from whisper to shout
+**EQ focus**: Vocal clarity and warmth (1-5 kHz), backing music/ambient texture warmth (200-600 Hz), sibilance control (6-8 kHz), low-end rumble removal
+**MCP command**: `master_audio(album_slug, genre="spoken-word")`
+
+**Characteristics**:
+- The spoken voice is the absolute center; every word must be intelligible and emotionally present
+- Dynamic delivery (whisper to shout) is performative; do not flatten it with over-compression
+- Backing music or ambient textures should support, never compete with the voice
+- Beat poetry: spare, jazz-influenced accompaniment; preserve the intimate, cafe atmosphere
+- Slam poetry: more energetic, percussive delivery; slightly tighter compression acceptable
+- Dub poetry (Linton Kwesi Johnson, Mutabaruka): reggae/dub backing; treat the music bed like dub mastering while keeping voice forward
+
 ### Ska
 **LUFS target**: -14 LUFS
 **Dynamics**: Moderate compression; preserve horn transients and the natural punch of the skank guitar; avoid squashing the rhythmic interplay between offbeat guitar and walking bass

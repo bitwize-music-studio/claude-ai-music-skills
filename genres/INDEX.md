@@ -1,6 +1,6 @@
 # Genre Index
 
-A searchable, categorized guide to all 91 genre documentation files in this repository. Use this index to find the right genre for your album or discover genres you might want to explore.
+A searchable, categorized guide to all 114 genre documentation files in this repository. Use this index to find the right genre for your album or discover genres you might want to explore.
 
 ---
 
@@ -11,6 +11,7 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 - [Electronic and Dance](#electronic-and-dance)
 - [Hip-Hop and Rap](#hip-hop-and-rap)
 - [Pop](#pop)
+- [East Asian Pop](#east-asian-pop)
 - [R&B, Soul, and Funk](#rb-soul-and-funk)
 - [Country and Folk](#country-and-folk)
 - [Jazz](#jazz)
@@ -23,7 +24,7 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 - [European Pop](#european-pop)
 - [Children's / Family](#childrens--family)
 - [Christian / Faith](#christian--faith)
-- [Other Genres](#other-genres)
+- [Other](#other)
 - [Quick Reference: Find by Characteristic](#quick-reference-find-by-characteristic)
 - [Genre Combinations](#genre-combinations)
 
@@ -66,6 +67,11 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 | **Thrash Metal** | Fast, aggressive metal with technical riffing and hardcore punk influence | [README](thrash-metal/README.md) |
 | **Metalcore** | Metal meets hardcore: breakdowns, screamed vocals, melodic passages | [README](metalcore/README.md) |
 | **Nu-Metal** | 1990s metal-hip-hop-funk fusion; downtuned grooves, rapped vocals, DJ scratching | [README](nu-metal/README.md) |
+| **Power Metal** | Fast, melodic metal with soaring vocals and fantasy themes | [README](power-metal/README.md) |
+| **Symphonic Metal** | Metal with orchestral arrangements and operatic vocals | [README](symphonic-metal/README.md) |
+| **Folk Metal** | Metal fused with folk instruments and pagan/Viking themes | [README](folk-metal/README.md) |
+| **Deathcore** | Death metal + hardcore; breakdowns, blast beats, guttural vocals | [README](deathcore/README.md) |
+| **Djent** | Progressive metal with palm-muted polyrhythmic guitar tone | [README](djent/README.md) |
 | **Industrial** | Harsh electronic textures, mechanical rhythms, and aggressive sounds | [README](industrial/README.md) |
 
 ## Electronic and Dance
@@ -87,6 +93,11 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 | **Lo-Fi** | Intentionally imperfect production; warm, intimate, often instrumental | [README](lo-fi/README.md) |
 | **Vaporwave** | Slowed samples, corporate nostalgia, and internet-age irony | [README](vaporwave/README.md) |
 | **Hyperpop** | Maximalist, glitchy, pitch-shifted pop; internet-born chaos | [README](hyperpop/README.md) |
+| **Breakbeat** | Chopped sampled drum breaks; big beat, nu skool breaks | [README](breakbeat/README.md) |
+| **Downtempo** | Slow electronic; chill-out, psybient, organic textures | [README](downtempo/README.md) |
+| **IDM** | Experimental electronic; complex rhythms, sound design focus | [README](idm/README.md) |
+| **Electro** | Kraftwerk-lineage electronic; drum machines, vocoders, 808s | [README](electro/README.md) |
+| **Hardstyle** | Hard dance music; distorted kicks, 150 BPM, euphoric leads | [README](hardstyle/README.md) |
 | **Disco** | 1970s dance music with four-on-the-floor beats and orchestral arrangements | [README](disco/README.md) |
 | **Trip-Hop** | Downtempo electronic with hip-hop beats and atmospheric textures | [README](trip-hop/README.md) |
 
@@ -99,6 +110,9 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 | **Drill** | Dark, nihilistic hip-hop from Chicago, UK, and Brooklyn streets | [README](drill/README.md) |
 | **Grime** | British electronic hip-hop with 140 BPM aggression and rapid MCing | [README](grime/README.md) |
 | **Phonk** | Memphis-inspired, lo-fi hip-hop with drift culture aesthetics | [README](phonk/README.md) |
+| **Boom Bap** | Golden age hip-hop; sample-based, punchy drums, lyrical focus | [README](boom-bap/README.md) |
+| **Cloud Rap** | Atmospheric hip-hop; dreamy beats, auto-tuned vocals | [README](cloud-rap/README.md) |
+| **Conscious Hip-Hop** | Socially aware hip-hop; political/spiritual lyrics | [README](conscious-hip-hop/README.md) |
 | **Nerdcore** | Geek culture hip-hop: gaming, tech, and sci-fi themes | [README](nerdcore/README.md) |
 
 ## Pop
@@ -106,10 +120,16 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 | Genre | Description | Link |
 |-------|-------------|------|
 | **Pop** | Catchy, accessible music prioritizing hooks and broad appeal | [README](pop/README.md) |
+| **Piano Pop** | Piano-driven pop prioritizing melody, warmth, and emotional accessibility | [README](piano-pop/README.md) |
+
+## East Asian Pop
+
+| Genre | Description | Link |
+|-------|-------------|------|
 | **K-Pop** | Korean pop with synchronized choreography and high production values | [README](k-pop/README.md) |
 | **J-Pop** | Japanese pop spanning idol pop, visual kei, Vocaloid, and anime music | [README](j-pop/README.md) |
 | **City Pop** | Japanese 1980s funk/boogie/AOR; urban sophistication, internet revival | [README](city-pop/README.md) |
-| **Piano Pop** | Piano-driven pop prioritizing melody, warmth, and emotional accessibility | [README](piano-pop/README.md) |
+| **Mandopop** | Mandarin-language pop from Taiwan, China, Singapore | [README](mandopop/README.md) |
 
 ## R&B, Soul, and Funk
 
@@ -164,6 +184,8 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 |-------|-------------|------|
 | **Afrobeats** | Contemporary West African pop with Afro-Cuban and hip-hop influences | [README](afrobeats/README.md) |
 | **Highlife** | West African guitar music from Ghana; soukous/Congolese rumba connection | [README](highlife/README.md) |
+| **Amapiano** | South African house; log drums, jazz chords, 108-120 BPM | [README](amapiano/README.md) |
+| **Afroswing** | UK Afrobeats-influenced pop; distinct from Nigerian afrobeats | [README](afroswing/README.md) |
 
 ## Latin
 
@@ -172,6 +194,9 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 | **Latin** | Clave-based rhythms from salsa to reggaeton; pan-American scope | [README](latin/README.md) |
 | **Cumbia** | Colombian-origin dance music with shuffling rhythm, accordion/gaita melodies; spread across Latin America | [README](cumbia/README.md) |
 | **Samba** | Afro-Brazilian rhythmic music from Rio; surdo/tamborim/cavaquinho; Carnival tradition | [README](samba/README.md) |
+| **Flamenco** | Spanish Andalusian music; guitar, cante jondo, compas rhythms | [README](flamenco/README.md) |
+| **Afro-Cuban** | Cuban music; son, mambo, rumba, clave-based rhythms | [README](afro-cuban/README.md) |
+| **Reggaeton** | Puerto Rican dance music; dembow rhythm, urban Latin | [README](reggaeton/README.md) |
 
 ## Middle Eastern
 
@@ -192,17 +217,26 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 |-------|-------------|------|
 | **Children's Music** | Music composed for young audiences; from folk singalongs and lullabies to educational pop and animated YouTube content; includes German Kinderlieder tradition | [README](childrens-music/README.md) |
 
+## Other
+
+| Genre | Description | Link |
+|-------|-------------|------|
+| **New Age** | Meditative/healing music; synths, nature sounds, Celtic elements | [README](new-age/README.md) |
+| **Spoken Word** | Poetry performance over music; beat poetry, slam, dub poetry | [README](spoken-word/README.md) |
+
 ## South Asian
 
 | Genre | Description | Link |
 |-------|-------------|------|
 | **Bollywood** | Hindi film music (filmi) spanning golden age raga-based orchestral songs to contemporary pop-EDM hybrids; driven by playback singing tradition and cinematic storytelling | [README](bollywood/README.md) |
+| **Qawwali** | Sufi devotional music; harmonium, tabla, ecstatic group vocals | [README](qawwali/README.md) |
 
 ## European Pop
 
 | Genre | Description | Link |
 |-------|-------------|------|
 | **Chanson** | French-language vocal tradition emphasizing literary lyrics, melodic sophistication, and emotional delivery; from Piaf's cabaret to nouvelle chanson | [README](chanson/README.md) |
+| **Fado** | Portuguese soul music; guitarra portuguesa, saudade themes | [README](fado/README.md) |
 | **Schlager** | German-language popular music with catchy melodies, sentimental lyrics, and singalong choruses; from post-war ballads to EDM-infused party hits | [README](schlager/README.md) |
 
 ---
@@ -213,77 +247,81 @@ A searchable, categorized guide to all 91 genre documentation files in this repo
 
 | Speed | Genres |
 |-------|--------|
-| **Very Slow (40-80 BPM)** | [Doom Metal](doom-metal/README.md), [Stoner Rock](stoner-rock/README.md) (stoner doom), [Ambient](ambient/README.md), [Classical](classical/README.md) ballads, [Chanson](chanson/README.md) (ballads), [Children's Music](childrens-music/README.md) (lullabies), [Musicals](musicals/README.md) (ballads), [Soundtrack](soundtrack/README.md) (ballads), [Bollywood](bollywood/README.md) (ghazal/slow ballads) |
-| **Slow (60-90 BPM)** | [Blues](blues/README.md), [Stoner Rock](stoner-rock/README.md) (stoner metal/doom), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship ballads), [Worship](worship/README.md) (ballads/intimate), [Lo-Fi](lo-fi/README.md), [Trip-Hop](trip-hop/README.md), [Reggae](reggae/README.md), [Dub](dub/README.md), [Trap](trap/README.md) (half-time), [Schlager](schlager/README.md) (ballads), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (ballads), [Bollywood](bollywood/README.md) (romantic ballads) |
-| **Medium (90-120 BPM)** | [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md) (desert rock/fuzz rock), [Country](country/README.md), [Folk](folk/README.md), [R&B](rnb/README.md), [Hip-Hop](hip-hop/README.md), [Pop](pop/README.md), [Nu-Metal](nu-metal/README.md), [Math Rock](math-rock/README.md), [Post-Punk](post-punk/README.md), [Contemporary Christian](contemporary-christian/README.md) (pop/mid-tempo), [Worship](worship/README.md) (anthems), [Synthwave](synthwave/README.md), [Cumbia](cumbia/README.md), [Highlife](highlife/README.md), [City Pop](city-pop/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md), [Children's Music](childrens-music/README.md), [Musicals](musicals/README.md) (dialogue songs), [Soundtrack](soundtrack/README.md), [Bollywood](bollywood/README.md) (mid-tempo/sangeet) |
-| **Medium-Fast (110-140 BPM)** | [Samba](samba/README.md), [J-Pop](j-pop/README.md), [UK Garage](uk-garage/README.md) |
-| **Fast (120-140 BPM)** | [House](house/README.md), [Disco](disco/README.md), [Trance](trance/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md) (dance-punk), [Math Rock](math-rock/README.md) (fast strains), [Grime](grime/README.md), [Metal](metal/README.md), [Ska](ska/README.md), [UK Garage](uk-garage/README.md), [Contemporary Christian](contemporary-christian/README.md) (rock/anthemic), [Worship](worship/README.md) (uptempo praise), [Schlager](schlager/README.md) (party), [Middle Eastern Pop](middle-eastern-pop/README.md) (raï/mahraganat), [Musicals](musicals/README.md) (production numbers), [Bollywood](bollywood/README.md) (bhangra/item numbers) |
-| **Very Fast (140-180+ BPM)** | [Drum and Bass](drum-and-bass/README.md), [Jungle](jungle/README.md), [Thrash Metal](thrash-metal/README.md), [Death Metal](death-metal/README.md), [Hardcore Punk](hardcore-punk/README.md), [Black Metal](black-metal/README.md), [Noise Rock](noise-rock/README.md) (fast strains) |
+| **Very Slow (40-80 BPM)** | [Doom Metal](doom-metal/README.md), [Stoner Rock](stoner-rock/README.md) (stoner doom), [Ambient](ambient/README.md), [Classical](classical/README.md) ballads, [Chanson](chanson/README.md) (ballads), [Children's Music](childrens-music/README.md) (lullabies), [Musicals](musicals/README.md) (ballads), [Soundtrack](soundtrack/README.md) (ballads), [Bollywood](bollywood/README.md) (ghazal/slow ballads), [Downtempo](downtempo/README.md), [New Age](new-age/README.md), [Fado](fado/README.md), [Spoken Word](spoken-word/README.md) |
+| **Slow (60-90 BPM)** | [Blues](blues/README.md), [Stoner Rock](stoner-rock/README.md) (stoner metal/doom), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship ballads), [Worship](worship/README.md) (ballads/intimate), [Lo-Fi](lo-fi/README.md), [Trip-Hop](trip-hop/README.md), [Reggae](reggae/README.md), [Dub](dub/README.md), [Trap](trap/README.md) (half-time), [Schlager](schlager/README.md) (ballads), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (ballads), [Bollywood](bollywood/README.md) (romantic ballads), [Cloud Rap](cloud-rap/README.md), [Boom Bap](boom-bap/README.md), [Qawwali](qawwali/README.md) |
+| **Medium (90-120 BPM)** | [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md) (desert rock/fuzz rock), [Country](country/README.md), [Folk](folk/README.md), [R&B](rnb/README.md), [Hip-Hop](hip-hop/README.md), [Pop](pop/README.md), [Nu-Metal](nu-metal/README.md), [Math Rock](math-rock/README.md), [Post-Punk](post-punk/README.md), [Contemporary Christian](contemporary-christian/README.md) (pop/mid-tempo), [Worship](worship/README.md) (anthems), [Synthwave](synthwave/README.md), [Cumbia](cumbia/README.md), [Highlife](highlife/README.md), [City Pop](city-pop/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md), [Children's Music](childrens-music/README.md), [Musicals](musicals/README.md) (dialogue songs), [Soundtrack](soundtrack/README.md), [Bollywood](bollywood/README.md) (mid-tempo/sangeet), [Conscious Hip-Hop](conscious-hip-hop/README.md), [Amapiano](amapiano/README.md), [Afroswing](afroswing/README.md), [Reggaeton](reggaeton/README.md), [IDM](idm/README.md), [Electro](electro/README.md), [Mandopop](mandopop/README.md), [Breakbeat](breakbeat/README.md), [Flamenco](flamenco/README.md) |
+| **Medium-Fast (110-140 BPM)** | [Samba](samba/README.md), [J-Pop](j-pop/README.md), [UK Garage](uk-garage/README.md), [Afro-Cuban](afro-cuban/README.md) |
+| **Fast (120-140 BPM)** | [House](house/README.md), [Disco](disco/README.md), [Trance](trance/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md) (dance-punk), [Math Rock](math-rock/README.md) (fast strains), [Grime](grime/README.md), [Metal](metal/README.md), [Ska](ska/README.md), [UK Garage](uk-garage/README.md), [Contemporary Christian](contemporary-christian/README.md) (rock/anthemic), [Worship](worship/README.md) (uptempo praise), [Schlager](schlager/README.md) (party), [Middle Eastern Pop](middle-eastern-pop/README.md) (raï/mahraganat), [Musicals](musicals/README.md) (production numbers), [Bollywood](bollywood/README.md) (bhangra/item numbers), [Symphonic Metal](symphonic-metal/README.md), [Folk Metal](folk-metal/README.md) |
+| **Very Fast (140-180+ BPM)** | [Drum and Bass](drum-and-bass/README.md), [Jungle](jungle/README.md), [Thrash Metal](thrash-metal/README.md), [Death Metal](death-metal/README.md), [Hardcore Punk](hardcore-punk/README.md), [Black Metal](black-metal/README.md), [Noise Rock](noise-rock/README.md) (fast strains), [Power Metal](power-metal/README.md), [Deathcore](deathcore/README.md), [Hardstyle](hardstyle/README.md) |
 
 ### By Energy Level
 
 | Energy | Genres |
 |--------|--------|
-| **Chill/Relaxed** | [Ambient](ambient/README.md), [Lo-Fi](lo-fi/README.md), [Bossa Nova](bossa-nova/README.md), [Chillwave](chillwave/README.md), [Trip-Hop](trip-hop/README.md), [Dub](dub/README.md), [Indie Folk](indie-folk/README.md), [Children's Music](childrens-music/README.md) (lullabies) |
-| **Moderate** | [Folk](folk/README.md), [Country](country/README.md), [R&B](rnb/README.md), [Jazz](jazz/README.md), [Blues](blues/README.md), [Synthwave](synthwave/README.md), [City Pop](city-pop/README.md), [Singer-Songwriter](singer-songwriter/README.md), [Piano Pop](piano-pop/README.md), [Post-Punk](post-punk/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship/ballad), [Worship](worship/README.md) (intimate/devotional), [Chanson](chanson/README.md), [Children's Music](childrens-music/README.md) (singalong/educational), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md), [Bollywood](bollywood/README.md) (romantic ballads/ghazal) |
-| **Moderate-High** | [Highlife](highlife/README.md), [J-Pop](j-pop/README.md) (varies) |
-| **High Energy** | [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md) (desert rock/fuzz rock), [House](house/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Funk](funk/README.md), [Disco](disco/README.md), [Pop](pop/README.md), [Hip-Hop](hip-hop/README.md), [Math Rock](math-rock/README.md), [Ska](ska/README.md), [Cumbia](cumbia/README.md), [Samba](samba/README.md), [Piano Rock](piano-rock/README.md), [Schlager](schlager/README.md) (party), [Middle Eastern Pop](middle-eastern-pop/README.md) (dance/mahraganat), [Bollywood](bollywood/README.md) (bhangra/item numbers) |
-| **Aggressive** | [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Punk](punk/README.md), [Noise Rock](noise-rock/README.md), [Drill](drill/README.md), [Dubstep](dubstep/README.md), [Industrial](industrial/README.md), [Grime](grime/README.md) |
-| **Euphoric** | [Trance](trance/README.md), [EDM](edm/README.md), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (anthemic worship), [Worship](worship/README.md) (anthem/praise), [Disco](disco/README.md), [Schlager](schlager/README.md) |
+| **Chill/Relaxed** | [Ambient](ambient/README.md), [Lo-Fi](lo-fi/README.md), [Bossa Nova](bossa-nova/README.md), [Chillwave](chillwave/README.md), [Trip-Hop](trip-hop/README.md), [Dub](dub/README.md), [Indie Folk](indie-folk/README.md), [Children's Music](childrens-music/README.md) (lullabies), [Downtempo](downtempo/README.md), [New Age](new-age/README.md), [Fado](fado/README.md), [Cloud Rap](cloud-rap/README.md) |
+| **Moderate** | [Folk](folk/README.md), [Country](country/README.md), [R&B](rnb/README.md), [Jazz](jazz/README.md), [Blues](blues/README.md), [Synthwave](synthwave/README.md), [City Pop](city-pop/README.md), [Singer-Songwriter](singer-songwriter/README.md), [Piano Pop](piano-pop/README.md), [Post-Punk](post-punk/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship/ballad), [Worship](worship/README.md) (intimate/devotional), [Chanson](chanson/README.md), [Children's Music](childrens-music/README.md) (singalong/educational), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md), [Bollywood](bollywood/README.md) (romantic ballads/ghazal), [Boom Bap](boom-bap/README.md), [Conscious Hip-Hop](conscious-hip-hop/README.md), [Flamenco](flamenco/README.md), [Qawwali](qawwali/README.md), [IDM](idm/README.md), [Mandopop](mandopop/README.md), [Spoken Word](spoken-word/README.md) |
+| **Moderate-High** | [Highlife](highlife/README.md), [J-Pop](j-pop/README.md) (varies), [Amapiano](amapiano/README.md), [Afroswing](afroswing/README.md), [Electro](electro/README.md) |
+| **High Energy** | [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md) (desert rock/fuzz rock), [House](house/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Funk](funk/README.md), [Disco](disco/README.md), [Pop](pop/README.md), [Hip-Hop](hip-hop/README.md), [Math Rock](math-rock/README.md), [Ska](ska/README.md), [Cumbia](cumbia/README.md), [Samba](samba/README.md), [Piano Rock](piano-rock/README.md), [Schlager](schlager/README.md) (party), [Middle Eastern Pop](middle-eastern-pop/README.md) (dance/mahraganat), [Bollywood](bollywood/README.md) (bhangra/item numbers), [Power Metal](power-metal/README.md), [Symphonic Metal](symphonic-metal/README.md), [Folk Metal](folk-metal/README.md), [Breakbeat](breakbeat/README.md), [Reggaeton](reggaeton/README.md), [Afro-Cuban](afro-cuban/README.md) |
+| **Aggressive** | [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Punk](punk/README.md), [Noise Rock](noise-rock/README.md), [Drill](drill/README.md), [Dubstep](dubstep/README.md), [Industrial](industrial/README.md), [Grime](grime/README.md), [Deathcore](deathcore/README.md), [Djent](djent/README.md), [Hardstyle](hardstyle/README.md) |
+| **Euphoric** | [Trance](trance/README.md), [EDM](edm/README.md), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (anthemic worship), [Worship](worship/README.md) (anthem/praise), [Disco](disco/README.md), [Schlager](schlager/README.md), [Hardstyle](hardstyle/README.md), [Power Metal](power-metal/README.md) |
 
 ### By Instrumentation
 
 | Primary Sound | Genres |
 |---------------|--------|
-| **Acoustic Guitar** | [Worship](worship/README.md) (acoustic/unplugged), [Folk](folk/README.md), [Country](country/README.md), [Americana](americana/README.md), [Indie Folk](indie-folk/README.md), [Blues](blues/README.md) (acoustic), [Singer-Songwriter](singer-songwriter/README.md), [Chanson](chanson/README.md), [Children's Music](childrens-music/README.md) |
+| **Acoustic Guitar** | [Worship](worship/README.md) (acoustic/unplugged), [Folk](folk/README.md), [Country](country/README.md), [Americana](americana/README.md), [Indie Folk](indie-folk/README.md), [Blues](blues/README.md) (acoustic), [Singer-Songwriter](singer-songwriter/README.md), [Chanson](chanson/README.md), [Children's Music](childrens-music/README.md), [Flamenco](flamenco/README.md), [Fado](fado/README.md), [Folk Metal](folk-metal/README.md) (acoustic elements), [New Age](new-age/README.md) |
 | **Ukulele/Xylophone** | [Children's Music](childrens-music/README.md) |
-| **Electric Guitar** | [Rock](rock/README.md), [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Stoner Rock](stoner-rock/README.md), [Blues](blues/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md), [Math Rock](math-rock/README.md), [Noise Rock](noise-rock/README.md), [Grunge](grunge/README.md), [Shoegaze](shoegaze/README.md), [Highlife](highlife/README.md), [City Pop](city-pop/README.md) |
-| **Synthesizers** | [Electronic](electronic/README.md), [Synthwave](synthwave/README.md), [Trance](trance/README.md), [House](house/README.md), [Ambient](ambient/README.md), [Hyperpop](hyperpop/README.md), [UK Garage](uk-garage/README.md), [City Pop](city-pop/README.md), [J-Pop](j-pop/README.md), [Schlager](schlager/README.md) |
-| **808/Drum Machines** | [Hip-Hop](hip-hop/README.md), [Trap](trap/README.md), [Drill](drill/README.md), [Phonk](phonk/README.md), [House](house/README.md), [Techno](techno/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md) |
-| **Orchestra** | [Classical](classical/README.md), [Opera](opera/README.md), [Cinematic](cinematic/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (Bond/Golden Age), [Disco](disco/README.md) (strings) |
+| **Electric Guitar** | [Rock](rock/README.md), [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Stoner Rock](stoner-rock/README.md), [Blues](blues/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md), [Math Rock](math-rock/README.md), [Noise Rock](noise-rock/README.md), [Grunge](grunge/README.md), [Shoegaze](shoegaze/README.md), [Highlife](highlife/README.md), [City Pop](city-pop/README.md), [Power Metal](power-metal/README.md), [Symphonic Metal](symphonic-metal/README.md), [Folk Metal](folk-metal/README.md), [Deathcore](deathcore/README.md), [Djent](djent/README.md) |
+| **Synthesizers** | [Electronic](electronic/README.md), [Synthwave](synthwave/README.md), [Trance](trance/README.md), [House](house/README.md), [Ambient](ambient/README.md), [Hyperpop](hyperpop/README.md), [UK Garage](uk-garage/README.md), [City Pop](city-pop/README.md), [J-Pop](j-pop/README.md), [Schlager](schlager/README.md), [Downtempo](downtempo/README.md), [IDM](idm/README.md), [Electro](electro/README.md), [Hardstyle](hardstyle/README.md), [New Age](new-age/README.md), [Symphonic Metal](symphonic-metal/README.md) |
+| **808/Drum Machines** | [Hip-Hop](hip-hop/README.md), [Trap](trap/README.md), [Drill](drill/README.md), [Phonk](phonk/README.md), [House](house/README.md), [Techno](techno/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Electro](electro/README.md), [Boom Bap](boom-bap/README.md), [Breakbeat](breakbeat/README.md), [Amapiano](amapiano/README.md), [Reggaeton](reggaeton/README.md) |
+| **Orchestra** | [Classical](classical/README.md), [Opera](opera/README.md), [Cinematic](cinematic/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (Bond/Golden Age), [Disco](disco/README.md) (strings), [Symphonic Metal](symphonic-metal/README.md) |
 | **Piano** | [Classical](classical/README.md), [Jazz](jazz/README.md), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (ballads/worship), [Worship](worship/README.md), [Blues](blues/README.md), [Pop](pop/README.md) ballads, [Piano Rock](piano-rock/README.md), [Piano Pop](piano-pop/README.md), [Chanson](chanson/README.md) |
-| **Tabla/Dholak/Harmonium** | [Bollywood](bollywood/README.md) |
+| **Tabla/Dholak/Harmonium** | [Bollywood](bollywood/README.md), [Qawwali](qawwali/README.md) |
 | **Sitar/Bansuri** | [Bollywood](bollywood/README.md) |
+| **Guitarra Portuguesa** | [Fado](fado/README.md) |
 | **Accordion** | [Chanson](chanson/README.md) (musette), [Middle Eastern Pop](middle-eastern-pop/README.md) (raï), [Cumbia](cumbia/README.md) |
+| **Folk Instruments (hurdy-gurdy, bagpipes, tin whistle)** | [Folk Metal](folk-metal/README.md), [Celtic Punk](celtic-punk/README.md) |
+| **Claves/Congas/Timbales** | [Afro-Cuban](afro-cuban/README.md), [Latin](latin/README.md), [Cumbia](cumbia/README.md) |
+| **Log Drums** | [Amapiano](amapiano/README.md) |
 | **Surdo/Tamborim/Cavaquinho** | [Samba](samba/README.md) |
 | **Oud/Qanun** | [Middle Eastern Pop](middle-eastern-pop/README.md) |
-| **Brass/Horns** | [Jazz](jazz/README.md), [Funk](funk/README.md), [Ska](ska/README.md), [Ska Punk](ska-punk/README.md), [Latin](latin/README.md), [Highlife](highlife/README.md), [Gospel](gospel/README.md) |
+| **Brass/Horns** | [Jazz](jazz/README.md), [Funk](funk/README.md), [Ska](ska/README.md), [Ska Punk](ska-punk/README.md), [Latin](latin/README.md), [Highlife](highlife/README.md), [Gospel](gospel/README.md), [Afro-Cuban](afro-cuban/README.md) |
 | **Banjo/Fiddle** | [Bluegrass](bluegrass/README.md), [Folk](folk/README.md), [Country](country/README.md), [Celtic Punk](celtic-punk/README.md) |
 
 ### By Vocal Style
 
 | Vocal Approach | Genres |
 |----------------|--------|
-| **Powerful/Belted** | [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md), [R&B](rnb/README.md), [Opera](opera/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (power ballad), [Pop](pop/README.md), [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md) (réaliste), [Middle Eastern Pop](middle-eastern-pop/README.md), [Bollywood](bollywood/README.md) |
-| **Rapped/Spoken** | [Hip-Hop](hip-hop/README.md), [Trap](trap/README.md), [Drill](drill/README.md), [Grime](grime/README.md), [Nerdcore](nerdcore/README.md), [Nu-Metal](nu-metal/README.md) |
-| **Screamed/Harsh** | [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Punk](punk/README.md), [Noise Rock](noise-rock/README.md), [Metalcore](metalcore/README.md), [Emo](emo/README.md), [Industrial](industrial/README.md) |
+| **Powerful/Belted** | [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md), [R&B](rnb/README.md), [Opera](opera/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (power ballad), [Pop](pop/README.md), [Rock](rock/README.md), [Stoner Rock](stoner-rock/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md) (réaliste), [Middle Eastern Pop](middle-eastern-pop/README.md), [Bollywood](bollywood/README.md), [Power Metal](power-metal/README.md), [Symphonic Metal](symphonic-metal/README.md), [Fado](fado/README.md), [Flamenco](flamenco/README.md) (cante jondo) |
+| **Rapped/Spoken** | [Hip-Hop](hip-hop/README.md), [Trap](trap/README.md), [Drill](drill/README.md), [Grime](grime/README.md), [Nerdcore](nerdcore/README.md), [Nu-Metal](nu-metal/README.md), [Boom Bap](boom-bap/README.md), [Cloud Rap](cloud-rap/README.md), [Conscious Hip-Hop](conscious-hip-hop/README.md), [Spoken Word](spoken-word/README.md) |
+| **Screamed/Harsh** | [Metal](metal/README.md), [Death Metal](death-metal/README.md), [Nu-Metal](nu-metal/README.md), [Punk](punk/README.md), [Noise Rock](noise-rock/README.md), [Metalcore](metalcore/README.md), [Emo](emo/README.md), [Industrial](industrial/README.md), [Deathcore](deathcore/README.md), [Folk Metal](folk-metal/README.md) |
 | **Intimate/Whispered** | [Folk](folk/README.md), [Indie Folk](indie-folk/README.md), [Lo-Fi](lo-fi/README.md), [Trip-Hop](trip-hop/README.md), [Singer-Songwriter](singer-songwriter/README.md), [Post-Punk](post-punk/README.md) (deadpan/spoken), [Chanson](chanson/README.md) (à texte) |
-| **Processed/Pitch-Shifted** | [Hyperpop](hyperpop/README.md), [Vaporwave](vaporwave/README.md), [Trap](trap/README.md), [Electronic](electronic/README.md), [UK Garage](uk-garage/README.md) |
-| **Group Singing/Call-and-Response** | [Children's Music](childrens-music/README.md), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship), [Worship](worship/README.md), [Ska](ska/README.md) |
-| **Primarily Instrumental** | [Ambient](ambient/README.md), [Dub](dub/README.md), [Math Rock](math-rock/README.md), [Post-Rock](post-rock/README.md), [Techno](techno/README.md), [Classical](classical/README.md), [Jazz](jazz/README.md) (much of it) |
+| **Processed/Pitch-Shifted** | [Hyperpop](hyperpop/README.md), [Vaporwave](vaporwave/README.md), [Trap](trap/README.md), [Electronic](electronic/README.md), [UK Garage](uk-garage/README.md), [Cloud Rap](cloud-rap/README.md), [Electro](electro/README.md) (vocoders) |
+| **Group Singing/Call-and-Response** | [Children's Music](childrens-music/README.md), [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship), [Worship](worship/README.md), [Ska](ska/README.md), [Qawwali](qawwali/README.md) |
+| **Primarily Instrumental** | [Ambient](ambient/README.md), [Dub](dub/README.md), [Math Rock](math-rock/README.md), [Post-Rock](post-rock/README.md), [Techno](techno/README.md), [Classical](classical/README.md), [Jazz](jazz/README.md) (much of it), [IDM](idm/README.md), [Downtempo](downtempo/README.md), [New Age](new-age/README.md), [Flamenco](flamenco/README.md) (guitar solos) |
 
 ### By Mood/Atmosphere
 
 | Mood | Genres |
 |------|--------|
-| **Dark/Brooding** | [Black Metal](black-metal/README.md), [Death Metal](death-metal/README.md), [Doom Metal](doom-metal/README.md), [Nu-Metal](nu-metal/README.md), [Stoner Rock](stoner-rock/README.md) (stoner doom/stoner metal), [Industrial](industrial/README.md), [Noise Rock](noise-rock/README.md), [Post-Punk](post-punk/README.md), [Drill](drill/README.md), [Grunge](grunge/README.md), [Trip-Hop](trip-hop/README.md), [Dub](dub/README.md) (roots dub) |
-| **Nostalgic** | [Synthwave](synthwave/README.md), [Vaporwave](vaporwave/README.md), [Chillwave](chillwave/README.md), [City Pop](city-pop/README.md), [Lo-Fi](lo-fi/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md), [Math Rock](math-rock/README.md) (midwest emo wing) |
-| **Romantic/Emotional** | [R&B](rnb/README.md), [Jazz](jazz/README.md) ballads, [Bossa Nova](bossa-nova/README.md), [Pop](pop/README.md) ballads, [Country](country/README.md), [Piano Pop](piano-pop/README.md), [Singer-Songwriter](singer-songwriter/README.md), [Chanson](chanson/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (ballads), [Middle Eastern Pop](middle-eastern-pop/README.md), [Bollywood](bollywood/README.md) |
+| **Dark/Brooding** | [Black Metal](black-metal/README.md), [Death Metal](death-metal/README.md), [Doom Metal](doom-metal/README.md), [Nu-Metal](nu-metal/README.md), [Stoner Rock](stoner-rock/README.md) (stoner doom/stoner metal), [Industrial](industrial/README.md), [Noise Rock](noise-rock/README.md), [Post-Punk](post-punk/README.md), [Drill](drill/README.md), [Grunge](grunge/README.md), [Trip-Hop](trip-hop/README.md), [Dub](dub/README.md) (roots dub), [Deathcore](deathcore/README.md), [Djent](djent/README.md) |
+| **Nostalgic** | [Synthwave](synthwave/README.md), [Vaporwave](vaporwave/README.md), [Chillwave](chillwave/README.md), [City Pop](city-pop/README.md), [Lo-Fi](lo-fi/README.md), [Schlager](schlager/README.md), [Chanson](chanson/README.md), [Math Rock](math-rock/README.md) (midwest emo wing), [Boom Bap](boom-bap/README.md), [Fado](fado/README.md) (saudade) |
+| **Romantic/Emotional** | [R&B](rnb/README.md), [Jazz](jazz/README.md) ballads, [Bossa Nova](bossa-nova/README.md), [Pop](pop/README.md) ballads, [Country](country/README.md), [Piano Pop](piano-pop/README.md), [Singer-Songwriter](singer-songwriter/README.md), [Chanson](chanson/README.md), [Musicals](musicals/README.md), [Soundtrack](soundtrack/README.md) (ballads), [Middle Eastern Pop](middle-eastern-pop/README.md), [Bollywood](bollywood/README.md), [Fado](fado/README.md), [Mandopop](mandopop/README.md), [Flamenco](flamenco/README.md) |
 | **Rebellious/Defiant** | [Punk](punk/README.md), [Nu-Metal](nu-metal/README.md), [Noise Rock](noise-rock/README.md), [Post-Punk](post-punk/README.md), [Hip-Hop](hip-hop/README.md), [Metal](metal/README.md), [Grime](grime/README.md), [Ska](ska/README.md) (2 Tone) |
-| **Spiritual/Transcendent** | [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md), [Ambient](ambient/README.md), [Trance](trance/README.md), [Reggae](reggae/README.md), [Worship](worship/README.md), [Classical](classical/README.md) |
+| **Spiritual/Transcendent** | [Gospel](gospel/README.md), [Contemporary Christian](contemporary-christian/README.md), [Ambient](ambient/README.md), [Trance](trance/README.md), [Reggae](reggae/README.md), [Worship](worship/README.md), [Classical](classical/README.md), [Qawwali](qawwali/README.md), [New Age](new-age/README.md) |
 | **Playful/Whimsical** | [Children's Music](childrens-music/README.md), [Hyperpop](hyperpop/README.md) |
-| **Party/Celebratory** | [Disco](disco/README.md), [Funk](funk/README.md), [EDM](edm/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Dancehall](dancehall/README.md), [Ska](ska/README.md), [Cumbia](cumbia/README.md), [Samba](samba/README.md), [Latin](latin/README.md), [K-Pop](k-pop/README.md), [J-Pop](j-pop/README.md), [Schlager](schlager/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (mahraganat), [Bollywood](bollywood/README.md) (bhangra/item numbers) |
-| **Spiritual/Devotional** | [Contemporary Christian](contemporary-christian/README.md) (worship), [Worship](worship/README.md), [Bollywood](bollywood/README.md) (qawwali/bhajan) |
+| **Party/Celebratory** | [Disco](disco/README.md), [Funk](funk/README.md), [EDM](edm/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Dancehall](dancehall/README.md), [Ska](ska/README.md), [Cumbia](cumbia/README.md), [Samba](samba/README.md), [Latin](latin/README.md), [K-Pop](k-pop/README.md), [J-Pop](j-pop/README.md), [Schlager](schlager/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (mahraganat), [Bollywood](bollywood/README.md) (bhangra/item numbers), [Reggaeton](reggaeton/README.md), [Afro-Cuban](afro-cuban/README.md), [Amapiano](amapiano/README.md), [Afroswing](afroswing/README.md), [Hardstyle](hardstyle/README.md), [Breakbeat](breakbeat/README.md) |
+| **Spiritual/Devotional** | [Contemporary Christian](contemporary-christian/README.md) (worship), [Worship](worship/README.md), [Bollywood](bollywood/README.md) (qawwali/bhajan), [Qawwali](qawwali/README.md) |
 
 ### By Era/Aesthetic
 
 | Era | Genres |
 |-----|--------|
-| **Vintage (Pre-1970s)** | [Blues](blues/README.md), [Jazz](jazz/README.md), [Classical](classical/README.md), [Gospel](gospel/README.md), [Opera](opera/README.md), [Ska](ska/README.md) (first wave), [Musicals](musicals/README.md) (Golden Age), [Soundtrack](soundtrack/README.md) (Hollywood Golden Age, Bond themes), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (golden age), [Children's Music](childrens-music/README.md) (folk era), [Bollywood](bollywood/README.md) (classical filmi golden age) |
-| **1970s-80s** | [Disco](disco/README.md), [Funk](funk/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md), [Noise Rock](noise-rock/README.md), [New Wave](new-wave/README.md), [Dub](dub/README.md), [Ska](ska/README.md) (2 Tone), [City Pop](city-pop/README.md), [Synthwave](synthwave/README.md), [Contemporary Christian](contemporary-christian/README.md) (Jesus Music, early CCM), [Schlager](schlager/README.md), [Soundtrack](soundtrack/README.md) (Saturday Night Fever, Purple Rain), [Bollywood](bollywood/README.md) (disco filmi era) |
-| **1990s** | [Grunge](grunge/README.md), [Nu-Metal](nu-metal/README.md), [Death Metal](death-metal/README.md), [Stoner Rock](stoner-rock/README.md), [Hip-Hop](hip-hop/README.md), [Math Rock](math-rock/README.md), [Trip-Hop](trip-hop/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Trance](trance/README.md), [House](house/README.md), [J-Pop](j-pop/README.md), [Contemporary Christian](contemporary-christian/README.md) (dc Talk, Amy Grant crossover), [Bollywood](bollywood/README.md) (A.R. Rahman era) |
-| **2000s-2010s** | [Worship](worship/README.md), [EDM](edm/README.md), [Trap](trap/README.md), [Dubstep](dubstep/README.md), [Hyperpop](hyperpop/README.md), [Lo-Fi](lo-fi/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship explosion, CHH), [Musicals](musicals/README.md) (contemporary), [Bollywood](bollywood/README.md) (contemporary pop/bhangra fusion) |
-| **Internet/Modern** | [Vaporwave](vaporwave/README.md), [Hyperpop](hyperpop/README.md), [Phonk](phonk/README.md), [Drill](drill/README.md), [Lo-Fi](lo-fi/README.md), [City Pop](city-pop/README.md) (internet revival), [Contemporary Christian](contemporary-christian/README.md) (TikTok-native CCM), [Children's Music](childrens-music/README.md) (YouTube era) |
+| **Vintage (Pre-1970s)** | [Blues](blues/README.md), [Jazz](jazz/README.md), [Classical](classical/README.md), [Gospel](gospel/README.md), [Opera](opera/README.md), [Ska](ska/README.md) (first wave), [Musicals](musicals/README.md) (Golden Age), [Soundtrack](soundtrack/README.md) (Hollywood Golden Age, Bond themes), [Chanson](chanson/README.md), [Middle Eastern Pop](middle-eastern-pop/README.md) (golden age), [Children's Music](childrens-music/README.md) (folk era), [Bollywood](bollywood/README.md) (classical filmi golden age), [Fado](fado/README.md), [Flamenco](flamenco/README.md), [Afro-Cuban](afro-cuban/README.md), [Qawwali](qawwali/README.md), [Boom Bap](boom-bap/README.md) (golden age hip-hop) |
+| **1970s-80s** | [Disco](disco/README.md), [Funk](funk/README.md), [Punk](punk/README.md), [Post-Punk](post-punk/README.md), [Noise Rock](noise-rock/README.md), [New Wave](new-wave/README.md), [Dub](dub/README.md), [Ska](ska/README.md) (2 Tone), [City Pop](city-pop/README.md), [Synthwave](synthwave/README.md), [Contemporary Christian](contemporary-christian/README.md) (Jesus Music, early CCM), [Schlager](schlager/README.md), [Soundtrack](soundtrack/README.md) (Saturday Night Fever, Purple Rain), [Bollywood](bollywood/README.md) (disco filmi era), [Electro](electro/README.md), [New Age](new-age/README.md), [Reggaeton](reggaeton/README.md) (early dembow origins) |
+| **1990s** | [Grunge](grunge/README.md), [Nu-Metal](nu-metal/README.md), [Death Metal](death-metal/README.md), [Stoner Rock](stoner-rock/README.md), [Hip-Hop](hip-hop/README.md), [Math Rock](math-rock/README.md), [Trip-Hop](trip-hop/README.md), [Jungle](jungle/README.md), [UK Garage](uk-garage/README.md), [Trance](trance/README.md), [House](house/README.md), [J-Pop](j-pop/README.md), [Contemporary Christian](contemporary-christian/README.md) (dc Talk, Amy Grant crossover), [Bollywood](bollywood/README.md) (A.R. Rahman era), [Power Metal](power-metal/README.md), [Symphonic Metal](symphonic-metal/README.md), [Breakbeat](breakbeat/README.md) (big beat era), [Downtempo](downtempo/README.md), [IDM](idm/README.md), [Boom Bap](boom-bap/README.md), [Conscious Hip-Hop](conscious-hip-hop/README.md), [Reggaeton](reggaeton/README.md) |
+| **2000s-2010s** | [Worship](worship/README.md), [EDM](edm/README.md), [Trap](trap/README.md), [Dubstep](dubstep/README.md), [Hyperpop](hyperpop/README.md), [Lo-Fi](lo-fi/README.md), [Contemporary Christian](contemporary-christian/README.md) (worship explosion, CHH), [Musicals](musicals/README.md) (contemporary), [Bollywood](bollywood/README.md) (contemporary pop/bhangra fusion), [Deathcore](deathcore/README.md), [Djent](djent/README.md), [Folk Metal](folk-metal/README.md), [Hardstyle](hardstyle/README.md), [Cloud Rap](cloud-rap/README.md), [Mandopop](mandopop/README.md) |
+| **Internet/Modern** | [Vaporwave](vaporwave/README.md), [Hyperpop](hyperpop/README.md), [Phonk](phonk/README.md), [Drill](drill/README.md), [Lo-Fi](lo-fi/README.md), [City Pop](city-pop/README.md) (internet revival), [Contemporary Christian](contemporary-christian/README.md) (TikTok-native CCM), [Children's Music](childrens-music/README.md) (YouTube era), [Amapiano](amapiano/README.md), [Afroswing](afroswing/README.md) |
 
 ---
 
@@ -298,11 +336,22 @@ These genres commonly blend well together or have natural crossover potential:
 - [Shoegaze](shoegaze/README.md) + [Electronic](electronic/README.md) = Ethereal wave
 - [Noise Rock](noise-rock/README.md) + [Industrial](industrial/README.md) = Industrial noise rock (Swans, Killing Joke)
 
+### Metal Subgenre Fusions
+- [Power Metal](power-metal/README.md) + [Symphonic Metal](symphonic-metal/README.md) = Symphonic power metal (Nightwish, Rhapsody of Fire)
+- [Folk Metal](folk-metal/README.md) + [Black Metal](black-metal/README.md) = Viking metal (Bathory, Enslaved)
+- [Folk Metal](folk-metal/README.md) + [Power Metal](power-metal/README.md) = Epic folk metal (Ensiferum, Eluveitie)
+- [Deathcore](deathcore/README.md) + [Djent](djent/README.md) = Progressive deathcore (Born of Osiris)
+- [Djent](djent/README.md) + [Progressive Rock](progressive-rock/README.md) = Progressive djent (TesseracT, Periphery)
+- [Symphonic Metal](symphonic-metal/README.md) + [Gothic](doom-metal/README.md) = Gothic symphonic metal (Within Temptation)
+
 ### Hip-Hop + Other Genres
 - [Hip-Hop](hip-hop/README.md) + [Jazz](jazz/README.md) = Jazz rap, lo-fi hip-hop
 - [Trap](trap/README.md) + [R&B](rnb/README.md) = Alternative R&B, trap-soul
 - [Hip-Hop](hip-hop/README.md) + [Rock](rock/README.md) = Rap rock, [nu-metal](nu-metal/README.md)
 - [Grime](grime/README.md) + [Drill](drill/README.md) = UK drill, hybrid flows
+- [Boom Bap](boom-bap/README.md) + [Jazz](jazz/README.md) = Jazz rap, golden age revival
+- [Cloud Rap](cloud-rap/README.md) + [Ambient](ambient/README.md) = Atmospheric trap, ethereal hip-hop
+- [Conscious Hip-Hop](conscious-hip-hop/README.md) + [Soul](rnb/README.md) = Neo-soul hip-hop, spoken word soul
 
 ### Folk/Country + Rock
 - [Folk](folk/README.md) + [Rock](rock/README.md) = Folk-rock
@@ -319,6 +368,11 @@ These genres commonly blend well together or have natural crossover potential:
 - [UK Garage](uk-garage/README.md) + [Dubstep](dubstep/README.md) = Post-dubstep, future garage
 - [UK Garage](uk-garage/README.md) + [Jungle](jungle/README.md) = Speed garage, breakstep
 - [Dub](dub/README.md) + [Electronic](electronic/README.md) = Digital dub, dub techno
+- [Breakbeat](breakbeat/README.md) + [House](house/README.md) = Broken beat, nu skool breaks
+- [Downtempo](downtempo/README.md) + [Ambient](ambient/README.md) = Psybient, chill-out
+- [IDM](idm/README.md) + [Ambient](ambient/README.md) = Intelligent ambient (Aphex Twin selected ambient works)
+- [Electro](electro/README.md) + [Hip-Hop](hip-hop/README.md) = Electro-hop, early hip-hop
+- [Hardstyle](hardstyle/README.md) + [Trance](trance/README.md) = Euphoric hardstyle
 
 ### Christian / Worship Fusions
 - [Worship](worship/README.md) + [Gospel](gospel/README.md) = Gospel worship (Maverick City Music)
@@ -356,13 +410,25 @@ These genres commonly blend well together or have natural crossover potential:
 - [Samba](samba/README.md) + [Jazz](jazz/README.md) = Samba-jazz, MPB
 - [Samba](samba/README.md) + [Rock](rock/README.md) = Samba-rock, Tropicalia
 - [Bossa Nova](bossa-nova/README.md) + [Jazz](jazz/README.md) = Brazilian jazz
+- [Flamenco](flamenco/README.md) + [Jazz](jazz/README.md) = Flamenco jazz (Paco de Lucía)
+- [Flamenco](flamenco/README.md) + [Pop](pop/README.md) = Nuevo flamenco (Rosalía)
+- [Afro-Cuban](afro-cuban/README.md) + [Jazz](jazz/README.md) = Latin jazz, Afro-Cuban jazz
+- [Reggaeton](reggaeton/README.md) + [Pop](pop/README.md) = Latin pop, urban Latin
+- [Reggaeton](reggaeton/README.md) + [Trap](trap/README.md) = Latin trap
+- [Amapiano](amapiano/README.md) + [House](house/README.md) = South African deep house
+- [Afroswing](afroswing/README.md) + [Afrobeats](afrobeats/README.md) = UK Afrobeats
+- [Fado](fado/README.md) + [Pop](pop/README.md) = Novo fado (Mariza, Ana Moura)
+- [Qawwali](qawwali/README.md) + [Electronic](electronic/README.md) = Sufi electronic (Nusrat remixes)
 
-### J-Pop / City Pop Fusions
+### East Asian Pop Fusions
 - [J-Pop](j-pop/README.md) + [Electronic](electronic/README.md) = Vocaloid, denpa
 - [J-Pop](j-pop/README.md) + [Metal](metal/README.md) = Visual kei, kawaii metal (BABYMETAL)
 - [J-Pop](j-pop/README.md) + [Hip-Hop](hip-hop/README.md) = Japanese hip-hop
 - [City Pop](city-pop/README.md) + [Funk](funk/README.md) = Japanese boogie, AOR
 - [City Pop](city-pop/README.md) + [Bossa Nova](bossa-nova/README.md) = Japanese soft jazz-pop
+- [Mandopop](mandopop/README.md) + [R&B](rnb/README.md) = C-R&B (Jay Chou, Jolin Tsai)
+- [Mandopop](mandopop/README.md) + [Hip-Hop](hip-hop/README.md) = Chinese hip-hop, rap in Mandarin
+- [Mandopop](mandopop/README.md) + [Electronic](electronic/README.md) = C-pop electronic, EDM-pop
 
 ### Middle Eastern Fusions
 - [Middle Eastern Pop](middle-eastern-pop/README.md) + [Electronic](electronic/README.md) = Arabic-electronic fusion, Acid Arab
@@ -416,62 +482,80 @@ These genres commonly blend well together or have natural crossover potential:
 
 | Genre | Category | Link |
 |-------|----------|------|
+| Afro-Cuban | Latin | [README](afro-cuban/README.md) |
 | Afrobeats | World | [README](afrobeats/README.md) |
+| Afroswing | African | [README](afroswing/README.md) |
 | Alternative | Rock | [README](alternative/README.md) |
+| Amapiano | African | [README](amapiano/README.md) |
 | Ambient | Electronic | [README](ambient/README.md) |
 | Americana | Folk/Country | [README](americana/README.md) |
 | Black Metal | Metal | [README](black-metal/README.md) |
 | Bluegrass | Folk/Country | [README](bluegrass/README.md) |
 | Blues | Roots | [README](blues/README.md) |
 | Bollywood | South Asian | [README](bollywood/README.md) |
+| Boom Bap | Hip-Hop | [README](boom-bap/README.md) |
 | Bossa Nova | Jazz/World | [README](bossa-nova/README.md) |
+| Breakbeat | Electronic | [README](breakbeat/README.md) |
 | Celtic Punk | Rock | [README](celtic-punk/README.md) |
 | Chanson | European Pop | [README](chanson/README.md) |
 | Children's Music | Children's/Family | [README](childrens-music/README.md) |
 | Chillwave | Electronic | [README](chillwave/README.md) |
 | Cinematic | Orchestral | [README](cinematic/README.md) |
-| City Pop | Pop/Japanese | [README](city-pop/README.md) |
+| City Pop | East Asian Pop | [README](city-pop/README.md) |
 | Classical | Orchestral | [README](classical/README.md) |
+| Cloud Rap | Hip-Hop | [README](cloud-rap/README.md) |
+| Conscious Hip-Hop | Hip-Hop | [README](conscious-hip-hop/README.md) |
 | Contemporary Christian | Christian/Faith | [README](contemporary-christian/README.md) |
 | Country | Folk/Country | [README](country/README.md) |
 | Cumbia | Latin | [README](cumbia/README.md) |
 | Dancehall | Caribbean | [README](dancehall/README.md) |
 | Death Metal | Metal | [README](death-metal/README.md) |
+| Deathcore | Metal | [README](deathcore/README.md) |
 | Disco | Dance | [README](disco/README.md) |
+| Djent | Metal | [README](djent/README.md) |
+| Downtempo | Electronic | [README](downtempo/README.md) |
 | Doom Metal | Metal | [README](doom-metal/README.md) |
 | Drill | Hip-Hop | [README](drill/README.md) |
 | Drum and Bass | Electronic | [README](drum-and-bass/README.md) |
 | Dub | Caribbean | [README](dub/README.md) |
 | Dubstep | Electronic | [README](dubstep/README.md) |
 | EDM | Electronic | [README](edm/README.md) |
+| Electro | Electronic | [README](electro/README.md) |
 | Electronic | Electronic | [README](electronic/README.md) |
 | Emo | Rock | [README](emo/README.md) |
+| Fado | European Pop | [README](fado/README.md) |
+| Flamenco | Latin | [README](flamenco/README.md) |
 | Folk | Folk/Country | [README](folk/README.md) |
+| Folk Metal | Metal | [README](folk-metal/README.md) |
 | Funk | Soul/Funk | [README](funk/README.md) |
 | Garage Rock | Rock | [README](garage-rock/README.md) |
 | Gospel | Soul/Spiritual | [README](gospel/README.md) |
 | Grime | Hip-Hop/Electronic | [README](grime/README.md) |
 | Grunge | Rock | [README](grunge/README.md) |
 | Hardcore Punk | Rock | [README](hardcore-punk/README.md) |
+| Hardstyle | Electronic | [README](hardstyle/README.md) |
 | Highlife | African | [README](highlife/README.md) |
 | Hip-Hop | Hip-Hop | [README](hip-hop/README.md) |
 | House | Electronic | [README](house/README.md) |
 | Hyperpop | Electronic/Pop | [README](hyperpop/README.md) |
+| IDM | Electronic | [README](idm/README.md) |
 | Indie Folk | Folk | [README](indie-folk/README.md) |
 | Indie Rock | Rock | [README](indie-rock/README.md) |
 | Industrial | Electronic/Metal | [README](industrial/README.md) |
 | Jazz | Jazz | [README](jazz/README.md) |
-| J-Pop | Pop/Japanese | [README](j-pop/README.md) |
+| J-Pop | East Asian Pop | [README](j-pop/README.md) |
 | Jungle | Electronic | [README](jungle/README.md) |
-| K-Pop | Pop | [README](k-pop/README.md) |
+| K-Pop | East Asian Pop | [README](k-pop/README.md) |
 | Latin | World | [README](latin/README.md) |
 | Lo-Fi | Electronic | [README](lo-fi/README.md) |
+| Mandopop | East Asian Pop | [README](mandopop/README.md) |
 | Math Rock | Rock | [README](math-rock/README.md) |
 | Metal | Metal | [README](metal/README.md) |
 | Metalcore | Metal | [README](metalcore/README.md) |
 | Musicals | Classical/Theatrical | [README](musicals/README.md) |
 | Middle Eastern Pop | Middle Eastern | [README](middle-eastern-pop/README.md) |
 | Nerdcore | Hip-Hop | [README](nerdcore/README.md) |
+| New Age | Other | [README](new-age/README.md) |
 | New Wave | Rock/Electronic | [README](new-wave/README.md) |
 | Noise Rock | Rock | [README](noise-rock/README.md) |
 | Nu-Metal | Metal | [README](nu-metal/README.md) |
@@ -480,12 +564,15 @@ These genres commonly blend well together or have natural crossover potential:
 | Piano Pop | Pop | [README](piano-pop/README.md) |
 | Piano Rock | Rock | [README](piano-rock/README.md) |
 | Pop | Pop | [README](pop/README.md) |
+| Power Metal | Metal | [README](power-metal/README.md) |
 | Post-Punk | Rock | [README](post-punk/README.md) |
 | Post-Rock | Rock | [README](post-rock/README.md) |
 | Progressive Rock | Rock | [README](progressive-rock/README.md) |
 | Psychedelic Rock | Rock | [README](psychedelic-rock/README.md) |
 | Punk | Rock | [README](punk/README.md) |
+| Qawwali | South Asian | [README](qawwali/README.md) |
 | Reggae | Caribbean | [README](reggae/README.md) |
+| Reggaeton | Latin | [README](reggaeton/README.md) |
 | R&B | Soul | [README](rnb/README.md) |
 | Rock | Rock | [README](rock/README.md) |
 | Samba | Latin | [README](samba/README.md) |
@@ -494,10 +581,12 @@ These genres commonly blend well together or have natural crossover potential:
 | Soundtrack | Classical/Theatrical | [README](soundtrack/README.md) |
 | Singer-Songwriter | Folk/Pop | [README](singer-songwriter/README.md) |
 | Ska | Caribbean | [README](ska/README.md) |
+| Spoken Word | Other | [README](spoken-word/README.md) |
 | Ska Punk | Rock | [README](ska-punk/README.md) |
 | Stoner Rock | Rock | [README](stoner-rock/README.md) |
 | Surf Rock | Rock | [README](surf-rock/README.md) |
 | Swing | Jazz | [README](swing/README.md) |
+| Symphonic Metal | Metal | [README](symphonic-metal/README.md) |
 | Synthwave | Electronic | [README](synthwave/README.md) |
 | Techno | Electronic | [README](techno/README.md) |
 | Thrash Metal | Metal | [README](thrash-metal/README.md) |
@@ -522,4 +611,4 @@ These genres commonly blend well together or have natural crossover potential:
    - Reference artists and albums
    - Suno prompt keywords for AI generation
 
-**Total genres documented: 91**
+**Total genres documented: 114**
