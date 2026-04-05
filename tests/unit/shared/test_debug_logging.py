@@ -205,7 +205,7 @@ class TestSetupLoggingWithConfig:
         """Existing behavior: no config param means no file handler."""
         name = "test_no_config_param"
         try:
-            logger = setup_logging(name)
+            setup_logging(name)
             root = logging.getLogger()
             file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
             assert len(file_handlers) == 0
@@ -218,7 +218,7 @@ class TestSetupLoggingWithConfig:
         log_file = str(tmp_path / "test.log")
         config = {"logging": {"enabled": True, "file": log_file}}
         try:
-            logger = setup_logging(name, config=config)
+            setup_logging(name, config=config)
             root = logging.getLogger()
             file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
             assert len(file_handlers) == 1
@@ -230,7 +230,7 @@ class TestSetupLoggingWithConfig:
         name = "test_disabled_config"
         config = {"logging": {"enabled": False}}
         try:
-            logger = setup_logging(name, config=config)
+            setup_logging(name, config=config)
             root = logging.getLogger()
             file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
             assert len(file_handlers) == 0

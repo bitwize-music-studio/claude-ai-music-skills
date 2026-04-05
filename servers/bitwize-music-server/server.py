@@ -452,6 +452,7 @@ from handlers.gates import (  # noqa: F401
 # Health tools
 from handlers.health import (  # noqa: F401
     check_venv_health,
+    diagnose,
     get_plugin_version,
 )
 

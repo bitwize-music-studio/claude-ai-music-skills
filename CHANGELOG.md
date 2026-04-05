@@ -6,6 +6,21 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.84.0] - 2026-04-05
+
+### Added
+- **Bollywood genre** — Hindi film music (filmi) with 10 subgenres, 15 artists, 14 reference tracks, Suno keywords, mukhda/antara lyric conventions, and mastering presets with differentiated LUFS targets ([#141](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/141), community contribution by [@markus-michalski](https://github.com/markus-michalski))
+- **Diagnose MCP tool** — comprehensive health check tool for troubleshooting plugin, server, and environment issues ([#137](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/137))
+- **Explicit flag consistency check** — release gate validates that frontmatter `explicit` flag matches actual lyric content ([#117](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/117))
+- **Realistic audio fixtures** — WAV/MP3 test fixtures with proper headers, pipeline integration tests, and dev Makefile ([#132](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/132))
+- **Tool tests and CI coverage threshold** — handler isolation tests for gates, album_ops, streaming, and server unit tests ([#119](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/119))
+
+### Changed
+- **Refactored processing.py** — split monolithic 2,752-line module into 4 focused submodules: audio, mixing, sheet_music, video ([#122](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/122))
+
+### Fixed
+- **Genre index count** — corrected stale count from 71 to 74 ([#143](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/143))
+
 ## [0.83.1] - 2026-04-04
 
 ### Changed

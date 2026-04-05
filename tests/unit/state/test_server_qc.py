@@ -74,7 +74,7 @@ def _import_server():
 server = _import_server()
 
 # Handler modules for mock targeting
-from handlers import processing as _processing_mod
+from handlers.processing import _helpers as _processing_helpers
 from handlers import _shared as _shared_mod
 
 
@@ -196,7 +196,7 @@ class TestQcAudio:
     """Tests for the qc_audio MCP tool."""
 
     def test_missing_deps_returns_error(self):
-        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_helpers, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.qc_audio("test-album")))
         assert "error" in result
         assert "Missing deps" in result["error"]
@@ -206,7 +206,7 @@ class TestQcAudio:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.qc_audio("test-album")))
         assert "error" in result
 
@@ -218,7 +218,7 @@ class TestQcAudio:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.qc_audio("test-album")))
         assert "error" in result
         assert "No WAV" in result["error"]
@@ -232,7 +232,7 @@ class TestQcAudio:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.qc_audio("test-album", checks="bogus")))
         assert "error" in result
         assert "Unknown checks" in result["error"]
@@ -284,7 +284,7 @@ class TestQcAudioComprehensive:
             return self._mock_qc_result(name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             result = json.loads(_run(server.qc_audio("test-album")))
 
@@ -301,7 +301,7 @@ class TestQcAudioComprehensive:
             return self._mock_qc_result(Path(filepath).name, verdict="PASS")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             result = json.loads(_run(server.qc_audio("test-album")))
 
@@ -326,7 +326,7 @@ class TestQcAudioComprehensive:
             return self._mock_qc_result(Path(filepath).name, verdict="PASS")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             result = json.loads(_run(server.qc_audio("test-album")))
 
@@ -345,7 +345,7 @@ class TestQcAudioComprehensive:
             )
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             result = json.loads(_run(server.qc_audio("test-album")))
 
@@ -367,7 +367,7 @@ class TestQcAudioComprehensive:
             return self._mock_qc_result(Path(filepath).name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             result = json.loads(_run(server.qc_audio("test-album", subfolder="mastered")))
 
@@ -386,7 +386,7 @@ class TestQcAudioComprehensive:
             return self._mock_qc_result(Path(filepath).name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc):
             _run(server.qc_audio("test-album", checks="format,phase"))
 
@@ -403,7 +403,7 @@ class TestMasterAlbum:
     """Tests for the master_album MCP tool — error paths and pre-flight."""
 
     def test_missing_deps_returns_preflight_failure(self):
-        with patch.object(_processing_mod, "_check_mastering_deps", return_value="Missing deps"):
+        with patch.object(_processing_helpers, "_check_mastering_deps", return_value="Missing deps"):
             result = json.loads(_run(server.master_album("test-album")))
         assert result["failed_stage"] == "pre_flight"
         assert result["stage_reached"] == "pre_flight"
@@ -413,7 +413,7 @@ class TestMasterAlbum:
         state["config"]["audio_root"] = "/nonexistent"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_album("test-album")))
         assert result["failed_stage"] == "pre_flight"
 
@@ -425,7 +425,7 @@ class TestMasterAlbum:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None):
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
             result = json.loads(_run(server.master_album("test-album")))
         assert result["failed_stage"] == "pre_flight"
         assert "No WAV" in result["stages"]["pre_flight"]["detail"]
@@ -439,7 +439,7 @@ class TestMasterAlbum:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}):
             result = json.loads(_run(server.master_album("test-album", genre="bogus")))
         assert result["failed_stage"] == "pre_flight"
@@ -514,7 +514,7 @@ class TestMasterAlbumPipeline:
             return self._mock_qc_result(name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
@@ -556,7 +556,7 @@ class TestMasterAlbumPipeline:
             return self._mock_analyze(name, lufs=-20.0)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -594,7 +594,7 @@ class TestMasterAlbumPipeline:
             return self._mock_analyze(name, lufs=-20.0)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -637,7 +637,7 @@ class TestMasterAlbumPipeline:
             return self._mock_qc_result(name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -699,7 +699,7 @@ class TestMasterAlbumPipeline:
             return self._mock_qc_result(Path(filepath).name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -764,7 +764,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -822,7 +822,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -854,7 +854,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets",
                    return_value={"rock": (-14.0, -2.5, 0.0, 1.5)}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
@@ -894,7 +894,7 @@ class TestMasterAlbumPipeline:
             return r
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -932,7 +932,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -970,7 +970,7 @@ class TestMasterAlbumPipeline:
             return self._mock_analyze(name, lufs=lufs)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -991,7 +991,7 @@ class TestMasterAlbumPipeline:
             return {"skipped": True}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -1030,7 +1030,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -1067,7 +1067,7 @@ class TestMasterAlbumPipeline:
         presets = {"country": (-14.0, -2.0, 0.0, 1.5)}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value=presets), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -1130,7 +1130,7 @@ class TestMasterAlbumPipeline:
         fake_audio = np_.zeros((100, 2))
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -1173,7 +1173,7 @@ class TestMasterAlbumPipeline:
             return data, {}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -1216,7 +1216,7 @@ class TestMasterAlbumPipeline:
         fake_audio = np_.zeros((100, 2))
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -1269,7 +1269,7 @@ class TestMasterAlbumPipeline:
         fake_audio = np_.zeros((100, 2))
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
@@ -1315,7 +1315,7 @@ class TestMasterAlbumPipeline:
             }
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
@@ -1323,7 +1323,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.qc_tracks.qc_track",
                    side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
-            result = json.loads(_run(server.master_album("test-album")))
+            json.loads(_run(server.master_album("test-album")))
 
         assert len(captured_kwargs) == 1
         assert captured_kwargs[0]["fade_out"] == 3.0
@@ -1369,7 +1369,7 @@ class TestMasterAlbumPipeline:
         fake_audio = np_.zeros((100, 2))
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(_processing_mod, "_check_mastering_deps", return_value=None), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \

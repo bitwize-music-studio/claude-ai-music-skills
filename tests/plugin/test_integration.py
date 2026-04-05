@@ -142,3 +142,70 @@ class TestHomographFlow:
         content = fm.get('_content', '')
         # Advisory check
         assert role.lower() in content.lower() or True  # soft check
+
+
+class TestInstrumentalRouting:
+    """Instrumental tracks must route to suno-engineer, not lyric-writer (#115)."""
+
+    @pytest.mark.parametrize("skill_name", ['resume', 'next-step'])
+    def test_instrumental_routes_to_suno_engineer(self, all_skill_frontmatter, skill_name):
+        """Decision tree must route instrumental tracks to suno-engineer."""
+        fm = all_skill_frontmatter.get(skill_name, {})
+        if '_error' in fm:
+            pytest.skip(f"{skill_name} has errors")
+        content = fm.get('_content', '')
+        # Must mention instrumental detection
+        assert 'instrumental' in content.lower(), (
+            f"{skill_name} SKILL.md missing instrumental track handling"
+        )
+        # Must route to suno-engineer for instrumental tracks
+        assert 'suno-engineer' in content, (
+            f"{skill_name} SKILL.md missing suno-engineer routing for instrumental tracks"
+        )
+
+    def test_resume_handles_mixed_albums(self, all_skill_frontmatter):
+        """resume must handle albums with both vocal and instrumental tracks."""
+        fm = all_skill_frontmatter.get('resume', {})
+        if '_error' in fm:
+            pytest.skip("resume has errors")
+        content = fm.get('_content', '')
+        # Check for mixed album awareness (vocal + instrumental)
+        has_mixed = (
+            'vocal' in content.lower() and 'instrumental' in content.lower()
+        )
+        assert has_mixed, (
+            "resume SKILL.md missing mixed vocal/instrumental album handling"
+        )
+
+
+class TestReviewAndApprovePhase:
+    """resume must document the Review & Approve phase for all-Generated albums (#116)."""
+
+    def test_resume_review_approve_phase(self, all_skill_frontmatter):
+        """resume must show Review & Approve when all tracks are Generated."""
+        fm = all_skill_frontmatter.get('resume', {})
+        if '_error' in fm:
+            pytest.skip("resume has errors")
+        content = fm.get('_content', '')
+        assert 'Review & Approve' in content, (
+            "resume SKILL.md missing 'Review & Approve' phase for all-Generated albums"
+        )
+
+
+class TestRegenerationPaths:
+    """next-step must document regeneration paths for rejected tracks (#116)."""
+
+    def test_next_step_regeneration_paths(self, all_skill_frontmatter):
+        """next-step must document style issue and lyrics issue regeneration paths."""
+        fm = all_skill_frontmatter.get('next-step', {})
+        if '_error' in fm:
+            pytest.skip("next-step has errors")
+        content = fm.get('_content', '')
+        has_style_path = 'style issue' in content.lower() or 'Style issue' in content
+        has_lyrics_path = 'lyrics issue' in content.lower() or 'Lyrics issue' in content
+        assert has_style_path, (
+            "next-step SKILL.md missing style issue regeneration path"
+        )
+        assert has_lyrics_path, (
+            "next-step SKILL.md missing lyrics issue regeneration path"
+        )

@@ -26,6 +26,19 @@ warn_unreachable = true
 disallow_any_generics = true
 follow_imports = "silent"
 
+[tool.coverage.run]
+omit = [
+    "servers/bitwize-music-server/run.py",   # uvicorn entry point
+    "tools/state/__main__.py",               # python -m entry point
+    "tools/validate_help_completeness.py",   # standalone validation script
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__ == .__main__.",
+    "def main\\(",
+]
+
 [tool.ruff]
 target-version = "py311"
 
