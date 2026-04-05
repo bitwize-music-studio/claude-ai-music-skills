@@ -24,6 +24,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...see album progress at a glance | `/album-dashboard <album-name>` |
 | ...know what to do next | `/resume [album-name]` (includes next-step advice) |
 | ...check if album structure is correct | `/validate-album <album-name>` |
+| ...approve all generated tracks at once | Batch-approve via `update_track_field` MCP tool per track |
 | ...release my finished album | `/release-director` |
 
 ### Writing & Quality
@@ -37,11 +38,14 @@ Quick-reference guide for finding the right skill for any task.
 | ...check lyrics for plagiarism | `/plagiarism-checker` |
 | ...check lyrics/prose for AI-sounding patterns | `/voice-checker` |
 
-### Suno Generation
+### Suno Generation & Regeneration
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...create Suno prompts and settings | `/suno-engineer` |
+| ...create a Style Box for an instrumental track | `/suno-engineer` (entry point for instrumental tracks — skips lyric-writer) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
+| ...regenerate a track I'm not happy with | See Regeneration Workflow below |
+| ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
 ### Research (True-Story Albums)
 | I need to... | Use this skill |
@@ -169,8 +173,8 @@ What to have ready before using each skill:
 | `/pronunciation-specialist` | Lyrics written |
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
 | `/voice-checker` | Lyrics written, lyric-reviewer passed |
-| `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created |
-| `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer) |
+| `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created (instrumental: only Style Box needed) |
+| `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer). For instrumental tracks: invoked directly as entry point |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
@@ -219,22 +223,30 @@ What to have ready before using each skill:
     -> [Generate in Suno] -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
 ```
 
-### OST Album
+### OST / Mixed Album (Vocal + Instrumental)
 ```
 /new-album <name> <genre>
-    -> /album-conceptualizer (plan world, leitmotifs, scene mapping)
-    -> /lyric-writer (for vocal tracks — auto-invokes /suno-engineer)
-    -> [For instrumental tracks: /suno-engineer directly with Instrumental: On]
-    -> /pronunciation-specialist (for vocal tracks)
-    -> /lyric-reviewer (for vocal tracks)
-    -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno — use Instrumental: On for instrumental tracks]
+    -> /album-conceptualizer (plan world, leitmotifs, scene mapping, mark tracks as vocal/instrumental)
+    -> For each track:
+        VOCAL TRACK:
+            -> /lyric-writer (auto-invokes /suno-engineer)
+            -> /pronunciation-specialist
+            -> /lyric-reviewer
+        INSTRUMENTAL TRACK (instrumental: true in frontmatter):
+            -> /suno-engineer directly (Style Box + section tags only, no lyrics)
+    -> /pre-generation-check (validates all gates — auto-skips lyrics gates for instrumental tracks)
+    -> [Generate in Suno — instrumental tracks use Instrumental: On]
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /album-art-director (world-themed artwork)
     -> /promo-director (optional: promo videos)
     -> /release-director (release to platforms)
 ```
+
+**Note**: Any album type can have instrumental tracks — OST is just the most common case.
+Mark a track as instrumental by setting `instrumental: true` in track frontmatter.
+Instrumental tracks skip: lyric-writer, pronunciation-specialist, lyric-reviewer.
+Pre-generation-check auto-skips Gates 2 (Lyrics), 3 (Pronunciation), 4 (Explicit) for instrumentals.
 
 ### Resume Existing Work
 ```
@@ -250,6 +262,25 @@ What to have ready before using each skill:
     -> /voice-checker <track> (advisory)
     -> /explicit-checker <album>
     -> /validate-album <album>
+```
+
+### Track Regeneration (Rejected Generation)
+```
+[Listen to generated track — not happy?]
+    -> Log rejection reason in Generation Log
+    -> IF style issue:
+        -> /suno-engineer (revise Style Box)
+        -> [Regenerate on Suno]
+    -> IF lyrics issue:
+        -> /lyric-writer (fix lyrics)
+        -> /pronunciation-specialist (re-check)
+        -> [Regenerate on Suno]
+    -> IF bad luck (right prompt, wrong result):
+        -> [Regenerate on Suno with same settings — Suno is non-deterministic]
+    -> Log new attempt in Generation Log
+    -> [Repeat until satisfied]
+    -> Mark ✓ in Generation Log Rating
+    -> Set Status: Final
 ```
 
 ### Post-Generation to Release
@@ -369,4 +400,6 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - **Building true-story album?** Always start with `/researcher` before writing
 - **Before Suno?** Run `/lyric-reviewer` to catch issues
 - **Weird pronunciations?** Run `/pronunciation-specialist` on every track
+- **Track sounds wrong?** Log the reason in Generation Log, fix prompt or lyrics, regenerate. See Regeneration Workflow
+- **Instrumental track?** Set `instrumental: true` in frontmatter, then use `/suno-engineer` directly (skips lyrics workflow)
 - **Not sure what's available?** Run `/help` for categorized skill list

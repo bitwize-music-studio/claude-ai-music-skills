@@ -6,6 +6,36 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.83.1] - 2026-04-04
+
+### Changed
+- **README** — added star history chart and circular contributor profile icons
+
+## [0.83.0] - 2026-04-04
+
+### Added
+- **Instrumental field sync validation** — validate-album warns and pre-generation-check blocks when frontmatter `instrumental` and Track Details table disagree ([#129](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/129))
+- **Guided regeneration workflow** — structured path for rejecting and regenerating tracks that don't meet quality standards ([#116](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/116))
+  - CLAUDE.md: regeneration workflow documented in Status Tracking section
+  - Resume: detects Generated tracks without approval (✓), offers style/lyrics/retry regeneration paths
+  - Next-step: recommends review and regeneration for unapproved Generated tracks
+  - SKILL_INDEX: new "Track Regeneration" workflow sequence and decision tree entries
+- **Album status management improvements** — auto-advancement, batch operations, and documented status flows ([#118](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/118))
+  - CLAUDE.md: documented non-documentary status flow (Concept → In Progress, skipping Research/Sources phases), auto-advancement rules, and batch-approve workflow
+  - Verify-sources: auto-advances album from Research Complete → Sources Verified when all tracks verified, with partial verification progress reports
+  - Resume: phase table covers both documentary and standard album flows, batch-approve path for Generated → Final
+  - Next-step: batch-approve path for all-generated albums
+  - SKILL_INDEX: batch-approve entry in Album Lifecycle table
+- **Instrumental track support** — tracks can be marked `instrumental: true` in frontmatter to skip the lyrics workflow entirely ([#115](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/115))
+  - Track template: new `instrumental` field in frontmatter and Track Details table
+  - Pre-generation-check: Gates 2 (Lyrics), 3 (Pronunciation), 4 (Explicit) auto-skip for instrumental tracks
+  - Lyric-writer, lyric-reviewer, pronunciation-specialist: instrumental guard stops execution with clear routing to suno-engineer
+  - Resume & next-step: decision trees route instrumental tracks directly to `/suno-engineer`
+  - Suno-engineer: expanded instrumental guidance (Style Box without vocals, section tags only, Instrumental: On)
+  - Album-conceptualizer: Phase 4 asks vocal/instrumental split per track
+  - SKILL_INDEX: explicit instrumental workflow path and mixed album (vocal + instrumental) sequence
+  - New-album: tip about instrumental track support for OST/soundtrack albums
+
 ## [0.82.0] - 2026-04-03
 
 ### Added

@@ -734,7 +734,6 @@ class TestReadWriteState:
 
         write_state({'version': '1.0.0'})
 
-        state_file = tmp_path / "state.json"
         # Cache dir should be 0700
         cache_perms = oct(tmp_path.stat().st_mode & 0o777)
         assert cache_perms == '0o700'
@@ -1321,7 +1320,6 @@ class TestIncrementalUpdate:
 
         existing = build_state(config)
         existing['config']['config_mtime'] = 100.0
-        old_items_count = len(existing['ideas']['items'])
 
         # Modify IDEAS.md (touch to change mtime)
         time.sleep(0.05)
@@ -1537,8 +1535,6 @@ class TestWriteStateErrorHandling:
         import tools.state.indexer as indexer
 
         # Simulate os.replace failure
-        original_replace = os.replace
-
         def failing_replace(src, dst):
             raise OSError("Simulated replace failure")
 

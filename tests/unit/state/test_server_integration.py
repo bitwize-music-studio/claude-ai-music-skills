@@ -85,7 +85,6 @@ server = _import_server()
 
 # Handler modules for mock targeting
 from handlers import text_analysis as _text_analysis_mod
-from handlers import processing as _processing_mod
 from handlers import _shared as _shared_mod
 
 
@@ -2630,7 +2629,7 @@ class TestWorkflowMultiFieldAtomicity:
         assert r2["success"] is True
 
         # Read back — both changes should be present
-        track = json.loads(_run(server.get_track(
+        json.loads(_run(server.get_track(
             "integration-test-album", "03-third-track"
         )))
         # The file should have both values updated

@@ -1,10 +1,11 @@
-"""Plugin version and venv health check tools."""
+"""Plugin version, venv health check, and diagnostic tools."""
 
 from __future__ import annotations
 
 import importlib.metadata
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -166,10 +167,229 @@ async def check_venv_health() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Diagnose
+# ---------------------------------------------------------------------------
+
+
+def _check_config() -> dict[str, Any]:
+    """Check config completeness and path accessibility."""
+    state = _shared.cache.get_state()
+    config = state.get("config", {})
+
+    issues: list[str] = []
+
+    # Required fields
+    for field in ("artist_name", "content_root", "audio_root", "documents_root"):
+        if not config.get(field):
+            issues.append(f"Missing required config field: {field}")
+
+    # Path existence
+    for field in ("content_root", "audio_root", "documents_root"):
+        path_str = config.get(field, "")
+        if path_str:
+            p = Path(path_str).expanduser()
+            if not p.is_dir():
+                issues.append(f"{field} does not exist: {path_str}")
+
+    if issues:
+        return {"name": "config", "status": "fail", "detail": "; ".join(issues)}
+    return {"name": "config", "status": "ok", "detail": "All required fields set, paths accessible"}
+
+
+def _check_state_cache() -> dict[str, Any]:
+    """Check state cache file integrity."""
+    cache_path = Path.home() / ".bitwize-music" / "cache" / "state.json"
+
+    if not cache_path.exists():
+        return {"name": "state_cache", "status": "warn",
+                "detail": "state.json not found — run rebuild_state()"}
+
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        return {"name": "state_cache", "status": "fail",
+                "detail": f"Cannot parse state.json: {e}"}
+
+    version = data.get("schema_version", "unknown")
+    album_count = len(data.get("albums", {}))
+    return {"name": "state_cache", "status": "ok",
+            "detail": f"Schema {version}, {album_count} album(s)"}
+
+
+def _check_disk_space() -> dict[str, Any]:
+    """Check disk space on audio root."""
+    state = _shared.cache.get_state()
+    audio_root = state.get("config", {}).get("audio_root", "")
+    if not audio_root:
+        return {"name": "disk_space", "status": "warn",
+                "detail": "audio_root not configured"}
+
+    p = Path(audio_root).expanduser()
+    if not p.exists():
+        return {"name": "disk_space", "status": "warn",
+                "detail": f"audio_root does not exist: {audio_root}"}
+
+    usage = shutil.disk_usage(str(p))
+    free_gb = usage.free / (1024 ** 3)
+    total_gb = usage.total / (1024 ** 3)
+
+    if free_gb < 1.0:
+        return {"name": "disk_space", "status": "fail",
+                "detail": f"{free_gb:.1f} GB free of {total_gb:.0f} GB on audio root"}
+    if free_gb < 5.0:
+        return {"name": "disk_space", "status": "warn",
+                "detail": f"{free_gb:.1f} GB free of {total_gb:.0f} GB on audio root"}
+    return {"name": "disk_space", "status": "ok",
+            "detail": f"{free_gb:.1f} GB free of {total_gb:.0f} GB on audio root"}
+
+
+def _check_ffmpeg() -> dict[str, Any]:
+    """Check if ffmpeg is available."""
+    if shutil.which("ffmpeg"):
+        return {"name": "ffmpeg", "status": "ok", "detail": "Found in PATH"}
+    return {"name": "ffmpeg", "status": "warn",
+            "detail": "Not found — needed for promo videos and audio conversion"}
+
+
+def _check_database() -> dict[str, Any]:
+    """Check database connectivity if enabled."""
+    state = _shared.cache.get_state()
+    db_config = state.get("config", {}).get("database", {})
+
+    if not db_config.get("enabled"):
+        return {"name": "database", "status": "ok",
+                "detail": "Not enabled (optional)"}
+
+    for field in ("host", "name", "user"):
+        if not db_config.get(field):
+            return {"name": "database", "status": "fail",
+                    "detail": f"Database enabled but missing field: {field}"}
+
+    try:
+        import psycopg2
+        conn = psycopg2.connect(
+            host=db_config["host"],
+            port=db_config.get("port", 5432),
+            dbname=db_config["name"],
+            user=db_config["user"],
+            password=db_config.get("password", ""),
+            connect_timeout=5,
+        )
+        conn.close()
+        return {"name": "database", "status": "ok", "detail": "Connected successfully"}
+    except ImportError:
+        return {"name": "database", "status": "fail",
+                "detail": "psycopg2 not installed — pip install psycopg2-binary"}
+    except Exception as e:
+        return {"name": "database", "status": "fail",
+                "detail": f"Connection failed: {e}"}
+
+
+def _check_cloud() -> dict[str, Any]:
+    """Check cloud config if enabled."""
+    state = _shared.cache.get_state()
+    cloud = state.get("config", {}).get("cloud", {})
+
+    if not cloud.get("enabled"):
+        return {"name": "cloud", "status": "ok",
+                "detail": "Not enabled (optional)"}
+
+    provider = cloud.get("provider", "")
+    if provider == "r2":
+        r2 = cloud.get("r2", {})
+        missing = [f for f in ("account_id", "access_key_id", "secret_access_key", "bucket")
+                   if not r2.get(f)]
+        if missing:
+            return {"name": "cloud", "status": "fail",
+                    "detail": f"R2 enabled but missing: {', '.join(missing)}"}
+    elif provider == "s3":
+        s3 = cloud.get("s3", {})
+        missing = [f for f in ("access_key_id", "secret_access_key", "bucket")
+                   if not s3.get(f)]
+        if missing:
+            return {"name": "cloud", "status": "fail",
+                    "detail": f"S3 enabled but missing: {', '.join(missing)}"}
+    elif not provider:
+        return {"name": "cloud", "status": "fail",
+                "detail": "Cloud enabled but no provider set"}
+
+    return {"name": "cloud", "status": "ok",
+            "detail": f"Provider: {provider}, configured"}
+
+
+async def diagnose() -> str:
+    """Run comprehensive health checks on the plugin environment.
+
+    Checks config completeness, state cache integrity, disk space,
+    tool availability, and optional service connectivity.
+
+    Returns:
+        JSON with per-check results and overall status
+    """
+    checks = [
+        _check_config(),
+        _check_state_cache(),
+        _check_disk_space(),
+        _check_ffmpeg(),
+        _check_database(),
+        _check_cloud(),
+    ]
+
+    # Add venv check (reuse existing logic)
+    venv_result = json.loads(await check_venv_health())
+    venv_status = venv_result.get("status", "error")
+    if venv_status == "ok":
+        checks.append({"name": "venv", "status": "ok",
+                        "detail": f"{venv_result.get('checked', 0)} packages verified"})
+    elif venv_status == "stale":
+        mismatches = venv_result.get("mismatches", [])
+        missing = venv_result.get("missing", [])
+        parts = []
+        if mismatches:
+            parts.append(f"{len(mismatches)} outdated")
+        if missing:
+            parts.append(f"{len(missing)} missing")
+        checks.append({"name": "venv", "status": "warn",
+                        "detail": ", ".join(parts),
+                        "fix": venv_result.get("fix_command")})
+    else:
+        checks.append({"name": "venv", "status": "fail",
+                        "detail": venv_result.get("message", venv_status)})
+
+    # Add version check
+    version_result = json.loads(await get_plugin_version())
+    if version_result.get("needs_upgrade"):
+        checks.append({"name": "plugin_version", "status": "warn",
+                        "detail": f"Upgrade available: {version_result.get('stored_version')} → {version_result.get('current_version')}"})
+    else:
+        checks.append({"name": "plugin_version", "status": "ok",
+                        "detail": f"v{version_result.get('current_version', 'unknown')}"})
+
+    # Overall status
+    statuses = [c["status"] for c in checks]
+    if "fail" in statuses:
+        overall = "fail"
+    elif "warn" in statuses:
+        overall = "warn"
+    else:
+        overall = "ok"
+
+    return _safe_json({
+        "status": overall,
+        "checks": checks,
+        "total": len(checks),
+        "ok": statuses.count("ok"),
+        "warn": statuses.count("warn"),
+        "fail": statuses.count("fail"),
+    })
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
 def register(mcp: Any) -> None:
-    """Register plugin version and venv health tools with the MCP server."""
+    """Register plugin version, venv health, and diagnostic tools."""
     mcp.tool()(get_plugin_version)
     mcp.tool()(check_venv_health)
+    mcp.tool()(diagnose)

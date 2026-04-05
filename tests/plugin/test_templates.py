@@ -334,3 +334,34 @@ class TestPromoTemplateFormatting:
         assert '—' in first_line or '#' not in first_line, (
             f"promo/{template} title should use em dash separator"
         )
+
+
+class TestTrackTemplateInstrumental:
+    """track.md must support instrumental tracks (#115)."""
+
+    def test_instrumental_frontmatter_field(self, templates_dir):
+        """track.md frontmatter must have instrumental field defaulting to false."""
+        track = templates_dir / "track.md"
+        fm = parse_frontmatter(track.read_text())
+        assert 'instrumental' in fm, "track.md frontmatter missing 'instrumental' field"
+        assert fm['instrumental'] is False, "track.md instrumental field should default to false"
+
+    def test_instrumental_table_row(self, templates_dir):
+        """track.md Track Details table must have an Instrumental row."""
+        track = templates_dir / "track.md"
+        content = track.read_text()
+        assert '**Instrumental**' in content, (
+            "track.md missing **Instrumental** row in Track Details table"
+        )
+
+    @pytest.mark.parametrize("comment", [
+        'VOCAL TRACKS ONLY',
+        'INSTRUMENTAL TRACKS',
+    ])
+    def test_instrumental_section_comments(self, templates_dir, comment):
+        """track.md must have HTML comments marking vocal-only and instrumental sections."""
+        track = templates_dir / "track.md"
+        content = track.read_text()
+        assert comment in content, (
+            f"track.md missing expected comment marker: {comment}"
+        )

@@ -143,9 +143,16 @@ config/              Example config and setup docs
 
 ## Contributors
 
-- [@markus-michalski](https://github.com/markus-michalski) — Schlager genre, German pronunciation guide, genre-creator skill, line style fix
+<a href="https://github.com/bitwize-music"><img src="https://images.weserv.nl/?url=github.com/bitwize-music.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@bitwize-music"></a>
+<a href="https://github.com/markus-michalski"><img src="https://images.weserv.nl/?url=github.com/markus-michalski.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@markus-michalski"></a>
 
 If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=bitwize-music-studio/claude-ai-music-skills&type=Date)](https://star-history.com/#bitwize-music-studio/claude-ai-music-skills&Date)
 
 ---
 

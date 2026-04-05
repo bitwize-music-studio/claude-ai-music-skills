@@ -319,7 +319,17 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
         if not any((audio_path / p).exists() for p in _ALBUM_ART_PATTERNS):
             release_issues.append("No album art found")
 
-        # Check 5: Streaming lyrics ready
+        # Check 5: Explicit flag consistency
+        explicit_tracks = [
+            s for s, t in tracks.items() if t.get("explicit") is True
+        ]
+        if explicit_tracks and not album.get("explicit", False):
+            release_issues.append(
+                f"Album not marked explicit but {len(explicit_tracks)} track(s) are: "
+                + ", ".join(sorted(explicit_tracks)[:5])
+            )
+
+        # Check 6: Streaming lyrics ready
         streaming_issues = []
         for t_slug, t_data in tracks.items():
             track_path_str = t_data.get("path", "")

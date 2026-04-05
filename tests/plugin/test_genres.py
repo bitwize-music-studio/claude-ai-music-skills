@@ -152,7 +152,7 @@ class TestGenrePresetsYaml:
                 invalid.append(f"{genre}: missing {', '.join(missing)}")
 
         assert not invalid, (
-            f"Genre presets with missing fields:\n" + "\n".join(invalid)
+            "Genre presets with missing fields:\n" + "\n".join(invalid)
         )
 
     def test_defaults_have_required_fields(self, project_root):
