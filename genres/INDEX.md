@@ -1,6 +1,6 @@
 # Genre Index
 
-A searchable, categorized guide to all 71 genre documentation files in this repository. Use this index to find the right genre for your album or discover genres you might want to explore.
+A searchable, categorized guide to all 74 genre documentation files in this repository. Use this index to find the right genre for your album or discover genres you might want to explore.
 
 ---
 
