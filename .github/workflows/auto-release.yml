@@ -116,11 +116,19 @@ jobs:
         git fetch origin develop
         git checkout develop
 
+        # Check if develop already has this or a higher dev version
+        CURRENT_DEV=$(jq -r '.version' .claude-plugin/plugin.json)
+        if [ "$CURRENT_DEV" = "$DEV_VERSION" ]; then
+          echo "develop is already at $DEV_VERSION, skipping bump"
+          exit 0
+        fi
+
         # Update version files
         jq ".version = \"$DEV_VERSION\"" .claude-plugin/plugin.json > /tmp/plugin.json && mv /tmp/plugin.json .claude-plugin/plugin.json
         jq ".plugins[0].version = \"$DEV_VERSION\"" .claude-plugin/marketplace.json > /tmp/marketplace.json && mv /tmp/marketplace.json .claude-plugin/marketplace.json
 
         git add .claude-plugin/plugin.json .claude-plugin/marketplace.json
+        git diff --cached --quiet && { echo "No version change needed, skipping"; exit 0; }
         git commit -m "chore: bump develop to $DEV_VERSION"
         git push origin develop
         echo "Bumped develop to $DEV_VERSION"
