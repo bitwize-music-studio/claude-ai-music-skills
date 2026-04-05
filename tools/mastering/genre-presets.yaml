@@ -32,6 +32,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  enka:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
   mandopop:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -108,6 +112,14 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  neo-soul:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  motown:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
   gospel:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -168,11 +180,19 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
+  pop-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
   post-punk:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
   hardcore-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  screamo:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
@@ -234,6 +254,22 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
+  groove-metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: 0
+  sludge-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  progressive-metal:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  speed-metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: 0
   djent:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -304,6 +340,22 @@ genres:
     target_lufs: -12.0
     cut_highmid: -2.0
     cut_highs: 0
+  electroswing:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  future-bass:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  minimal-techno:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  gabber:
+    target_lufs: -12.0
+    cut_highmid: -2.0
+    cut_highs: 0
 
   # === Ambient / Chill / Atmospheric ===
   ambient:
@@ -361,6 +413,14 @@ genres:
     cut_highmid: -2.0
     cut_highs: 0
   bluegrass:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  outlaw-country:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  zydeco:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
@@ -440,6 +500,14 @@ genres:
     target_lufs: -15.0
     cut_highmid: -1.5
     cut_highs: 0
+  musical-comedy:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  video-game-music:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
 
   # === Middle Eastern ===
   middle-eastern-pop:
@@ -455,6 +523,10 @@ genres:
     cut_highmid: -1.5
     cut_highs: 0
   mizrahi:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  gnawa:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
@@ -494,6 +566,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
+  bhangra:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
   qawwali:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -501,6 +577,14 @@ genres:
 
   # === Latin / World ===
   latin:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  tropicalia:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  boogaloo:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
@@ -519,6 +603,10 @@ genres:
   dub:
     target_lufs: -14.0
     cut_highmid: -1.5
+    cut_highs: 0
+  zouk:
+    target_lufs: -14.0
+    cut_highmid: -1.0
     cut_highs: 0
   afrobeats:
     target_lufs: -14.0
