@@ -383,6 +383,32 @@ genres:
     cut_highmid: -1.5
     cut_highs: 0
 
+  # === Christian / Faith ===
+  contemporary-christian:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  ccm:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  worship:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  praise:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  christian-rock:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  christian-hip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+
   # === Children's / Family ===
   childrens-music:
     target_lufs: -14.0

@@ -198,6 +198,38 @@ Detailed mastering settings by genre.
 - Sitar and bansuri harmonics sit in 1.5-4 kHz range — avoid over-cutting here or they disappear in the mix
 - Contemporary Bollywood pop with electronic production: treat sub-bass and EDM elements like mainstream pop; maintain vocal warmth on top
 
+### Contemporary Christian (CCM)
+**LUFS target**: -14 LUFS (worship ballads: -15 LUFS; anthemic rock: -13 LUFS)
+**Dynamics**: Moderate compression; preserve dynamic builds from quiet verses to anthemic choruses; CCM relies on emotional swells and should not sound flat
+**EQ focus**: Vocal clarity and warmth (2-5 kHz), piano/acoustic guitar body (200-500 Hz), gentle high-mid cut to tame Suno-generated brightness in layered arrangements
+**MCP command**: `master_audio(album_slug, genre="contemporary-christian")`
+
+**Characteristics**:
+- Vocals are always the centerpiece — clear, warm, and emotionally present; never buried behind production
+- CCM pop tracks sit at -14 LUFS with polished, radio-ready compression similar to mainstream pop
+- Christian rock subgenre: treat like alternative/rock mastering (-14 LUFS, stronger high-mid cuts at -2.0 dB)
+- Christian hip-hop (CHH): treat like mainstream hip-hop mastering (-14 LUFS, punchy low end, vocal clarity)
+- Worship ballads with piano and pads: target -15 LUFS, preserve wide dynamics and room ambience
+- Anthemic praise tracks with full band: can push to -13 LUFS with more compression for energy
+- Group vocal harmonies and choir elements need headroom — over-compression smears layered voices into mush
+- See also: Worship preset below for church-specific worship music mastering
+
+### Worship
+**LUFS target**: -14 LUFS (intimate/devotional: -15 LUFS; uptempo praise: -13 LUFS)
+**Dynamics**: Moderate compression; preserve the dynamic arc from quiet verse to full-band chorus build; worship music relies on crescendo and release, so avoid squashing those transitions
+**EQ focus**: Vocal warmth and clarity (2-5 kHz), pad/synth body (200-500 Hz), gentle high-mid cut to tame ambient guitar delays and cymbal brightness without losing air
+**MCP command**: `master_audio(album_slug, genre="worship")`
+
+**Characteristics**:
+- Vocal must sit forward and warm — congregational singability depends on the lead being clear and inviting, not harsh
+- Ambient guitar delays (dotted-eighth patterns) live in 2-5 kHz; cut harshness there but preserve the shimmer and space
+- Synth pads and keys provide the low-mid foundation (200-500 Hz) — keep them warm and full but not muddy
+- Dynamic builds from stripped verse to full chorus are the emotional core; over-compression flattens the worship arc
+- Intimate/devotional tracks (-15 LUFS): preserve wide dynamics, natural room reverb, acoustic detail
+- Uptempo praise tracks (-13 LUFS): more compression acceptable, emphasize kick and bass punch, brighter top end for energy
+- Live worship recordings may include audience/congregation — don't over-compress those ambient elements
+- Extended bridges and vamp sections should sustain energy without fatiguing; watch for harsh buildup in layered guitars and keys
+
 ---
 
 ## Problem-Solving
