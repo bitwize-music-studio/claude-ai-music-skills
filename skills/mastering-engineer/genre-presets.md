@@ -230,6 +230,21 @@ Detailed mastering settings by genre.
 - Live worship recordings may include audience/congregation — don't over-compress those ambient elements
 - Extended bridges and vamp sections should sustain energy without fatiguing; watch for harsh buildup in layered guitars and keys
 
+### Ska
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve horn transients and the natural punch of the skank guitar; avoid squashing the rhythmic interplay between offbeat guitar and walking bass
+**EQ focus**: Horn clarity (1-4 kHz), bass warmth and definition (80-200 Hz), gentle high-mid cut to tame brass brightness without killing sparkle, skank guitar presence (800 Hz-2 kHz)
+**MCP command**: `master_audio(album_slug, genre="ska")`
+
+**Characteristics**:
+- Horns are the genre's melodic centerpiece -- they must cut through clearly without harshness; watch for Suno-generated brass brightness above 4 kHz
+- Walking bass lines carry melody alongside the vocals; keep bass warm and defined, not boomy
+- Offbeat skank guitar should be crisp and percussive, not muddy; clarity in the 800 Hz-2 kHz range is essential
+- First wave / traditional ska: slightly warmer, more reverb-tolerant, echo effects are authentic to the Studio One sound
+- 2 Tone ska: punchier, drier, more new wave-influenced production; tighter low end
+- For ska-punk mastering, use the ska-punk preset instead (more aggressive high-mid cuts)
+- Drum transients (especially hi-hat and rim clicks) should stay sharp to drive the rhythm
+
 ---
 
 ## Problem-Solving
