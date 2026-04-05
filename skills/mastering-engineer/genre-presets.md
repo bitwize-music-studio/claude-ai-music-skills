@@ -87,6 +87,21 @@ Detailed mastering settings by genre.
 - Power-duo acts (Lightning Bolt style): bass guitar fills the entire low-mid spectrum; ensure it doesn't mud up but retains its massive presence
 - Art-noise and no-wave-derived tracks: wider dynamics, may sit at -15 LUFS to preserve quiet/loud contrasts
 
+### Math Rock
+**LUFS target**: -14 LUFS (atmospheric/Japanese math rock: -15 LUFS)
+**Dynamics**: Moderate compression; preserve the rhythmic interplay between instruments -- math rock's stop-start dynamics and metric shifts must remain articulate; avoid squashing transients that define the genre's percussive guitar style
+**EQ focus**: Guitar clarity and separation (1-4 kHz), drum transient definition (3-5 kHz), bass note articulation (80-200 Hz); gentle high-mid cut to tame Suno-generated brightness without losing the clean guitar attack
+**MCP command**: `master_audio(album_slug, genre="math-rock")`
+
+**Characteristics**:
+- Guitar tapping and harmonics sit in the 1-5 kHz range -- preserve articulation and note separation; over-compression blurs tapped passages into mush
+- Drumming is technical and dynamic -- transient clarity is essential; kick and snare must punch through without overwhelming the guitar interplay
+- Dry production aesthetic: minimal reverb is intentional -- do not add spaciousness that wasn't there
+- Japanese math rock (toe, Lite style): slightly wider dynamics acceptable, target -15 LUFS for warmer, more atmospheric sound
+- Noise-math (Hella, Tera Melos style): treat more like noise rock mastering -- preserve distortion and aggression, push to -14 LUFS
+- Progressive math rock (Polyphia, CHON): cleaner production, more polished; treat like modern rock mastering with emphasis on guitar clarity
+- Bass guitar often carries melodic lines -- keep it defined and present, not buried or boomy
+
 ### Electronic / EDM
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
