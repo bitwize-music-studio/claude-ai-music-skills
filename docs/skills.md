@@ -82,7 +82,6 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 | `tutorial` | Guided album creation walkthrough |
 | `session-start` | Verify setup, load state, report status |
 | `test` | Run automated tests (14 categories) |
-| `ship` | Automated release pipeline (branch, PR, CI, merge, version, release) |
 | `skill-model-updater` | Update Claude model references across skills |
 | `genre-creator` | Create new genre documentation with mastering presets |
 | `help` | Available skills, workflows, quick reference |

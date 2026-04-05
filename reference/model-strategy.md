@@ -149,9 +149,6 @@ These skills require reasoning and moderate creativity but follow established pa
 ### sheet-music-publisher
 **Why Sonnet**: Coordinates transcription workflow with tool-specific guidance. Technical process requiring troubleshooting knowledge. Not creative output, but needs to explain and adapt.
 
-### ship
-**Why Sonnet**: Orchestrates a multi-step release pipeline with conditional logic (CI polling, version calculation, multi-file edits). Needs to parse conventional commits, handle errors gracefully, and make judgment calls about when to stop vs. continue. Same tier as release-director.
-
 ### session-start
 **Why Sonnet**: Runs the 8-step session startup procedure. Requires reading config, loading overrides, interpreting state cache, and producing contextual tips. Judgment needed to identify relevant status and recommendations.
 
