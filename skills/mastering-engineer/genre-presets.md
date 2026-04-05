@@ -131,6 +131,20 @@ Detailed mastering settings by genre.
 - Progressive math rock (Polyphia, CHON): cleaner production, more polished; treat like modern rock mastering with emphasis on guitar clarity
 - Bass guitar often carries melodic lines -- keep it defined and present, not buried or boomy
 
+### Death Metal
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression; sustain the wall-of-sound density without crushing blast beats; preserve kick drum articulation through double-bass passages
+**EQ focus**: Low-end tightness (60-200 Hz), vocal presence through the distortion wall (1-4 kHz), high-mid cut to tame guitar fizz (3-5 kHz), gentle high shelf cut for cymbal wash control
+**MCP command**: `master_audio(album_slug, genre="death-metal")`
+
+**Characteristics**:
+- Growled/guttural vocals sit inside the mix, not on top -- preserve intelligibility without pushing them artificially forward
+- Blast beats generate dense high-frequency content from cymbals; gentle high shelf cut (-1 dB at 8 kHz) prevents listening fatigue
+- Double bass drum patterns need kick definition at 60-80 Hz without mud; tight low-end essential
+- Tremolo-picked guitars create a wall of harmonic content in the 1-5 kHz range; cut harshness but preserve the aggression
+- Technical/progressive death metal benefits from slightly wider dynamics to showcase rhythmic complexity
+- Old-school death metal (Morbid Angel, Death style): warmer, less polished mastering; modern (Archspire style): tighter, more clinical
+
 ### Electronic / EDM
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
@@ -141,6 +155,34 @@ Detailed mastering settings by genre.
 - Massive bass
 - Sustained energy
 - Bright, polished highs
+
+### Jungle
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the chopped breakbeat dynamics and rapid-fire snare rolls; avoid squashing the rhythmic complexity that defines the genre
+**EQ focus**: Sub-bass weight (30-60 Hz), breakbeat clarity (2-5 kHz), gentle high-mid cut to tame cymbal harshness from time-stretched breaks
+**MCP command**: `master_audio(album_slug, genre="jungle")`
+
+**Characteristics**:
+- Chopped Amen breaks and other breakbeats are the genre's backbone -- preserve their dynamics and attack transients
+- Sub-bass must be deep and powerful (30-60 Hz) but separate from the breakbeat energy above
+- Ragga/MC vocals sit on top of dense rhythmic layers; vocal clarity at 2-4 kHz without harshness
+- Time-stretched and pitch-shifted breaks can introduce artifacts in the 4-8 kHz range; gentle cuts as needed
+- Reese bass (detuned sawtooth) occupies a wide low-mid range; keep it defined without muddying the breaks
+- Darkside jungle: heavier, darker treatment acceptable; liquid/intelligent jungle: cleaner, more spacious mastering
+
+### UK Garage
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the shuffled 2-step groove and bass bounce; avoid flattening the syncopated swing that defines the rhythm
+**EQ focus**: Bass warmth and punch (60-150 Hz), vocal clarity (2-5 kHz), crisp hi-hat and percussion detail (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="uk-garage")`
+
+**Characteristics**:
+- 2-step rhythm is syncopated and swing-based -- over-compression destroys the bounce and groove feel
+- Bass should be warm and round, not sub-heavy like dubstep; garage bass sits higher (60-150 Hz)
+- R&B-influenced vocals need warmth and presence without harshness; pitch-shifted vocals common
+- Crisp percussion (shakers, hi-hats, rim clicks) at 8-12 kHz drives the groove; preserve transient detail
+- Organ stabs and chopped vocal samples are signature elements; keep them punchy and defined
+- Speed garage variants can push slightly louder; 2-step house leans cleaner and more spacious
 
 ### Folk / Acoustic
 **LUFS target**: -14 to -16 LUFS
@@ -302,6 +344,90 @@ Detailed mastering settings by genre.
 - Uptempo praise tracks (-13 LUFS): more compression acceptable, emphasize kick and bass punch, brighter top end for energy
 - Live worship recordings may include audience/congregation — don't over-compress those ambient elements
 - Extended bridges and vamp sections should sustain energy without fatiguing; watch for harsh buildup in layered guitars and keys
+
+### Dub
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the spaciousness and echo trails that define the genre; dub is built on subtraction, so headroom and decay space are essential
+**EQ focus**: Deep bass presence (40-80 Hz), warm mid-range (200-600 Hz), high-frequency rolloff for analog warmth, echo/delay preservation
+**MCP command**: `master_audio(album_slug, genre="dub")`
+
+**Characteristics**:
+- Bass is the foundation -- deep, heavy, and felt in the chest; must be powerful without distortion or muddiness
+- Echo, delay, and reverb are compositional tools, not effects -- over-compression collapses the spatial depth that defines dub
+- Mixing desk as instrument: drops, fades, and filter sweeps are intentional; preserve dynamic contrasts
+- Drums should have room and character; snare with spring reverb, kick with weight and space
+- High-frequency content is often rolled off for analog warmth; do not brighten or add presence
+- Roots dub (King Tubby, Lee Perry): warmer, lo-fi aesthetic; modern dub (Adrian Sherwood): can be more polished but still spacious
+
+### Cumbia
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the rhythmic interplay between accordion/gaita and percussion; keep the shuffling cumbia rhythm bouncy and alive
+**EQ focus**: Accordion/gaita presence (800 Hz-3 kHz), bass warmth (80-200 Hz), guacharaca/percussion clarity (4-8 kHz)
+**MCP command**: `master_audio(album_slug, genre="cumbia")`
+
+**Characteristics**:
+- The shuffling cumbia rhythm is the genre's identity -- over-compression kills the dance groove
+- Accordion or gaita melodies need clear presence in the mid-range without harshness
+- Bass (electric or tuba depending on regional style) provides the harmonic foundation; keep it warm and defined
+- Percussion (guacharaca, tambora, congas) drives the rhythm; preserve transient clarity
+- Colombian cumbia: more acoustic, warmer treatment; digital cumbia/cumbia villera: louder, more compressed acceptable
+- Cumbia sonidera and Peruvian chicha: psychedelic elements (guitar effects, synths) need space in the mix
+
+### Samba
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the polyrhythmic interplay between surdo, tamborim, and cavaquinho; avoid flattening the layered percussion dynamics
+**EQ focus**: Surdo depth (60-150 Hz), cavaquinho sparkle (2-6 kHz), vocal warmth (200-500 Hz), tamborim attack (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="samba")`
+
+**Characteristics**:
+- Polyrhythmic percussion is the genre's core -- multiple percussion layers must remain distinct and articulate
+- Surdo (bass drum) provides the rhythmic foundation; deep and resonant at 60-150 Hz without boom
+- Cavaquinho (small guitar) sits in the upper register; preserve its bright, percussive attack
+- Vocal delivery ranges from intimate pagode to powerful samba-enredo; adjust compression accordingly
+- Samba-enredo (Carnival): can push louder, more energy, massive percussion sections need headroom
+- Bossa nova-influenced samba: gentler treatment, wider dynamics, more intimate production
+
+### Highlife
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the interplay between guitar melodies and rhythmic patterns; keep the groove relaxed and flowing
+**EQ focus**: Guitar clarity and warmth (800 Hz-3 kHz), bass definition (80-200 Hz), horn presence (1-4 kHz), percussion articulation (4-8 kHz)
+**MCP command**: `master_audio(album_slug, genre="highlife")`
+
+**Characteristics**:
+- Interlocking guitar patterns are the genre's signature -- preserve note separation and clarity in the mid-range
+- Bass guitar carries melodic lines alongside rhythm; keep it warm, present, and clearly defined
+- Horn sections (trumpet, saxophone) add melodic color; clarity without harshness above 3 kHz
+- Percussion (congas, shakers, bells) provides polyrhythmic texture; preserve transient detail
+- Classic highlife (E.T. Mensah style): warmer, vintage-influenced mastering; modern highlife: cleaner, more polished
+- Afrobeat-influenced highlife: treat the extended groove sections with care, preserving the hypnotic quality
+
+### J-Pop
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; J-Pop production is dense and polished; match the loudness expectations of the market while preserving vocal clarity
+**EQ focus**: Vocal presence and brightness (2-6 kHz), synth clarity (1-4 kHz), bass punch (60-100 Hz), sparkle on top (10-14 kHz)
+**MCP command**: `master_audio(album_slug, genre="j-pop")`
+
+**Characteristics**:
+- Vocals are the centerpiece -- bright, clear, and forward; J-Pop vocal production emphasizes clarity and sweetness
+- Dense arrangements with layered synths, guitars, and strings; each element needs space in a busy mix
+- Idol pop: brighter, more compressed, radio-ready; visual kei: treat more like rock/metal mastering
+- Vocaloid tracks: synthetic vocals need careful high-frequency management to avoid digital harshness
+- Anime opening/ending themes: dramatic builds and high energy; preserve dynamic impact of key moments
+- J-Pop masters tend to be louder than Western pop averages; -14 LUFS for streaming is appropriate but the mix density is high
+
+### City Pop
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the smooth, polished production aesthetic; city pop's warmth comes from dynamic headroom and analog-style mastering
+**EQ focus**: Bass warmth and groove (60-200 Hz), vocal smoothness (2-4 kHz), synth/keyboard shimmer (4-8 kHz), gentle high-frequency air
+**MCP command**: `master_audio(album_slug, genre="city-pop")`
+
+**Characteristics**:
+- Warm, analog-sounding master preferred -- city pop's 1980s production aesthetic should carry through; avoid clinical digital brightness
+- Bass guitar and synth bass are melodic and groovy (funk/boogie influence); keep them warm, round, and present
+- Vocals should be smooth and intimate, sitting naturally in the mix; avoid harsh sibilance
+- Electric piano, synth pads, and strings provide lush harmonic beds; preserve their warmth without muddiness
+- Guitar work (jazz-influenced chord voicings, funky rhythm parts) needs clarity in the mid-range
+- The internet revival aesthetic appreciates the genre's vintage warmth -- do not over-modernize the sound
 
 ### Ska
 **LUFS target**: -14 LUFS

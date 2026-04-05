@@ -24,6 +24,14 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  j-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  city-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
   hyperpop:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -182,6 +190,10 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
+  death-metal:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: -1.0
   metalcore:
     target_lufs: -14.0
     cut_highmid: -3.0
@@ -219,6 +231,14 @@ genres:
   drum-and-bass:
     target_lufs: -14.0
     cut_highmid: -1.5
+    cut_highs: 0
+  jungle:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  uk-garage:
+    target_lufs: -14.0
+    cut_highmid: -1.0
     cut_highs: 0
   dubstep:
     target_lufs: -14.0
@@ -393,6 +413,22 @@ genres:
   latin:
     target_lufs: -14.0
     cut_highmid: -1.0
+    cut_highs: 0
+  cumbia:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  samba:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  highlife:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  dub:
+    target_lufs: -14.0
+    cut_highmid: -1.5
     cut_highs: 0
   afrobeats:
     target_lufs: -14.0
