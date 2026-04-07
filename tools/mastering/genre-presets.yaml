@@ -260,6 +260,18 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
+  crust-punk:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: -1.0
+  d-beat:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: -1.0
+  powerviolence:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: -1.0
   screamo:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -272,7 +284,15 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
+  riot-grrrl:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
   emo:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  oi:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
@@ -319,6 +339,10 @@ genres:
     cut_highmid: -2.5
     cut_highs: 0
   deathcore:
+    target_lufs: -14.0
+    cut_highmid: -3.0
+    cut_highs: -1.0
+  grindcore:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
