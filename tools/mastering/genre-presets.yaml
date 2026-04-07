@@ -732,6 +732,22 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
+  roots-reggae:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  lovers-rock:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  rocksteady:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  ragga:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
   ska:
     target_lufs: -14.0
     cut_highmid: -1.5
