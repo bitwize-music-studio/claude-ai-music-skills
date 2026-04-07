@@ -396,6 +396,34 @@ genres:
     target_lufs: -12.0
     cut_highmid: -2.0
     cut_highs: 0
+  nightcore:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  breakcore:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: -1.0
+  pc-music:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  speedcore:
+    target_lufs: -12.0
+    cut_highmid: -2.0
+    cut_highs: -1.0
+  riddim:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  wave:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  complextro:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
 
   # === Ambient / Chill / Atmospheric ===
   ambient:
