@@ -367,7 +367,7 @@ from handlers._shared import (  # noqa: F401
     _SECTION_NAMES,
     _SECTION_TAG_RE,
     _STREAMING_PLATFORMS,
-    _VALID_GENRES,
+    _get_valid_genres,
     _WORD_TOKEN_RE,
     ALBUM_COMPLETE,
     ALBUM_CONCEPT,

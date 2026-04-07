@@ -12,7 +12,7 @@ from handlers._shared import (
     _CODE_BLOCK_SECTIONS,
     _GENRE_ALIASES,
     _SECTION_NAMES,
-    _VALID_GENRES,
+    _get_valid_genres,
     STATUS_UNKNOWN,
     TRACK_COMPLETED_STATUSES,
     _extract_code_block,
@@ -365,7 +365,7 @@ async def create_album_structure(
 
     gen_cfg = config.get("generation", {})
     additional = set(gen_cfg.get("additional_genres", []))
-    all_genres = _VALID_GENRES | additional
+    all_genres = _get_valid_genres() | additional
     if genre_slug not in all_genres:
         return _safe_json({
             "error": f"Invalid genre '{genre}'. Valid genres: {', '.join(sorted(all_genres))}",

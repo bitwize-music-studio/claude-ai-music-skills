@@ -52,12 +52,30 @@ STATUS_UNKNOWN = "Unknown"
 # Markdown link pattern — used for source verification gates
 _MARKDOWN_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
-# Valid primary genres for album creation
-_VALID_GENRES = frozenset({
-    "hip-hop", "electronic", "rock", "folk", "country", "pop", "metal",
-    "jazz", "rnb", "classical", "reggae", "punk", "indie-folk", "blues",
-    "gospel", "latin", "k-pop",
-})
+# Valid genres for album creation — derived from genres/ directory at runtime
+_VALID_GENRES: frozenset[str] | None = None
+
+
+def _get_valid_genres() -> frozenset[str]:
+    """Return valid genre slugs by scanning the genres/ directory.
+
+    Results are cached after the first call.
+    """
+    global _VALID_GENRES
+    if _VALID_GENRES is not None:
+        return _VALID_GENRES
+    if PLUGIN_ROOT is None:
+        # Fallback if called before init (shouldn't happen)
+        return frozenset()
+    genres_dir = PLUGIN_ROOT / "genres"
+    if genres_dir.is_dir():
+        _VALID_GENRES = frozenset(
+            d.name for d in genres_dir.iterdir()
+            if d.is_dir() and (d / "README.md").exists()
+        )
+    else:
+        _VALID_GENRES = frozenset()
+    return _VALID_GENRES
 
 _GENRE_ALIASES = {
     "r&b": "rnb", "rb": "rnb", "r-and-b": "rnb",
