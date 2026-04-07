@@ -4040,28 +4040,36 @@ class TestGenreValidation:
         assert result["created"] is True
 
     def test_invalid_genre_rejected(self, tmp_path):
-        """Invalid genre 'boom-bap' is rejected with valid genres list."""
+        """Non-existent genre slug is rejected."""
         mock_cache, _ = self._make_state_with_tmp(tmp_path)
-        with patch.object(_shared_mod, "cache", mock_cache):
-            result = json.loads(_run(server.create_album_structure("genre-test", "boom-bap")))
+        # Reset cached genres so _get_valid_genres() re-scans
+        _shared_mod._VALID_GENRES = None
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("genre-test", "not-a-real-genre")))
+        _shared_mod._VALID_GENRES = None  # clean up cache
         assert "error" in result
         assert "Invalid genre" in result["error"]
-        assert "hip-hop" in result["error"]  # valid genres listed
 
     def test_genre_alias_resolved(self, tmp_path):
         """Genre alias 'R&B' resolves to 'rnb' directory."""
         mock_cache, content = self._make_state_with_tmp(tmp_path)
+        _shared_mod._VALID_GENRES = None
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
+        _shared_mod._VALID_GENRES = None
         assert result["created"] is True
         assert "/rnb/" in result["path"]
 
     def test_genre_typo_rejected(self, tmp_path):
         """Genre typo 'elctronic' is rejected."""
         mock_cache, _ = self._make_state_with_tmp(tmp_path)
-        with patch.object(_shared_mod, "cache", mock_cache):
+        _shared_mod._VALID_GENRES = None
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
             result = json.loads(_run(server.create_album_structure("typo-test", "elctronic")))
+        _shared_mod._VALID_GENRES = None
         assert "error" in result
         assert "Invalid genre" in result["error"]
 

@@ -172,6 +172,99 @@ Detailed mastering settings by genre.
 - Sustained energy
 - Bright, polished highs
 
+### Eurodance
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the punch and drive of the four-on-the-floor kick while maintaining vocal clarity across both rapped and sung passages; avoid over-compression that flattens the euphoric dynamics of chorus builds
+**EQ focus**: Kick and bass punch (50-100 Hz), synth lead presence and brightness (2-8 kHz), vocal clarity for both female singing and male rapping (2-5 kHz), gentle high-mid cut to tame harsh synth stabs (3.5-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="eurodance")`
+
+**Characteristics**:
+- The four-on-the-floor kick must be punchy and driving at 50-100 Hz; it is the rhythmic backbone and must stay prominent against the synth bass
+- Synth leads and pads occupy a wide frequency range (200 Hz-8 kHz); keep them bright and present without harshness, especially on supersaw and arpeggiated leads
+- Dual vocal styles (female sung choruses + male rap verses) require clarity across different frequency ranges; female vocals need presence at 3-5 kHz, male rap vocals need definition at 2-4 kHz
+- Orchestral stabs and brass hits are transient-heavy; preserve their impact without allowing them to dominate the mix
+- Sidechain pumping effect is intentional and genre-defining -- do not try to eliminate it; ensure the kick triggers the sidechain cleanly
+- Bright, polished overall tone is expected; Eurodance should sound clean and radio-ready, not lo-fi or raw
+
+### Tech House
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the rolling groove and percussive dynamics that define the genre; over-compression flattens the subtle interplay between kick, bass, and layered percussion that makes tech house work on the dancefloor
+**EQ focus**: Kick punch and definition (50-80 Hz), rolling bassline presence (80-200 Hz), percussion clarity (2-5 kHz), gentle high-mid cut to tame crisp hi-hat brightness without losing groove detail (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="tech-house")`
+
+**Characteristics**:
+- The 909-style kick drum must be tight, punchy, and well-defined at 50-80 Hz; it drives the entire track and must cut through sub-bass content cleanly
+- Rolling basslines (often mid-range, 80-200 Hz) are the harmonic backbone; keep them warm and defined without muddying the kick drum
+- Layered percussion (congas, shakers, rim shots, claps) creates the polyrhythmic groove; preserve transient clarity in the 2-5 kHz range
+- Sidechain compression pumping between kick and bass is intentional and defines the genre's rhythmic feel; preserve the breathing effect
+- Vocal chops and spoken samples are rhythmic elements, not melodic features; they should sit inside the mix, not on top of it
+- Sub-bass content should be controlled and tight, not boomy; tech house favors mid-bass punch over deep sub-bass weight
+- Minimal tech house variants: slightly wider dynamics, more space in the mix; bass-heavy festival variants: tighter compression, stronger low end acceptable
+- Extended DJ intros and outros should maintain consistent level with the body of the track
+
+### Electropop
+**LUFS target**: -14 LUFS (club-oriented tracks: -12 LUFS)
+**Dynamics**: Moderate-to-heavy compression; preserve the punch and clarity of electronic drums while maintaining vocal presence; the genre demands a polished, radio-ready loudness without squashing the synth dynamics
+**EQ focus**: Vocal clarity and presence (2-5 kHz), synth pad warmth (200-600 Hz), sub-bass definition (40-80 Hz), gentle high-mid cut (-1 dB at 3.5 kHz) to tame bright synth stacks without killing the sparkle
+**MCP command**: `master_audio(album_slug, genre="electropop")`
+
+**Characteristics**:
+- Vocals are always the centerpiece -- clear, present, and forward in the mix; processed vocals (auto-tune, layering) should remain intelligible
+- Synth layers occupy a wide frequency range; careful EQ separation prevents masking between pads, arpeggios, and bass synth
+- Electronic kick and snare need punch and definition; sidechain compression on synths against the kick is often baked into the mix -- preserve that pumping effect
+- Sub-bass (40-80 Hz) should be tight and controlled, not boomy; electropop bass sits higher than EDM bass
+- Bright, polished high end (8-12 kHz) for shimmer and air, but watch for harshness from stacked synth harmonics
+- Dark electropop (Depeche Mode style): slightly wider dynamics, warmer treatment, can target -15 LUFS
+- Club-oriented tracks can push to -12 LUFS with heavier limiting for dancefloor energy
+- Indie electropop: slightly less compression than mainstream; preserve lo-fi textures if intentional
+
+### Deep House
+**LUFS target**: -14 LUFS
+**Dynamics**: Light-to-moderate compression; preserve the warm, open groove and subtle dynamic shifts; deep house lives in its spaciousness -- over-compression kills the late-night intimacy and hypnotic feel
+**EQ focus**: Sub-bass warmth (40-80 Hz), Rhodes/keys presence (200-500 Hz), vocal sample clarity (2-4 kHz), gentle high-mid cut at 3.5 kHz to tame hi-hat harshness, airy top-end for reverb tails (10+ kHz)
+**MCP command**: `master_audio(album_slug, genre="deep-house")`
+
+**Characteristics**:
+- Sub-bass should be warm and round, not aggressive or punchy -- deep house bass is felt more than heard, sitting lower than tech house or mainroom house
+- Kick drum has a softer attack than peak-time house; preserve the pillowy, warm character rather than pushing for maximum transient impact
+- Rhodes, Wurlitzer, and jazz guitar samples sit in the 200-500 Hz range; keep them warm and defined without muddiness
+- Reverb and delay are integral to the spatial atmosphere -- mastering should preserve the depth and width of the mix; avoid limiting that flattens the stereo image
+- Soulful vocal samples and spoken word elements need warmth and intimacy at 2-4 kHz; avoid harshness that breaks the dreamy quality
+- Shuffled hi-hats and subtle percussion (shakers, rim clicks) at 8-12 kHz drive the groove; preserve their crisp detail without brightness fatigue over long listening sessions
+- Afro deep house variants may have more percussive energy; organic house variants should be treated even more gently with wider dynamics
+
+### Nu Disco
+**LUFS target**: -14 LUFS (cosmic/slow-motion strains: -15 LUFS)
+**Dynamics**: Moderate compression; preserve the warm groove and dynamic builds; nu disco's filtered sweeps and gradual arrangement layering need headroom -- over-compression flattens the build-and-release that drives the dance floor
+**EQ focus**: Bass warmth and groove (60-200 Hz), synth and vocal clarity (2-5 kHz), gentle high-mid cut at 3.5 kHz to tame harshness from layered synths, sparkle on hi-hats and percussion (8-12 kHz)
+**MCP command**: `master_audio(album_slug, genre="nu-disco")`
+
+**Characteristics**:
+- Sidechain compression pumping is an intentional stylistic element -- do not try to smooth it out; the "breathing" effect on synth pads and bass is central to the genre's feel
+- Bass should be warm, round, and melodic (funk/disco tradition) rather than sub-heavy; it sits higher than EDM bass (60-200 Hz)
+- Filter sweeps on synths and samples are compositional tools -- preserve their full frequency range and dynamic arc
+- Soulful vocals need warmth and presence without harshness; vocoder and processed vocals at 2-4 kHz should remain clear and defined
+- Cosmic/space disco strains (-15 LUFS): wider dynamics, more reverb headroom, gentler compression for the hypnotic, spaced-out quality
+- Disco house and club-oriented tracks: tighter compression acceptable, punchier kick at 60-80 Hz, brighter top end for peak-time energy
+- String and brass samples (real or synthesized) add orchestral warmth at 200-600 Hz; keep them lush without muddiness
+- Extended mixes (5-8 minutes) need consistent energy across their duration; avoid limiting that causes fatigue over long DJ sets
+
+### Progressive House
+**LUFS target**: -14 LUFS (deep progressive: -15 LUFS)
+**Dynamics**: Light-to-moderate compression; preserve the gradual builds and extended dynamic arcs that define the genre; progressive house lives in the tension between quiet breakdowns and euphoric peaks -- over-compression destroys this emotional architecture
+**EQ focus**: Pad warmth and body (200-600 Hz), synth lead clarity (1-4 kHz), sub-bass definition (40-80 Hz), gentle high-mid cut to tame bright synth harmonics without losing shimmer (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="progressive-house")`
+
+**Characteristics**:
+- Extended builds (32-64 bars) rely on gradual dynamic increase -- over-limiting flattens the arc and removes the emotional payoff at the climax
+- Layered pads and atmospheric textures occupy the mid-range (200 Hz-2 kHz); preserve their warmth and spatial depth without muddiness
+- Four-on-the-floor kick must remain consistent and punchy (60-80 Hz) but not dominate; it anchors the groove while melodies carry the emotion
+- Reverb tails, delay trails, and filtered sweeps are compositional elements -- over-compression collapses the spatial depth that defines the genre
+- Deep progressive (Guy J, Hernan Cattaneo style): target -15 LUFS, wider dynamics, more spacious and hypnotic; minimal compression to preserve subtle textural shifts
+- Big room progressive (festival variant): can push to -14 LUFS with tighter compression; punchier kick, brighter leads, less subtlety acceptable
+- Sidechain compression pumping on pads is intentional and genre-defining; preserve the rhythmic breathing effect
+- Melodic progressive (Eric Prydz, deadmau5 style): synth leads in the 1-4 kHz range need clarity and emotional presence without harshness
+
 ### Jungle
 **LUFS target**: -14 LUFS
 **Dynamics**: Moderate compression; preserve the chopped breakbeat dynamics and rapid-fire snare rolls; avoid squashing the rhythmic complexity that defines the genre
@@ -972,6 +1065,20 @@ Detailed mastering settings by genre.
 - Build-ups and drops are the emotional core; preserve the dynamic contrast between quiet breaks and full drops
 - Side-chain compression effects are compositional; preserve the pumping feel if present
 
+### Future House
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the sidechain pumping effect and dynamic contrast between breakdowns and drops; the genre's groove depends on the rhythmic push-pull between kick and bass
+**EQ focus**: FM bass clarity and body (80-300 Hz), vocal chop presence (2-6 kHz), kick definition (40-80 Hz), hi-hat crispness (8-12 kHz), synth pluck brightness (1-4 kHz)
+**MCP command**: `master_audio(album_slug, genre="future-house")`
+
+**Characteristics**:
+- The FM/frequency-modulated bassline is the genre's signature sound -- metallic, elastic, and rubbery; preserve its tonal character and movement without muddiness
+- Sidechain compression pumping is a compositional element, not a mixing artifact; the rhythmic ducking of the bass against the kick must remain pronounced and groovy
+- Pitched vocal chops function as melodic hooks; they need clarity and presence in the 2-6 kHz range without harshness
+- Oliver Heldens-style: brighter, poppier, more melodic; Tchami-style: darker, funkier, heavier bass
+- Builds and drops define the energy arc; preserve the contrast between stripped breakdowns and full drops
+- Clean, polished production is expected; the genre rewards a precise, modern-sounding master over warmth or analog character
+
 ### Minimal Techno
 **LUFS target**: -14 LUFS
 **Dynamics**: Light-to-moderate compression; preserve the hypnotic, repetitive groove and subtle textural details; minimal techno's power comes from micro-variations, not loudness
@@ -1181,6 +1288,36 @@ Detailed mastering settings by genre.
 - Piano is the primary accompaniment; keep it warm and supportive without competing with the voice
 - Brass and wind instruments add color; clear without harshness
 - The intimate venue atmosphere should carry through; do not over-brighten or make it sound like a stadium
+
+### Tropical House
+**LUFS target**: -14 LUFS
+**Dynamics**: Light compression; preserve the breezy, open feel and the sidechain pump that defines the groove; avoid over-compressing -- tropical house relies on space and air between elements
+**EQ focus**: Warm low-end (60-150 Hz), marimba/pan flute clarity (1-5 kHz), vocal presence (2-4 kHz), gentle high-mid cut to tame digital synth harshness (3-5 kHz), airy highs (10+ kHz)
+**MCP command**: `master_audio(album_slug, genre="tropical-house")`
+
+**Characteristics**:
+- Marimba, steel drums, and pan flute sit in the 1-5 kHz range -- preserve their brightness and attack without harshness; these are the genre's signature timbres
+- Soft kick drums should be warm and round, not punchy or aggressive; avoid boosting kick transients
+- Sidechain compression on pads is a core production technique -- the pumping effect is intentional and should be preserved through mastering
+- Vocals are soft and breathy; they need presence at 2-4 kHz without sibilance; de-essing may be needed
+- Acoustic guitar and plucked synths need clarity without sharpness; warm low-mids (200-400 Hz) add body
+- The overall mix should feel warm, spacious, and polished -- do not add aggression or density that contradicts the genre's laid-back character
+- Hi-hats and shakers provide subtle rhythmic texture; preserve their sparkle at 8-12 kHz without letting them dominate
+
+### Bass House
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; sustain the energy and impact of the bass drop while preserving the four-on-the-floor groove; the distorted bass must feel heavy and physical without losing definition against the kick drum
+**EQ focus**: Sub-bass weight (30-60 Hz), distorted mid-bass presence and definition (80-400 Hz), kick drum punch (60-100 Hz), hi-hat and percussion crispness (8-12 kHz), gentle high-mid cut to tame synth harshness in the bass design (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="bass-house")`
+
+**Characteristics**:
+- The distorted bassline is the genre's centerpiece -- it must be heavy, present, and felt physically; preserve the saturation and harmonic content that gives bass house its gritty character
+- Kick and bass must coexist cleanly despite occupying overlapping frequency ranges; tight sidechain compression between kick and bass is essential to maintain the pumping groove
+- Sub-bass (30-60 Hz) provides the foundation beneath the distorted mid-bass (80-400 Hz); careful layering separation prevents mud without thinning the combined impact
+- Vocal chops and samples are production elements, not lead vocals; keep them punchy and defined but not competing with the bass for attention
+- Festival-ready variants (Jauz, Habstrakt style): can push slightly louder, more aggressive limiting; underground/Night Bass style: slightly more dynamic, groove-focused
+- Builds and breakdowns create tension-release arcs; preserve the contrast between stripped-back sections and full bass drops
+- Hi-hats and percussion should remain crisp and swung; over-compression flattens the groove feel that distinguishes bass house from straight EDM
 
 ---
 
