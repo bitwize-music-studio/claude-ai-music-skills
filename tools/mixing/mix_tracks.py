@@ -35,7 +35,7 @@ except ImportError:
 try:
     import numba
 except ImportError:
-    numba = None  # type: ignore[assignment]
+    numba = None
 
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
