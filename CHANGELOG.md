@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.86.0] - 2026-04-06
+
+### Added
+- **44 new genres** — expanded genre library from 137 to 181 genres with full documentation, mastering presets, and INDEX integration
+  - **Hip-Hop regional** (#178): East Coast Hip Hop, West Coast Rap, Southern Hip Hop, Gangsta Rap, Underground Hip Hop, Crunk, Mumble Rap, Pop Rap
+  - **Country & Americana** (#202): Honky-Tonk, Bro-Country, Red Dirt, Bakersfield Sound, Western Swing, Cowpunk, Neotraditional Country
+  - **Regional American** (#199): Cajun, Go-Go, Chicano Rap, Swamp Pop, Country Rap
+  - **Electronic micro-genres** (#205): Nightcore, Breakcore, PC Music, Speedcore, Riddim, Wave, Complextro
+  - **Historical & period** (#198): Ragtime, Sea Shanties, Medieval, Madrigal, Music Hall
+  - **Jamaican & Reggae** (#191): Roots Reggae, Lovers Rock, Rocksteady, Ragga
+  - **Pop subgenres** (#200): Dream Pop, Darkwave, Synth-Pop, Baroque Pop, Chamber Pop, Bubblegum Pop, Twee Pop, Sophisti-pop
+
 ## [0.85.0] - 2026-04-05
 
 ### Added
