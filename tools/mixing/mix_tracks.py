@@ -32,6 +32,11 @@ try:
 except ImportError:
     yaml = None  # type: ignore[assignment]
 
+try:
+    import numba
+except ImportError:
+    numba = None  # type: ignore[assignment]
+
 # Ensure project root is on sys.path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -385,6 +390,40 @@ def apply_high_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
         return result
 
 
+def _envelope_follower_python(abs_signal: Any, attack_coeff: float,
+                              release_coeff: float) -> Any:
+    """Pure-Python envelope follower (fallback when numba unavailable)."""
+    envelope = np.empty_like(abs_signal)
+    env = 0.0
+    for i in range(len(abs_signal)):
+        if abs_signal[i] > env:
+            env = attack_coeff * env + (1.0 - attack_coeff) * abs_signal[i]
+        else:
+            env = release_coeff * env + (1.0 - release_coeff) * abs_signal[i]
+        envelope[i] = env
+    return envelope
+
+
+if numba is not None:
+    @numba.njit(cache=True)
+    def _envelope_follower_jit(abs_signal: Any, attack_coeff: float,
+                               release_coeff: float) -> Any:
+        """Numba-accelerated envelope follower."""
+        envelope = np.empty_like(abs_signal)
+        env = 0.0
+        for i in range(len(abs_signal)):
+            if abs_signal[i] > env:
+                env = attack_coeff * env + (1.0 - attack_coeff) * abs_signal[i]
+            else:
+                env = release_coeff * env + (1.0 - release_coeff) * abs_signal[i]
+            envelope[i] = env
+        return envelope
+
+    _envelope_follower = _envelope_follower_jit
+else:
+    _envelope_follower = _envelope_follower_python
+
+
 def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: float = 2.5,
                     attack_ms: float = 10.0, release_ms: float = 100.0) -> Any:
     """Apply gentle dynamic compression using envelope following.
@@ -410,17 +449,8 @@ def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: fl
     release_coeff = np.exp(-1.0 / (rate * release_ms / 1000.0))
 
     def _compress_channel(channel: Any) -> Any:
-        envelope = np.zeros_like(channel)
         abs_signal = np.abs(channel)
-
-        # Envelope follower
-        env = 0.0
-        for i in range(len(channel)):
-            if abs_signal[i] > env:
-                env = attack_coeff * env + (1.0 - attack_coeff) * abs_signal[i]
-            else:
-                env = release_coeff * env + (1.0 - release_coeff) * abs_signal[i]
-            envelope[i] = env
+        envelope = _envelope_follower(abs_signal, attack_coeff, release_coeff)
 
         # Calculate gain reduction
         gain = np.ones_like(channel)
