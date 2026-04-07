@@ -145,6 +145,22 @@ Detailed mastering settings by genre.
 - Technical/progressive death metal benefits from slightly wider dynamics to showcase rhythmic complexity
 - Old-school death metal (Morbid Angel, Death style): warmer, less polished mastering; modern (Archspire style): tighter, more clinical
 
+### Grindcore
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression; sustain the relentless blast-beat density; preserve the raw, chaotic energy without over-polishing; grindcore's lo-fi production aesthetic is often intentional
+**EQ focus**: Low-end density (60-200 Hz), vocal presence through distortion wall (1-4 kHz), high-mid cut to tame guitar and cymbal harshness (3-5 kHz), high shelf cut for cymbal wash control from constant blast beats
+**MCP command**: `master_audio(album_slug, genre="grindcore")`
+
+**Characteristics**:
+- Blast beats generate massive high-frequency cymbal content; high shelf cut (-1 dB at 8 kHz) essential to prevent listening fatigue across an entire album of blasting
+- Dual vocals (growls + shrieks) occupy different frequency ranges; both need presence without one dominating the other
+- Guitar and bass often blend into a single wall of distortion; do not try to separate them surgically -- the blurred density is intentional
+- Raw, lo-fi production is a genre feature in classic grindcore; do not over-process or "clean up" recordings that are intentionally crude
+- Songs are extremely short (30 seconds to 2 minutes); consistent level between tracks is important since gaps are brief
+- Deathgrind (Terrorizer, Cattle Decapitation): tighter, more death metal-influenced mastering; treat closer to death metal preset
+- Powerviolence-influenced (Nails, Full of Hell): preserve extreme tempo shifts between blasting and sludge sections; dynamic contrast matters
+- Cybergrind with electronic elements: drum machines may need different treatment than acoustic drums; preserve the mechanical quality
+
 ### Electronic / EDM
 **LUFS target**: -10 to -12 LUFS (can go louder)
 **Dynamics**: Heavy compression, consistent energy
@@ -780,6 +796,36 @@ Detailed mastering settings by genre.
 - Pop-punk revival (Modern Baseball, PUP): slightly rawer, more dynamic; classic: polished and compressed
 - Double-tracked vocals and gang vocals are common; keep them full but not smeared
 
+### Riot Grrrl
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the raw, unpolished energy that defines the genre; riot grrrl's lo-fi aesthetic is intentional, not a deficiency -- over-compression removes the garage-recording character
+**EQ focus**: Vocal presence and clarity (2-5 kHz), guitar distortion body (800 Hz-2 kHz), bass weight (80-200 Hz), gentle high-mid cut to tame lo-fi harshness without sterilizing the sound (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="riot-grrrl")`
+
+**Characteristics**:
+- Vocals are confrontational and forward -- shouted, chanted, or spoken-word delivery must remain urgent and present; do not bury them behind instrumentation
+- Lo-fi recording quality is a feature, not a bug -- room noise, bleed, and tape hiss are authentic; do not over-clean or gate aggressively
+- Guitar distortion is raw and fuzzy, not tight or polished; preserve the garage-punk character in the 800 Hz-2 kHz range
+- Call-and-response and gang vocal sections need clarity without losing their rough, communal energy
+- Bikini Kill-style raw punk: minimal processing, preserve the cassette-tape aesthetic; Sleater-Kinney-style: slightly more polished, tighter low end
+- Bass guitar often follows guitar closely, creating a thick low-mid wall; keep it warm and present but defined enough that the rhythm stays clear
+- High-mid harshness at 3-5 kHz from lo-fi recordings: gentle cuts only (-2 dB), aggressive cutting removes the abrasive edge that is part of the genre's identity
+
+### Powerviolence
+**LUFS target**: -14 LUFS
+**Dynamics**: Heavy compression acceptable; the genre is already maximally dense and aggressive; preserve the contrast between blast-beat sections and sludge breakdowns -- the tempo shifts are the genre's defining structural element and must feel violent, not smoothed
+**EQ focus**: Bass distortion weight (40-200 Hz), guitar fizz and dissonance (800 Hz-3 kHz), vocal presence through the chaos (1-4 kHz), high-mid cut for harshness control (3-5 kHz), gentle high shelf cut to tame cymbal wash during blast sections
+**MCP command**: `master_audio(album_slug, genre="powerviolence")`
+
+**Characteristics**:
+- Blast-beat to sludge tempo shifts are the genre's signature -- these transitions must hit hard; compression should not soften the whiplash effect
+- Bass guitar and bass distortion are often as loud as or louder than guitar; keep the low end thick and present, not clean
+- Lo-fi production is intentional and genre-appropriate -- do not try to polish or brighten a deliberately raw mix; the ugliness is the point
+- Vocals are screamed and panicked; preserve the urgency and hysteria without introducing painful high-frequency harshness
+- Classic PV (Infest, Man Is the Bastard): rawer, more lo-fi tolerant; modern PV (Nails, Weekend Nachos): tighter, heavier, more metallic
+- Songs are extremely short (many under 30 seconds); every fraction of a second matters for clarity and impact
+- High-frequency content from cymbals during blast beats can become overwhelming; gentle high shelf cut at 8 kHz tames the wash without dulling the attack
+
 ### Screamo
 **LUFS target**: -14 LUFS
 **Dynamics**: Moderate-to-heavy compression; preserve the explosive dynamics between quiet passages and screamed eruptions; the emotional contrast is the genre's core
@@ -793,6 +839,54 @@ Detailed mastering settings by genre.
 - Saetia/Orchid-style chaotic screamo: rawer, more dynamic, lo-fi tolerance; post-screamo (Touche Amore): tighter, more produced
 - Bass guitar often provides melodic counterpoint; keep it defined and present
 - Short song formats (1-3 minutes) mean every second is dense; clarity is critical throughout
+
+### Oi!
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate compression; preserve the gang vocal energy and singalong dynamics; the pub-rock aesthetic needs punch without excessive polish; avoid over-compressing crowd-style vocal layers into a flat wall
+**EQ focus**: Vocal presence and clarity (2-5 kHz), guitar power chord body (200 Hz-2 kHz), bass punch (80-200 Hz), gentle high-mid cut to tame guitar harshness without killing the rawness (3-5 kHz)
+**MCP command**: `master_audio(album_slug, genre="oi")`
+
+**Characteristics**:
+- Vocals are the centerpiece -- gruff, shouted lead vocals and gang vocal choruses must be clear, forward, and singable; preserve the raw character without letting it become harsh
+- Gang vocals and terrace-style chanting generate dense mid-range content; keep the layers distinct and powerful, not smeared
+- Guitar tone is moderately distorted -- less gain than hardcore punk, more than pub rock; preserve the power chord attack and body
+- Bass guitar follows root notes with occasional melodic runs; keep it punchy and defined at 80-200 Hz without muddying the guitars
+- Drum production should be punchy and live-sounding; snare backbeat drives the songs; avoid overly processed or triggered drum sounds
+- Classic Oi! (Sham 69, Cockney Rejects): rawer, more lo-fi tolerant; modern Oi! (Booze & Glory, Lion's Law): slightly tighter, cleaner, but still pub-ready
+- Anthemic, slower tracks (Cock Sparrer-style, 120-130 BPM): slightly wider dynamics to let the singalong choruses breathe and build
+- The genre's live, communal energy should carry through to the master -- clinical perfection is antithetical to Oi!
+
+### D-Beat
+**LUFS target**: -14 LUFS
+**Dynamics**: Moderate-to-heavy compression; sustain the relentless wall-of-sound intensity without crushing the galloping drum pattern that defines the genre; the D-beat must remain driving and articulate
+**EQ focus**: Guitar distortion body (200 Hz-2 kHz), bass rumble (60-200 Hz), vocal presence through the distortion wall (1-4 kHz), high-mid cut to tame guitar fizz and cymbal harshness (3-5 kHz), gentle high shelf cut for blown-out cymbal wash
+**MCP command**: `master_audio(album_slug, genre="d-beat")`
+
+**Characteristics**:
+- The signature D-beat drum pattern (galloping snare-kick alternation) is the genre's identity -- it must remain driving and articulate; over-compression blurs it into undifferentiated noise
+- Guitar distortion is thick and all-consuming; preserve the wall-of-sound character without letting it become a featureless wash
+- Bass guitar provides rumbling low-end foundation; keep it felt rather than heard clearly -- it adds weight, not melody
+- Vocals are shouted and raw, often buried in the mix; preserve their presence at 1-4 kHz without pushing them artificially forward -- D-beat vocals sit inside the distortion, not on top of it
+- High-frequency content from cymbals and guitar fizz can cause listening fatigue; gentle high shelf cut (-1 dB at 8 kHz) helps without dulling the aggression
+- Classic D-beat (Discharge, Varukers): rawer, lo-fi-tolerant mastering; modern D-beat crust (Wolfbrigade, Disfear): slightly tighter, more defined, but still aggressive
+- Noise D-beat (Disclose, Framtid): the blown-out, feedback-heavy production is intentional -- do not try to clean it up; treat it like noise rock mastering with even less restraint
+
+### Crust Punk
+**LUFS target**: -14 LUFS (neocrust with post-rock dynamics: -15 LUFS)
+**Dynamics**: Moderate-to-heavy compression; preserve the contrast between slow crushing sections and fast d-beat blasts; crust punk relies on oppressive weight and frantic energy existing in the same track -- over-compression flattens both
+**EQ focus**: Low-end body and distortion weight (40-200 Hz), vocal presence through the distortion wall (1-4 kHz), guitar distortion character (800 Hz-3 kHz), high-mid cut to control harshness without removing the abrasive edge (3-5 kHz), gentle high shelf cut for murky aesthetic (-1 dB at 8 kHz)
+**MCP command**: `master_audio(album_slug, genre="crust-punk")`
+
+**Characteristics**:
+- Raw, murky production is intentional -- do not try to clean up the mix or add clarity; the lo-fi aesthetic is the genre's identity
+- Bass distortion and guitar distortion occupy overlapping frequency ranges by design; separation is less important than combined crushing weight
+- Vocals are harsh (screamed, shouted, growled) and often buried in the mix; preserve their presence without pushing them artificially forward
+- D-beat drumming needs its rhythmic pattern preserved; the syncopated snare-kick pattern must remain recognizable through the distortion
+- Stenchcore (Amebix, Antisect style): mid-tempo, doom-influenced, heavier compression acceptable for sustained crushing weight
+- Neocrust (Tragedy, From Ashes Rise): wider dynamics to accommodate post-rock builds and melodic guitar harmonies; target -15 LUFS
+- Blackened crust: tremolo riffing and blast beats generate dense high-frequency content; gentle high shelf cut prevents fatigue
+- Sludge crust (Dystopia, His Hero Is Gone): treat like sludge metal mastering -- oppressive, heavy, feedback-tolerant
+- Dual vocal arrangements (screamer + growler) need both voices present; do not let one dominate
 
 ### Groove Metal
 **LUFS target**: -14 LUFS
