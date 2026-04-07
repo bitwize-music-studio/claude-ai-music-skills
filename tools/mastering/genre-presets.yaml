@@ -90,6 +90,46 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
+  east-coast-hip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  west-coast-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  southern-hip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  gangsta-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  underground-hip-hop:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  crunk:
+    target_lufs: -12.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  mumble-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  pop-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  chicano-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.0
+    cut_highs: 0
+  country-rap:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
 
   # === R&B / Soul / Funk ===
   r&b:
@@ -428,6 +468,42 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
+  honky-tonk:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  bro-country:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  red-dirt:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  bakersfield-sound:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  western-swing:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  cowpunk:
+    target_lufs: -14.0
+    cut_highmid: -2.5
+    cut_highs: 0
+  neotraditional-country:
+    target_lufs: -14.0
+    cut_highmid: -2.0
+    cut_highs: 0
+  cajun:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
+  swamp-pop:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
 
   # === Jazz / Blues ===
   jazz:
@@ -666,6 +742,10 @@ genres:
     cut_highs: 0
 
   # === Other ===
+  go-go:
+    target_lufs: -14.0
+    cut_highmid: -1.5
+    cut_highs: 0
   spoken-word:
     target_lufs: -14.0
     cut_highmid: 0
