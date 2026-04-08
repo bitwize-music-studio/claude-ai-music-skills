@@ -6,6 +6,35 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-04-08
+
+### Added
+- **154 new genres** — massive genre library expansion from 197 to 351 genres, completing all remaining genre expansion issues (#176, #177, #179, #180, #181, #182, #183, #184, #185, #186, #187, #188, #189, #190, #192, #194, #195, #196, #197, #201, #203, #204, #206, #207)
+  - Electronic Trance, Hardcore & experimental (13): Vocal Trance, Goa Trance, Psychedelic Trance, Happy Hardcore, Acid Jazz, Dark Ambient, Dub Techno, Glitch, Glitch Hop, Glitch Pop, Moombahton, Neurofunk, Witch House
+  - Niche & modern Electronic (8): Chiptune, EBM, Darksynth, Future Funk, Folktronica, Deconstructed Club, Lo-fi House, Hardwave
+  - Modern club & Hip-Hop production (8): Jersey Club, Footwork, Baile Funk, Italo Disco, Balearic, G-Funk, Chopped and Screwed, Bounce
+  - British movements & UK dance (6): Britpop, Madchester, 2-Step Garage, Bassline, Speed Garage, Broken Beat
+  - Jazz & Blues subgenres (12): Bebop, Cool Jazz, Hard Bop, Modal Jazz, Jazz Fusion, Ethio-Jazz, Gypsy Jazz, Nu Jazz, Smooth Jazz, Soul Jazz, Vocal Jazz, Delta Blues, Piano Blues
+  - Rock movements & revival (10): Arena Rock, Hair Metal, Heartland Rock, NWOBHM, Jangle Pop, Noise Pop, Post-Britpop, Post-Punk Revival, Psychobilly, Rockabilly
+  - Art rock & experimental (8): Canterbury Scene, Dance-Punk, Krautrock, No-Wave, Slowcore, Space Rock, Jam Band, Dark Jazz
+  - Metal subgenres (6): Blackgaze, Crossover Thrash, Drone Metal, Melodic Death Metal, Post-Metal, Viking Metal
+  - Modern Hip-Hop (7): Abstract Hip-Hop, Emo Rap, Horrorcore, Jazz Rap, Latin Trap, Plugg, Trap Metal
+  - Soul, Funk & R&B deep cuts (8): Alternative R&B, Boogie, Doo-Wop, New Jack Swing, Northern Soul, P-Funk, Psychedelic Soul, Quiet Storm, Trap Soul
+  - Vocal & A Cappella (4): A Cappella, Barbershop, Choir, Beatboxing
+  - Vocal & Choral (2): Gregorian Chant, Vocaloid
+  - World & Cultural music (6): Celtic, Klezmer, Polka, Throat Singing, Lounge, Spaghetti Western
+  - African music (10): Afropop, Afro-House, Benga, Chimurenga, Gqom, Juju, Kwaito, Maskandi, Mbaqanga, Soukous
+  - African deeper cuts (8): Bongo Flava, Champeta, Coupé-Décalé, Desert Blues, Fuji, Gengetone, Kuduro, Mbalax
+  - Latin & Caribbean (8): Bachata, Bolero, Calypso, Mambo, Merengue, Soca, Son Cubano, Dembow
+  - Caribbean & Latin niche (6): Chicha, Corridos Tumbados, Guaracha, Huayno, Punta, Vallenato
+  - Latin American deep cuts (7): Axé, Forró, Kompa, Mento, MPB, Pagode, Banda
+  - East & Southeast Asian (6): Anisong, Cantopop, Kayokyoku, Thai Pop, Trot, Visual Kei
+  - South Asian & Middle Eastern (10): Carnatic, Dabke, Dangdut, Ghazal, Hindustani, Indian Classical, Laiko, Rai, Shaabi, Sufi
+  - European folk & regional pop (10): Chutney, Isicathamiya, Kizomba, Manele, Morna, Norteno, Rebetiko, Sega, Semba, Sevdah, Taarab, Tejano, Turbo Folk, Turkish Pop
+  - Remaining Electronic styles (7): Brostep, Cyberpunk, Dark Cabaret, Dark Electro, Deep Techno, Dungeon Synth, Post-Dubstep, Psybient, Rave, Space Disco, UK Funky, Vocal House
+- Mastering presets for all 154 new genres in `genre-presets.yaml`
+- New `skills/mastering-engineer/genre-presets.md` reference document
+
 ## [0.87.0] - 2026-04-07
 
 ### Added
