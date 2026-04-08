@@ -72,14 +72,17 @@ async def polish_audio(
     loop = asyncio.get_running_loop()
     track_results = []
 
+    # Auto-detect stems when use_stems=True (default): prefer stems if
+    # available, fall back to full-mix mode gracefully instead of erroring.
+    if use_stems:
+        stems_dir = audio_dir / "stems"
+        if not stems_dir.is_dir() or not any(stems_dir.iterdir()):
+            # Graceful fallback — process full mixes instead of erroring
+            use_stems = False
+
     if use_stems:
         # Stems mode: look for stems/ subdirectory with track folders
         stems_dir = audio_dir / "stems"
-        if not stems_dir.is_dir():
-            return _safe_json({
-                "error": f"No stems/ directory found in {audio_dir}",
-                "suggestion": "Import stems first, or use use_stems=false for full-mix mode.",
-            })
 
         track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
         if not track_dirs:
@@ -183,6 +186,24 @@ async def analyze_mix_issues(
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
 
+    # If no root WAVs, check stems/ for per-track directories and analyze
+    # the first stem from each track (gives representative analysis).
+    stems_mode = False
+    if not wav_files:
+        stems_dir = audio_dir / "stems"
+        if stems_dir.is_dir():
+            track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
+            for td in track_dirs:
+                # Pick the first WAV in each track dir as representative
+                stem_wavs = sorted([
+                    f for f in td.iterdir()
+                    if f.suffix.lower() == ".wav"
+                ])
+                if stem_wavs:
+                    wav_files.append(stem_wavs[0])
+            if wav_files:
+                stems_mode = True
+
     if not wav_files:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
@@ -271,6 +292,7 @@ async def analyze_mix_issues(
             "tracks_analyzed": len(track_analyses),
             "common_issues": sorted(all_issues),
             "audio_dir": str(audio_dir),
+            "source_mode": "stems" if stems_mode else "full_mix",
         },
     })
 
