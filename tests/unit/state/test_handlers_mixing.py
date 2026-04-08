@@ -165,14 +165,15 @@ class TestPolishAudio:
         # Verify polished/ dir was created
         assert (audio_dir / "polished").is_dir()
 
-    def test_stems_mode_no_stems_dir(self, tmp_path):
+    def test_stems_mode_falls_back_when_no_stems_dir(self, tmp_path):
+        """When use_stems=True but no stems/ dir, gracefully fall back to full-mix."""
         audio_dir = _setup_audio_dir(tmp_path)
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
-            raw = _run(_mixing_mod.polish_audio("test", use_stems=True))
+            raw = _run(_mixing_mod.polish_audio("test", use_stems=True, dry_run=True))
         result = json.loads(raw)
-        assert "error" in result
-        assert "stems" in result["error"].lower()
+        assert "error" not in result
+        assert result["summary"]["mode"] == "full_mix"
 
     def test_stems_mode_with_stems(self, tmp_path):
         audio_dir = _setup_stems_dir(tmp_path)
@@ -270,6 +271,17 @@ class TestAnalyzeMixIssues:
         result = json.loads(raw)
         assert "error" in result
 
+    def test_falls_back_to_stems_when_no_root_wavs(self, tmp_path):
+        """When no root WAVs exist but stems/ has tracks, analyze stems."""
+        audio_dir = _setup_stems_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert result["album_summary"]["tracks_analyzed"] >= 1
+        assert result["album_summary"]["source_mode"] == "stems"
+
 
 # ---------------------------------------------------------------------------
 # Tests: polish_album (3-stage pipeline)
@@ -313,9 +325,10 @@ class TestPolishAlbum:
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
             raw = _run(_mixing_mod.polish_album("test"))
         result = json.loads(raw)
-        # The analysis stage uses full wavs; if none exist the pipeline
-        # should still reach at least the analysis stage
+        # Analysis now falls back to stems when no root WAVs exist,
+        # so the full pipeline should complete with stems-only audio
         assert "stages" in result
+        assert result["stages"]["pre_flight"]["mode"] == "stems"
 
     def test_pipeline_next_step_suggestion(self, tmp_path):
         audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
