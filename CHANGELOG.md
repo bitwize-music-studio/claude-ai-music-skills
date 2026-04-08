@@ -6,6 +6,20 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.87.0] - 2026-04-07
+
+### Added
+- **16 new genres** — Punk & Hardcore deep cuts (6) and Electronic House & Disco variants (10)
+
+### Fixed
+- `analyze_mix_issues` now falls back to scanning `stems/` when no root WAVs exist, instead of erroring
+- `polish_audio` auto-detects stems and gracefully degrades to full-mix mode instead of hard-failing
+- Mix-engineer SKILL.md updated with explicit stems-first decision tree
+- Removed unused type-ignore comment for numba import
+
+### Changed
+- Vectorized envelope follower in `gentle_compress` using numba JIT for faster audio processing
+
 ## [0.86.0] - 2026-04-06
 
 ### Added
