@@ -131,7 +131,7 @@ At the beginning of a fresh session:
 
 ## Workflow Overview
 
-Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → [Polish] → Master → Promo Videos (optional) → Promo Copy (optional) → **Release**
+Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Generate → [Polish] → Master → Promo Videos (optional) → Promo Copy (optional) → **Release**
 
 **Critical**: Research must complete before writing for source-based content. Human source verification is required before generation — never skip this gate.
 
@@ -140,6 +140,7 @@ Concept → Research → Write (+Suno Prompt) → QC/Verify → Generate → [Po
 - **Album mentioned** → `/bitwize-music:resume`
 - **"Make a new album"** → IMMEDIATELY use `/bitwize-music:new-album` BEFORE any discussion
 - **Writing lyrics** → apply `/bitwize-music:lyric-writer` expertise (auto-invokes suno-engineer)
+- **Refining/polishing lyrics** → `/bitwize-music:lyric-refiner` (post-writing multi-pass refinement)
 - **Planning album** → apply `/bitwize-music:album-conceptualizer` (7 planning phases required)
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Research needed** → apply `/bitwize-music:researcher` standards

@@ -31,6 +31,7 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...write lyrics for a track | `/lyric-writer` |
+| ...refine/polish lyrics after writing | `/lyric-refiner` |
 | ...check lyrics for pronunciation risks | `/pronunciation-specialist` |
 | ...run full QC before Suno generation | `/lyric-reviewer` |
 | ...run final pre-generation checkpoint | `/pre-generation-check` |
@@ -122,6 +123,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
 | [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
+| [`lyric-refiner`](/skills/lyric-refiner/SKILL.md) | Multi-pass lyric refinement for tightening, cohesion, and album unity | Polishing lyrics after writing, before QC |
 | [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
@@ -169,6 +171,7 @@ What to have ready before using each skill:
 | `/album-conceptualizer` | Album name and genre decided |
 | `/lyric-writer` | Track concept defined, sources captured (if documentary) |
 | `/pronunciation-specialist` | Lyrics written |
+| `/lyric-refiner` | Lyrics written (runs after lyric-writer, before QC) |
 | `/lyric-reviewer` | Lyrics complete, pronunciation checked |
 | `/voice-checker` | Lyrics written, lyric-reviewer passed |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created (instrumental: only Style Box needed) |
@@ -194,6 +197,7 @@ What to have ready before using each skill:
 /new-album <name> <genre>
     -> /album-conceptualizer (plan concept, tracklist)
     -> /lyric-writer (for each track — auto-invokes /suno-engineer)
+    -> /lyric-refiner (optional: multi-pass refinement for tightening + album cohesion)
     -> /pronunciation-specialist (scan for risks)
     -> /lyric-reviewer (final QC)
     -> /voice-checker (advisory: flag AI-sounding patterns)
@@ -215,6 +219,7 @@ What to have ready before using each skill:
         -> /researchers-verifier (verify citations)
     -> /verify-sources (human source verification)
     -> /lyric-writer (write lyrics from sources — auto-invokes /suno-engineer)
+    -> /lyric-refiner (optional: multi-pass refinement for tightening + album cohesion)
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
     -> /pre-generation-check (validate all gates)
@@ -300,6 +305,7 @@ Natural pairings that complement each other:
 
 | Primary Skill | Pairs Well With | Why |
 |---------------|-----------------|-----|
+| `/lyric-writer` | `/lyric-refiner` | Refine after writing, before QC |
 | `/lyric-writer` | `/pronunciation-specialist` | Catch pronunciation issues immediately |
 | `/pronunciation-specialist` | `/lyric-reviewer` | Reviewer verifies pronunciation fixes applied correctly |
 | `/lyric-reviewer` | `/voice-checker` | Reviewer catches craft issues, voice-checker catches authenticity issues |
@@ -326,6 +332,7 @@ Redundant or conflicting combinations:
 | Avoid Combining | Reason |
 |-----------------|--------|
 | `/lyric-writer` + `/lyric-reviewer` (simultaneously) | Run separately: writer first, reviewer after pronunciation pass |
+| `/lyric-writer` + `/lyric-refiner` (simultaneously) | Run refiner after writer completes — refiner is a post-writing tool |
 | Multiple researcher specialists at once | Use `/researcher` to coordinate them instead |
 | `/mastering-engineer` before audio import | Need to generate on Suno and import audio first |
 | `/release-director` before `/mastering-engineer` | Audio must be mastered before release |
@@ -337,8 +344,9 @@ Redundant or conflicting combinations:
 
 Skills are assigned to models based on task complexity. See [model-strategy.md](model-strategy.md) for full rationale.
 
-### Opus 4.6 (Critical Creative Work — 6 skills)
+### Opus 4.6 (Critical Creative Work — 7 skills)
 - `/lyric-writer` - Core creative content
+- `/lyric-refiner` - Multi-pass lyric refinement and album cohesion
 - `/suno-engineer` - Music generation prompts
 - `/album-conceptualizer` - Album concept shapes everything downstream
 - `/lyric-reviewer` - QC gate before generation, must catch all issues

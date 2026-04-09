@@ -6,13 +6,13 @@ This document explains the rationale for which Claude model is assigned to each 
 
 | Model | Strengths | Cost | When to Use |
 |-------|-----------|------|-------------|
-| **Opus 4.5** | Highest creative quality, nuanced judgment, complex synthesis | ~15x | Output directly impacts music quality; errors are costly |
-| **Sonnet 4.5** | Strong reasoning, good creativity, reliable coordination | ~5x | Most tasks; balance of capability and efficiency |
+| **Opus 4.6** | Highest creative quality, nuanced judgment, complex synthesis | ~15x | Output directly impacts music quality; errors are costly |
+| **Sonnet 4.6** | Strong reasoning, good creativity, reliable coordination | ~5x | Most tasks; balance of capability and efficiency |
 | **Haiku 4.5** | Fastest, pattern matching, rule-following | 1x | Simple operations; binary decisions; no judgment needed |
 
 ---
 
-## Opus 4.5 Skills (6 skills)
+## Opus 4.6 Skills (7 skills)
 
 These skills directly impact music quality or have high error costs.
 
@@ -44,6 +44,16 @@ Bad style prompts = bad music. Every regeneration costs time. Getting it right t
 
 A weak concept produces a weak album. Spending Opus here prevents wasted effort on a fundamentally flawed foundation.
 
+### lyric-refiner
+**Why Opus**: Multi-pass refinement requires the same creative depth as writing. This skill must:
+- Make nuanced judgment calls about what to tighten vs. preserve
+- Evaluate cross-track cohesion across an entire album's lyrics
+- Identify subtle vocabulary drift and tonal inconsistencies
+- Add callback phrases that feel organic, not forced
+- Balance competing concerns (tightening vs. preserving voice, cohesion vs. distinctiveness)
+
+Refinement is surgical — a weaker model might over-tighten, break voice consistency, or miss cohesion opportunities. The stakes are the same as writing: bad refinement degrades good lyrics.
+
 ### lyric-reviewer
 **Why Opus**: This is the quality gate before Suno generation. If issues slip through, they become embedded in the music. This skill requires:
 - Catching subtle prosody problems
@@ -73,7 +83,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.5 Skills (30 skills)
+## Sonnet 4.6 Skills (30 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -242,8 +252,8 @@ Is it purely pattern matching, file operations, or static info?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus 4.5 | 6 | 11.8% | Music-defining output, high error cost |
-| Sonnet 4.5 | 30 | 58.8% | Reasoning, coordination, moderate creativity |
+| Opus 4.6 | 7 | 13.2% | Music-defining output, high error cost |
+| Sonnet 4.6 | 30 | 58.8% | Reasoning, coordination, moderate creativity |
 | Haiku 4.5 | 15 | 29.4% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.
