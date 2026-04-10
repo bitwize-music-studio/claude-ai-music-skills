@@ -3,6 +3,7 @@ name: health-check
 description: Runs plugin health checks (venv packages and skill registration). Use when the user asks to check plugin health, verify setup, or troubleshoot missing skills.
 model: claude-haiku-4-5-20251001
 allowed-tools:
+  - ToolSearch
   - bitwize-music-mcp
 ---
 
@@ -14,8 +15,11 @@ Run the `health_check` MCP tool and report results to the user.
 
 ## Workflow
 
-1. Call the `health_check` MCP tool via the bitwize-music-mcp tool interface — do NOT use Bash, python, or any CLI command
-2. Report results clearly using the format below
+**IMPORTANT: Do NOT use Bash for any step. Use only the tools listed below.**
+
+1. Use the `ToolSearch` tool with query `select:mcp__plugin_bitwize-music_bitwize-music-mcp__health_check` to load the MCP tool schema
+2. Call `mcp__plugin_bitwize-music_bitwize-music-mcp__health_check` (the MCP tool, not a CLI command)
+3. Report results clearly using the format below
 
 ## Report Format
 
