@@ -14,7 +14,7 @@ Run the `health_check` MCP tool and report results to the user.
 
 ## Workflow
 
-1. Call the `health_check` MCP tool
+1. Call the `health_check` MCP tool via the bitwize-music-mcp tool interface — do NOT use Bash, python, or any CLI command
 2. Report results clearly using the format below
 
 ## Report Format
