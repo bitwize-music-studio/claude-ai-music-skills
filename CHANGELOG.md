@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Tango genre** — Argentine-Uruguayan dance and song tradition covering Golden Age orquestas, tango canción, nuevo tango (Piazzolla), and electrotango; includes mastering presets for bandoneón-centric dynamics
+
 ## [0.88.0] - 2026-04-08
 
 ### Added

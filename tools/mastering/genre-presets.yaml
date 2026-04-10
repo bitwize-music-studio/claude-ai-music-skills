@@ -1444,6 +1444,10 @@ genres:
     target_lufs: -16.0
     cut_highmid: -1.0
     cut_highs: 0
+  tango:
+    target_lufs: -16.0
+    cut_highmid: -1.0
+    cut_highs: 0
   mambo:
     target_lufs: -14.0
     cut_highmid: -1.0

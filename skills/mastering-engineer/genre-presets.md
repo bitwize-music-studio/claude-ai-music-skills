@@ -2915,6 +2915,22 @@ Detailed mastering settings by genre.
 - Bass is gentle and supportive; barely there but providing warmth
 - The genre rewards the most intimate, careful mastering; over-processing destroys the romance
 
+### Tango
+**LUFS target**: -16 LUFS
+**Dynamics**: Light compression; preserve the wide dynamic range between dramatic forte passages and intimate, sparse sections; tango's emotional power lives in the contrast
+**EQ focus**: Bandoneón body and breath (200-800 Hz), violin section shimmer and attack (1-5 kHz), piano clarity (200-600 Hz), double bass warmth (60-200 Hz), vocal presence (2-4 kHz)
+**MCP command**: `master_audio(file, genre="tango")`
+
+**Characteristics**:
+- Bandoneón is tango's emotional center; preserve its mid-range complexity, the reedy breath and attack without harshness
+- Osvaldo Pugliese-style dramatic dynamics: deep dynamic swings, heavy bass ostinato, sudden explosions of intensity — protect the full range
+- Juan d'Arienzo-style rhythmic tangos: tighter, punchier; maintain rhythmic clarity without crushing transients
+- Violin sections carry melodic lines with expressive vibrato; preserve warmth and string attack above 3 kHz
+- Double bass provides harmonic and rhythmic foundation; deep, warm, and clearly defined from 60-200 Hz
+- Nuevo tango (Piazzolla): can sit at -15 LUFS; more polished, concert-ready treatment; preserve the jazz-influenced harmonic complexity
+- Electrotango (Gotan Project, Bajofondo): treat more like electronic production; -14 LUFS acceptable; programmed elements need clarity and punch
+- Tango canción (vocal tangos): vocal presence and intimacy are paramount — center the voice, protect its dynamic expression
+
 ### Mambo
 **LUFS target**: -14 LUFS
 **Dynamics**: Moderate compression; preserve the explosive big-band energy and dancing rhythm; the genre demands power and joy
