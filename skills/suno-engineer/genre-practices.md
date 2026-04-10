@@ -1,6 +1,6 @@
 # Genre-Specific Best Practices
 
-Detailed prompting strategies for each major genre.
+Example prompting strategies for common genres. These are starting points, not exhaustive rules — adapt to the track's specific arrangement, mood, and concept. Genres not listed here should be prompted using the same principles from SKILL.md.
 
 ---
 
