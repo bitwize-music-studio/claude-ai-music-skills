@@ -278,8 +278,8 @@ async def rename_track(
                 "sources_verified": parsed.get("sources_verified", old_track_data.get("sources_verified")),
                 "mtime": new_path.stat().st_mtime,
             })
-        except Exception:
-            pass
+        except (ValueError, OSError, KeyError) as exc:
+            logger.warning("Could not re-parse track after rename %s: %s", new_path, exc)
         tracks[normalized_new] = old_track_data
         state = _shared.cache.get_state_ref()  # same object that album/tracks reference into
         if state:

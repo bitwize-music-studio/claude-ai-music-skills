@@ -278,8 +278,8 @@ async def prepare_singles(
         cfg = load_config()
         if cfg:
             page_size_name = cfg.get('sheet_music', {}).get('page_size', 'letter')
-    except Exception:
-        pass
+    except (ImportError, OSError, KeyError) as exc:
+        logger.warning("Could not load sheet music config, using defaults: %s", exc)
 
     # Build title_map from state cache for legacy (no source manifest) fallback
     title_map = None

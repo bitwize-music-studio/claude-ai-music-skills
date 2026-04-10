@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from handlers import _shared
 from handlers._shared import _normalize_slug
@@ -120,7 +123,8 @@ def _check_cloud_enabled() -> str | None:
     try:
         from tools.shared.config import load_config
         config = load_config()
-    except Exception:
+    except (ImportError, OSError, KeyError) as exc:
+        logger.warning("Config load failed: %s", exc)
         return (
             "Could not load config. Ensure ~/.bitwize-music/config.yaml exists."
         )
@@ -145,7 +149,8 @@ def _check_anthemscore() -> str | None:
                 "AnthemScore not found. Install from: https://www.lunaverus.com/ "
                 "(Professional edition recommended for CLI support)"
             )
-    except Exception:
+    except (ImportError, OSError, AttributeError) as exc:
+        logger.warning("AnthemScore module check failed, falling back to path search: %s", exc)
         # Fall back to path search
         paths = [
             "/Applications/AnthemScore.app/Contents/MacOS/AnthemScore",

@@ -401,8 +401,8 @@ def _load_explicit_words() -> set[str]:
             content_root = config.get("content_root", "")
             overrides_dir = str(Path(content_root) / "overrides")
         override_path = Path(overrides_dir) / "explicit-words.md"
-    except Exception:
-        pass
+    except (RuntimeError, OSError, KeyError) as exc:
+        logger.warning("Could not resolve override path: %s", exc)
 
     with _explicit_word_lock:
 
