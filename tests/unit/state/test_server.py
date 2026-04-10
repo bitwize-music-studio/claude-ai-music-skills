@@ -7048,6 +7048,266 @@ class TestCheckVenvHealth:
 
 
 # =============================================================================
+# Tests for _check_skill_registration
+# =============================================================================
+
+
+class TestCheckSkillRegistration:
+    """Tests for the _check_skill_registration() helper."""
+
+    def _setup_skills(self, tmp_path, source_skills, cached_skills,
+                      cached_version="0.89.0"):
+        """Create source and cache skill directories for testing."""
+        # Source skills in PLUGIN_ROOT
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        for name in source_skills:
+            skill_dir = skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        # Cache directory
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / cached_version)
+        cache_skills_dir = cache_dir / "skills"
+        cache_skills_dir.mkdir(parents=True)
+        for name in cached_skills:
+            skill_dir = cache_skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        # Write plugin.json in cache
+        plugin_json_dir = cache_dir / ".claude-plugin"
+        plugin_json_dir.mkdir(parents=True)
+        (plugin_json_dir / "plugin.json").write_text(
+            json.dumps({"version": cached_version})
+        )
+
+        return plugin_root
+
+    def test_all_match_returns_ok(self, tmp_path):
+        """All skills matching returns status ok."""
+        skills = ["lyric-writer", "resume", "test"]
+        plugin_root = self._setup_skills(tmp_path, skills, skills)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+        assert result["ok_count"] == 3
+        assert result["missing"] == []
+        assert result["ghost"] == []
+
+    def test_missing_skills_returns_stale(self, tmp_path):
+        """Skills on disk but not in cache are reported as missing."""
+        source = ["lyric-writer", "lyric-refiner", "voice-checker"]
+        cached = ["lyric-writer"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert "lyric-refiner" in result["missing"]
+        assert "voice-checker" in result["missing"]
+        assert result["ok_count"] == 1
+
+    def test_ghost_skills_returns_stale(self, tmp_path):
+        """Skills in cache but not on disk are reported as ghost."""
+        source = ["lyric-writer"]
+        cached = ["lyric-writer", "ship"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["ghost"] == ["ship"]
+        assert result["ok_count"] == 1
+
+    def test_mixed_missing_and_ghost(self, tmp_path):
+        """Both missing and ghost skills detected."""
+        source = ["lyric-writer", "voice-checker"]
+        cached = ["lyric-writer", "ship"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["missing"] == ["voice-checker"]
+        assert result["ghost"] == ["ship"]
+        assert result["ok_count"] == 1
+
+    def test_no_cache_returns_no_cache(self, tmp_path):
+        """No plugin cache directory returns no_cache status."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+
+        # fakehome with no .claude directory
+        fakehome = tmp_path / "fakehome"
+        fakehome.mkdir()
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "no_cache"
+        assert result["source_count"] == 1
+
+    def test_cached_version_reported(self, tmp_path):
+        """Cached plugin version is included in result."""
+        skills = ["test-skill"]
+        plugin_root = self._setup_skills(tmp_path, skills, skills,
+                                         cached_version="0.69.0")
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["cached_version"] == "0.69.0"
+
+    def test_fix_message_on_stale(self, tmp_path):
+        """Stale result includes a fix message."""
+        source = ["lyric-writer", "new-skill"]
+        cached = ["lyric-writer"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert "fix_message" in result
+        assert "claude plugin update" in result["fix_message"]
+
+
+# =============================================================================
+# Tests for health_check
+# =============================================================================
+
+
+class TestHealthCheck:
+    """Tests for the health_check() MCP tool."""
+
+    def test_all_ok(self, tmp_path):
+        """Both venv and skills ok returns overall ok."""
+        # Set up matching skills
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / "1.0.0")
+        cache_skills_dir = cache_dir / "skills" / "test-skill"
+        cache_skills_dir.mkdir(parents=True)
+        (cache_skills_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+        pj = cache_dir / ".claude-plugin"
+        pj.mkdir(parents=True)
+        (pj / "plugin.json").write_text('{"version": "1.0.0"}')
+
+        # Set up venv
+        req = plugin_root / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        def mock_version(pkg):
+            if pkg == "requests":
+                return "2.31.0"
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "ok"
+        assert len(result["checks"]) == 2
+        assert result["checks"][0]["name"] == "venv"
+        assert result["checks"][0]["status"] == "ok"
+        assert result["checks"][1]["name"] == "skills"
+        assert result["checks"][1]["status"] == "ok"
+
+    def test_stale_skills_returns_warn(self, tmp_path):
+        """Stale skills with ok venv returns overall warn."""
+        # Source has extra skill not in cache
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        for name in ("existing", "new-skill"):
+            d = skills_dir / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / "1.0.0")
+        cache_skill = cache_dir / "skills" / "existing"
+        cache_skill.mkdir(parents=True)
+        (cache_skill / "SKILL.md").write_text("---\nname: existing\n---\n")
+        pj = cache_dir / ".claude-plugin"
+        pj.mkdir(parents=True)
+        (pj / "plugin.json").write_text('{"version": "1.0.0"}')
+
+        # Venv ok
+        req = plugin_root / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch("importlib.metadata.version", return_value="2.31.0"), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "warn"
+        skills_check = result["checks"][1]
+        assert skills_check["status"] == "warn"
+        assert "new-skill" in skills_check["detail"]
+
+    def test_no_venv_returns_fail(self, tmp_path):
+        """Missing venv returns overall fail."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        # No venv
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "fail"
+        assert result["checks"][0]["name"] == "venv"
+        assert result["checks"][0]["status"] == "fail"
+
+    def test_raw_results_included(self, tmp_path):
+        """Raw venv and skills results are included for direct access."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert "venv" in result
+        assert "skills" in result
+        assert "status" in result["venv"]
+        assert "status" in result["skills"]
+
+
+# =============================================================================
 # Tests for create_idea
 # =============================================================================
 

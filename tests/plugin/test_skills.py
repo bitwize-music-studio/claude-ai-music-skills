@@ -314,3 +314,73 @@ class TestSkillIndex:
                 missing.append(skill_name)
 
         assert not missing, f"Skills not in SKILL_INDEX.md: {', '.join(missing)}"
+
+
+class TestSkillRegistrationIntegrity:
+    """On-disk skills must match the Claude Code plugin cache (#234)."""
+
+    @pytest.mark.xfail(reason="Stale plugin cache — run: claude plugin update bitwize-music (#234)", strict=False)
+    def test_no_ghost_skills_in_cache(self, skills_dir):
+        """Skills in plugin cache but not on disk are ghost registrations."""
+        from pathlib import Path
+        cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
+        if not cache_base.is_dir():
+            pytest.skip("No plugin cache found (plugin not installed via marketplace)")
+
+        source_skills = {
+            p.parent.name for p in skills_dir.glob("*/SKILL.md")
+        }
+
+        # Find all cached version directories
+        ghost = set()
+        for org_or_name in cache_base.iterdir():
+            if not org_or_name.is_dir():
+                continue
+            for version_dir in org_or_name.iterdir():
+                cache_skills_dir = version_dir / "skills"
+                if not cache_skills_dir.is_dir():
+                    continue
+                cached = {p.parent.name for p in cache_skills_dir.glob("*/SKILL.md")}
+                ghost |= cached - source_skills
+
+        assert not ghost, (
+            f"Ghost skills in plugin cache (deleted but still cached): "
+            f"{', '.join(sorted(ghost))} — run: claude plugin update bitwize-music"
+        )
+
+    @pytest.mark.xfail(reason="Stale plugin cache — run: claude plugin update bitwize-music (#234)", strict=False)
+    def test_no_missing_skills_in_cache(self, skills_dir):
+        """Skills on disk must also be present in the plugin cache."""
+        from pathlib import Path
+        cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
+        if not cache_base.is_dir():
+            pytest.skip("No plugin cache found (plugin not installed via marketplace)")
+
+        source_skills = {
+            p.parent.name for p in skills_dir.glob("*/SKILL.md")
+        }
+
+        # Find the latest cached version
+        candidates = []
+        for org_or_name in cache_base.iterdir():
+            if not org_or_name.is_dir():
+                continue
+            for version_dir in org_or_name.iterdir():
+                if version_dir.is_dir() and (version_dir / "skills").is_dir():
+                    candidates.append(version_dir)
+
+        if not candidates:
+            pytest.skip("No cached plugin versions found")
+
+        candidates.sort(key=lambda p: p.name, reverse=True)
+        latest_cache = candidates[0]
+        cached_skills = {
+            p.parent.name
+            for p in (latest_cache / "skills").glob("*/SKILL.md")
+        }
+
+        missing = source_skills - cached_skills
+        assert not missing, (
+            f"Skills on disk but missing from plugin cache (v{latest_cache.name}): "
+            f"{', '.join(sorted(missing))} — run: claude plugin update bitwize-music"
+        )
