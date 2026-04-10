@@ -27,8 +27,8 @@ Claude: Drafts lyrics, checks prosody and rhyme schemes
         Scans for pronunciation risks, suggests phonetic fixes
         Builds Suno V5 style prompt with genre tags and vocal direction
 
-You:    "Track sounds great, here's the WAV"
-Claude: Imports audio, splits stems, polishes per-stem
+You:    "Track sounds great, here are the stems"
+Claude: Imports stems from Suno, polishes per-stem
         Masters to -14 LUFS for streaming
         Generates promo video and social media copy
 ```
