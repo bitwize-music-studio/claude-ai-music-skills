@@ -22,6 +22,10 @@ Male rapper, clear delivery, storytelling flow. Boom-bap hip-hop,
 - Piano, strings, vocal samples
 - Minimal (let vocals breathe)
 
+### Exclude Styles
+- Boom-bap: `no autotune, no synths`
+- Lo-fi: `no live drums, no electric guitar`
+
 ---
 
 ## Alternative Rock
@@ -42,6 +46,10 @@ Modern production with live energy.
 - Electric guitar (clean/distorted), bass, drums
 - Organ, keys (optional)
 - Live feel, energy
+
+### Exclude Styles
+- Acoustic version: `no electric guitar, no drums`
+- Stripped-down: `no synths, no backing vocals`
 
 ---
 
@@ -64,6 +72,10 @@ Atmospheric production, spacious reverb.
 - Programmed drums, sub-bass
 - Layers, textures, effects
 
+### Exclude Styles
+- Ambient: `no drums, no vocals`
+- Minimal: `no vocals, no acoustic instruments`
+
 ---
 
 ## Folk/Indie
@@ -85,6 +97,11 @@ Natural room sound, minimal production.
 - Upright bass, light percussion
 - Organic, room ambience
 
+### Exclude Styles
+- Sparse/intimate: `no drums, no electric instruments`
+- Solo acoustic: `no drums, no electric instruments, no harmony vocals`
+- Full band: `no synths, no electric guitar`
+
 ---
 
 ## Country
@@ -104,6 +121,10 @@ steel guitar, acoustic rhythm, walking bass. Classic Nashville production.
 - Steel guitar, fiddle, acoustic
 - Walking bass, light drums
 - Warm, organic
+
+### Exclude Styles
+- Traditional: `no electric instruments, no synths`
+- Acoustic: `no drums, no electric instruments`
 
 ---
 
