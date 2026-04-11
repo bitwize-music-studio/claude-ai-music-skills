@@ -28,10 +28,13 @@ from tools.mixing.mix_tracks import (
     apply_eq,
     apply_high_shelf,
     apply_highpass,
+    apply_lowpass,
+    apply_saturation,
     gentle_compress,
     remove_clicks,
     reduce_noise,
     enhance_stereo,
+    _apply_character_effects,
     remix_stems,
     process_vocals,
     process_backing_vocals,
@@ -1622,3 +1625,279 @@ class TestOverrideMerging:
         presets = load_mix_presets()
         assert 'rock' in presets['genres']
         assert 'pop' in presets['genres']
+
+
+# ─── Character Effects Tests ─────────────────────────────────────────
+
+
+class TestApplySaturation:
+    """Tests for apply_saturation()."""
+
+    def test_zero_drive_passthrough(self):
+        """Drive=0 returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_negative_drive_passthrough(self):
+        """Negative drive returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=-0.5)
+        np.testing.assert_array_equal(result, data)
+
+    def test_saturation_changes_signal(self):
+        """Non-zero drive produces a different signal."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.2)
+        assert not np.allclose(result, data)
+
+    def test_saturation_preserves_shape(self):
+        """Output shape matches input shape."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.3)
+        assert result.shape == data.shape
+
+    def test_saturation_mono(self):
+        """Saturation works on mono signals."""
+        data, rate = _generate_sine(amplitude=0.5, stereo=False)
+        result = apply_saturation(data, rate, drive=0.2)
+        assert result.shape == data.shape
+        assert not np.allclose(result, data)
+
+    def test_saturation_adds_harmonics(self):
+        """Saturation adds harmonic content (broadens spectrum)."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.3)
+        # Check that spectral energy outside the fundamental increases
+        fft_orig = np.abs(np.fft.rfft(data[:, 0]))
+        fft_sat = np.abs(np.fft.rfft(result[:, 0]))
+        # Fundamental bin
+        fund_bin = int(440 * len(data) / rate)
+        # Sum energy outside ±5 bins of fundamental
+        mask = np.ones(len(fft_orig), dtype=bool)
+        mask[max(0, fund_bin - 5):fund_bin + 6] = False
+        orig_sideband = np.sum(fft_orig[mask])
+        sat_sideband = np.sum(fft_sat[mask])
+        assert sat_sideband > orig_sideband
+
+    def test_saturation_drive_clamped(self):
+        """Drive > 1.0 is clamped to 1.0 (no explosion)."""
+        data, rate = _generate_sine(amplitude=0.8)
+        result = apply_saturation(data, rate, drive=5.0)
+        assert np.all(np.abs(result) <= 1.0)
+
+    def test_higher_drive_more_effect(self):
+        """Higher drive produces more deviation from original."""
+        data, rate = _generate_sine(amplitude=0.5)
+        low = apply_saturation(data, rate, drive=0.1)
+        high = apply_saturation(data, rate, drive=0.5)
+        diff_low = np.mean(np.abs(low - data))
+        diff_high = np.mean(np.abs(high - data))
+        assert diff_high > diff_low
+
+
+class TestApplyLowpass:
+    """Tests for apply_lowpass()."""
+
+    def test_high_cutoff_passthrough(self):
+        """Cutoff >= Nyquist returns data unchanged."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=rate // 2)
+        np.testing.assert_array_equal(result, data)
+
+    def test_zero_cutoff_passthrough(self):
+        """Cutoff=0 returns data unchanged (invalid, skip)."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_lowpass_attenuates_highs(self):
+        """Lowpass at 1000 Hz attenuates a 5000 Hz signal."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=1000)
+        # RMS should drop significantly
+        orig_rms = np.sqrt(np.mean(data ** 2))
+        result_rms = np.sqrt(np.mean(result ** 2))
+        assert result_rms < orig_rms * 0.5
+
+    def test_lowpass_preserves_lows(self):
+        """Lowpass at 5000 Hz preserves a 200 Hz signal."""
+        data, rate = _generate_sine(freq=200, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=5000)
+        # Signal should be mostly unchanged (small filter ripple OK)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+    def test_lowpass_preserves_shape(self):
+        """Output shape matches input shape."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=8000)
+        assert result.shape == data.shape
+
+    def test_lowpass_mono(self):
+        """Lowpass works on mono signals."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5, stereo=False)
+        result = apply_lowpass(data, rate, cutoff=1000)
+        assert result.shape == data.shape
+        assert np.sqrt(np.mean(result ** 2)) < np.sqrt(np.mean(data ** 2)) * 0.5
+
+
+class TestApplyCharacterEffects:
+    """Tests for _apply_character_effects() helper."""
+
+    def test_no_effects_passthrough(self):
+        """All effects disabled returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0, 'lowpass_cutoff': 20000, 'stereo_width': 1.0}
+        result = _apply_character_effects(data, rate, settings)
+        np.testing.assert_array_equal(result, data)
+
+    def test_saturation_flag(self):
+        """saturation=True applies saturation when drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0.2}
+        result = _apply_character_effects(data, rate, settings, saturation=True)
+        assert not np.allclose(result, data)
+
+    def test_saturation_flag_off(self):
+        """saturation=False skips saturation even with drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0.2}
+        result = _apply_character_effects(data, rate, settings, saturation=False)
+        np.testing.assert_array_equal(result, data)
+
+    def test_lowpass_flag(self):
+        """lowpass=True applies lowpass when cutoff < 20000."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        settings = {'lowpass_cutoff': 1000}
+        result = _apply_character_effects(data, rate, settings, lowpass=True)
+        assert not np.allclose(result, data)
+
+    def test_stereo_flag(self):
+        """stereo=True applies width when stereo_width != 1.0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        # Make left and right slightly different for stereo effect
+        data[:, 1] *= 0.8
+        settings = {'stereo_width': 1.3}
+        result = _apply_character_effects(data, rate, settings, stereo=True)
+        assert not np.allclose(result, data)
+
+    def test_stereo_width_narrowing(self):
+        """stereo_width < 1.0 narrows the stereo field."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.7  # Create stereo difference
+        settings = {'stereo_width': 0.9}
+        result = _apply_character_effects(data, rate, settings, stereo=True)
+        # Side signal should be reduced
+        orig_side = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_side = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_side < orig_side
+
+
+class TestProcessorCharacterEffectsWiring:
+    """Verify that processors apply character effects when settings are non-default."""
+
+    def test_vocals_saturation(self):
+        """Vocals applies saturation when drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings_off = _get_stem_settings('vocals')
+        settings_on = {**settings_off, 'saturation_drive': 0.2}
+        result_off = process_vocals(data.copy(), rate, settings_off)
+        result_on = process_vocals(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_vocals_lowpass(self):
+        """Vocals applies lowpass when cutoff < 20000."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        settings_off = _get_stem_settings('vocals')
+        settings_on = {**settings_off, 'lowpass_cutoff': 2000}
+        result_off = process_vocals(data.copy(), rate, settings_off)
+        result_on = process_vocals(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_backing_vocals_stereo_width(self):
+        """Backing vocals applies stereo width."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        settings = {**_get_stem_settings('backing_vocals'), 'stereo_width': 1.5}
+        result_wide = process_backing_vocals(data.copy(), rate, settings)
+        settings_narrow = {**settings, 'stereo_width': 1.0}
+        result_narrow = process_backing_vocals(data.copy(), rate, settings_narrow)
+        assert not np.allclose(result_wide, result_narrow)
+
+    def test_drums_saturation(self):
+        """Drums applies saturation when drive > 0."""
+        data, rate = _generate_noise(amplitude=0.5)
+        settings_off = _get_stem_settings('drums')
+        settings_on = {**settings_off, 'saturation_drive': 0.15}
+        result_off = process_drums(data.copy(), rate, settings_off)
+        result_on = process_drums(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_guitar_all_character_effects(self):
+        """Guitar applies stereo, saturation, and lowpass."""
+        data, rate = _generate_sine(freq=1200, amplitude=0.5)
+        data[:, 1] *= 0.9
+        settings = {
+            **_get_stem_settings('guitar'),
+            'stereo_width': 1.2,
+            'saturation_drive': 0.15,
+            'lowpass_cutoff': 8000,
+        }
+        settings_off = {
+            **_get_stem_settings('guitar'),
+            'stereo_width': 1.0,
+            'saturation_drive': 0,
+            'lowpass_cutoff': 20000,
+        }
+        result_on = process_guitar(data.copy(), rate, settings)
+        result_off = process_guitar(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_strings_no_saturation(self):
+        """Strings does NOT apply saturation (per YAML chain)."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {**_get_stem_settings('strings'), 'saturation_drive': 0.3}
+        # Both should be the same because strings doesn't wire saturation
+        result = process_strings(data.copy(), rate, settings)
+        settings_zero = {**settings, 'saturation_drive': 0}
+        result_zero = process_strings(data.copy(), rate, settings_zero)
+        np.testing.assert_array_equal(result, result_zero)
+
+    def test_percussion_stereo_and_saturation(self):
+        """Percussion applies stereo width and saturation but not lowpass."""
+        data, rate = _generate_noise(amplitude=0.3)
+        settings = {
+            **_get_stem_settings('percussion'),
+            'stereo_width': 1.2,
+            'saturation_drive': 0.1,
+            'lowpass_cutoff': 5000,  # should be ignored
+        }
+        settings_off = {
+            **settings,
+            'stereo_width': 1.0,
+            'saturation_drive': 0,
+        }
+        result_on = process_percussion(data.copy(), rate, settings)
+        result_off = process_percussion(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_other_lowpass_only(self):
+        """Other stem applies lowpass but not saturation or stereo."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.3)
+        settings = {**_get_stem_settings('other'), 'lowpass_cutoff': 2000}
+        settings_off = {**settings, 'lowpass_cutoff': 20000}
+        result_on = process_other(data.copy(), rate, settings)
+        result_off = process_other(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_default_settings_unchanged_behavior(self):
+        """With default settings (drive=0, cutoff=20000, width=1.0), processors behave as before."""
+        data, rate = _generate_sine(amplitude=0.5)
+        # Default settings have all character effects off
+        settings = _get_stem_settings('vocals')
+        assert settings.get('saturation_drive', 0) == 0
+        assert settings.get('lowpass_cutoff', 20000) == 20000
+        # Just verify it runs without error
+        result = process_vocals(data.copy(), rate, settings)
+        assert result.shape == data.shape

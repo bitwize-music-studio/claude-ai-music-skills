@@ -537,28 +537,29 @@ def remove_clicks(data: Any, rate: int, threshold: float = 6.0) -> Any:
 
 
 def enhance_stereo(data: Any, rate: int, amount: float = 0.2) -> Any:
-    """Enhance stereo width using mid-side processing.
+    """Adjust stereo width using mid-side processing.
 
     Args:
         data: Stereo audio data (samples, 2)
         rate: Sample rate (unused, kept for API consistency)
-        amount: Width enhancement amount (0.0 = no change, 1.0 = max)
+        amount: Width adjustment (-1.0 to 1.0). Positive widens, negative narrows,
+            0.0 = no change.
 
     Returns:
-        Width-enhanced stereo audio data.
+        Width-adjusted stereo audio data.
     """
     if len(data.shape) == 1 or data.shape[1] != 2:
         return data
-    if amount <= 0:
+    if amount == 0:
         return data
 
-    amount = min(amount, 1.0)
+    amount = max(-1.0, min(amount, 1.0))
 
     # Mid-side encoding
     mid = (data[:, 0] + data[:, 1]) / 2
     side = (data[:, 0] - data[:, 1]) / 2
 
-    # Enhance side signal
+    # Adjust side signal (positive = widen, negative = narrow)
     side = side * (1 + amount)
 
     # Decode back to L/R
@@ -567,6 +568,66 @@ def enhance_stereo(data: Any, rate: int, amount: float = 0.2) -> Any:
     result[:, 1] = mid - side
 
     return result
+
+
+def apply_saturation(data: Any, rate: int, drive: float = 0.0) -> Any:
+    """Apply tanh soft saturation for harmonic warmth.
+
+    Args:
+        data: Audio data
+        rate: Sample rate (unused, kept for API consistency)
+        drive: Saturation amount 0.0-1.0 (0 = off, higher = more harmonics)
+
+    Returns:
+        Saturated audio data with preserved peak level.
+    """
+    if drive <= 0:
+        return data
+    drive = min(drive, 1.0)
+
+    # Pre-gain maps drive 0.1-1.0 to 1.5x-6.0x
+    gain = 1.0 + drive * 5.0
+    saturated = np.tanh(data * gain)
+    # Normalize so that a full-scale sine doesn't change peak level
+    normalizer = np.tanh(gain)
+    if normalizer > 0:
+        saturated = saturated / normalizer
+
+    return saturated
+
+
+def apply_lowpass(data: Any, rate: int, cutoff: int = 20000) -> Any:
+    """Apply Butterworth lowpass filter for dark/vintage character.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        cutoff: Cutoff frequency in Hz (20000 = effectively off)
+
+    Returns:
+        Lowpass-filtered audio data.
+    """
+    nyquist = rate / 2
+    if cutoff <= 0 or cutoff >= nyquist:
+        return data
+
+    normalized_cutoff = cutoff / nyquist
+    # 2nd order Butterworth
+    b, a = signal.butter(2, normalized_cutoff, btype='low')
+
+    # Verify stability
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable lowpass filter at %d Hz, skipping", cutoff)
+        return data
+
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
 
 
 def remix_stems(stems_dict: dict[str, tuple[Any, int]], gains_dict: dict[str, float] | None = None) -> tuple[Any, int]:
@@ -629,6 +690,47 @@ def remix_stems(stems_dict: dict[str, tuple[Any, int]], gains_dict: dict[str, fl
     return mixed, rate
 
 
+# ─── Character Effects Helper ────────────────────────────────────────
+
+
+def _apply_character_effects(
+    data: Any, rate: int, settings: dict[str, Any],
+    *, stereo: bool = False, saturation: bool = False, lowpass: bool = False,
+) -> Any:
+    """Apply character effects (stereo width, saturation, lowpass) in standard order.
+
+    Call this at the appropriate point in each processor's chain:
+    - stereo_width: call BEFORE compression
+    - saturation + lowpass: call AFTER compression
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        settings: Stem settings dict (reads stereo_width, saturation_drive, lowpass_cutoff)
+        stereo: Whether to apply stereo width enhancement
+        saturation: Whether to apply saturation
+        lowpass: Whether to apply lowpass filter
+    """
+    if stereo:
+        width = settings.get('stereo_width', 1.0)
+        if width != 1.0:
+            # Convert width multiplier to enhancement amount
+            # width 1.3 → amount 0.3, width 0.9 → amount -0.1
+            data = enhance_stereo(data, rate, amount=width - 1.0)
+
+    if saturation:
+        drive = settings.get('saturation_drive', 0)
+        if drive > 0:
+            data = apply_saturation(data, rate, drive=drive)
+
+    if lowpass:
+        cutoff = settings.get('lowpass_cutoff', 20000)
+        if cutoff < 20000:
+            data = apply_lowpass(data, rate, cutoff=cutoff)
+
+    return data
+
+
 # ─── Per-Stem Processing Chains ──────────────────────────────────────
 
 
@@ -681,7 +783,7 @@ def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
 
 
 def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process vocal stem: noise reduction -> presence boost -> high tame -> compress.
+    """Process vocal stem: noise reduction -> presence boost -> high tame -> compress -> sat -> lp.
 
     Args:
         data: Audio data
@@ -718,11 +820,14 @@ def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None)
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
+
     return data
 
 
 def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process backing vocal stem: noise reduction -> presence boost -> high tame -> width -> compress.
+    """Process backing vocal stem: noise reduction -> presence boost -> high tame -> width -> compress -> sat -> lp.
 
     Lighter presence than lead vocals so backing sits behind. Wider stereo
     spread and slightly more aggressive high tame for de-essing.
@@ -754,6 +859,9 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression — tighter than lead
     comp_threshold = settings.get('compress_threshold_db', -14.0)
     comp_ratio = settings.get('compress_ratio', 3.0)
@@ -762,11 +870,14 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
+
     return data
 
 
 def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process drum stem: click removal -> compress (fast attack).
+    """Process drum stem: click removal -> compress (fast attack) -> sat.
 
     Args:
         data: Audio data
@@ -791,11 +902,14 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) 
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True)
+
     return data
 
 
 def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process bass stem: highpass -> mud cut -> compress.
+    """Process bass stem: highpass -> mud cut -> compress -> sat.
 
     Args:
         data: Audio data
@@ -826,11 +940,14 @@ def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True)
+
     return data
 
 
 def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process synth stem: highpass -> mid boost -> high tame -> width -> compress.
+    """Process synth stem: highpass -> mid boost -> high tame -> width -> compress -> sat -> lp.
 
     Highpass avoids bass competition. Mid boost adds body/presence.
     Light compression preserves dynamics.
@@ -862,6 +979,9 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression — light, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -16.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -869,6 +989,9 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
 
     return data
 
@@ -912,6 +1035,9 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression — moderate, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -14.0)
     comp_ratio = settings.get('compress_ratio', 2.5)
@@ -919,6 +1045,9 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
 
     return data
 
@@ -962,6 +1091,9 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression — light, preserve dynamics
     comp_threshold = settings.get('compress_threshold_db', -16.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -969,6 +1101,9 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
 
     return data
 
@@ -1013,6 +1148,9 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression — very gentle, preserve orchestral dynamics
     comp_threshold = settings.get('compress_threshold_db', -18.0)
     comp_ratio = settings.get('compress_ratio', 1.5)
@@ -1020,6 +1158,9 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, lowpass=True)
 
     return data
 
@@ -1072,6 +1213,9 @@ def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None) 
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
+
     return data
 
 
@@ -1122,6 +1266,9 @@ def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = No
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True, lowpass=True)
+
     return data
 
 
@@ -1164,6 +1311,9 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
+    # Stereo width (pre-compression)
+    data = _apply_character_effects(data, rate, settings, stereo=True)
+
     # Compression
     comp_threshold = settings.get('compress_threshold_db', -15.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -1172,11 +1322,14 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
+    # Character effects (post-compression)
+    data = _apply_character_effects(data, rate, settings, saturation=True)
+
     return data
 
 
 def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process 'other' stem (instruments, synths): noise reduction -> mud cut -> high tame.
+    """Process 'other' stem (instruments, synths): noise reduction -> mud cut -> high tame -> lp.
 
     Args:
         data: Audio data
@@ -1204,6 +1357,9 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     high_tame_freq = settings.get('high_tame_freq', 8000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
+
+    # Character effects
+    data = _apply_character_effects(data, rate, settings, lowpass=True)
 
     return data
 
@@ -1435,6 +1591,9 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         if comp_ratio > 1.0:
             data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                    ratio=comp_ratio)
+
+        # Character effects (post-compression)
+        data = _apply_character_effects(data, rate, settings, lowpass=True)
 
         # Convert back to mono if input was mono
         if was_mono:
