@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from tools.mastering.master_tracks import (
     GENRE_PRESETS,
     _BUILTIN_PRESETS_FILE,
+    _PRESET_DEFAULTS,
     _load_yaml_file,
     _process_one_track,
     apply_eq,
@@ -832,3 +833,35 @@ class TestProcessOneTrack:
         )
         assert result is not None
         assert Path(output_path).exists()
+
+
+# ─── Tests: Preset Resolution ───────────────────────────────────────────
+
+
+class TestPresetResolution:
+    """Tests for preset dict construction from genre presets and CLI overrides."""
+
+    def test_genre_preset_is_complete_dict(self):
+        """Each genre preset should have all keys from _PRESET_DEFAULTS."""
+        for genre, preset in GENRE_PRESETS.items():
+            for key in _PRESET_DEFAULTS:
+                assert key in preset, f"Genre '{genre}' missing key '{key}'"
+
+    def test_genre_preset_values_are_floats(self):
+        """All preset values should be floats."""
+        for genre, preset in GENRE_PRESETS.items():
+            for key, value in preset.items():
+                assert isinstance(value, float), (
+                    f"Genre '{genre}' key '{key}' is {type(value).__name__}, expected float"
+                )
+
+    def test_default_preset_matches_hardcoded_defaults(self):
+        """_PRESET_DEFAULTS should match the previously hardcoded values."""
+        assert _PRESET_DEFAULTS['compress_threshold'] == -18.0
+        assert _PRESET_DEFAULTS['compress_attack'] == 30.0
+        assert _PRESET_DEFAULTS['compress_release'] == 200.0
+        assert _PRESET_DEFAULTS['eq_highmid_freq'] == 3500.0
+        assert _PRESET_DEFAULTS['eq_highmid_q'] == 1.5
+        assert _PRESET_DEFAULTS['eq_highs_freq'] == 8000.0
+        assert _PRESET_DEFAULTS['eq_highs_q'] == 0.7
+        assert _PRESET_DEFAULTS['dither_bits'] == 16
