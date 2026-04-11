@@ -572,6 +572,19 @@ class TestYamlPresetLoading:
             assert 'cut_highmid' in settings, f"Genre '{genre}' missing cut_highmid"
             assert 'cut_highs' in settings, f"Genre '{genre}' missing cut_highs"
 
+    def test_builtin_yaml_has_all_default_keys(self):
+        """Built-in YAML defaults should include all preset keys."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        defaults = data['defaults']
+        expected_keys = [
+            'target_lufs', 'cut_highmid', 'cut_highs', 'compress_ratio',
+            'compress_threshold', 'compress_attack', 'compress_release',
+            'eq_highmid_freq', 'eq_highmid_q', 'eq_highs_freq', 'eq_highs_q',
+            'dither_bits',
+        ]
+        for key in expected_keys:
+            assert key in defaults, f"Default key '{key}' missing from genre-presets.yaml"
+
     def test_loaded_presets_match_yaml(self):
         """GENRE_PRESETS dict should match what's in the YAML file."""
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
