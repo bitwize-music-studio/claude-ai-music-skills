@@ -29,6 +29,9 @@ from tools.mastering.master_tracks import (
     apply_eq,
     apply_fade_out,
     apply_high_shelf,
+    apply_highpass,
+    apply_low_shelf,
+    apply_stereo_width,
     apply_tpdf_dither,
     limit_peaks,
     load_genre_presets,
@@ -865,3 +868,207 @@ class TestPresetResolution:
         assert _PRESET_DEFAULTS['eq_highs_freq'] == 8000.0
         assert _PRESET_DEFAULTS['eq_highs_q'] == 0.7
         assert _PRESET_DEFAULTS['dither_bits'] == 16
+        assert _PRESET_DEFAULTS['eq_low_freq'] == 80.0
+        assert _PRESET_DEFAULTS['eq_low_gain'] == 0.0
+        assert _PRESET_DEFAULTS['eq_sub_cut_freq'] == 0.0
+        assert _PRESET_DEFAULTS['stereo_width'] == 1.0
+        assert _PRESET_DEFAULTS['stereo_bass_mono_freq'] == 0.0
+        assert _PRESET_DEFAULTS['output_bits'] == 16
+
+
+class TestApplyLowShelf:
+    """Tests for apply_low_shelf()."""
+
+    def test_zero_gain_passthrough(self):
+        """Gain=0 returns data unchanged."""
+        data, rate = _generate_sine(freq=80, amplitude=0.5)
+        result = apply_low_shelf(data, rate, freq=80, gain_db=0.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_boost_increases_low_energy(self):
+        """Positive gain boosts low frequencies."""
+        data, rate = _generate_sine(freq=60, amplitude=0.3)
+        result = apply_low_shelf(data, rate, freq=200, gain_db=6.0)
+        assert np.sqrt(np.mean(result ** 2)) > np.sqrt(np.mean(data ** 2))
+
+    def test_cut_decreases_low_energy(self):
+        """Negative gain cuts low frequencies."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        result = apply_low_shelf(data, rate, freq=200, gain_db=-6.0)
+        assert np.sqrt(np.mean(result ** 2)) < np.sqrt(np.mean(data ** 2))
+
+    def test_high_freq_unaffected(self):
+        """Low shelf at 200Hz shouldn't significantly affect 5kHz signal."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        result = apply_low_shelf(data, rate, freq=200, gain_db=6.0)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_low_shelf(data, rate, freq=80, gain_db=3.0)
+        assert result.shape == data.shape
+
+    def test_mono_signal(self):
+        """Works on mono signals."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5, stereo=False)
+        result = apply_low_shelf(data, rate, freq=200, gain_db=3.0)
+        assert result.shape == data.shape
+
+
+class TestApplyHighpass:
+    """Tests for mastering apply_highpass()."""
+
+    def test_zero_cutoff_passthrough(self):
+        """Cutoff=0 returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_highpass(data, rate, cutoff=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_removes_sub_bass(self):
+        """HPF at 40Hz removes 20Hz content."""
+        data, rate = _generate_sine(freq=20, amplitude=0.5)
+        result = apply_highpass(data, rate, cutoff=40)
+        assert np.sqrt(np.mean(result ** 2)) < np.sqrt(np.mean(data ** 2)) * 0.5
+
+    def test_preserves_highs(self):
+        """HPF at 30Hz preserves 1kHz content."""
+        data, rate = _generate_sine(freq=1000, amplitude=0.5)
+        result = apply_highpass(data, rate, cutoff=30)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+
+class TestApplyStereoWidth:
+    """Tests for apply_stereo_width()."""
+
+    def test_unity_width_passthrough(self):
+        """Width=1.0 with no bass mono returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        result = apply_stereo_width(data, rate, width=1.0, bass_mono_freq=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_mono_collapse(self):
+        """Width=0.0 collapses to mono (L == R)."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.7
+        result = apply_stereo_width(data, rate, width=0.0)
+        np.testing.assert_allclose(result[:, 0], result[:, 1], atol=1e-10)
+
+    def test_wider_increases_difference(self):
+        """Width > 1.0 increases L/R difference."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        result = apply_stereo_width(data, rate, width=1.5)
+        orig_diff = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_diff = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_diff > orig_diff
+
+    def test_narrower_decreases_difference(self):
+        """Width < 1.0 decreases L/R difference."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        result = apply_stereo_width(data, rate, width=0.5)
+        orig_diff = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_diff = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_diff < orig_diff
+
+    def test_bass_mono_fold(self):
+        """Bass mono fold reduces low-frequency stereo content."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        # Low freq with stereo difference
+        left = 0.5 * np.sin(2 * np.pi * 60 * t)
+        right = 0.5 * np.sin(2 * np.pi * 60 * t + np.pi / 4)
+        data = np.column_stack([left, right])
+        result = apply_stereo_width(data, rate, width=1.0, bass_mono_freq=120)
+        # Side signal should be reduced at low frequencies
+        orig_side = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_side = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_side < orig_side
+
+    def test_mono_input_passthrough(self):
+        """Mono input is returned unchanged."""
+        data, rate = _generate_sine(amplitude=0.5, stereo=False)
+        result = apply_stereo_width(data, rate, width=1.5)
+        np.testing.assert_array_equal(result, data)
+
+
+class TestMasterTrackNewFeatures:
+    """Test new mastering chain features wired through master_track()."""
+
+    def test_low_shelf_eq_applied(self, tmp_path):
+        """Low shelf EQ via preset changes the output."""
+        data, rate = _generate_sine(freq=60, amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_off = {**_PRESET_DEFAULTS, 'eq_low_gain': 0.0}
+        preset_on = {**_PRESET_DEFAULTS, 'eq_low_gain': 4.0}
+        r1 = master_track(str(inp), str(out1), preset=preset_off)
+        r2 = master_track(str(inp), str(out2), preset=preset_on)
+        # Both should succeed
+        assert not r1.get('skipped')
+        assert not r2.get('skipped')
+        # Outputs should differ
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+    def test_sub_cut_applied(self, tmp_path):
+        """Sub-bass HPF via preset removes low content."""
+        data, rate = _generate_sine(freq=20, amplitude=0.5)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'eq_sub_cut_freq': 40.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+    def test_stereo_width_applied(self, tmp_path):
+        """Stereo width preset changes stereo field."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        left = 0.3 * np.sin(2 * np.pi * 440 * t)
+        right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
+        data = np.column_stack([left, right])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_normal = {**_PRESET_DEFAULTS, 'stereo_width': 1.0}
+        preset_wide = {**_PRESET_DEFAULTS, 'stereo_width': 1.5}
+        master_track(str(inp), str(out1), preset=preset_normal)
+        master_track(str(inp), str(out2), preset=preset_wide)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+    def test_24bit_output(self, tmp_path):
+        """output_bits=24 produces PCM_24 file."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'output_bits': 24, 'dither_bits': 24}
+        master_track(str(inp), str(out), preset=preset)
+        info = sf.info(str(out))
+        assert info.subtype == 'PCM_24'
+
+    def test_16bit_output_default(self, tmp_path):
+        """Default output_bits=16 produces PCM_16 file."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        master_track(str(inp), str(out), preset={**_PRESET_DEFAULTS})
+        info = sf.info(str(out))
+        assert info.subtype == 'PCM_16'

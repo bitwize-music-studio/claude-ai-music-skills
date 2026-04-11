@@ -1,18 +1,25 @@
 # Genre-Specific Mastering Presets
 #
 # Each genre defines (all optional — unset fields inherit from defaults):
-#   target_lufs        - Loudness target (streaming standard: -14, dynamic genres: -16 to -18)
-#   cut_highmid        - EQ cut in dB at eq_highmid_freq to tame harshness (negative = cut, 0 = none)
-#   cut_highs          - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
-#   compress_ratio     - Compression ratio (1.0 = bypass, default 1.5 = gentle glue)
-#   compress_threshold - Compression threshold in dB (default -18.0)
-#   compress_attack    - Compression attack in ms (default 30.0)
-#   compress_release   - Compression release in ms (default 200.0)
-#   eq_highmid_freq    - High-mid EQ center frequency in Hz (default 3500.0)
-#   eq_highmid_q       - High-mid EQ Q factor (default 1.5)
-#   eq_highs_freq      - High shelf frequency in Hz (default 8000.0)
-#   eq_highs_q         - High shelf Q factor (default 0.7)
-#   dither_bits        - Output bit depth for TPDF dither (default 16)
+#   target_lufs          - Loudness target (streaming standard: -14, dynamic genres: -16 to -18)
+#   cut_highmid          - EQ cut in dB at eq_highmid_freq to tame harshness (negative = cut, 0 = none)
+#   cut_highs            - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
+#   compress_ratio       - Compression ratio (1.0 = bypass, default 1.5 = gentle glue)
+#   compress_threshold   - Compression threshold in dB (default -18.0)
+#   compress_attack      - Compression attack in ms (default 30.0)
+#   compress_release     - Compression release in ms (default 200.0)
+#   eq_highmid_freq      - High-mid EQ center frequency in Hz (default 3500.0)
+#   eq_highmid_q         - High-mid EQ Q factor (default 1.5)
+#   eq_highs_freq        - High shelf frequency in Hz (default 8000.0)
+#   eq_highs_q           - High shelf Q factor (default 0.7)
+#   eq_low_freq          - Low shelf center frequency in Hz (default 80.0)
+#   eq_low_gain          - Low shelf gain in dB (positive = boost, negative = cut, 0 = bypass)
+#   eq_low_q             - Low shelf Q factor (default 0.7)
+#   eq_sub_cut_freq      - Sub-bass HPF frequency in Hz (0 = bypass, removes rumble below this)
+#   stereo_width         - Stereo width multiplier (0.0 = mono, 1.0 = unchanged, >1.0 = wider)
+#   stereo_bass_mono_freq - Mono-sum below this frequency in Hz (0 = bypass, bass coherence)
+#   output_bits          - Output bit depth (16 or 24, default 16)
+#   dither_bits          - Dither bit depth (default: follows output_bits)
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -30,6 +37,13 @@ defaults:
   eq_highmid_q: 1.5
   eq_highs_freq: 8000.0
   eq_highs_q: 0.7
+  eq_low_freq: 80.0
+  eq_low_gain: 0
+  eq_low_q: 0.7
+  eq_sub_cut_freq: 0
+  stereo_width: 1.0
+  stereo_bass_mono_freq: 0
+  output_bits: 16
   dither_bits: 16
 
 genres:

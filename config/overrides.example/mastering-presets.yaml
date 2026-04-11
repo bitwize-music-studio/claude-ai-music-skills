@@ -5,20 +5,25 @@
 # Only specify fields you want to change — unset fields inherit from built-in.
 #
 # Fields per genre:
-#   target_lufs        - Loudness target in LUFS (e.g., -14.0)
-#   cut_highmid        - EQ cut in dB at eq_highmid_freq (negative = cut, 0 = none)
-#   cut_highs          - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
-#   compress_ratio     - Compression ratio (1.0 = bypass, default 1.5)
-#   compress_threshold - Compression threshold in dB (default -18.0)
-#   compress_attack    - Compression attack in ms (default 30.0)
-#   compress_release   - Compression release in ms (default 200.0)
-#   eq_highmid_freq    - High-mid EQ center frequency in Hz (default 3500.0)
-#   eq_highmid_q       - High-mid EQ Q factor (default 1.5)
-#   eq_highs_freq      - High shelf frequency in Hz (default 8000.0)
-#   eq_highs_q         - High shelf Q factor (default 0.7)
-#
-# dither_bits can only be set in defaults (not per-genre):
-#   dither_bits        - Output bit depth (default 16)
+#   target_lufs          - Loudness target in LUFS (e.g., -14.0)
+#   cut_highmid          - EQ cut in dB at eq_highmid_freq (negative = cut, 0 = none)
+#   cut_highs            - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
+#   compress_ratio       - Compression ratio (1.0 = bypass, default 1.5)
+#   compress_threshold   - Compression threshold in dB (default -18.0)
+#   compress_attack      - Compression attack in ms (default 30.0)
+#   compress_release     - Compression release in ms (default 200.0)
+#   eq_highmid_freq      - High-mid EQ center frequency in Hz (default 3500.0)
+#   eq_highmid_q         - High-mid EQ Q factor (default 1.5)
+#   eq_highs_freq        - High shelf frequency in Hz (default 8000.0)
+#   eq_highs_q           - High shelf Q factor (default 0.7)
+#   eq_low_freq          - Low shelf center frequency in Hz (default 80.0)
+#   eq_low_gain          - Low shelf gain in dB (positive = boost, 0 = bypass)
+#   eq_low_q             - Low shelf Q factor (default 0.7)
+#   eq_sub_cut_freq      - Sub-bass HPF frequency in Hz (0 = bypass)
+#   stereo_width         - Stereo width multiplier (0.0=mono, 1.0=unchanged, >1.0=wider)
+#   stereo_bass_mono_freq - Mono-sum below this frequency in Hz (0 = bypass)
+#   output_bits          - Output bit depth: 16 or 24 (default 16)
+#   dither_bits          - Dither bit depth (default: follows output_bits)
 
 genres:
   # Example: override rock to be less aggressive
@@ -41,9 +46,15 @@ genres:
   #   compress_threshold: -15.0
   #   compress_attack: 10.0    # Faster attack for punch
 
+  # Example: EDM with bass mono fold and sub cut
+  # edm:
+  #   eq_sub_cut_freq: 25      # Remove sub-rumble
+  #   eq_low_gain: 1.5         # Gentle bass boost
+  #   stereo_bass_mono_freq: 120  # Mono below 120Hz for club playback
+
 # Default settings (applied when no genre is specified)
 # defaults:
 #   target_lufs: -14.0         # Streaming standard
 #   cut_highmid: 0
 #   cut_highs: 0
-#   dither_bits: 24            # 24-bit output for archival
+#   output_bits: 24            # 24-bit output for archival

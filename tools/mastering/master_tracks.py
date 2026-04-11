@@ -86,6 +86,13 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'eq_highmid_q': 1.5,
     'eq_highs_freq': 8000.0,
     'eq_highs_q': 0.7,
+    'eq_low_freq': 80.0,
+    'eq_low_gain': 0.0,
+    'eq_low_q': 0.7,
+    'eq_sub_cut_freq': 0.0,
+    'stereo_width': 1.0,
+    'stereo_bass_mono_freq': 0.0,
+    'output_bits': 16,
     'dither_bits': 16,
 }
 
@@ -225,6 +232,128 @@ def apply_high_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
         for ch in range(data.shape[1]):
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
         return result
+
+def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
+    """Apply low shelf EQ for bass shaping.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        freq: Shelf corner frequency in Hz
+        gain_db: Gain in dB (positive = boost, negative = cut, 0 = bypass)
+    """
+    if gain_db == 0:
+        return data
+    nyquist = rate / 2
+    if not (20 <= freq < nyquist):
+        logger.warning("Low shelf freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        return data
+
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * freq / rate
+    alpha = np.sin(w0) / 2 * np.sqrt(2)
+
+    cos_w0 = np.cos(w0)
+    sqrt_A = np.sqrt(A)
+
+    # Low shelf coefficients (Audio EQ Cookbook)
+    b0 = A * ((A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
+    b1 = 2 * A * ((A - 1) - (A + 1) * cos_w0)
+    b2 = A * ((A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
+    a0 = (A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha
+    a1 = -2 * ((A - 1) + (A + 1) * cos_w0)
+    a2 = (A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+
+    b = np.array([b0/a0, b1/a0, b2/a0])
+    a = np.array([1, a1/a0, a2/a0])
+
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable low shelf filter at %.1f Hz (gain=%.1f dB), skipping", freq, gain_db)
+        return data
+
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+
+def apply_highpass(data: Any, rate: int, cutoff: int = 30) -> Any:
+    """Apply Butterworth highpass filter for sub-bass rumble removal.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        cutoff: Cutoff frequency in Hz (0 = bypass)
+    """
+    if cutoff <= 0:
+        return data
+    nyquist = rate / 2
+    if cutoff >= nyquist:
+        logger.warning("Highpass cutoff %d Hz >= Nyquist (%.0f Hz), skipping", cutoff, nyquist)
+        return data
+
+    normalized_cutoff = cutoff / nyquist
+    b, a = signal.butter(2, normalized_cutoff, btype='high')
+
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable highpass filter at %d Hz, skipping", cutoff)
+        return data
+
+    if len(data.shape) == 1:
+        return signal.lfilter(b, a, data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+
+def apply_stereo_width(data: Any, rate: int, width: float = 1.0,
+                       bass_mono_freq: int = 0) -> Any:
+    """Adjust stereo width with optional low-frequency mono fold.
+
+    Args:
+        data: Stereo audio data (samples, 2)
+        rate: Sample rate
+        width: Width multiplier (0.0 = mono, 1.0 = unchanged, >1.0 = wider)
+        bass_mono_freq: Mono-sum frequencies below this (0 = bypass).
+            Ensures bass coherence on club/PA systems.
+    """
+    if len(data.shape) == 1 or data.shape[1] != 2:
+        return data
+    if width == 1.0 and bass_mono_freq <= 0:
+        return data
+
+    # Mid-side encoding
+    mid = (data[:, 0] + data[:, 1]) / 2
+    side = (data[:, 0] - data[:, 1]) / 2
+
+    # Apply width scaling
+    if width != 1.0:
+        side = side * max(width, 0.0)
+
+    # Bass mono fold: filter side channel to remove low frequencies
+    if bass_mono_freq > 0:
+        nyquist = rate / 2
+        if bass_mono_freq < nyquist:
+            normalized = bass_mono_freq / nyquist
+            b, a = signal.butter(2, normalized, btype='high')
+            poles = np.roots(a)
+            if np.all(np.abs(poles) < 1.0):
+                side = signal.lfilter(b, a, side)
+
+    # Decode back to L/R
+    result = np.zeros_like(data)
+    result[:, 0] = mid + side
+    result[:, 1] = mid - side
+
+    return result
+
 
 def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'exponential') -> Any:
     """Apply a fade-out to the end of audio data.
@@ -401,10 +530,26 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if was_mono:
         data = np.column_stack([data, data])
 
-    # Apply EQ if specified
+    # Sub-bass rumble removal (before any EQ)
+    sub_cut = int(p.get('eq_sub_cut_freq', 0))
+    if sub_cut > 0:
+        data = apply_highpass(data, rate, cutoff=sub_cut)
+
+    # Low shelf EQ (bass shaping)
+    low_gain = p.get('eq_low_gain', 0.0)
+    if low_gain != 0:
+        data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain)
+
+    # Apply high-mid/highs EQ if specified
     if eq_settings:
         for freq, gain_db, q in eq_settings:
             data = apply_eq(data, rate, freq, gain_db, q)
+
+    # Stereo width adjustment (after EQ, before compression)
+    stereo_w = p.get('stereo_width', 1.0)
+    bass_mono = int(p.get('stereo_bass_mono_freq', 0))
+    if stereo_w != 1.0 or bass_mono > 0:
+        data = apply_stereo_width(data, rate, width=stereo_w, bass_mono_freq=bass_mono)
 
     # Apply fade-out if specified (before loudness measurement so LUFS
     # is measured correctly with the fade included)
@@ -455,12 +600,14 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if was_mono:
         data = data[:, 0]
 
-    # Apply TPDF dither as the final step before quantization
-    dither_bits = int(p['dither_bits'])
+    # Resolve output bit depth: output_bits controls the format,
+    # dither_bits follows output_bits by default but can be overridden
+    output_bits = int(p.get('output_bits', 16))
+    dither_bits = int(p.get('dither_bits', output_bits))
     data = apply_tpdf_dither(data, target_bits=dither_bits)
 
-    # Write output (same format as input)
-    subtype = 'PCM_16' if dither_bits <= 16 else 'PCM_24'
+    # Write output
+    subtype = 'PCM_16' if output_bits <= 16 else 'PCM_24'
     sf.write(output_path, data, rate, subtype=subtype)
 
     return {
@@ -565,8 +712,20 @@ Examples:
                        help='High shelf frequency in Hz (default: 8000.0)')
     parser.add_argument('--eq-highs-q', type=float, default=None,
                        help='High shelf Q factor (default: 0.7)')
+    parser.add_argument('--eq-low-gain', type=float, default=None,
+                       help='Low shelf gain in dB at eq-low-freq (default: 0 = bypass)')
+    parser.add_argument('--eq-low-freq', type=float, default=None,
+                       help='Low shelf frequency in Hz (default: 80.0)')
+    parser.add_argument('--sub-cut', type=float, default=None,
+                       help='High-pass filter frequency in Hz to remove sub-bass rumble (default: 0 = bypass)')
+    parser.add_argument('--stereo-width', type=float, default=None,
+                       help='Stereo width multiplier (0.0=mono, 1.0=unchanged, >1.0=wider)')
+    parser.add_argument('--bass-mono-freq', type=float, default=None,
+                       help='Mono-sum frequencies below this in Hz (default: 0 = bypass)')
+    parser.add_argument('--output-bits', type=int, default=None,
+                       help='Output bit depth (16 or 24, default: 16)')
     parser.add_argument('--dither-bits', type=int, default=None,
-                       help='Output bit depth for TPDF dither (default: 16)')
+                       help='Dither bit depth (default: follows --output-bits)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -598,6 +757,12 @@ Examples:
         'eq_highmid_q': args.eq_highmid_q,
         'eq_highs_freq': args.eq_highs_freq,
         'eq_highs_q': args.eq_highs_q,
+        'eq_low_gain': args.eq_low_gain,
+        'eq_low_freq': args.eq_low_freq,
+        'eq_sub_cut_freq': float(args.sub_cut) if args.sub_cut is not None else None,
+        'stereo_width': args.stereo_width,
+        'stereo_bass_mono_freq': float(args.bass_mono_freq) if args.bass_mono_freq is not None else None,
+        'output_bits': float(args.output_bits) if args.output_bits is not None else None,
         'dither_bits': float(args.dither_bits) if args.dither_bits is not None else None,
     }
     for key, value in cli_overrides.items():
@@ -647,8 +812,17 @@ Examples:
         print(f"Compression: {preset['compress_ratio']}:1 (threshold={preset['compress_threshold']}dB, attack={preset['compress_attack']}ms, release={preset['compress_release']}ms)")
     else:
         print("Compression: bypass")
-    if int(preset['dither_bits']) != 16:
-        print(f"Dither: {int(preset['dither_bits'])}-bit")
+    if preset.get('eq_sub_cut_freq', 0) > 0:
+        print(f"EQ: Sub cut HPF: {int(preset['eq_sub_cut_freq'])}Hz")
+    if preset.get('eq_low_gain', 0) != 0:
+        print(f"EQ: Low shelf: {preset['eq_low_gain']}dB at {preset['eq_low_freq']}Hz")
+    if preset.get('stereo_width', 1.0) != 1.0:
+        print(f"Stereo width: {preset['stereo_width']}x")
+    if preset.get('stereo_bass_mono_freq', 0) > 0:
+        print(f"Bass mono below: {int(preset['stereo_bass_mono_freq'])}Hz")
+    out_bits = int(preset.get('output_bits', 16))
+    if out_bits != 16:
+        print(f"Output: {out_bits}-bit")
     print(f"Output: {output_dir}/")
     print("=" * 70)
     print()
