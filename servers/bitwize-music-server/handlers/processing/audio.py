@@ -249,15 +249,15 @@ async def master_audio(
                 "error": f"Unknown genre: {genre}",
                 "available_genres": sorted(presets.keys()),
             })
-        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
+        preset = presets[genre_key]
         # Genre preset provides defaults; explicit non-default args override
         if target_lufs == -14.0:
-            effective_lufs = preset_lufs
+            effective_lufs = preset['target_lufs']
         if cut_highmid == 0.0:
-            effective_highmid = preset_highmid
+            effective_highmid = preset['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset_highs
-        effective_compress = preset_compress
+            effective_highs = preset['cut_highs']
+        effective_compress = preset['compress_ratio']
         genre_applied = genre_key
 
     # Build EQ settings
@@ -657,14 +657,14 @@ async def master_album(
                     "available_genres": sorted(presets.keys()),
                 },
             })
-        preset_lufs, preset_highmid, preset_highs, preset_compress = presets[genre_key]
+        preset = presets[genre_key]
         if target_lufs == -14.0:
-            effective_lufs = preset_lufs
+            effective_lufs = preset['target_lufs']
         if cut_highmid == 0.0:
-            effective_highmid = preset_highmid
+            effective_highmid = preset['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset_highs
-        effective_compress = preset_compress
+            effective_highs = preset['cut_highs']
+        effective_compress = preset['compress_ratio']
         genre_applied = genre_key
 
     settings = {
