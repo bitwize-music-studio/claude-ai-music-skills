@@ -262,22 +262,84 @@ def soft_clip(data: Any, threshold: float = 0.95) -> Any:
     result[above_thresh] = np.sign(data[above_thresh]) * (threshold + (1 - threshold) * np.tanh((np.abs(data[above_thresh]) - threshold) / (1 - threshold)))
     return result
 
+def measure_true_peak(data: Any, rate: int = 44100) -> float:
+    """Measure true peak level using 4x oversampling per ITU-R BS.1770-4.
+
+    Inter-sample peaks can exceed the highest sample value. This function
+    upsamples 4x with sinc interpolation to detect those peaks.
+
+    Args:
+        data: Audio data (samples,) or (samples, channels).
+        rate: Sample rate (unused, kept for API consistency).
+
+    Returns:
+        True peak as a linear amplitude value.
+    """
+    if data.size == 0:
+        return 0.0
+
+    # Upsample 4x using polyphase FIR (sinc interpolation)
+    if data.ndim == 1:
+        upsampled = signal.resample_poly(data, up=4, down=1)
+        return float(np.max(np.abs(upsampled)))
+
+    # Multichannel: measure each channel, return the worst
+    peak = 0.0
+    for ch in range(data.shape[1]):
+        upsampled = signal.resample_poly(data[:, ch], up=4, down=1)
+        ch_peak = float(np.max(np.abs(upsampled)))
+        if ch_peak > peak:
+            peak = ch_peak
+    return peak
+
+
 def limit_peaks(data: Any, ceiling_db: float = -1.0) -> Any:
-    """Simple peak limiter to prevent clipping.
+    """True peak limiter using 4x oversampled peak detection.
+
+    Measures inter-sample peaks via ITU-R BS.1770-4 oversampling, then
+    applies gain reduction so the true peak stays below the ceiling.
 
     Args:
         data: Audio data
-        ceiling_db: Maximum peak level in dB (e.g., -1.0 for -1 dBTP)
+        ceiling_db: Maximum true peak level in dB (e.g., -1.0 for -1 dBTP)
     """
     ceiling_linear = 10 ** (ceiling_db / 20)
-    peak = np.max(np.abs(data))
+    true_peak = measure_true_peak(data)
 
-    if peak > ceiling_linear:
-        # Calculate required gain reduction
-        gain = ceiling_linear / peak
+    if true_peak > ceiling_linear:
+        gain = ceiling_linear / true_peak
         data = data * gain
 
     return soft_clip(data, ceiling_linear)
+
+
+def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None) -> Any:
+    """Apply TPDF (Triangular Probability Density Function) dithering.
+
+    Must be the *last* processing step before integer quantization.
+    Converts correlated truncation distortion into uncorrelated noise,
+    which is perceptually far less objectionable on quiet passages and fades.
+
+    Args:
+        data: Audio data as float (−1.0 to 1.0).
+        target_bits: Output bit depth (default 16).
+        seed: Optional RNG seed for reproducible output (testing).
+
+    Returns:
+        Dithered float data ready for integer quantization by soundfile.
+    """
+    rng = np.random.default_rng(seed)
+
+    # 1 LSB at the target bit depth (e.g. 16-bit → 1/32768)
+    max_val = 2 ** (target_bits - 1)
+    one_lsb = 1.0 / max_val
+
+    # TPDF noise = sum of two independent uniform ±0.5 LSB distributions
+    # Result: triangular distribution with range ±1 LSB, variance = LSB²/6
+    noise = rng.uniform(-0.5, 0.5, size=data.shape) + rng.uniform(-0.5, 0.5, size=data.shape)
+    noise *= one_lsb
+
+    return data + noise
 
 def master_track(input_path: Path | str, output_path: Path | str,
                  target_lufs: float = -14.0,
@@ -348,14 +410,17 @@ def master_track(input_path: Path | str, output_path: Path | str,
     # Apply limiter
     data = limit_peaks(data, ceiling_db)
 
-    # Verify final loudness
+    # Verify final loudness and measure true peak
     final_lufs = meter.integrated_loudness(data)
-    peak_abs = np.max(np.abs(data))
-    final_peak = 20 * np.log10(peak_abs) if peak_abs > 0 else float('-inf')
+    true_peak_linear = measure_true_peak(data, rate)
+    final_peak = 20 * np.log10(true_peak_linear) if true_peak_linear > 0 else float('-inf')
 
     # Convert back to mono if input was mono
     if was_mono:
         data = data[:, 0]
+
+    # Apply TPDF dither as the final step before quantization
+    data = apply_tpdf_dither(data, target_bits=16)
 
     # Write output (same format as input)
     sf.write(output_path, data, rate, subtype='PCM_16')

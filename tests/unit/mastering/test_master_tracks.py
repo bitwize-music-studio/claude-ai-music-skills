@@ -28,9 +28,11 @@ from tools.mastering.master_tracks import (
     apply_eq,
     apply_fade_out,
     apply_high_shelf,
+    apply_tpdf_dither,
     limit_peaks,
     load_genre_presets,
     master_track,
+    measure_true_peak,
     soft_clip,
 )
 
@@ -253,6 +255,119 @@ class TestLimitPeaks:
         data = np.array([[1.5, -1.5]])
         result = limit_peaks(data, ceiling_db=0.0)
         assert np.max(np.abs(result)) <= 1.0 + 1e-6
+
+    def test_true_peak_detection(self):
+        """Limiter should catch inter-sample peaks that exceed the ceiling."""
+        # Two samples that create a large inter-sample peak when interpolated
+        # e.g., [0.8, -0.8] has inter-sample peaks above 0.8 due to sinc overshoot
+        rate = 44100
+        t = np.linspace(0, 0.01, int(rate * 0.01), endpoint=False)
+        # A high-frequency sine near Nyquist creates large inter-sample peaks
+        data = 0.7 * np.sin(2 * np.pi * 20000 * t)
+        data = np.column_stack([data, data])
+        result = limit_peaks(data, ceiling_db=-1.0)
+        ceiling_linear = 10 ** (-1.0 / 20)
+        # True peak of result must be below ceiling
+        from scipy.signal import resample_poly
+        upsampled = resample_poly(result[:, 0], up=4, down=1)
+        assert np.max(np.abs(upsampled)) <= ceiling_linear + 1e-3
+
+
+# ─── Tests: measure_true_peak ─────────────────────────────────────────
+
+
+class TestMeasureTruePeak:
+    """Tests for ITU-R BS.1770-4 true peak measurement."""
+
+    def test_sine_true_peak_exceeds_sample_peak(self):
+        """A near-Nyquist sine should have true peak > sample peak."""
+        rate = 44100
+        t = np.linspace(0, 0.1, int(rate * 0.1), endpoint=False)
+        data = 0.9 * np.sin(2 * np.pi * 20000 * t)
+        sample_peak = np.max(np.abs(data))
+        true_peak = measure_true_peak(data)
+        assert true_peak >= sample_peak
+
+    def test_low_freq_true_peak_close_to_sample_peak(self):
+        """A low-frequency sine has negligible inter-sample overshoot."""
+        rate = 44100
+        t = np.linspace(0, 0.1, int(rate * 0.1), endpoint=False)
+        data = 0.5 * np.sin(2 * np.pi * 100 * t)
+        sample_peak = np.max(np.abs(data))
+        true_peak = measure_true_peak(data)
+        assert abs(true_peak - sample_peak) < 0.01
+
+    def test_stereo_returns_worst_channel(self):
+        """True peak of stereo should be the max across both channels."""
+        rate = 44100
+        t = np.linspace(0, 0.01, int(rate * 0.01), endpoint=False)
+        left = 0.3 * np.sin(2 * np.pi * 440 * t)
+        right = 0.9 * np.sin(2 * np.pi * 440 * t)
+        data = np.column_stack([left, right])
+        true_peak = measure_true_peak(data)
+        assert true_peak >= 0.89  # Right channel dominates
+
+    def test_empty_data(self):
+        """Empty array should return 0."""
+        assert measure_true_peak(np.array([])) == 0.0
+
+    def test_silence(self):
+        """Silent data should return 0."""
+        data = np.zeros(1000)
+        assert measure_true_peak(data) == 0.0
+
+
+# ─── Tests: apply_tpdf_dither ─────────────────────────────────────────
+
+
+class TestApplyTpdfDither:
+    """Tests for TPDF dithering before quantization."""
+
+    def test_dither_adds_noise(self):
+        """Dithered signal should differ from original."""
+        data = np.zeros((1000, 2))
+        result = apply_tpdf_dither(data, target_bits=16, seed=42)
+        assert not np.allclose(result, data)
+
+    def test_dither_amplitude_within_bounds(self):
+        """Dither noise should be within ±1 LSB of the target bit depth."""
+        data = np.zeros(10000)
+        result = apply_tpdf_dither(data, target_bits=16, seed=42)
+        one_lsb = 1.0 / 32768
+        # TPDF range is ±1 LSB; allow small statistical overshoot
+        assert np.max(np.abs(result)) < 1.5 * one_lsb
+
+    def test_dither_is_triangular_distribution(self):
+        """Dither noise should approximate a triangular PDF."""
+        data = np.zeros(100000)
+        result = apply_tpdf_dither(data, target_bits=16, seed=42)
+        # Triangular distribution: mean ≈ 0, lower kurtosis than uniform
+        assert abs(np.mean(result)) < 1e-7
+        # Standard deviation for TPDF = LSB / sqrt(6)
+        one_lsb = 1.0 / 32768
+        expected_std = one_lsb / np.sqrt(6)
+        assert abs(np.std(result) - expected_std) < expected_std * 0.1
+
+    def test_dither_seed_reproducibility(self):
+        """Same seed should produce identical dither."""
+        data = np.zeros(1000)
+        r1 = apply_tpdf_dither(data, seed=123)
+        r2 = apply_tpdf_dither(data, seed=123)
+        assert np.array_equal(r1, r2)
+
+    def test_dither_different_seeds_differ(self):
+        """Different seeds should produce different dither."""
+        data = np.zeros(1000)
+        r1 = apply_tpdf_dither(data, seed=1)
+        r2 = apply_tpdf_dither(data, seed=2)
+        assert not np.array_equal(r1, r2)
+
+    def test_dither_preserves_shape(self):
+        """Output shape should match input."""
+        for shape in [(1000,), (1000, 2)]:
+            data = np.zeros(shape)
+            result = apply_tpdf_dither(data, seed=42)
+            assert result.shape == data.shape
 
 
 # ─── Tests: master_track (integration) ────────────────────────────────

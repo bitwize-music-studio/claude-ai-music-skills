@@ -25,7 +25,7 @@ from tools.shared.progress import ProgressBar
 logger = logging.getLogger(__name__)
 
 # All available checks
-ALL_CHECKS = ["format", "mono", "phase", "clipping", "clicks", "silence", "spectral"]
+ALL_CHECKS = ["format", "mono", "phase", "clipping", "truepeak", "clicks", "silence", "spectral"]
 
 
 def _check_format(info: Any) -> dict[str, str]:
@@ -177,6 +177,35 @@ def _check_clipping(data: Any) -> dict[str, str]:
         "status": status,
         "value": f"{regions} regions",
         "detail": f"{'No clipping detected' if regions == 0 else f'{regions} clipping region(s) found'}",
+    }
+
+
+def _check_truepeak(data: Any, rate: int, ceiling_db: float = -1.0) -> dict[str, str]:
+    """Measure true peak (inter-sample) level via 4x oversampling.
+
+    Uses the same ITU-R BS.1770-4 algorithm as the mastering limiter.
+    """
+    from tools.mastering.master_tracks import measure_true_peak
+
+    tp_linear = measure_true_peak(data, rate)
+    if tp_linear > 0:
+        tp_db = 20 * np.log10(tp_linear)
+    else:
+        tp_db = float('-inf')
+
+    ceiling_linear = 10 ** (ceiling_db / 20)
+    if tp_linear > ceiling_linear * 1.01:  # 1% tolerance for float rounding
+        status = "FAIL"
+    elif tp_linear > ceiling_linear * 0.95:
+        status = "WARN"
+    else:
+        status = "PASS"
+
+    return {
+        "status": status,
+        "value": f"{tp_db:.1f} dBTP",
+        "detail": f"True peak {tp_db:.1f} dBTP (ceiling {ceiling_db:.1f})"
+            + (" — EXCEEDS CEILING" if status == "FAIL" else ""),
     }
 
 
@@ -380,6 +409,9 @@ def qc_track(filepath: Path | str, checks: list[str] | None = None) -> dict[str,
 
     if "clipping" in active_checks:
         results["clipping"] = _check_clipping(data)
+
+    if "truepeak" in active_checks:
+        results["truepeak"] = _check_truepeak(data, rate)
 
     if "clicks" in active_checks:
         results["clicks"] = _check_clicks(data, rate)

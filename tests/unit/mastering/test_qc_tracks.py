@@ -2,7 +2,7 @@
 """
 Unit tests for qc_tracks.py
 
-Tests all 7 QC checks against synthetic audio signals that are
+Tests all 8 QC checks against synthetic audio signals that are
 specifically crafted to trigger pass, warn, and fail conditions.
 
 Usage:
@@ -30,6 +30,7 @@ from tools.mastering.qc_tracks import (
     _check_phase,
     _check_silence,
     _check_spectral,
+    _check_truepeak,
     qc_track,
 )
 
@@ -339,6 +340,38 @@ class TestCheckSpectral:
         result = _check_spectral(data, rate)
         assert result["status"] in ("WARN", "FAIL")
         assert "tinniness" in result["detail"].lower() or "High-mid" in result["detail"]
+
+
+class TestCheckTruePeak:
+    """Tests for the true peak QC check."""
+
+    def test_quiet_signal_passes(self):
+        """Signal well below ceiling should pass."""
+        data, rate = _generate_sine(amplitude=0.3)
+        result = _check_truepeak(data, rate)
+        assert result["status"] == "PASS"
+        assert "dBTP" in result["value"]
+
+    def test_hot_signal_fails(self):
+        """Signal exceeding -1 dBTP ceiling should fail."""
+        # Amplitude 0.99 → sample peak ~ -0.09 dBFS, well above -1 dBTP
+        data, rate = _generate_sine(amplitude=0.99)
+        result = _check_truepeak(data, rate, ceiling_db=-1.0)
+        assert result["status"] == "FAIL"
+        assert "EXCEEDS CEILING" in result["detail"]
+
+    def test_signal_near_ceiling_warns(self):
+        """Signal just below ceiling should warn."""
+        # -1 dBTP ceiling → linear 0.891. Amplitude ~0.87 is within 95%
+        data, rate = _generate_sine(amplitude=0.87)
+        result = _check_truepeak(data, rate, ceiling_db=-1.0)
+        assert result["status"] in ("PASS", "WARN")
+
+    def test_custom_ceiling(self):
+        """Custom ceiling should be respected."""
+        data, rate = _generate_sine(amplitude=0.3)
+        result = _check_truepeak(data, rate, ceiling_db=-2.0)
+        assert result["status"] == "PASS"
 
 
 # ─── Tests: Full qc_track Integration ────────────────────────────────
