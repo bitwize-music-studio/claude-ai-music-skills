@@ -73,16 +73,39 @@ def _get_overrides_path() -> Path | None:
     return None
 
 
-def load_genre_presets() -> dict[str, tuple[float, float, float, float]]:
+# All recognized preset keys and their defaults
+_PRESET_DEFAULTS: dict[str, float] = {
+    'target_lufs': -14.0,
+    'cut_highmid': 0.0,
+    'cut_highs': 0.0,
+    'compress_ratio': 1.5,
+    'compress_threshold': -18.0,
+    'compress_attack': 30.0,
+    'compress_release': 200.0,
+    'eq_highmid_freq': 3500.0,
+    'eq_highmid_q': 1.5,
+    'eq_highs_freq': 8000.0,
+    'eq_highs_q': 0.7,
+    'dither_bits': 16,
+}
+
+
+def load_genre_presets() -> dict[str, dict[str, float]]:
     """Load genre presets from YAML, merging built-in with user overrides.
 
     Returns:
-        Dict mapping genre name to (target_lufs, cut_highmid, cut_highs, compress_ratio) tuples.
+        Dict mapping genre name to a dict of preset parameters.
     """
     # Load built-in presets
     builtin = _load_yaml_file(_BUILTIN_PRESETS_FILE)
     builtin_genres = builtin.get('genres', {})
-    defaults = builtin.get('defaults', {})
+    defaults = {**_PRESET_DEFAULTS}
+
+    # Merge YAML defaults on top of hardcoded defaults
+    yaml_defaults = builtin.get('defaults', {})
+    for key in defaults:
+        if key in yaml_defaults:
+            defaults[key] = float(yaml_defaults[key])
 
     # Load user overrides
     overrides_dir = _get_overrides_path()
@@ -93,26 +116,21 @@ def load_genre_presets() -> dict[str, tuple[float, float, float, float]]:
         override_genres = override_data.get('genres', {})
         override_defaults = override_data.get('defaults', {})
         if override_defaults:
-            defaults.update(override_defaults)
-
-    default_lufs = float(defaults.get('target_lufs', -14.0))
-    default_highmid = float(defaults.get('cut_highmid', 0))
-    default_highs = float(defaults.get('cut_highs', 0))
-    default_compress_ratio = float(defaults.get('compress_ratio', 1.5))
+            for key in defaults:
+                if key in override_defaults:
+                    defaults[key] = float(override_defaults[key])
 
     # Merge: built-in genres + override genres (override wins per-field)
     all_genre_names = set(builtin_genres.keys()) | set(override_genres.keys())
-    presets = {}
+    presets: dict[str, dict[str, float]] = {}
     for genre in all_genre_names:
         base = builtin_genres.get(genre, {})
         over = override_genres.get(genre, {})
         merged = {**base, **over}
-        presets[genre] = (
-            float(merged.get('target_lufs', default_lufs)),
-            float(merged.get('cut_highmid', default_highmid)),
-            float(merged.get('cut_highs', default_highs)),
-            float(merged.get('compress_ratio', default_compress_ratio)),
-        )
+        presets[genre] = {
+            key: float(merged.get(key, default))
+            for key, default in defaults.items()
+        }
 
     return presets
 
@@ -521,16 +539,16 @@ Examples:
             logger.error("Unknown genre: %s", args.genre)
             logger.error("Available: %s", ', '.join(sorted(GENRE_PRESETS.keys())))
             return
-        preset_lufs, preset_highmid, preset_highs, preset_compress = GENRE_PRESETS[genre_key]
+        genre_preset = GENRE_PRESETS[genre_key]
         # Genre preset provides defaults, but explicit args override
         if args.target_lufs is None:
-            args.target_lufs = preset_lufs
+            args.target_lufs = genre_preset['target_lufs']
         if args.cut_highmid is None:
-            args.cut_highmid = preset_highmid
+            args.cut_highmid = genre_preset['cut_highmid']
         if args.cut_highs is None:
-            args.cut_highs = preset_highs
+            args.cut_highs = genre_preset['cut_highs']
         if args.compress_ratio is None:
-            args.compress_ratio = preset_compress
+            args.compress_ratio = genre_preset['compress_ratio']
 
     # Apply defaults if no genre and no explicit value
     if args.target_lufs is None:
