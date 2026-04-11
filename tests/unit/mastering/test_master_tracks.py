@@ -34,6 +34,7 @@ from tools.mastering.master_tracks import (
     apply_stereo_width,
     apply_tpdf_dither,
     limit_peaks,
+    limit_peaks_lookahead,
     load_genre_presets,
     master_track,
     measure_true_peak,
@@ -1072,3 +1073,201 @@ class TestMasterTrackNewFeatures:
         master_track(str(inp), str(out), preset={**_PRESET_DEFAULTS})
         info = sf.info(str(out))
         assert info.subtype == 'PCM_16'
+
+
+class TestLookAheadLimiter:
+    """Tests for limit_peaks_lookahead()."""
+
+    def test_respects_ceiling(self):
+        """Output should not exceed ceiling."""
+        data, rate = _generate_sine(freq=440, amplitude=0.9)
+        result = limit_peaks_lookahead(data, ceiling_db=-3.0, rate=rate)
+        ceiling_linear = 10 ** (-3.0 / 20)
+        # Allow small overshoot from soft_clip transition
+        assert np.max(np.abs(result)) <= ceiling_linear + 0.01
+
+    def test_zero_lookahead_falls_back(self):
+        """lookahead_ms=0 should fall back to reactive limiter."""
+        data, rate = _generate_sine(freq=440, amplitude=0.9)
+        result_reactive = limit_peaks(data.copy(), ceiling_db=-3.0)
+        result_zero = limit_peaks_lookahead(data.copy(), ceiling_db=-3.0, lookahead_ms=0, rate=rate)
+        np.testing.assert_array_equal(result_reactive, result_zero)
+
+    def test_preserves_quiet_signal(self):
+        """Signal below ceiling should pass through mostly unchanged."""
+        data, rate = _generate_sine(freq=440, amplitude=0.1)
+        result = limit_peaks_lookahead(data, ceiling_db=-1.0, rate=rate)
+        # Should be very close (soft_clip might change tiny amounts)
+        np.testing.assert_allclose(result, data, atol=0.01)
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_sine(freq=440, amplitude=0.9, stereo=False)
+        result = limit_peaks_lookahead(data, ceiling_db=-3.0, rate=rate)
+        assert result.shape == data.shape
+
+    def test_different_from_reactive(self):
+        """Look-ahead should produce different output than reactive limiter."""
+        # Create signal with sharp transient
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = 0.3 * np.sin(2 * np.pi * 440 * t)
+        # Insert a sharp transient
+        data[int(rate * 1.0):int(rate * 1.0) + 100] = 0.95
+        data = np.column_stack([data, data])
+        reactive = limit_peaks(data.copy(), ceiling_db=-3.0)
+        lookahead = limit_peaks_lookahead(data.copy(), ceiling_db=-3.0, lookahead_ms=5.0, rate=rate)
+        # They should differ because look-ahead pre-applies gain reduction
+        assert not np.allclose(reactive, lookahead)
+
+
+class TestParallelCompression:
+    """Tests for parallel compression (compress_mix)."""
+
+    def test_mix_1_equals_full_compression(self, tmp_path):
+        """compress_mix=1.0 should produce similar output to default."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_default = {**_PRESET_DEFAULTS}
+        preset_mix1 = {**_PRESET_DEFAULTS, 'compress_mix': 1.0}
+        r1 = master_track(str(inp), str(out1), preset=preset_default)
+        r2 = master_track(str(inp), str(out2), preset=preset_mix1)
+        # LUFS should be very close (dither noise causes minor sample differences)
+        assert abs(r1['final_lufs'] - r2['final_lufs']) < 0.5
+
+    def test_mix_0_bypasses_compression(self, tmp_path):
+        """compress_mix=0.0 should produce different output (dry signal)."""
+        data, rate = _generate_noise(amplitude=0.4)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_full = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0}
+        preset_dry = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0, 'compress_mix': 0.0}
+        master_track(str(inp), str(out1), preset=preset_full)
+        master_track(str(inp), str(out2), preset=preset_dry)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+    def test_mix_half_blends(self, tmp_path):
+        """compress_mix=0.5 should be between dry and wet."""
+        data, rate = _generate_noise(amplitude=0.4)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'compress_ratio': 3.0, 'compress_mix': 0.5}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+
+class TestMakeupGain:
+    """Tests for compressor makeup gain."""
+
+    def test_makeup_gain_changes_output(self, tmp_path):
+        """Non-zero makeup gain should change the output."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_off = {**_PRESET_DEFAULTS, 'compress_makeup': 0.0}
+        preset_on = {**_PRESET_DEFAULTS, 'compress_makeup': 3.0}
+        master_track(str(inp), str(out1), preset=preset_off)
+        master_track(str(inp), str(out2), preset=preset_on)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+
+class TestOversampling:
+    """Tests for oversampled processing."""
+
+    def test_oversample_1_default(self, tmp_path):
+        """oversample=1 should produce normal output."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'processing_oversample': 1}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+    def test_oversample_2_produces_output(self, tmp_path):
+        """oversample=2 should complete without error."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'processing_oversample': 2}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+        # Output should be valid audio
+        d, r = sf.read(str(out))
+        assert d.shape[0] > 0
+        assert r == rate
+
+    def test_oversample_changes_output(self, tmp_path):
+        """Oversampled processing should differ from non-oversampled."""
+        data, rate = _generate_noise(amplitude=0.4)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_1x = {**_PRESET_DEFAULTS, 'processing_oversample': 1, 'compress_ratio': 2.0}
+        preset_2x = {**_PRESET_DEFAULTS, 'processing_oversample': 2, 'compress_ratio': 2.0}
+        master_track(str(inp), str(out1), preset=preset_1x)
+        master_track(str(inp), str(out2), preset=preset_2x)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        # They should differ due to aliasing differences
+        assert not np.allclose(d1, d2, atol=1e-3)
+
+
+class TestLookaheadInMasterTrack:
+    """Test look-ahead limiter wired through master_track()."""
+
+    def test_lookahead_produces_output(self, tmp_path):
+        """Look-ahead limiter via preset should complete."""
+        data, rate = _generate_sine(amplitude=0.5)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'limiter_lookahead_ms': 5.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+    def test_reactive_limiter_via_preset(self, tmp_path):
+        """limiter_lookahead_ms=0 uses reactive limiter."""
+        data, rate = _generate_sine(amplitude=0.5)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'limiter_lookahead_ms': 0.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+
+class TestPresetDefaultsComplete:
+    """Verify new preset defaults exist and have correct values."""
+
+    def test_dynamics_defaults(self):
+        """New dynamics preset defaults should exist."""
+        assert _PRESET_DEFAULTS['limiter_lookahead_ms'] == 5.0
+        assert _PRESET_DEFAULTS['limiter_release_ms'] == 50.0
+        assert _PRESET_DEFAULTS['compress_mix'] == 1.0
+        assert _PRESET_DEFAULTS['compress_makeup'] == 0.0
+        assert _PRESET_DEFAULTS['processing_oversample'] == 1
+        assert _PRESET_DEFAULTS['target_lra'] == 0.0

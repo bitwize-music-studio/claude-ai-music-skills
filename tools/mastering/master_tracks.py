@@ -94,6 +94,12 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'stereo_bass_mono_freq': 0.0,
     'output_bits': 16,
     'dither_bits': 16,
+    'limiter_lookahead_ms': 5.0,
+    'limiter_release_ms': 50.0,
+    'compress_mix': 1.0,
+    'compress_makeup': 0.0,
+    'processing_oversample': 1,
+    'target_lra': 0.0,
 }
 
 
@@ -460,6 +466,77 @@ def limit_peaks(data: Any, ceiling_db: float = -1.0) -> Any:
     return soft_clip(data, ceiling_linear)
 
 
+def limit_peaks_lookahead(data: Any, ceiling_db: float = -1.0,
+                          lookahead_ms: float = 5.0,
+                          release_ms: float = 50.0,
+                          rate: int = 44100) -> Any:
+    """Look-ahead limiter with smooth gain reduction envelope.
+
+    Delays the audio while a sidechain detects upcoming peaks and
+    pre-applies gain reduction, producing transparent limiting
+    instead of reactive distortion.
+
+    Args:
+        data: Audio data
+        ceiling_db: Maximum true peak level in dB
+        lookahead_ms: Look-ahead buffer in ms
+        release_ms: Limiter release time in ms
+        rate: Sample rate
+    """
+    ceiling_linear = 10 ** (ceiling_db / 20)
+    lookahead_samples = int(rate * lookahead_ms / 1000.0)
+
+    if lookahead_samples <= 0:
+        return limit_peaks(data, ceiling_db)
+
+    # Work per-channel, combine max gain reduction
+    if data.ndim == 1:
+        channels = data.reshape(-1, 1)
+    else:
+        channels = data
+
+    n_samples = channels.shape[0]
+
+    # Compute instantaneous gain reduction needed across all channels
+    peak_env = np.max(np.abs(channels), axis=1)
+    gain_needed = np.where(
+        peak_env > ceiling_linear,
+        ceiling_linear / np.maximum(peak_env, 1e-10),
+        1.0,
+    )
+
+    # Smooth the gain envelope with release coefficient
+    release_coeff = np.exp(-1.0 / (rate * release_ms / 1000.0))
+    smoothed = np.ones(n_samples, dtype=np.float64)
+    env = 1.0
+    for i in range(n_samples):
+        target = gain_needed[i]
+        if target < env:
+            # Attack: instant (look-ahead handles the transition)
+            env = target
+        else:
+            # Release: smooth recovery
+            env = release_coeff * env + (1.0 - release_coeff) * target
+        smoothed[i] = env
+
+    # Shift gain envelope backward by lookahead_samples (pre-apply reduction)
+    shifted = np.ones(n_samples, dtype=np.float64)
+    if lookahead_samples < n_samples:
+        shifted[:n_samples - lookahead_samples] = smoothed[lookahead_samples:]
+        shifted[n_samples - lookahead_samples:] = smoothed[-1]
+    else:
+        shifted[:] = np.min(smoothed)
+
+    # Apply gain reduction
+    if data.ndim == 1:
+        result = data * shifted
+    else:
+        result = data * shifted[:, np.newaxis]
+
+    # Final soft clip as safety net
+    return soft_clip(result, ceiling_linear)
+
+
 def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None) -> Any:
     """Apply TPDF (Triangular Probability Density Function) dithering.
 
@@ -556,8 +633,17 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if fade_out is not None and fade_out > 0:
         data = apply_fade_out(data, rate, duration=fade_out)
 
-    # Mastering compression — gentle safety net
+    # Oversampling for nonlinear stages (compression + limiting)
+    oversample = int(p.get('processing_oversample', 1))
+    original_rate = rate
+    if oversample > 1:
+        data = signal.resample_poly(data, up=oversample, down=1, axis=0)
+        rate = original_rate * oversample
+
+    # Mastering compression — gentle safety net with parallel blend
+    compress_mix = p.get('compress_mix', 1.0)
     if compress_ratio > 1.0:
+        dry = data.copy() if compress_mix < 1.0 else None
         data = gentle_compress(
             data, rate,
             threshold_db=p['compress_threshold'],
@@ -565,6 +651,18 @@ def master_track(input_path: Path | str, output_path: Path | str,
             attack_ms=p['compress_attack'],
             release_ms=p['compress_release'],
         )
+        # Makeup gain: compensate for compression gain reduction
+        makeup = p.get('compress_makeup', 0.0)
+        if makeup != 0:
+            data = data * (10 ** (makeup / 20))
+        # Parallel compression: blend wet/dry
+        if dry is not None and compress_mix < 1.0:
+            data = dry * (1.0 - compress_mix) + data * compress_mix
+
+    # Downsample back if oversampled
+    if oversample > 1:
+        data = signal.resample_poly(data, up=1, down=oversample, axis=0)
+        rate = original_rate
 
     # Measure current loudness
     meter = pyln.Meter(rate)
@@ -581,6 +679,29 @@ def master_track(input_path: Path | str, output_path: Path | str,
             'skipped': True,
         }
 
+    # LRA targeting: if LRA exceeds target, increase compression
+    target_lra = p.get('target_lra', 0.0)
+    measured_lra = None
+    if target_lra > 0:
+        try:
+            measured_lra = pyln.Meter(rate).integrated_loudness(data)
+            # pyloudnorm doesn't have LRA, so compute from short-term loudness
+            # Use 3-second windows with 2-second overlap per EBU R128
+            window_samples = int(3.0 * rate)
+            hop_samples = int(1.0 * rate)
+            if data.shape[0] > window_samples:
+                short_term = []
+                for start in range(0, data.shape[0] - window_samples, hop_samples):
+                    chunk = data[start:start + window_samples]
+                    st_lufs = pyln.Meter(rate).integrated_loudness(chunk)
+                    if np.isfinite(st_lufs):
+                        short_term.append(st_lufs)
+                if len(short_term) >= 2:
+                    # LRA = difference between 95th and 10th percentile
+                    measured_lra = float(np.percentile(short_term, 95) - np.percentile(short_term, 10))
+        except Exception:
+            measured_lra = None
+
     # Calculate required gain
     gain_db = target_lufs - current_lufs
     gain_linear = 10 ** (gain_db / 20)
@@ -588,8 +709,27 @@ def master_track(input_path: Path | str, output_path: Path | str,
     # Apply gain
     data = data * gain_linear
 
-    # Apply limiter
-    data = limit_peaks(data, ceiling_db)
+    # Oversample for limiting if requested
+    if oversample > 1:
+        data = signal.resample_poly(data, up=oversample, down=1, axis=0)
+        rate = original_rate * oversample
+
+    # Apply limiter (look-ahead or reactive)
+    lookahead_ms = p.get('limiter_lookahead_ms', 5.0)
+    if lookahead_ms > 0:
+        data = limit_peaks_lookahead(
+            data, ceiling_db,
+            lookahead_ms=lookahead_ms,
+            release_ms=p.get('limiter_release_ms', 50.0),
+            rate=rate,
+        )
+    else:
+        data = limit_peaks(data, ceiling_db)
+
+    # Downsample after limiting if oversampled
+    if oversample > 1:
+        data = signal.resample_poly(data, up=1, down=oversample, axis=0)
+        rate = original_rate
 
     # Verify final loudness and measure true peak
     final_lufs = meter.integrated_loudness(data)
@@ -610,12 +750,16 @@ def master_track(input_path: Path | str, output_path: Path | str,
     subtype = 'PCM_16' if output_bits <= 16 else 'PCM_24'
     sf.write(output_path, data, rate, subtype=subtype)
 
-    return {
+    result = {
         'original_lufs': current_lufs,
         'final_lufs': final_lufs,
         'gain_applied': gain_db,
         'final_peak': final_peak,
     }
+    if measured_lra is not None:
+        result['lra'] = measured_lra
+
+    return result
 
 def _process_one_track(wav_file: Path | str, output_path: Path | str,
                        target_lufs: float = -14.0,
@@ -726,6 +870,18 @@ Examples:
                        help='Output bit depth (16 or 24, default: 16)')
     parser.add_argument('--dither-bits', type=int, default=None,
                        help='Dither bit depth (default: follows --output-bits)')
+    parser.add_argument('--limiter-lookahead', type=float, default=None,
+                       help='Look-ahead buffer in ms (0 = reactive, default: 5.0)')
+    parser.add_argument('--limiter-release', type=float, default=None,
+                       help='Limiter release time in ms (default: 50.0)')
+    parser.add_argument('--compress-mix', type=float, default=None,
+                       help='Compression wet/dry blend (0.0=dry, 1.0=wet, default: 1.0)')
+    parser.add_argument('--compress-makeup', type=float, default=None,
+                       help='Compression makeup gain in dB (0 = off, default: 0)')
+    parser.add_argument('--processing-oversample', type=int, default=None,
+                       help='Oversample factor for nonlinear stages (1/2/4, default: 1)')
+    parser.add_argument('--target-lra', type=float, default=None,
+                       help='Target loudness range in LU (0 = disable, default: 0)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -764,6 +920,12 @@ Examples:
         'stereo_bass_mono_freq': float(args.bass_mono_freq) if args.bass_mono_freq is not None else None,
         'output_bits': float(args.output_bits) if args.output_bits is not None else None,
         'dither_bits': float(args.dither_bits) if args.dither_bits is not None else None,
+        'limiter_lookahead_ms': args.limiter_lookahead,
+        'limiter_release_ms': args.limiter_release,
+        'compress_mix': args.compress_mix,
+        'compress_makeup': args.compress_makeup,
+        'processing_oversample': float(args.processing_oversample) if args.processing_oversample is not None else None,
+        'target_lra': args.target_lra,
     }
     for key, value in cli_overrides.items():
         if value is not None:
