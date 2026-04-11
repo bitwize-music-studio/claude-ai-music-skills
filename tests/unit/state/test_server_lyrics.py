@@ -2328,3 +2328,56 @@ class TestAnalyzeRhymeSchemeEdgeCases:
         result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
         actual = sum(1 for s in result["sections"] if s["issues"])
         assert result["summary"]["sections_with_issues"] == actual
+
+
+# =============================================================================
+# Tests: Input length bounds (issue #242)
+# =============================================================================
+
+
+class TestInputLengthBounds:
+    """All text analysis tools should reject inputs exceeding MAX_TEXT_INPUT_LENGTH."""
+
+    OVERSIZED = "a " * 30_000  # 60,000 chars — exceeds 50,000 limit
+
+    def test_check_homographs_rejects_oversized(self):
+        result = json.loads(_run(server.check_homographs(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_check_explicit_content_rejects_oversized(self):
+        result = json.loads(_run(server.check_explicit_content(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_scan_artist_names_rejects_oversized(self):
+        result = json.loads(_run(server.scan_artist_names(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_count_syllables_rejects_oversized(self):
+        result = json.loads(_run(server.count_syllables(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_analyze_readability_rejects_oversized(self):
+        result = json.loads(_run(server.analyze_readability(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_analyze_rhyme_scheme_rejects_oversized(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_extract_distinctive_phrases_rejects_oversized(self):
+        result = json.loads(_run(server.extract_distinctive_phrases(self.OVERSIZED)))
+        assert "error" in result
+        assert "too long" in result["error"]
+
+    def test_normal_length_still_works(self):
+        """Text under the limit should process normally."""
+        short_text = "[Verse]\nHello world\nGoodbye moon"
+        result = json.loads(_run(server.check_homographs(short_text)))
+        assert "error" not in result
+        assert "has_homographs" in result

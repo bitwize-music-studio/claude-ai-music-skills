@@ -9,6 +9,7 @@ from handlers._shared import (
     _CROSS_TRACK_STOPWORDS,
     _SECTION_TAG_RE,
     _WORD_TOKEN_RE,
+    _check_text_length,
     _safe_json,
 )
 
@@ -226,6 +227,10 @@ async def extract_distinctive_phrases(
             "search_suggestions": [],
         })
 
+    err = _check_text_length(text, "extract_distinctive_phrases")
+    if err:
+        return err
+
     # Tokenize with section tracking
     lines = _tokenize_lyrics_with_sections(text)
 
@@ -386,6 +391,10 @@ async def count_syllables(text: str) -> str:
             },
         })
 
+    err = _check_text_length(text, "count_syllables")
+    if err:
+        return err
+
     sections = []
     current_section = "Unknown"
     current_lines: list[dict[str, Any]] = []
@@ -493,6 +502,10 @@ async def analyze_readability(text: str) -> str:
                 "assessment": "No content to analyze",
             },
         })
+
+    err = _check_text_length(text, "analyze_readability")
+    if err:
+        return err
 
     all_words = []
     words_per_line = []
@@ -612,6 +625,10 @@ async def analyze_rhyme_scheme(text: str) -> str:
                 "self_rhymes": 0,
             },
         })
+
+    err = _check_text_length(text, "analyze_rhyme_scheme")
+    if err:
+        return err
 
     # Parse into sections using _tokenize_lyrics_with_sections
     tokenized = _tokenize_lyrics_with_sections(text)

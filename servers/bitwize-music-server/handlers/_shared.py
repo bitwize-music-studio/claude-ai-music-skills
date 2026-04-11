@@ -224,6 +224,22 @@ def _extract_code_block(section_text: str) -> str | None:
 # Shared regex patterns — used by lyrics analysis, cross-track repetition, etc.
 # ---------------------------------------------------------------------------
 
+# Maximum text input length for text analysis tools (50,000 chars ≈ 10x a long song)
+MAX_TEXT_INPUT_LENGTH = 50_000
+
+
+def _check_text_length(text: str, tool_name: str) -> str | None:
+    """Return a JSON error string if *text* exceeds MAX_TEXT_INPUT_LENGTH, else None."""
+    if len(text) > MAX_TEXT_INPUT_LENGTH:
+        return _safe_json({
+            "error": (
+                f"Input too long ({len(text):,} chars). "
+                f"{tool_name} accepts at most {MAX_TEXT_INPUT_LENGTH:,} characters."
+            ),
+        })
+    return None
+
+
 # Section tag pattern — matches [Verse 1], [Chorus], etc.
 _SECTION_TAG_RE = re.compile(r'^\[.*\]$')
 

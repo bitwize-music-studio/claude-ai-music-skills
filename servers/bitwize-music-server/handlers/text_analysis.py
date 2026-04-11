@@ -14,6 +14,7 @@ from handlers._shared import (
     _MARKDOWN_LINK_RE,
     _SECTION_TAG_RE,
     _WORD_TOKEN_RE,
+    _check_text_length,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
@@ -115,6 +116,10 @@ async def check_homographs(text: str) -> str:
     """
     if not text.strip():
         return _safe_json({"has_homographs": False, "matches": [], "count": 0})
+
+    err = _check_text_length(text, "check_homographs")
+    if err:
+        return err
 
     results = []
     lines = text.split("\n")
@@ -230,6 +235,10 @@ async def scan_artist_names(text: str) -> str:
     """
     if not text.strip():
         return _safe_json({"clean": True, "matches": [], "count": 0})
+
+    err = _check_text_length(text, "scan_artist_names")
+    if err:
+        return err
 
     blocklist = _load_artist_blocklist()
     matches = []
@@ -470,6 +479,10 @@ async def check_explicit_content(text: str) -> str:
         return _safe_json({
             "has_explicit": False, "matches": [], "total_count": 0, "unique_words": 0,
         })
+
+    err = _check_text_length(text, "check_explicit_content")
+    if err:
+        return err
 
     _load_explicit_words()
     assert _explicit_word_patterns is not None
