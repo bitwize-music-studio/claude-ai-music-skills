@@ -451,6 +451,34 @@ class TestMasterTrack:
         assert len(data) > 0
         assert np.all(np.isfinite(data))
 
+    def test_mastering_with_preset_dict(self, noise_wav, output_path):
+        """master_track should accept a preset dict for all parameters."""
+        preset = {
+            'target_lufs': -16.0,
+            'cut_highmid': -2.0,
+            'cut_highs': -1.0,
+            'compress_ratio': 2.0,
+            'compress_threshold': -15.0,
+            'compress_attack': 20.0,
+            'compress_release': 150.0,
+            'eq_highmid_freq': 4000.0,
+            'eq_highmid_q': 2.0,
+            'eq_highs_freq': 9000.0,
+            'eq_highs_q': 0.5,
+            'dither_bits': 16,
+        }
+        result = master_track(noise_wav, output_path, preset=preset)
+        assert not result.get('skipped', False)
+        assert Path(output_path).exists()
+        assert abs(result['final_lufs'] - (-16.0)) < 2.0
+
+    def test_preset_dict_overrides_defaults(self, noise_wav, output_path):
+        """Partial preset dict should merge with defaults."""
+        preset = {'target_lufs': -18.0}
+        result = master_track(noise_wav, output_path, preset=preset)
+        assert not result.get('skipped', False)
+        assert abs(result['final_lufs'] - (-18.0)) < 2.0
+
 
 # ─── Tests: Genre Presets ──────────────────────────────────────────────
 
@@ -794,3 +822,13 @@ class TestProcessOneTrack:
             ceiling_db=-1.0, dry_run=True,
         )
         assert result is None
+
+    def test_preset_dict_passthrough(self, sine_wav, output_path):
+        """_process_one_track should accept and pass through a preset dict."""
+        preset = {'target_lufs': -16.0, 'compress_ratio': 1.0}
+        name, result = _process_one_track(
+            Path(sine_wav), Path(output_path),
+            preset=preset, ceiling_db=-1.0, dry_run=False,
+        )
+        assert result is not None
+        assert Path(output_path).exists()

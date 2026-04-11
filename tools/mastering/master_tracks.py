@@ -363,19 +363,36 @@ def master_track(input_path: Path | str, output_path: Path | str,
                  target_lufs: float = -14.0,
                  eq_settings: list[tuple[float, float, float]] | None = None,
                  ceiling_db: float = -1.0, fade_out: float | None = None,
-                 compress_ratio: float = 1.5) -> dict[str, Any]:
+                 compress_ratio: float = 1.5,
+                 preset: dict[str, float] | None = None) -> dict[str, Any]:
     """Master a single track.
 
     Args:
         input_path: Path to input wav file
         output_path: Path for output wav file
-        target_lufs: Target integrated loudness
-        eq_settings: List of (freq, gain_db, q) tuples for EQ
+        target_lufs: Target integrated loudness (ignored if preset provided)
+        eq_settings: List of (freq, gain_db, q) tuples for EQ (ignored if preset provided)
         ceiling_db: True peak ceiling in dB
         fade_out: Optional fade-out duration in seconds.
             None or <= 0 disables fade-out.
-        compress_ratio: Compression ratio (1.0 = bypass, 1.5 = gentle glue)
+        compress_ratio: Compression ratio (ignored if preset provided)
+        preset: Full preset dict. When provided, target_lufs, eq_settings,
+            and compress_ratio are read from the preset instead.
     """
+    # Resolve parameters from preset or legacy args
+    p = {**_PRESET_DEFAULTS}
+    if preset is not None:
+        p.update(preset)
+        target_lufs = p['target_lufs']
+        compress_ratio = p['compress_ratio']
+        # Build EQ settings from preset
+        eq_settings = []
+        if p['cut_highmid'] != 0:
+            eq_settings.append((p['eq_highmid_freq'], p['cut_highmid'], p['eq_highmid_q']))
+        if p['cut_highs'] != 0:
+            eq_settings.append((p['eq_highs_freq'], p['cut_highs'], p['eq_highs_q']))
+        eq_settings = eq_settings or None
+
     # Read audio
     data, rate = sf.read(input_path)
 
@@ -398,10 +415,11 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if compress_ratio > 1.0:
         data = gentle_compress(
             data, rate,
-            threshold_db=-18.0, ratio=compress_ratio,
-            attack_ms=30.0, release_ms=200.0,
+            threshold_db=p['compress_threshold'],
+            ratio=compress_ratio,
+            attack_ms=p['compress_attack'],
+            release_ms=p['compress_release'],
         )
-
 
     # Measure current loudness
     meter = pyln.Meter(rate)
@@ -438,10 +456,12 @@ def master_track(input_path: Path | str, output_path: Path | str,
         data = data[:, 0]
 
     # Apply TPDF dither as the final step before quantization
-    data = apply_tpdf_dither(data, target_bits=16)
+    dither_bits = int(p['dither_bits'])
+    data = apply_tpdf_dither(data, target_bits=dither_bits)
 
     # Write output (same format as input)
-    sf.write(output_path, data, rate, subtype='PCM_16')
+    subtype = 'PCM_16' if dither_bits <= 16 else 'PCM_24'
+    sf.write(output_path, data, rate, subtype=subtype)
 
     return {
         'original_lufs': current_lufs,
@@ -451,10 +471,12 @@ def master_track(input_path: Path | str, output_path: Path | str,
     }
 
 def _process_one_track(wav_file: Path | str, output_path: Path | str,
-                       target_lufs: float,
-                       eq_settings: list[tuple[float, float, float]] | None,
-                       ceiling_db: float, dry_run: bool,
-                       compress_ratio: float = 1.5) -> tuple[str, dict[str, Any] | None]:
+                       target_lufs: float = -14.0,
+                       eq_settings: list[tuple[float, float, float]] | None = None,
+                       ceiling_db: float = -1.0, dry_run: bool = False,
+                       compress_ratio: float = 1.5,
+                       preset: dict[str, float] | None = None,
+                       ) -> tuple[str, dict[str, Any] | None]:
     """Process a single track (used by both sequential and parallel paths).
 
     Returns (wav_file_name, result_dict) or (wav_file_name, None) if skipped.
@@ -464,13 +486,16 @@ def _process_one_track(wav_file: Path | str, output_path: Path | str,
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
         meter = pyln.Meter(rate)
+        effective_lufs = target_lufs
+        if preset is not None:
+            effective_lufs = preset.get('target_lufs', target_lufs)
         current_lufs = meter.integrated_loudness(data)
         if not np.isfinite(current_lufs):
             return (str(wav_file), None)
-        gain = target_lufs - current_lufs
+        gain = effective_lufs - current_lufs
         result = {
             'original_lufs': current_lufs,
-            'final_lufs': target_lufs,
+            'final_lufs': effective_lufs,
             'gain_applied': gain,
             'final_peak': -1.0,
         }
@@ -482,6 +507,7 @@ def _process_one_track(wav_file: Path | str, output_path: Path | str,
             eq_settings=eq_settings,
             ceiling_db=ceiling_db,
             compress_ratio=compress_ratio,
+            preset=preset,
         )
 
     if result.get('skipped'):
