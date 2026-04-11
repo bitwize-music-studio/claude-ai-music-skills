@@ -5,9 +5,20 @@
 # Only specify fields you want to change — unset fields inherit from built-in.
 #
 # Fields per genre:
-#   target_lufs  - Loudness target in LUFS (e.g., -14.0)
-#   cut_highmid  - EQ cut in dB at 3.5kHz (negative = cut, 0 = none)
-#   cut_highs    - High shelf cut in dB at 8kHz (negative = cut, 0 = none)
+#   target_lufs        - Loudness target in LUFS (e.g., -14.0)
+#   cut_highmid        - EQ cut in dB at eq_highmid_freq (negative = cut, 0 = none)
+#   cut_highs          - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
+#   compress_ratio     - Compression ratio (1.0 = bypass, default 1.5)
+#   compress_threshold - Compression threshold in dB (default -18.0)
+#   compress_attack    - Compression attack in ms (default 30.0)
+#   compress_release   - Compression release in ms (default 200.0)
+#   eq_highmid_freq    - High-mid EQ center frequency in Hz (default 3500.0)
+#   eq_highmid_q       - High-mid EQ Q factor (default 1.5)
+#   eq_highs_freq      - High shelf frequency in Hz (default 8000.0)
+#   eq_highs_q         - High shelf Q factor (default 0.7)
+#
+# dither_bits can only be set in defaults (not per-genre):
+#   dither_bits        - Output bit depth (default 16)
 
 genres:
   # Example: override rock to be less aggressive
@@ -24,8 +35,15 @@ genres:
   # ambient:
   #   target_lufs: -18.0       # Override default -16
 
+  # Example: tweak compression for a genre
+  # hip-hop:
+  #   compress_ratio: 2.5      # Heavier compression
+  #   compress_threshold: -15.0
+  #   compress_attack: 10.0    # Faster attack for punch
+
 # Default settings (applied when no genre is specified)
 # defaults:
 #   target_lufs: -14.0         # Streaming standard
 #   cut_highmid: 0
 #   cut_highs: 0
+#   dither_bits: 24            # 24-bit output for archival

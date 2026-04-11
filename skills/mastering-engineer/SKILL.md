@@ -91,26 +91,32 @@ Check for custom mastering presets:
 
 genres:
   dark-electronic:
-    cut_highmid: -3  # More aggressive cut
-    boost_sub: 2     # More sub bass
-    target_lufs: -12 # Louder master
+    cut_highmid: -3         # More aggressive cut
+    target_lufs: -12        # Louder master
+    compress_ratio: 2.0     # Heavier compression
+    compress_attack: 15.0   # Faster attack
 
   ambient:
-    cut_highmid: -1  # Gentle cut
-    boost_sub: 0     # Natural bass
-    target_lufs: -16 # Quieter, more dynamic
+    cut_highmid: -1         # Gentle cut
+    target_lufs: -16        # Quieter, more dynamic
+    compress_ratio: 1.2     # Very light compression
+
+defaults:
+  dither_bits: 24           # 24-bit output for archival
 ```
+
+**Available preset fields:** `target_lufs`, `cut_highmid`, `cut_highs`, `compress_ratio`, `compress_threshold`, `compress_attack`, `compress_release`, `eq_highmid_freq`, `eq_highmid_q`, `eq_highs_freq`, `eq_highs_q`, `dither_bits`
 
 ### How to Use Override
 1. Load at invocation start
 2. Check for genre-specific presets when mastering
-3. Override presets take precedence over base genre presets
-4. Use override target_lufs instead of default -14
+3. Override presets take precedence over base genre presets (field-level merge)
+4. Only specify fields you want to change — unset fields inherit from built-in
 
 **Example:**
 - Mastering "dark-electronic" genre
 - Override has custom preset
-- Result: Apply -3 highmid cut, +2 sub boost, target -12 LUFS
+- Result: Apply -3 highmid cut, 2.0:1 compression with 15ms attack, target -12 LUFS
 
 ---
 
