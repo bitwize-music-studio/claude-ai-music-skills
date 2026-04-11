@@ -100,6 +100,14 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'compress_makeup': 0.0,
     'processing_oversample': 1,
     'target_lra': 0.0,
+    'dc_filter_freq': 5.0,
+    'output_sample_rate': 0,
+    'deess_enabled': 0,
+    'deess_freq': 6500.0,
+    'deess_bandwidth': 4000.0,
+    'deess_threshold': -20.0,
+    'deess_ratio': 4.0,
+    'track_gap': 0.0,
 }
 
 
@@ -537,6 +545,81 @@ def limit_peaks_lookahead(data: Any, ceiling_db: float = -1.0,
     return soft_clip(result, ceiling_linear)
 
 
+def apply_deesser(data: Any, rate: int, freq: float = 6500.0,
+                  bandwidth: float = 4000.0, threshold_db: float = -20.0,
+                  ratio: float = 4.0) -> Any:
+    """Frequency-selective de-esser for sibilance reduction.
+
+    Isolates a sibilance band, detects energy exceeding threshold,
+    and applies gain reduction only to that band.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        freq: Center frequency for sibilance detection (Hz)
+        bandwidth: Detection bandwidth in Hz
+        threshold_db: Threshold for sibilance reduction (dB)
+        ratio: Compression ratio for sibilant regions
+    """
+    if ratio <= 1.0:
+        return data
+
+    nyquist = rate / 2
+    low_freq = max(20, freq - bandwidth / 2)
+    high_freq = min(nyquist - 1, freq + bandwidth / 2)
+
+    if low_freq >= high_freq or high_freq >= nyquist:
+        return data
+
+    # Design bandpass filter for sibilance detection
+    low_norm = low_freq / nyquist
+    high_norm = high_freq / nyquist
+    b_bp, a_bp = signal.butter(2, [low_norm, high_norm], btype='band')
+
+    poles = np.roots(a_bp)
+    if not np.all(np.abs(poles) < 1.0):
+        logger.warning("Unstable de-esser bandpass at %.0f Hz, skipping", freq)
+        return data
+
+    threshold_linear = 10 ** (threshold_db / 20)
+
+    def _deess_channel(channel: Any) -> Any:
+        # Extract sibilance band
+        sibilance = signal.lfilter(b_bp, a_bp, channel)
+        # Envelope of sibilance band
+        env = np.abs(sibilance)
+        # Smooth envelope (fast attack, medium release)
+        attack_coeff = np.exp(-1.0 / (rate * 0.001))  # 1ms attack
+        release_coeff = np.exp(-1.0 / (rate * 0.020))  # 20ms release
+        smoothed = np.empty_like(env)
+        val = 0.0
+        for i in range(len(env)):
+            if env[i] > val:
+                val = attack_coeff * val + (1.0 - attack_coeff) * env[i]
+            else:
+                val = release_coeff * val + (1.0 - release_coeff) * env[i]
+            smoothed[i] = val
+        # Gain reduction only where sibilance exceeds threshold
+        gain = np.ones_like(channel)
+        above = smoothed > threshold_linear
+        if np.any(above):
+            env_db = np.where(above, 20 * np.log10(np.maximum(smoothed, 1e-10)), 0)
+            thresh_db_val = 20 * np.log10(max(threshold_linear, 1e-10))
+            excess_db = np.where(above, env_db - thresh_db_val, 0)
+            gain_reduction_db = excess_db * (1 - 1 / ratio)
+            gain = np.where(above, 10 ** (-gain_reduction_db / 20), 1.0)
+        # Apply gain reduction only to sibilance band, keep rest unchanged
+        return channel - sibilance + sibilance * gain
+
+    if len(data.shape) == 1:
+        return _deess_channel(data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = _deess_channel(data[:, ch])
+        return result
+
+
 def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None) -> Any:
     """Apply TPDF (Triangular Probability Density Function) dithering.
 
@@ -607,6 +690,11 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if was_mono:
         data = np.column_stack([data, data])
 
+    # DC offset removal (first processing stage)
+    dc_freq = p.get('dc_filter_freq', 5.0)
+    if dc_freq > 0:
+        data = apply_highpass(data, rate, cutoff=int(dc_freq))
+
     # Sub-bass rumble removal (before any EQ)
     sub_cut = int(p.get('eq_sub_cut_freq', 0))
     if sub_cut > 0:
@@ -621,6 +709,16 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if eq_settings:
         for freq, gain_db, q in eq_settings:
             data = apply_eq(data, rate, freq, gain_db, q)
+
+    # De-essing (after EQ, before dynamics)
+    if p.get('deess_enabled', 0) > 0:
+        data = apply_deesser(
+            data, rate,
+            freq=p.get('deess_freq', 6500.0),
+            bandwidth=p.get('deess_bandwidth', 4000.0),
+            threshold_db=p.get('deess_threshold', -20.0),
+            ratio=p.get('deess_ratio', 4.0),
+        )
 
     # Stereo width adjustment (after EQ, before compression)
     stereo_w = p.get('stereo_width', 1.0)
@@ -740,11 +838,30 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if was_mono:
         data = data[:, 0]
 
+    # Sample rate conversion (after processing, before dither)
+    output_sr = int(p.get('output_sample_rate', 0))
+    if output_sr > 0 and output_sr != rate:
+        # Use rational resampling via polyphase FIR
+        from math import gcd
+        g = gcd(output_sr, rate)
+        data = signal.resample_poly(data, up=output_sr // g, down=rate // g, axis=0)
+        rate = output_sr
+
     # Resolve output bit depth: output_bits controls the format,
     # dither_bits follows output_bits by default but can be overridden
     output_bits = int(p.get('output_bits', 16))
     dither_bits = int(p.get('dither_bits', output_bits))
     data = apply_tpdf_dither(data, target_bits=dither_bits)
+
+    # Inter-track gap insertion (after dither, before write)
+    track_gap = p.get('track_gap', 0.0)
+    if track_gap > 0:
+        gap_samples = int(rate * track_gap)
+        if data.ndim == 1:
+            silence = np.zeros(gap_samples, dtype=data.dtype)
+        else:
+            silence = np.zeros((gap_samples, data.shape[1]), dtype=data.dtype)
+        data = np.concatenate([silence, data], axis=0)
 
     # Write output
     subtype = 'PCM_16' if output_bits <= 16 else 'PCM_24'
@@ -882,6 +999,20 @@ Examples:
                        help='Oversample factor for nonlinear stages (1/2/4, default: 1)')
     parser.add_argument('--target-lra', type=float, default=None,
                        help='Target loudness range in LU (0 = disable, default: 0)')
+    parser.add_argument('--dc-filter-freq', type=float, default=None,
+                       help='DC offset removal HPF frequency in Hz (0 = bypass, default: 5.0)')
+    parser.add_argument('--output-sample-rate', type=int, default=None,
+                       help='Target sample rate (0 = preserve input, e.g., 44100)')
+    parser.add_argument('--deess', action='store_true', default=None,
+                       help='Enable de-esser')
+    parser.add_argument('--deess-freq', type=float, default=None,
+                       help='De-esser center frequency in Hz (default: 6500)')
+    parser.add_argument('--deess-threshold', type=float, default=None,
+                       help='De-esser threshold in dB (default: -20.0)')
+    parser.add_argument('--deess-ratio', type=float, default=None,
+                       help='De-esser compression ratio (default: 4.0)')
+    parser.add_argument('--track-gap', type=float, default=None,
+                       help='Silence to prepend to each track in seconds (default: 0)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -926,6 +1057,13 @@ Examples:
         'compress_makeup': args.compress_makeup,
         'processing_oversample': float(args.processing_oversample) if args.processing_oversample is not None else None,
         'target_lra': args.target_lra,
+        'dc_filter_freq': args.dc_filter_freq,
+        'output_sample_rate': float(args.output_sample_rate) if args.output_sample_rate is not None else None,
+        'deess_enabled': 1.0 if args.deess else None,
+        'deess_freq': args.deess_freq,
+        'deess_threshold': args.deess_threshold,
+        'deess_ratio': args.deess_ratio,
+        'track_gap': args.track_gap,
     }
     for key, value in cli_overrides.items():
         if value is not None:

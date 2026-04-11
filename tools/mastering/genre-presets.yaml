@@ -26,6 +26,14 @@
 #   compress_makeup        - Compression makeup gain in dB (0 = off, default 0)
 #   processing_oversample  - Oversample factor for nonlinear stages (1/2/4, default 1)
 #   target_lra             - Target loudness range in LU (0 = disable, default 0)
+#   dc_filter_freq         - DC offset HPF frequency in Hz (0 = bypass, default 5.0)
+#   output_sample_rate     - Target sample rate (0 = preserve input, e.g., 44100)
+#   deess_enabled          - Enable de-esser (0 = off, 1 = on, default 0)
+#   deess_freq             - De-esser center frequency in Hz (default 6500)
+#   deess_bandwidth        - De-esser bandwidth in Hz (default 4000)
+#   deess_threshold        - De-esser threshold in dB (default -20.0)
+#   deess_ratio            - De-esser compression ratio (default 4.0)
+#   track_gap              - Silence to prepend per track in seconds (default 0)
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -57,6 +65,14 @@ defaults:
   compress_makeup: 0
   processing_oversample: 1
   target_lra: 0
+  dc_filter_freq: 5.0
+  output_sample_rate: 0
+  deess_enabled: 0
+  deess_freq: 6500
+  deess_bandwidth: 4000
+  deess_threshold: -20.0
+  deess_ratio: 4.0
+  track_gap: 0
 
 genres:
   # === Pop / Mainstream ===

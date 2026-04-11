@@ -26,6 +26,7 @@ from tools.mastering.master_tracks import (
     _PRESET_DEFAULTS,
     _load_yaml_file,
     _process_one_track,
+    apply_deesser,
     apply_eq,
     apply_fade_out,
     apply_high_shelf,
@@ -1271,3 +1272,169 @@ class TestPresetDefaultsComplete:
         assert _PRESET_DEFAULTS['compress_makeup'] == 0.0
         assert _PRESET_DEFAULTS['processing_oversample'] == 1
         assert _PRESET_DEFAULTS['target_lra'] == 0.0
+
+    def test_new_pipeline_defaults(self):
+        """New pipeline preset defaults should exist."""
+        assert _PRESET_DEFAULTS['dc_filter_freq'] == 5.0
+        assert _PRESET_DEFAULTS['output_sample_rate'] == 0
+        assert _PRESET_DEFAULTS['deess_enabled'] == 0
+        assert _PRESET_DEFAULTS['deess_freq'] == 6500.0
+        assert _PRESET_DEFAULTS['deess_bandwidth'] == 4000.0
+        assert _PRESET_DEFAULTS['deess_threshold'] == -20.0
+        assert _PRESET_DEFAULTS['deess_ratio'] == 4.0
+        assert _PRESET_DEFAULTS['track_gap'] == 0.0
+
+
+class TestDeesser:
+    """Tests for apply_deesser()."""
+
+    def test_ratio_1_passthrough(self):
+        """Ratio <= 1.0 returns data unchanged."""
+        data, rate = _generate_sine(freq=6500, amplitude=0.5)
+        result = apply_deesser(data, rate, ratio=1.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_reduces_sibilance_band(self):
+        """De-esser reduces energy in the sibilance frequency range."""
+        # Generate signal at de-esser center frequency (high amplitude)
+        data, rate = _generate_sine(freq=6500, amplitude=0.5)
+        result = apply_deesser(data, rate, freq=6500, threshold_db=-30.0, ratio=4.0)
+        # RMS should decrease
+        orig_rms = np.sqrt(np.mean(data ** 2))
+        result_rms = np.sqrt(np.mean(result ** 2))
+        assert result_rms < orig_rms
+
+    def test_preserves_low_frequencies(self):
+        """De-esser should not affect frequencies outside sibilance band."""
+        data, rate = _generate_sine(freq=200, amplitude=0.5)
+        result = apply_deesser(data, rate, freq=6500, threshold_db=-30.0, ratio=4.0)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+    def test_mono_support(self):
+        """De-esser works on mono signals."""
+        data, rate = _generate_sine(freq=6500, amplitude=0.5, stereo=False)
+        result = apply_deesser(data, rate, freq=6500, threshold_db=-30.0, ratio=4.0)
+        assert result.shape == data.shape
+
+    def test_below_threshold_passthrough(self):
+        """Signal below threshold is mostly unaffected."""
+        data, rate = _generate_sine(freq=6500, amplitude=0.01)
+        result = apply_deesser(data, rate, freq=6500, threshold_db=-10.0, ratio=4.0)
+        np.testing.assert_allclose(result, data, atol=0.001)
+
+
+class TestDCOffsetRemoval:
+    """Tests for DC offset removal in master_track()."""
+
+    def test_dc_filter_applied(self, tmp_path):
+        """DC offset removal should run without error."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'dc_filter_freq': 5.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+    def test_dc_filter_bypass(self, tmp_path):
+        """dc_filter_freq=0 should bypass DC removal."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'dc_filter_freq': 0.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+
+class TestSampleRateConversion:
+    """Tests for sample rate conversion."""
+
+    def test_output_preserves_rate_by_default(self, tmp_path):
+        """output_sample_rate=0 preserves input rate."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'output_sample_rate': 0}
+        master_track(str(inp), str(out), preset=preset)
+        info = sf.info(str(out))
+        assert info.samplerate == rate
+
+    def test_downsample_to_22050(self, tmp_path):
+        """Downsampling to 22050 should produce correct sample rate."""
+        data, rate = _generate_sine(amplitude=0.3, duration=3.0)
+        assert rate == 44100
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'output_sample_rate': 22050}
+        master_track(str(inp), str(out), preset=preset)
+        info = sf.info(str(out))
+        assert info.samplerate == 22050
+
+
+class TestInterTrackGap:
+    """Tests for inter-track gap insertion."""
+
+    def test_no_gap_by_default(self, tmp_path):
+        """track_gap=0 should not add silence."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_no_gap = {**_PRESET_DEFAULTS, 'track_gap': 0.0}
+        preset_gap = {**_PRESET_DEFAULTS, 'track_gap': 2.0}
+        master_track(str(inp), str(out1), preset=preset_no_gap)
+        master_track(str(inp), str(out2), preset=preset_gap)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        # Gap version should be longer
+        assert d2.shape[0] > d1.shape[0]
+
+    def test_gap_is_silence(self, tmp_path):
+        """Prepended gap should be silence."""
+        data, rate = _generate_sine(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        gap_seconds = 1.0
+        preset = {**_PRESET_DEFAULTS, 'track_gap': gap_seconds}
+        master_track(str(inp), str(out), preset=preset)
+        d, r = sf.read(str(out))
+        gap_samples = int(r * gap_seconds)
+        # First gap_samples should be near-silent (dither noise only)
+        gap_rms = np.sqrt(np.mean(d[:gap_samples] ** 2))
+        assert gap_rms < 0.001
+
+
+class TestDeesserInMasterTrack:
+    """Test de-esser wired through master_track()."""
+
+    def test_deess_changes_output(self, tmp_path):
+        """Enabling de-esser should change the output."""
+        # Create signal with sibilance-frequency content
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = 0.3 * np.sin(2 * np.pi * 440 * t) + 0.2 * np.sin(2 * np.pi * 6500 * t)
+        data = np.column_stack([data, data])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_off = {**_PRESET_DEFAULTS, 'deess_enabled': 0}
+        preset_on = {**_PRESET_DEFAULTS, 'deess_enabled': 1, 'deess_threshold': -30.0}
+        master_track(str(inp), str(out1), preset=preset_off)
+        master_track(str(inp), str(out2), preset=preset_on)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
