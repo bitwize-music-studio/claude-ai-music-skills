@@ -57,6 +57,107 @@ def _parse_requirements(path: Path) -> dict[str, str]:
     return result
 
 
+def _find_plugin_cache_dir() -> Path | None:
+    """Locate the Claude Code plugin cache directory for bitwize-music.
+
+    Scans ``~/.claude/plugins/cache/bitwize-music/`` for versioned
+    subdirectories and returns the one with the highest version number.
+    Returns ``None`` if no cache directory exists.
+    """
+    cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
+    if not cache_base.is_dir():
+        return None
+
+    # Walk one level: each child may be an org/name dir containing version dirs
+    candidates: list[Path] = []
+    for org_or_name in cache_base.iterdir():
+        if not org_or_name.is_dir():
+            continue
+        for version_dir in org_or_name.iterdir():
+            if version_dir.is_dir() and (version_dir / "skills").is_dir():
+                candidates.append(version_dir)
+
+    if not candidates:
+        return None
+
+    # Sort by directory name descending (version-ish sort) and pick latest
+    candidates.sort(key=lambda p: p.name, reverse=True)
+    return candidates[0]
+
+
+def _check_skill_registration() -> dict[str, Any]:
+    """Compare on-disk skills against the Claude Code plugin cache.
+
+    Scans ``{PLUGIN_ROOT}/skills/*/SKILL.md`` for the canonical set of
+    skill names, then compares against the cached copy at
+    ``~/.claude/plugins/cache/bitwize-music/*/skills/*/SKILL.md``.
+
+    Returns:
+        dict with status ("ok", "stale", "no_cache"), missing skills,
+        ghost skills, counts, cached version, and fix message.
+    """
+    assert _shared.PLUGIN_ROOT is not None
+
+    # Canonical skills from the plugin source
+    source_skills = {
+        p.parent.name
+        for p in (_shared.PLUGIN_ROOT / "skills").glob("*/SKILL.md")
+    }
+
+    # Find the plugin cache
+    cache_dir = _find_plugin_cache_dir()
+    if cache_dir is None:
+        return {
+            "status": "no_cache",
+            "message": "No Claude Code plugin cache found for bitwize-music",
+            "source_count": len(source_skills),
+            "fix_message": (
+                "Install or update the plugin: claude plugin update bitwize-music "
+                "— or use --plugin-dir for local development"
+            ),
+        }
+
+    cached_skills = {
+        p.parent.name
+        for p in (cache_dir / "skills").glob("*/SKILL.md")
+    }
+
+    missing = sorted(source_skills - cached_skills)
+    ghost = sorted(cached_skills - source_skills)
+    ok_count = len(source_skills & cached_skills)
+
+    # Read cached version from plugin.json
+    cached_version = None
+    cached_plugin_json = cache_dir / ".claude-plugin" / "plugin.json"
+    try:
+        if cached_plugin_json.exists():
+            data = json.loads(cached_plugin_json.read_text(encoding="utf-8"))
+            cached_version = data.get("version")
+    except (json.JSONDecodeError, OSError):
+        pass
+
+    status = "ok" if not missing and not ghost else "stale"
+
+    result: dict[str, Any] = {
+        "status": status,
+        "source_count": len(source_skills),
+        "cached_count": len(cached_skills),
+        "ok_count": ok_count,
+        "missing": missing,
+        "ghost": ghost,
+        "cached_version": cached_version,
+        "cache_path": str(cache_dir),
+    }
+
+    if status == "stale":
+        result["fix_message"] = (
+            "Plugin cache is stale — run: claude plugin update bitwize-music "
+            "— or use --plugin-dir for local development"
+        )
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Tool functions
 # ---------------------------------------------------------------------------
@@ -164,6 +265,78 @@ async def check_venv_health() -> str:
         )
 
     return _safe_json(result)
+
+
+async def health_check() -> str:
+    """Run startup health checks: venv packages and skill registration.
+
+    Combines check_venv_health and skill registration checks into a
+    single call for session startup. Use this instead of calling
+    check_venv_health directly during session start.
+
+    Returns:
+        JSON with overall status ("ok", "warn", "fail"), per-check
+        summaries, and raw results for venv and skills.
+    """
+    checks: list[dict[str, Any]] = []
+
+    # --- Venv check ---
+    venv_raw = json.loads(await check_venv_health())
+    venv_status = venv_raw.get("status", "error")
+    if venv_status == "ok":
+        checks.append({"name": "venv", "status": "ok",
+                        "detail": f"{venv_raw.get('checked', 0)} packages verified"})
+    elif venv_status == "stale":
+        parts = []
+        if venv_raw.get("mismatches"):
+            parts.append(f"{len(venv_raw['mismatches'])} outdated")
+        if venv_raw.get("missing"):
+            parts.append(f"{len(venv_raw['missing'])} missing")
+        checks.append({"name": "venv", "status": "warn",
+                        "detail": ", ".join(parts),
+                        "fix": venv_raw.get("fix_command")})
+    elif venv_status == "no_venv":
+        checks.append({"name": "venv", "status": "fail",
+                        "detail": "Venv not found at ~/.bitwize-music/venv"})
+    else:
+        checks.append({"name": "venv", "status": "fail",
+                        "detail": venv_raw.get("message", venv_status)})
+
+    # --- Skill registration check ---
+    skills_raw = _check_skill_registration()
+    skills_status = skills_raw.get("status", "error")
+    if skills_status == "ok":
+        checks.append({"name": "skills", "status": "ok",
+                        "detail": f"{skills_raw.get('ok_count', 0)} skills registered"})
+    elif skills_status == "stale":
+        parts = []
+        if skills_raw.get("missing"):
+            parts.append(f"{len(skills_raw['missing'])} missing: {', '.join(skills_raw['missing'])}")
+        if skills_raw.get("ghost"):
+            parts.append(f"{len(skills_raw['ghost'])} ghost: {', '.join(skills_raw['ghost'])}")
+        checks.append({"name": "skills", "status": "warn",
+                        "detail": "; ".join(parts),
+                        "fix": skills_raw.get("fix_message")})
+    elif skills_status == "no_cache":
+        checks.append({"name": "skills", "status": "warn",
+                        "detail": "No plugin cache found",
+                        "fix": skills_raw.get("fix_message")})
+
+    # --- Overall status ---
+    statuses = [c["status"] for c in checks]
+    if "fail" in statuses:
+        overall = "fail"
+    elif "warn" in statuses:
+        overall = "warn"
+    else:
+        overall = "ok"
+
+    return _safe_json({
+        "status": overall,
+        "checks": checks,
+        "venv": venv_raw,
+        "skills": skills_raw,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -356,6 +529,25 @@ async def diagnose() -> str:
         checks.append({"name": "venv", "status": "fail",
                         "detail": venv_result.get("message", venv_status)})
 
+    # Add skill registration check
+    skills_result = _check_skill_registration()
+    skills_status = skills_result.get("status", "error")
+    if skills_status == "ok":
+        checks.append({"name": "skills", "status": "ok",
+                        "detail": f"{skills_result.get('ok_count', 0)} skills registered"})
+    elif skills_status == "stale":
+        parts = []
+        if skills_result.get("missing"):
+            parts.append(f"{len(skills_result['missing'])} missing")
+        if skills_result.get("ghost"):
+            parts.append(f"{len(skills_result['ghost'])} ghost")
+        checks.append({"name": "skills", "status": "warn",
+                        "detail": ", ".join(parts),
+                        "fix": skills_result.get("fix_message")})
+    else:
+        checks.append({"name": "skills", "status": "warn",
+                        "detail": skills_result.get("message", skills_status)})
+
     # Add version check
     version_result = json.loads(await get_plugin_version())
     if version_result.get("needs_upgrade"):
@@ -389,7 +581,8 @@ async def diagnose() -> str:
 # ---------------------------------------------------------------------------
 
 def register(mcp: Any) -> None:
-    """Register plugin version, venv health, and diagnostic tools."""
+    """Register plugin version, health check, venv, and diagnostic tools."""
     mcp.tool()(get_plugin_version)
     mcp.tool()(check_venv_health)
+    mcp.tool()(health_check)
     mcp.tool()(diagnose)

@@ -13,6 +13,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...set up the plugin for the first time | `/configure` |
 | ...learn how to use this plugin | `/tutorial` |
 | ...see what skills are available | `/help` |
+| ...check plugin health (venv, skill registration) | `/health-check` |
 | ...learn about the plugin creator | `/about` |
 
 ### Album Lifecycle
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`document-hunter`](/skills/document-hunter/SKILL.md) | Automated browser-based document search from free archives | Finding court docs for true-story albums |
 | [`explicit-checker`](/skills/explicit-checker/SKILL.md) | Scan lyrics for explicit content, verify flags | Ensuring explicit flags match actual content |
 | [`genre-creator`](/skills/genre-creator/SKILL.md) | Create new genre documentation with consistent structure | Adding a new genre to the genre library |
+| [`health-check`](/skills/health-check/SKILL.md) | Run plugin health checks (venv packages and skill registration) | Troubleshooting missing skills or stale packages |
 | [`help`](/skills/help/SKILL.md) | Show available skills and common workflows | Quick reference for what skills exist |
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
 | [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
@@ -379,10 +381,11 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/verify-sources` - Human verification gate
 - `/voice-checker` - Advisory review for AI-sounding patterns
 
-### Haiku 4.5 (Pattern Matching — 15 skills)
+### Haiku 4.5 (Pattern Matching — 16 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
+- `/health-check` - Plugin health checks
 - `/help` - Display information
 - `/import-art` - File operations
 - `/import-audio` - File operations

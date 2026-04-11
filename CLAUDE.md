@@ -74,11 +74,14 @@ At the beginning of a fresh session:
    - If MCP missing → **Stop immediately** and suggest: `/bitwize-music:setup mcp`
    - If config missing → suggest: `/bitwize-music:configure`
    - Don't proceed with session start until setup is complete
-1.5. **Check venv health** — Use `check_venv_health` MCP tool:
-   - `status: "ok"` → continue silently
-   - `status: "stale"` → warn with mismatches and fix command, continue session
-   - `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
-   - `status: "error"` → warn and continue
+1.5. **Health check** — Use `health_check` MCP tool (checks venv + skill registration):
+   - Venv `status: "ok"` → continue silently
+   - Venv `status: "stale"` → warn with mismatches and fix command, continue session
+   - Venv `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
+   - Venv `status: "error"` → warn and continue
+   - Skills `status: "ok"` → continue silently
+   - Skills `status: "stale"` → warn with missing/ghost skill names and fix message, continue session
+   - Skills `status: "no_cache"` → warn (plugin may not be installed via marketplace), continue
 2. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
 3. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
    - `{overrides}/CLAUDE.md` → incorporate instructions
@@ -97,7 +100,9 @@ At the beginning of a fresh session:
    - If versions match → no action
 5. _(Removed — run `/bitwize-music:skill-model-updater check` manually when new models are released)_
 6. **Report from MCP state**:
-   - Venv health warnings (from step 1.5 — omit if ok, warn if stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`")
+   - Health warnings (from step 1.5 — omit if ok):
+     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`"
+     - Skills stale: "⚠️ N skill(s) missing from Claude Code, N ghost — run: `claude plugin update bitwize-music`"
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications(summary_only=True)`)

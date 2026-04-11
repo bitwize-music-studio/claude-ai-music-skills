@@ -454,6 +454,7 @@ from handlers.health import (  # noqa: F401
     check_venv_health,
     diagnose,
     get_plugin_version,
+    health_check,
 )
 
 # Ideas tools
