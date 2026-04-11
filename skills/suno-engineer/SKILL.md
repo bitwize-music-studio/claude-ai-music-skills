@@ -324,6 +324,7 @@ Only mark track as "Generated" when output meets:
 - [ ] Mix balance (vocals not buried)
 - [ ] Structure follows tags
 - [ ] No awkward cuts or loops
+- [ ] No unwanted instruments/elements present (verify exclusions were effective)
 
 ---
 
