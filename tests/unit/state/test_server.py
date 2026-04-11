@@ -12140,7 +12140,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
+        presets = {"hip-hop": {"target_lufs": -13.0, "cut_highmid": -3.0, "cut_highs": -1.0, "compress_ratio": 2.0}}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
@@ -12166,7 +12166,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
+        presets = {"hip-hop": {"target_lufs": -13.0, "cut_highmid": -3.0, "cut_highs": -1.0, "compress_ratio": 2.0}}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \

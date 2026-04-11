@@ -856,7 +856,7 @@ class TestMasterAlbumPipeline:
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
              patch("tools.mastering.master_tracks.load_genre_presets",
-                   return_value={"rock": (-14.0, -2.5, 0.0, 1.5)}), \
+                   return_value={"rock": {"target_lufs": -14.0, "cut_highmid": -2.5, "cut_highs": 0.0, "compress_ratio": 1.5}}), \
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
@@ -1064,7 +1064,7 @@ class TestMasterAlbumPipeline:
                 "final_peak": -1.5,
             }
 
-        presets = {"country": (-14.0, -2.0, 0.0, 1.5)}
+        presets = {"country": {"target_lufs": -14.0, "cut_highmid": -2.0, "cut_highs": 0.0, "compress_ratio": 1.5}}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
