@@ -56,6 +56,7 @@ from tools.mixing.mix_tracks import (
     discover_stems,
     _get_stem_settings,
     _get_full_mix_settings,
+    _resolve_master_click_thresholds,
 )
 
 
@@ -1726,6 +1727,36 @@ class TestOverrideMerging:
         presets = load_mix_presets()
         assert 'rock' in presets['genres']
         assert 'pop' in presets['genres']
+
+
+class TestMasterClickThresholdsThreaded:
+    """Verify polish pipeline picks up click_peak_ratio / click_fail_count
+    from the mastering genre preset so polish and QC stay aligned (#289)."""
+
+    def test_stem_settings_inherit_master_click_thresholds(self):
+        # 'electronic' is one of the mastering-tuned genres (ratio 8.0, fail 15)
+        settings = _get_stem_settings('drums', genre='electronic')
+        assert settings.get('click_peak_ratio') == 8.0
+        assert settings.get('click_fail_count') == 15
+
+    def test_full_mix_settings_inherit_master_click_thresholds(self):
+        settings = _get_full_mix_settings(genre='electronic')
+        assert settings.get('click_peak_ratio') == 8.0
+        assert settings.get('click_fail_count') == 15
+
+    def test_no_genre_leaves_click_thresholds_unset(self):
+        settings = _get_stem_settings('drums')
+        assert 'click_peak_ratio' not in settings
+        assert 'click_fail_count' not in settings
+
+    def test_unknown_genre_does_not_raise(self):
+        # mix-only / user-added genre — helper must fail soft
+        settings = _get_full_mix_settings(genre='totally-invented-genre')
+        # Either the genre resolves to defaults (no click fields) or the
+        # merge yields something without them — just assert graceful.
+        assert 'click_peak_ratio' not in settings or isinstance(
+            settings['click_peak_ratio'], (int, float)
+        )
 
 
 # ─── Character Effects Tests ─────────────────────────────────────────

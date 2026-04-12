@@ -953,6 +953,37 @@ def _apply_character_effects(
 # ─── Per-Stem Processing Chains ──────────────────────────────────────
 
 
+def _resolve_master_click_thresholds(genre: str | None) -> tuple[float | None, int | None]:
+    """Look up `click_peak_ratio` and `click_fail_count` for a genre from
+    the **mastering** genre presets, so the polish declicker uses the same
+    detection semantics as the QC click detector (#285).
+
+    Args:
+        genre: Genre name (e.g., "idm"). May be None or an empty string.
+
+    Returns:
+        `(peak_ratio, fail_count)`. Both are None when `genre` is falsy or
+        when the genre is not present in the mastering preset list (polish
+        genres are a subset of mastering genres, but this stays graceful
+        for user-added mix-only genres).
+    """
+    if not genre:
+        return None, None
+    try:
+        from tools.mastering.master_tracks import GENRE_PRESETS
+    except Exception:
+        return None, None
+    preset = GENRE_PRESETS.get(genre.lower())
+    if preset is None:
+        return None, None
+    peak_ratio = preset.get('click_peak_ratio')
+    fail_count = preset.get('click_fail_count')
+    return (
+        float(peak_ratio) if peak_ratio is not None else None,
+        int(fail_count) if fail_count is not None else None,
+    )
+
+
 def _get_stem_settings(stem_name: str, genre: str | None = None) -> dict[str, Any]:
     """Get processing settings for a specific stem type.
 
@@ -972,9 +1003,19 @@ def _get_stem_settings(stem_name: str, genre: str | None = None) -> dict[str, An
         genre_key = genre.lower()
         genre_presets = presets.get('genres', {}).get(genre_key, {})
         genre_stem = genre_presets.get(stem_name, {})
-        return _deep_merge(stem_defaults, genre_stem)
+        result: dict[str, Any] = _deep_merge(stem_defaults, genre_stem)
+    else:
+        result = stem_defaults.copy()
 
-    result: dict[str, Any] = stem_defaults.copy()
+    # Overlay mastering genre's click thresholds so polish and QC speak
+    # the same language (#289). Mix-preset overrides (`click_peak_ratio`
+    # under `defaults.<stem>.` or `genres.<g>.<stem>.`) win if present,
+    # so user overrides still work.
+    peak_ratio, fail_count = _resolve_master_click_thresholds(genre)
+    if peak_ratio is not None and 'click_peak_ratio' not in result:
+        result['click_peak_ratio'] = peak_ratio
+    if fail_count is not None and 'click_fail_count' not in result:
+        result['click_fail_count'] = fail_count
     return result
 
 
@@ -995,9 +1036,15 @@ def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
         genre_key = genre.lower()
         genre_presets = presets.get('genres', {}).get(genre_key, {})
         genre_full_mix = genre_presets.get('full_mix', {})
-        return _deep_merge(full_mix_defaults, genre_full_mix)
+        result: dict[str, Any] = _deep_merge(full_mix_defaults, genre_full_mix)
+    else:
+        result = full_mix_defaults.copy()
 
-    result: dict[str, Any] = full_mix_defaults.copy()
+    peak_ratio, fail_count = _resolve_master_click_thresholds(genre)
+    if peak_ratio is not None and 'click_peak_ratio' not in result:
+        result['click_peak_ratio'] = peak_ratio
+    if fail_count is not None and 'click_fail_count' not in result:
+        result['click_fail_count'] = fail_count
     return result
 
 
