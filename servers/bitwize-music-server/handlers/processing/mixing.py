@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import _find_wav_source_dir, _safe_json
+from handlers._shared import _find_wav_source_dir, _is_path_confined, _safe_json
 from handlers.processing import _helpers
 
 logger = logging.getLogger("bitwize-music-state")
@@ -19,6 +19,7 @@ async def polish_audio(
     genre: str = "",
     use_stems: bool = True,
     dry_run: bool = False,
+    track_filename: str = "",
 ) -> str:
     """Polish audio tracks by processing stems or full mixes.
 
@@ -35,6 +36,10 @@ async def polish_audio(
         genre: Genre preset for stem-specific settings (e.g., "hip-hop")
         use_stems: If true, process per-stem WAVs; if false, process full mixes
         dry_run: If true, analyze only without writing files
+        track_filename: If set, only process this one track (e.g.,
+            "01-track-name.wav"). In stems mode, matches the stem track
+            directory with the same stem name. In full-mix mode, matches
+            the WAV filename directly. Empty = process whole album.
 
     Returns:
         JSON with per-track results, settings, and summary
@@ -80,6 +85,12 @@ async def polish_audio(
             # Graceful fallback — process full mixes instead of erroring
             use_stems = False
 
+    if track_filename and not _is_path_confined(audio_dir, track_filename):
+        return _safe_json({
+            "error": "Invalid track_filename: path must not escape the album directory",
+            "track_filename": track_filename,
+        })
+
     if use_stems:
         # Stems mode: look for stems/ subdirectory with track folders
         stems_dir = audio_dir / "stems"
@@ -87,6 +98,15 @@ async def polish_audio(
         track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
         if not track_dirs:
             return _safe_json({"error": f"No track directories in {stems_dir}"})
+
+        if track_filename:
+            wanted = Path(track_filename).stem
+            track_dirs = [d for d in track_dirs if d.name == wanted]
+            if not track_dirs:
+                return _safe_json({
+                    "error": f"Track not found in stems/: {track_filename}",
+                    "available_tracks": sorted([d.name for d in stems_dir.iterdir() if d.is_dir()]),
+                })
 
         for track_dir in track_dirs:
             stem_paths = discover_stems(track_dir)
@@ -119,6 +139,15 @@ async def polish_audio(
         if not wav_files:
             return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
+        if track_filename:
+            wanted_name = Path(track_filename).name
+            wav_files = [f for f in wav_files if f.name == wanted_name]
+            if not wav_files:
+                return _safe_json({
+                    "error": f"Track file not found: {track_filename}",
+                    "available_files": [f.name for f in source_dir.glob("*.wav")],
+                })
+
         for wav_file in wav_files:
             out_path = str(output_dir / wav_file.name)
 
@@ -142,6 +171,7 @@ async def polish_audio(
             "genre": genre or None,
             "use_stems": use_stems,
             "dry_run": dry_run,
+            "track_filename": track_filename or None,
         },
         "summary": {
             "tracks_processed": len(track_results),
