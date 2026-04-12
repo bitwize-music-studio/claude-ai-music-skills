@@ -1236,10 +1236,10 @@ def master_track(input_path: Path | str, output_path: Path | str,
         data = signal.resample_poly(data, up=1, down=oversample, axis=0)
         rate = original_rate
 
-    # Verify final loudness and measure true peak
+    # Measure final loudness at the processing rate before SRC. LUFS is
+    # invariant under rate conversion so this is authoritative, and it
+    # keeps us on a pyln-supported rate.
     final_lufs = meter.integrated_loudness(data)
-    true_peak_linear = measure_true_peak(data, rate)
-    final_peak = 20 * np.log10(true_peak_linear) if true_peak_linear > 0 else float('-inf')
 
     # Convert back to mono if input was mono
     if was_mono:
@@ -1253,6 +1253,18 @@ def master_track(input_path: Path | str, output_path: Path | str,
         g = gcd(output_sr, rate)
         data = signal.resample_poly(data, up=output_sr // g, down=rate // g, axis=0)
         rate = output_sr
+
+    # Final true-peak guard at the output rate. The look-ahead limiter
+    # hit the ceiling exactly at the oversampled rate, but the
+    # downsample/SRC polyphase FIRs have passband ripple that
+    # reintroduces sub-dB inter-sample peaks. One reactive pass is
+    # sufficient: gain = ceiling / true_peak is exact for the measured
+    # peak and soft_clip absorbs any tiny residual.
+    data = limit_peaks(data, ceiling_db)
+
+    # Measure final true peak at the output rate for the returned result.
+    true_peak_linear = measure_true_peak(data, rate)
+    final_peak = 20 * np.log10(true_peak_linear) if true_peak_linear > 0 else float('-inf')
 
     # Resolve output bit depth: output_bits controls the format,
     # dither_bits follows output_bits by default but can be overridden

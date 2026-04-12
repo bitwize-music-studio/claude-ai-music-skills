@@ -34,6 +34,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - Wired `eq_low_q` through to `apply_low_shelf()` (was defined but unused)
 - Look-ahead limiter now hits its target ceiling exactly (was overshooting by ~1 dB on transients). Gain at peak samples was being sampled from the release-relaxed envelope; replaced with a rolling minimum over the lookahead window (#283)
 - QC click detector is now genre-aware: `click_peak_ratio` and `click_fail_count` are per-genre preset fields, tuned looser for genres with intentional sharp transients (electronic, IDM, breakcore, trap, metal, glitch, footwork, etc.) so musical transients no longer FAIL QC. `qc_tracks.py` accepts `--genre`, the `qc_audio` MCP tool accepts `genre`, and user `mastering-presets.yaml` overrides still apply (#285)
+- Mastering chain now adds a final true-peak guard at the output rate after downsample and SRC. `scipy.signal.resample_poly`'s polyphase FIR has passband ripple that previously reintroduced 0.1–0.9 dB inter-sample peaks above the limiter ceiling; one reactive `limit_peaks()` pass closes that gap so `ceiling_db` is hit within ~0.05 dB without the prior headroom workaround (#286)
 
 ## [0.89.0] - 2026-04-10
 

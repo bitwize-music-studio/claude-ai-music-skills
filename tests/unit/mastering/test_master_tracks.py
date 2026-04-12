@@ -1266,6 +1266,109 @@ class TestOversampling:
         assert not np.allclose(d1, d2, atol=1e-3)
 
 
+class TestPostDownsampleTruePeakGuard:
+    """Tests for the final true-peak guard that closes SRC/downsample ripple overshoot (#286)."""
+
+    def _write_transient_signal(self, path, rate=44100, duration=4.0):
+        """Dense transient content that stresses the limiter + downsample chain.
+
+        Low-level carrier (-34 dBFS) with a cluster of sharp HF bursts. Loud-
+        ness comes out around -30 LUFS so -14 LUFS mastering applies ~+16 dB
+        gain. At high gain, the look-ahead limiter hits the ceiling exactly
+        at the oversampled rate, but the downsample polyphase FIR's passband
+        ripple reintroduces sub-dB inter-sample peaks above the ceiling.
+        """
+        t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+        base = 0.02 * np.sin(2 * np.pi * 220 * t)
+        # Add HF transient bursts every ~40 ms
+        burst_interval = int(rate * 0.04)
+        burst_len = 30
+        for start in range(0, len(base) - burst_len, burst_interval):
+            base[start:start + burst_len] += 0.8 * np.sin(
+                2 * np.pi * 7000 * np.arange(burst_len) / rate
+            )
+        base = np.clip(base, -0.9, 0.9)
+        data = np.column_stack([base, base])
+        _write_wav(path, data, rate)
+        return rate
+
+    def test_output_true_peak_within_005_db_of_ceiling(self, tmp_path):
+        """After mastering, output-rate true peak must not exceed the ceiling by more than 0.05 dB."""
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        rate = self._write_transient_signal(inp)
+
+        ceiling = -1.0
+        preset = {
+            **_PRESET_DEFAULTS,
+            'processing_oversample': 2,
+            'limiter_lookahead_ms': 5.0,
+        }
+        result = master_track(
+            str(inp), str(out),
+            ceiling_db=ceiling,
+            target_lufs=-14.0,
+            preset=preset,
+        )
+        assert not result.get('skipped')
+
+        out_data, out_rate = sf.read(str(out))
+        tp_linear = measure_true_peak(out_data, out_rate)
+        tp_db = 20 * np.log10(tp_linear) if tp_linear > 0 else float('-inf')
+
+        assert tp_db <= ceiling + 0.05, (
+            f"Output-rate true peak {tp_db:.3f} dBTP exceeds ceiling "
+            f"{ceiling} dBTP by more than 0.05 dB"
+        )
+
+    def test_reported_final_peak_matches_output_rate(self, tmp_path):
+        """Returned final_peak should reflect the post-guard peak at the output rate."""
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        self._write_transient_signal(inp)
+
+        ceiling = -1.0
+        preset = {
+            **_PRESET_DEFAULTS,
+            'processing_oversample': 2,
+            'limiter_lookahead_ms': 5.0,
+        }
+        result = master_track(
+            str(inp), str(out),
+            ceiling_db=ceiling,
+            target_lufs=-14.0,
+            preset=preset,
+        )
+        assert result['final_peak'] <= ceiling + 0.05
+
+    def test_guard_active_after_src(self, tmp_path):
+        """When SRC is configured, output-rate peaks still stay within 0.05 dB of ceiling."""
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        self._write_transient_signal(inp, rate=44100)
+
+        ceiling = -1.0
+        preset = {
+            **_PRESET_DEFAULTS,
+            'processing_oversample': 2,
+            'limiter_lookahead_ms': 5.0,
+            'output_sample_rate': 48000,
+        }
+        result = master_track(
+            str(inp), str(out),
+            ceiling_db=ceiling,
+            target_lufs=-14.0,
+            preset=preset,
+        )
+        assert not result.get('skipped')
+
+        out_data, out_rate = sf.read(str(out))
+        assert out_rate == 48000
+        tp_linear = measure_true_peak(out_data, out_rate)
+        tp_db = 20 * np.log10(tp_linear) if tp_linear > 0 else float('-inf')
+        assert tp_db <= ceiling + 0.05
+
+
 class TestLookaheadInMasterTrack:
     """Test look-ahead limiter wired through master_track()."""
 
