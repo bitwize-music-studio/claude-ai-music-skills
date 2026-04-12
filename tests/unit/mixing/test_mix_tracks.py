@@ -84,6 +84,8 @@ def _generate_noise(duration=1.0, rate=44100, amplitude=0.3, stereo=True):
 def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
     """Generate a signal with an artificial click/pop."""
     t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    # Background kept quiet (0.1x) so a 10 ms window containing the click
+    # has peak/rms > 6.0 — required by TestRemoveClicksPeakRatio tests.
     data = (amplitude * 0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
     # Insert a sharp click
     click_idx = int(click_pos * rate)
@@ -467,11 +469,12 @@ class TestRemoveClicksPeakRatio:
         click_idx = int(0.5 * rate)
         assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
 
-    def test_peak_ratio_relaxed_ignores_intentional_transient(self):
-        """A genre-relaxed peak_ratio (10.0) lets moderate transients pass."""
+    def test_strict_peak_ratio_skips_moderate_click(self):
+        """A strict peak_ratio (50.0) should not flag a modest transient —
+        higher ratios demand bigger peak/rms separation before flagging."""
         data, rate = _generate_click(amplitude=0.5)
-        # Same signal as above, but the detector is asked for a stricter
-        # ratio — so it should NOT flag this modest click.
+        # peak/rms of this click in a 10 ms window is ~10.2; a strict 50.0
+        # ratio requires ~5× higher separation, so no click should fire.
         result, n_clicks = remove_clicks(data, rate, peak_ratio=50.0)
         assert n_clicks == 0
         assert np.array_equal(result, data)
@@ -521,9 +524,11 @@ class TestRemoveClicksCubicRepair:
         data, rate = _generate_click(amplitude=0.5)
         result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
         click_idx = int(0.5 * rate)
-        # Original click is |~0.495|; the local sine at 440 Hz, amp 0.15,
-        # at t=0.5 s is tiny (≈0). Repaired sample must be well below.
-        assert np.abs(result[click_idx, 0]) < 0.2
+        # Original click is |~0.495|; local sine at 440 Hz amp 0.05 is
+        # near zero at t=0.5s. Repaired sample should be near zero — 0.05
+        # is a generous upper bound that would still catch a regression
+        # leaving a partially-repaired click.
+        assert np.abs(result[click_idx, 0]) < 0.05
 
     def test_cubic_repair_near_buffer_edge_falls_back_to_linear(self):
         """A click within window_ms of the start should not crash; it
