@@ -34,6 +34,19 @@
 #   deess_threshold        - De-esser threshold in dB (default -20.0)
 #   deess_ratio            - De-esser compression ratio (default 4.0)
 #   track_gap              - Silence to prepend per track in seconds (default 0)
+#   multiband_enabled      - Enable 3-band multiband compression (0=off, 1=on, default 0)
+#   multiband_low_crossover  - Low/mid crossover in Hz (default 200)
+#   multiband_high_crossover - Mid/high crossover in Hz (default 5000)
+#   multiband_low_ratio    - Low band compression ratio (default 1.5)
+#   multiband_mid_ratio    - Mid band compression ratio (default 1.5)
+#   multiband_high_ratio   - High band compression ratio (default 1.5)
+#   multiband_low_threshold  - Low band threshold in dB (default -18)
+#   multiband_mid_threshold  - Mid band threshold in dB (default -18)
+#   multiband_high_threshold - High band threshold in dB (default -18)
+#   midside_low_gain       - Side channel low shelf gain in dB (default 0, negative = narrower bass)
+#   midside_low_freq       - Side channel low shelf frequency (default 300)
+#   midside_high_gain      - Side channel high shelf gain in dB (default 0, positive = wider highs)
+#   midside_high_freq      - Side channel high shelf frequency (default 8000)
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -73,6 +86,19 @@ defaults:
   deess_threshold: -20.0
   deess_ratio: 4.0
   track_gap: 0
+  multiband_enabled: 0
+  multiband_low_crossover: 200
+  multiband_high_crossover: 5000
+  multiband_low_ratio: 1.5
+  multiband_mid_ratio: 1.5
+  multiband_high_ratio: 1.5
+  multiband_low_threshold: -18.0
+  multiband_mid_threshold: -18.0
+  multiband_high_threshold: -18.0
+  midside_low_gain: 0
+  midside_low_freq: 300
+  midside_high_gain: 0
+  midside_high_freq: 8000
 
 genres:
   # === Pop / Mainstream ===

@@ -108,6 +108,19 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'deess_threshold': -20.0,
     'deess_ratio': 4.0,
     'track_gap': 0.0,
+    'multiband_enabled': 0,
+    'multiband_low_crossover': 200.0,
+    'multiband_high_crossover': 5000.0,
+    'multiband_low_ratio': 1.5,
+    'multiband_mid_ratio': 1.5,
+    'multiband_high_ratio': 1.5,
+    'multiband_low_threshold': -18.0,
+    'multiband_mid_threshold': -18.0,
+    'multiband_high_threshold': -18.0,
+    'midside_low_gain': 0.0,
+    'midside_low_freq': 300.0,
+    'midside_high_gain': 0.0,
+    'midside_high_freq': 8000.0,
 }
 
 
@@ -620,6 +633,142 @@ def apply_deesser(data: Any, rate: int, freq: float = 6500.0,
         return result
 
 
+def apply_multiband_compress(data: Any, rate: int,
+                             low_crossover: float = 200.0,
+                             high_crossover: float = 5000.0,
+                             low_ratio: float = 1.5, mid_ratio: float = 1.5,
+                             high_ratio: float = 1.5,
+                             low_threshold: float = -18.0,
+                             mid_threshold: float = -18.0,
+                             high_threshold: float = -18.0,
+                             attack_ms: float = 30.0,
+                             release_ms: float = 200.0) -> Any:
+    """3-band multiband compressor using Linkwitz-Riley crossovers.
+
+    Splits into low/mid/high bands, compresses each independently,
+    then recombines. Provides tighter dynamics control than single-band
+    without pumping artifacts.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        low_crossover: Low/mid crossover frequency in Hz
+        high_crossover: Mid/high crossover frequency in Hz
+        low_ratio: Compression ratio for low band
+        mid_ratio: Compression ratio for mid band
+        high_ratio: Compression ratio for high band
+        low_threshold: Threshold for low band in dB
+        mid_threshold: Threshold for mid band in dB
+        high_threshold: Threshold for high band in dB
+        attack_ms: Compressor attack in ms (shared)
+        release_ms: Compressor release in ms (shared)
+    """
+    nyquist = rate / 2
+    if low_crossover >= high_crossover:
+        logger.warning("Multiband crossovers invalid (low=%.0f >= high=%.0f), skipping",
+                       low_crossover, high_crossover)
+        return data
+    if high_crossover >= nyquist:
+        logger.warning("High crossover %.0f Hz >= Nyquist, skipping", high_crossover)
+        return data
+
+    # Linkwitz-Riley 4th-order crossovers (two cascaded 2nd-order Butterworth)
+    low_norm = low_crossover / nyquist
+    high_norm = high_crossover / nyquist
+
+    b_lo, a_lo = signal.butter(2, low_norm, btype='low')
+    b_hi_lo, a_hi_lo = signal.butter(2, low_norm, btype='high')
+    b_hi, a_hi = signal.butter(2, high_norm, btype='high')
+    b_lo_hi, a_lo_hi = signal.butter(2, high_norm, btype='low')
+
+    def _split_and_compress_channel(channel: Any) -> Any:
+        # Split into 3 bands (LR4 = two passes of Butterworth 2nd-order)
+        low1 = signal.lfilter(b_lo, a_lo, channel)
+        low_band = signal.lfilter(b_lo, a_lo, low1)
+
+        mid_temp = signal.lfilter(b_hi_lo, a_hi_lo, channel)
+        mid_temp = signal.lfilter(b_hi_lo, a_hi_lo, mid_temp)
+        mid_lo = signal.lfilter(b_lo_hi, a_lo_hi, mid_temp)
+        mid_band = signal.lfilter(b_lo_hi, a_lo_hi, mid_lo)
+
+        high1 = signal.lfilter(b_hi, a_hi, channel)
+        high_band = signal.lfilter(b_hi, a_hi, high1)
+
+        # Compress each band independently
+        if low_ratio > 1.0:
+            low_band = gentle_compress(
+                low_band, rate, threshold_db=low_threshold,
+                ratio=low_ratio, attack_ms=attack_ms, release_ms=release_ms)
+        if mid_ratio > 1.0:
+            mid_band = gentle_compress(
+                mid_band, rate, threshold_db=mid_threshold,
+                ratio=mid_ratio, attack_ms=attack_ms, release_ms=release_ms)
+        if high_ratio > 1.0:
+            high_band = gentle_compress(
+                high_band, rate, threshold_db=high_threshold,
+                ratio=high_ratio, attack_ms=attack_ms, release_ms=release_ms)
+
+        return low_band + mid_band + high_band
+
+    if len(data.shape) == 1:
+        return _split_and_compress_channel(data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = _split_and_compress_channel(data[:, ch])
+        return result
+
+
+def apply_midside_eq(data: Any, rate: int,
+                     low_gain: float = 0.0, low_freq: float = 300.0,
+                     high_gain: float = 0.0, high_freq: float = 8000.0) -> Any:
+    """Apply EQ to the side channel only for frequency-selective stereo management.
+
+    Positive gain widens the stereo field at that frequency range;
+    negative gain narrows it. Useful for mono bass (cut side lows)
+    or wider highs (boost side highs).
+
+    Args:
+        data: Stereo audio data (samples, 2)
+        rate: Sample rate
+        low_gain: Low shelf gain on side channel in dB (negative = narrower bass)
+        low_freq: Low shelf frequency in Hz
+        high_gain: High shelf gain on side channel in dB (positive = wider highs)
+        high_freq: High shelf frequency in Hz
+    """
+    if len(data.shape) == 1 or data.shape[1] != 2:
+        return data
+    if low_gain == 0 and high_gain == 0:
+        return data
+
+    # Encode to mid/side
+    mid = (data[:, 0] + data[:, 1]) / 2
+    side = (data[:, 0] - data[:, 1]) / 2
+
+    # Apply EQ to side channel only
+    if low_gain != 0:
+        side = apply_low_shelf(
+            side.reshape(-1, 1) if side.ndim == 1 else side,
+            rate, freq=low_freq, gain_db=low_gain,
+        )
+        if side.ndim == 2:
+            side = side[:, 0]
+    if high_gain != 0:
+        side = apply_high_shelf(
+            side.reshape(-1, 1) if side.ndim == 1 else side,
+            rate, freq=high_freq, gain_db=high_gain,
+        )
+        if side.ndim == 2:
+            side = side[:, 0]
+
+    # Decode back to L/R
+    result = np.zeros_like(data)
+    result[:, 0] = mid + side
+    result[:, 1] = mid - side
+
+    return result
+
+
 def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None) -> Any:
     """Apply TPDF (Triangular Probability Density Function) dithering.
 
@@ -710,6 +859,16 @@ def master_track(input_path: Path | str, output_path: Path | str,
         for freq, gain_db, q in eq_settings:
             data = apply_eq(data, rate, freq, gain_db, q)
 
+    # Mid/side EQ (frequency-selective stereo management, after regular EQ)
+    ms_low_gain = p.get('midside_low_gain', 0.0)
+    ms_high_gain = p.get('midside_high_gain', 0.0)
+    if ms_low_gain != 0 or ms_high_gain != 0:
+        data = apply_midside_eq(
+            data, rate,
+            low_gain=ms_low_gain, low_freq=p.get('midside_low_freq', 300.0),
+            high_gain=ms_high_gain, high_freq=p.get('midside_high_freq', 8000.0),
+        )
+
     # De-essing (after EQ, before dynamics)
     if p.get('deess_enabled', 0) > 0:
         data = apply_deesser(
@@ -738,17 +897,36 @@ def master_track(input_path: Path | str, output_path: Path | str,
         data = signal.resample_poly(data, up=oversample, down=1, axis=0)
         rate = original_rate * oversample
 
-    # Mastering compression — gentle safety net with parallel blend
+    # Mastering compression — single-band or multiband with parallel blend
     compress_mix = p.get('compress_mix', 1.0)
-    if compress_ratio > 1.0:
+    multiband = p.get('multiband_enabled', 0) > 0
+
+    if multiband or compress_ratio > 1.0:
         dry = data.copy() if compress_mix < 1.0 else None
-        data = gentle_compress(
-            data, rate,
-            threshold_db=p['compress_threshold'],
-            ratio=compress_ratio,
-            attack_ms=p['compress_attack'],
-            release_ms=p['compress_release'],
-        )
+
+        if multiband:
+            data = apply_multiband_compress(
+                data, rate,
+                low_crossover=p.get('multiband_low_crossover', 200.0),
+                high_crossover=p.get('multiband_high_crossover', 5000.0),
+                low_ratio=p.get('multiband_low_ratio', 1.5),
+                mid_ratio=p.get('multiband_mid_ratio', 1.5),
+                high_ratio=p.get('multiband_high_ratio', 1.5),
+                low_threshold=p.get('multiband_low_threshold', -18.0),
+                mid_threshold=p.get('multiband_mid_threshold', -18.0),
+                high_threshold=p.get('multiband_high_threshold', -18.0),
+                attack_ms=p['compress_attack'],
+                release_ms=p['compress_release'],
+            )
+        elif compress_ratio > 1.0:
+            data = gentle_compress(
+                data, rate,
+                threshold_db=p['compress_threshold'],
+                ratio=compress_ratio,
+                attack_ms=p['compress_attack'],
+                release_ms=p['compress_release'],
+            )
+
         # Makeup gain: compensate for compression gain reduction
         makeup = p.get('compress_makeup', 0.0)
         if makeup != 0:
@@ -1013,6 +1191,16 @@ Examples:
                        help='De-esser compression ratio (default: 4.0)')
     parser.add_argument('--track-gap', type=float, default=None,
                        help='Silence to prepend to each track in seconds (default: 0)')
+    parser.add_argument('--multiband', action='store_true', default=None,
+                       help='Enable 3-band multiband compression')
+    parser.add_argument('--multiband-low-crossover', type=float, default=None,
+                       help='Low/mid crossover frequency in Hz (default: 200)')
+    parser.add_argument('--multiband-high-crossover', type=float, default=None,
+                       help='Mid/high crossover frequency in Hz (default: 5000)')
+    parser.add_argument('--midside-low-gain', type=float, default=None,
+                       help='Mid/side EQ: side low shelf gain in dB (negative = narrower bass)')
+    parser.add_argument('--midside-high-gain', type=float, default=None,
+                       help='Mid/side EQ: side high shelf gain in dB (positive = wider highs)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -1064,6 +1252,11 @@ Examples:
         'deess_threshold': args.deess_threshold,
         'deess_ratio': args.deess_ratio,
         'track_gap': args.track_gap,
+        'multiband_enabled': 1.0 if args.multiband else None,
+        'multiband_low_crossover': args.multiband_low_crossover,
+        'multiband_high_crossover': args.multiband_high_crossover,
+        'midside_low_gain': args.midside_low_gain,
+        'midside_high_gain': args.midside_high_gain,
     }
     for key, value in cli_overrides.items():
         if value is not None:
