@@ -24,6 +24,7 @@
 #   stereo_bass_mono_freq - Mono-sum below this frequency in Hz (0 = bypass)
 #   output_bits          - Output bit depth: 16 or 24 (default 16)
 #   dither_bits          - Dither bit depth (default: follows output_bits)
+#   eq_linear_phase      - Use linear-phase FIR EQ (0 = off, 1 = on, default 0)
 
 genres:
   # Example: override rock to be less aggressive

@@ -99,6 +99,7 @@ defaults:
   midside_low_freq: 300
   midside_high_gain: 0
   midside_high_freq: 8000
+  eq_linear_phase: 0
 
 genres:
   # === Pop / Mainstream ===
