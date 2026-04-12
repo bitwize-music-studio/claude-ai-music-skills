@@ -1863,6 +1863,7 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
             'filename': input_path.name,
             'skipped': True,
             'dry_run': dry_run,
+            'clicks_removed': 0,
         }
 
     # Handle mono
