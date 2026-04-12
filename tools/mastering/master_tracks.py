@@ -889,6 +889,32 @@ def apply_midside_eq(data: Any, rate: int,
     return result
 
 
+def _measure_lra(data: Any, rate: int) -> float | None:
+    """Measure Loudness Range (LRA) per EBU R128.
+
+    Uses 3-second windows with 1-second hop.  Returns LRA in LU
+    (difference between 95th and 10th percentile of short-term LUFS),
+    or None if measurement fails.
+    """
+    try:
+        window_samples = int(3.0 * rate)
+        hop_samples = int(1.0 * rate)
+        if data.shape[0] <= window_samples:
+            return None
+        short_term: list[float] = []
+        meter = pyln.Meter(rate)
+        for start in range(0, data.shape[0] - window_samples, hop_samples):
+            chunk = data[start:start + window_samples]
+            st_lufs = meter.integrated_loudness(chunk)
+            if np.isfinite(st_lufs):
+                short_term.append(st_lufs)
+        if len(short_term) < 2:
+            return None
+        return float(np.percentile(short_term, 95) - np.percentile(short_term, 10))
+    except Exception:
+        return None
+
+
 def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None) -> Any:
     """Apply TPDF (Triangular Probability Density Function) dithering.
 
@@ -1023,6 +1049,11 @@ def master_track(input_path: Path | str, output_path: Path | str,
     # Oversampling for nonlinear stages (compression + limiting)
     oversample = int(p.get('processing_oversample', 1))
     original_rate = rate
+
+    # Save pre-compression state for LRA re-targeting iterations
+    target_lra = p.get('target_lra', 0.0)
+    pre_compress_data = data.copy() if target_lra > 0 else None
+
     if oversample > 1:
         data = signal.resample_poly(data, up=oversample, down=1, axis=0)
         rate = original_rate * oversample
@@ -1085,28 +1116,65 @@ def master_track(input_path: Path | str, output_path: Path | str,
             'skipped': True,
         }
 
-    # LRA targeting: if LRA exceeds target, increase compression
-    target_lra = p.get('target_lra', 0.0)
-    measured_lra = None
-    if target_lra > 0:
-        try:
-            measured_lra = pyln.Meter(rate).integrated_loudness(data)
-            # pyloudnorm doesn't have LRA, so compute from short-term loudness
-            # Use 3-second windows with 2-second overlap per EBU R128
-            window_samples = int(3.0 * rate)
-            hop_samples = int(1.0 * rate)
-            if data.shape[0] > window_samples:
-                short_term = []
-                for start in range(0, data.shape[0] - window_samples, hop_samples):
-                    chunk = data[start:start + window_samples]
-                    st_lufs = pyln.Meter(rate).integrated_loudness(chunk)
-                    if np.isfinite(st_lufs):
-                        short_term.append(st_lufs)
-                if len(short_term) >= 2:
-                    # LRA = difference between 95th and 10th percentile
-                    measured_lra = float(np.percentile(short_term, 95) - np.percentile(short_term, 10))
-        except Exception:
-            measured_lra = None
+    # LRA targeting: if LRA exceeds target, iteratively increase compression
+    measured_lra = _measure_lra(data, rate)
+    if target_lra > 0 and measured_lra is not None and measured_lra > target_lra:
+        # Iteratively increase compression ratio to tighten dynamics
+        lra_tolerance = 0.5  # LU
+        max_iterations = 5
+        current_ratio = compress_ratio
+        for i in range(max_iterations):
+            if measured_lra <= target_lra + lra_tolerance:
+                break
+            # Scale ratio up proportionally to overshoot
+            overshoot = measured_lra - target_lra
+            current_ratio *= 1.0 + min(overshoot / target_lra, 0.5)
+            current_ratio = min(current_ratio, 8.0)  # Cap to avoid over-compression
+            logger.info("LRA %.1f LU exceeds target %.1f LU — retrying with ratio %.2f (iter %d)",
+                        measured_lra, target_lra, current_ratio, i + 1)
+            # Re-run compression from pre-compression checkpoint
+            recomp_data = pre_compress_data.copy()
+            if oversample > 1:
+                recomp_data = signal.resample_poly(recomp_data, up=oversample, down=1, axis=0)
+                recomp_rate = original_rate * oversample
+            else:
+                recomp_rate = rate
+            if multiband:
+                recomp_data = apply_multiband_compress(
+                    recomp_data, recomp_rate,
+                    low_crossover=p.get('multiband_low_crossover', 200.0),
+                    high_crossover=p.get('multiband_high_crossover', 5000.0),
+                    low_ratio=p.get('multiband_low_ratio', 1.5) * (current_ratio / compress_ratio),
+                    mid_ratio=p.get('multiband_mid_ratio', 1.5) * (current_ratio / compress_ratio),
+                    high_ratio=p.get('multiband_high_ratio', 1.5) * (current_ratio / compress_ratio),
+                    low_threshold=p.get('multiband_low_threshold', -18.0),
+                    mid_threshold=p.get('multiband_mid_threshold', -18.0),
+                    high_threshold=p.get('multiband_high_threshold', -18.0),
+                    attack_ms=p['compress_attack'],
+                    release_ms=p['compress_release'],
+                )
+            elif current_ratio > 1.0:
+                recomp_data = gentle_compress(
+                    recomp_data, recomp_rate,
+                    threshold_db=p['compress_threshold'],
+                    ratio=current_ratio,
+                    attack_ms=p['compress_attack'],
+                    release_ms=p['compress_release'],
+                )
+            makeup = p.get('compress_makeup', 0.0)
+            if makeup != 0:
+                recomp_data = recomp_data * (10 ** (makeup / 20))
+            if dry is not None and compress_mix < 1.0:
+                recomp_data = pre_compress_data.copy() * (1.0 - compress_mix) + recomp_data * compress_mix
+            if oversample > 1:
+                recomp_data = signal.resample_poly(recomp_data, up=1, down=oversample, axis=0)
+            data = recomp_data
+            measured_lra = _measure_lra(data, rate if oversample <= 1 else original_rate)
+            if measured_lra is None:
+                break
+        if measured_lra is not None and measured_lra > target_lra + lra_tolerance:
+            logger.warning("LRA %.1f LU still exceeds target %.1f LU after %d iterations",
+                           measured_lra, target_lra, max_iterations)
 
     # Calculate required gain
     gain_db = target_lufs - current_lufs
@@ -1317,6 +1385,8 @@ Examples:
                        help='De-esser center frequency in Hz (default: 6500)')
     parser.add_argument('--deess-threshold', type=float, default=None,
                        help='De-esser threshold in dB (default: -20.0)')
+    parser.add_argument('--deess-bandwidth', type=float, default=None,
+                       help='De-esser detection bandwidth in Hz (default: 4000)')
     parser.add_argument('--deess-ratio', type=float, default=None,
                        help='De-esser compression ratio (default: 4.0)')
     parser.add_argument('--track-gap', type=float, default=None,
@@ -1383,6 +1453,7 @@ Examples:
         'output_sample_rate': float(args.output_sample_rate) if args.output_sample_rate is not None else None,
         'deess_enabled': 1.0 if args.deess else None,
         'deess_freq': args.deess_freq,
+        'deess_bandwidth': args.deess_bandwidth,
         'deess_threshold': args.deess_threshold,
         'deess_ratio': args.deess_ratio,
         'track_gap': args.track_gap,
