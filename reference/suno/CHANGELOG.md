@@ -4,6 +4,27 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-04-12 - V5.5 Research Update
+
+### Features
+- **Voices** (Pro/Premier, 4 credits/creation, 18+): voice cloning from 15s–4min of singing with spoken-phrase consent verification; activation requires a broad training-consent opt-in
+- **Custom Models** (Pro/Premier, up to 3/account): fine-tune private V5.5 on ≥6 original tracks; 2–5 minute build time
+- **My Taste** (all tiers including free): passive preference learning that shapes the style autogenerate feature
+
+### Changes
+- **Engine**: improved phrasing nuance, instrument separation, dynamic range, vocal expressiveness — subtle descriptors land more reliably
+- **Backward compatibility**: style box (1,000 chars), lyrics box (5,000 chars), metatags, structure tags, sliders, negative prompting all unchanged from V5. No deprecated patterns.
+- **Optional prompting adjustments**: drop gender/register descriptors when using Voices; drop generic production language when using Custom Models
+
+### Documentation
+- Retitled v5-best-practices.md to cover V5 and V5.5
+- Added V5.5 Update summary section at top of v5-best-practices.md
+- Added Voices & Custom Models section to v5-best-practices.md
+- Added V5.5 personalization summary to tips-and-tricks.md
+- Updated suno-engineer skill description to reflect V5/V5.5 scope
+
+---
+
 ## 2026-02-04 - V5 Best Practices Research Update
 
 ### Features
