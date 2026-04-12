@@ -323,7 +323,7 @@ def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
         rate: Sample rate in Hz
         freq: Center/corner frequency in Hz
         gain_db: Gain in dB
-        q: Q factor (used for peaking type only)
+        q: Q factor (peaking and low_shelf types)
         filter_type: 'peaking', 'high_shelf', or 'low_shelf'
         num_taps: FIR filter length (must be odd for type-I linear phase)
     """
@@ -359,7 +359,7 @@ def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
         a1 = 2 * ((A - 1) - (A + 1) * cos_w0)
         a2 = (A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha
     elif filter_type == 'low_shelf':
-        alpha = np.sin(w0) / 2 * np.sqrt(2)
+        alpha = np.sin(w0) / (2 * q)
         sqrt_A = np.sqrt(A)
         b0 = A * ((A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
         b1 = 2 * A * ((A - 1) - (A + 1) * cos_w0)
@@ -870,9 +870,11 @@ def apply_midside_eq(data: Any, rate: int,
         side_2d = side.reshape(-1, 1) if side.ndim == 1 else side
         if linear_phase:
             side_2d = apply_linear_phase_eq(side_2d, rate, freq=low_freq,
-                                            gain_db=low_gain, filter_type='low_shelf')
+                                            gain_db=low_gain, q=0.707,
+                                            filter_type='low_shelf')
         else:
-            side_2d = apply_low_shelf(side_2d, rate, freq=low_freq, gain_db=low_gain)
+            side_2d = apply_low_shelf(side_2d, rate, freq=low_freq, gain_db=low_gain,
+                                      q=0.707)
         side = side_2d[:, 0] if side_2d.ndim == 2 else side_2d
     if high_gain != 0:
         side_2d = side.reshape(-1, 1) if side.ndim == 1 else side
@@ -1003,7 +1005,8 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if low_gain != 0:
         if use_linear_phase:
             data = apply_linear_phase_eq(data, rate, freq=p['eq_low_freq'],
-                                         gain_db=low_gain, filter_type='low_shelf')
+                                         gain_db=low_gain, q=p.get('eq_low_q', 0.707),
+                                         filter_type='low_shelf')
         else:
             data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain,
                                    q=p.get('eq_low_q', 0.707))
