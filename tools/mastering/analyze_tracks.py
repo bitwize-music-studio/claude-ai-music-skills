@@ -78,6 +78,36 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
     # Crest factor (peak to RMS as linear ratio)
     _crest_factor = peak_linear / rms if rms > 0 else 0.0
 
+    # Short-term and momentary loudness dynamics
+    max_short_term = float('-inf')
+    min_short_term = float('inf')
+    max_momentary = float('-inf')
+
+    # Short-term: 3s window, 1s hop (EBU R128)
+    st_window = int(3.0 * rate)
+    st_hop = int(1.0 * rate)
+    if data.shape[0] > st_window:
+        for start in range(0, data.shape[0] - st_window, st_hop):
+            chunk = data[start:start + st_window]
+            st_lufs = pyln.Meter(rate).integrated_loudness(chunk)
+            if np.isfinite(st_lufs):
+                max_short_term = max(max_short_term, st_lufs)
+                min_short_term = min(min_short_term, st_lufs)
+
+    # Momentary: 400ms window, 100ms hop
+    mom_window = int(0.4 * rate)
+    mom_hop = int(0.1 * rate)
+    if data.shape[0] > mom_window:
+        for start in range(0, data.shape[0] - mom_window, mom_hop):
+            chunk = data[start:start + mom_window]
+            mom_lufs = pyln.Meter(rate).integrated_loudness(chunk)
+            if np.isfinite(mom_lufs):
+                max_momentary = max(max_momentary, mom_lufs)
+
+    short_term_range = (max_short_term - min_short_term
+                        if np.isfinite(max_short_term) and np.isfinite(min_short_term)
+                        else 0.0)
+
     return {
         'filename': os.path.basename(filepath),
         'duration': len(mono) / rate,
@@ -88,6 +118,9 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
         'dynamic_range': dynamic_range,
         'band_energy': band_energy,
         'tinniness_ratio': tinniness_ratio,
+        'max_short_term_lufs': max_short_term if np.isfinite(max_short_term) else None,
+        'max_momentary_lufs': max_momentary if np.isfinite(max_momentary) else None,
+        'short_term_range': short_term_range,
     }
 
 def main() -> None:
@@ -156,6 +189,23 @@ def main() -> None:
     print("-" * 65)
     print(f"{'Average':<35} {avg_lufs:>8.1f}")
     print()
+
+    # Loudness dynamics table
+    has_dynamics = any(r.get('max_short_term_lufs') is not None for r in results)
+    if has_dynamics:
+        print("=" * 80)
+        print("LOUDNESS DYNAMICS (short-term=3s, momentary=400ms)")
+        print("=" * 80)
+        print(f"{'Track':<35} {'MaxST':>8} {'MaxMom':>8} {'STRange':>8}")
+        print("-" * 65)
+        for r in results:
+            st = r.get('max_short_term_lufs')
+            mom = r.get('max_momentary_lufs')
+            st_range = r.get('short_term_range', 0)
+            st_str = f"{st:.1f}" if st is not None else "N/A"
+            mom_str = f"{mom:.1f}" if mom is not None else "N/A"
+            print(f"{r['filename'][:34]:<35} {st_str:>8} {mom_str:>8} {st_range:>7.1f}dB")
+        print()
 
     print("=" * 80)
     print("SPECTRAL BALANCE (% energy per band)")
