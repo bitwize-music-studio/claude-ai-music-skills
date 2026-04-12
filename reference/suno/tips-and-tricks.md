@@ -142,6 +142,18 @@ As part of the Warner Music Group partnership, download policies changed:
 
 ---
 
+## Voices & Custom Models (V5.5)
+
+V5.5 (March 26, 2026) adds three personalization features. None of them change prompt syntax — V5 prompts still work identically.
+
+- **Voices** (Pro/Premier, 4 credits/creation): upload 15s–4min of singing (clean acapella best), pass a spoken-phrase consent check, then generate with your own voice. Activation requires checking a broad training-consent box — not optional. 18+. When prompting with a Voice, drop gender/register descriptors from the style box.
+- **Custom Models** (Pro/Premier, up to 3/account): fine-tune a private V5.5 on ≥6 of your own tracks. Build takes 2–5 minutes. Drop generic production language when prompting — the model encodes your aesthetic.
+- **My Taste** (all tiers, free included): passive background learning that shapes the style autogenerate feature. Not prompt-facing.
+
+See [v5-best-practices.md](v5-best-practices.md#voices--custom-models) for the full breakdown.
+
+---
+
 ## Personas for Vocal Consistency
 
 Personas (Pro/Premier) save a song's vocal identity for reuse across tracks — the most reliable way to maintain a consistent voice across an album.

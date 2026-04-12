@@ -1,6 +1,6 @@
 ---
 name: suno-engineer
-description: Constructs technical Suno V5 style prompts, selects genres, and optimizes generation settings. Use when creating or refining Suno prompts for track generation.
+description: Constructs technical Suno V5/V5.5 style prompts, selects genres, and optimizes generation settings. Use when creating or refining Suno prompts for track generation.
 argument-hint: <track-file-path or "create prompt for [concept]">
 model: claude-opus-4-6
 prerequisites:
@@ -58,6 +58,8 @@ Unlike V4, V5 follows instructions exactly. Don't overthink it.
 - Simple, clear prompts work best
 - Say what you want directly
 - Trust the model to understand
+
+**V5.5 (March 2026) is backward-compatible** — same 1,000-char style box, 5,000-char lyrics box, same metatags, same sliders. V5 prompts work identically. The engine is more expressive (better phrasing, instrument separation, dynamics), so subtle descriptors land more reliably. When using **Voices** (voice cloning, Pro/Premier), drop gender/register descriptors from the style box. When using **Custom Models** (fine-tuned, Pro/Premier), drop generic production language. See [v5-best-practices.md](../../reference/suno/v5-best-practices.md) for full details.
 
 ### Section Tags are Critical
 Structure your songs with explicit section markers:
