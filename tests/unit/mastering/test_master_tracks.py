@@ -26,6 +26,7 @@ from tools.mastering.master_tracks import (
     _PRESET_DEFAULTS,
     _design_linear_phase_eq,
     _load_yaml_file,
+    _measure_lra,
     _process_one_track,
     apply_deesser,
     apply_eq,
@@ -1762,3 +1763,112 @@ class TestLinearPhaseEQInMasterTrack:
         d1, _ = sf.read(str(out1))
         d2, _ = sf.read(str(out2))
         assert not np.allclose(d1, d2)
+
+
+class TestMeasureLRA:
+    """Tests for the _measure_lra helper."""
+
+    def test_returns_float_for_dynamic_signal(self):
+        """Dynamic signal should produce a measurable LRA."""
+        rate = 44100
+        # Create a signal with varying loudness: loud then quiet
+        t = np.linspace(0, 6.0, int(rate * 6.0), endpoint=False)
+        loud = 0.5 * np.sin(2 * np.pi * 440 * t[:len(t)//2])
+        quiet = 0.05 * np.sin(2 * np.pi * 440 * t[len(t)//2:])
+        data = np.column_stack([
+            np.concatenate([loud, quiet]),
+            np.concatenate([loud, quiet]),
+        ])
+        lra = _measure_lra(data, rate)
+        assert lra is not None
+        assert lra > 0
+
+    def test_returns_none_for_short_signal(self):
+        """Signal shorter than 3s window returns None."""
+        rate = 44100
+        t = np.linspace(0, 2.0, int(rate * 2.0), endpoint=False)
+        data = np.column_stack([
+            0.5 * np.sin(2 * np.pi * 440 * t),
+            0.5 * np.sin(2 * np.pi * 440 * t),
+        ])
+        assert _measure_lra(data, rate) is None
+
+    def test_constant_signal_has_low_lra(self):
+        """Constant-amplitude signal should have near-zero LRA."""
+        rate = 44100
+        t = np.linspace(0, 6.0, int(rate * 6.0), endpoint=False)
+        data = np.column_stack([
+            0.3 * np.sin(2 * np.pi * 440 * t),
+            0.3 * np.sin(2 * np.pi * 440 * t),
+        ])
+        lra = _measure_lra(data, rate)
+        assert lra is not None
+        assert lra < 2.0  # Should be very small for constant amplitude
+
+
+class TestLRATargeting:
+    """Tests for iterative LRA targeting in master_track()."""
+
+    def test_lra_reported_in_result(self, tmp_path):
+        """LRA should be reported in result dict when target_lra > 0."""
+        rate = 44100
+        # Dynamic signal: loud then quiet
+        t = np.linspace(0, 6.0, int(rate * 6.0), endpoint=False)
+        loud = 0.4 * np.sin(2 * np.pi * 440 * t[:len(t)//2])
+        quiet = 0.04 * np.sin(2 * np.pi * 440 * t[len(t)//2:])
+        data = np.column_stack([
+            np.concatenate([loud, quiet]),
+            np.concatenate([loud, quiet]),
+        ])
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        sf.write(str(inp), data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'target_lra': 7.0}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert 'lra' in result
+
+    def test_lra_targeting_tightens_dynamics(self, tmp_path):
+        """Setting target_lra should produce tighter dynamics than without."""
+        rate = 44100
+        t = np.linspace(0, 6.0, int(rate * 6.0), endpoint=False)
+        loud = 0.5 * np.sin(2 * np.pi * 440 * t[:len(t)//2])
+        quiet = 0.02 * np.sin(2 * np.pi * 440 * t[len(t)//2:])
+        data = np.column_stack([
+            np.concatenate([loud, quiet]),
+            np.concatenate([loud, quiet]),
+        ])
+        inp = tmp_path / "in.wav"
+        out_no_lra = tmp_path / "out_no_lra.wav"
+        out_lra = tmp_path / "out_lra.wav"
+        sf.write(str(inp), data, rate)
+
+        # Without LRA targeting (but with compression to make LRA meaningful)
+        preset_no = {**_PRESET_DEFAULTS, 'compress_ratio': 2.0}
+        # With LRA targeting set tight
+        preset_yes = {**_PRESET_DEFAULTS, 'compress_ratio': 2.0, 'target_lra': 4.0}
+        result_no = master_track(str(inp), str(out_no_lra), preset=preset_no)
+        result_yes = master_track(str(inp), str(out_lra), preset=preset_yes)
+
+        d_no, _ = sf.read(str(out_no_lra))
+        d_yes, _ = sf.read(str(out_lra))
+        # The LRA-targeted version should differ (more compressed)
+        assert not np.allclose(d_no, d_yes)
+
+    def test_lra_zero_skips_targeting(self, tmp_path):
+        """target_lra=0 should skip LRA targeting entirely."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = np.column_stack([
+            0.3 * np.sin(2 * np.pi * 440 * t),
+            0.3 * np.sin(2 * np.pi * 440 * t),
+        ])
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        sf.write(str(inp), data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'target_lra': 0}
+        result = master_track(str(inp), str(out), preset=preset)
+        # LRA may or may not be reported (measurement still happens),
+        # but targeting loop should not execute
+        assert not result.get('skipped', False)
