@@ -1126,6 +1126,32 @@ class TestLookAheadLimiter:
         # They should differ because look-ahead pre-applies gain reduction
         assert not np.allclose(reactive, lookahead)
 
+    def test_respects_ceiling_on_transient(self):
+        """Regression: a transient must receive full attenuation, not a release-relaxed gain.
+
+        With the previous release-then-shift approach, gain applied at peak sample K was
+        smoothed[K + lookahead_samples] — already partially released from the attack. This
+        let peaks slip past the ceiling by ~0.9 dB on transients.
+        """
+        rate = 44100
+        t = np.linspace(0, 2.0, int(rate * 2.0), endpoint=False)
+        data = 0.3 * np.sin(2 * np.pi * 440 * t)
+        # Short transient that needs ~50% gain reduction
+        data[int(rate * 1.0):int(rate * 1.0) + 100] = 2.0
+        data = np.column_stack([data, data])
+
+        for ceiling_db in (-1.0, -1.5, -3.0):
+            result = limit_peaks_lookahead(
+                data.copy(), ceiling_db=ceiling_db,
+                lookahead_ms=5.0, release_ms=50.0, rate=rate,
+            )
+            ceiling_linear = 10 ** (ceiling_db / 20)
+            # Sample peak must sit at the ceiling (soft-clip tolerance only)
+            assert np.max(np.abs(result)) <= ceiling_linear + 0.01, (
+                f"ceiling={ceiling_db} dB: peak {np.max(np.abs(result)):.4f} "
+                f"exceeds ceiling_linear {ceiling_linear:.4f} + 0.01"
+            )
+
 
 class TestParallelCompression:
     """Tests for parallel compression (compress_mix)."""

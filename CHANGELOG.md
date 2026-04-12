@@ -32,6 +32,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - Added missing `--deess-bandwidth` CLI arg
 - Added missing CLI args for multiband ratios/thresholds and mid/side frequencies
 - Wired `eq_low_q` through to `apply_low_shelf()` (was defined but unused)
+- Look-ahead limiter now hits its target ceiling exactly (was overshooting by ~1 dB on transients). Gain at peak samples was being sampled from the release-relaxed envelope; replaced with a rolling minimum over the lookahead window (#283)
 
 ## [0.89.0] - 2026-04-10
 
