@@ -21,6 +21,7 @@ from typing import Any
 import numpy as np
 import soundfile as sf
 from scipy import signal
+from scipy.interpolate import CubicSpline
 
 try:
     import noisereduce as nr
@@ -573,7 +574,6 @@ def remove_clicks(
 
     def _repair_cubic(channel: Any, indices: Any) -> Any:
         """Cubic spline repair across ±window_ms clean neighbors."""
-        from scipy.interpolate import CubicSpline
         result = channel.copy()
         n = len(channel)
         click_set = set(int(i) for i in indices)
@@ -600,13 +600,10 @@ def remove_clicks(
             x_hi_near = _clean_at(min(hi, idx + neighbor_offset // 2), 1)
             x_hi_far = _clean_at(hi, 1)
             xs = sorted({x_lo_far, x_lo_near, x_hi_near, x_hi_far})
-            if len(xs) < 2 or idx in xs:
-                # Degenerate — fall back to linear
-                left = max(0, idx - 1)
-                right = min(n - 1, idx + 1)
-                if left != right:
-                    result[idx] = channel[left] + (channel[right] - channel[left]) * (idx - left) / (right - left)
-                continue
+            # Seeds {lo, idx±neighbor_offset//2, hi} are always distinct
+            # and never equal idx (outer guards and _clean_at's outward-
+            # only probe direction ensure this), so no degenerate-case
+            # fallback is needed here.
             ys = [float(channel[x]) for x in xs]
             spline = CubicSpline(xs, ys)
             # Repair the central sample; widen to ±1 sample so two-sample
