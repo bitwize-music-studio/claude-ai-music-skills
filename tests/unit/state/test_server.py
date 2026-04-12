@@ -12156,6 +12156,58 @@ class TestImportSheetMusicModule:
         with pytest.raises(Exception):
             _processing_helpers._import_sheet_music_module("nonexistent_module")
 
+    def test_logs_warning_when_spec_missing(self, caplog):
+        """Should warn before raising if the import spec cannot be created."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+
+        with patch("importlib.util.spec_from_file_location", return_value=None):
+            mod = _processing_helpers._import_sheet_music_module("transcribe")
+
+        assert mod is None
+        assert "Optional module transcribe not available" in caplog.text
+
+    def test_logs_warning_when_exec_fails(self, caplog):
+        """Should warn before raising if module execution fails."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+        mock_loader = MagicMock()
+        mock_loader.exec_module.side_effect = ImportError("missing optional dep")
+        mock_spec = MagicMock(loader=mock_loader)
+
+        with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
+             patch("importlib.util.module_from_spec", return_value=MagicMock()):
+            with pytest.raises(ImportError, match="missing optional dep"):
+                _processing_helpers._import_sheet_music_module("transcribe")
+
+        assert "Optional module transcribe not available: missing optional dep" in caplog.text
+
+
+class TestImportCloudModule:
+    """Tests for the _import_cloud_module() helper."""
+
+    def test_logs_warning_when_spec_missing(self, caplog):
+        """Should warn and return None if the import spec cannot be created."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+
+        with patch("importlib.util.spec_from_file_location", return_value=None):
+            mod = _processing_helpers._import_cloud_module("upload_to_cloud")
+
+        assert mod is None
+        assert "Optional module upload_to_cloud not available" in caplog.text
+
+    def test_logs_warning_when_exec_fails(self, caplog):
+        """Should warn before raising if module execution fails."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+        mock_loader = MagicMock()
+        mock_loader.exec_module.side_effect = ImportError("missing boto3")
+        mock_spec = MagicMock(loader=mock_loader)
+
+        with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
+             patch("importlib.util.module_from_spec", return_value=MagicMock()):
+            with pytest.raises(ImportError, match="missing boto3"):
+                _processing_helpers._import_cloud_module("upload_to_cloud")
+
+        assert "Optional module upload_to_cloud not available: missing boto3" in caplog.text
+
 
 # =============================================================================
 # Comprehensive tests for all 9 processing MCP tools — success paths,
