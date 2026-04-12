@@ -1614,6 +1614,48 @@ class TestMixTrackFull:
         assert 'post_peak' in result
         assert 'post_rms' in result
 
+    def test_full_mix_reports_clicks_removed(self, tmp_path):
+        """mix_track_full's result should include clicks_removed."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        # Quiet sine background (0.10) so the click dominates a 10ms window.
+        mono = (0.10 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Click mid-window (not on window boundary) at t≈0.5s + 50 samples.
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.95
+        mono[click_idx + 1] = -0.95
+        data = np.column_stack([mono, mono])
+
+        in_path = tmp_path / "in.wav"
+        out_path = tmp_path / "out.wav"
+        sf.write(str(in_path), data, rate, subtype='PCM_16')
+
+        result = mix_track_full(in_path, out_path, genre='electronic')
+        assert 'clicks_removed' in result
+        # Electronic preset peak_ratio=8.0. With 0.10 background + mid-window
+        # 0.95 click, ratio is ~9.9, above the threshold.
+        assert isinstance(result['clicks_removed'], int)
+        assert result['clicks_removed'] >= 1
+
+    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path):
+        """A big click against a quiet sine should register clicks_removed>0
+        even on the legacy std-path (no genre → no peak_ratio → std default)."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.05 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.9
+        mono[click_idx + 1] = -0.9
+        data = np.column_stack([mono, mono])
+
+        in_path = tmp_path / "in.wav"
+        out_path = tmp_path / "out.wav"
+        sf.write(str(in_path), data, rate, subtype='PCM_16')
+
+        # No genre → std path with default threshold=6.0.
+        result = mix_track_full(in_path, out_path)
+        assert result['clicks_removed'] >= 1
+
 
 # ─── Tests: Preset Loading ───────────────────────────────────────────
 

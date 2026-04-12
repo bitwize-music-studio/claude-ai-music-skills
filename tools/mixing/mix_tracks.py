@@ -1874,12 +1874,13 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
     pre_peak = float(np.max(np.abs(data)))
     pre_rms = float(np.sqrt(np.mean(data ** 2)))
 
-    result = {
+    result: dict[str, Any] = {
         'mode': 'full_mix',
         'filename': input_path.name,
         'pre_peak': pre_peak,
         'pre_rms': pre_rms,
         'dry_run': dry_run,
+        'clicks_removed': 0,
     }
 
     if not dry_run:
@@ -1895,9 +1896,22 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         if hp_cutoff > 0:
             data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
-        # Click removal
+        # Click removal — full-mix stays on linear repair per #289
+        # (dense mix content amplifies the artefacts of any deeper
+        # surgical repair). peak_ratio is preferred when the genre
+        # preset supplies one so polish and QC stay aligned.
+        clicks_removed = 0
         if settings.get('click_removal', True):
-            data, _ = remove_clicks(data, rate)
+            peak_ratio = settings.get('click_peak_ratio')
+            if peak_ratio is not None:
+                data, clicks_removed = remove_clicks(
+                    data, rate,
+                    peak_ratio=float(peak_ratio),
+                    repair="linear",
+                )
+            else:
+                data, clicks_removed = remove_clicks(data, rate)
+        result['clicks_removed'] = int(clicks_removed)
 
         # Mud cut
         mud_cut_db = settings.get('mud_cut_db', -2.0)
