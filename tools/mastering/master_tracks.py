@@ -1052,7 +1052,7 @@ def master_track(input_path: Path | str, output_path: Path | str,
 
     # Save pre-compression state for LRA re-targeting iterations
     target_lra = p.get('target_lra', 0.0)
-    pre_compress_data = data.copy() if target_lra > 0 else None
+    pre_compress_data: Any = data.copy() if target_lra > 0 else data
 
     if oversample > 1:
         data = signal.resample_poly(data, up=oversample, down=1, axis=0)
