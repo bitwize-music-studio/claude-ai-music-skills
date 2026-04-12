@@ -1158,9 +1158,10 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None,
         data: Audio data
         rate: Sample rate
         settings: Dict of drum processing settings
-        report: Optional dict; when provided, this function writes
-            ``clicks_removed`` (int) into it so callers can surface how
-            many clicks were repaired.
+        report: Optional dict; when provided, this function **accumulates**
+            the repaired-click count into ``report['clicks_removed']``
+            (creating the key if absent). Pass a fresh dict per call if you
+            want per-call totals.
 
     Returns:
         Processed audio data.
@@ -1584,9 +1585,10 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
         data: Audio data
         rate: Sample rate
         settings: Dict of percussion processing settings
-        report: Optional dict; when provided, this function writes
-            ``clicks_removed`` (int) into it so callers can surface how
-            many clicks were repaired.
+        report: Optional dict; when provided, this function **accumulates**
+            the repaired-click count into ``report['clicks_removed']``
+            (creating the key if absent). Pass a fresh dict per call if you
+            want per-call totals.
 
     Returns:
         Processed audio data.
@@ -1784,11 +1786,20 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         pre_peak = float(np.max(np.abs(data)))
         pre_rms = float(np.sqrt(np.mean(data ** 2)))
 
+        # Only drums/percussion write clicks_removed into the report dict —
+        # keeping the per-processor kwarg asymmetric is intentional (the
+        # other 10 processors have no metric to report). The dict is
+        # initialized empty so the `get('clicks_removed', 0)` fallback in
+        # the append-below always has a value, even for non-declicking stems.
+        stem_report: dict[str, Any] = {'clicks_removed': 0}
         if not dry_run:
             # Get settings and process
             settings = _get_stem_settings(stem_name, genre)
             processor = STEM_PROCESSORS[stem_name]
-            data = processor(data, rate, settings)
+            if stem_name in ('drums', 'percussion'):
+                data = processor(data, rate, settings, report=stem_report)
+            else:
+                data = processor(data, rate, settings)
 
             # Get remix gain
             gains[stem_name] = settings.get('gain_db', 0.0)
@@ -1804,6 +1815,7 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
             'pre_rms': pre_rms,
             'post_peak': post_peak,
             'post_rms': post_rms,
+            'clicks_removed': int(stem_report['clicks_removed']),
         })
 
     if not processed_stems:

@@ -1209,6 +1209,46 @@ class TestMixTrackStems:
         assert result['stems_processed'][0]['stem'] == 'drums'
         assert Path(output_path).exists()
 
+    def test_result_reports_clicks_removed_per_stem(self, tmp_path):
+        """mix_track_stems should surface clicks_removed on each stem that
+        ran the declicker."""
+        rate = 44100
+        # Build a drums-stem wav with a click at t≈0.5s.
+        # Offset by 50 samples so the click falls mid-window (not on a
+        # 10 ms window boundary) — this prevents the click's energy from
+        # being diluted across two windows, keeping peak/RMS well above 8.0.
+        # Sine amplitude of 0.10 gives peak/RMS ≈ 9.9 > electronic threshold 8.0.
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.10 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50  # 22100 — not on a 441-sample boundary
+        mono[click_idx] = 0.95
+        mono[click_idx + 1] = -0.95
+        drums = np.column_stack([mono, mono])
+
+        # And a clean vocal stem for completeness
+        vocal_mono = (0.1 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        vocals = np.column_stack([vocal_mono, vocal_mono])
+
+        drums_path = tmp_path / "drums.wav"
+        vocals_path = tmp_path / "vocals.wav"
+        sf.write(str(drums_path), drums, rate, subtype='PCM_16')
+        sf.write(str(vocals_path), vocals, rate, subtype='PCM_16')
+        out_path = tmp_path / "out.wav"
+
+        result = mix_track_stems(
+            {'drums': str(drums_path), 'vocals': str(vocals_path)},
+            out_path,
+            genre='electronic',
+        )
+
+        # Each stem entry should carry clicks_removed; drums must be > 0.
+        by_stem = {s['stem']: s for s in result['stems_processed']}
+        assert 'clicks_removed' in by_stem['drums']
+        assert by_stem['drums']['clicks_removed'] >= 1
+        # Vocals don't run the declicker, so clicks_removed should be 0
+        # or absent; assert the presence contract only for declicking stems.
+        assert by_stem['vocals'].get('clicks_removed', 0) == 0
+
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
 
