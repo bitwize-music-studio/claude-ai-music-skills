@@ -422,32 +422,35 @@ class TestRemoveClicks:
     def test_removes_artificial_click(self):
         """Should detect and reduce artificial clicks."""
         data, rate = _generate_click(amplitude=0.5)
-        result = remove_clicks(data, rate, threshold=4.0)
+        result, n_clicks = remove_clicks(data, rate, threshold=4.0)
         # The click sample should be reduced
         click_idx = int(0.5 * rate)
         assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+        assert n_clicks > 0
 
     def test_clean_signal_unchanged(self):
         """Clean signal without clicks should be mostly unchanged."""
         data, rate = _generate_sine(amplitude=0.3)
-        result = remove_clicks(data, rate, threshold=6.0)
+        result, n_clicks = remove_clicks(data, rate, threshold=6.0)
         # Most samples should be identical
         diff = np.max(np.abs(result - data))
         assert diff < 0.1
+        assert n_clicks == 0
 
     def test_zero_threshold_is_passthrough(self):
         data, rate = _generate_sine()
-        result = remove_clicks(data, rate, threshold=0)
+        result, n_clicks = remove_clicks(data, rate, threshold=0)
         assert np.array_equal(result, data)
+        assert n_clicks == 0
 
     def test_mono_input(self):
         data, rate = _generate_sine(stereo=False)
-        result = remove_clicks(data, rate)
+        result, n_clicks = remove_clicks(data, rate)
         assert result.shape == data.shape
 
     def test_output_is_finite(self):
         data, rate = _generate_click()
-        result = remove_clicks(data, rate)
+        result, n_clicks = remove_clicks(data, rate)
         assert np.all(np.isfinite(result))
 
 

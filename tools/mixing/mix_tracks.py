@@ -474,66 +474,172 @@ def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: fl
         return result
 
 
-def remove_clicks(data: Any, rate: int, threshold: float = 6.0) -> Any:
+def remove_clicks(
+    data: Any,
+    rate: int,
+    threshold: float = 6.0,
+    peak_ratio: float | None = None,
+    repair: str = "linear",
+    window_ms: float = 1.5,
+) -> tuple[Any, int]:
     """Detect and remove clicks/pops via interpolation.
 
-    Looks for sudden amplitude spikes relative to local neighborhood
-    and replaces them with linearly interpolated values.
+    Two detection modes:
+
+    - std path (default, `peak_ratio=None`): flag samples where |diff| >
+      threshold * std(diff). Backward-compatible with pre-#289 behavior.
+    - windowed peak/rms path (`peak_ratio` set): flag 10 ms windows where
+      peak/rms > peak_ratio, then locate the maximum-|sample| inside each
+      flagged window. Semantics match `qc_tracks._check_clicks` so polish
+      and QC speak the same language.
+
+    Two repair modes:
+
+    - "linear" (default): two-sample linear interpolation across the click
+      index, same as pre-#289. Safer on dense full-mix content.
+    - "cubic": fit a `scipy.interpolate.CubicSpline` through four clean
+      samples (two on each side, `window_ms` away from the click) and
+      overwrite the click region with the spline evaluated on the excised
+      sample indices. For use on isolated stems where the spline can
+      exploit the thin spectral content around the click.
 
     Args:
-        data: Audio data
-        rate: Sample rate
-        threshold: Detection threshold in standard deviations
+        data: Audio data (mono or stereo).
+        rate: Sample rate in Hz.
+        threshold: std-path detection multiplier. Ignored when `peak_ratio`
+            is set. `threshold <= 0` is a passthrough (returns input).
+        peak_ratio: Peak-to-RMS ratio over a 10 ms window above which the
+            window is flagged as a click. When None the std path is used.
+        repair: "linear" or "cubic". Cubic requires at least two clean
+            samples ±`window_ms` away from the click; falls back to linear
+            if neighbors are unavailable (near the start/end of the buffer).
+        window_ms: Half-width of the cubic repair window, in milliseconds.
 
     Returns:
-        Click-removed audio data.
+        `(repaired_data, clicks_removed)` where `clicks_removed` is the
+        number of click sites repaired (not windows flagged — coincident
+        clicks in the same window count once).
     """
-    if threshold <= 0:
-        return data
+    if threshold <= 0 and peak_ratio is None:
+        return data, 0
 
-    def _remove_clicks_channel(channel: Any) -> Any:
-        # Calculate first-order difference
+    if repair not in ("linear", "cubic"):
+        raise ValueError(f"repair must be 'linear' or 'cubic', got {repair!r}")
+
+    window_samples = max(int(rate * 0.01), 1)  # 10 ms, matches qc_tracks
+    neighbor_offset = max(int(rate * window_ms / 1000.0), 2)
+
+    def _detect_std(channel: Any) -> Any:
         diff = np.diff(channel, prepend=channel[0])
-
-        # Guard against very short audio
         if len(channel) < 3:
-            return channel
-
+            return np.zeros(0, dtype=np.int64)
         local_std = np.std(diff)
         if local_std < 1e-10:
-            return channel
+            return np.zeros(0, dtype=np.int64)
+        mask = np.abs(diff) > threshold * local_std
+        return np.where(mask)[0]
 
-        # Detect clicks: spikes above threshold * std
-        click_mask = np.abs(diff) > threshold * local_std
+    def _detect_peak_ratio(channel: Any) -> Any:
+        """Windowed detection matching qc_tracks._check_clicks."""
+        if len(channel) < window_samples:
+            return np.zeros(0, dtype=np.int64)
+        indices: list[int] = []
+        for start in range(0, len(channel) - window_samples, window_samples):
+            window = channel[start:start + window_samples]
+            rms = float(np.sqrt(np.mean(window ** 2)))
+            if rms < 1e-8:
+                continue
+            peak = float(np.max(np.abs(window)))
+            if peak > peak_ratio * rms:
+                local = int(np.argmax(np.abs(window)))
+                indices.append(start + local)
+        return np.array(indices, dtype=np.int64)
 
-        if not np.any(click_mask):
-            return channel
-
+    def _repair_linear(channel: Any, indices: Any) -> Any:
+        """Two-sample linear interp — preserves pre-#289 behavior."""
         result = channel.copy()
-        click_indices = np.where(click_mask)[0]
-
-        # Interpolate over click regions
-        for idx in click_indices:
-            # Find clean samples on either side
+        n = len(channel)
+        click_set = set(int(i) for i in indices)
+        for idx in indices:
             left = max(0, idx - 1)
-            right = min(len(channel) - 1, idx + 1)
-            while left > 0 and click_mask[left]:
+            right = min(n - 1, idx + 1)
+            while left > 0 and int(left) in click_set:
                 left -= 1
-            while right < len(channel) - 1 and click_mask[right]:
+            while right < n - 1 and int(right) in click_set:
                 right += 1
-            # Linear interpolation
             if left != right:
                 result[idx] = channel[left] + (channel[right] - channel[left]) * (idx - left) / (right - left)
-
         return result
+
+    def _repair_cubic(channel: Any, indices: Any) -> Any:
+        """Cubic spline repair across ±window_ms clean neighbors."""
+        from scipy.interpolate import CubicSpline
+        result = channel.copy()
+        n = len(channel)
+        click_set = set(int(i) for i in indices)
+        for idx in indices:
+            lo = idx - neighbor_offset
+            hi = idx + neighbor_offset
+            if lo < 0 or hi >= n:
+                # Near buffer edge — fall back to linear repair
+                left = max(0, idx - 1)
+                right = min(n - 1, idx + 1)
+                if left != right:
+                    result[idx] = channel[left] + (channel[right] - channel[left]) * (idx - left) / (right - left)
+                continue
+            # Pick four clean anchors: two each side of click, skipping
+            # any that are themselves flagged clicks.
+            def _clean_at(center: int, direction: int) -> int:
+                probe = center
+                while 0 <= probe < n and int(probe) in click_set:
+                    probe += direction
+                return probe if 0 <= probe < n else center
+
+            x_lo_far = _clean_at(lo, -1)
+            x_lo_near = _clean_at(max(lo, idx - neighbor_offset // 2), -1)
+            x_hi_near = _clean_at(min(hi, idx + neighbor_offset // 2), 1)
+            x_hi_far = _clean_at(hi, 1)
+            xs = sorted({x_lo_far, x_lo_near, x_hi_near, x_hi_far})
+            if len(xs) < 2 or idx in xs:
+                # Degenerate — fall back to linear
+                left = max(0, idx - 1)
+                right = min(n - 1, idx + 1)
+                if left != right:
+                    result[idx] = channel[left] + (channel[right] - channel[left]) * (idx - left) / (right - left)
+                continue
+            ys = [float(channel[x]) for x in xs]
+            spline = CubicSpline(xs, ys)
+            # Repair the central sample; widen to ±1 sample so two-sample
+            # fingerprints (like the `+A, -A` pair _generate_click makes)
+            # are covered.
+            for target in range(max(0, idx - 1), min(n, idx + 2)):
+                result[target] = float(spline(target))
+        return result
+
+    def _process_channel(channel: Any) -> tuple[Any, int]:
+        if peak_ratio is not None:
+            indices = _detect_peak_ratio(channel)
+        else:
+            indices = _detect_std(channel)
+        if len(indices) == 0:
+            return channel, 0
+        if repair == "cubic":
+            repaired = _repair_cubic(channel, indices)
+        else:
+            repaired = _repair_linear(channel, indices)
+        return repaired, int(len(indices))
 
     if len(data.shape) == 1:
-        return _remove_clicks_channel(data)
-    else:
-        result = np.zeros_like(data)
-        for ch in range(data.shape[1]):
-            result[:, ch] = _remove_clicks_channel(data[:, ch])
-        return result
+        repaired, n_clicks = _process_channel(data)
+        return repaired, n_clicks
+
+    result = np.zeros_like(data)
+    total_clicks = 0
+    for ch in range(data.shape[1]):
+        repaired, n_clicks = _process_channel(data[:, ch])
+        result[:, ch] = repaired
+        total_clicks += n_clicks
+    return result, total_clicks
 
 
 def enhance_stereo(data: Any, rate: int, amount: float = 0.2) -> Any:
@@ -1005,7 +1111,7 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     # Click removal
     if settings.get('click_removal', True):
         click_threshold = settings.get('click_threshold', 6.0)
-        data = remove_clicks(data, rate, threshold=click_threshold)
+        data, _ = remove_clicks(data, rate, threshold=click_threshold)
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)
@@ -1422,7 +1528,7 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     # Click removal
     if settings.get('click_removal', True):
         click_threshold = settings.get('click_threshold', 6.0)
-        data = remove_clicks(data, rate, threshold=click_threshold)
+        data, _ = remove_clicks(data, rate, threshold=click_threshold)
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)
@@ -1696,7 +1802,7 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
 
         # Click removal
         if settings.get('click_removal', True):
-            data = remove_clicks(data, rate)
+            data, _ = remove_clicks(data, rate)
 
         # Mud cut
         mud_cut_db = settings.get('mud_cut_db', -2.0)
