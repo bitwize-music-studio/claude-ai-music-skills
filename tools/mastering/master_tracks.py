@@ -1201,6 +1201,8 @@ Examples:
                        help='Mid/side EQ: side low shelf gain in dB (negative = narrower bass)')
     parser.add_argument('--midside-high-gain', type=float, default=None,
                        help='Mid/side EQ: side high shelf gain in dB (positive = wider highs)')
+    parser.add_argument('--album-consistency', type=float, default=0,
+                       help='Max LUFS spread across album in dB (0=disable, 1.0=recommended)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
                        help='Parallel jobs (0=auto, default: 1)')
 
@@ -1324,6 +1326,44 @@ Examples:
         logger.info("DRY RUN - No files will be written")
         print()
 
+    # Album consistency: two-pass mastering
+    # Pass 1: measure source LUFS to compute per-track target adjustments
+    per_track_presets: dict[str, dict[str, float]] = {}
+    album_consistency = args.album_consistency
+
+    if album_consistency > 0 and wav_files:
+        print("Pass 1: Analyzing source loudness...")
+        source_lufs: dict[str, float] = {}
+        for wf in wav_files:
+            d, r = sf.read(str(wf))
+            if len(d.shape) == 1:
+                d = np.column_stack([d, d])
+            lufs = pyln.Meter(r).integrated_loudness(d)
+            if np.isfinite(lufs):
+                source_lufs[wf.name] = lufs
+
+        if len(source_lufs) >= 2:
+            avg_lufs = np.mean(list(source_lufs.values()))
+            half_spread = album_consistency / 2
+            base_target = preset['target_lufs']
+
+            print(f"  Source average: {avg_lufs:.1f} LUFS")
+            print(f"  Max spread: ±{half_spread:.1f} dB from average")
+
+            for name, src_lufs in source_lufs.items():
+                # How far is this track from the average source loudness?
+                deviation = src_lufs - avg_lufs
+                # Adjust target: quieter sources get slightly higher target,
+                # louder sources get slightly lower target
+                adjusted_target = base_target - np.clip(deviation, -half_spread, half_spread)
+                track_preset = {**preset, 'target_lufs': adjusted_target}
+                per_track_presets[name] = track_preset
+                if abs(adjusted_target - base_target) > 0.05:
+                    print(f"  {name[:34]}: target adjusted to {adjusted_target:.1f} LUFS "
+                          f"({adjusted_target - base_target:+.1f})")
+
+            print()
+
     print(f"{'Track':<35} {'Before':>8} {'After':>8} {'Gain':>8} {'Peak':>8}")
     print("-" * 70)
 
@@ -1339,11 +1379,12 @@ Examples:
         # Sequential (existing behavior)
         for wav_file, output_path in tasks:
             progress.update(wav_file.name)
+            track_preset = per_track_presets.get(wav_file.name, preset)
             _, result = _process_one_track(
                 wav_file, output_path,
                 ceiling_db=args.ceiling,
                 dry_run=args.dry_run,
-                preset=preset,
+                preset=track_preset,
             )
             if result is None:
                 continue
@@ -1361,7 +1402,7 @@ Examples:
                     _process_one_track, wf, op,
                     ceiling_db=args.ceiling,
                     dry_run=args.dry_run,
-                    preset=preset,
+                    preset=per_track_presets.get(wf.name, preset),
                 ): i
                 for i, (wf, op) in enumerate(tasks)
             }

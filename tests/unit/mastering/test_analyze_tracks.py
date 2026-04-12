@@ -104,6 +104,7 @@ class TestAnalyzeTrackBasic:
             'filename', 'duration', 'sample_rate', 'lufs',
             'peak_db', 'rms_db', 'dynamic_range',
             'band_energy', 'tinniness_ratio',
+            'max_short_term_lufs', 'max_momentary_lufs', 'short_term_range',
         }
         assert expected_keys == set(result.keys())
 
