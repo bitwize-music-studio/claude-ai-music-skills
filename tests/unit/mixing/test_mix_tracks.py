@@ -550,6 +550,20 @@ class TestRemoveClicksCubicRepair:
         with pytest.raises(ValueError, match="repair must be"):
             remove_clicks(data, rate, peak_ratio=6.0, repair="nearest")
 
+    def test_stem_repair_differs_from_full_mix_repair_on_isolated_stem(self):
+        """Per #289 acceptance: 'stem repair differs from full-mix repair
+        on an isolated stem with a click.' Same signal, same detection,
+        two repair strategies — they must produce distinguishable output."""
+        data, rate = _generate_click(amplitude=0.5)
+        stem_repaired, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        full_repaired, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="linear")
+        click_idx = int(0.5 * rate)
+        # Nontrivial difference in the repaired neighborhood
+        assert np.max(np.abs(
+            stem_repaired[click_idx - 1:click_idx + 2, 0]
+            - full_repaired[click_idx - 1:click_idx + 2, 0]
+        )) > 1e-6
+
 
 # ─── Tests: reduce_noise ─────────────────────────────────────────────
 
