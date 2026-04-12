@@ -42,6 +42,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   keeps linear repair because dense mix content amplifies surgical artifacts.
   Polish results now surface `clicks_removed` per stem and on the full-mix
   result so operators can see whether polish acted (#289).
+- `analyze_mix_issues` in stems mode now analyzes every stem per track and reports per-stem diagnostics under `tracks[].stems[stem_name]`, rather than sampling only the alphabetically first stem. Issues in specific stems (muddy bass, harsh vocals, etc.) are no longer missed, and per-track issue rollups are the union across stems (#272)
 
 ## [0.89.0] - 2026-04-10
 

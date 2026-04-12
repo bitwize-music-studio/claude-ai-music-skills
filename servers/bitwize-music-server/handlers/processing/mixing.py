@@ -187,24 +187,24 @@ async def analyze_mix_issues(
     ])
 
     # If no root WAVs, check stems/ for per-track directories and analyze
-    # the first stem from each track (gives representative analysis).
+    # every stem in each track (per-stem diagnostics).
     stems_mode = False
+    stem_track_map: list[tuple[str, list[Path]]] = []
     if not wav_files:
         stems_dir = audio_dir / "stems"
         if stems_dir.is_dir():
             track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
             for td in track_dirs:
-                # Pick the first WAV in each track dir as representative
                 stem_wavs = sorted([
                     f for f in td.iterdir()
                     if f.suffix.lower() == ".wav"
                 ])
                 if stem_wavs:
-                    wav_files.append(stem_wavs[0])
-            if wav_files:
+                    stem_track_map.append((td.name, stem_wavs))
+            if stem_track_map:
                 stems_mode = True
 
-    if not wav_files:
+    if not wav_files and not stem_track_map:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
     def _analyze_one(wav_path: Path) -> dict[str, Any]:
@@ -276,10 +276,27 @@ async def analyze_mix_issues(
 
         return result
 
-    track_analyses = []
-    for wav_file in wav_files:
-        analysis = await loop.run_in_executor(None, _analyze_one, wav_file)
-        track_analyses.append(analysis)
+    track_analyses: list[dict[str, Any]] = []
+    if stems_mode:
+        for track_name, stem_wavs in stem_track_map:
+            stems_result: dict[str, dict[str, Any]] = {}
+            track_issues: set[str] = set()
+            for stem_wav in stem_wavs:
+                stem_name = stem_wav.stem
+                analysis = await loop.run_in_executor(None, _analyze_one, stem_wav)
+                stems_result[stem_name] = analysis
+                track_issues.update(
+                    i for i in analysis["issues"] if i != "none_detected"
+                )
+            track_analyses.append({
+                "track": track_name,
+                "stems": stems_result,
+                "issues": sorted(track_issues) if track_issues else ["none_detected"],
+            })
+    else:
+        for wav_file in wav_files:
+            analysis = await loop.run_in_executor(None, _analyze_one, wav_file)
+            track_analyses.append(analysis)
 
     # Album-level summary
     all_issues: set[str] = set()
