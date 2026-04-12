@@ -353,7 +353,8 @@ async def polish_album(
     Runs 3 sequential stages:
         1. Analyze — scan for mix issues and recommend settings
         2. Polish — process stems (or full mixes) with appropriate settings
-        3. Verify — check polished output quality
+        3. Verify — run full qc_track suite (format, mono, phase, clipping,
+           truepeak, clicks, silence, spectral) on polished output
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -439,9 +440,8 @@ async def polish_album(
         "output_dir": polish["summary"]["output_dir"],
     }
 
-    # --- Stage 3: Verify polished output ---
-    import numpy as np
-    import soundfile as sf
+    # --- Stage 3: Verify polished output (full QC suite) ---
+    from tools.mastering.qc_tracks import qc_track
 
     polished_dir = audio_dir / "polished"
     if not polished_dir.is_dir():
@@ -459,34 +459,37 @@ async def polish_album(
     ])
 
     loop = asyncio.get_running_loop()
+    qc_genre = genre or None
     verify_results = []
 
     for wav in polished_files:
-        def _verify(path: Path) -> dict[str, Any]:
-            data, _rate = sf.read(str(path))
-            peak = float(np.max(np.abs(data)))
-            rms = float(np.sqrt(np.mean(data ** 2)))
-            finite = bool(np.all(np.isfinite(data)))
-            return {
-                "filename": path.name,
-                "peak": peak,
-                "rms": rms,
-                "all_finite": finite,
-                "clipping": peak > 0.99,
-            }
-
-        result = await loop.run_in_executor(None, _verify, wav)
+        result = await loop.run_in_executor(None, qc_track, str(wav), None, qc_genre)
         verify_results.append(result)
 
-    clipping = [r["filename"] for r in verify_results if r["clipping"]]
-    non_finite = [r["filename"] for r in verify_results if not r["all_finite"]]
+    failed = [r["filename"] for r in verify_results if r["verdict"] == "FAIL"]
+    warned = [r["filename"] for r in verify_results if r["verdict"] == "WARN"]
 
-    verify_pass = not clipping and not non_finite
+    qc_warnings: list[str] = []
+    for r in verify_results:
+        for check_name, check_info in r["checks"].items():
+            if check_info["status"] in ("WARN", "FAIL"):
+                qc_warnings.append(
+                    f"{r['filename']}: {check_name} {check_info['status']} — {check_info['detail']}"
+                )
+
+    if failed:
+        verify_status = "fail"
+    elif warned:
+        verify_status = "warn"
+    else:
+        verify_status = "pass"
+
     stages["verify"] = {
-        "status": "pass" if verify_pass else "warn",
+        "status": verify_status,
         "tracks_verified": len(verify_results),
-        "clipping_tracks": clipping,
-        "non_finite_tracks": non_finite,
+        "failed_tracks": failed,
+        "warned_tracks": warned,
+        "qc_issues": qc_warnings,
     }
 
     return _safe_json({
