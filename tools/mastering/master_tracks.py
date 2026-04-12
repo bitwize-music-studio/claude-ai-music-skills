@@ -261,7 +261,8 @@ def apply_high_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
         return result
 
-def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
+def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float,
+                    q: float = 0.707) -> Any:
     """Apply low shelf EQ for bass shaping.
 
     Args:
@@ -269,6 +270,7 @@ def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
         rate: Sample rate
         freq: Shelf corner frequency in Hz
         gain_db: Gain in dB (positive = boost, negative = cut, 0 = bypass)
+        q: Shelf Q factor (controls slope steepness, default 0.707 = Butterworth)
     """
     if gain_db == 0:
         return data
@@ -279,7 +281,7 @@ def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
 
     A = 10 ** (gain_db / 40)
     w0 = 2 * np.pi * freq / rate
-    alpha = np.sin(w0) / 2 * np.sqrt(2)
+    alpha = np.sin(w0) / (2 * q)
 
     cos_w0 = np.cos(w0)
     sqrt_A = np.sqrt(A)
@@ -1003,7 +1005,8 @@ def master_track(input_path: Path | str, output_path: Path | str,
             data = apply_linear_phase_eq(data, rate, freq=p['eq_low_freq'],
                                          gain_db=low_gain, filter_type='low_shelf')
         else:
-            data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain)
+            data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain,
+                                   q=p.get('eq_low_q', 0.707))
 
     # Apply high-mid/highs EQ if specified
     if eq_settings:
@@ -1118,63 +1121,81 @@ def master_track(input_path: Path | str, output_path: Path | str,
 
     # LRA targeting: if LRA exceeds target, iteratively increase compression
     measured_lra = _measure_lra(data, rate)
-    if target_lra > 0 and measured_lra is not None and measured_lra > target_lra:
-        # Iteratively increase compression ratio to tighten dynamics
-        lra_tolerance = 0.5  # LU
-        max_iterations = 5
-        current_ratio = compress_ratio
-        for i in range(max_iterations):
-            if measured_lra <= target_lra + lra_tolerance:
-                break
-            # Scale ratio up proportionally to overshoot
-            overshoot = measured_lra - target_lra
-            current_ratio *= 1.0 + min(overshoot / target_lra, 0.5)
-            current_ratio = min(current_ratio, 8.0)  # Cap to avoid over-compression
-            logger.info("LRA %.1f LU exceeds target %.1f LU — retrying with ratio %.2f (iter %d)",
-                        measured_lra, target_lra, current_ratio, i + 1)
-            # Re-run compression from pre-compression checkpoint
-            recomp_data = pre_compress_data.copy()
-            if oversample > 1:
-                recomp_data = signal.resample_poly(recomp_data, up=oversample, down=1, axis=0)
-                recomp_rate = original_rate * oversample
-            else:
-                recomp_rate = rate
-            if multiband:
-                recomp_data = apply_multiband_compress(
-                    recomp_data, recomp_rate,
-                    low_crossover=p.get('multiband_low_crossover', 200.0),
-                    high_crossover=p.get('multiband_high_crossover', 5000.0),
-                    low_ratio=p.get('multiband_low_ratio', 1.5) * (current_ratio / compress_ratio),
-                    mid_ratio=p.get('multiband_mid_ratio', 1.5) * (current_ratio / compress_ratio),
-                    high_ratio=p.get('multiband_high_ratio', 1.5) * (current_ratio / compress_ratio),
-                    low_threshold=p.get('multiband_low_threshold', -18.0),
-                    mid_threshold=p.get('multiband_mid_threshold', -18.0),
-                    high_threshold=p.get('multiband_high_threshold', -18.0),
-                    attack_ms=p['compress_attack'],
-                    release_ms=p['compress_release'],
-                )
-            elif current_ratio > 1.0:
-                recomp_data = gentle_compress(
-                    recomp_data, recomp_rate,
-                    threshold_db=p['compress_threshold'],
-                    ratio=current_ratio,
-                    attack_ms=p['compress_attack'],
-                    release_ms=p['compress_release'],
-                )
-            makeup = p.get('compress_makeup', 0.0)
-            if makeup != 0:
-                recomp_data = recomp_data * (10 ** (makeup / 20))
-            if dry is not None and compress_mix < 1.0:
-                recomp_data = pre_compress_data.copy() * (1.0 - compress_mix) + recomp_data * compress_mix
-            if oversample > 1:
-                recomp_data = signal.resample_poly(recomp_data, up=1, down=oversample, axis=0)
-            data = recomp_data
-            measured_lra = _measure_lra(data, rate if oversample <= 1 else original_rate)
-            if measured_lra is None:
-                break
-        if measured_lra is not None and measured_lra > target_lra + lra_tolerance:
-            logger.warning("LRA %.1f LU still exceeds target %.1f LU after %d iterations",
-                           measured_lra, target_lra, max_iterations)
+    if target_lra > 0 and measured_lra is not None:
+        if measured_lra < target_lra:
+            logger.warning("Audio already over-compressed (LRA %.1f LU below target %.1f LU). "
+                           "Skipping expansion to avoid artifacts.", measured_lra, target_lra)
+        elif measured_lra > target_lra:
+            # Iteratively increase compression ratio to tighten dynamics
+            lra_tolerance = 0.5  # LU
+            max_iterations = 5
+            current_ratio = compress_ratio if compress_ratio > 1.0 else 1.5
+            ratio_scale = current_ratio / max(compress_ratio, 1.0)
+            for i in range(max_iterations):
+                if measured_lra <= target_lra + lra_tolerance:
+                    break
+                # Scale ratio up proportionally to overshoot
+                overshoot = measured_lra - target_lra
+                current_ratio *= 1.0 + min(overshoot / target_lra, 0.5)
+                current_ratio = min(current_ratio, 8.0)  # Cap to avoid over-compression
+                ratio_scale = current_ratio / max(compress_ratio, 1.0)
+                logger.info("LRA %.1f LU exceeds target %.1f LU — retrying with ratio %.2f (iter %d)",
+                            measured_lra, target_lra, current_ratio, i + 1)
+                # Re-run compression from pre-compression checkpoint
+                recomp_data = pre_compress_data.copy()
+                if oversample > 1:
+                    recomp_data = signal.resample_poly(recomp_data, up=oversample, down=1, axis=0)
+                    recomp_rate = original_rate * oversample
+                else:
+                    recomp_rate = rate
+                if multiband:
+                    recomp_data = apply_multiband_compress(
+                        recomp_data, recomp_rate,
+                        low_crossover=p.get('multiband_low_crossover', 200.0),
+                        high_crossover=p.get('multiband_high_crossover', 5000.0),
+                        low_ratio=p.get('multiband_low_ratio', 1.5) * ratio_scale,
+                        mid_ratio=p.get('multiband_mid_ratio', 1.5) * ratio_scale,
+                        high_ratio=p.get('multiband_high_ratio', 1.5) * ratio_scale,
+                        low_threshold=p.get('multiband_low_threshold', -18.0),
+                        mid_threshold=p.get('multiband_mid_threshold', -18.0),
+                        high_threshold=p.get('multiband_high_threshold', -18.0),
+                        attack_ms=p['compress_attack'],
+                        release_ms=p['compress_release'],
+                    )
+                elif current_ratio > 1.0:
+                    recomp_data = gentle_compress(
+                        recomp_data, recomp_rate,
+                        threshold_db=p['compress_threshold'],
+                        ratio=current_ratio,
+                        attack_ms=p['compress_attack'],
+                        release_ms=p['compress_release'],
+                    )
+                makeup = p.get('compress_makeup', 0.0)
+                if makeup != 0:
+                    recomp_data = recomp_data * (10 ** (makeup / 20))
+                # Downsample BEFORE parallel blend so arrays match
+                if oversample > 1:
+                    recomp_data = signal.resample_poly(recomp_data, up=1, down=oversample, axis=0)
+                if compress_mix < 1.0:
+                    recomp_data = pre_compress_data.copy() * (1.0 - compress_mix) + recomp_data * compress_mix
+                data = recomp_data
+                measured_lra = _measure_lra(data, original_rate)
+                if measured_lra is None:
+                    break
+            if measured_lra is not None and measured_lra > target_lra + lra_tolerance:
+                logger.warning("LRA %.1f LU still exceeds target %.1f LU after %d iterations",
+                               measured_lra, target_lra, max_iterations)
+            # Recalculate loudness after re-compression
+            current_lufs = pyln.Meter(original_rate).integrated_loudness(data)
+            if not np.isfinite(current_lufs):
+                logger.warning("Audio became silent after LRA targeting, skipping: %s", input_path)
+                return {
+                    'original_lufs': float('-inf'),
+                    'final_lufs': float('-inf'),
+                    'gain_applied': 0.0,
+                    'final_peak': float('-inf'),
+                    'skipped': True,
+                }
 
     # Calculate required gain
     gain_db = target_lufs - current_lufs
@@ -1397,10 +1418,28 @@ Examples:
                        help='Low/mid crossover frequency in Hz (default: 200)')
     parser.add_argument('--multiband-high-crossover', type=float, default=None,
                        help='Mid/high crossover frequency in Hz (default: 5000)')
+    parser.add_argument('--multiband-low-ratio', type=float, default=None,
+                       help='Multiband low band compression ratio (default: 1.5)')
+    parser.add_argument('--multiband-mid-ratio', type=float, default=None,
+                       help='Multiband mid band compression ratio (default: 1.5)')
+    parser.add_argument('--multiband-high-ratio', type=float, default=None,
+                       help='Multiband high band compression ratio (default: 1.5)')
+    parser.add_argument('--multiband-low-threshold', type=float, default=None,
+                       help='Multiband low band threshold in dB (default: -18.0)')
+    parser.add_argument('--multiband-mid-threshold', type=float, default=None,
+                       help='Multiband mid band threshold in dB (default: -18.0)')
+    parser.add_argument('--multiband-high-threshold', type=float, default=None,
+                       help='Multiband high band threshold in dB (default: -18.0)')
     parser.add_argument('--midside-low-gain', type=float, default=None,
                        help='Mid/side EQ: side low shelf gain in dB (negative = narrower bass)')
     parser.add_argument('--midside-high-gain', type=float, default=None,
                        help='Mid/side EQ: side high shelf gain in dB (positive = wider highs)')
+    parser.add_argument('--midside-low-freq', type=float, default=None,
+                       help='Mid/side EQ: low shelf frequency in Hz (default: 300)')
+    parser.add_argument('--midside-high-freq', type=float, default=None,
+                       help='Mid/side EQ: high shelf frequency in Hz (default: 8000)')
+    parser.add_argument('--eq-low-q', type=float, default=None,
+                       help='Low shelf Q factor (default: 0.707)')
     parser.add_argument('--linear-phase-eq', action='store_true', default=None,
                        help='Use linear-phase FIR filters for EQ (zero phase distortion)')
     parser.add_argument('--album-consistency', type=float, default=0,
@@ -1460,8 +1499,17 @@ Examples:
         'multiband_enabled': 1.0 if args.multiband else None,
         'multiband_low_crossover': args.multiband_low_crossover,
         'multiband_high_crossover': args.multiband_high_crossover,
+        'multiband_low_ratio': args.multiband_low_ratio,
+        'multiband_mid_ratio': args.multiband_mid_ratio,
+        'multiband_high_ratio': args.multiband_high_ratio,
+        'multiband_low_threshold': args.multiband_low_threshold,
+        'multiband_mid_threshold': args.multiband_mid_threshold,
+        'multiband_high_threshold': args.multiband_high_threshold,
         'midside_low_gain': args.midside_low_gain,
         'midside_high_gain': args.midside_high_gain,
+        'midside_low_freq': args.midside_low_freq,
+        'midside_high_freq': args.midside_high_freq,
+        'eq_low_q': args.eq_low_q,
         'eq_linear_phase': 1.0 if args.linear_phase_eq else None,
     }
     for key, value in cli_overrides.items():

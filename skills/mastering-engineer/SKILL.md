@@ -105,7 +105,25 @@ defaults:
   dither_bits: 24           # 24-bit output for archival
 ```
 
-**Available preset fields:** `target_lufs`, `cut_highmid`, `cut_highs`, `compress_ratio`, `compress_threshold`, `compress_attack`, `compress_release`, `eq_highmid_freq`, `eq_highmid_q`, `eq_highs_freq`, `eq_highs_q`, `dither_bits`
+**Available preset fields:**
+
+| Category | Fields |
+|----------|--------|
+| Loudness | `target_lufs`, `target_lra` |
+| EQ cuts | `cut_highmid`, `cut_highs` |
+| EQ high-mid | `eq_highmid_freq`, `eq_highmid_q` |
+| EQ highs | `eq_highs_freq`, `eq_highs_q` |
+| EQ low shelf | `eq_low_freq`, `eq_low_gain`, `eq_low_q` |
+| EQ sub-bass | `eq_sub_cut_freq` |
+| EQ options | `eq_linear_phase` |
+| Compression | `compress_ratio`, `compress_threshold`, `compress_attack`, `compress_release`, `compress_mix`, `compress_makeup` |
+| Multiband | `multiband_enabled`, `multiband_low_crossover`, `multiband_high_crossover`, `multiband_low_ratio`, `multiband_mid_ratio`, `multiband_high_ratio`, `multiband_low_threshold`, `multiband_mid_threshold`, `multiband_high_threshold` |
+| Mid/side EQ | `midside_low_gain`, `midside_low_freq`, `midside_high_gain`, `midside_high_freq` |
+| Stereo | `stereo_width`, `stereo_bass_mono_freq` |
+| De-essing | `deess_enabled`, `deess_freq`, `deess_bandwidth`, `deess_threshold`, `deess_ratio` |
+| Limiting | `limiter_lookahead_ms`, `limiter_release_ms` |
+| Processing | `dc_filter_freq`, `processing_oversample` |
+| Output | `output_bits`, `dither_bits`, `output_sample_rate`, `track_gap` |
 
 ### How to Use Override
 1. Load at invocation start

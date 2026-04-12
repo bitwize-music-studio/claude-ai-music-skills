@@ -6,6 +6,33 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Mastering pipeline overhaul** — 30+ new configurable parameters across the full mastering chain:
+  - DC offset removal (subsonic HPF)
+  - Low shelf EQ with configurable Q factor
+  - Linear-phase FIR EQ option (zero phase distortion)
+  - Mid/side EQ for frequency-selective stereo management
+  - De-essing with frequency, bandwidth, threshold, and ratio controls
+  - Stereo width adjustment with bass mono fold
+  - Parallel compression (wet/dry blend) with makeup gain
+  - 3-band multiband compression with Linkwitz-Riley crossovers
+  - Iterative LRA (Loudness Range) targeting per EBU R128
+  - Look-ahead limiting with configurable release
+  - Oversampled processing for nonlinear stages (2x/4x)
+  - Sample rate conversion
+  - 24-bit output support
+  - Inter-track gap insertion
+  - Album-level loudness consistency (two-pass mastering)
+  - Extended loudness metering (short-term, momentary LUFS)
+- **Mix pipeline enhancements** — saturation, sub-bass exciter, transient shaping wired into per-stem processing
+- **Configurable mastering presets** — refactored from tuples to dicts; all parameters exposed via CLI and genre presets
+
+### Fixed
+- LRA targeting now iteratively adjusts compression ratio (was measurement-only)
+- Added missing `--deess-bandwidth` CLI arg
+- Added missing CLI args for multiband ratios/thresholds and mid/side frequencies
+- Wired `eq_low_q` through to `apply_low_shelf()` (was defined but unused)
+
 ## [0.89.0] - 2026-04-10
 
 ### Added
