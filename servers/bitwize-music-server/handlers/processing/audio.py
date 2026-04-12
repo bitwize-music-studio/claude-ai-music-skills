@@ -99,7 +99,12 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
     })
 
 
-async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> str:
+async def qc_audio(
+    album_slug: str,
+    subfolder: str = "",
+    checks: str = "",
+    genre: str = "",
+) -> str:
     """Run technical QC checks on audio tracks.
 
     Scans WAV files for mono compatibility, phase correlation, clipping,
@@ -110,6 +115,9 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
         subfolder: Optional subfolder within audio dir (e.g., "mastered")
         checks: Comma-separated checks to run (default: all).
                 Options: mono, phase, clipping, clicks, silence, format, spectral
+        genre: Optional genre preset name. When set, the click detector uses
+                genre-tuned peak/RMS thresholds so intentional sharp transients
+                in electronic/metal/IDM don't FAIL QC.
 
     Returns:
         JSON with per-track QC results, summary, and verdicts
@@ -123,7 +131,7 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
         return err
     assert audio_dir is not None
 
-    from tools.mastering.qc_tracks import ALL_CHECKS, qc_track
+    from tools.mastering.qc_tracks import ALL_CHECKS, _resolve_click_thresholds, qc_track
 
     source_dir = _find_wav_source_dir(audio_dir) if not subfolder else audio_dir
     wav_files = sorted(source_dir.glob("*.wav"))
@@ -145,10 +153,19 @@ async def qc_audio(album_slug: str, subfolder: str = "", checks: str = "") -> st
                 "valid_checks": ALL_CHECKS,
             })
 
+    genre_arg = genre.strip() or None
+    if genre_arg is not None:
+        try:
+            _resolve_click_thresholds(genre_arg)
+        except ValueError as e:
+            return _safe_json({"error": str(e)})
+
     loop = asyncio.get_running_loop()
     results = []
     for wav in wav_files:
-        result = await loop.run_in_executor(None, qc_track, str(wav), active_checks)
+        result = await loop.run_in_executor(
+            None, qc_track, str(wav), active_checks, genre_arg
+        )
         results.append(result)
 
     # Build summary

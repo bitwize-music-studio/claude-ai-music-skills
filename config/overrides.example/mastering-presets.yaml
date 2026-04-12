@@ -52,6 +52,12 @@
 #   midside_high_gain    - Side channel high shelf gain in dB (default 0)
 #   midside_high_freq    - Side channel high shelf frequency in Hz (default 8000)
 #   eq_linear_phase      - Use linear-phase FIR EQ (0 = off, 1 = on, default 0)
+#   click_peak_ratio     - QC click detector: peak-to-RMS ratio above which a 10ms
+#                          window counts as a click (default 6.0). Raise for genres
+#                          with intentional sharp transients (e.g., 8.0–10.0).
+#   click_fail_count     - QC click detector: click count above which clicks FAIL
+#                          (default 3). Raise alongside click_peak_ratio for
+#                          dense-transient genres.
 
 genres:
   # Example: override rock to be less aggressive
