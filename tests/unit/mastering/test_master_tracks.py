@@ -24,6 +24,7 @@ from tools.mastering.master_tracks import (
     GENRE_PRESETS,
     _BUILTIN_PRESETS_FILE,
     _PRESET_DEFAULTS,
+    _design_linear_phase_eq,
     _load_yaml_file,
     _process_one_track,
     apply_deesser,
@@ -31,6 +32,7 @@ from tools.mastering.master_tracks import (
     apply_fade_out,
     apply_high_shelf,
     apply_highpass,
+    apply_linear_phase_eq,
     apply_low_shelf,
     apply_midside_eq,
     apply_multiband_compress,
@@ -1597,3 +1599,166 @@ class TestPhase3PresetDefaults:
     def test_midside_defaults(self):
         assert _PRESET_DEFAULTS['midside_low_gain'] == 0.0
         assert _PRESET_DEFAULTS['midside_high_gain'] == 0.0
+
+
+class TestLinearPhaseEQ:
+    """Tests for linear-phase FIR EQ filters."""
+
+    def test_preset_default(self):
+        """eq_linear_phase defaults to 0 (off)."""
+        assert _PRESET_DEFAULTS['eq_linear_phase'] == 0
+
+    def test_design_returns_fir_kernel(self):
+        """FIR kernel has correct length and is real-valued."""
+        kernel = _design_linear_phase_eq(44100, 1000.0, -3.0, 1.0, 'peaking')
+        assert kernel is not None
+        assert len(kernel) == 4095
+        assert kernel.dtype in (np.float64, np.float32)
+
+    def test_design_invalid_freq_returns_none(self):
+        """Out-of-range frequency returns None."""
+        assert _design_linear_phase_eq(44100, 25000.0, -3.0, 1.0, 'peaking') is None
+        assert _design_linear_phase_eq(44100, 10.0, -3.0, 1.0, 'peaking') is None
+
+    def test_design_invalid_q_returns_none(self):
+        """Non-positive Q returns None for peaking filter."""
+        assert _design_linear_phase_eq(44100, 1000.0, -3.0, 0.0, 'peaking') is None
+
+    def test_design_unknown_type_returns_none(self):
+        """Unknown filter type returns None."""
+        assert _design_linear_phase_eq(44100, 1000.0, -3.0, 1.0, 'notch') is None
+
+    def test_design_all_types(self):
+        """All three filter types produce valid kernels."""
+        for ftype in ('peaking', 'high_shelf', 'low_shelf'):
+            kernel = _design_linear_phase_eq(44100, 1000.0, -3.0, 1.0, ftype)
+            assert kernel is not None, f"Failed for {ftype}"
+
+    def test_apply_peaking_changes_signal(self):
+        """Peaking EQ should alter the signal."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        data = np.column_stack([
+            0.5 * np.sin(2 * np.pi * 1000 * t),
+            0.5 * np.sin(2 * np.pi * 1000 * t),
+        ])
+        result = apply_linear_phase_eq(data, rate, 1000.0, -6.0, q=1.0,
+                                        filter_type='peaking')
+        assert not np.allclose(data, result)
+
+    def test_apply_low_shelf_bypass_on_zero_gain(self):
+        """Low shelf with 0 dB gain should return data unchanged."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        data = 0.5 * np.sin(2 * np.pi * 200 * t)
+        result = apply_linear_phase_eq(data, rate, 80.0, 0.0, filter_type='low_shelf')
+        assert np.array_equal(data, result)
+
+    def test_apply_mono_signal(self):
+        """Linear-phase EQ handles mono (1D) signals."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        data = 0.5 * np.sin(2 * np.pi * 1000 * t)
+        result = apply_linear_phase_eq(data, rate, 1000.0, -6.0, q=1.0,
+                                        filter_type='peaking')
+        assert result.shape == data.shape
+        assert not np.allclose(data, result)
+
+    def test_output_same_length(self):
+        """Output length matches input (fftconvolve mode='same')."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        data = np.column_stack([
+            0.5 * np.sin(2 * np.pi * 440 * t),
+            0.5 * np.sin(2 * np.pi * 440 * t),
+        ])
+        result = apply_linear_phase_eq(data, rate, 440.0, -3.0, filter_type='peaking')
+        assert result.shape == data.shape
+
+
+class TestLinearPhaseEQInMasterTrack:
+    """Test linear-phase EQ wired through master_track()."""
+
+    def test_linear_phase_produces_different_output(self, tmp_path):
+        """Linear-phase EQ should produce different output from IIR EQ."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = np.column_stack([
+            0.3 * np.sin(2 * np.pi * 440 * t),
+            0.3 * np.sin(2 * np.pi * 440 * t),
+        ])
+        inp = tmp_path / "in.wav"
+        out_iir = tmp_path / "out_iir.wav"
+        out_fir = tmp_path / "out_fir.wav"
+        sf.write(str(inp), data, rate)
+
+        preset_iir = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0}
+        preset_fir = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0, 'eq_linear_phase': 1}
+        master_track(str(inp), str(out_iir), preset=preset_iir)
+        master_track(str(inp), str(out_fir), preset=preset_fir)
+        d1, _ = sf.read(str(out_iir))
+        d2, _ = sf.read(str(out_fir))
+        assert not np.allclose(d1, d2)
+
+    def test_linear_phase_off_matches_default(self, tmp_path):
+        """eq_linear_phase=0 should match default IIR behavior (within dither noise)."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = np.column_stack([
+            0.3 * np.sin(2 * np.pi * 440 * t),
+            0.3 * np.sin(2 * np.pi * 440 * t),
+        ])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        sf.write(str(inp), data, rate)
+
+        preset1 = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0}
+        preset2 = {**_PRESET_DEFAULTS, 'cut_highmid': -3.0, 'eq_linear_phase': 0}
+        master_track(str(inp), str(out1), preset=preset1)
+        master_track(str(inp), str(out2), preset=preset2)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        # Allow tolerance for TPDF dither noise (random per run, ~1 LSB at 16-bit)
+        assert np.allclose(d1, d2, atol=1e-4)
+
+    def test_linear_phase_low_shelf(self, tmp_path):
+        """Linear-phase low shelf EQ should change output."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        data = np.column_stack([
+            0.3 * np.sin(2 * np.pi * 60 * t),
+            0.3 * np.sin(2 * np.pi * 60 * t),
+        ])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        sf.write(str(inp), data, rate)
+
+        preset_off = {**_PRESET_DEFAULTS, 'eq_low_gain': -3.0}
+        preset_on = {**_PRESET_DEFAULTS, 'eq_low_gain': -3.0, 'eq_linear_phase': 1}
+        master_track(str(inp), str(out1), preset=preset_off)
+        master_track(str(inp), str(out2), preset=preset_on)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+    def test_linear_phase_midside_eq(self, tmp_path):
+        """Linear-phase mid/side EQ should produce different output from IIR."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        left = 0.3 * np.sin(2 * np.pi * 440 * t)
+        right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
+        data = np.column_stack([left, right])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        sf.write(str(inp), data, rate)
+
+        preset_iir = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0}
+        preset_fir = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0, 'eq_linear_phase': 1}
+        master_track(str(inp), str(out1), preset=preset_iir)
+        master_track(str(inp), str(out2), preset=preset_fir)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)

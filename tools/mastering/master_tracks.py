@@ -121,6 +121,7 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'midside_low_freq': 300.0,
     'midside_high_gain': 0.0,
     'midside_high_freq': 8000.0,
+    'eq_linear_phase': 0,
 }
 
 
@@ -305,6 +306,121 @@ def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float) -> Any:
         result = np.zeros_like(data)
         for ch in range(data.shape[1]):
             result[:, ch] = signal.lfilter(b, a, data[:, ch])
+        return result
+
+
+def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
+                            q: float, filter_type: str,
+                            num_taps: int = 4095) -> np.ndarray | None:
+    """Design a linear-phase FIR filter equivalent to an IIR EQ filter.
+
+    Matches the magnitude response of the IIR prototype but with zero phase
+    distortion.  Returns the FIR kernel or None if the parameters are invalid.
+
+    Args:
+        rate: Sample rate in Hz
+        freq: Center/corner frequency in Hz
+        gain_db: Gain in dB
+        q: Q factor (used for peaking type only)
+        filter_type: 'peaking', 'high_shelf', or 'low_shelf'
+        num_taps: FIR filter length (must be odd for type-I linear phase)
+    """
+    nyquist = rate / 2
+    if not (20 <= freq < nyquist):
+        logger.warning("Linear-phase EQ freq %.1f Hz out of range (20–%.0f Hz), skipping",
+                       freq, nyquist)
+        return None
+
+    # Build the IIR prototype to sample its magnitude response
+    A = 10 ** (gain_db / 40)
+    w0 = 2 * np.pi * freq / rate
+    cos_w0 = np.cos(w0)
+
+    if filter_type == 'peaking':
+        if q <= 0:
+            logger.warning("Linear-phase EQ Q must be positive (got %.4f), skipping", q)
+            return None
+        alpha = np.sin(w0) / (2 * q)
+        b0 = 1 + alpha * A
+        b1 = -2 * cos_w0
+        b2 = 1 - alpha * A
+        a0 = 1 + alpha / A
+        a1 = -2 * cos_w0
+        a2 = 1 - alpha / A
+    elif filter_type == 'high_shelf':
+        alpha = np.sin(w0) / 2 * np.sqrt(2)
+        sqrt_A = np.sqrt(A)
+        b0 = A * ((A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
+        b1 = -2 * A * ((A - 1) + (A + 1) * cos_w0)
+        b2 = A * ((A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
+        a0 = (A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha
+        a1 = 2 * ((A - 1) - (A + 1) * cos_w0)
+        a2 = (A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+    elif filter_type == 'low_shelf':
+        alpha = np.sin(w0) / 2 * np.sqrt(2)
+        sqrt_A = np.sqrt(A)
+        b0 = A * ((A + 1) - (A - 1) * cos_w0 + 2 * sqrt_A * alpha)
+        b1 = 2 * A * ((A - 1) - (A + 1) * cos_w0)
+        b2 = A * ((A + 1) - (A - 1) * cos_w0 - 2 * sqrt_A * alpha)
+        a0 = (A + 1) + (A - 1) * cos_w0 + 2 * sqrt_A * alpha
+        a1 = -2 * ((A - 1) + (A + 1) * cos_w0)
+        a2 = (A + 1) + (A - 1) * cos_w0 - 2 * sqrt_A * alpha
+    else:
+        logger.warning("Unknown linear-phase EQ type '%s', skipping", filter_type)
+        return None
+
+    b_iir = np.array([b0 / a0, b1 / a0, b2 / a0])
+    a_iir = np.array([1, a1 / a0, a2 / a0])
+
+    # Sample the IIR magnitude response at num_taps/2+1 frequency points
+    n_freqs = num_taps // 2 + 1
+    w, h = signal.freqz(b_iir, a_iir, worN=n_freqs)
+    desired_mag = np.abs(h)
+
+    # Build a zero-phase FIR via frequency sampling (real-valued, symmetric)
+    # Construct full two-sided spectrum for irfft
+    fir_kernel = np.fft.irfft(desired_mag, n=num_taps)
+
+    # Shift to make causal and apply window to reduce Gibbs ringing
+    fir_kernel = np.roll(fir_kernel, num_taps // 2)
+    window = signal.windows.kaiser(num_taps, beta=8.0)
+    fir_kernel *= window
+
+    return fir_kernel
+
+
+def apply_linear_phase_eq(data: Any, rate: int, freq: float, gain_db: float,
+                          q: float = 1.0,
+                          filter_type: str = 'peaking') -> Any:
+    """Apply linear-phase FIR EQ to audio data.
+
+    Uses frequency-sampled FIR design to match the magnitude response of
+    the equivalent IIR filter while maintaining zero phase distortion.
+    Higher latency than IIR but irrelevant for offline mastering.
+
+    Args:
+        data: Audio data (samples x channels)
+        rate: Sample rate
+        freq: Center/corner frequency in Hz
+        gain_db: Gain in dB (negative for cut)
+        q: Q factor (for peaking type)
+        filter_type: 'peaking', 'high_shelf', or 'low_shelf'
+    """
+    if gain_db == 0 and filter_type == 'low_shelf':
+        return data
+
+    fir_kernel = _design_linear_phase_eq(rate, freq, gain_db, q, filter_type)
+    if fir_kernel is None:
+        return data
+
+    # Apply via fftconvolve for efficiency, trim to original length
+    if len(data.shape) == 1:
+        filtered = signal.fftconvolve(data, fir_kernel, mode='same')
+        return filtered.astype(data.dtype)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = signal.fftconvolve(data[:, ch], fir_kernel, mode='same')
         return result
 
 
@@ -721,7 +837,8 @@ def apply_multiband_compress(data: Any, rate: int,
 
 def apply_midside_eq(data: Any, rate: int,
                      low_gain: float = 0.0, low_freq: float = 300.0,
-                     high_gain: float = 0.0, high_freq: float = 8000.0) -> Any:
+                     high_gain: float = 0.0, high_freq: float = 8000.0,
+                     linear_phase: bool = False) -> Any:
     """Apply EQ to the side channel only for frequency-selective stereo management.
 
     Positive gain widens the stereo field at that frequency range;
@@ -735,6 +852,7 @@ def apply_midside_eq(data: Any, rate: int,
         low_freq: Low shelf frequency in Hz
         high_gain: High shelf gain on side channel in dB (positive = wider highs)
         high_freq: High shelf frequency in Hz
+        linear_phase: Use linear-phase FIR filters instead of minimum-phase IIR
     """
     if len(data.shape) == 1 or data.shape[1] != 2:
         return data
@@ -747,19 +865,21 @@ def apply_midside_eq(data: Any, rate: int,
 
     # Apply EQ to side channel only
     if low_gain != 0:
-        side = apply_low_shelf(
-            side.reshape(-1, 1) if side.ndim == 1 else side,
-            rate, freq=low_freq, gain_db=low_gain,
-        )
-        if side.ndim == 2:
-            side = side[:, 0]
+        side_2d = side.reshape(-1, 1) if side.ndim == 1 else side
+        if linear_phase:
+            side_2d = apply_linear_phase_eq(side_2d, rate, freq=low_freq,
+                                            gain_db=low_gain, filter_type='low_shelf')
+        else:
+            side_2d = apply_low_shelf(side_2d, rate, freq=low_freq, gain_db=low_gain)
+        side = side_2d[:, 0] if side_2d.ndim == 2 else side_2d
     if high_gain != 0:
-        side = apply_high_shelf(
-            side.reshape(-1, 1) if side.ndim == 1 else side,
-            rate, freq=high_freq, gain_db=high_gain,
-        )
-        if side.ndim == 2:
-            side = side[:, 0]
+        side_2d = side.reshape(-1, 1) if side.ndim == 1 else side
+        if linear_phase:
+            side_2d = apply_linear_phase_eq(side_2d, rate, freq=high_freq,
+                                            gain_db=high_gain, filter_type='high_shelf')
+        else:
+            side_2d = apply_high_shelf(side_2d, rate, freq=high_freq, gain_db=high_gain)
+        side = side_2d[:, 0] if side_2d.ndim == 2 else side_2d
 
     # Decode back to L/R
     result = np.zeros_like(data)
@@ -850,14 +970,23 @@ def master_track(input_path: Path | str, output_path: Path | str,
         data = apply_highpass(data, rate, cutoff=sub_cut)
 
     # Low shelf EQ (bass shaping)
+    use_linear_phase = p.get('eq_linear_phase', 0) > 0
     low_gain = p.get('eq_low_gain', 0.0)
     if low_gain != 0:
-        data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain)
+        if use_linear_phase:
+            data = apply_linear_phase_eq(data, rate, freq=p['eq_low_freq'],
+                                         gain_db=low_gain, filter_type='low_shelf')
+        else:
+            data = apply_low_shelf(data, rate, freq=p['eq_low_freq'], gain_db=low_gain)
 
     # Apply high-mid/highs EQ if specified
     if eq_settings:
         for freq, gain_db, q in eq_settings:
-            data = apply_eq(data, rate, freq, gain_db, q)
+            if use_linear_phase:
+                data = apply_linear_phase_eq(data, rate, freq, gain_db, q,
+                                             filter_type='peaking')
+            else:
+                data = apply_eq(data, rate, freq, gain_db, q)
 
     # Mid/side EQ (frequency-selective stereo management, after regular EQ)
     ms_low_gain = p.get('midside_low_gain', 0.0)
@@ -867,6 +996,7 @@ def master_track(input_path: Path | str, output_path: Path | str,
             data, rate,
             low_gain=ms_low_gain, low_freq=p.get('midside_low_freq', 300.0),
             high_gain=ms_high_gain, high_freq=p.get('midside_high_freq', 8000.0),
+            linear_phase=use_linear_phase,
         )
 
     # De-essing (after EQ, before dynamics)
@@ -1201,6 +1331,8 @@ Examples:
                        help='Mid/side EQ: side low shelf gain in dB (negative = narrower bass)')
     parser.add_argument('--midside-high-gain', type=float, default=None,
                        help='Mid/side EQ: side high shelf gain in dB (positive = wider highs)')
+    parser.add_argument('--linear-phase-eq', action='store_true', default=None,
+                       help='Use linear-phase FIR filters for EQ (zero phase distortion)')
     parser.add_argument('--album-consistency', type=float, default=0,
                        help='Max LUFS spread across album in dB (0=disable, 1.0=recommended)')
     parser.add_argument('-j', '--jobs', type=int, default=1,
@@ -1259,6 +1391,7 @@ Examples:
         'multiband_high_crossover': args.multiband_high_crossover,
         'midside_low_gain': args.midside_low_gain,
         'midside_high_gain': args.midside_high_gain,
+        'eq_linear_phase': 1.0 if args.linear_phase_eq else None,
     }
     for key, value in cli_overrides.items():
         if value is not None:
