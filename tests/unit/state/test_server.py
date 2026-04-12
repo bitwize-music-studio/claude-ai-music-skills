@@ -11368,6 +11368,55 @@ class TestPathTraversalGuards:
 
 
 # =============================================================================
+# Tests for _normalize_slug path traversal rejection
+# =============================================================================
+
+
+class TestNormalizeSlugPathTraversal:
+    """Verify _normalize_slug rejects path traversal characters."""
+
+    def test_forward_slash_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("../../etc/passwd")
+
+    def test_backslash_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("..\\..\\etc")
+
+    def test_null_byte_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("album\x00evil")
+
+    def test_dot_dot_rejected(self):
+        with pytest.raises(ValueError, match="traversal"):
+            server._normalize_slug("album..escape")
+
+    def test_single_dot_allowed(self):
+        """A single dot (e.g., 'v2.0') is fine — only '..' is blocked."""
+        assert server._normalize_slug("v2.0") == "v2.0"
+
+    def test_normal_slug_unaffected(self):
+        assert server._normalize_slug("my-album-name") == "my-album-name"
+
+    def test_spaces_still_normalized(self):
+        assert server._normalize_slug("my album name") == "my-album-name"
+
+    def test_underscores_still_normalized(self):
+        assert server._normalize_slug("my_album_name") == "my-album-name"
+
+    def test_mixed_case_still_lowered(self):
+        assert server._normalize_slug("My Album") == "my-album"
+
+    def test_double_dot_in_underscored_name(self):
+        """Underscores become hyphens before '..' check, but '..' in raw name is caught."""
+        with pytest.raises(ValueError, match="traversal"):
+            server._normalize_slug("a..b")
+
+    def test_empty_string_still_works(self):
+        assert server._normalize_slug("") == ""
+
+
+# =============================================================================
 # Tests for dependency checker helpers
 # =============================================================================
 

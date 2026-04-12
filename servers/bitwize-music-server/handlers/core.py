@@ -625,9 +625,15 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
         "audio": audio_root,
         "documents": documents_root,
     }
+    root_dir = Path(root_map[path_type]).resolve()
     base = Path(root_map[path_type]) / "artists" / artist / "albums" / genre / normalized
     if path_type == "tracks":
         base = base / "tracks"
+
+    # Defense-in-depth: verify resolved path stays within its root directory
+    if not base.resolve().is_relative_to(root_dir):
+        return _safe_json({"error": "Resolved path escapes root directory"})
+
     resolved = str(base)
 
     return _safe_json({
