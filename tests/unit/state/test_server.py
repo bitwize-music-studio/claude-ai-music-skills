@@ -11199,6 +11199,175 @@ class TestResolveAudioDir:
 
 
 # =============================================================================
+# Tests for path traversal guards
+# =============================================================================
+
+
+class TestPathTraversalGuards:
+    """Verify that path-traversal attempts are rejected across all guarded params."""
+
+    def _make_audio_dir(self, tmp_path):
+        """Create a minimal audio directory and return (state, audio_dir)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return state, audio_dir
+
+    # --- _resolve_audio_dir subfolder ---
+
+    def test_subfolder_traversal_rejected(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album", "../../etc")
+        assert path is None
+        result = json.loads(err)
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_audio source_subfolder ---
+
+    def test_master_audio_source_subfolder_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_audio(
+                "test-album", source_subfolder="../../etc",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_album source_subfolder ---
+
+    def test_master_album_source_subfolder_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        (audio_dir / "originals").mkdir()
+        (audio_dir / "originals" / "01-test.wav").touch()
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_album(
+                "test-album", source_subfolder="../../etc",
+            )))
+        assert "failed_stage" in result
+        detail = result.get("failure_detail", {})
+        assert "escape" in str(detail).lower() or "invalid" in str(detail).lower()
+
+    # --- fix_dynamic_track track_filename ---
+
+    def test_fix_dynamic_track_traversal(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.fix_dynamic_track(
+                "test-album", "../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_with_reference reference_filename ---
+
+    def test_master_with_reference_traversal(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None):
+            result = json.loads(_run(server.master_with_reference(
+                "test-album", reference_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_with_reference target_filename ---
+
+    def test_master_with_reference_target_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        # Create a valid reference so we reach the target_filename check
+        ref = audio_dir / "reference.wav"
+        ref.touch()
+        mock_cache = MockStateCache(state)
+        mock_ref_master = MagicMock()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
+             patch("handlers.processing.audio._ref_master", mock_ref_master, create=True), \
+             patch.dict("sys.modules", {"tools.mastering.reference_master": MagicMock()}):
+            result = json.loads(_run(server.master_with_reference(
+                "test-album",
+                reference_filename="reference.wav",
+                target_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- generate_promo_videos track_filename ---
+
+    def test_promo_videos_track_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        # Create artwork so we reach the track_filename check
+        (audio_dir / "album.png").touch()
+        mock_cache = MockStateCache(state)
+        mock_promo_mod = MagicMock()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch.dict("sys.modules", {
+                 "tools.promotion.generate_promo_video": mock_promo_mod,
+                 "tools.shared.fonts": MagicMock(find_font=MagicMock(return_value="/fake/font.ttf")),
+             }):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- transcribe_audio track_filename ---
+
+    def test_transcribe_track_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        mock_transcribe = MagicMock()
+        mock_transcribe.find_anthemscore.return_value = "/fake/anthemscore"
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_transcribe):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", track_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- extract_links file_name ---
+
+    def test_extract_links_traversal(self, tmp_path):
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links(
+                "test-album", file_name="../../../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- _is_path_confined unit tests ---
+
+    def test_is_path_confined_normal(self, tmp_path):
+        from handlers._shared import _is_path_confined
+        assert _is_path_confined(tmp_path, "mastered") is True
+        assert _is_path_confined(tmp_path, "sub/dir") is True
+
+    def test_is_path_confined_traversal(self, tmp_path):
+        from handlers._shared import _is_path_confined
+        assert _is_path_confined(tmp_path, "../../etc") is False
+        assert _is_path_confined(tmp_path, "../passwd") is False
+        assert _is_path_confined(tmp_path, "/etc/passwd") is False
+
+
+# =============================================================================
 # Tests for dependency checker helpers
 # =============================================================================
 

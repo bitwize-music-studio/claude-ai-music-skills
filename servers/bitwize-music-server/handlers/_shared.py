@@ -91,6 +91,19 @@ _GENRE_ALIASES = {
 # Shared helper functions
 # ---------------------------------------------------------------------------
 
+def _is_path_confined(base: Path, user_component: str) -> bool:
+    """Return True if *base / user_component* stays within *base* after resolution.
+
+    Use this to reject path-traversal attempts (e.g. ``../../etc/passwd``)
+    before performing any file I/O with user-supplied path fragments.
+    """
+    try:
+        resolved = (base / user_component).resolve()
+        return resolved.is_relative_to(base.resolve())
+    except (ValueError, OSError):
+        return False
+
+
 def _normalize_slug(name: str) -> str:
     """Normalize input to slug format."""
     return name.lower().replace(" ", "-").replace("_", "-")
@@ -353,6 +366,11 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple[str | None
         }), None
     audio_path = Path(audio_root) / "artists" / artist / "albums" / genre / normalized
     if subfolder:
+        if not _is_path_confined(audio_path, subfolder):
+            return _safe_json({
+                "error": "Invalid subfolder: path must not escape the album directory",
+                "subfolder": subfolder,
+            }), None
         audio_path = audio_path / subfolder
     if not audio_path.is_dir():
         return _safe_json({

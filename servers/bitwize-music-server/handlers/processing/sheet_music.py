@@ -14,6 +14,7 @@ from handlers import _shared
 from handlers._shared import (
     _find_album_or_error,
     _find_wav_source_dir,
+    _is_path_confined,
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
@@ -89,6 +90,11 @@ async def transcribe_audio(
     args.dry_run = dry_run  # type: ignore[attr-defined]
 
     if track_filename:
+        if not _is_path_confined(audio_dir, track_filename):
+            return _safe_json({
+                "error": "Invalid track_filename: path must not escape the album directory",
+                "track_filename": track_filename,
+            })
         wav_files = [audio_dir / track_filename]
         if not wav_files[0].exists():
             wav_files = [_find_wav_source_dir(audio_dir) / track_filename]
@@ -383,7 +389,12 @@ async def create_songbook(
     # Build output path in songbook/ subdirectory
     songbook_dir = audio_dir / "sheet-music" / "songbook"
     songbook_dir.mkdir(parents=True, exist_ok=True)
-    safe_title = title.replace(" ", "_").replace("/", "-")
+    safe_title = title.replace(" ", "_").replace("/", "-").replace("..", "")
+    if not safe_title or not _is_path_confined(songbook_dir, f"{safe_title}.pdf"):
+        return _safe_json({
+            "error": "Invalid title: produces a path that escapes the songbook directory",
+            "title": title,
+        })
     output_path = songbook_dir / f"{safe_title}.pdf"
 
     loop = asyncio.get_running_loop()

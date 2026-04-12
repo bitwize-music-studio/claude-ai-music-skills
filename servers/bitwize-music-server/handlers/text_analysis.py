@@ -19,6 +19,7 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _is_path_confined,
     _normalize_slug,
     _safe_json,
 )
@@ -568,6 +569,11 @@ async def extract_links(
         file_path = track.get("path", "")
     else:
         # It's a file name in the album directory
+        if not _is_path_confined(Path(album_path), file_name):
+            return _safe_json({
+                "error": "Invalid file_name: path must not escape the album directory",
+                "file_name": file_name,
+            })
         candidate = Path(album_path) / file_name
         if candidate.exists():
             file_path = str(candidate)

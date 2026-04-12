@@ -17,6 +17,7 @@ from handlers._shared import (
     TRACK_GENERATED,
     TRACK_NOT_STARTED,
     _find_wav_source_dir,
+    _is_path_confined,
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
@@ -214,6 +215,11 @@ async def master_audio(
 
     # If source_subfolder specified, read from that subfolder
     if source_subfolder:
+        if not _is_path_confined(audio_dir, source_subfolder):
+            return _safe_json({
+                "error": "Invalid source_subfolder: path must not escape the album directory",
+                "source_subfolder": source_subfolder,
+            })
         source_dir = audio_dir / source_subfolder
         if not source_dir.is_dir():
             return _safe_json({
@@ -378,6 +384,12 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
         return err
     assert audio_dir is not None
 
+    if not _is_path_confined(audio_dir, track_filename):
+        return _safe_json({
+            "error": "Invalid track_filename: path must not escape the album directory",
+            "track_filename": track_filename,
+        })
+
     input_path = audio_dir / track_filename
     if not input_path.exists():
         input_path = _find_wav_source_dir(audio_dir) / track_filename
@@ -389,7 +401,7 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
 
     output_dir = audio_dir / "mastered"
     output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / track_filename
+    output_path = output_dir / Path(track_filename).name
 
     from tools.mastering.fix_dynamic_track import fix_dynamic
 
@@ -446,6 +458,12 @@ async def master_with_reference(
         return err
     assert audio_dir is not None
 
+    if not _is_path_confined(audio_dir, reference_filename):
+        return _safe_json({
+            "error": "Invalid reference_filename: path must not escape the album directory",
+            "reference_filename": reference_filename,
+        })
+
     reference_path = audio_dir / reference_filename
     if not reference_path.exists():
         reference_path = _find_wav_source_dir(audio_dir) / reference_filename
@@ -470,6 +488,11 @@ async def master_with_reference(
     loop = asyncio.get_running_loop()
 
     if target_filename:
+        if not _is_path_confined(audio_dir, target_filename):
+            return _safe_json({
+                "error": "Invalid target_filename: path must not escape the album directory",
+                "target_filename": target_filename,
+            })
         # Single file
         target_path = audio_dir / target_filename
         if not target_path.exists():
@@ -479,7 +502,7 @@ async def master_with_reference(
                 "error": f"Target file not found: {target_filename}",
                 "available_files": [f.name for f in _find_wav_source_dir(audio_dir).glob("*.wav")],
             })
-        output_path = output_dir / target_filename
+        output_path = output_dir / Path(target_filename).name
 
         try:
             await loop.run_in_executor(
@@ -585,6 +608,20 @@ async def master_album(
 
     # If source_subfolder specified, read from that subfolder
     if source_subfolder:
+        if not _is_path_confined(audio_dir, source_subfolder):
+            return _safe_json({
+                "album_slug": album_slug,
+                "stage_reached": "pre_flight",
+                "stages": {"pre_flight": {
+                    "status": "fail",
+                    "detail": "Invalid source_subfolder: path must not escape the album directory",
+                }},
+                "failed_stage": "pre_flight",
+                "failure_detail": {
+                    "reason": "Invalid source_subfolder: path escapes album directory",
+                    "source_subfolder": source_subfolder,
+                },
+            })
         source_dir = audio_dir / source_subfolder
         if not source_dir.is_dir():
             return _safe_json({
