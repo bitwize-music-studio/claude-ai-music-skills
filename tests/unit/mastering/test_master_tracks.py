@@ -32,6 +32,8 @@ from tools.mastering.master_tracks import (
     apply_high_shelf,
     apply_highpass,
     apply_low_shelf,
+    apply_midside_eq,
+    apply_multiband_compress,
     apply_stereo_width,
     apply_tpdf_dither,
     limit_peaks,
@@ -1438,3 +1440,160 @@ class TestDeesserInMasterTrack:
         d1, _ = sf.read(str(out1))
         d2, _ = sf.read(str(out2))
         assert not np.allclose(d1, d2)
+
+
+class TestMultibandCompress:
+    """Tests for apply_multiband_compress()."""
+
+    def test_all_bypass_passthrough(self):
+        """All ratios=1.0 should return signal mostly unchanged."""
+        data, rate = _generate_noise(amplitude=0.3)
+        result = apply_multiband_compress(
+            data, rate, low_ratio=1.0, mid_ratio=1.0, high_ratio=1.0)
+        orig_rms = np.sqrt(np.mean(data ** 2))
+        result_rms = np.sqrt(np.mean(result ** 2))
+        assert abs(orig_rms - result_rms) / orig_rms < 0.2
+
+    def test_compression_changes_signal(self):
+        """Active compression should produce a different signal than bypass."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result_bypass = apply_multiband_compress(
+            data.copy(), rate, low_ratio=1.0, mid_ratio=1.0, high_ratio=1.0)
+        result_active = apply_multiband_compress(
+            data.copy(), rate, low_ratio=3.0, mid_ratio=3.0, high_ratio=3.0,
+            low_threshold=-20.0, mid_threshold=-20.0, high_threshold=-20.0)
+        assert not np.allclose(result_bypass, result_active)
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_noise(amplitude=0.3)
+        result = apply_multiband_compress(data, rate, low_ratio=2.0)
+        assert result.shape == data.shape
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_noise(amplitude=0.3, stereo=False)
+        result = apply_multiband_compress(data, rate, mid_ratio=2.0)
+        assert result.shape == data.shape
+
+    def test_per_band_independence(self):
+        """Different band ratios should produce different results."""
+        data, rate = _generate_noise(amplitude=0.4)
+        result_low = apply_multiband_compress(
+            data.copy(), rate, low_ratio=4.0, mid_ratio=1.0, high_ratio=1.0,
+            low_threshold=-15.0)
+        result_high = apply_multiband_compress(
+            data.copy(), rate, low_ratio=1.0, mid_ratio=1.0, high_ratio=4.0,
+            high_threshold=-15.0)
+        assert not np.allclose(result_low, result_high)
+
+
+class TestMidsideEQ:
+    """Tests for apply_midside_eq()."""
+
+    def test_zero_gains_passthrough(self):
+        """Both gains=0 returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        result = apply_midside_eq(data, rate, low_gain=0, high_gain=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_negative_low_narrows_bass(self):
+        """Negative low gain on side should narrow low-frequency stereo."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        left = 0.5 * np.sin(2 * np.pi * 100 * t)
+        right = 0.5 * np.sin(2 * np.pi * 100 * t + np.pi / 4)
+        data = np.column_stack([left, right])
+        result = apply_midside_eq(data, rate, low_gain=-6.0, low_freq=300)
+        orig_side = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_side = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_side < orig_side
+
+    def test_positive_high_widens_treble(self):
+        """Positive high gain on side should widen high-frequency stereo."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        left = 0.3 * np.sin(2 * np.pi * 10000 * t)
+        right = 0.3 * np.sin(2 * np.pi * 10000 * t + 0.3)
+        data = np.column_stack([left, right])
+        result = apply_midside_eq(data, rate, high_gain=6.0, high_freq=8000)
+        orig_side = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_side = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_side > orig_side
+
+    def test_mono_passthrough(self):
+        """Mono input returns unchanged."""
+        data, rate = _generate_sine(amplitude=0.5, stereo=False)
+        result = apply_midside_eq(data, rate, low_gain=-3.0)
+        np.testing.assert_array_equal(result, data)
+
+
+class TestMultibandInMasterTrack:
+    """Test multiband compression wired through master_track()."""
+
+    def test_multiband_produces_output(self, tmp_path):
+        """Multiband compression via preset should complete."""
+        data, rate = _generate_noise(amplitude=0.3)
+        inp = tmp_path / "in.wav"
+        out = tmp_path / "out.wav"
+        _write_wav(inp, data, rate)
+
+        preset = {**_PRESET_DEFAULTS, 'multiband_enabled': 1}
+        result = master_track(str(inp), str(out), preset=preset)
+        assert not result.get('skipped')
+
+    def test_multiband_differs_from_singleband(self, tmp_path):
+        """Multiband should produce different output than single-band."""
+        data, rate = _generate_noise(amplitude=0.4)
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_single = {**_PRESET_DEFAULTS, 'compress_ratio': 2.0}
+        preset_multi = {**_PRESET_DEFAULTS, 'multiband_enabled': 1,
+                        'multiband_low_ratio': 2.0, 'multiband_mid_ratio': 2.0,
+                        'multiband_high_ratio': 2.0}
+        master_track(str(inp), str(out1), preset=preset_single)
+        master_track(str(inp), str(out2), preset=preset_multi)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+
+class TestMidsideEQInMasterTrack:
+    """Test mid/side EQ wired through master_track()."""
+
+    def test_midside_eq_changes_output(self, tmp_path):
+        """Mid/side EQ via preset should change stereo field."""
+        rate = 44100
+        t = np.linspace(0, 3.0, int(rate * 3.0), endpoint=False)
+        left = 0.3 * np.sin(2 * np.pi * 440 * t)
+        right = 0.3 * np.sin(2 * np.pi * 440 * t + 0.3)
+        data = np.column_stack([left, right])
+        inp = tmp_path / "in.wav"
+        out1 = tmp_path / "out1.wav"
+        out2 = tmp_path / "out2.wav"
+        _write_wav(inp, data, rate)
+
+        preset_off = {**_PRESET_DEFAULTS}
+        preset_on = {**_PRESET_DEFAULTS, 'midside_low_gain': -6.0}
+        master_track(str(inp), str(out1), preset=preset_off)
+        master_track(str(inp), str(out2), preset=preset_on)
+        d1, _ = sf.read(str(out1))
+        d2, _ = sf.read(str(out2))
+        assert not np.allclose(d1, d2)
+
+
+class TestPhase3PresetDefaults:
+    """Verify Phase 3 preset defaults."""
+
+    def test_multiband_defaults(self):
+        assert _PRESET_DEFAULTS['multiband_enabled'] == 0
+        assert _PRESET_DEFAULTS['multiband_low_crossover'] == 200.0
+        assert _PRESET_DEFAULTS['multiband_high_crossover'] == 5000.0
+
+    def test_midside_defaults(self):
+        assert _PRESET_DEFAULTS['midside_low_gain'] == 0.0
+        assert _PRESET_DEFAULTS['midside_high_gain'] == 0.0
