@@ -123,6 +123,9 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'midside_high_gain': 0.0,
     'midside_high_freq': 8000.0,
     'eq_linear_phase': 0,
+    # QC thresholds (consumed by tools/mastering/qc_tracks.py)
+    'click_peak_ratio': 6.0,
+    'click_fail_count': 3,
 }
 
 

@@ -292,6 +292,68 @@ class TestCheckClicks:
         assert "0 found" not in result["value"]
 
 
+class TestCheckClicksGenreThresholds:
+    """Tests for configurable per-genre click detection thresholds (#285)."""
+
+    def test_default_call_fails_on_dense_transients(self, clicks_wav):
+        """Default thresholds (6.0, 3) flag clicks_wav's 5 strong spikes as FAIL."""
+        data, rate = sf.read(clicks_wav)
+        result = _check_clicks(data, rate)
+        assert result["status"] == "FAIL"
+
+    def test_relaxed_peak_ratio_passes_dense_transients(self, clicks_wav):
+        """A high peak_ratio lets strong musical transients through."""
+        data, rate = sf.read(clicks_wav)
+        # clicks_wav spikes at peak/rms ~16.5; ratio=20 should detect nothing.
+        result = _check_clicks(data, rate, peak_ratio=20.0)
+        assert result["status"] == "PASS"
+        assert "0 found" in result["value"]
+
+    def test_relaxed_fail_count_downgrades_fail_to_warn(self, clicks_wav):
+        """Raising fail_count turns a FAIL count into a WARN."""
+        data, rate = sf.read(clicks_wav)
+        result = _check_clicks(data, rate, peak_ratio=6.0, fail_count=10)
+        # 5 clicks <= fail_count=10 => WARN
+        assert result["status"] == "WARN"
+
+    def test_stricter_peak_ratio_flags_moderate_spikes(self):
+        """Lowering peak_ratio catches smaller transients missed by default."""
+        rate = 44100
+        duration = 3.0
+        t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+        mono = (0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Spikes at 0.3 over 0.1 sine yield peak/rms ~4.2 — below default 6
+        for i in range(5):
+            idx = 10000 + i * 20000
+            mono[idx] = 0.3
+        data = np.column_stack([mono, mono])
+        # Default (6.0) misses them
+        default_result = _check_clicks(data, rate)
+        assert default_result["status"] == "PASS"
+        # Strict (3.0) catches them
+        strict_result = _check_clicks(data, rate, peak_ratio=3.0, fail_count=3)
+        assert strict_result["status"] == "FAIL"
+
+
+class TestQcTrackGenre:
+    """Tests that qc_track applies genre-preset click thresholds (#285)."""
+
+    def test_no_genre_matches_default_behavior(self, clicks_wav):
+        """Without a genre kwarg, click check uses the default 6.0/3 thresholds."""
+        result = qc_track(clicks_wav, checks=["clicks"])
+        assert result["checks"]["clicks"]["status"] == "FAIL"
+
+    def test_genre_with_relaxed_thresholds_does_not_fail(self, clicks_wav):
+        """A dense-transient genre (idm) should not FAIL on intentional spikes."""
+        result = qc_track(clicks_wav, checks=["clicks"], genre="idm")
+        assert result["checks"]["clicks"]["status"] != "FAIL"
+
+    def test_unknown_genre_raises(self, normal_wav):
+        """Unknown genre should raise a clear error."""
+        with pytest.raises(ValueError, match="Unknown genre"):
+            qc_track(normal_wav, checks=["clicks"], genre="nonexistent-genre-xyz")
+
+
 class TestCheckSilence:
     """Tests for the silence detection check."""
 

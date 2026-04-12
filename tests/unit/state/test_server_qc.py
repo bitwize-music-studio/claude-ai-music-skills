@@ -278,7 +278,7 @@ class TestQcAudioComprehensive:
 
         call_count = []
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             name = Path(filepath).name
             call_count.append(name)
             return self._mock_qc_result(name)
@@ -297,7 +297,7 @@ class TestQcAudioComprehensive:
         audio_dir, state = self._make_audio_dir(tmp_path, 2)
         mock_cache = MockStateCache(state)
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             return self._mock_qc_result(Path(filepath).name, verdict="PASS")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
@@ -316,7 +316,7 @@ class TestQcAudioComprehensive:
 
         call_idx = [0]
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             idx = call_idx[0]
             call_idx[0] += 1
             if idx == 0:
@@ -339,7 +339,7 @@ class TestQcAudioComprehensive:
         audio_dir, state = self._make_audio_dir(tmp_path, 1)
         mock_cache = MockStateCache(state)
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             return self._mock_qc_result(
                 Path(filepath).name, verdict="WARN", spectral_status="WARN"
             )
@@ -363,7 +363,7 @@ class TestQcAudioComprehensive:
         state["config"]["artist_name"] = "test-artist"
         mock_cache = MockStateCache(state)
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             return self._mock_qc_result(Path(filepath).name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
@@ -381,7 +381,7 @@ class TestQcAudioComprehensive:
 
         captured_checks = []
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             captured_checks.append(checks)
             return self._mock_qc_result(Path(filepath).name)
 
@@ -505,7 +505,7 @@ class TestMasterAlbumPipeline:
 
         call_idx = [0]
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             idx = call_idx[0]
             call_idx[0] += 1
             name = Path(filepath).name
@@ -628,7 +628,7 @@ class TestMasterAlbumPipeline:
 
         qc_call_idx = [0]
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             idx = qc_call_idx[0]
             qc_call_idx[0] += 1
             name = Path(filepath).name
@@ -695,7 +695,7 @@ class TestMasterAlbumPipeline:
         def mock_analyze(filepath):
             return self._mock_analyze(Path(filepath).name, lufs=-14.0)
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             return self._mock_qc_result(Path(filepath).name)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
@@ -885,7 +885,7 @@ class TestMasterAlbumPipeline:
                 "final_peak": -1.5,
             }
 
-        def mock_qc(filepath, checks=None):
+        def mock_qc(filepath, checks=None, genre=None):
             name = Path(filepath).name
             r = self._mock_qc_result(name)
             r["checks"]["spectral"]["status"] = "WARN"

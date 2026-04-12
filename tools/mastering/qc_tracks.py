@@ -209,8 +209,21 @@ def _check_truepeak(data: Any, rate: int, ceiling_db: float = -1.0) -> dict[str,
     }
 
 
-def _check_clicks(data: Any, rate: int) -> dict[str, str]:
-    """Detect clicks/pops using sliding RMS window comparison."""
+def _check_clicks(
+    data: Any,
+    rate: int,
+    peak_ratio: float = 6.0,
+    fail_count: int = 3,
+) -> dict[str, str]:
+    """Detect clicks/pops using sliding RMS window comparison.
+
+    Args:
+        data: Audio samples (mono or stereo).
+        rate: Sample rate in Hz.
+        peak_ratio: Window peak-to-RMS ratio above which a window counts as a click.
+            Raise for genres with intentional sharp transients (electronic, metal, IDM).
+        fail_count: Click count above which the status is FAIL (inclusive WARN below).
+    """
     # Work with mono sum for detection
     if data.ndim > 1:
         mono = np.mean(data, axis=1)
@@ -229,12 +242,12 @@ def _check_clicks(data: Any, rate: int) -> dict[str, str]:
             continue
 
         peak = np.max(np.abs(window))
-        if peak > 6.0 * rms:
+        if peak > peak_ratio * rms:
             click_count += 1
 
     if click_count == 0:
         status = "PASS"
-    elif click_count <= 3:
+    elif click_count <= fail_count:
         status = "WARN"
     else:
         status = "FAIL"
@@ -374,13 +387,42 @@ def _check_spectral(data: Any, rate: int) -> dict[str, str]:
     }
 
 
-def qc_track(filepath: Path | str, checks: list[str] | None = None) -> dict[str, Any]:
+def _resolve_click_thresholds(genre: str | None) -> tuple[float, int]:
+    """Look up click_peak_ratio and click_fail_count for a genre preset.
+
+    Falls back to the hardcoded defaults (6.0, 3) if no genre is given.
+    Raises ValueError for an unknown genre name.
+    """
+    if genre is None:
+        return 6.0, 3
+
+    from tools.mastering.master_tracks import GENRE_PRESETS
+
+    key = genre.lower()
+    if key not in GENRE_PRESETS:
+        raise ValueError(
+            f"Unknown genre: {genre}. "
+            f"Available: {', '.join(sorted(GENRE_PRESETS.keys()))}"
+        )
+    preset = GENRE_PRESETS[key]
+    return float(preset.get('click_peak_ratio', 6.0)), int(preset.get('click_fail_count', 3))
+
+
+def qc_track(
+    filepath: Path | str,
+    checks: list[str] | None = None,
+    genre: str | None = None,
+) -> dict[str, Any]:
     """Run QC checks on a single audio track.
 
     Args:
         filepath: Path to WAV file.
         checks: List of check names to run (default: all).
             Options: format, mono, phase, clipping, clicks, silence, spectral
+        genre: Optional genre preset name (e.g., "idm", "metal"). When set,
+            the click detector reads `click_peak_ratio` and `click_fail_count`
+            from the matching genre preset so intentional sharp transients
+            don't FAIL QC. Unknown names raise ValueError.
 
     Returns:
         Dict with filename, per-check results, and overall verdict.
@@ -388,6 +430,8 @@ def qc_track(filepath: Path | str, checks: list[str] | None = None) -> dict[str,
     filepath = str(filepath)
     basename = os.path.basename(filepath)
     active_checks = checks or ALL_CHECKS
+
+    click_peak_ratio, click_fail_count = _resolve_click_thresholds(genre)
 
     info = sf.info(filepath)
     data, rate = sf.read(filepath)
@@ -414,7 +458,11 @@ def qc_track(filepath: Path | str, checks: list[str] | None = None) -> dict[str,
         results["truepeak"] = _check_truepeak(data, rate)
 
     if "clicks" in active_checks:
-        results["clicks"] = _check_clicks(data, rate)
+        results["clicks"] = _check_clicks(
+            data, rate,
+            peak_ratio=click_peak_ratio,
+            fail_count=click_fail_count,
+        )
 
     if "silence" in active_checks:
         results["silence"] = _check_silence(data, rate)
@@ -457,6 +505,13 @@ def main() -> None:
         default="",
         help=f"Comma-separated checks to run (default: all). Options: {', '.join(ALL_CHECKS)}",
     )
+    parser.add_argument(
+        "--genre",
+        type=str,
+        default="",
+        help="Genre preset name — loads click detector thresholds so intentional "
+             "sharp transients in electronic/metal/IDM don't FAIL QC.",
+    )
     args = parser.parse_args()
 
     setup_logging(__name__, verbose=args.verbose, quiet=args.quiet)
@@ -481,6 +536,14 @@ def main() -> None:
             logger.error("Unknown checks: %s. Valid: %s", ", ".join(invalid), ", ".join(ALL_CHECKS))
             sys.exit(1)
 
+    genre = args.genre.strip() or None
+    if genre is not None:
+        try:
+            _resolve_click_thresholds(genre)
+        except ValueError as e:
+            logger.error("%s", e)
+            sys.exit(1)
+
     print("=" * 90)
     print("AUDIO QC CHECKS")
     print("=" * 90)
@@ -493,14 +556,14 @@ def main() -> None:
         results = []
         for wav_file in filterable:
             progress.update(wav_file.name)
-            result = qc_track(str(wav_file), checks=active_checks)
+            result = qc_track(str(wav_file), checks=active_checks, genre=genre)
             results.append(result)
     else:
         logger.info("Using %d parallel workers", workers)
         ordered = {}
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = {
-                executor.submit(qc_track, str(wf), active_checks): i
+                executor.submit(qc_track, str(wf), active_checks, genre): i
                 for i, wf in enumerate(filterable)
             }
             for future in as_completed(futures):
