@@ -20,6 +20,7 @@ import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 from scipy import signal
+from scipy.ndimage import minimum_filter1d
 
 try:
     import yaml
@@ -658,13 +659,16 @@ def limit_peaks_lookahead(data: Any, ceiling_db: float = -1.0,
             env = release_coeff * env + (1.0 - release_coeff) * target
         smoothed[i] = env
 
-    # Shift gain envelope backward by lookahead_samples (pre-apply reduction)
-    shifted = np.ones(n_samples, dtype=np.float64)
+    # Pre-apply gain reduction across the lookahead window: at each sample i,
+    # use the minimum gain required anywhere in [i, i+lookahead_samples]. A plain
+    # backward shift would sample the release-relaxed envelope at the peak,
+    # letting peaks slip past the ceiling by release_coeff^lookahead.
     if lookahead_samples < n_samples:
-        shifted[:n_samples - lookahead_samples] = smoothed[lookahead_samples:]
-        shifted[n_samples - lookahead_samples:] = smoothed[-1]
+        window = lookahead_samples + 1
+        padded = np.concatenate([smoothed, np.ones(lookahead_samples, dtype=np.float64)])
+        shifted = minimum_filter1d(padded, size=window, origin=-(window // 2))[:n_samples]
     else:
-        shifted[:] = np.min(smoothed)
+        shifted = np.full(n_samples, float(np.min(smoothed)), dtype=np.float64)
 
     # Apply gain reduction
     if data.ndim == 1:
