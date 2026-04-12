@@ -150,7 +150,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise
-- **Mastering audio** → apply `/bitwize-music:mastering-engineer` standards
+- **Mastering audio** → polish first via `/bitwize-music:mix-engineer`, then apply `/bitwize-music:mastering-engineer` standards. Skip polish only if: (a) user says "master only", "skip polish", or "already polished"; or (b) polished audio already exists at `{audio_root}/artists/[artist]/albums/[genre]/[album]/polished/`. Applies equally to single-track and whole-album mastering.
 - **Album art** → apply `/bitwize-music:album-art-director`
 - **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
