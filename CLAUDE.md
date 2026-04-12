@@ -282,6 +282,8 @@ Currently supports **Suno** (default). Service-specific template sections marked
 
 **Development workflow**: Feature branch off `develop` → Conventional Commits → `/bitwize-music:test all` → PR into `develop` → Release: merge `develop` → `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
+**External contributor PRs**: When the user mentions merging, reviewing, or having merged a PR from a non-maintainer (anyone other than @bitwize-music), check the Contributors section of README.md. If the PR author is not listed, proactively offer to add them using the same `<a href>` avatar block format as existing entries. Do this without being asked.
+
 ---
 
 ## Mid-Session Rules

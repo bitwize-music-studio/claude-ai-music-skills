@@ -32,6 +32,10 @@
 - [ ] I have updated README.md if user-facing changes
 - [ ] I have added/updated skill documentation if applicable
 
+### Maintainer Checklist (for reviewer)
+
+- [ ] If PR author is an external contributor, add them to the Contributors section of README.md
+
 ### Testing
 
 **Required local testing (run before submitting):**
