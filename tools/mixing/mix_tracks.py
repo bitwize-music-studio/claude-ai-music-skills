@@ -1150,13 +1150,17 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     return data
 
 
-def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
+def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                  report: dict[str, Any] | None = None) -> Any:
     """Process drum stem: click removal -> transient shape -> compress (fast attack) -> sat.
 
     Args:
         data: Audio data
         rate: Sample rate
         settings: Dict of drum processing settings
+        report: Optional dict; when provided, this function writes
+            ``clicks_removed`` (int) into it so callers can surface how
+            many clicks were repaired.
 
     Returns:
         Processed audio data.
@@ -1165,8 +1169,18 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) 
 
     # Click removal
     if settings.get('click_removal', True):
-        click_threshold = settings.get('click_threshold', 6.0)
-        data, _ = remove_clicks(data, rate, threshold=click_threshold)
+        peak_ratio = settings.get('click_peak_ratio')
+        if peak_ratio is not None:
+            data, n_clicks = remove_clicks(
+                data, rate,
+                peak_ratio=float(peak_ratio),
+                repair="cubic",
+            )
+        else:
+            click_threshold = settings.get('click_threshold', 6.0)
+            data, n_clicks = remove_clicks(data, rate, threshold=click_threshold)
+        if report is not None:
+            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)
@@ -1558,7 +1572,8 @@ def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = No
     return data
 
 
-def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
+def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                       report: dict[str, Any] | None = None) -> Any:
     """Process percussion stem: highpass -> click removal -> presence -> high tame -> width -> compress -> sat.
 
     Distinct from drums — handles congas, shakers, tambourines etc. Presence at
@@ -1569,6 +1584,9 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
         data: Audio data
         rate: Sample rate
         settings: Dict of percussion processing settings
+        report: Optional dict; when provided, this function writes
+            ``clicks_removed`` (int) into it so callers can surface how
+            many clicks were repaired.
 
     Returns:
         Processed audio data.
@@ -1582,8 +1600,18 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
 
     # Click removal
     if settings.get('click_removal', True):
-        click_threshold = settings.get('click_threshold', 6.0)
-        data, _ = remove_clicks(data, rate, threshold=click_threshold)
+        peak_ratio = settings.get('click_peak_ratio')
+        if peak_ratio is not None:
+            data, n_clicks = remove_clicks(
+                data, rate,
+                peak_ratio=float(peak_ratio),
+                repair="cubic",
+            )
+        else:
+            click_threshold = settings.get('click_threshold', 6.0)
+            data, n_clicks = remove_clicks(data, rate, threshold=click_threshold)
+        if report is not None:
+            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)

@@ -755,6 +755,50 @@ class TestProcessDrums:
         result = process_drums(data, rate, settings=settings)
         assert np.all(np.isfinite(result))
 
+    def test_reports_clicks_removed_when_given_report_dict(self):
+        """`process_drums` should record how many clicks it repaired when
+        a report dict is passed in."""
+        data, rate = _generate_click(amplitude=0.5)
+        report: dict[str, int] = {}
+        settings = _get_stem_settings('drums', genre='electronic')
+        result = process_drums(data, rate, settings=settings, report=report)
+        assert np.all(np.isfinite(result))
+        # Synthetic click with a high amplitude should always get flagged
+        # by the peak_ratio=8.0 detector on the electronic preset.
+        assert report.get('clicks_removed', 0) >= 1
+
+    def test_uses_cubic_repair_when_peak_ratio_is_set(self):
+        """With a `click_peak_ratio` setting, the drum processor should
+        use the cubic (stem-tier) repair, not the legacy std+linear path."""
+        data, rate = _generate_click(amplitude=0.5)
+        # Force the ratio path by passing click_peak_ratio directly.
+        settings = {
+            'click_removal': True,
+            'click_peak_ratio': 6.0,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 5.0,
+        }
+        # And a sibling baseline using the legacy std path.
+        baseline_settings = {
+            'click_removal': True,
+            'click_threshold': 6.0,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 5.0,
+        }
+        cubic = process_drums(data.copy(), rate, settings=settings)
+        linear = process_drums(data.copy(), rate, settings=baseline_settings)
+        # The *full* processor chain (compressor, saturator) runs on both,
+        # so we compare the early-pipeline sample neighborhood around the
+        # click index — must be different because repair differs.
+        click_idx = int(0.5 * rate)
+        assert not np.allclose(
+            cubic[click_idx - 1:click_idx + 2, 0],
+            linear[click_idx - 1:click_idx + 2, 0],
+            atol=1e-6,
+        )
+
 
 class TestProcessBass:
     """Tests for the bass processing chain."""
@@ -1052,6 +1096,14 @@ class TestProcessPercussion:
         }
         result = process_percussion(data, rate, settings=settings)
         assert np.all(np.isfinite(result))
+
+    def test_reports_clicks_removed_when_given_report_dict(self):
+        data, rate = _generate_click(amplitude=0.5)
+        report: dict[str, int] = {}
+        settings = _get_stem_settings('percussion', genre='electronic')
+        result = process_percussion(data, rate, settings=settings, report=report)
+        assert np.all(np.isfinite(result))
+        assert report.get('clicks_removed', 0) >= 1
 
 
 # ─── Tests: Full Pipeline (Stems) ────────────────────────────────────
