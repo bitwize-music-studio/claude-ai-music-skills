@@ -958,20 +958,28 @@ def _resolve_master_click_thresholds(genre: str | None) -> tuple[float | None, i
     the **mastering** genre presets, so the polish declicker uses the same
     detection semantics as the QC click detector (#285).
 
+    Every genre in the mastering preset list gets overlay values: tuned
+    genres (e.g. electronic, idm, metal) return their raised thresholds;
+    genres without explicit click fields fall back to the QC baseline
+    (6.0 / 3) via the preset defaults in `master_tracks._PRESET_DEFAULTS`.
+    This keeps polish and QC aligned for *every* genre, not just tuned
+    ones — a track polished with `genre='house'` runs the same detection
+    algorithm QC will use later.
+
     Args:
         genre: Genre name (e.g., "idm"). May be None or an empty string.
 
     Returns:
-        `(peak_ratio, fail_count)`. Both are None when `genre` is falsy or
-        when the genre is not present in the mastering preset list (polish
-        genres are a subset of mastering genres, but this stays graceful
-        for user-added mix-only genres).
+        `(peak_ratio, fail_count)`. Both are None when `genre` is falsy,
+        or when `genre` is not present in the mastering preset list at
+        all (e.g. a user-invented mix-only genre), or when the mastering
+        module fails to import.
     """
     if not genre:
         return None, None
     try:
         from tools.mastering.master_tracks import GENRE_PRESETS
-    except Exception:
+    except ImportError:
         return None, None
     preset = GENRE_PRESETS.get(genre.lower())
     if preset is None:

@@ -1750,13 +1750,11 @@ class TestMasterClickThresholdsThreaded:
         assert 'click_fail_count' not in settings
 
     def test_unknown_genre_does_not_raise(self):
-        # mix-only / user-added genre — helper must fail soft
+        # mix-only / user-added genre — helper must fail soft and inject
+        # nothing rather than defaulting to 6.0/3.
         settings = _get_full_mix_settings(genre='totally-invented-genre')
-        # Either the genre resolves to defaults (no click fields) or the
-        # merge yields something without them — just assert graceful.
-        assert 'click_peak_ratio' not in settings or isinstance(
-            settings['click_peak_ratio'], (int, float)
-        )
+        assert 'click_peak_ratio' not in settings
+        assert 'click_fail_count' not in settings
 
 
 # ─── Character Effects Tests ─────────────────────────────────────────
