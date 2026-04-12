@@ -16,7 +16,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import soundfile as sf
@@ -542,6 +542,7 @@ def remove_clicks(
 
     def _detect_peak_ratio(channel: Any) -> Any:
         """Windowed detection matching qc_tracks._check_clicks."""
+        assert peak_ratio is not None  # guarded by _process_channel caller
         if len(channel) < window_samples:
             return np.zeros(0, dtype=np.int64)
         indices: list[int] = []
@@ -1683,8 +1684,12 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     return data
 
 
-# Stem processor dispatch
-STEM_PROCESSORS = {
+# Stem processor dispatch. Callable[..., Any] covers the signature
+# asymmetry — drums and percussion accept an extra `report` kwarg that
+# the other processors don't; callers that want to pass `report` dispatch
+# directly to `process_drums` / `process_percussion` instead of going
+# through this registry.
+STEM_PROCESSORS: dict[str, Callable[..., Any]] = {
     'vocals': process_vocals,
     'backing_vocals': process_backing_vocals,
     'drums': process_drums,
@@ -1792,10 +1797,14 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         if not dry_run:
             # Get settings and process
             settings = _get_stem_settings(stem_name, genre)
-            processor = STEM_PROCESSORS[stem_name]
-            if stem_name in ('drums', 'percussion'):
-                data = processor(data, rate, settings, report=stem_report)
+            # Dispatch declicking stems directly so mypy sees the
+            # `report` kwarg; other stems go through STEM_PROCESSORS.
+            if stem_name == 'drums':
+                data = process_drums(data, rate, settings, report=stem_report)
+            elif stem_name == 'percussion':
+                data = process_percussion(data, rate, settings, report=stem_report)
             else:
+                processor = STEM_PROCESSORS[stem_name]
                 data = processor(data, rate, settings)
 
             # Get remix gain
