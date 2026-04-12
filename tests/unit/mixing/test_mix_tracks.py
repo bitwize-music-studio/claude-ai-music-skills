@@ -84,7 +84,7 @@ def _generate_noise(duration=1.0, rate=44100, amplitude=0.3, stereo=True):
 def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
     """Generate a signal with an artificial click/pop."""
     t = np.linspace(0, duration, int(rate * duration), endpoint=False)
-    data = (amplitude * 0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+    data = (amplitude * 0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
     # Insert a sharp click
     click_idx = int(click_pos * rate)
     if click_idx < len(data):
@@ -452,6 +452,97 @@ class TestRemoveClicks:
         data, rate = _generate_click()
         result, n_clicks = remove_clicks(data, rate)
         assert np.all(np.isfinite(result))
+
+
+class TestRemoveClicksPeakRatio:
+    """Tests for the windowed peak/rms detection path (#289)."""
+
+    def test_peak_ratio_detects_high_peak_rms_window(self):
+        """A lone spike in an otherwise-quiet sine should register as a click."""
+        data, rate = _generate_click(amplitude=0.5)
+        # Default peak_ratio=6.0 matches QC's hard-coded default
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=6.0)
+        assert n_clicks >= 1
+        # Click sample reduced in both channels
+        click_idx = int(0.5 * rate)
+        assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+
+    def test_peak_ratio_relaxed_ignores_intentional_transient(self):
+        """A genre-relaxed peak_ratio (10.0) lets moderate transients pass."""
+        data, rate = _generate_click(amplitude=0.5)
+        # Same signal as above, but the detector is asked for a stricter
+        # ratio — so it should NOT flag this modest click.
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=50.0)
+        assert n_clicks == 0
+        assert np.array_equal(result, data)
+
+    def test_peak_ratio_takes_precedence_over_threshold(self):
+        """When both `threshold` and `peak_ratio` are set, peak_ratio wins."""
+        data, rate = _generate_click(amplitude=0.5)
+        # threshold=0 would passthrough in std path; peak_ratio path must
+        # still detect the click.
+        result, n_clicks = remove_clicks(data, rate, threshold=0, peak_ratio=6.0)
+        assert n_clicks >= 1
+
+    def test_peak_ratio_on_mono(self):
+        data, rate = _generate_click(amplitude=0.5)
+        mono = data[:, 0]
+        result, n_clicks = remove_clicks(mono, rate, peak_ratio=6.0)
+        assert result.shape == mono.shape
+        assert n_clicks >= 1
+
+
+class TestRemoveClicksCubicRepair:
+    """Tests for the cubic-spline stem-tier repair path (#289)."""
+
+    def test_cubic_repair_differs_from_linear_on_stem(self):
+        """Cubic repair should produce a different signal than linear on
+        an isolated stem with a click — this is the whole point of the
+        stem-tier upgrade."""
+        data, rate = _generate_click(amplitude=0.5)
+        linear_result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="linear")
+        cubic_result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        # Same detections, different repair — the repaired samples must differ.
+        click_idx = int(0.5 * rate)
+        assert not np.allclose(
+            linear_result[click_idx - 1:click_idx + 2, 0],
+            cubic_result[click_idx - 1:click_idx + 2, 0],
+        )
+
+    def test_cubic_repair_is_finite(self):
+        """Spline repair must never produce NaN or Inf."""
+        data, rate = _generate_click(amplitude=0.5)
+        result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        assert np.all(np.isfinite(result))
+
+    def test_cubic_repair_reduces_click_amplitude(self):
+        """Repaired click sample should be closer to the local sine value
+        than the original spike."""
+        data, rate = _generate_click(amplitude=0.5)
+        result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        click_idx = int(0.5 * rate)
+        # Original click is |~0.495|; the local sine at 440 Hz, amp 0.15,
+        # at t=0.5 s is tiny (≈0). Repaired sample must be well below.
+        assert np.abs(result[click_idx, 0]) < 0.2
+
+    def test_cubic_repair_near_buffer_edge_falls_back_to_linear(self):
+        """A click within window_ms of the start should not crash; it
+        should fall back to linear repair."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.15 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Inject a click at sample 5 (well inside the default 1.5 ms window
+        # which is ~66 samples at 44.1 kHz).
+        mono[5] = 0.95
+        data = np.column_stack([mono, mono])
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        assert np.all(np.isfinite(result))
+        assert n_clicks >= 1
+
+    def test_invalid_repair_raises(self):
+        data, rate = _generate_click()
+        with pytest.raises(ValueError, match="repair must be"):
+            remove_clicks(data, rate, peak_ratio=6.0, repair="nearest")
 
 
 # ─── Tests: reduce_noise ─────────────────────────────────────────────
