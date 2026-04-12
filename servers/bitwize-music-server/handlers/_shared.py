@@ -105,8 +105,22 @@ def _is_path_confined(base: Path, user_component: str) -> bool:
 
 
 def _normalize_slug(name: str) -> str:
-    """Normalize input to slug format."""
-    return name.lower().replace(" ", "-").replace("_", "-")
+    """Normalize input to slug format.
+
+    Raises:
+        ValueError: If *name* contains path separators (``/``, ``\\``),
+            null bytes, or traversal sequences (``..``).
+    """
+    if "/" in name or "\\" in name or "\0" in name:
+        raise ValueError(
+            f"Invalid name: contains path separator or null byte: {name!r}"
+        )
+    slug = name.lower().replace(" ", "-").replace("_", "-")
+    if ".." in slug:
+        raise ValueError(
+            f"Invalid name: contains path traversal sequence: {name!r}"
+        )
+    return slug
 
 
 def _safe_json(data: Any) -> str:

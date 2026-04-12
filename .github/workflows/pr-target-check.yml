@@ -20,8 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Verify PR source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          HEAD_REF="${{ github.head_ref }}"
           echo "PR source branch: $HEAD_REF"
           echo "PR target branch: main"
 

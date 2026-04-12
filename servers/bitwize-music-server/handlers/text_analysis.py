@@ -553,7 +553,10 @@ async def extract_links(
 
     # Determine file path
     file_path = None
-    normalized_file = _normalize_slug(file_name)
+    try:
+        normalized_file = _normalize_slug(file_name)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     # Check if it's a track slug
     tracks = album.get("tracks", {})
