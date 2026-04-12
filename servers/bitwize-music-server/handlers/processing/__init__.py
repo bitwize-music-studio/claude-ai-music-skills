@@ -45,6 +45,7 @@ from handlers.processing.video import (  # noqa: F401
 from handlers.processing.mixing import (  # noqa: F401
     analyze_mix_issues,
     polish_album,
+    polish_and_master_album,
     polish_audio,
 )
 

@@ -502,8 +502,72 @@ async def polish_album(
     })
 
 
+async def polish_and_master_album(
+    album_slug: str,
+    genre: str = "",
+    target_lufs: float = -14.0,
+    ceiling_db: float = -1.0,
+    cut_highmid: float = 0.0,
+    cut_highs: float = 0.0,
+) -> str:
+    """Combined polish + master pipeline in a single call.
+
+    Runs polish_album() to clean up Suno audio, then master_album() with
+    source_subfolder="polished" to produce streaming-ready masters. Stops
+    on failure at either stage and returns the combined stage results.
+
+    Use the individual tools when you need granular control (e.g., re-polish
+    with different settings, re-master without re-polishing).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset for both polish and master stages
+        target_lufs: Mastering target integrated loudness (default: -14.0)
+        ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz
+        cut_highs: High shelf cut in dB at 8kHz
+
+    Returns:
+        JSON with combined polish and master stage results
+    """
+    from handlers.processing.audio import master_album
+
+    polish_json = await polish_album(album_slug=album_slug, genre=genre)
+    polish_result = json.loads(polish_json)
+
+    if polish_result.get("failed_stage"):
+        return _safe_json({
+            "album_slug": album_slug,
+            "phase": "polish",
+            "phase_reached": "polish",
+            "failed_phase": "polish",
+            "polish": polish_result,
+        })
+
+    master_json = await master_album(
+        album_slug=album_slug,
+        genre=genre,
+        target_lufs=target_lufs,
+        ceiling_db=ceiling_db,
+        cut_highmid=cut_highmid,
+        cut_highs=cut_highs,
+        source_subfolder="polished",
+    )
+    master_result = json.loads(master_json)
+
+    failed = bool(master_result.get("failed_stage"))
+    return _safe_json({
+        "album_slug": album_slug,
+        "phase_reached": "master" if not failed else f"master:{master_result.get('failed_stage')}",
+        "failed_phase": "master" if failed else None,
+        "polish": polish_result,
+        "master": master_result,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register mix polish tools."""
     mcp.tool()(polish_audio)
     mcp.tool()(analyze_mix_issues)
     mcp.tool()(polish_album)
+    mcp.tool()(polish_and_master_album)
