@@ -23,6 +23,12 @@
 #   lowpass_cutoff: Hz (20000 = off, lower = darker/vintage)
 #   stereo_width: multiplier (1.0 = off, <1 = narrower, >1 = wider)
 #
+# Per-stem effects (default off):
+#   sub_bass_exciter: 0.0-1.0 (bass only, generates harmonics for small speakers)
+#   sub_bass_freq: Hz (crossover frequency, default 80)
+#   transient_attack_db: dB (drums/percussion, positive = more punch, negative = softer)
+#   transient_sustain_db: dB (drums/percussion, positive = more body, negative = tighter)
+#
 # Override per-user: copy to {overrides}/mix-presets.yaml and edit.
 # User overrides deep-merge on top of these defaults.
 
@@ -60,6 +66,8 @@ defaults:
     compress_attack_ms: 5.0
     gain_db: 0.0
     saturation_drive: 0
+    transient_attack_db: 0
+    transient_sustain_db: 0
   bass:
     highpass_cutoff: 30
     mud_cut_db: -3.0
@@ -69,6 +77,8 @@ defaults:
     compress_attack_ms: 10.0
     gain_db: 0.0
     saturation_drive: 0
+    sub_bass_exciter: 0
+    sub_bass_freq: 80
   synth:
     highpass_cutoff: 80
     mid_boost_db: 1.0
@@ -168,6 +178,8 @@ defaults:
     compress_ratio: 2.0
     compress_attack_ms: 8.0
     gain_db: 0.0
+    transient_attack_db: 0
+    transient_sustain_db: 0
     saturation_drive: 0
   other:
     noise_reduction: 0.3

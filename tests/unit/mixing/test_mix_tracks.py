@@ -30,6 +30,8 @@ from tools.mixing.mix_tracks import (
     apply_highpass,
     apply_lowpass,
     apply_saturation,
+    apply_sub_bass_exciter,
+    apply_transient_shaper,
     gentle_compress,
     remove_clicks,
     reduce_noise,
@@ -1901,3 +1903,113 @@ class TestProcessorCharacterEffectsWiring:
         # Just verify it runs without error
         result = process_vocals(data.copy(), rate, settings)
         assert result.shape == data.shape
+
+
+# ─── Sub-Bass Exciter Tests ──────────────────────────────────────────
+
+
+class TestSubBassExciter:
+    """Tests for apply_sub_bass_exciter()."""
+
+    def test_zero_amount_passthrough(self):
+        """Amount=0 returns data unchanged."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_exciter_adds_harmonics(self):
+        """Exciter should add harmonic content above the crossover."""
+        data, rate = _generate_sine(freq=40, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.5, freq=80)
+        # Check for new spectral energy above 80Hz
+        fft_orig = np.abs(np.fft.rfft(data[:, 0]))
+        fft_exc = np.abs(np.fft.rfft(result[:, 0]))
+        # Energy above crossover should increase
+        crossover_bin = int(80 * len(data) / rate)
+        orig_above = np.sum(fft_orig[crossover_bin:])
+        exc_above = np.sum(fft_exc[crossover_bin:])
+        assert exc_above > orig_above
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.3)
+        assert result.shape == data.shape
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5, stereo=False)
+        result = apply_sub_bass_exciter(data, rate, amount=0.3)
+        assert result.shape == data.shape
+
+    def test_high_freq_signal_unaffected(self):
+        """Signal above crossover should be mostly unaffected."""
+        data, rate = _generate_sine(freq=1000, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.5, freq=80)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+
+class TestTransientShaper:
+    """Tests for apply_transient_shaper()."""
+
+    def test_zero_gains_passthrough(self):
+        """Both gains=0 returns data unchanged."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=0, sustain_gain=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_attack_boost_changes_signal(self):
+        """Positive attack gain should change the signal."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=6.0)
+        assert not np.allclose(result, data)
+
+    def test_sustain_boost_changes_signal(self):
+        """Positive sustain gain should change the signal."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, sustain_gain=3.0)
+        assert not np.allclose(result, data)
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=3.0)
+        assert result.shape == data.shape
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_noise(amplitude=0.5, stereo=False)
+        result = apply_transient_shaper(data, rate, attack_gain=3.0)
+        assert result.shape == data.shape
+
+
+class TestPhase2ProcessorWiring:
+    """Verify Phase 2 effects are wired into processors."""
+
+    def test_drums_transient_shaping(self):
+        """Drums applies transient shaping when attack_db != 0."""
+        data, rate = _generate_noise(amplitude=0.5)
+        settings_off = {**_get_stem_settings('drums'), 'transient_attack_db': 0}
+        settings_on = {**_get_stem_settings('drums'), 'transient_attack_db': 6.0}
+        result_off = process_drums(data.copy(), rate, settings_off)
+        result_on = process_drums(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_bass_sub_bass_exciter(self):
+        """Bass applies sub-bass exciter when amount > 0."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        settings_off = {**_get_stem_settings('bass'), 'sub_bass_exciter': 0}
+        settings_on = {**_get_stem_settings('bass'), 'sub_bass_exciter': 0.3}
+        result_off = process_bass(data.copy(), rate, settings_off)
+        result_on = process_bass(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_percussion_transient_shaping(self):
+        """Percussion applies transient shaping when attack_db != 0."""
+        data, rate = _generate_noise(amplitude=0.3)
+        settings_off = {**_get_stem_settings('percussion'), 'transient_attack_db': 0}
+        settings_on = {**_get_stem_settings('percussion'), 'transient_attack_db': 4.0}
+        result_off = process_percussion(data.copy(), rate, settings_off)
+        result_on = process_percussion(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)

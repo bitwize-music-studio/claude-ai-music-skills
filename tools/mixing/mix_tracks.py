@@ -630,6 +630,119 @@ def apply_lowpass(data: Any, rate: int, cutoff: int = 20000) -> Any:
         return result
 
 
+def apply_sub_bass_exciter(data: Any, rate: int, amount: float = 0.0,
+                           freq: float = 80.0) -> Any:
+    """Generate sub-bass harmonics for weight on large speakers and audibility on small ones.
+
+    Isolates frequencies below the crossover, applies waveshaping to generate
+    upper harmonics (2nd and 3rd), then blends back with the original.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        amount: Exciter amount 0.0-1.0 (0 = off)
+        freq: Crossover frequency — excite below this (Hz)
+
+    Returns:
+        Audio with enhanced sub-bass harmonics.
+    """
+    if amount <= 0:
+        return data
+    amount = min(amount, 1.0)
+
+    nyquist = rate / 2
+    if freq <= 0 or freq >= nyquist:
+        return data
+
+    # Isolate sub-bass via lowpass
+    normalized = freq / nyquist
+    b, a = signal.butter(2, normalized, btype='low')
+    poles = np.roots(a)
+    if not np.all(np.abs(poles) < 1.0):
+        return data
+
+    def _excite_channel(channel: Any) -> Any:
+        sub = signal.lfilter(b, a, channel)
+        # Generate harmonics via waveshaping (tanh + squaring for 2nd harmonic)
+        harmonics = np.tanh(sub * 3.0) * 0.5 + (sub ** 2) * 0.3
+        # Highpass the harmonics to remove the fundamental (keep only generated content)
+        hp_norm = freq / nyquist
+        b_hp, a_hp = signal.butter(2, hp_norm, btype='high')
+        hp_poles = np.roots(a_hp)
+        if np.all(np.abs(hp_poles) < 1.0):
+            harmonics = signal.lfilter(b_hp, a_hp, harmonics)
+        # Blend harmonics into original
+        return channel + harmonics * amount
+
+    if len(data.shape) == 1:
+        return _excite_channel(data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = _excite_channel(data[:, ch])
+        return result
+
+
+def apply_transient_shaper(data: Any, rate: int, attack_gain: float = 0.0,
+                           sustain_gain: float = 0.0,
+                           fast_attack_ms: float = 0.5,
+                           slow_attack_ms: float = 20.0) -> Any:
+    """Shape transients using dual-envelope detection.
+
+    Compares a fast envelope (tracks transients) against a slow envelope
+    (tracks sustain). The difference reveals transient events, which can
+    be boosted or cut independently of sustain.
+
+    Args:
+        data: Audio data
+        rate: Sample rate
+        attack_gain: Transient boost/cut in dB (positive = more punch, negative = softer)
+        sustain_gain: Sustain boost/cut in dB (positive = more body, negative = tighter)
+        fast_attack_ms: Fast envelope attack time (tracks transients)
+        slow_attack_ms: Slow envelope attack time (tracks sustain)
+
+    Returns:
+        Transient-shaped audio data.
+    """
+    if attack_gain == 0 and sustain_gain == 0:
+        return data
+
+    # Time constants
+    fast_attack = np.exp(-1.0 / (rate * fast_attack_ms / 1000.0))
+    fast_release = np.exp(-1.0 / (rate * 5.0 / 1000.0))  # 5ms release
+    slow_attack = np.exp(-1.0 / (rate * slow_attack_ms / 1000.0))
+    slow_release = np.exp(-1.0 / (rate * 50.0 / 1000.0))  # 50ms release
+
+    attack_linear = 10 ** (attack_gain / 20)
+    sustain_linear = 10 ** (sustain_gain / 20)
+
+    def _shape_channel(channel: Any) -> Any:
+        abs_signal = np.abs(channel)
+        # Dual envelope detection
+        fast_env = _envelope_follower(abs_signal, fast_attack, fast_release)
+        slow_env = _envelope_follower(abs_signal, slow_attack, slow_release)
+
+        # Transient component: where fast > slow (onset detected)
+        # Sustain component: where fast ≈ slow (steady state)
+        slow_safe = np.maximum(slow_env, 1e-10)
+        ratio = fast_env / slow_safe
+
+        # Gain envelope: blend attack and sustain gains based on transient ratio
+        # ratio > 1 = transient, ratio ≈ 1 = sustain
+        transient_mask = np.clip(ratio - 1.0, 0.0, 1.0)  # 0 = sustain, 1 = transient
+        gain = transient_mask * attack_linear + (1.0 - transient_mask) * sustain_linear
+
+        return channel * gain
+
+    if len(data.shape) == 1:
+        return _shape_channel(data)
+    else:
+        result = np.zeros_like(data)
+        for ch in range(data.shape[1]):
+            result[:, ch] = _shape_channel(data[:, ch])
+        return result
+
+
 def remix_stems(stems_dict: dict[str, tuple[Any, int]], gains_dict: dict[str, float] | None = None) -> tuple[Any, int]:
     """Combine processed stems into a stereo mix.
 
@@ -877,7 +990,7 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
 
 
 def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process drum stem: click removal -> compress (fast attack) -> sat.
+    """Process drum stem: click removal -> transient shape -> compress (fast attack) -> sat.
 
     Args:
         data: Audio data
@@ -894,6 +1007,12 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) 
         click_threshold = settings.get('click_threshold', 6.0)
         data = remove_clicks(data, rate, threshold=click_threshold)
 
+    # Transient shaping (before compression to preserve punch)
+    attack_db = settings.get('transient_attack_db', 0)
+    sustain_db = settings.get('transient_sustain_db', 0)
+    if attack_db != 0 or sustain_db != 0:
+        data = apply_transient_shaper(data, rate, attack_gain=attack_db, sustain_gain=sustain_db)
+
     # Compression with fast attack for transient preservation
     comp_threshold = settings.get('compress_threshold_db', -12.0)
     comp_ratio = settings.get('compress_ratio', 2.0)
@@ -909,7 +1028,7 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None) 
 
 
 def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process bass stem: highpass -> mud cut -> compress -> sat.
+    """Process bass stem: highpass -> mud cut -> compress -> sub-bass exciter -> sat.
 
     Args:
         data: Audio data
@@ -939,6 +1058,12 @@ def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
+
+    # Sub-bass harmonic exciter (post-compression for consistent level)
+    exciter_amount = settings.get('sub_bass_exciter', 0)
+    if exciter_amount > 0:
+        exciter_freq = settings.get('sub_bass_freq', 80)
+        data = apply_sub_bass_exciter(data, rate, amount=exciter_amount, freq=exciter_freq)
 
     # Character effects (post-compression)
     data = _apply_character_effects(data, rate, settings, saturation=True)
@@ -1298,6 +1423,12 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     if settings.get('click_removal', True):
         click_threshold = settings.get('click_threshold', 6.0)
         data = remove_clicks(data, rate, threshold=click_threshold)
+
+    # Transient shaping (before compression to preserve punch)
+    attack_db = settings.get('transient_attack_db', 0)
+    sustain_db = settings.get('transient_sustain_db', 0)
+    if attack_db != 0 or sustain_db != 0:
+        data = apply_transient_shaper(data, rate, attack_gain=attack_db, sustain_gain=sustain_db)
 
     # Presence boost (~4 kHz) — shakers/tambourines
     presence_db = settings.get('presence_boost_db', 1.0)
