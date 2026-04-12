@@ -298,25 +298,23 @@ class TestHelpersCloudConfigWarning:
 
 
 class TestHelpersAnthemScoreWarning:
-    """Verify that AnthemScore module check failure logs a warning."""
+    """Verify that AnthemScore module check failure falls back to path search."""
 
-    def test_anthemscore_module_failure_logs_warning(self, caplog):
-        """When _import_sheet_music_module raises ImportError, a warning is logged."""
+    def test_anthemscore_module_failure_falls_back(self):
+        """When _import_sheet_music_module returns None, fall back to path search."""
         from handlers.processing import _helpers as helpers_mod
 
         with (
             patch.object(
                 helpers_mod,
                 "_import_sheet_music_module",
-                side_effect=ImportError("transcribe not found"),
+                return_value=None,
             ),
             # Ensure no anthemscore binary found on this system either
             patch("shutil.which", return_value=None),
             patch.object(Path, "exists", return_value=False),
-            caplog.at_level("WARNING", logger="handlers.processing._helpers"),
         ):
             result = helpers_mod._check_anthemscore()
 
-        assert any(
-            "AnthemScore module check failed" in r.message for r in caplog.records
-        ), f"Expected AnthemScore warning. Records: {[r.message for r in caplog.records]}"
+        assert result is not None
+        assert "AnthemScore not found" in result

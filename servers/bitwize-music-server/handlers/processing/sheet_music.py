@@ -61,6 +61,8 @@ async def transcribe_audio(
     assert audio_dir is not None
 
     transcribe_mod = _helpers._import_sheet_music_module("transcribe")
+    if transcribe_mod is None:
+        return _safe_json({"error": "Sheet music transcription module not available."})
     find_anthemscore = transcribe_mod.find_anthemscore
     transcribe_track = transcribe_mod.transcribe_track
 
@@ -262,6 +264,8 @@ async def prepare_singles(
     singles_dir = audio_dir / "sheet-music" / "singles"
 
     prepare_mod = _helpers._import_sheet_music_module("prepare_singles")
+    if prepare_mod is None:
+        return _safe_json({"error": "Sheet music prepare_singles module not available."})
     _prepare_singles = prepare_mod.prepare_singles
 
     musescore = None
@@ -270,6 +274,8 @@ async def prepare_singles(
 
     # Get artist, cover art, and footer URL for title pages
     songbook_mod = _helpers._import_sheet_music_module("create_songbook")
+    if songbook_mod is None:
+        return _safe_json({"error": "Sheet music create_songbook module not available."})
     auto_detect_cover_art = songbook_mod.auto_detect_cover_art
     get_footer_url_from_config = songbook_mod.get_footer_url_from_config
 
@@ -371,6 +377,8 @@ async def create_songbook(
             })
 
     songbook_mod = _helpers._import_sheet_music_module("create_songbook")
+    if songbook_mod is None:
+        return _safe_json({"error": "Sheet music create_songbook module not available."})
     _create_songbook = songbook_mod.create_songbook
     auto_detect_cover_art = songbook_mod.auto_detect_cover_art
     get_website_from_config = songbook_mod.get_website_from_config
@@ -524,11 +532,10 @@ async def publish_sheet_music(
         })
 
     # Import cloud module and upload
-    try:
-        cloud_mod = _helpers._import_cloud_module("upload_to_cloud")
-    except Exception as e:
+    cloud_mod = _helpers._import_cloud_module("upload_to_cloud")
+    if cloud_mod is None:
         return _safe_json({
-            "error": f"Failed to import cloud module: {e}",
+            "error": "Cloud upload module not available.",
             "suggestion": "Ensure boto3 is installed: pip install boto3",
         })
 

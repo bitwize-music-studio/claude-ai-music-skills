@@ -12151,10 +12151,10 @@ class TestImportSheetMusicModule:
         assert hasattr(mod, "create_songbook")
         assert hasattr(mod, "auto_detect_cover_art")
 
-    def test_nonexistent_module_raises(self):
-        """Should raise on a module that doesn't exist."""
-        with pytest.raises(Exception):
-            _processing_helpers._import_sheet_music_module("nonexistent_module")
+    def test_nonexistent_module_returns_none(self):
+        """Should return None and log a warning for a module that doesn't exist."""
+        result = _processing_helpers._import_sheet_music_module("nonexistent_module")
+        assert result is None
 
     def test_logs_warning_when_spec_missing(self, caplog):
         """Should warn before raising if the import spec cannot be created."""
@@ -12166,8 +12166,8 @@ class TestImportSheetMusicModule:
         assert mod is None
         assert "Optional module transcribe not available" in caplog.text
 
-    def test_logs_warning_when_exec_fails(self, caplog):
-        """Should warn before raising if module execution fails."""
+    def test_returns_none_when_exec_fails(self, caplog):
+        """Should warn and return None if module execution fails."""
         caplog.set_level("WARNING", logger="bitwize-music-state")
         mock_loader = MagicMock()
         mock_loader.exec_module.side_effect = ImportError("missing optional dep")
@@ -12175,10 +12175,11 @@ class TestImportSheetMusicModule:
 
         with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
              patch("importlib.util.module_from_spec", return_value=MagicMock()):
-            with pytest.raises(ImportError, match="missing optional dep"):
-                _processing_helpers._import_sheet_music_module("transcribe")
+            result = _processing_helpers._import_sheet_music_module("transcribe")
 
-        assert "Optional module transcribe not available: missing optional dep" in caplog.text
+        assert result is None
+        assert "Optional sheet-music module" in caplog.text
+        assert "missing optional dep" in caplog.text
 
 
 class TestImportCloudModule:
@@ -12194,8 +12195,8 @@ class TestImportCloudModule:
         assert mod is None
         assert "Optional module upload_to_cloud not available" in caplog.text
 
-    def test_logs_warning_when_exec_fails(self, caplog):
-        """Should warn before raising if module execution fails."""
+    def test_returns_none_when_exec_fails(self, caplog):
+        """Should warn and return None if module execution fails."""
         caplog.set_level("WARNING", logger="bitwize-music-state")
         mock_loader = MagicMock()
         mock_loader.exec_module.side_effect = ImportError("missing boto3")
@@ -12203,10 +12204,11 @@ class TestImportCloudModule:
 
         with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
              patch("importlib.util.module_from_spec", return_value=MagicMock()):
-            with pytest.raises(ImportError, match="missing boto3"):
-                _processing_helpers._import_cloud_module("upload_to_cloud")
+            result = _processing_helpers._import_cloud_module("upload_to_cloud")
 
-        assert "Optional module upload_to_cloud not available: missing boto3" in caplog.text
+        assert result is None
+        assert "Optional cloud module" in caplog.text
+        assert "missing boto3" in caplog.text
 
 
 # =============================================================================
