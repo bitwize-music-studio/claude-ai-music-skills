@@ -553,7 +553,7 @@ class TestMasterAlbumPipeline:
             return self._mock_qc_result(Path(filepath).name)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,

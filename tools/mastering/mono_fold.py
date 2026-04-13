@@ -56,7 +56,7 @@ def fold_to_mono(data: np.ndarray) -> np.ndarray:
     """
     if data.ndim == 1:
         return data
-    return np.mean(data, axis=1)
+    return np.asarray(np.mean(data, axis=1))
 
 
 def _ensure_stereo(data: np.ndarray) -> np.ndarray:
@@ -175,7 +175,7 @@ def mono_fold_metrics(
     mono_bands = _band_energy_db(mono, rate)
 
     band_deltas: dict[str, dict[str, Any]] = {}
-    worst = {"name": None, "delta_db": 0.0}
+    worst: dict[str, Any] = {"name": None, "delta_db": 0.0}
     any_hard_fail = False
 
     # When the mono fold is silent in a band but stereo had real energy, report

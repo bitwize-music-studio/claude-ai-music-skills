@@ -1072,11 +1072,10 @@ async def master_album(
     # mono-fold hard-fail short-circuits the pipeline; codec preview never blocks.
     from tools.mastering.master_tracks import GENRE_PRESETS, _PRESET_DEFAULTS
 
-    sample_cfg: dict[str, Any] = (
-        GENRE_PRESETS.get(genre.lower())
-        if genre and genre.lower() in GENRE_PRESETS
-        else dict(_PRESET_DEFAULTS)
-    )
+    if genre and genre.lower() in GENRE_PRESETS:
+        sample_cfg: dict[str, Any] = dict(GENRE_PRESETS[genre.lower()])
+    else:
+        sample_cfg = dict(_PRESET_DEFAULTS)
 
     codec_enabled = bool(int(sample_cfg.get("codec_preview_enabled", 1)))
     codec_bitrate = int(sample_cfg.get("codec_preview_bitrate_kbps", 128))
