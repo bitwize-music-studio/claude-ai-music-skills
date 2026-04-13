@@ -1356,6 +1356,34 @@ async def master_album(
         "verdict": "ALL PASS" if post_warned == 0 else "WARNINGS",
     }
 
+    # --- Stage 6.5: Archival (opt-in) ---
+    # When mastering.archival_enabled is true, write a 32-bit float copy
+    # of each mastered track to archival/. This is a bit-depth-expanded
+    # copy of the delivery master (not a separate render), intended for
+    # re-mastering without re-polishing stems.
+    if targets.get("archival_enabled"):
+        import soundfile as _sf_archival
+
+        archival_dir = audio_dir / "archival"
+        archival_dir.mkdir(exist_ok=True)
+        archived = 0
+        archive_errors: list[str] = []
+        for mastered_path in mastered_files:
+            arch_path = archival_dir / mastered_path.name
+            try:
+                data, rate = _sf_archival.read(str(mastered_path), dtype="float32")
+                _sf_archival.write(str(arch_path), data, rate, subtype="FLOAT")
+                archived += 1
+            except Exception as exc:  # pragma: no cover - filesystem error path
+                archive_errors.append(f"{mastered_path.name}: {exc}")
+
+        stages["archival"] = {
+            "status": "pass" if not archive_errors else "warn",
+            "count": archived,
+            "output_dir": str(archival_dir),
+            "errors": archive_errors or None,
+        }
+
     # --- Stage 7: Update statuses ---
     state = _shared.cache.get_state_ref()
     albums = state.get("albums", {})
@@ -1674,6 +1702,66 @@ async def mono_fold_check(
     })
 
 
+async def prune_archival(album_slug: str, keep: int = 3) -> str:
+    """Prune the album's archival/ directory, keeping the N newest files.
+
+    The archival/ directory holds 32-bit float pre-downconvert masters
+    written by master_album when mastering.archival_enabled is true.
+    Each re-master adds new files; this tool lets users cap disk usage
+    by pruning older entries by modification time.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album").
+        keep: Number of most-recent files to keep (by mtime). Default: 3.
+            0 removes everything. Negative values are treated as 0.
+
+    Returns:
+        JSON with {"kept": [names...], "removed": [names...]}. Includes
+        "note" when the archival directory is absent.
+    """
+    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
+    if err:
+        return err
+    assert audio_dir is not None
+
+    archival_dir = audio_dir / "archival"
+    if not archival_dir.is_dir():
+        return _safe_json({
+            "kept": [],
+            "removed": [],
+            "note": "no archival directory",
+        })
+
+    files = sorted(
+        (f for f in archival_dir.iterdir() if f.is_file()),
+        key=lambda f: f.stat().st_mtime,
+    )
+
+    if keep < 0:
+        keep = 0
+    if keep >= len(files):
+        return _safe_json({
+            "kept": [f.name for f in files],
+            "removed": [],
+        })
+
+    to_remove = files if keep == 0 else files[: len(files) - keep]
+    to_keep = [] if keep == 0 else files[len(files) - keep:]
+
+    removed_names: list[str] = []
+    for f in to_remove:
+        try:
+            f.unlink()
+            removed_names.append(f.name)
+        except OSError as exc:  # pragma: no cover - filesystem edge case
+            logger.warning("prune_archival: could not remove %s: %s", f, exc)
+
+    return _safe_json({
+        "kept": [f.name for f in to_keep],
+        "removed": removed_names,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register audio mastering tools."""
     mcp.tool()(analyze_audio)
@@ -1684,3 +1772,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(master_album)
     mcp.tool()(render_codec_preview)
     mcp.tool()(mono_fold_check)
+    mcp.tool()(prune_archival)
