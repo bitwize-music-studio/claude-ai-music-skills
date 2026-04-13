@@ -12477,18 +12477,14 @@ class TestMasterAudioComprehensive:
 
         assert len(captured_kwargs) == 1
         # Since #290 phase 1a, master_audio passes EQ values through the
-        # preset dict (master_track rebuilds eq_settings from preset fields).
-        # This preserves the old eq_settings tuple shape as a fallback.
-        kw = captured_kwargs[0]
-        preset_in = kw.get("preset") or {}
-        eq_in = kw.get("eq_settings")
-        if preset_in and preset_in.get("cut_highmid") is not None:
-            assert preset_in["cut_highmid"] == -2.0
-            assert preset_in["cut_highs"] == -1.5
-        else:
-            assert eq_in is not None and len(eq_in) == 2
-            assert eq_in[0] == (3500, -2.0, 1.5)
-            assert eq_in[1] == (8000, -1.5, 0.7)
+        # preset dict; master_track rebuilds eq_settings from preset fields.
+        preset_in = captured_kwargs[0].get("preset") or {}
+        assert preset_in.get("cut_highmid") == -2.0, (
+            f"Expected preset.cut_highmid=-2.0, got {preset_in!r}"
+        )
+        assert preset_in.get("cut_highs") == -1.5, (
+            f"Expected preset.cut_highs=-1.5, got {preset_in!r}"
+        )
 
     def test_summary_gain_range(self, tmp_path):
         """Summary should include correct gain range across tracks."""

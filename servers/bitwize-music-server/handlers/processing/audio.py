@@ -295,12 +295,8 @@ async def master_audio(
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
 
-    # Build EQ settings
-    eq_settings = []
-    if effective_highmid != 0:
-        eq_settings.append((3500.0, effective_highmid, 1.5))
-    if effective_highs != 0:
-        eq_settings.append((8000.0, effective_highs, 0.7))
+    # EQ is applied inside master_track from preset.cut_highmid / cut_highs
+    # below; no need to pre-build an eq_settings tuple list here.
 
     output_dir = audio_dir / "mastered"
     if not dry_run:
@@ -753,7 +749,13 @@ async def master_album(
     try:
         import soundfile as _sf
         source_sample_rate = int(_sf.info(str(wav_files[0])).samplerate)
-    except Exception:  # pragma: no cover - probe is best-effort
+    except Exception as _probe_exc:  # pragma: no cover - probe is best-effort
+        logger.debug(
+            "Source sample rate probe failed for %s: %s — "
+            "upsampling notice will be suppressed",
+            wav_files[0],
+            _probe_exc,
+        )
         source_sample_rate = None
 
     # Resolve effective delivery targets (explicit arg > preset > config > default)

@@ -805,9 +805,13 @@ sheet_music:
 #   # ---------------------------
 #   # true_peak_ceiling [optional, default: -1.0]
 #   # ---------------------------
-#   # True peak ceiling in dBTP. -1.0 is the streaming-safe default. Use
-#   # -1.5 for opus-safe genres (EDM / metal / trap) where the codec is
-#   # more aggressive about intersample peaks.
+#   # True peak ceiling in dBTP. -1.0 is the streaming-safe default —
+#   # AAC/Opus codecs generate intersample peaks above 0 dBFS, and a
+#   # -1.0 ceiling leaves enough headroom to stay under the codec gate.
+#   #
+#   # Per-genre opus-safe overrides (-1.5 dBTP for EDM/metal/trap) are
+#   # reserved for a later phase; set this value globally for now if
+#   # you want the tighter ceiling across all genres.
 #   #
 #   # true_peak_ceiling: -1.0
 #

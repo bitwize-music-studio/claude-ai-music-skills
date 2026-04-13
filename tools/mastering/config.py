@@ -123,14 +123,13 @@ def resolve_mastering_targets(
     else:
         ceiling_db = float(config.get("true_peak_ceiling", -1.0))
 
-    # Output bit depth — preset wins when set to a non-default value
+    # Output bit depth — preset wins whenever it sets a value (0 = "not set").
+    # User-supplied overrides in {overrides}/mastering-presets.yaml can force
+    # legacy 16-bit output per-genre even when mastering.delivery_bit_depth
+    # is 24 globally.
     preset_bits = int(preset.get("output_bits", 0)) if preset else 0
-    if preset_bits and preset_bits != 16:
-        # Preset explicitly specified 24 (or other non-default) bit depth.
+    if preset_bits > 0:
         output_bits = preset_bits
-    elif preset_bits == 16:
-        # Preset explicitly requests legacy 16-bit output.
-        output_bits = 16
     else:
         output_bits = int(config.get("delivery_bit_depth", 24))
 
