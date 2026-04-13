@@ -14,6 +14,7 @@ from handlers import _shared
 from handlers._shared import (
     _find_album_or_error,
     _find_wav_source_dir,
+    _is_path_confined,
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
@@ -60,6 +61,8 @@ async def transcribe_audio(
     assert audio_dir is not None
 
     transcribe_mod = _helpers._import_sheet_music_module("transcribe")
+    if transcribe_mod is None:
+        return _safe_json({"error": "Sheet music transcription module not available."})
     find_anthemscore = transcribe_mod.find_anthemscore
     transcribe_track = transcribe_mod.transcribe_track
 
@@ -89,6 +92,11 @@ async def transcribe_audio(
     args.dry_run = dry_run  # type: ignore[attr-defined]
 
     if track_filename:
+        if not _is_path_confined(audio_dir, track_filename):
+            return _safe_json({
+                "error": "Invalid track_filename: path must not escape the album directory",
+                "track_filename": track_filename,
+            })
         wav_files = [audio_dir / track_filename]
         if not wav_files[0].exists():
             wav_files = [_find_wav_source_dir(audio_dir) / track_filename]
@@ -256,6 +264,8 @@ async def prepare_singles(
     singles_dir = audio_dir / "sheet-music" / "singles"
 
     prepare_mod = _helpers._import_sheet_music_module("prepare_singles")
+    if prepare_mod is None:
+        return _safe_json({"error": "Sheet music prepare_singles module not available."})
     _prepare_singles = prepare_mod.prepare_singles
 
     musescore = None
@@ -264,6 +274,8 @@ async def prepare_singles(
 
     # Get artist, cover art, and footer URL for title pages
     songbook_mod = _helpers._import_sheet_music_module("create_songbook")
+    if songbook_mod is None:
+        return _safe_json({"error": "Sheet music create_songbook module not available."})
     auto_detect_cover_art = songbook_mod.auto_detect_cover_art
     get_footer_url_from_config = songbook_mod.get_footer_url_from_config
 
@@ -278,8 +290,8 @@ async def prepare_singles(
         cfg = load_config()
         if cfg:
             page_size_name = cfg.get('sheet_music', {}).get('page_size', 'letter')
-    except Exception:
-        pass
+    except (ImportError, OSError, KeyError) as exc:
+        logger.warning("Could not load sheet music config, using defaults: %s", exc)
 
     # Build title_map from state cache for legacy (no source manifest) fallback
     title_map = None
@@ -365,6 +377,8 @@ async def create_songbook(
             })
 
     songbook_mod = _helpers._import_sheet_music_module("create_songbook")
+    if songbook_mod is None:
+        return _safe_json({"error": "Sheet music create_songbook module not available."})
     _create_songbook = songbook_mod.create_songbook
     auto_detect_cover_art = songbook_mod.auto_detect_cover_art
     get_website_from_config = songbook_mod.get_website_from_config
@@ -383,7 +397,12 @@ async def create_songbook(
     # Build output path in songbook/ subdirectory
     songbook_dir = audio_dir / "sheet-music" / "songbook"
     songbook_dir.mkdir(parents=True, exist_ok=True)
-    safe_title = title.replace(" ", "_").replace("/", "-")
+    safe_title = title.replace(" ", "_").replace("/", "-").replace("..", "")
+    if not safe_title or not _is_path_confined(songbook_dir, f"{safe_title}.pdf"):
+        return _safe_json({
+            "error": "Invalid title: produces a path that escapes the songbook directory",
+            "title": title,
+        })
     output_path = songbook_dir / f"{safe_title}.pdf"
 
     loop = asyncio.get_running_loop()
@@ -513,11 +532,10 @@ async def publish_sheet_music(
         })
 
     # Import cloud module and upload
-    try:
-        cloud_mod = _helpers._import_cloud_module("upload_to_cloud")
-    except Exception as e:
+    cloud_mod = _helpers._import_cloud_module("upload_to_cloud")
+    if cloud_mod is None:
         return _safe_json({
-            "error": f"Failed to import cloud module: {e}",
+            "error": "Cloud upload module not available.",
             "suggestion": "Ensure boto3 is installed: pip install boto3",
         })
 

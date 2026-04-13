@@ -2,7 +2,7 @@
 """
 Unit tests for qc_tracks.py
 
-Tests all 7 QC checks against synthetic audio signals that are
+Tests all 8 QC checks against synthetic audio signals that are
 specifically crafted to trigger pass, warn, and fail conditions.
 
 Usage:
@@ -30,6 +30,7 @@ from tools.mastering.qc_tracks import (
     _check_phase,
     _check_silence,
     _check_spectral,
+    _check_truepeak,
     qc_track,
 )
 
@@ -291,6 +292,68 @@ class TestCheckClicks:
         assert "0 found" not in result["value"]
 
 
+class TestCheckClicksGenreThresholds:
+    """Tests for configurable per-genre click detection thresholds (#285)."""
+
+    def test_default_call_fails_on_dense_transients(self, clicks_wav):
+        """Default thresholds (6.0, 3) flag clicks_wav's 5 strong spikes as FAIL."""
+        data, rate = sf.read(clicks_wav)
+        result = _check_clicks(data, rate)
+        assert result["status"] == "FAIL"
+
+    def test_relaxed_peak_ratio_passes_dense_transients(self, clicks_wav):
+        """A high peak_ratio lets strong musical transients through."""
+        data, rate = sf.read(clicks_wav)
+        # clicks_wav spikes at peak/rms ~16.5; ratio=20 should detect nothing.
+        result = _check_clicks(data, rate, peak_ratio=20.0)
+        assert result["status"] == "PASS"
+        assert "0 found" in result["value"]
+
+    def test_relaxed_fail_count_downgrades_fail_to_warn(self, clicks_wav):
+        """Raising fail_count turns a FAIL count into a WARN."""
+        data, rate = sf.read(clicks_wav)
+        result = _check_clicks(data, rate, peak_ratio=6.0, fail_count=10)
+        # 5 clicks <= fail_count=10 => WARN
+        assert result["status"] == "WARN"
+
+    def test_stricter_peak_ratio_flags_moderate_spikes(self):
+        """Lowering peak_ratio catches smaller transients missed by default."""
+        rate = 44100
+        duration = 3.0
+        t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+        mono = (0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Spikes at 0.3 over 0.1 sine yield peak/rms ~4.2 — below default 6
+        for i in range(5):
+            idx = 10000 + i * 20000
+            mono[idx] = 0.3
+        data = np.column_stack([mono, mono])
+        # Default (6.0) misses them
+        default_result = _check_clicks(data, rate)
+        assert default_result["status"] == "PASS"
+        # Strict (3.0) catches them
+        strict_result = _check_clicks(data, rate, peak_ratio=3.0, fail_count=3)
+        assert strict_result["status"] == "FAIL"
+
+
+class TestQcTrackGenre:
+    """Tests that qc_track applies genre-preset click thresholds (#285)."""
+
+    def test_no_genre_matches_default_behavior(self, clicks_wav):
+        """Without a genre kwarg, click check uses the default 6.0/3 thresholds."""
+        result = qc_track(clicks_wav, checks=["clicks"])
+        assert result["checks"]["clicks"]["status"] == "FAIL"
+
+    def test_genre_with_relaxed_thresholds_does_not_fail(self, clicks_wav):
+        """A dense-transient genre (idm) should not FAIL on intentional spikes."""
+        result = qc_track(clicks_wav, checks=["clicks"], genre="idm")
+        assert result["checks"]["clicks"]["status"] != "FAIL"
+
+    def test_unknown_genre_raises(self, normal_wav):
+        """Unknown genre should raise a clear error."""
+        with pytest.raises(ValueError, match="Unknown genre"):
+            qc_track(normal_wav, checks=["clicks"], genre="nonexistent-genre-xyz")
+
+
 class TestCheckSilence:
     """Tests for the silence detection check."""
 
@@ -339,6 +402,49 @@ class TestCheckSpectral:
         result = _check_spectral(data, rate)
         assert result["status"] in ("WARN", "FAIL")
         assert "tinniness" in result["detail"].lower() or "High-mid" in result["detail"]
+
+    def test_extreme_tinniness_warns_not_fails(self, tinny_wav):
+        """Tinniness should WARN, never FAIL — mastering's cut_highmid exists to tame it.
+
+        The pre-master QC gate should surface tinniness as a signal to the operator
+        (bump cut_highmid) but not block mastering, since the mastering stage can
+        compensate. Post-master QC is the real gate.
+        """
+        data, rate = sf.read(tinny_wav)
+        result = _check_spectral(data, rate)
+        assert result["status"] == "WARN"
+
+
+class TestCheckTruePeak:
+    """Tests for the true peak QC check."""
+
+    def test_quiet_signal_passes(self):
+        """Signal well below ceiling should pass."""
+        data, rate = _generate_sine(amplitude=0.3)
+        result = _check_truepeak(data, rate)
+        assert result["status"] == "PASS"
+        assert "dBTP" in result["value"]
+
+    def test_hot_signal_fails(self):
+        """Signal exceeding -1 dBTP ceiling should fail."""
+        # Amplitude 0.99 → sample peak ~ -0.09 dBFS, well above -1 dBTP
+        data, rate = _generate_sine(amplitude=0.99)
+        result = _check_truepeak(data, rate, ceiling_db=-1.0)
+        assert result["status"] == "FAIL"
+        assert "EXCEEDS CEILING" in result["detail"]
+
+    def test_signal_near_ceiling_warns(self):
+        """Signal just below ceiling should warn."""
+        # -1 dBTP ceiling → linear 0.891. Amplitude ~0.87 is within 95%
+        data, rate = _generate_sine(amplitude=0.87)
+        result = _check_truepeak(data, rate, ceiling_db=-1.0)
+        assert result["status"] in ("PASS", "WARN")
+
+    def test_custom_ceiling(self):
+        """Custom ceiling should be respected."""
+        data, rate = _generate_sine(amplitude=0.3)
+        result = _check_truepeak(data, rate, ceiling_db=-2.0)
+        assert result["status"] == "PASS"
 
 
 # ─── Tests: Full qc_track Integration ────────────────────────────────

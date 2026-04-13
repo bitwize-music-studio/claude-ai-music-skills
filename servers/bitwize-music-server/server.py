@@ -454,6 +454,7 @@ from handlers.health import (  # noqa: F401
     check_venv_health,
     diagnose,
     get_plugin_version,
+    health_check,
 )
 
 # Ideas tools
@@ -489,11 +490,14 @@ from handlers.processing import (  # noqa: F401
     master_album,
     master_audio,
     master_with_reference,
+    mono_fold_check,
     polish_album,
+    polish_and_master_album,
     polish_audio,
     prepare_singles,
     publish_sheet_music,
     qc_audio,
+    render_codec_preview,
     transcribe_audio,
 )
 

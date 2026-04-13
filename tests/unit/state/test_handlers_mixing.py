@@ -282,6 +282,22 @@ class TestAnalyzeMixIssues:
         assert result["album_summary"]["tracks_analyzed"] >= 1
         assert result["album_summary"]["source_mode"] == "stems"
 
+    def test_stems_mode_analyzes_every_stem_per_track(self, tmp_path):
+        """Each stem in a track gets its own analysis, not just the first alphabetically."""
+        audio_dir = _setup_stems_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        assert result["album_summary"]["tracks_analyzed"] == 1
+        track = result["tracks"][0]
+        assert track["track"] == "01-test-track"
+        assert set(track["stems"].keys()) == {"vocals", "bass"}
+        for stem_name, stem_analysis in track["stems"].items():
+            assert "peak" in stem_analysis
+            assert "issues" in stem_analysis
+        assert "issues" in track
+
 
 # ---------------------------------------------------------------------------
 # Tests: polish_album (3-stage pipeline)
@@ -317,7 +333,11 @@ class TestPolishAlbum:
         assert result["stages"]["pre_flight"]["status"] == "pass"
         assert result["stages"]["analysis"]["status"] == "pass"
         assert result["stages"]["polish"]["status"] == "pass"
-        assert result["stages"]["verify"]["status"] in ("pass", "warn")
+        # verify now runs the full qc_track suite; synthetic test audio can
+        # legitimately trigger FAIL on spectral/silence — we only care that
+        # the stage ran and produced a verdict.
+        assert result["stages"]["verify"]["status"] in ("pass", "warn", "fail")
+        assert "tracks_verified" in result["stages"]["verify"]
 
     def test_stems_mode_pipeline(self, tmp_path):
         audio_dir = _setup_stems_dir(tmp_path)

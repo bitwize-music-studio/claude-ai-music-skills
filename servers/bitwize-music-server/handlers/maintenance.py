@@ -16,7 +16,7 @@ logger = logging.getLogger("bitwize-music-state")
 # Constants
 # ---------------------------------------------------------------------------
 
-_RESET_ALLOWED_SUBFOLDERS = {"mastered", "polished"}
+_RESET_ALLOWED_SUBFOLDERS = {"mastered", "polished", "mastering_samples"}
 
 _LEGACY_VENV_DIRS = ["mastering-env", "promotion-env", "cloud-env"]
 
@@ -31,10 +31,10 @@ async def reset_mastering(
     subfolders: list[str] = ["mastered"],  # noqa: B006 — MCP tool default, not mutated
     dry_run: bool = True,
 ) -> str:
-    """Remove mastered/ and/or polished/ subfolders so the mastering pipeline can be re-run.
+    """Remove mastered/, polished/, and/or mastering_samples/ subfolders.
 
-    Only 'mastered' and 'polished' are allowed — originals/ and stems/ are
-    protected and cannot be deleted through this tool.
+    Only 'mastered', 'polished', and 'mastering_samples' are allowed —
+    originals/ and stems/ are protected and cannot be deleted through this tool.
 
     Default is dry_run=True: reports what would be deleted without removing anything.
     Set dry_run=False to actually delete.
@@ -53,7 +53,7 @@ async def reset_mastering(
         return _safe_json({
             "error": f"Disallowed subfolders: {rejected}",
             "allowed": sorted(_RESET_ALLOWED_SUBFOLDERS),
-            "hint": "Only 'mastered' and 'polished' can be reset. "
+            "hint": "Only 'mastered', 'polished', and 'mastering_samples' can be reset. "
                     "originals/ and stems/ are protected.",
         })
 

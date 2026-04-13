@@ -74,11 +74,14 @@ At the beginning of a fresh session:
    - If MCP missing → **Stop immediately** and suggest: `/bitwize-music:setup mcp`
    - If config missing → suggest: `/bitwize-music:configure`
    - Don't proceed with session start until setup is complete
-1.5. **Check venv health** — Use `check_venv_health` MCP tool:
-   - `status: "ok"` → continue silently
-   - `status: "stale"` → warn with mismatches and fix command, continue session
-   - `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
-   - `status: "error"` → warn and continue
+1.5. **Health check** — Use `health_check` MCP tool (checks venv + skill registration):
+   - Venv `status: "ok"` → continue silently
+   - Venv `status: "stale"` → warn with mismatches and fix command, continue session
+   - Venv `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
+   - Venv `status: "error"` → warn and continue
+   - Skills `status: "ok"` → continue silently
+   - Skills `status: "stale"` → warn with missing/ghost skill names and fix message, continue session
+   - Skills `status: "no_cache"` → warn (plugin may not be installed via marketplace), continue
 2. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
 3. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
    - `{overrides}/CLAUDE.md` → incorporate instructions
@@ -97,7 +100,9 @@ At the beginning of a fresh session:
    - If versions match → no action
 5. _(Removed — run `/bitwize-music:skill-model-updater check` manually when new models are released)_
 6. **Report from MCP state**:
-   - Venv health warnings (from step 1.5 — omit if ok, warn if stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`")
+   - Health warnings (from step 1.5 — omit if ok):
+     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`"
+     - Skills stale: "⚠️ N skill(s) missing from Claude Code, N ghost — run: `claude plugin update bitwize-music`"
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications(summary_only=True)`)
@@ -145,7 +150,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise
-- **Mastering audio** → apply `/bitwize-music:mastering-engineer` standards
+- **Mastering audio** → polish first via `/bitwize-music:mix-engineer`, then apply `/bitwize-music:mastering-engineer` standards. Skip polish only if: (a) user says "master only", "skip polish", or "already polished"; or (b) polished audio already exists at `{audio_root}/artists/[artist]/albums/[genre]/[album]/polished/`. Applies equally to single-track and whole-album mastering.
 - **Album art** → apply `/bitwize-music:album-art-director`
 - **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
@@ -276,6 +281,8 @@ Currently supports **Suno** (default). Service-specific template sections marked
 **Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in both plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
 
 **Development workflow**: Feature branch off `develop` → Conventional Commits → `/bitwize-music:test all` → PR into `develop` → Release: merge `develop` → `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+**External contributor PRs**: When the user mentions merging, reviewing, or having merged a PR from a non-maintainer (anyone other than @bitwize-music), check the Contributors section of README.md. If the PR author is not listed, proactively offer to add them using the same `<a href>` avatar block format as existing entries. Do this without being asked.
 
 ---
 

@@ -11,6 +11,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from handlers._atomic import atomic_write_text
+
 # ---------------------------------------------------------------------------
 # Shared state — set by server.py at startup
 # ---------------------------------------------------------------------------
@@ -89,9 +91,36 @@ _GENRE_ALIASES = {
 # Shared helper functions
 # ---------------------------------------------------------------------------
 
+def _is_path_confined(base: Path, user_component: str) -> bool:
+    """Return True if *base / user_component* stays within *base* after resolution.
+
+    Use this to reject path-traversal attempts (e.g. ``../../etc/passwd``)
+    before performing any file I/O with user-supplied path fragments.
+    """
+    try:
+        resolved = (base / user_component).resolve()
+        return resolved.is_relative_to(base.resolve())
+    except (ValueError, OSError):
+        return False
+
+
 def _normalize_slug(name: str) -> str:
-    """Normalize input to slug format."""
-    return name.lower().replace(" ", "-").replace("_", "-")
+    """Normalize input to slug format.
+
+    Raises:
+        ValueError: If *name* contains path separators (``/``, ``\\``),
+            null bytes, or traversal sequences (``..``).
+    """
+    if "/" in name or "\\" in name or "\0" in name:
+        raise ValueError(
+            f"Invalid name: contains path separator or null byte: {name!r}"
+        )
+    slug = name.lower().replace(" ", "-").replace("_", "-")
+    if ".." in slug:
+        raise ValueError(
+            f"Invalid name: contains path traversal sequence: {name!r}"
+        )
+    return slug
 
 
 def _safe_json(data: Any) -> str:
@@ -159,7 +188,7 @@ def _update_frontmatter_block(
     new_text = "---\n" + new_fm_text + "\n---\n" + rest_of_file
 
     try:
-        file_path.write_text(new_text, encoding="utf-8")
+        atomic_write_text(file_path, new_text)
     except OSError as exc:
         return False, f"Cannot write {file_path}: {exc}"
 
@@ -223,6 +252,22 @@ def _extract_code_block(section_text: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Shared regex patterns — used by lyrics analysis, cross-track repetition, etc.
 # ---------------------------------------------------------------------------
+
+# Maximum text input length for text analysis tools (50,000 chars ≈ 10x a long song)
+MAX_TEXT_INPUT_LENGTH = 50_000
+
+
+def _check_text_length(text: str, tool_name: str) -> str | None:
+    """Return a JSON error string if *text* exceeds MAX_TEXT_INPUT_LENGTH, else None."""
+    if len(text) > MAX_TEXT_INPUT_LENGTH:
+        return _safe_json({
+            "error": (
+                f"Input too long ({len(text):,} chars). "
+                f"{tool_name} accepts at most {MAX_TEXT_INPUT_LENGTH:,} characters."
+            ),
+        })
+    return None
+
 
 # Section tag pattern — matches [Verse 1], [Chorus], etc.
 _SECTION_TAG_RE = re.compile(r'^\[.*\]$')
@@ -335,6 +380,11 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple[str | None
         }), None
     audio_path = Path(audio_root) / "artists" / artist / "albums" / genre / normalized
     if subfolder:
+        if not _is_path_confined(audio_path, subfolder):
+            return _safe_json({
+                "error": "Invalid subfolder: path must not escape the album directory",
+                "subfolder": subfolder,
+            }), None
         audio_path = audio_path / subfolder
     if not audio_path.is_dir():
         return _safe_json({

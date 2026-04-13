@@ -2335,16 +2335,13 @@ class TestUpdateTrackField:
     def test_update_read_only_file(self, tmp_path):
         """Read-only track file returns write error."""
         mock_cache, track_file = self._make_cache_with_file(tmp_path)
-        track_file.chmod(0o444)
-        try:
-            with patch.object(_shared_mod, "cache", mock_cache):
-                result = json.loads(_run(server.update_track_field(
-                    "test-album", "01-test-track", "status", "Generated", force=True
-                )))
-            assert "error" in result
-            assert "Cannot write" in result["error"]
-        finally:
-            track_file.chmod(0o644)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_core_mod, "atomic_write_text", side_effect=OSError("Permission denied")):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "status", "Generated", force=True
+            )))
+        assert "error" in result
+        assert "Cannot write" in result["error"]
 
     def test_rapid_sequential_updates(self, tmp_path):
         """Multiple updates to same track don't corrupt file."""
@@ -6054,7 +6051,7 @@ class TestUpdateAlbumStatus:
         mock_cache = MockStateCache(state)
 
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(Path, "write_text", side_effect=OSError("disk full")):
+             patch.object(_status_mod, "atomic_write_text", side_effect=OSError("disk full")):
             result = json.loads(_run(server.update_album_status("test-album", "Complete")))
         assert "error" in result
         assert "Cannot write" in result["error"]
@@ -7045,6 +7042,266 @@ class TestCheckVenvHealth:
         assert result["status"] == "stale"
         assert str(tmp_path / "requirements.txt") in result["fix_command"]
         assert "~/.bitwize-music/venv/bin/pip" in result["fix_command"]
+
+
+# =============================================================================
+# Tests for _check_skill_registration
+# =============================================================================
+
+
+class TestCheckSkillRegistration:
+    """Tests for the _check_skill_registration() helper."""
+
+    def _setup_skills(self, tmp_path, source_skills, cached_skills,
+                      cached_version="0.89.0"):
+        """Create source and cache skill directories for testing."""
+        # Source skills in PLUGIN_ROOT
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        for name in source_skills:
+            skill_dir = skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        # Cache directory
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / cached_version)
+        cache_skills_dir = cache_dir / "skills"
+        cache_skills_dir.mkdir(parents=True)
+        for name in cached_skills:
+            skill_dir = cache_skills_dir / name
+            skill_dir.mkdir()
+            (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        # Write plugin.json in cache
+        plugin_json_dir = cache_dir / ".claude-plugin"
+        plugin_json_dir.mkdir(parents=True)
+        (plugin_json_dir / "plugin.json").write_text(
+            json.dumps({"version": cached_version})
+        )
+
+        return plugin_root
+
+    def test_all_match_returns_ok(self, tmp_path):
+        """All skills matching returns status ok."""
+        skills = ["lyric-writer", "resume", "test"]
+        plugin_root = self._setup_skills(tmp_path, skills, skills)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+        assert result["ok_count"] == 3
+        assert result["missing"] == []
+        assert result["ghost"] == []
+
+    def test_missing_skills_returns_stale(self, tmp_path):
+        """Skills on disk but not in cache are reported as missing."""
+        source = ["lyric-writer", "lyric-refiner", "voice-checker"]
+        cached = ["lyric-writer"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert "lyric-refiner" in result["missing"]
+        assert "voice-checker" in result["missing"]
+        assert result["ok_count"] == 1
+
+    def test_ghost_skills_returns_stale(self, tmp_path):
+        """Skills in cache but not on disk are reported as ghost."""
+        source = ["lyric-writer"]
+        cached = ["lyric-writer", "ship"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["ghost"] == ["ship"]
+        assert result["ok_count"] == 1
+
+    def test_mixed_missing_and_ghost(self, tmp_path):
+        """Both missing and ghost skills detected."""
+        source = ["lyric-writer", "voice-checker"]
+        cached = ["lyric-writer", "ship"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["missing"] == ["voice-checker"]
+        assert result["ghost"] == ["ship"]
+        assert result["ok_count"] == 1
+
+    def test_no_cache_returns_no_cache(self, tmp_path):
+        """No plugin cache directory returns no_cache status."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+
+        # fakehome with no .claude directory
+        fakehome = tmp_path / "fakehome"
+        fakehome.mkdir()
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "no_cache"
+        assert result["source_count"] == 1
+
+    def test_cached_version_reported(self, tmp_path):
+        """Cached plugin version is included in result."""
+        skills = ["test-skill"]
+        plugin_root = self._setup_skills(tmp_path, skills, skills,
+                                         cached_version="0.69.0")
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["cached_version"] == "0.69.0"
+
+    def test_fix_message_on_stale(self, tmp_path):
+        """Stale result includes a fix message."""
+        source = ["lyric-writer", "new-skill"]
+        cached = ["lyric-writer"]
+        plugin_root = self._setup_skills(tmp_path, source, cached)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert "fix_message" in result
+        assert "claude plugin update" in result["fix_message"]
+
+
+# =============================================================================
+# Tests for health_check
+# =============================================================================
+
+
+class TestHealthCheck:
+    """Tests for the health_check() MCP tool."""
+
+    def test_all_ok(self, tmp_path):
+        """Both venv and skills ok returns overall ok."""
+        # Set up matching skills
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+        skill_dir = skills_dir / "test-skill"
+        skill_dir.mkdir()
+        (skill_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / "1.0.0")
+        cache_skills_dir = cache_dir / "skills" / "test-skill"
+        cache_skills_dir.mkdir(parents=True)
+        (cache_skills_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+        pj = cache_dir / ".claude-plugin"
+        pj.mkdir(parents=True)
+        (pj / "plugin.json").write_text('{"version": "1.0.0"}')
+
+        # Set up venv
+        req = plugin_root / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        def mock_version(pkg):
+            if pkg == "requests":
+                return "2.31.0"
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "ok"
+        assert len(result["checks"]) == 2
+        assert result["checks"][0]["name"] == "venv"
+        assert result["checks"][0]["status"] == "ok"
+        assert result["checks"][1]["name"] == "skills"
+        assert result["checks"][1]["status"] == "ok"
+
+    def test_stale_skills_returns_warn(self, tmp_path):
+        """Stale skills with ok venv returns overall warn."""
+        # Source has extra skill not in cache
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        for name in ("existing", "new-skill"):
+            d = skills_dir / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
+
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / "1.0.0")
+        cache_skill = cache_dir / "skills" / "existing"
+        cache_skill.mkdir(parents=True)
+        (cache_skill / "SKILL.md").write_text("---\nname: existing\n---\n")
+        pj = cache_dir / ".claude-plugin"
+        pj.mkdir(parents=True)
+        (pj / "plugin.json").write_text('{"version": "1.0.0"}')
+
+        # Venv ok
+        req = plugin_root / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch("importlib.metadata.version", return_value="2.31.0"), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "warn"
+        skills_check = result["checks"][1]
+        assert skills_check["status"] == "warn"
+        assert "new-skill" in skills_check["detail"]
+
+    def test_no_venv_returns_fail(self, tmp_path):
+        """Missing venv returns overall fail."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        # No venv
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "fail"
+        assert result["checks"][0]["name"] == "venv"
+        assert result["checks"][0]["status"] == "fail"
+
+    def test_raw_results_included(self, tmp_path):
+        """Raw venv and skills results are included for direct access."""
+        plugin_root = tmp_path / "plugin"
+        skills_dir = plugin_root / "skills"
+        skills_dir.mkdir(parents=True)
+
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert "venv" in result
+        assert "skills" in result
+        assert "status" in result["venv"]
+        assert "status" in result["skills"]
 
 
 # =============================================================================
@@ -10942,6 +11199,224 @@ class TestResolveAudioDir:
 
 
 # =============================================================================
+# Tests for path traversal guards
+# =============================================================================
+
+
+class TestPathTraversalGuards:
+    """Verify that path-traversal attempts are rejected across all guarded params."""
+
+    def _make_audio_dir(self, tmp_path):
+        """Create a minimal audio directory and return (state, audio_dir)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return state, audio_dir
+
+    # --- _resolve_audio_dir subfolder ---
+
+    def test_subfolder_traversal_rejected(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            err, path = server._resolve_audio_dir("test-album", "../../etc")
+        assert path is None
+        result = json.loads(err)
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_audio source_subfolder ---
+
+    def test_master_audio_source_subfolder_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_audio(
+                "test-album", source_subfolder="../../etc",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_album source_subfolder ---
+
+    def test_master_album_source_subfolder_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        (audio_dir / "originals").mkdir()
+        (audio_dir / "originals" / "01-test.wav").touch()
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.master_album(
+                "test-album", source_subfolder="../../etc",
+            )))
+        assert "failed_stage" in result
+        detail = result.get("failure_detail", {})
+        assert "escape" in str(detail).lower() or "invalid" in str(detail).lower()
+
+    # --- fix_dynamic_track track_filename ---
+
+    def test_fix_dynamic_track_traversal(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None):
+            result = json.loads(_run(server.fix_dynamic_track(
+                "test-album", "../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_with_reference reference_filename ---
+
+    def test_master_with_reference_traversal(self, tmp_path):
+        state, _ = self._make_audio_dir(tmp_path)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None):
+            result = json.loads(_run(server.master_with_reference(
+                "test-album", reference_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- master_with_reference target_filename ---
+
+    def test_master_with_reference_target_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        # Create a valid reference so we reach the target_filename check
+        ref = audio_dir / "reference.wav"
+        ref.touch()
+        mock_cache = MockStateCache(state)
+        mock_ref_master = MagicMock()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_matchering", return_value=None), \
+             patch("handlers.processing.audio._ref_master", mock_ref_master, create=True), \
+             patch.dict("sys.modules", {"tools.mastering.reference_master": MagicMock()}):
+            result = json.loads(_run(server.master_with_reference(
+                "test-album",
+                reference_filename="reference.wav",
+                target_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- generate_promo_videos track_filename ---
+
+    def test_promo_videos_track_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        # Create artwork so we reach the track_filename check
+        (audio_dir / "album.png").touch()
+        mock_cache = MockStateCache(state)
+        mock_promo_mod = MagicMock()
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch.dict("sys.modules", {
+                 "tools.promotion.generate_promo_video": mock_promo_mod,
+                 "tools.shared.fonts": MagicMock(find_font=MagicMock(return_value="/fake/font.ttf")),
+             }):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- transcribe_audio track_filename ---
+
+    def test_transcribe_track_traversal(self, tmp_path):
+        state, audio_dir = self._make_audio_dir(tmp_path)
+        mock_transcribe = MagicMock()
+        mock_transcribe.find_anthemscore.return_value = "/fake/anthemscore"
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
+             patch.object(_processing_helpers, "_import_sheet_music_module", return_value=mock_transcribe):
+            result = json.loads(_run(server.transcribe_audio(
+                "test-album", track_filename="../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- extract_links file_name ---
+
+    def test_extract_links_traversal(self, tmp_path):
+        album_dir = tmp_path / "album"
+        album_dir.mkdir()
+        state = _fresh_state()
+        state["albums"]["test-album"]["path"] = str(album_dir)
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.extract_links(
+                "test-album", file_name="../../../../etc/passwd",
+            )))
+        assert "error" in result
+        assert "escape" in result["error"].lower() or "invalid" in result["error"].lower()
+
+    # --- _is_path_confined unit tests ---
+
+    def test_is_path_confined_normal(self, tmp_path):
+        from handlers._shared import _is_path_confined
+        assert _is_path_confined(tmp_path, "mastered") is True
+        assert _is_path_confined(tmp_path, "sub/dir") is True
+
+    def test_is_path_confined_traversal(self, tmp_path):
+        from handlers._shared import _is_path_confined
+        assert _is_path_confined(tmp_path, "../../etc") is False
+        assert _is_path_confined(tmp_path, "../passwd") is False
+        assert _is_path_confined(tmp_path, "/etc/passwd") is False
+
+
+# =============================================================================
+# Tests for _normalize_slug path traversal rejection
+# =============================================================================
+
+
+class TestNormalizeSlugPathTraversal:
+    """Verify _normalize_slug rejects path traversal characters."""
+
+    def test_forward_slash_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("../../etc/passwd")
+
+    def test_backslash_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("..\\..\\etc")
+
+    def test_null_byte_rejected(self):
+        with pytest.raises(ValueError, match="path separator"):
+            server._normalize_slug("album\x00evil")
+
+    def test_dot_dot_rejected(self):
+        with pytest.raises(ValueError, match="traversal"):
+            server._normalize_slug("album..escape")
+
+    def test_single_dot_allowed(self):
+        """A single dot (e.g., 'v2.0') is fine — only '..' is blocked."""
+        assert server._normalize_slug("v2.0") == "v2.0"
+
+    def test_normal_slug_unaffected(self):
+        assert server._normalize_slug("my-album-name") == "my-album-name"
+
+    def test_spaces_still_normalized(self):
+        assert server._normalize_slug("my album name") == "my-album-name"
+
+    def test_underscores_still_normalized(self):
+        assert server._normalize_slug("my_album_name") == "my-album-name"
+
+    def test_mixed_case_still_lowered(self):
+        assert server._normalize_slug("My Album") == "my-album"
+
+    def test_double_dot_in_underscored_name(self):
+        """Underscores become hyphens before '..' check, but '..' in raw name is caught."""
+        with pytest.raises(ValueError, match="traversal"):
+            server._normalize_slug("a..b")
+
+    def test_empty_string_still_works(self):
+        assert server._normalize_slug("") == ""
+
+
+# =============================================================================
 # Tests for dependency checker helpers
 # =============================================================================
 
@@ -11676,10 +12151,64 @@ class TestImportSheetMusicModule:
         assert hasattr(mod, "create_songbook")
         assert hasattr(mod, "auto_detect_cover_art")
 
-    def test_nonexistent_module_raises(self):
-        """Should raise on a module that doesn't exist."""
-        with pytest.raises(Exception):
-            _processing_helpers._import_sheet_music_module("nonexistent_module")
+    def test_nonexistent_module_returns_none(self):
+        """Should return None and log a warning for a module that doesn't exist."""
+        result = _processing_helpers._import_sheet_music_module("nonexistent_module")
+        assert result is None
+
+    def test_logs_warning_when_spec_missing(self, caplog):
+        """Should warn before raising if the import spec cannot be created."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+
+        with patch("importlib.util.spec_from_file_location", return_value=None):
+            mod = _processing_helpers._import_sheet_music_module("transcribe")
+
+        assert mod is None
+        assert "Optional module transcribe not available" in caplog.text
+
+    def test_returns_none_when_exec_fails(self, caplog):
+        """Should warn and return None if module execution fails."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+        mock_loader = MagicMock()
+        mock_loader.exec_module.side_effect = ImportError("missing optional dep")
+        mock_spec = MagicMock(loader=mock_loader)
+
+        with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
+             patch("importlib.util.module_from_spec", return_value=MagicMock()):
+            result = _processing_helpers._import_sheet_music_module("transcribe")
+
+        assert result is None
+        assert "Optional sheet-music module" in caplog.text
+        assert "missing optional dep" in caplog.text
+
+
+class TestImportCloudModule:
+    """Tests for the _import_cloud_module() helper."""
+
+    def test_logs_warning_when_spec_missing(self, caplog):
+        """Should warn and return None if the import spec cannot be created."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+
+        with patch("importlib.util.spec_from_file_location", return_value=None):
+            mod = _processing_helpers._import_cloud_module("upload_to_cloud")
+
+        assert mod is None
+        assert "Optional module upload_to_cloud not available" in caplog.text
+
+    def test_returns_none_when_exec_fails(self, caplog):
+        """Should warn and return None if module execution fails."""
+        caplog.set_level("WARNING", logger="bitwize-music-state")
+        mock_loader = MagicMock()
+        mock_loader.exec_module.side_effect = ImportError("missing boto3")
+        mock_spec = MagicMock(loader=mock_loader)
+
+        with patch("importlib.util.spec_from_file_location", return_value=mock_spec), \
+             patch("importlib.util.module_from_spec", return_value=MagicMock()):
+            result = _processing_helpers._import_cloud_module("upload_to_cloud")
+
+        assert result is None
+        assert "Optional cloud module" in caplog.text
+        assert "missing boto3" in caplog.text
 
 
 # =============================================================================
@@ -11883,7 +12412,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
+        presets = {"hip-hop": {"target_lufs": -13.0, "cut_highmid": -3.0, "cut_highs": -1.0, "compress_ratio": 2.0}}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
@@ -11909,7 +12438,7 @@ class TestMasterAudioComprehensive:
                 "final_peak": -1.0,
             }
 
-        presets = {"hip-hop": (-13.0, -3.0, -1.0, 2.0)}
+        presets = {"hip-hop": {"target_lufs": -13.0, "cut_highmid": -3.0, "cut_highs": -1.0, "compress_ratio": 2.0}}
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \

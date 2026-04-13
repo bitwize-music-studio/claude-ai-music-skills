@@ -28,10 +28,15 @@ from tools.mixing.mix_tracks import (
     apply_eq,
     apply_high_shelf,
     apply_highpass,
+    apply_lowpass,
+    apply_saturation,
+    apply_sub_bass_exciter,
+    apply_transient_shaper,
     gentle_compress,
     remove_clicks,
     reduce_noise,
     enhance_stereo,
+    _apply_character_effects,
     remix_stems,
     process_vocals,
     process_backing_vocals,
@@ -51,6 +56,7 @@ from tools.mixing.mix_tracks import (
     discover_stems,
     _get_stem_settings,
     _get_full_mix_settings,
+    _resolve_master_click_thresholds,
 )
 
 
@@ -79,7 +85,9 @@ def _generate_noise(duration=1.0, rate=44100, amplitude=0.3, stereo=True):
 def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
     """Generate a signal with an artificial click/pop."""
     t = np.linspace(0, duration, int(rate * duration), endpoint=False)
-    data = (amplitude * 0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+    # Background kept quiet (0.1x) so a 10 ms window containing the click
+    # has peak/rms > 6.0 — required by TestRemoveClicksPeakRatio tests.
+    data = (amplitude * 0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
     # Insert a sharp click
     click_idx = int(click_pos * rate)
     if click_idx < len(data):
@@ -417,33 +425,144 @@ class TestRemoveClicks:
     def test_removes_artificial_click(self):
         """Should detect and reduce artificial clicks."""
         data, rate = _generate_click(amplitude=0.5)
-        result = remove_clicks(data, rate, threshold=4.0)
+        result, n_clicks = remove_clicks(data, rate, threshold=4.0)
         # The click sample should be reduced
         click_idx = int(0.5 * rate)
         assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+        assert n_clicks > 0
 
     def test_clean_signal_unchanged(self):
         """Clean signal without clicks should be mostly unchanged."""
         data, rate = _generate_sine(amplitude=0.3)
-        result = remove_clicks(data, rate, threshold=6.0)
+        result, n_clicks = remove_clicks(data, rate, threshold=6.0)
         # Most samples should be identical
         diff = np.max(np.abs(result - data))
         assert diff < 0.1
+        assert n_clicks == 0
 
     def test_zero_threshold_is_passthrough(self):
         data, rate = _generate_sine()
-        result = remove_clicks(data, rate, threshold=0)
+        result, n_clicks = remove_clicks(data, rate, threshold=0)
         assert np.array_equal(result, data)
+        assert n_clicks == 0
 
     def test_mono_input(self):
         data, rate = _generate_sine(stereo=False)
-        result = remove_clicks(data, rate)
+        result, n_clicks = remove_clicks(data, rate)
         assert result.shape == data.shape
 
     def test_output_is_finite(self):
         data, rate = _generate_click()
-        result = remove_clicks(data, rate)
+        result, n_clicks = remove_clicks(data, rate)
         assert np.all(np.isfinite(result))
+
+
+class TestRemoveClicksPeakRatio:
+    """Tests for the windowed peak/rms detection path (#289)."""
+
+    def test_peak_ratio_detects_high_peak_rms_window(self):
+        """A lone spike in an otherwise-quiet sine should register as a click."""
+        data, rate = _generate_click(amplitude=0.5)
+        # Default peak_ratio=6.0 matches QC's hard-coded default
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=6.0)
+        assert n_clicks >= 1
+        # Click sample reduced in both channels
+        click_idx = int(0.5 * rate)
+        assert np.abs(result[click_idx, 0]) < np.abs(data[click_idx, 0])
+
+    def test_strict_peak_ratio_skips_moderate_click(self):
+        """A strict peak_ratio (50.0) should not flag a modest transient —
+        higher ratios demand bigger peak/rms separation before flagging."""
+        data, rate = _generate_click(amplitude=0.5)
+        # peak/rms of this click in a 10 ms window is ~10.2; a strict 50.0
+        # ratio requires ~5× higher separation, so no click should fire.
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=50.0)
+        assert n_clicks == 0
+        assert np.array_equal(result, data)
+
+    def test_peak_ratio_takes_precedence_over_threshold(self):
+        """When both `threshold` and `peak_ratio` are set, peak_ratio wins."""
+        data, rate = _generate_click(amplitude=0.5)
+        # threshold=0 would passthrough in std path; peak_ratio path must
+        # still detect the click.
+        result, n_clicks = remove_clicks(data, rate, threshold=0, peak_ratio=6.0)
+        assert n_clicks >= 1
+
+    def test_peak_ratio_on_mono(self):
+        data, rate = _generate_click(amplitude=0.5)
+        mono = data[:, 0]
+        result, n_clicks = remove_clicks(mono, rate, peak_ratio=6.0)
+        assert result.shape == mono.shape
+        assert n_clicks >= 1
+
+
+class TestRemoveClicksCubicRepair:
+    """Tests for the cubic-spline stem-tier repair path (#289)."""
+
+    def test_cubic_repair_differs_from_linear_on_stem(self):
+        """Cubic repair should produce a different signal than linear on
+        an isolated stem with a click — this is the whole point of the
+        stem-tier upgrade."""
+        data, rate = _generate_click(amplitude=0.5)
+        linear_result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="linear")
+        cubic_result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        # Same detections, different repair — the repaired samples must differ.
+        click_idx = int(0.5 * rate)
+        assert not np.allclose(
+            linear_result[click_idx - 1:click_idx + 2, 0],
+            cubic_result[click_idx - 1:click_idx + 2, 0],
+        )
+
+    def test_cubic_repair_is_finite(self):
+        """Spline repair must never produce NaN or Inf."""
+        data, rate = _generate_click(amplitude=0.5)
+        result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        assert np.all(np.isfinite(result))
+
+    def test_cubic_repair_reduces_click_amplitude(self):
+        """Repaired click sample should be closer to the local sine value
+        than the original spike."""
+        data, rate = _generate_click(amplitude=0.5)
+        result, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        click_idx = int(0.5 * rate)
+        # Original click is |~0.495|; local sine at 440 Hz amp 0.05 is
+        # near zero at t=0.5s. Repaired sample should be near zero — 0.05
+        # is a generous upper bound that would still catch a regression
+        # leaving a partially-repaired click.
+        assert np.abs(result[click_idx, 0]) < 0.05
+
+    def test_cubic_repair_near_buffer_edge_falls_back_to_linear(self):
+        """A click within window_ms of the start should not crash; it
+        should fall back to linear repair."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.15 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Inject a click at sample 5 (well inside the default 1.5 ms window
+        # which is ~66 samples at 44.1 kHz).
+        mono[5] = 0.95
+        data = np.column_stack([mono, mono])
+        result, n_clicks = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        assert np.all(np.isfinite(result))
+        assert n_clicks >= 1
+
+    def test_invalid_repair_raises(self):
+        data, rate = _generate_click()
+        with pytest.raises(ValueError, match="repair must be"):
+            remove_clicks(data, rate, peak_ratio=6.0, repair="nearest")
+
+    def test_stem_repair_differs_from_full_mix_repair_on_isolated_stem(self):
+        """Per #289 acceptance: 'stem repair differs from full-mix repair
+        on an isolated stem with a click.' Same signal, same detection,
+        two repair strategies — they must produce distinguishable output."""
+        data, rate = _generate_click(amplitude=0.5)
+        stem_repaired, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="cubic")
+        full_repaired, _ = remove_clicks(data, rate, peak_ratio=6.0, repair="linear")
+        click_idx = int(0.5 * rate)
+        # Nontrivial difference in the repaired neighborhood
+        assert np.max(np.abs(
+            stem_repaired[click_idx - 1:click_idx + 2, 0]
+            - full_repaired[click_idx - 1:click_idx + 2, 0]
+        )) > 1e-6
 
 
 # ─── Tests: reduce_noise ─────────────────────────────────────────────
@@ -649,6 +768,50 @@ class TestProcessDrums:
         }
         result = process_drums(data, rate, settings=settings)
         assert np.all(np.isfinite(result))
+
+    def test_reports_clicks_removed_when_given_report_dict(self):
+        """`process_drums` should record how many clicks it repaired when
+        a report dict is passed in."""
+        data, rate = _generate_click(amplitude=0.5)
+        report: dict[str, int] = {}
+        settings = _get_stem_settings('drums', genre='electronic')
+        result = process_drums(data, rate, settings=settings, report=report)
+        assert np.all(np.isfinite(result))
+        # Synthetic click with a high amplitude should always get flagged
+        # by the peak_ratio=8.0 detector on the electronic preset.
+        assert report.get('clicks_removed', 0) >= 1
+
+    def test_uses_cubic_repair_when_peak_ratio_is_set(self):
+        """With a `click_peak_ratio` setting, the drum processor should
+        use the cubic (stem-tier) repair, not the legacy std+linear path."""
+        data, rate = _generate_click(amplitude=0.5)
+        # Force the ratio path by passing click_peak_ratio directly.
+        settings = {
+            'click_removal': True,
+            'click_peak_ratio': 6.0,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 5.0,
+        }
+        # And a sibling baseline using the legacy std path.
+        baseline_settings = {
+            'click_removal': True,
+            'click_threshold': 6.0,
+            'compress_threshold_db': -12.0,
+            'compress_ratio': 2.0,
+            'compress_attack_ms': 5.0,
+        }
+        cubic = process_drums(data.copy(), rate, settings=settings)
+        linear = process_drums(data.copy(), rate, settings=baseline_settings)
+        # The *full* processor chain (compressor, saturator) runs on both,
+        # so we compare the early-pipeline sample neighborhood around the
+        # click index — must be different because repair differs.
+        click_idx = int(0.5 * rate)
+        assert not np.allclose(
+            cubic[click_idx - 1:click_idx + 2, 0],
+            linear[click_idx - 1:click_idx + 2, 0],
+            atol=1e-6,
+        )
 
 
 class TestProcessBass:
@@ -948,6 +1111,14 @@ class TestProcessPercussion:
         result = process_percussion(data, rate, settings=settings)
         assert np.all(np.isfinite(result))
 
+    def test_reports_clicks_removed_when_given_report_dict(self):
+        data, rate = _generate_click(amplitude=0.5)
+        report: dict[str, int] = {}
+        settings = _get_stem_settings('percussion', genre='electronic')
+        result = process_percussion(data, rate, settings=settings, report=report)
+        assert np.all(np.isfinite(result))
+        assert report.get('clicks_removed', 0) >= 1
+
 
 # ─── Tests: Full Pipeline (Stems) ────────────────────────────────────
 
@@ -1051,6 +1222,46 @@ class TestMixTrackStems:
         assert len(result['stems_processed']) == 1
         assert result['stems_processed'][0]['stem'] == 'drums'
         assert Path(output_path).exists()
+
+    def test_result_reports_clicks_removed_per_stem(self, tmp_path):
+        """mix_track_stems should surface clicks_removed on each stem that
+        ran the declicker."""
+        rate = 44100
+        # Build a drums-stem wav with a click at t≈0.5s.
+        # Offset by 50 samples so the click falls mid-window (not on a
+        # 10 ms window boundary) — this prevents the click's energy from
+        # being diluted across two windows, keeping peak/RMS well above 8.0.
+        # Sine amplitude of 0.10 gives peak/RMS ≈ 9.9 > electronic threshold 8.0.
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.10 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50  # 22100 — not on a 441-sample boundary
+        mono[click_idx] = 0.95
+        mono[click_idx + 1] = -0.95
+        drums = np.column_stack([mono, mono])
+
+        # And a clean vocal stem for completeness
+        vocal_mono = (0.1 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        vocals = np.column_stack([vocal_mono, vocal_mono])
+
+        drums_path = tmp_path / "drums.wav"
+        vocals_path = tmp_path / "vocals.wav"
+        sf.write(str(drums_path), drums, rate, subtype='PCM_16')
+        sf.write(str(vocals_path), vocals, rate, subtype='PCM_16')
+        out_path = tmp_path / "out.wav"
+
+        result = mix_track_stems(
+            {'drums': str(drums_path), 'vocals': str(vocals_path)},
+            out_path,
+            genre='electronic',
+        )
+
+        # Each stem entry should carry clicks_removed; drums must be > 0.
+        by_stem = {s['stem']: s for s in result['stems_processed']}
+        assert 'clicks_removed' in by_stem['drums']
+        assert by_stem['drums']['clicks_removed'] >= 1
+        # Vocals don't run the declicker, so clicks_removed should be 0
+        # or absent; assert the presence contract only for declicking stems.
+        assert by_stem['vocals'].get('clicks_removed', 0) == 0
 
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
@@ -1417,6 +1628,48 @@ class TestMixTrackFull:
         assert 'post_peak' in result
         assert 'post_rms' in result
 
+    def test_full_mix_reports_clicks_removed(self, tmp_path):
+        """mix_track_full's result should include clicks_removed."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        # Quiet sine background (0.10) so the click dominates a 10ms window.
+        mono = (0.10 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        # Click mid-window (not on window boundary) at t≈0.5s + 50 samples.
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.95
+        mono[click_idx + 1] = -0.95
+        data = np.column_stack([mono, mono])
+
+        in_path = tmp_path / "in.wav"
+        out_path = tmp_path / "out.wav"
+        sf.write(str(in_path), data, rate, subtype='PCM_16')
+
+        result = mix_track_full(in_path, out_path, genre='electronic')
+        assert 'clicks_removed' in result
+        # Electronic preset peak_ratio=8.0. With 0.10 background + mid-window
+        # 0.95 click, ratio is ~9.9, above the threshold.
+        assert isinstance(result['clicks_removed'], int)
+        assert result['clicks_removed'] >= 1
+
+    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path):
+        """A big click against a quiet sine should register clicks_removed>0
+        even on the legacy std-path (no genre → no peak_ratio → std default)."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.05 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.9
+        mono[click_idx + 1] = -0.9
+        data = np.column_stack([mono, mono])
+
+        in_path = tmp_path / "in.wav"
+        out_path = tmp_path / "out.wav"
+        sf.write(str(in_path), data, rate, subtype='PCM_16')
+
+        # No genre → std path with default threshold=6.0.
+        result = mix_track_full(in_path, out_path)
+        assert result['clicks_removed'] >= 1
+
 
 # ─── Tests: Preset Loading ───────────────────────────────────────────
 
@@ -1622,3 +1875,417 @@ class TestOverrideMerging:
         presets = load_mix_presets()
         assert 'rock' in presets['genres']
         assert 'pop' in presets['genres']
+
+
+class TestMasterClickThresholdsThreaded:
+    """Verify polish pipeline picks up click_peak_ratio / click_fail_count
+    from the mastering genre preset so polish and QC stay aligned (#289)."""
+
+    def test_stem_settings_inherit_master_click_thresholds(self):
+        # 'electronic' is one of the mastering-tuned genres (ratio 8.0, fail 15)
+        settings = _get_stem_settings('drums', genre='electronic')
+        assert settings.get('click_peak_ratio') == 8.0
+        assert settings.get('click_fail_count') == 15
+
+    def test_full_mix_settings_inherit_master_click_thresholds(self):
+        settings = _get_full_mix_settings(genre='electronic')
+        assert settings.get('click_peak_ratio') == 8.0
+        assert settings.get('click_fail_count') == 15
+
+    def test_no_genre_leaves_click_thresholds_unset(self):
+        settings = _get_stem_settings('drums')
+        assert 'click_peak_ratio' not in settings
+        assert 'click_fail_count' not in settings
+
+    def test_unknown_genre_does_not_raise(self):
+        # mix-only / user-added genre — helper must fail soft and inject
+        # nothing rather than defaulting to 6.0/3.
+        settings = _get_full_mix_settings(genre='totally-invented-genre')
+        assert 'click_peak_ratio' not in settings
+        assert 'click_fail_count' not in settings
+
+
+# ─── Character Effects Tests ─────────────────────────────────────────
+
+
+class TestApplySaturation:
+    """Tests for apply_saturation()."""
+
+    def test_zero_drive_passthrough(self):
+        """Drive=0 returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_negative_drive_passthrough(self):
+        """Negative drive returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=-0.5)
+        np.testing.assert_array_equal(result, data)
+
+    def test_saturation_changes_signal(self):
+        """Non-zero drive produces a different signal."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.2)
+        assert not np.allclose(result, data)
+
+    def test_saturation_preserves_shape(self):
+        """Output shape matches input shape."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.3)
+        assert result.shape == data.shape
+
+    def test_saturation_mono(self):
+        """Saturation works on mono signals."""
+        data, rate = _generate_sine(amplitude=0.5, stereo=False)
+        result = apply_saturation(data, rate, drive=0.2)
+        assert result.shape == data.shape
+        assert not np.allclose(result, data)
+
+    def test_saturation_adds_harmonics(self):
+        """Saturation adds harmonic content (broadens spectrum)."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_saturation(data, rate, drive=0.3)
+        # Check that spectral energy outside the fundamental increases
+        fft_orig = np.abs(np.fft.rfft(data[:, 0]))
+        fft_sat = np.abs(np.fft.rfft(result[:, 0]))
+        # Fundamental bin
+        fund_bin = int(440 * len(data) / rate)
+        # Sum energy outside ±5 bins of fundamental
+        mask = np.ones(len(fft_orig), dtype=bool)
+        mask[max(0, fund_bin - 5):fund_bin + 6] = False
+        orig_sideband = np.sum(fft_orig[mask])
+        sat_sideband = np.sum(fft_sat[mask])
+        assert sat_sideband > orig_sideband
+
+    def test_saturation_drive_clamped(self):
+        """Drive > 1.0 is clamped to 1.0 (no explosion)."""
+        data, rate = _generate_sine(amplitude=0.8)
+        result = apply_saturation(data, rate, drive=5.0)
+        assert np.all(np.abs(result) <= 1.0)
+
+    def test_higher_drive_more_effect(self):
+        """Higher drive produces more deviation from original."""
+        data, rate = _generate_sine(amplitude=0.5)
+        low = apply_saturation(data, rate, drive=0.1)
+        high = apply_saturation(data, rate, drive=0.5)
+        diff_low = np.mean(np.abs(low - data))
+        diff_high = np.mean(np.abs(high - data))
+        assert diff_high > diff_low
+
+
+class TestApplyLowpass:
+    """Tests for apply_lowpass()."""
+
+    def test_high_cutoff_passthrough(self):
+        """Cutoff >= Nyquist returns data unchanged."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=rate // 2)
+        np.testing.assert_array_equal(result, data)
+
+    def test_zero_cutoff_passthrough(self):
+        """Cutoff=0 returns data unchanged (invalid, skip)."""
+        data, rate = _generate_sine(freq=440, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_lowpass_attenuates_highs(self):
+        """Lowpass at 1000 Hz attenuates a 5000 Hz signal."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=1000)
+        # RMS should drop significantly
+        orig_rms = np.sqrt(np.mean(data ** 2))
+        result_rms = np.sqrt(np.mean(result ** 2))
+        assert result_rms < orig_rms * 0.5
+
+    def test_lowpass_preserves_lows(self):
+        """Lowpass at 5000 Hz preserves a 200 Hz signal."""
+        data, rate = _generate_sine(freq=200, amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=5000)
+        # Signal should be mostly unchanged (small filter ripple OK)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+    def test_lowpass_preserves_shape(self):
+        """Output shape matches input shape."""
+        data, rate = _generate_sine(amplitude=0.5)
+        result = apply_lowpass(data, rate, cutoff=8000)
+        assert result.shape == data.shape
+
+    def test_lowpass_mono(self):
+        """Lowpass works on mono signals."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5, stereo=False)
+        result = apply_lowpass(data, rate, cutoff=1000)
+        assert result.shape == data.shape
+        assert np.sqrt(np.mean(result ** 2)) < np.sqrt(np.mean(data ** 2)) * 0.5
+
+
+class TestApplyCharacterEffects:
+    """Tests for _apply_character_effects() helper."""
+
+    def test_no_effects_passthrough(self):
+        """All effects disabled returns data unchanged."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0, 'lowpass_cutoff': 20000, 'stereo_width': 1.0}
+        result = _apply_character_effects(data, rate, settings)
+        np.testing.assert_array_equal(result, data)
+
+    def test_saturation_flag(self):
+        """saturation=True applies saturation when drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0.2}
+        result = _apply_character_effects(data, rate, settings, saturation=True)
+        assert not np.allclose(result, data)
+
+    def test_saturation_flag_off(self):
+        """saturation=False skips saturation even with drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {'saturation_drive': 0.2}
+        result = _apply_character_effects(data, rate, settings, saturation=False)
+        np.testing.assert_array_equal(result, data)
+
+    def test_lowpass_flag(self):
+        """lowpass=True applies lowpass when cutoff < 20000."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        settings = {'lowpass_cutoff': 1000}
+        result = _apply_character_effects(data, rate, settings, lowpass=True)
+        assert not np.allclose(result, data)
+
+    def test_stereo_flag(self):
+        """stereo=True applies width when stereo_width != 1.0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        # Make left and right slightly different for stereo effect
+        data[:, 1] *= 0.8
+        settings = {'stereo_width': 1.3}
+        result = _apply_character_effects(data, rate, settings, stereo=True)
+        assert not np.allclose(result, data)
+
+    def test_stereo_width_narrowing(self):
+        """stereo_width < 1.0 narrows the stereo field."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.7  # Create stereo difference
+        settings = {'stereo_width': 0.9}
+        result = _apply_character_effects(data, rate, settings, stereo=True)
+        # Side signal should be reduced
+        orig_side = np.mean(np.abs(data[:, 0] - data[:, 1]))
+        result_side = np.mean(np.abs(result[:, 0] - result[:, 1]))
+        assert result_side < orig_side
+
+
+class TestProcessorCharacterEffectsWiring:
+    """Verify that processors apply character effects when settings are non-default."""
+
+    def test_vocals_saturation(self):
+        """Vocals applies saturation when drive > 0."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings_off = _get_stem_settings('vocals')
+        settings_on = {**settings_off, 'saturation_drive': 0.2}
+        result_off = process_vocals(data.copy(), rate, settings_off)
+        result_on = process_vocals(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_vocals_lowpass(self):
+        """Vocals applies lowpass when cutoff < 20000."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.5)
+        settings_off = _get_stem_settings('vocals')
+        settings_on = {**settings_off, 'lowpass_cutoff': 2000}
+        result_off = process_vocals(data.copy(), rate, settings_off)
+        result_on = process_vocals(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_backing_vocals_stereo_width(self):
+        """Backing vocals applies stereo width."""
+        data, rate = _generate_sine(amplitude=0.5)
+        data[:, 1] *= 0.8
+        settings = {**_get_stem_settings('backing_vocals'), 'stereo_width': 1.5}
+        result_wide = process_backing_vocals(data.copy(), rate, settings)
+        settings_narrow = {**settings, 'stereo_width': 1.0}
+        result_narrow = process_backing_vocals(data.copy(), rate, settings_narrow)
+        assert not np.allclose(result_wide, result_narrow)
+
+    def test_drums_saturation(self):
+        """Drums applies saturation when drive > 0."""
+        data, rate = _generate_noise(amplitude=0.5)
+        settings_off = _get_stem_settings('drums')
+        settings_on = {**settings_off, 'saturation_drive': 0.15}
+        result_off = process_drums(data.copy(), rate, settings_off)
+        result_on = process_drums(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_guitar_all_character_effects(self):
+        """Guitar applies stereo, saturation, and lowpass."""
+        data, rate = _generate_sine(freq=1200, amplitude=0.5)
+        data[:, 1] *= 0.9
+        settings = {
+            **_get_stem_settings('guitar'),
+            'stereo_width': 1.2,
+            'saturation_drive': 0.15,
+            'lowpass_cutoff': 8000,
+        }
+        settings_off = {
+            **_get_stem_settings('guitar'),
+            'stereo_width': 1.0,
+            'saturation_drive': 0,
+            'lowpass_cutoff': 20000,
+        }
+        result_on = process_guitar(data.copy(), rate, settings)
+        result_off = process_guitar(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_strings_no_saturation(self):
+        """Strings does NOT apply saturation (per YAML chain)."""
+        data, rate = _generate_sine(amplitude=0.5)
+        settings = {**_get_stem_settings('strings'), 'saturation_drive': 0.3}
+        # Both should be the same because strings doesn't wire saturation
+        result = process_strings(data.copy(), rate, settings)
+        settings_zero = {**settings, 'saturation_drive': 0}
+        result_zero = process_strings(data.copy(), rate, settings_zero)
+        np.testing.assert_array_equal(result, result_zero)
+
+    def test_percussion_stereo_and_saturation(self):
+        """Percussion applies stereo width and saturation but not lowpass."""
+        data, rate = _generate_noise(amplitude=0.3)
+        settings = {
+            **_get_stem_settings('percussion'),
+            'stereo_width': 1.2,
+            'saturation_drive': 0.1,
+            'lowpass_cutoff': 5000,  # should be ignored
+        }
+        settings_off = {
+            **settings,
+            'stereo_width': 1.0,
+            'saturation_drive': 0,
+        }
+        result_on = process_percussion(data.copy(), rate, settings)
+        result_off = process_percussion(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_other_lowpass_only(self):
+        """Other stem applies lowpass but not saturation or stereo."""
+        data, rate = _generate_sine(freq=5000, amplitude=0.3)
+        settings = {**_get_stem_settings('other'), 'lowpass_cutoff': 2000}
+        settings_off = {**settings, 'lowpass_cutoff': 20000}
+        result_on = process_other(data.copy(), rate, settings)
+        result_off = process_other(data.copy(), rate, settings_off)
+        assert not np.allclose(result_on, result_off)
+
+    def test_default_settings_unchanged_behavior(self):
+        """With default settings (drive=0, cutoff=20000, width=1.0), processors behave as before."""
+        data, rate = _generate_sine(amplitude=0.5)
+        # Default settings have all character effects off
+        settings = _get_stem_settings('vocals')
+        assert settings.get('saturation_drive', 0) == 0
+        assert settings.get('lowpass_cutoff', 20000) == 20000
+        # Just verify it runs without error
+        result = process_vocals(data.copy(), rate, settings)
+        assert result.shape == data.shape
+
+
+# ─── Sub-Bass Exciter Tests ──────────────────────────────────────────
+
+
+class TestSubBassExciter:
+    """Tests for apply_sub_bass_exciter()."""
+
+    def test_zero_amount_passthrough(self):
+        """Amount=0 returns data unchanged."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_exciter_adds_harmonics(self):
+        """Exciter should add harmonic content above the crossover."""
+        data, rate = _generate_sine(freq=40, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.5, freq=80)
+        # Check for new spectral energy above 80Hz
+        fft_orig = np.abs(np.fft.rfft(data[:, 0]))
+        fft_exc = np.abs(np.fft.rfft(result[:, 0]))
+        # Energy above crossover should increase
+        crossover_bin = int(80 * len(data) / rate)
+        orig_above = np.sum(fft_orig[crossover_bin:])
+        exc_above = np.sum(fft_exc[crossover_bin:])
+        assert exc_above > orig_above
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.3)
+        assert result.shape == data.shape
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5, stereo=False)
+        result = apply_sub_bass_exciter(data, rate, amount=0.3)
+        assert result.shape == data.shape
+
+    def test_high_freq_signal_unaffected(self):
+        """Signal above crossover should be mostly unaffected."""
+        data, rate = _generate_sine(freq=1000, amplitude=0.5)
+        result = apply_sub_bass_exciter(data, rate, amount=0.5, freq=80)
+        correlation = np.corrcoef(data[:, 0], result[:, 0])[0, 1]
+        assert correlation > 0.95
+
+
+class TestTransientShaper:
+    """Tests for apply_transient_shaper()."""
+
+    def test_zero_gains_passthrough(self):
+        """Both gains=0 returns data unchanged."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=0, sustain_gain=0)
+        np.testing.assert_array_equal(result, data)
+
+    def test_attack_boost_changes_signal(self):
+        """Positive attack gain should change the signal."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=6.0)
+        assert not np.allclose(result, data)
+
+    def test_sustain_boost_changes_signal(self):
+        """Positive sustain gain should change the signal."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, sustain_gain=3.0)
+        assert not np.allclose(result, data)
+
+    def test_preserves_shape(self):
+        """Output shape matches input."""
+        data, rate = _generate_noise(amplitude=0.5)
+        result = apply_transient_shaper(data, rate, attack_gain=3.0)
+        assert result.shape == data.shape
+
+    def test_mono_support(self):
+        """Works on mono signals."""
+        data, rate = _generate_noise(amplitude=0.5, stereo=False)
+        result = apply_transient_shaper(data, rate, attack_gain=3.0)
+        assert result.shape == data.shape
+
+
+class TestPhase2ProcessorWiring:
+    """Verify Phase 2 effects are wired into processors."""
+
+    def test_drums_transient_shaping(self):
+        """Drums applies transient shaping when attack_db != 0."""
+        data, rate = _generate_noise(amplitude=0.5)
+        settings_off = {**_get_stem_settings('drums'), 'transient_attack_db': 0}
+        settings_on = {**_get_stem_settings('drums'), 'transient_attack_db': 6.0}
+        result_off = process_drums(data.copy(), rate, settings_off)
+        result_on = process_drums(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_bass_sub_bass_exciter(self):
+        """Bass applies sub-bass exciter when amount > 0."""
+        data, rate = _generate_sine(freq=60, amplitude=0.5)
+        settings_off = {**_get_stem_settings('bass'), 'sub_bass_exciter': 0}
+        settings_on = {**_get_stem_settings('bass'), 'sub_bass_exciter': 0.3}
+        result_off = process_bass(data.copy(), rate, settings_off)
+        result_on = process_bass(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)
+
+    def test_percussion_transient_shaping(self):
+        """Percussion applies transient shaping when attack_db != 0."""
+        data, rate = _generate_noise(amplitude=0.3)
+        settings_off = {**_get_stem_settings('percussion'), 'transient_attack_db': 0}
+        settings_on = {**_get_stem_settings('percussion'), 'transient_attack_db': 4.0}
+        result_off = process_percussion(data.copy(), rate, settings_off)
+        result_on = process_percussion(data.copy(), rate, settings_on)
+        assert not np.allclose(result_off, result_on)

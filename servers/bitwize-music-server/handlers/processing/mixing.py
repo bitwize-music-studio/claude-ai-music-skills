@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from handlers._shared import _find_wav_source_dir, _safe_json
+from handlers._shared import _find_wav_source_dir, _is_path_confined, _safe_json
 from handlers.processing import _helpers
 
 logger = logging.getLogger("bitwize-music-state")
@@ -19,6 +19,7 @@ async def polish_audio(
     genre: str = "",
     use_stems: bool = True,
     dry_run: bool = False,
+    track_filename: str = "",
 ) -> str:
     """Polish audio tracks by processing stems or full mixes.
 
@@ -35,6 +36,10 @@ async def polish_audio(
         genre: Genre preset for stem-specific settings (e.g., "hip-hop")
         use_stems: If true, process per-stem WAVs; if false, process full mixes
         dry_run: If true, analyze only without writing files
+        track_filename: If set, only process this one track (e.g.,
+            "01-track-name.wav"). In stems mode, matches the stem track
+            directory with the same stem name. In full-mix mode, matches
+            the WAV filename directly. Empty = process whole album.
 
     Returns:
         JSON with per-track results, settings, and summary
@@ -80,6 +85,12 @@ async def polish_audio(
             # Graceful fallback — process full mixes instead of erroring
             use_stems = False
 
+    if track_filename and not _is_path_confined(audio_dir, track_filename):
+        return _safe_json({
+            "error": "Invalid track_filename: path must not escape the album directory",
+            "track_filename": track_filename,
+        })
+
     if use_stems:
         # Stems mode: look for stems/ subdirectory with track folders
         stems_dir = audio_dir / "stems"
@@ -87,6 +98,15 @@ async def polish_audio(
         track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
         if not track_dirs:
             return _safe_json({"error": f"No track directories in {stems_dir}"})
+
+        if track_filename:
+            wanted = Path(track_filename).stem
+            track_dirs = [d for d in track_dirs if d.name == wanted]
+            if not track_dirs:
+                return _safe_json({
+                    "error": f"Track not found in stems/: {track_filename}",
+                    "available_tracks": sorted([d.name for d in stems_dir.iterdir() if d.is_dir()]),
+                })
 
         for track_dir in track_dirs:
             stem_paths = discover_stems(track_dir)
@@ -119,6 +139,15 @@ async def polish_audio(
         if not wav_files:
             return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
+        if track_filename:
+            wanted_name = Path(track_filename).name
+            wav_files = [f for f in wav_files if f.name == wanted_name]
+            if not wav_files:
+                return _safe_json({
+                    "error": f"Track file not found: {track_filename}",
+                    "available_files": [f.name for f in source_dir.glob("*.wav")],
+                })
+
         for wav_file in wav_files:
             out_path = str(output_dir / wav_file.name)
 
@@ -142,6 +171,7 @@ async def polish_audio(
             "genre": genre or None,
             "use_stems": use_stems,
             "dry_run": dry_run,
+            "track_filename": track_filename or None,
         },
         "summary": {
             "tracks_processed": len(track_results),
@@ -187,24 +217,24 @@ async def analyze_mix_issues(
     ])
 
     # If no root WAVs, check stems/ for per-track directories and analyze
-    # the first stem from each track (gives representative analysis).
+    # every stem in each track (per-stem diagnostics).
     stems_mode = False
+    stem_track_map: list[tuple[str, list[Path]]] = []
     if not wav_files:
         stems_dir = audio_dir / "stems"
         if stems_dir.is_dir():
             track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
             for td in track_dirs:
-                # Pick the first WAV in each track dir as representative
                 stem_wavs = sorted([
                     f for f in td.iterdir()
                     if f.suffix.lower() == ".wav"
                 ])
                 if stem_wavs:
-                    wav_files.append(stem_wavs[0])
-            if wav_files:
+                    stem_track_map.append((td.name, stem_wavs))
+            if stem_track_map:
                 stems_mode = True
 
-    if not wav_files:
+    if not wav_files and not stem_track_map:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
     def _analyze_one(wav_path: Path) -> dict[str, Any]:
@@ -276,10 +306,27 @@ async def analyze_mix_issues(
 
         return result
 
-    track_analyses = []
-    for wav_file in wav_files:
-        analysis = await loop.run_in_executor(None, _analyze_one, wav_file)
-        track_analyses.append(analysis)
+    track_analyses: list[dict[str, Any]] = []
+    if stems_mode:
+        for track_name, stem_wavs in stem_track_map:
+            stems_result: dict[str, dict[str, Any]] = {}
+            track_issues: set[str] = set()
+            for stem_wav in stem_wavs:
+                stem_name = stem_wav.stem
+                analysis = await loop.run_in_executor(None, _analyze_one, stem_wav)
+                stems_result[stem_name] = analysis
+                track_issues.update(
+                    i for i in analysis["issues"] if i != "none_detected"
+                )
+            track_analyses.append({
+                "track": track_name,
+                "stems": stems_result,
+                "issues": sorted(track_issues) if track_issues else ["none_detected"],
+            })
+    else:
+        for wav_file in wav_files:
+            analysis = await loop.run_in_executor(None, _analyze_one, wav_file)
+            track_analyses.append(analysis)
 
     # Album-level summary
     all_issues: set[str] = set()
@@ -306,7 +353,8 @@ async def polish_album(
     Runs 3 sequential stages:
         1. Analyze — scan for mix issues and recommend settings
         2. Polish — process stems (or full mixes) with appropriate settings
-        3. Verify — check polished output quality
+        3. Verify — run full qc_track suite (format, mono, phase, clipping,
+           truepeak, clicks, silence, spectral) on polished output
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -392,9 +440,8 @@ async def polish_album(
         "output_dir": polish["summary"]["output_dir"],
     }
 
-    # --- Stage 3: Verify polished output ---
-    import numpy as np
-    import soundfile as sf
+    # --- Stage 3: Verify polished output (full QC suite) ---
+    from tools.mastering.qc_tracks import qc_track
 
     polished_dir = audio_dir / "polished"
     if not polished_dir.is_dir():
@@ -412,34 +459,37 @@ async def polish_album(
     ])
 
     loop = asyncio.get_running_loop()
+    qc_genre = genre or None
     verify_results = []
 
     for wav in polished_files:
-        def _verify(path: Path) -> dict[str, Any]:
-            data, _rate = sf.read(str(path))
-            peak = float(np.max(np.abs(data)))
-            rms = float(np.sqrt(np.mean(data ** 2)))
-            finite = bool(np.all(np.isfinite(data)))
-            return {
-                "filename": path.name,
-                "peak": peak,
-                "rms": rms,
-                "all_finite": finite,
-                "clipping": peak > 0.99,
-            }
-
-        result = await loop.run_in_executor(None, _verify, wav)
+        result = await loop.run_in_executor(None, qc_track, str(wav), None, qc_genre)
         verify_results.append(result)
 
-    clipping = [r["filename"] for r in verify_results if r["clipping"]]
-    non_finite = [r["filename"] for r in verify_results if not r["all_finite"]]
+    failed = [r["filename"] for r in verify_results if r["verdict"] == "FAIL"]
+    warned = [r["filename"] for r in verify_results if r["verdict"] == "WARN"]
 
-    verify_pass = not clipping and not non_finite
+    qc_warnings: list[str] = []
+    for r in verify_results:
+        for check_name, check_info in r["checks"].items():
+            if check_info["status"] in ("WARN", "FAIL"):
+                qc_warnings.append(
+                    f"{r['filename']}: {check_name} {check_info['status']} — {check_info['detail']}"
+                )
+
+    if failed:
+        verify_status = "fail"
+    elif warned:
+        verify_status = "warn"
+    else:
+        verify_status = "pass"
+
     stages["verify"] = {
-        "status": "pass" if verify_pass else "warn",
+        "status": verify_status,
         "tracks_verified": len(verify_results),
-        "clipping_tracks": clipping,
-        "non_finite_tracks": non_finite,
+        "failed_tracks": failed,
+        "warned_tracks": warned,
+        "qc_issues": qc_warnings,
     }
 
     return _safe_json({
@@ -452,8 +502,72 @@ async def polish_album(
     })
 
 
+async def polish_and_master_album(
+    album_slug: str,
+    genre: str = "",
+    target_lufs: float = -14.0,
+    ceiling_db: float = -1.0,
+    cut_highmid: float = 0.0,
+    cut_highs: float = 0.0,
+) -> str:
+    """Combined polish + master pipeline in a single call.
+
+    Runs polish_album() to clean up Suno audio, then master_album() with
+    source_subfolder="polished" to produce streaming-ready masters. Stops
+    on failure at either stage and returns the combined stage results.
+
+    Use the individual tools when you need granular control (e.g., re-polish
+    with different settings, re-master without re-polishing).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        genre: Genre preset for both polish and master stages
+        target_lufs: Mastering target integrated loudness (default: -14.0)
+        ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz
+        cut_highs: High shelf cut in dB at 8kHz
+
+    Returns:
+        JSON with combined polish and master stage results
+    """
+    from handlers.processing.audio import master_album
+
+    polish_json = await polish_album(album_slug=album_slug, genre=genre)
+    polish_result = json.loads(polish_json)
+
+    if polish_result.get("failed_stage"):
+        return _safe_json({
+            "album_slug": album_slug,
+            "phase": "polish",
+            "phase_reached": "polish",
+            "failed_phase": "polish",
+            "polish": polish_result,
+        })
+
+    master_json = await master_album(
+        album_slug=album_slug,
+        genre=genre,
+        target_lufs=target_lufs,
+        ceiling_db=ceiling_db,
+        cut_highmid=cut_highmid,
+        cut_highs=cut_highs,
+        source_subfolder="polished",
+    )
+    master_result = json.loads(master_json)
+
+    failed = bool(master_result.get("failed_stage"))
+    return _safe_json({
+        "album_slug": album_slug,
+        "phase_reached": "master" if not failed else f"master:{master_result.get('failed_stage')}",
+        "failed_phase": "master" if failed else None,
+        "polish": polish_result,
+        "master": master_result,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register mix polish tools."""
     mcp.tool()(polish_audio)
     mcp.tool()(analyze_mix_issues)
     mcp.tool()(polish_album)
+    mcp.tool()(polish_and_master_album)

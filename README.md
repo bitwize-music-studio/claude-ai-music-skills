@@ -27,8 +27,8 @@ Claude: Drafts lyrics, checks prosody and rhyme schemes
         Scans for pronunciation risks, suggests phonetic fixes
         Builds Suno V5 style prompt with genre tags and vocal direction
 
-You:    "Track sounds great, here's the WAV"
-Claude: Imports audio, splits stems, polishes per-stem
+You:    "Track sounds great, here are the stems"
+Claude: Imports stems from Suno, polishes per-stem
         Masters to -14 LUFS for streaming
         Generates promo video and social media copy
 ```
@@ -54,7 +54,7 @@ Then run `/bitwize-music:setup` to detect your environment and install dependenc
 
 This is where the engineering lives. The plugin is a case study in how far you can push Claude Code's plugin system.
 
-### Skill System (52 Skills)
+### Skill System (53 Skills)
 
 Each skill is a self-contained markdown file with a YAML frontmatter that declares its model, description, and when it should activate. Skills range from simple clipboard operations to multi-step creative workflows. Claude routes to skills automatically based on context, or you invoke them directly with `/bitwize-music:<name>`.
 
@@ -145,8 +145,9 @@ config/              Example config and setup docs
 
 <a href="https://github.com/bitwize-music"><img src="https://images.weserv.nl/?url=github.com/bitwize-music.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@bitwize-music"></a>
 <a href="https://github.com/markus-michalski"><img src="https://images.weserv.nl/?url=github.com/markus-michalski.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@markus-michalski"></a>
+<a href="https://github.com/zeel2104"><img src="https://images.weserv.nl/?url=github.com/zeel2104.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@zeel2104"></a>
 
-If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
+If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X, [join the Discord](https://discord.gg/dMURByGF), or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
 
 ---
 

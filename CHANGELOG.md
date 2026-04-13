@@ -6,6 +6,45 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Mastering samples — codec preview + mono fold-down QC artifacts** — `master_album` now writes operator-listening artifacts to a sibling `mastering_samples/` directory after verification, so `mastered/` stays byte-identical to the streaming upload. Each track gets a 128 kbps `.aac.m4a` AAC encode (Bluetooth-path audition), a `.mono.wav` mono fold sample (phone-speaker / Echo audition), and a `.MONO_FOLD.md` per-band delta report. A >6 dB band drop in the mono fold hard-fails the pipeline with the offending frequency surfaced (phase cancellation guard). New standalone tools `render_codec_preview` and `mono_fold_check` run the same checks independently. Thresholds and on/off flags configurable in `genre-presets.yaml` defaults; `reset_mastering` accepts `mastering_samples` (#296)
+- **Mastering pipeline overhaul** — 30+ new configurable parameters across the full mastering chain:
+  - DC offset removal (subsonic HPF)
+  - Low shelf EQ with configurable Q factor
+  - Linear-phase FIR EQ option (zero phase distortion)
+  - Mid/side EQ for frequency-selective stereo management
+  - De-essing with frequency, bandwidth, threshold, and ratio controls
+  - Stereo width adjustment with bass mono fold
+  - Parallel compression (wet/dry blend) with makeup gain
+  - 3-band multiband compression with Linkwitz-Riley crossovers
+  - Iterative LRA (Loudness Range) targeting per EBU R128
+  - Look-ahead limiting with configurable release
+  - Oversampled processing for nonlinear stages (2x/4x)
+  - Sample rate conversion
+  - 24-bit output support
+  - Inter-track gap insertion
+  - Album-level loudness consistency (two-pass mastering)
+  - Extended loudness metering (short-term, momentary LUFS)
+- **Mix pipeline enhancements** — saturation, sub-bass exciter, transient shaping wired into per-stem processing
+- **Configurable mastering presets** — refactored from tuples to dicts; all parameters exposed via CLI and genre presets
+
+### Fixed
+- LRA targeting now iteratively adjusts compression ratio (was measurement-only)
+- Added missing `--deess-bandwidth` CLI arg
+- Added missing CLI args for multiband ratios/thresholds and mid/side frequencies
+- Wired `eq_low_q` through to `apply_low_shelf()` (was defined but unused)
+- Look-ahead limiter now hits its target ceiling exactly (was overshooting by ~1 dB on transients). Gain at peak samples was being sampled from the release-relaxed envelope; replaced with a rolling minimum over the lookahead window (#283)
+- QC click detector is now genre-aware: `click_peak_ratio` and `click_fail_count` are per-genre preset fields, tuned looser for genres with intentional sharp transients (electronic, IDM, breakcore, trap, metal, glitch, footwork, etc.) so musical transients no longer FAIL QC. `qc_tracks.py` accepts `--genre`, the `qc_audio` MCP tool accepts `genre`, and user `mastering-presets.yaml` overrides still apply (#285)
+- Mastering chain now adds a final true-peak guard at the output rate after downsample and SRC. `scipy.signal.resample_poly`'s polyphase FIR has passband ripple that previously reintroduced 0.1–0.9 dB inter-sample peaks above the limiter ceiling; one reactive `limit_peaks()` pass closes that gap so `ceiling_db` is hit within ~0.05 dB without the prior headroom workaround (#286)
+- Polish-stage declicker now reads `click_peak_ratio` / `click_fail_count` from
+  the mastering genre preset so polish and QC click detection stay aligned.
+  Stem passes (drums, percussion) use cubic-spline repair across ±1.5 ms of
+  clean neighbors instead of two-sample linear interpolation; full-mix fallback
+  keeps linear repair because dense mix content amplifies surgical artifacts.
+  Polish results now surface `clicks_removed` per stem and on the full-mix
+  result so operators can see whether polish acted (#289).
+- `analyze_mix_issues` in stems mode now analyzes every stem per track and reports per-stem diagnostics under `tracks[].stems[stem_name]`, rather than sampling only the alphabetically first stem. Issues in specific stems (muddy bass, harsh vocals, etc.) are no longer missed, and per-track issue rollups are the union across stems (#272)
+
 ## [0.89.0] - 2026-04-10
 
 ### Added

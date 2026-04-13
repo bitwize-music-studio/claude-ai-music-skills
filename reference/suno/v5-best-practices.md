@@ -1,9 +1,30 @@
-# Suno V5 Best Practices
+# Suno V5 / V5.5 Best Practices
 
-Comprehensive guide for getting the best results with Suno V5.
+Comprehensive guide for getting the best results with Suno V5 and V5.5.
 
 > **Related skills**: `/bitwize-music:suno-engineer` (interactive prompting), `/bitwize-music:pronunciation-specialist` (phonetic review)
 > **Related docs**: [pronunciation-guide.md](pronunciation-guide.md), [structure-tags.md](structure-tags.md), [voice-tags.md](voice-tags.md), [tips-and-tricks.md](tips-and-tricks.md)
+
+---
+
+## V5.5 Update (March 26, 2026)
+
+V5.5 is an evolution of V5, not a break from it. **Prompt syntax, metatags, structure tags, creative sliders, the 1,000-character style box, and the 5,000-character lyrics box are all unchanged** — V5 prompts run identically on V5.5. No patterns are deprecated.
+
+What changed is engine responsiveness and personalization:
+
+| Change | Impact on prompting |
+|--------|---------------------|
+| Nuanced phrasing, stronger dynamic range | Subtle descriptors land more reliably (e.g., "slightly detuned vintage keys" actually delivers) |
+| Better instrument separation | Busy arrangements stay readable — less mud on dense prompts |
+| More expressive vocals | Emotion tags (breathy, yearning, resigned) track closer to intent |
+| Voices (Pro/Premier) | Voice cloning replaces vocal persona descriptors — see below |
+| Custom Models (Pro/Premier) | Fine-tuned model carries style — style prompts can be shorter |
+| My Taste (all tiers) | Passive preference learning; affects style autogenerate, not explicit prompts |
+
+**Practical guidance**: keep doing what V5 prompting teaches. If anything, trust the engine more — a touch less over-specification, a touch more reliance on one or two evocative descriptors.
+
+See the [Voices & Custom Models](#voices--custom-models) section below for the V5.5-only features.
 
 ## Quick Start Formula
 
@@ -373,6 +394,38 @@ V5 includes sliders in the generation interface that affect output:
 
 ---
 
+## Voices & Custom Models
+
+**V5.5 only. Pro and Premier subscribers.**
+
+### Voices (voice cloning)
+
+Upload a clean acapella, a full track with background music, or sing directly into a mic (15 seconds to 4 minutes of material — the cleaner, the less needed). Suno then has you read a random spoken phrase aloud and matches it to the uploaded audio as a consent/ownership check. Cloned voices are private to the account; sharing is announced but not yet live.
+
+- **Cost**: 4 credits per creation (beta pricing).
+- **Consent box is mandatory** — activating Voices grants Suno permission to use your voice data to train their models broadly, not just your private instance. This is not optional for activation.
+- **Age-gated**: 18+.
+
+**Prompting with a Voice**:
+- Drop gender/register descriptors from the style box — the Voice carries them. Free that budget for genre, instrumentation, and mood.
+- Voice + Persona is redundant; pick one.
+- Keep the style prompt to 1–2 genres plus instrumentation, same as the Personas rule.
+
+### Custom Models (fine-tuning)
+
+Upload **at least 6 original tracks** from your catalog. Suno fine-tunes a private V5.5 on your harmonic preferences, arrangement habits, instrumentation choices, and production aesthetic. Build time: 2–5 minutes. Up to **3 models per account**, maintained concurrently.
+
+**Prompting with a Custom Model**:
+- Drop generic production language ("glossy", "modern pop production", "polished mix") — the model already encodes your aesthetic.
+- Keep genre and section-level direction. Specific one-off choices (tempo, featured instrument, mood shift) still matter.
+- Best for series/album consistency. Generic v5.5 is often better for deliberately off-brand tracks.
+
+### My Taste (all tiers, including free)
+
+Runs passively in the background, learning genres, moods, and styles from your activity. It shapes the **style autogenerate** feature — it does not override explicit prompts. No action required, but worth knowing it exists when the autogenerate button starts reading your mind.
+
+---
+
 ## Personas
 
 **Available to**: Pro and Premier subscribers
@@ -627,3 +680,8 @@ crisp, warm, bright, deep, spacious
 - [Suno AI Personas Update (Dec 2025)](https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-ai-personas-update-dec-2025-what-changed-how-to-use-it)
 - [Suno Previews 2026 Changes Under Warner Music Deal](https://www.digitalmusicnews.com/2025/12/22/suno-warner-music-deal-changes/)
 - [WMG and Suno Partnership Announcement](https://www.prnewswire.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017.html)
+- [Suno v5.5: More Expressive. More You. — Suno Blog](https://suno.com/blog/v5-5)
+- [Suno v5.5 Guide: Voices, Custom Models & My Taste — Hookgenius](https://hookgenius.app/learn/suno-v5-5-guide/)
+- [Suno v5.5 — What's New and How to Clean Tracks (TrackWasher)](https://www.trackwasher.com/suno-v5-5)
+- [Suno v5.5: What is new and How to Use it Via API & Studio — CometAPI](https://www.cometapi.com/suno-v5-5-what-is-new-and-how-to-use-it-via-api--studio/)
+- [Suno Launches Version 5.5 With New 'Voices' Feature — Digital Music News](https://www.digitalmusicnews.com/2026/03/26/suno-launches-version-5-5/)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from pathlib import Path
@@ -10,6 +11,8 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _normalize_slug
 from handlers._shared import _resolve_audio_dir as _resolve_audio_dir  # noqa: F401
+
+logger = logging.getLogger("bitwize-music-state")
 
 
 def _extract_track_number_from_stem(stem: str) -> int | None:
@@ -94,9 +97,18 @@ def _import_sheet_music_module(module_name: str) -> Any:
         f"sheet_music_{module_name}", str(module_path)
     )
     if spec is None or spec.loader is None:
+        logger.warning(
+            "Optional module %s not available: Could not load import spec for %s",
+            module_name,
+            module_path,
+        )
         return None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    try:
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except (ImportError, OSError) as exc:
+        logger.warning("Optional sheet-music module %r not available: %s", module_name, exc)
+        return None
     return mod
 
 
@@ -109,9 +121,18 @@ def _import_cloud_module(module_name: str) -> Any:
         f"cloud_{module_name}", str(module_path)
     )
     if spec is None or spec.loader is None:
+        logger.warning(
+            "Optional module %s not available: Could not load import spec for %s",
+            module_name,
+            module_path,
+        )
         return None
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    try:
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    except (ImportError, OSError) as exc:
+        logger.warning("Optional cloud module %r not available: %s", module_name, exc)
+        return None
     return mod
 
 
@@ -120,7 +141,8 @@ def _check_cloud_enabled() -> str | None:
     try:
         from tools.shared.config import load_config
         config = load_config()
-    except Exception:
+    except (ImportError, OSError, KeyError) as exc:
+        logger.warning("Config load failed: %s", exc)
         return (
             "Could not load config. Ensure ~/.bitwize-music/config.yaml exists."
         )
@@ -138,25 +160,28 @@ def _check_cloud_enabled() -> str | None:
 
 def _check_anthemscore() -> str | None:
     """Return error message if AnthemScore not found, else None."""
-    try:
-        transcribe_mod = _import_sheet_music_module("transcribe")
-        if transcribe_mod.find_anthemscore() is None:
-            return (
-                "AnthemScore not found. Install from: https://www.lunaverus.com/ "
-                "(Professional edition recommended for CLI support)"
-            )
-    except Exception:
-        # Fall back to path search
-        paths = [
-            "/Applications/AnthemScore.app/Contents/MacOS/AnthemScore",
-            "/usr/bin/anthemscore",
-            "/usr/local/bin/anthemscore",
-        ]
-        if not any(Path(p).exists() for p in paths) and not shutil.which("anthemscore"):
-            return (
-                "AnthemScore not found. Install from: https://www.lunaverus.com/ "
-                "(Professional edition recommended for CLI support)"
-            )
+    transcribe_mod = _import_sheet_music_module("transcribe")
+    if transcribe_mod is not None:
+        try:
+            if transcribe_mod.find_anthemscore() is None:
+                return (
+                    "AnthemScore not found. Install from: https://www.lunaverus.com/ "
+                    "(Professional edition recommended for CLI support)"
+                )
+            return None
+        except (ImportError, OSError) as exc:
+            logger.warning("AnthemScore check failed, falling back to path search: %s", exc)
+    # Fall back to path search
+    paths = [
+        "/Applications/AnthemScore.app/Contents/MacOS/AnthemScore",
+        "/usr/bin/anthemscore",
+        "/usr/local/bin/anthemscore",
+    ]
+    if not any(Path(p).exists() for p in paths) and not shutil.which("anthemscore"):
+        return (
+            "AnthemScore not found. Install from: https://www.lunaverus.com/ "
+            "(Professional edition recommended for CLI support)"
+        )
     return None
 
 

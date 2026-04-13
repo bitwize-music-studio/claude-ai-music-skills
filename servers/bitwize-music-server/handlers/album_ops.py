@@ -19,6 +19,7 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_wav_source_dir,
+    _is_path_confined,
     _normalize_slug,
     _safe_json,
 )
@@ -373,7 +374,11 @@ async def create_album_structure(
                     "generation.additional_genres in config.",
         })
 
-    album_path = Path(content_root) / "artists" / artist / "albums" / genre_slug / normalized
+    albums_base = Path(content_root) / "artists" / artist / "albums" / genre_slug
+    # Defense-in-depth: verify slug stays within the genre directory
+    if not _is_path_confined(albums_base, normalized):
+        return _safe_json({"error": "Invalid album slug: would escape album directory"})
+    album_path = albums_base / normalized
     tracks_path = album_path / "tracks"
     assert _shared.PLUGIN_ROOT is not None
     templates_path = _shared.PLUGIN_ROOT / "templates"

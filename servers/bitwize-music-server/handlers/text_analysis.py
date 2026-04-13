@@ -14,10 +14,12 @@ from handlers._shared import (
     _MARKDOWN_LINK_RE,
     _SECTION_TAG_RE,
     _WORD_TOKEN_RE,
+    _check_text_length,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _is_path_confined,
     _normalize_slug,
     _safe_json,
 )
@@ -115,6 +117,10 @@ async def check_homographs(text: str) -> str:
     """
     if not text.strip():
         return _safe_json({"has_homographs": False, "matches": [], "count": 0})
+
+    err = _check_text_length(text, "check_homographs")
+    if err:
+        return err
 
     results = []
     lines = text.split("\n")
@@ -230,6 +236,10 @@ async def scan_artist_names(text: str) -> str:
     """
     if not text.strip():
         return _safe_json({"clean": True, "matches": [], "count": 0})
+
+    err = _check_text_length(text, "scan_artist_names")
+    if err:
+        return err
 
     blocklist = _load_artist_blocklist()
     matches = []
@@ -401,8 +411,8 @@ def _load_explicit_words() -> set[str]:
             content_root = config.get("content_root", "")
             overrides_dir = str(Path(content_root) / "overrides")
         override_path = Path(overrides_dir) / "explicit-words.md"
-    except Exception:
-        pass
+    except (RuntimeError, OSError, KeyError) as exc:
+        logger.warning("Could not resolve override path: %s", exc)
 
     with _explicit_word_lock:
 
@@ -470,6 +480,10 @@ async def check_explicit_content(text: str) -> str:
         return _safe_json({
             "has_explicit": False, "matches": [], "total_count": 0, "unique_words": 0,
         })
+
+    err = _check_text_length(text, "check_explicit_content")
+    if err:
+        return err
 
     _load_explicit_words()
     assert _explicit_word_patterns is not None
@@ -539,7 +553,10 @@ async def extract_links(
 
     # Determine file path
     file_path = None
-    normalized_file = _normalize_slug(file_name)
+    try:
+        normalized_file = _normalize_slug(file_name)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     # Check if it's a track slug
     tracks = album.get("tracks", {})
@@ -555,6 +572,11 @@ async def extract_links(
         file_path = track.get("path", "")
     else:
         # It's a file name in the album directory
+        if not _is_path_confined(Path(album_path), file_name):
+            return _safe_json({
+                "error": "Invalid file_name: path must not escape the album directory",
+                "file_name": file_name,
+            })
         candidate = Path(album_path) / file_name
         if candidate.exists():
             file_path = str(candidate)

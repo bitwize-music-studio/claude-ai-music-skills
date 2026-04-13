@@ -9,10 +9,12 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
+from handlers._atomic import atomic_write_text
 from handlers._shared import (
     _derive_title_from_slug,
     _find_album_or_error,
     _find_track_or_error,
+    _is_path_confined,
     _normalize_slug,
     _safe_json,
 )
@@ -41,8 +43,11 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     """
     from tools.state.indexer import write_state
 
-    normalized_old = _normalize_slug(old_slug)
-    normalized_new = _normalize_slug(new_slug)
+    try:
+        normalized_old = _normalize_slug(old_slug)
+        normalized_new = _normalize_slug(new_slug)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     if normalized_old == normalized_new:
         return _safe_json({"error": "Old and new slugs are the same after normalization."})
@@ -85,6 +90,11 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     audio_dir_new = Path(audio_root) / "artists" / artist / "albums" / genre / normalized_new
     docs_dir_old = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_old
     docs_dir_new = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_new
+
+    # Defense-in-depth: verify new paths stay within their root directories
+    albums_content_base = Path(content_root) / "artists" / artist / "albums" / genre
+    if not _is_path_confined(albums_content_base, normalized_new):
+        return _safe_json({"error": "Invalid new slug: would escape album directory"})
 
     # Content directory MUST exist
     if not content_dir_old.is_dir():
@@ -204,15 +214,21 @@ async def rename_track(
     assert album is not None
 
     tracks = album.get("tracks", {})
-    normalized_new = _normalize_slug(new_track_slug)
+    try:
+        normalized_new = _normalize_slug(new_track_slug)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     matched_slug, track_data, error = _find_track_or_error(tracks, old_track_slug, album_slug)
     if error:
         return error
     assert track_data is not None
 
-    if _normalize_slug(old_track_slug) == normalized_new:
-        return _safe_json({"error": "Old and new track slugs are the same after normalization."})
+    try:
+        if _normalize_slug(old_track_slug) == normalized_new:
+            return _safe_json({"error": "Old and new track slugs are the same after normalization."})
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     # Check new slug doesn't already exist
     if normalized_new in tracks:
@@ -226,7 +242,9 @@ async def rename_track(
             "error": f"Track file not found on disk: {old_path}",
         })
 
-    # Build new path
+    # Build new path — verify it stays within the tracks directory
+    if not _is_path_confined(old_path.parent, f"{normalized_new}.md"):
+        return _safe_json({"error": "Invalid new track slug: would escape tracks directory"})
     new_path = old_path.parent / f"{normalized_new}.md"
 
     # Derive title
@@ -254,7 +272,7 @@ async def rename_track(
             h1_match = heading_pattern.search(updated_text)
             if h1_match:
                 updated_text = updated_text[:h1_match.start()] + f"# {title}" + updated_text[h1_match.end():]
-            new_path.write_text(updated_text, encoding="utf-8")
+            atomic_write_text(new_path, updated_text)
         else:
             logger.warning("Title field not found in track metadata table for %s", matched_slug)
     except OSError as e:
@@ -277,8 +295,8 @@ async def rename_track(
                 "sources_verified": parsed.get("sources_verified", old_track_data.get("sources_verified")),
                 "mtime": new_path.stat().st_mtime,
             })
-        except Exception:
-            pass
+        except (ValueError, OSError, KeyError) as exc:
+            logger.warning("Could not re-parse track after rename %s: %s", new_path, exc)
         tracks[normalized_new] = old_track_data
         state = _shared.cache.get_state_ref()  # same object that album/tracks reference into
         if state:

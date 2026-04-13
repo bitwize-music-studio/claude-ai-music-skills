@@ -32,6 +32,7 @@ import argparse
 import atexit
 import contextlib
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -143,6 +144,15 @@ def generate_waveform_video(
 
     if start_time is None:
         start_time = find_best_segment(audio_path, duration)
+
+    # Validate color parameters to prevent ffmpeg filter injection
+    _HEX_COLOR_RE = re.compile(r'^#?[0-9a-fA-F]{3,8}$')
+    if color_hex and not _HEX_COLOR_RE.match(color_hex):
+        logger.error("Invalid color_hex value: %s", color_hex)
+        return False
+    if text_color and not _HEX_COLOR_RE.match(text_color):
+        logger.error("Invalid text_color value: %s", text_color)
+        return False
 
     # Resolve text color
     effective_text_color = text_color if text_color else TEXT_COLOR

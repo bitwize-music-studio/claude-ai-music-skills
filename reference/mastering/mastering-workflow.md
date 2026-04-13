@@ -416,9 +416,15 @@ Technical audio QC with 7 automated checks:
 ```bash
 python3 {plugin_root}/tools/mastering/qc_tracks.py {audio_path}/
 python3 {plugin_root}/tools/mastering/qc_tracks.py {audio_path}/ --checks mono,phase,clipping
+python3 {plugin_root}/tools/mastering/qc_tracks.py {audio_path}/ --genre idm
 ```
 
-Also available as the `qc_audio` MCP tool for use from skills.
+The `--genre` flag loads per-genre click detector thresholds so intentional sharp
+transients in electronic/metal/IDM don't FAIL QC. User overrides in
+`{overrides}/mastering-presets.yaml` (`click_peak_ratio`, `click_fail_count`)
+take precedence over the built-in per-genre defaults.
+
+Also available as the `qc_audio` MCP tool (with an optional `genre` argument) for use from skills.
 
 ### reference_master.py
 

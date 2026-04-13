@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
+from handlers._atomic import atomic_write_text
 from handlers._shared import (
     _STREAMING_PLACEHOLDER_MARKERS,
     ALBUM_COMPLETE,
@@ -395,7 +396,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
 
     # Write back
     try:
-        readme_path.write_text(updated_text, encoding="utf-8")
+        atomic_write_text(readme_path, updated_text)
     except OSError as e:
         return _safe_json({"error": f"Cannot write README.md: {e}"})
 
@@ -513,7 +514,7 @@ async def create_track(
 
     # Write file
     try:
-        track_path.write_text(content, encoding="utf-8")
+        atomic_write_text(track_path, content)
     except OSError as e:
         return _safe_json({"error": f"Cannot write track file: {e}"})
 

@@ -11,6 +11,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import (
     _find_wav_source_dir,
+    _is_path_confined,
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
@@ -93,6 +94,11 @@ async def generate_promo_videos(
     loop = asyncio.get_running_loop()
 
     if track_filename:
+        if not _is_path_confined(audio_dir, track_filename):
+            return _safe_json({
+                "error": "Invalid track_filename: path must not escape the album directory",
+                "track_filename": track_filename,
+            })
         # Single track
         track_path = audio_dir / track_filename
         if not track_path.exists():

@@ -682,7 +682,7 @@ class TestReadWriteState:
         state_file.write_text("{invalid json content, not valid")
 
         result = read_state()
-        assert result is None
+        assert result == {}
 
     def test_read_truncated_json(self, tmp_path, monkeypatch):
         _override_indexer_paths(monkeypatch, tmp_path)
@@ -691,7 +691,7 @@ class TestReadWriteState:
         state_file.write_text('{"version": "1.0.0", "albums": {')
 
         result = read_state()
-        assert result is None
+        assert result == {}
 
     def test_read_empty_file(self, tmp_path, monkeypatch):
         _override_indexer_paths(monkeypatch, tmp_path)
@@ -700,7 +700,7 @@ class TestReadWriteState:
         state_file.write_text("")
 
         result = read_state()
-        assert result is None
+        assert result == {}
 
     def test_write_creates_cache_dir(self, tmp_path, monkeypatch):
         new_cache = tmp_path / "new_cache_dir"
@@ -800,8 +800,8 @@ class TestFileLocking:
                     with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                         _acquire_lock_with_timeout(fd, timeout=0)
 
-    def test_stale_lock_recovery(self, tmp_path, monkeypatch):
-        """When lock is stale (old mtime), recovery is attempted."""
+    def test_stale_lock_not_bypassed(self, tmp_path, monkeypatch):
+        """Old mtime-based stale lock detection was removed; old locks still timeout."""
         import fcntl
 
         lock_file = tmp_path / "test.lock"
@@ -809,26 +809,19 @@ class TestFileLocking:
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'LOCK_FILE', lock_file)
 
-        # Make lock file appear old
-        old_mtime = time.time() - (indexer.STALE_LOCK_SECONDS + 10)
+        # Make lock file appear old (300s)
+        old_mtime = time.time() - 300
         os.utime(lock_file, (old_mtime, old_mtime))
 
-        attempt = [0]
-
-        def mock_flock(fd, operation):
-            attempt[0] += 1
-            if attempt[0] <= 1:
-                # First attempt fails
-                err = OSError()
-                err.errno = errno.EAGAIN
-                raise err
-            # Second attempt (after stale recovery) succeeds
-            return
-
-        with open(lock_file, 'w') as fd:
-            with patch('tools.state.indexer.fcntl.flock', side_effect=mock_flock):
-                # Should succeed via stale lock recovery
-                _acquire_lock_with_timeout(fd, timeout=5)
+        holder = open(lock_file)
+        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            with open(lock_file) as contender:
+                with pytest.raises(TimeoutError, match="Could not acquire state lock"):
+                    _acquire_lock_with_timeout(contender, timeout=0.3)
+        finally:
+            fcntl.flock(holder, fcntl.LOCK_UN)
+            holder.close()
 
     def test_unexpected_oserror_reraises(self, tmp_path, monkeypatch):
         """Unexpected OSError (not EAGAIN/EACCES) is re-raised."""

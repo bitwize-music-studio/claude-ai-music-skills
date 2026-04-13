@@ -5,9 +5,59 @@
 # Only specify fields you want to change — unset fields inherit from built-in.
 #
 # Fields per genre:
-#   target_lufs  - Loudness target in LUFS (e.g., -14.0)
-#   cut_highmid  - EQ cut in dB at 3.5kHz (negative = cut, 0 = none)
-#   cut_highs    - High shelf cut in dB at 8kHz (negative = cut, 0 = none)
+#   target_lufs          - Loudness target in LUFS (e.g., -14.0)
+#   cut_highmid          - EQ cut in dB at eq_highmid_freq (negative = cut, 0 = none)
+#   cut_highs            - High shelf cut in dB at eq_highs_freq (negative = cut, 0 = none)
+#   compress_ratio       - Compression ratio (1.0 = bypass, default 1.5)
+#   compress_threshold   - Compression threshold in dB (default -18.0)
+#   compress_attack      - Compression attack in ms (default 30.0)
+#   compress_release     - Compression release in ms (default 200.0)
+#   eq_highmid_freq      - High-mid EQ center frequency in Hz (default 3500.0)
+#   eq_highmid_q         - High-mid EQ Q factor (default 1.5)
+#   eq_highs_freq        - High shelf frequency in Hz (default 8000.0)
+#   eq_highs_q           - High shelf Q factor (default 0.7)
+#   eq_low_freq          - Low shelf center frequency in Hz (default 80.0)
+#   eq_low_gain          - Low shelf gain in dB (positive = boost, 0 = bypass)
+#   eq_low_q             - Low shelf Q factor (default 0.7)
+#   eq_sub_cut_freq      - Sub-bass HPF frequency in Hz (0 = bypass)
+#   stereo_width         - Stereo width multiplier (0.0=mono, 1.0=unchanged, >1.0=wider)
+#   stereo_bass_mono_freq - Mono-sum below this frequency in Hz (0 = bypass)
+#   output_bits          - Output bit depth: 16 or 24 (default 16)
+#   dither_bits          - Dither bit depth (default: follows output_bits)
+#   limiter_lookahead_ms - Look-ahead buffer in ms (0 = reactive, default 5.0)
+#   limiter_release_ms   - Limiter release time in ms (default 50.0)
+#   compress_mix         - Compression wet/dry blend (0.0=dry, 1.0=wet, default 1.0)
+#   compress_makeup      - Compression makeup gain in dB (default 0)
+#   processing_oversample - Oversample factor for nonlinear stages (1/2/4, default 1)
+#   target_lra           - Target loudness range in LU (0 = disable, default 0)
+#   dc_filter_freq       - DC offset removal HPF in Hz (0 = bypass, default 5.0)
+#   output_sample_rate   - Target sample rate (0 = preserve input, default 0)
+#   deess_enabled        - Enable de-esser (0 = off, 1 = on, default 0)
+#   deess_freq           - De-esser center frequency in Hz (default 6500)
+#   deess_bandwidth      - De-esser detection bandwidth in Hz (default 4000)
+#   deess_threshold      - De-esser threshold in dB (default -20.0)
+#   deess_ratio          - De-esser compression ratio (default 4.0)
+#   track_gap            - Silence to prepend per track in seconds (default 0)
+#   multiband_enabled    - Enable 3-band multiband compression (0/1, default 0)
+#   multiband_low_crossover  - Low/mid crossover in Hz (default 200)
+#   multiband_high_crossover - Mid/high crossover in Hz (default 5000)
+#   multiband_low_ratio  - Low band compression ratio (default 1.5)
+#   multiband_mid_ratio  - Mid band compression ratio (default 1.5)
+#   multiband_high_ratio - High band compression ratio (default 1.5)
+#   multiband_low_threshold  - Low band threshold in dB (default -18.0)
+#   multiband_mid_threshold  - Mid band threshold in dB (default -18.0)
+#   multiband_high_threshold - High band threshold in dB (default -18.0)
+#   midside_low_gain     - Side channel low shelf gain in dB (default 0)
+#   midside_low_freq     - Side channel low shelf frequency in Hz (default 300)
+#   midside_high_gain    - Side channel high shelf gain in dB (default 0)
+#   midside_high_freq    - Side channel high shelf frequency in Hz (default 8000)
+#   eq_linear_phase      - Use linear-phase FIR EQ (0 = off, 1 = on, default 0)
+#   click_peak_ratio     - QC click detector: peak-to-RMS ratio above which a 10ms
+#                          window counts as a click (default 6.0). Raise for genres
+#                          with intentional sharp transients (e.g., 8.0–10.0).
+#   click_fail_count     - QC click detector: click count above which clicks FAIL
+#                          (default 3). Raise alongside click_peak_ratio for
+#                          dense-transient genres.
 
 genres:
   # Example: override rock to be less aggressive
@@ -24,8 +74,21 @@ genres:
   # ambient:
   #   target_lufs: -18.0       # Override default -16
 
+  # Example: tweak compression for a genre
+  # hip-hop:
+  #   compress_ratio: 2.5      # Heavier compression
+  #   compress_threshold: -15.0
+  #   compress_attack: 10.0    # Faster attack for punch
+
+  # Example: EDM with bass mono fold and sub cut
+  # edm:
+  #   eq_sub_cut_freq: 25      # Remove sub-rumble
+  #   eq_low_gain: 1.5         # Gentle bass boost
+  #   stereo_bass_mono_freq: 120  # Mono below 120Hz for club playback
+
 # Default settings (applied when no genre is specified)
 # defaults:
 #   target_lufs: -14.0         # Streaming standard
 #   cut_highmid: 0
 #   cut_highs: 0
+#   output_bits: 24            # 24-bit output for archival
