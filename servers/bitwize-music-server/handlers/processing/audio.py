@@ -23,6 +23,10 @@ from handlers._shared import (
     _safe_json,
 )
 from handlers.processing import _helpers
+from tools.mastering.config import (
+    load_mastering_config,
+    resolve_mastering_targets,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -258,11 +262,11 @@ async def master_audio(
     )
 
     # Apply genre preset if specified
-    effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
     effective_compress = 1.5
     genre_applied = None
+    preset_dict: dict[str, Any] | None = None
 
     if genre:
         presets = load_genre_presets()
@@ -272,16 +276,24 @@ async def master_audio(
                 "error": f"Unknown genre: {genre}",
                 "available_genres": sorted(presets.keys()),
             })
-        preset = presets[genre_key]
-        # Genre preset provides defaults; explicit non-default args override
-        if target_lufs == -14.0:
-            effective_lufs = preset['target_lufs']
+        preset_dict = dict(presets[genre_key])
         if cut_highmid == 0.0:
-            effective_highmid = preset['cut_highmid']
+            effective_highmid = preset_dict['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset['cut_highs']
-        effective_compress = preset['compress_ratio']
+            effective_highs = preset_dict['cut_highs']
+        effective_compress = preset_dict['compress_ratio']
         genre_applied = genre_key
+
+    # Resolve effective delivery targets (explicit arg > preset > config > default)
+    mastering_config = load_mastering_config()
+    targets = resolve_mastering_targets(
+        config=mastering_config,
+        preset=preset_dict,
+        target_lufs_arg=target_lufs,
+        ceiling_db_arg=ceiling_db,
+    )
+    effective_lufs = targets["target_lufs"]
+    effective_ceiling = targets["ceiling_db"]
 
     # Build EQ settings
     eq_settings = []
@@ -338,14 +350,28 @@ async def master_audio(
                 if track_info.get("fade_out") is not None:
                     fade_out_val = track_info["fade_out"]
 
+            # Build effective preset: merge genre preset (if any) with
+            # resolved delivery targets. Resolved values always win over
+            # preset values for delivery-target fields.
+            effective_preset: dict[str, Any] = {
+                **(preset_dict or {}),
+                "target_lufs": effective_lufs,
+                "output_bits": targets["output_bits"],
+                "output_sample_rate": targets["output_sample_rate"],
+                "cut_highmid": effective_highmid,
+                "cut_highs": effective_highs,
+                "compress_ratio": effective_compress,
+            }
+
             def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
-                    eq_settings=eq_settings if eq_settings else None,
-                    ceiling_db=ceiling_db,
+                    eq_settings=None,  # built from preset inside master_track
+                    ceiling_db=effective_ceiling,
                     fade_out=fo,
                     compress_ratio=effective_compress,
+                    preset=effective_preset,
                 )
             result = await loop.run_in_executor(None, _do_master, wav_file, output_path, fade_out_val)
             if result and not result.get("skipped"):
@@ -364,7 +390,9 @@ async def master_audio(
         "tracks": track_results,
         "settings": {
             "target_lufs": effective_lufs,
-            "ceiling_db": ceiling_db,
+            "ceiling_db": effective_ceiling,
+            "output_bits": targets["output_bits"],
+            "output_sample_rate": targets["output_sample_rate"],
             "cut_highmid": effective_highmid,
             "cut_highs": effective_highs,
             "genre": genre_applied,
