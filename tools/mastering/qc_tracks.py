@@ -43,9 +43,12 @@ def _check_format(info: Any) -> dict[str, str]:
         issues.append(f"Format is {fmt}, expected WAV")
         status = "FAIL"
 
-    # Sample rate
-    if rate not in (44100, 48000):
-        issues.append(f"Sample rate {rate} Hz, expected 44100 or 48000")
+    # Sample rate — 44.1/48 kHz legacy, 88.2/96/176.4/192 kHz for hi-res
+    # streaming delivery (Apple Hi-Res Lossless, Tidal Max, DistroKid hi-res).
+    if rate not in (44100, 48000, 88200, 96000, 176400, 192000):
+        issues.append(
+            f"Sample rate {rate} Hz, expected 44.1/48/88.2/96/176.4/192 kHz"
+        )
         status = "FAIL"
 
     # Bit depth

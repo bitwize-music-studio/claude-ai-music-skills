@@ -719,11 +719,11 @@ async def master_album(
         master_track as _master_track,
     )
 
-    effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
     effective_compress = 1.5
     genre_applied = None
+    preset_dict: dict[str, Any] | None = None
 
     if genre:
         presets = load_genre_presets()
@@ -739,20 +739,45 @@ async def master_album(
                     "available_genres": sorted(presets.keys()),
                 },
             })
-        preset = presets[genre_key]
-        if target_lufs == -14.0:
-            effective_lufs = preset['target_lufs']
+        preset_dict = dict(presets[genre_key])
         if cut_highmid == 0.0:
-            effective_highmid = preset['cut_highmid']
+            effective_highmid = preset_dict['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset['cut_highs']
-        effective_compress = preset['compress_ratio']
+            effective_highs = preset_dict['cut_highs']
+        effective_compress = preset_dict['compress_ratio']
         genre_applied = genre_key
+
+    # Probe the first WAV to record the source sample rate for the
+    # upsampling notice. All album tracks share a rate post-polish.
+    source_sample_rate: int | None = None
+    try:
+        import soundfile as _sf
+        source_sample_rate = int(_sf.info(str(wav_files[0])).samplerate)
+    except Exception:  # pragma: no cover - probe is best-effort
+        source_sample_rate = None
+
+    # Resolve effective delivery targets (explicit arg > preset > config > default)
+    mastering_config = load_mastering_config()
+    targets = resolve_mastering_targets(
+        config=mastering_config,
+        preset=preset_dict,
+        target_lufs_arg=target_lufs,
+        ceiling_db_arg=ceiling_db,
+        source_sample_rate=source_sample_rate,
+    )
+    effective_lufs = targets["target_lufs"]
+    effective_ceiling = targets["ceiling_db"]
 
     settings = {
         "genre": genre_applied,
         "target_lufs": effective_lufs,
-        "ceiling_db": ceiling_db,
+        "ceiling_db": effective_ceiling,
+        "output_bits": targets["output_bits"],
+        "output_sample_rate": targets["output_sample_rate"],
+        "source_sample_rate": targets["source_sample_rate"],
+        "upsampled_from_source": targets["upsampled_from_source"],
+        "archival_enabled": targets["archival_enabled"],
+        "adm_aac_encoder": targets["adm_aac_encoder"],
         "cut_highmid": effective_highmid,
         "cut_highs": effective_highs,
     }
@@ -890,20 +915,43 @@ async def master_album(
             track_meta = album_tracks.get(track_slug, {})
             fade_out_val = track_meta.get("fade_out")
 
-            def _do_master(in_path: Path, out_path: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float, fade: float | None, comp: float) -> dict[str, Any]:
+            # Build effective preset: genre preset (if any) with resolved
+            # delivery targets layered on top. This ensures output_bits /
+            # output_sample_rate / target_lufs come from config when the
+            # genre preset leaves them unset or at legacy defaults.
+            effective_preset: dict[str, Any] = {
+                **(preset_dict or {}),
+                "target_lufs": effective_lufs,
+                "output_bits": targets["output_bits"],
+                "output_sample_rate": targets["output_sample_rate"],
+                "cut_highmid": effective_highmid,
+                "cut_highs": effective_highs,
+                "compress_ratio": effective_compress,
+            }
+
+            def _do_master(
+                in_path: Path,
+                out_path: Path,
+                lufs: float,
+                ceil: float,
+                fade: float | None,
+                comp: float,
+                p: dict[str, Any],
+            ) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=lufs,
-                    eq_settings=eq if eq else None,
+                    eq_settings=None,  # built from preset inside master_track
                     ceiling_db=ceil,
                     fade_out=fade,
                     compress_ratio=comp,
+                    preset=p,
                 )
 
             result = await loop.run_in_executor(
                 None, _do_master, wav_file, output_path,
-                effective_lufs, eq_settings, ceiling_db, fade_out_val,
-                effective_compress,
+                effective_lufs, effective_ceiling, fade_out_val,
+                effective_compress, effective_preset,
             )
             if result and not result.get("skipped"):
                 result["filename"] = wav_file.name
@@ -963,8 +1011,10 @@ async def master_album(
         issues = []
         if abs(r["lufs"] - effective_lufs) > 0.5:
             issues.append(f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}")
-        if r["peak_db"] > ceiling_db:
-            issues.append(f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB")
+        if r["peak_db"] > effective_ceiling:
+            issues.append(
+                f"Peak {r['peak_db']:.1f} dB exceeds ceiling {effective_ceiling} dB"
+            )
         if issues:
             out_of_spec.append({"filename": r["filename"], "issues": issues})
 
@@ -983,12 +1033,19 @@ async def master_album(
             if not vr:
                 continue
             lufs_too_low = vr["lufs"] < effective_lufs - 0.5
-            peak_at_ceiling = vr["peak_db"] >= ceiling_db - 0.1
+            peak_at_ceiling = vr["peak_db"] >= effective_ceiling - 0.1
             if lufs_too_low and peak_at_ceiling and not has_peak_issue:
                 recoverable.append(spec["filename"])
 
         if recoverable:
             from tools.mastering.fix_dynamic_track import fix_dynamic
+
+            # Recovery writes at source rate (fix_dynamic is a rescue path
+            # that doesn't resample) but honors the configured output bit
+            # depth from targets["output_bits"].
+            recovery_subtype = (
+                "PCM_24" if targets["output_bits"] > 16 else "PCM_16"
+            )
 
             auto_recovered = []
             for fname in recoverable:
@@ -998,7 +1055,14 @@ async def master_album(
                 if not raw_path.exists():
                     continue
 
-                def _do_recovery(src: Path, dst: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float) -> dict[str, Any]:
+                def _do_recovery(
+                    src: Path,
+                    dst: Path,
+                    lufs: float,
+                    eq: list[tuple[float, float, float]],
+                    ceil: float,
+                    subtype: str,
+                ) -> dict[str, Any]:
                     import soundfile as sf
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
@@ -1009,13 +1073,14 @@ async def master_album(
                         eq_settings=eq if eq else None,
                         ceiling_db=ceil,
                     )
-                    sf.write(str(dst), data, rate, subtype="PCM_16")
+                    sf.write(str(dst), data, rate, subtype=subtype)
                     return metrics
 
                 mastered_path = output_dir / fname
                 metrics = await loop.run_in_executor(
                     None, _do_recovery, raw_path, mastered_path,
-                    effective_lufs, eq_settings, ceiling_db,
+                    effective_lufs, eq_settings, effective_ceiling,
+                    recovery_subtype,
                 )
                 auto_recovered.append({
                     "filename": fname,
@@ -1049,9 +1114,9 @@ async def master_album(
                         issues.append(
                             f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}"
                         )
-                    if r["peak_db"] > ceiling_db:
+                    if r["peak_db"] > effective_ceiling:
                         issues.append(
-                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB"
+                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling {effective_ceiling} dB"
                         )
                     if issues:
                         out_of_spec.append({"filename": r["filename"], "issues": issues})
@@ -1298,7 +1363,8 @@ async def master_album(
     album_data = albums.get(normalized_album)
 
     tracks_updated = 0
-    status_errors = []
+    status_errors: list[str] = []
+    album_status: str | None = None
 
     if album_data:
         tracks = album_data.get("tracks", {})
@@ -1355,7 +1421,6 @@ async def master_album(
             t.get("status", "").lower() == TRACK_FINAL.lower()
             for t in tracks.values()
         )
-        album_status = None
         if all_final:
             album_path_str = album_data.get("path", "")
             if album_path_str:
@@ -1396,12 +1461,25 @@ async def master_album(
         "errors": status_errors if status_errors else None,
     }
 
+    # Build runtime notices (caveats worth surfacing to the user).
+    notices: list[str] = []
+    if targets.get("upsampled_from_source"):
+        src_rate = targets.get("source_sample_rate") or 0
+        dst_rate = targets["output_sample_rate"]
+        notices.append(
+            f"Delivery at {dst_rate // 1000} kHz "
+            f"(upsampled from {src_rate / 1000:.1f} kHz source). "
+            f"Badge-eligible for Apple Hi-Res Lossless and Tidal Max — "
+            f"no additional audio information vs. source."
+        )
+
     return _safe_json({
         "album_slug": album_slug,
         "stage_reached": "complete",
         "stages": stages,
         "settings": settings,
         "warnings": warnings,
+        "notices": notices,
         "failed_stage": None,
         "failure_detail": None,
     })
