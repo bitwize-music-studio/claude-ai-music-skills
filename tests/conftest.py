@@ -11,6 +11,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests.fixtures.audio import (
+    make_bass,
+    make_bright,
+    make_clicks_and_pops,
+    make_clipping,
+    make_drums,
+    make_full_mix,
+    make_noisy,
+    make_phase_partial,
+    make_phase_problem,
+    make_silent_gaps,
+    make_vocal,
+    write_wav,
+)
 from tools.state.parsers import parse_frontmatter
 
 
@@ -93,3 +107,102 @@ def claude_md_content(project_root) -> str:
     if claude_file.exists():
         return claude_file.read_text()
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Audio fixtures — see tests/fixtures/audio/__init__.py for generators
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def vocal_wav(tmp_path):
+    """Formant-shaped vocal with sibilant bursts."""
+    data, rate = make_vocal()
+    return write_wav(str(tmp_path / "vocal.wav"), data, rate)
+
+
+@pytest.fixture
+def drums_wav(tmp_path):
+    """Sharp transients with exponential decay."""
+    data, rate = make_drums()
+    return write_wav(str(tmp_path / "drums.wav"), data, rate)
+
+
+@pytest.fixture
+def bass_wav(tmp_path):
+    """80 Hz fundamental + harmonics."""
+    data, rate = make_bass()
+    return write_wav(str(tmp_path / "bass.wav"), data, rate)
+
+
+@pytest.fixture
+def full_mix_wav(tmp_path):
+    """Layered vocal + drums + bass mix."""
+    data, rate = make_full_mix()
+    return write_wav(str(tmp_path / "full_mix.wav"), data, rate)
+
+
+@pytest.fixture
+def clipping_wav(tmp_path):
+    """Hard-clipped signal (should fail QC)."""
+    data, rate = make_clipping()
+    return write_wav(str(tmp_path / "clipping.wav"), data, rate)
+
+
+@pytest.fixture
+def phase_problem_wav(tmp_path):
+    """Phase-inverted stereo (should fail mono compat)."""
+    data, rate = make_phase_problem()
+    return write_wav(str(tmp_path / "phase_problem.wav"), data, rate)
+
+
+@pytest.fixture
+def bright_wav(tmp_path):
+    """Excessive high-frequency energy (should trigger tinniness)."""
+    data, rate = make_bright()
+    return write_wav(str(tmp_path / "bright.wav"), data, rate)
+
+
+@pytest.fixture
+def noisy_wav(tmp_path):
+    """Signal with elevated noise floor."""
+    data, rate = make_noisy()
+    return write_wav(str(tmp_path / "noisy.wav"), data, rate)
+
+
+@pytest.fixture
+def clicks_and_pops_wav(tmp_path):
+    """Tonal bed + musical transients + injected single-sample spikes."""
+    data, rate = make_clicks_and_pops()
+    return write_wav(str(tmp_path / "clicks_and_pops.wav"), data, rate)
+
+
+@pytest.fixture
+def silent_gaps_wav(tmp_path):
+    """2s audio + 1s silent gap + 2s audio (should fail silence QC)."""
+    data, rate = make_silent_gaps()
+    return write_wav(str(tmp_path / "silent_gaps.wav"), data, rate)
+
+
+@pytest.fixture
+def phase_partial_wav(tmp_path):
+    """90-degree phase shift on R channel — partial cancellation in mono."""
+    data, rate = make_phase_partial()
+    return write_wav(str(tmp_path / "phase_partial.wav"), data, rate)
+
+
+@pytest.fixture
+def stem_dir(tmp_path):
+    """Directory with per-stem WAV files for mixing tests."""
+    stems = tmp_path / "stems" / "01-test-track"
+    stems.mkdir(parents=True)
+
+    for name, generator in [
+        ("vocals", make_vocal),
+        ("drums", make_drums),
+        ("bass", make_bass),
+    ]:
+        data, rate = generator(duration=1.5)
+        write_wav(str(stems / f"{name}.wav"), data, rate)
+
+    return str(stems)
