@@ -109,6 +109,22 @@ artist:
   # Uncomment to enable:
   # style: "dark industrial electronic with aggressive vocals"
 
+  # ---------------------------
+  # copyright_holder [optional]
+  # ---------------------------
+  # Copyright owner for embedded audio metadata. Defaults to artist.name
+  # when omitted. Used by the mastering pipeline when writing ID3/BWF tags.
+  #
+  # copyright_holder: "Your Legal Name or Label LLC"
+
+  # ---------------------------
+  # label [optional]
+  # ---------------------------
+  # Record label name for embedded audio metadata. Defaults to artist.name
+  # when omitted. Self-released artists can leave this unset.
+  #
+  # label: "Your Label"
+
 
 # =============================================================================
 # PATHS [REQUIRED]
@@ -716,6 +732,112 @@ sheet_music:
 #   # e.g., debug.log, debug.log.1, debug.log.2, debug.log.3
 #   #
 #   # backup_count: 3
+
+
+# =============================================================================
+# MASTERING [optional]
+# =============================================================================
+# Streaming-grade mastering defaults for master_album / master_audio /
+# polish_and_master_album. All fields are optional — omit any key to
+# accept the default.
+#
+# These values layer ON TOP of genre presets:
+#   - Genre presets control *genre-specific* parameters (EQ curves,
+#     compression, de-essing).
+#   - This block controls *delivery-target* parameters (bit depth,
+#     sample rate, loudness, archival).
+#
+# The mastering pipeline enforces streaming-safe targets by default:
+#   - 24-bit WAV at 96 kHz (Apple Hi-Res Lossless + Tidal Max eligibility)
+#   - -14 LUFS integrated loudness (Spotify / Apple / Tidal / YouTube)
+#   - -1.0 dBTP true peak ceiling (AAC / Opus codec safety margin)
+#
+# Uncomment individual keys to customize.
+
+# mastering:
+#   # ---------------------------
+#   # delivery_format [optional, default: "wav"]
+#   # ---------------------------
+#   # Output container for mastered tracks. Only WAV is supported for
+#   # DistroKid single-ingest; other containers are reserved for future
+#   # work.
+#   #
+#   # delivery_format: wav
+#
+#   # ---------------------------
+#   # delivery_bit_depth [optional, default: 24]
+#   # ---------------------------
+#   # Bit depth for mastered delivery files.
+#   #
+#   # Options:
+#   #   16 — legacy / smaller files / CD master rate
+#   #   24 — streaming-grade headroom; required for Apple Hi-Res Lossless
+#   #        + Tidal Max
+#   #
+#   # delivery_bit_depth: 24
+#
+#   # ---------------------------
+#   # delivery_sample_rate [optional, default: 96000]
+#   # ---------------------------
+#   # Output sample rate in Hz.
+#   #
+#   # Upsampled from the 44.1 kHz Suno source when >44100. This satisfies
+#   # the sample-rate gate for Apple Hi-Res Lossless (>48 kHz strict) and
+#   # Tidal Max (>44.1 kHz strict). It does NOT add audio information —
+#   # the extra bandwidth above ~22 kHz is empty. See
+#   # reference/streaming-mastering-specs.md for the full tradeoff.
+#   #
+#   # Common values:
+#   #   44100 — match Suno source; no badge eligibility.
+#   #   48000 — broadcast standard; still below Apple Hi-Res threshold.
+#   #   96000 — unlocks Apple Hi-Res Lossless + Tidal Max badges.
+#   #
+#   # delivery_sample_rate: 96000
+#
+#   # ---------------------------
+#   # target_lufs [optional, default: -14.0]
+#   # ---------------------------
+#   # Integrated loudness target in LUFS. Genre presets override this
+#   # per-genre; this is the fallback when no genre is specified.
+#   #
+#   # target_lufs: -14.0
+#
+#   # ---------------------------
+#   # true_peak_ceiling [optional, default: -1.0]
+#   # ---------------------------
+#   # True peak ceiling in dBTP. -1.0 is the streaming-safe default. Use
+#   # -1.5 for opus-safe genres (EDM / metal / trap) where the codec is
+#   # more aggressive about intersample peaks.
+#   #
+#   # true_peak_ceiling: -1.0
+#
+#   # ---------------------------
+#   # archival_enabled [optional, default: false]
+#   # ---------------------------
+#   # When true, master_album also writes a 32-bit float / 96 kHz
+#   # pre-downconvert master to
+#   # {audio_root}/artists/[artist]/albums/[genre]/[album]/archival/.
+#   # Intent: re-master without re-polishing stems (spec changes,
+#   # re-release with different targets). Adds ~1-2 GB per 12-track album.
+#   #
+#   # Most users should leave this off.
+#   #
+#   # archival_enabled: false
+#
+#   # ---------------------------
+#   # adm_aac_encoder [optional, default: "aac"]
+#   # ---------------------------
+#   # AAC encoder used for Apple Digital Masters (ADM) validation.
+#   # Consumed by the validate_adm pipeline step (ships in a later phase).
+#   #
+#   # Options:
+#   #   aac         — native ffmpeg AAC encoder; ships everywhere,
+#   #                 spec-equivalent for the zero-clip validation test.
+#   #   libfdk_aac  — Fraunhofer FDK AAC; closer parity to Apple's
+#   #                 encoder. Requires a non-free ffmpeg build
+#   #                 (--enable-libfdk_aac).
+#   #
+#   # adm_aac_encoder: aac
 
 
 # =============================================================================
