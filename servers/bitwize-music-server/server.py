@@ -495,6 +495,7 @@ from handlers.processing import (  # noqa: F401
     polish_and_master_album,
     polish_audio,
     prepare_singles,
+    prune_archival,
     publish_sheet_music,
     qc_audio,
     render_codec_preview,
