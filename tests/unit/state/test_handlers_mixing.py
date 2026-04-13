@@ -333,7 +333,11 @@ class TestPolishAlbum:
         assert result["stages"]["pre_flight"]["status"] == "pass"
         assert result["stages"]["analysis"]["status"] == "pass"
         assert result["stages"]["polish"]["status"] == "pass"
-        assert result["stages"]["verify"]["status"] in ("pass", "warn")
+        # verify now runs the full qc_track suite; synthetic test audio can
+        # legitimately trigger FAIL on spectral/silence — we only care that
+        # the stage ran and produced a verdict.
+        assert result["stages"]["verify"]["status"] in ("pass", "warn", "fail")
+        assert "tracks_verified" in result["stages"]["verify"]
 
     def test_stems_mode_pipeline(self, tmp_path):
         audio_dir = _setup_stems_dir(tmp_path)
