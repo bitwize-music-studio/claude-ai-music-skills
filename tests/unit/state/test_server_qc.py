@@ -18,7 +18,42 @@ import types
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
+import soundfile as sf
+
+
+def _write_tiny_stereo_wav(path) -> None:
+    """Write a 1-second 44.1k 16-bit stereo sine WAV via raw bytes.
+
+    Bypasses soundfile so tests that patch `soundfile.write` still get a
+    real file on disk that downstream code can read. Duration ≥0.4 s to
+    satisfy pyloudnorm's integrated-loudness block size.
+    """
+    import struct
+    rate = 44100
+    duration = 1.0
+    n_samples = int(rate * duration)
+    t = np.linspace(0, duration, n_samples, endpoint=False)
+    mono = (0.2 * np.sin(2 * np.pi * 440 * t)) * 32767
+    int16 = mono.astype(np.int16)
+    interleaved = np.column_stack([int16, int16]).flatten().tobytes()
+
+    n_channels = 2
+    bits_per_sample = 16
+    byte_rate = rate * n_channels * bits_per_sample // 8
+    block_align = n_channels * bits_per_sample // 8
+    data_size = len(interleaved)
+    fmt_chunk = struct.pack(
+        "<4sIHHIIHH",
+        b"fmt ", 16, 1, n_channels, rate, byte_rate, block_align, bits_per_sample,
+    )
+    data_chunk = struct.pack("<4sI", b"data", data_size) + interleaved
+    riff_size = 4 + len(fmt_chunk) + len(data_chunk)
+    riff = struct.pack("<4sI4s", b"RIFF", riff_size, b"WAVE") + fmt_chunk + data_chunk
+
+    with open(str(path), "wb") as f:
+        f.write(riff)
 
 # Ensure project root is on sys.path for imports
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -537,7 +572,7 @@ class TestMasterAlbumPipeline:
 
         def mock_master(input_path, output_path, **kwargs):
             master_called[0] = True
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -575,7 +610,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -615,7 +650,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -684,7 +719,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -755,7 +790,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -813,7 +848,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -845,7 +880,7 @@ class TestMasterAlbumPipeline:
         state["albums"]["test-album"]["tracks"] = {}
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -877,7 +912,7 @@ class TestMasterAlbumPipeline:
         state["albums"]["test-album"]["tracks"] = {}
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -923,7 +958,7 @@ class TestMasterAlbumPipeline:
             return self._mock_analyze(name, lufs=-14.0, tinniness=tinniness)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -950,7 +985,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1021,7 +1056,7 @@ class TestMasterAlbumPipeline:
         }
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1056,7 +1091,7 @@ class TestMasterAlbumPipeline:
 
         def mock_master(input_path, output_path, **kwargs):
             captured_kwargs.append(kwargs)
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -13.0,
@@ -1093,7 +1128,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1153,7 +1188,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1192,7 +1227,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1237,7 +1272,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1306,7 +1341,7 @@ class TestMasterAlbumPipeline:
 
         def mock_master(input_path, output_path, **kwargs):
             captured_kwargs.append(kwargs)
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1335,7 +1370,7 @@ class TestMasterAlbumPipeline:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1642,7 +1677,7 @@ class TestMasterAlbumStaging:
             if call_count[0] >= 3:
                 raise RuntimeError("simulated mastering crash")
             # Write to the output path that was given (staging dir)
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1677,7 +1712,7 @@ class TestMasterAlbumStaging:
         mock_cache = MockStateCache(state)
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1720,7 +1755,7 @@ class TestMasterAlbumStaging:
         stale_file.write_bytes(b"stale")
 
         def mock_master(input_path, output_path, **kwargs):
-            Path(output_path).write_bytes(b"")
+            _write_tiny_stereo_wav(output_path)
             return {
                 "original_lufs": -20.0,
                 "final_lufs": -14.0,
@@ -1768,3 +1803,131 @@ class TestMasterAlbumStaging:
 
         staging_dir = audio_dir / ".mastering_staging"
         assert not staging_dir.exists(), ".mastering_staging was not cleaned up on silent-track failure"
+
+
+# =============================================================================
+# Tests for stage 5.5 — codec preview + mono fold-down (issue #296)
+# =============================================================================
+
+
+def _write_inverted_phase_wav(path) -> None:
+    """1-second 44.1k stereo where R = -L — guaranteed mono fold-down FAIL."""
+    import struct
+    rate = 44100
+    duration = 1.0
+    n_samples = int(rate * duration)
+    t = np.linspace(0, duration, n_samples, endpoint=False)
+    mono = (0.3 * np.sin(2 * np.pi * 1000 * t)) * 32767
+    left = mono.astype(np.int16)
+    right = (-mono).astype(np.int16)
+    interleaved = np.column_stack([left, right]).flatten().tobytes()
+
+    n_channels, bits = 2, 16
+    byte_rate = rate * n_channels * bits // 8
+    block_align = n_channels * bits // 8
+    fmt = struct.pack("<4sIHHIIHH", b"fmt ", 16, 1, n_channels, rate, byte_rate, block_align, bits)
+    data = struct.pack("<4sI", b"data", len(interleaved)) + interleaved
+    riff = struct.pack("<4sI4s", b"RIFF", 4 + len(fmt) + len(data), b"WAVE") + fmt + data
+    with open(str(path), "wb") as f:
+        f.write(riff)
+
+
+class TestMasterAlbumMasteringSamplesStage:
+    """Stage 5.5: codec preview and mono fold-down QC artifacts."""
+
+    def _make_audio_dir(self, tmp_path, num_tracks=2):
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        for i in range(num_tracks):
+            (audio_dir / f"{i+1:02d}-track-{i+1}.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        return audio_dir, state
+
+    def _mock_analyze(self, filename, lufs=-14.0, peak_db=-1.5):
+        return {
+            "filename": filename, "duration": 180.0, "sample_rate": 44100,
+            "lufs": lufs, "peak_db": peak_db, "rms_db": -18.0, "dynamic_range": 17.0,
+            "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15,
+                            "mid": 30, "high_mid": 20, "high": 8, "air": 2},
+            "tinniness_ratio": 0.3,
+        }
+
+    def _mock_qc(self, filename):
+        return {
+            "filename": filename,
+            "checks": {
+                "format": {"status": "PASS", "value": "ok", "detail": "ok"},
+                "mono": {"status": "PASS", "value": "0", "detail": "ok"},
+            },
+            "verdict": "PASS",
+        }
+
+    def test_stage_runs_and_writes_to_mastering_samples_dir(self, tmp_path):
+        """In-phase mastered output → mastering_samples populated, mastered/ untouched."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            _write_tiny_stereo_wav(output_path)
+            return {"original_lufs": -20.0, "final_lufs": -14.0,
+                    "gain_applied": 6.0, "final_peak": -1.5}
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track",
+                   side_effect=lambda f: self._mock_analyze(Path(f).name)), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc(Path(f).name)), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert result["failed_stage"] is None
+        assert "mastering_samples" in result["stages"]
+        samples_stage = result["stages"]["mastering_samples"]
+        assert samples_stage["status"] == "pass"
+        assert samples_stage["mono_fold"]["passed"] == 2
+        assert samples_stage["mono_fold"]["failed"] == 0
+
+        samples_dir = audio_dir / "mastering_samples"
+        assert (samples_dir / "01-track-1.MONO_FOLD.md").exists()
+        assert (samples_dir / "01-track-1.mono.wav").exists()
+
+        # mastered/ stays WAV-only
+        mastered_files = sorted(p.name for p in (audio_dir / "mastered").iterdir())
+        assert mastered_files == ["01-track-1.wav", "02-track-2.wav"]
+
+    def test_phase_inversion_short_circuits_pipeline_with_failed_stage(self, tmp_path):
+        """When mock_master writes inverted-phase audio, stage 5.5 hard-fails."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        def mock_master(input_path, output_path, **kwargs):
+            _write_inverted_phase_wav(output_path)
+            return {"original_lufs": -20.0, "final_lufs": -14.0,
+                    "gain_applied": 6.0, "final_peak": -1.5}
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track",
+                   side_effect=lambda f: self._mock_analyze(Path(f).name)), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None: self._mock_qc(Path(f).name)), \
+             patch.object(server, "write_state"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        assert result["failed_stage"] == "mastering_samples"
+        assert result["stage_reached"] == "mastering_samples"
+        # Post-QC and status_update should NOT have run
+        assert "post_qc" not in result["stages"]
+        assert "status_update" not in result["stages"]
+        # Failure detail surfaces the offending band
+        detail = result["failure_detail"]
+        assert "phase cancellation" in detail["reason"].lower()
+        assert "01-track-1.wav" in detail["tracks_failed"]
+        assert detail["details"][0]["worst_band"]["name"] is not None

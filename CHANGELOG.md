@@ -7,6 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- **Mastering samples — codec preview + mono fold-down QC artifacts** — `master_album` now writes operator-listening artifacts to a sibling `mastering_samples/` directory after verification, so `mastered/` stays byte-identical to the streaming upload. Each track gets a 128 kbps `.aac.m4a` AAC encode (Bluetooth-path audition), a `.mono.wav` mono fold sample (phone-speaker / Echo audition), and a `.MONO_FOLD.md` per-band delta report. A >6 dB band drop in the mono fold hard-fails the pipeline with the offending frequency surfaced (phase cancellation guard). New standalone tools `render_codec_preview` and `mono_fold_check` run the same checks independently. Thresholds and on/off flags configurable in `genre-presets.yaml` defaults; `reset_mastering` accepts `mastering_samples` (#296)
 - **Mastering pipeline overhaul** — 30+ new configurable parameters across the full mastering chain:
   - DC offset removal (subsonic HPF)
   - Low shelf EQ with configurable Q factor

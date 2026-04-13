@@ -52,6 +52,21 @@
 #                            sharp transients (e.g., 8.0–10.0 for electronic/IDM/metal).
 #   click_fail_count       - QC click detector: absolute click count above which clicks FAIL
 #                            (default 3). Raise alongside peak_ratio for dense-transient genres.
+#   codec_preview_enabled  - Render a 128 kbps AAC .aac.m4a next to each master in
+#                            mastering_samples/ for operator Bluetooth audition (issue #296).
+#                            1 = on (default), 0 = off.
+#   codec_preview_bitrate_kbps - AAC bitrate for the preview (default 128).
+#   mono_fold_enabled      - Run the mono fold-down QC gate during mastering (issue #296).
+#                            Writes {track}.MONO_FOLD.md + {track}.mono.wav sample to
+#                            mastering_samples/. 1 = on (default), 0 = off.
+#   mono_fold_write_audio  - Write the .mono.wav sample alongside the report (1 = on,
+#                            default). Set to 0 for report-only.
+#   mono_fold_band_drop_fail_db - Hard-fail threshold for per-band drop (stereo vs. mono)
+#                            in dB. Default 6.0 — raise to 8–10 for ambient/cinematic
+#                            genres that intentionally use wide-stereo cancellation.
+#   mono_fold_lufs_warn_db - Warn threshold for integrated LUFS delta (default 3.0 dB).
+#   mono_fold_vocal_warn_db - Warn threshold for vocal-band (1–4 kHz) RMS delta (default 2.0 dB).
+#   mono_fold_correlation_warn - Warn threshold for stereo correlation coefficient (default 0.3).
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -107,6 +122,14 @@ defaults:
   eq_linear_phase: 0
   click_peak_ratio: 6.0
   click_fail_count: 3
+  codec_preview_enabled: 1
+  codec_preview_bitrate_kbps: 128
+  mono_fold_enabled: 1
+  mono_fold_write_audio: 1
+  mono_fold_band_drop_fail_db: 6.0
+  mono_fold_lufs_warn_db: 3.0
+  mono_fold_vocal_warn_db: 2.0
+  mono_fold_correlation_warn: 0.3
 
 genres:
   # === Pop / Mainstream ===

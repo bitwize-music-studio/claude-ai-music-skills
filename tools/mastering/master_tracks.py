@@ -126,6 +126,15 @@ _PRESET_DEFAULTS: dict[str, float] = {
     # QC thresholds (consumed by tools/mastering/qc_tracks.py)
     'click_peak_ratio': 6.0,
     'click_fail_count': 3,
+    # Mastering-samples QC artifacts (issue #296, consumed by handlers/processing/audio.py)
+    'codec_preview_enabled': 1,
+    'codec_preview_bitrate_kbps': 128,
+    'mono_fold_enabled': 1,
+    'mono_fold_write_audio': 1,
+    'mono_fold_band_drop_fail_db': 6.0,
+    'mono_fold_lufs_warn_db': 3.0,
+    'mono_fold_vocal_warn_db': 2.0,
+    'mono_fold_correlation_warn': 0.3,
 }
 
 

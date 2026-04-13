@@ -1053,6 +1053,148 @@ async def master_album(
         verification_stage["auto_recovered"] = auto_recovered
     stages["verification"] = verification_stage
 
+    # --- Stage 5.5: Mastering samples (codec preview + mono fold-down QC) ---
+    # Issue #296. Writes .aac.m4a and .MONO_FOLD.md sidecars to the
+    # mastering_samples/ sibling directory so mastered/ stays WAV-only. A
+    # mono-fold hard-fail short-circuits the pipeline; codec preview never blocks.
+    from tools.mastering.master_tracks import GENRE_PRESETS, _PRESET_DEFAULTS
+
+    sample_cfg: dict[str, Any] = (
+        GENRE_PRESETS.get(genre.lower())
+        if genre and genre.lower() in GENRE_PRESETS
+        else dict(_PRESET_DEFAULTS)
+    )
+
+    codec_enabled = bool(int(sample_cfg.get("codec_preview_enabled", 1)))
+    codec_bitrate = int(sample_cfg.get("codec_preview_bitrate_kbps", 128))
+    monofold_enabled = bool(int(sample_cfg.get("mono_fold_enabled", 1)))
+    monofold_write_audio = bool(int(sample_cfg.get("mono_fold_write_audio", 1)))
+    monofold_thresholds = {
+        "band_drop_fail_db": float(sample_cfg.get("mono_fold_band_drop_fail_db", 6.0)),
+        "lufs_warn_db": float(sample_cfg.get("mono_fold_lufs_warn_db", 3.0)),
+        "vocal_warn_db": float(sample_cfg.get("mono_fold_vocal_warn_db", 2.0)),
+        "correlation_warn": float(sample_cfg.get("mono_fold_correlation_warn", 0.3)),
+    }
+
+    samples_dir = audio_dir / "mastering_samples"
+    samples_stage: dict[str, Any] = {
+        "status": "pass",
+        "codec_preview_enabled": codec_enabled,
+        "mono_fold_enabled": monofold_enabled,
+        "output_dir": str(samples_dir),
+    }
+
+    if codec_enabled or monofold_enabled:
+        samples_dir.mkdir(exist_ok=True)
+
+    # Codec preview — never blocks
+    if codec_enabled:
+        from tools.mastering.codec_preview import (
+            CodecPreviewError,
+            render_aac_preview,
+        )
+
+        codec_results: list[dict[str, Any]] = []
+        codec_errors: list[str] = []
+        for wav in mastered_files:
+            out_path = samples_dir / f"{wav.stem}.aac.m4a"
+            try:
+                info = await loop.run_in_executor(
+                    None, render_aac_preview, wav, out_path, codec_bitrate
+                )
+                codec_results.append({
+                    "track": wav.name,
+                    "output_path": info["output_path"],
+                    "bitrate_kbps": info["bitrate_kbps"],
+                })
+            except CodecPreviewError as e:
+                codec_errors.append(f"{wav.name}: {e}")
+                warnings.append(f"Codec preview {wav.name}: {e}")
+
+        samples_stage["codec_previews"] = codec_results
+        if codec_errors:
+            samples_stage["codec_errors"] = codec_errors
+
+    # Mono fold-down QC — hard-fails the pipeline on band drop
+    if monofold_enabled:
+        import soundfile as sf
+        from tools.mastering.mono_fold import mono_fold_metrics
+        from tools.mastering.mono_fold_report import render_mono_fold_markdown
+
+        def _do_mono_fold(wav_path: Path) -> dict[str, Any]:
+            data, rate = sf.read(str(wav_path))
+            import numpy as _np
+            if data.ndim == 1:
+                data = _np.column_stack([data, data])
+            metrics = mono_fold_metrics(data, rate, thresholds=monofold_thresholds)
+
+            stem = wav_path.stem
+            sample_filename = f"{stem}.mono.wav" if monofold_write_audio else None
+            if sample_filename:
+                sf.write(str(samples_dir / sample_filename), metrics["mono_audio"], rate, subtype="PCM_24")
+
+            md = render_mono_fold_markdown(stem, metrics, sample_filename)
+            (samples_dir / f"{stem}.MONO_FOLD.md").write_text(md, encoding="utf-8")
+
+            return {
+                "track": wav_path.name,
+                "verdict": metrics["verdict"],
+                "band_drop_fail": metrics["band_drop_fail"],
+                "worst_band": metrics["worst_band"],
+                "lufs_delta_db": metrics["lufs"]["delta_db"],
+                "vocal_delta_db": metrics["vocal_rms"]["delta_db"],
+                "stereo_correlation": metrics["stereo_correlation"],
+                "report_path": str(samples_dir / f"{stem}.MONO_FOLD.md"),
+            }
+
+        mono_results = []
+        for wav in mastered_files:
+            mono_results.append(await loop.run_in_executor(None, _do_mono_fold, wav))
+
+        mono_passed = sum(1 for r in mono_results if r["verdict"] == "PASS")
+        mono_warned = sum(1 for r in mono_results if r["verdict"] == "WARN")
+        mono_failed = sum(1 for r in mono_results if r["verdict"] == "FAIL")
+
+        for r in mono_results:
+            if r["verdict"] == "WARN":
+                warnings.append(
+                    f"Mono fold {r['track']}: WARN — see {Path(r['report_path']).name}"
+                )
+
+        samples_stage["mono_fold"] = {
+            "tracks": mono_results,
+            "passed": mono_passed,
+            "warned": mono_warned,
+            "failed": mono_failed,
+        }
+
+        if mono_failed > 0:
+            failed_tracks = [r for r in mono_results if r["verdict"] == "FAIL"]
+            samples_stage["status"] = "fail"
+            stages["mastering_samples"] = samples_stage
+            return _safe_json({
+                "album_slug": album_slug,
+                "stage_reached": "mastering_samples",
+                "stages": stages,
+                "settings": settings,
+                "warnings": warnings,
+                "failed_stage": "mastering_samples",
+                "failure_detail": {
+                    "reason": "Mono fold-down hard-fail (phase cancellation)",
+                    "tracks_failed": [r["track"] for r in failed_tracks],
+                    "details": [
+                        {
+                            "track": r["track"],
+                            "worst_band": r["worst_band"],
+                            "report": r["report_path"],
+                        }
+                        for r in failed_tracks
+                    ],
+                },
+            })
+
+    stages["mastering_samples"] = samples_stage
+
     # --- Stage 6: Post-QC ---
     post_qc_results = []
     for wav in mastered_files:
@@ -1225,6 +1367,195 @@ async def master_album(
     })
 
 
+async def render_codec_preview(
+    album_slug: str,
+    subfolder: str = "mastered",
+    bitrate_kbps: int = 128,
+) -> str:
+    """Render a 128 kbps AAC preview of each mastered track.
+
+    The `.aac.m4a` files are written to `mastering_samples/` next to
+    (never inside) `mastered/`, so streaming uploads stay WAV-only. The
+    previews exist so the operator can audition how the album sounds over
+    Bluetooth before release (issue #296).
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        subfolder: Source subfolder relative to the audio dir (default "mastered")
+        bitrate_kbps: AAC bitrate in kbps (default 128)
+
+    Returns:
+        JSON with per-track preview info and a summary.
+    """
+    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
+    if err:
+        return err
+    assert audio_dir is not None
+
+    source_dir = audio_dir / subfolder
+    if not source_dir.is_dir():
+        return _safe_json({
+            "error": f"Source subfolder not found: {source_dir}",
+            "hint": "Run master_audio or master_album first to populate mastered/.",
+        })
+
+    wav_files = sorted(
+        f for f in source_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    )
+    if not wav_files:
+        return _safe_json({"error": f"No WAV files in {source_dir}"})
+
+    from tools.mastering.codec_preview import CodecPreviewError, render_aac_preview
+
+    output_dir = audio_dir / "mastering_samples"
+    output_dir.mkdir(exist_ok=True)
+
+    loop = asyncio.get_running_loop()
+    previews: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    for wav in wav_files:
+        out_path = output_dir / f"{wav.stem}.aac.m4a"
+        try:
+            info = await loop.run_in_executor(
+                None, render_aac_preview, wav, out_path, bitrate_kbps
+            )
+            previews.append({
+                "input": wav.name,
+                "output_path": info["output_path"],
+                "bitrate_kbps": info["bitrate_kbps"],
+                "output_bytes": info["output_bytes"],
+            })
+        except CodecPreviewError as e:
+            errors.append(f"{wav.name}: {e}")
+
+    if not previews and errors:
+        return _safe_json({"error": "All previews failed", "details": errors})
+
+    return _safe_json({
+        "previews": previews,
+        "summary": {
+            "count": len(previews),
+            "total_bytes": sum(p["output_bytes"] for p in previews),
+            "output_dir": str(output_dir),
+            "errors": errors or None,
+        },
+    })
+
+
+async def mono_fold_check(
+    album_slug: str,
+    subfolder: str = "mastered",
+    write_audio: bool = True,
+) -> str:
+    """Run the mono fold-down QC gate on every mastered track.
+
+    For each WAV in `{audio_dir}/mastered/`, sum stereo to mono, measure
+    per-band deltas, LUFS delta, vocal-band RMS delta, and stereo correlation,
+    then write a `{track}.MONO_FOLD.md` report (and optionally a
+    `{track}.mono.wav` listenable sample) to `mastering_samples/`. See
+    issue #296.
+
+    Args:
+        album_slug: Album slug.
+        subfolder: Source subfolder relative to the audio dir (default "mastered")
+        write_audio: If True (default), write a .mono.wav sibling sample so
+            the operator can audition cancellation on a phone speaker.
+
+    Returns:
+        JSON with per-track deltas, the offending band on any FAIL, and a
+        summary verdict.
+    """
+    dep_err = _helpers._check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
+    if err:
+        return err
+    assert audio_dir is not None
+
+    source_dir = audio_dir / subfolder
+    if not source_dir.is_dir():
+        return _safe_json({
+            "error": f"Source subfolder not found: {source_dir}",
+            "hint": "Run master_audio or master_album first to populate mastered/.",
+        })
+
+    wav_files = sorted(
+        f for f in source_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    )
+    if not wav_files:
+        return _safe_json({"error": f"No WAV files in {source_dir}"})
+
+    import soundfile as sf
+    from tools.mastering.mono_fold import mono_fold_metrics
+    from tools.mastering.mono_fold_report import render_mono_fold_markdown
+
+    output_dir = audio_dir / "mastering_samples"
+    output_dir.mkdir(exist_ok=True)
+
+    loop = asyncio.get_running_loop()
+
+    def _analyze(wav_path: Path) -> dict[str, Any]:
+        data, rate = sf.read(str(wav_path))
+        import numpy as _np
+        if data.ndim == 1:
+            data = _np.column_stack([data, data])
+        metrics = mono_fold_metrics(data, rate)
+
+        stem = wav_path.stem
+        sample_filename: str | None = None
+        if write_audio:
+            sample_filename = f"{stem}.mono.wav"
+            mono = metrics["mono_audio"]
+            sf.write(str(output_dir / sample_filename), mono, rate, subtype="PCM_24")
+
+        md = render_mono_fold_markdown(stem, metrics, sample_filename)
+        (output_dir / f"{stem}.MONO_FOLD.md").write_text(md, encoding="utf-8")
+
+        return {
+            "track": wav_path.name,
+            "verdict": metrics["verdict"],
+            "band_drop_fail": metrics["band_drop_fail"],
+            "worst_band": metrics["worst_band"],
+            "lufs_delta_db": metrics["lufs"]["delta_db"],
+            "vocal_delta_db": metrics["vocal_rms"]["delta_db"],
+            "stereo_correlation": metrics["stereo_correlation"],
+            "report_path": str(output_dir / f"{stem}.MONO_FOLD.md"),
+            "sample_path": str(output_dir / sample_filename) if sample_filename else None,
+        }
+
+    tracks: list[dict[str, Any]] = []
+    for wav in wav_files:
+        tracks.append(await loop.run_in_executor(None, _analyze, wav))
+
+    passed = sum(1 for t in tracks if t["verdict"] == "PASS")
+    warned = sum(1 for t in tracks if t["verdict"] == "WARN")
+    failed = sum(1 for t in tracks if t["verdict"] == "FAIL")
+
+    if failed > 0:
+        verdict = "FAIL"
+    elif warned > 0:
+        verdict = "WARN"
+    else:
+        verdict = "PASS"
+
+    return _safe_json({
+        "tracks": tracks,
+        "summary": {
+            "count": len(tracks),
+            "passed": passed,
+            "warned": warned,
+            "failed": failed,
+            "output_dir": str(output_dir),
+        },
+        "verdict": verdict,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register audio mastering tools."""
     mcp.tool()(analyze_audio)
@@ -1233,3 +1564,5 @@ def register(mcp: Any) -> None:
     mcp.tool()(fix_dynamic_track)
     mcp.tool()(master_with_reference)
     mcp.tool()(master_album)
+    mcp.tool()(render_codec_preview)
+    mcp.tool()(mono_fold_check)

@@ -284,6 +284,48 @@ If a track has excessive dynamic range and won't reach target LUFS:
 fix_dynamic_track(album_slug, track_filename="05-problem-track.wav")
 ```
 
+### Step 6.5: Real-listener QC artifacts (`mastering_samples/`)
+
+After verification, `master_album` writes operator-listening artifacts to a
+sibling directory so `mastered/` stays byte-identical to what gets uploaded
+to streaming platforms:
+
+```
+{audio_root}/.../[album]/
+├── mastered/                         # Final masters — UPLOAD THIS
+│   ├── 01-track.wav
+│   └── ...
+└── mastering_samples/                # Operator QA only — DO NOT UPLOAD
+    ├── 01-track.aac.m4a              # 128 kbps AAC for Bluetooth listening
+    ├── 01-track.mono.wav             # Mono fold-down sample
+    └── 01-track.MONO_FOLD.md         # Per-band delta report + verdict
+```
+
+**Two automated checks run here**:
+- **Codec preview** — renders each master to 128 kbps AAC. Audition on
+  AirPods / car Bluetooth before release; compressed playback exposes
+  warbly sibilance, lost sub-bass, and pumping that the full-resolution
+  master hides.
+- **Mono fold-down** — sums stereo to mono, measures per-band drops vs.
+  stereo. A >6 dB drop in any band hard-fails the pipeline (phase
+  cancellation). Listen to `.mono.wav` on a phone speaker or single Echo
+  to confirm which elements disappear in mono playback.
+
+Standalone tools (run independently of the full pipeline):
+```
+render_codec_preview(album_slug)        # writes .aac.m4a files
+mono_fold_check(album_slug)             # writes .MONO_FOLD.md + .mono.wav
+```
+
+Re-run cleanup (regenerable artifacts):
+```
+reset_mastering(album_slug, subfolders=["mastering_samples"], dry_run=False)
+```
+
+Configurable thresholds live in `tools/mastering/genre-presets.yaml`
+under `defaults:` (`mono_fold_band_drop_fail_db`, etc.) — override per-user
+in `~/.bitwize-music/overrides/mastering-presets.yaml`.
+
 ---
 
 ## MCP Tools Reference
@@ -298,6 +340,8 @@ All mastering operations are available as MCP tools. **Use these instead of runn
 | `master_with_reference` | Match mastering to a reference track |
 | `fix_dynamic_track` | Fix tracks with extreme dynamic range |
 | `master_album` | End-to-end pipeline — all steps in one call |
+| `render_codec_preview` | Render 128 kbps AAC previews to `mastering_samples/` |
+| `mono_fold_check` | Mono fold-down QC: per-band deltas, sample audio, MD report |
 
 ---
 
