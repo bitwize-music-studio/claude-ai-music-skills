@@ -106,6 +106,38 @@ def test_master_album_outputs_24bit_96khz_with_upsampling_notice(
         assert info.subtype == "PCM_24"
 
 
+def test_master_album_with_genre_preset_still_produces_24_96(
+    three_track_audio_dir: Path,
+) -> None:
+    """Regression: genre argument must not silently downgrade to 16-bit.
+
+    Before fixing the genre-preset YAML defaults, passing genre=electronic
+    caused output to drop to 16-bit PCM because all genre presets
+    inherited output_bits=16 from the defaults block.
+    """
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, three_track_audio_dir
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
+         patch.object(shared_mod, "cache", _MockCache()):
+        result_json = asyncio.run(
+            audio_mod.master_album("test-album", genre="electronic")
+        )
+
+    result = json.loads(result_json)
+    assert result.get("failed_stage") is None, result
+
+    assert result["settings"]["genre"] == "electronic"
+    assert result["settings"]["output_bits"] == 24
+    assert result["settings"]["output_sample_rate"] == 96000
+
+    mastered = three_track_audio_dir / "mastered" / "01-track.wav"
+    info = sf.info(str(mastered))
+    assert info.samplerate == 96000
+    assert info.subtype == "PCM_24"
+
+
 def test_master_album_no_upsampling_notice_when_rates_match(
     three_track_audio_dir: Path,
 ) -> None:

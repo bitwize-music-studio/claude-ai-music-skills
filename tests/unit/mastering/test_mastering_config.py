@@ -176,6 +176,41 @@ class TestResolveMasteringTargets:
         )
         assert targets["upsampled_from_source"] is False
 
+    def test_genre_preset_defaults_do_not_force_legacy_16bit(self):
+        """Regression: every shipped genre preset should honor the config
+        delivery_bit_depth / delivery_sample_rate. Before the fix, all
+        genres inherited output_bits=16 from YAML defaults and every
+        genre-driven master silently dropped to 16-bit output, ignoring
+        the config's 24/96 delivery target."""
+        from tools.mastering.master_tracks import load_genre_presets
+
+        cfg = {
+            "delivery_format": "wav",
+            "delivery_bit_depth": 24,
+            "delivery_sample_rate": 96000,
+            "target_lufs": -14.0,
+            "true_peak_ceiling": -1.0,
+            "archival_enabled": False,
+            "adm_aac_encoder": "aac",
+        }
+        for genre in ("electronic", "hip-hop", "metal", "folk", "pop"):
+            preset = load_genre_presets().get(genre)
+            assert preset is not None, f"Missing built-in genre: {genre}"
+            targets = resolve_mastering_targets(
+                config=cfg,
+                preset=preset,
+                target_lufs_arg=-14.0,
+                ceiling_db_arg=-1.0,
+            )
+            assert targets["output_bits"] == 24, (
+                f"{genre} preset forces 16-bit output; check "
+                f"tools/mastering/genre-presets.yaml defaults"
+            )
+            assert targets["output_sample_rate"] == 96000, (
+                f"{genre} preset forces non-96kHz output; check "
+                f"tools/mastering/genre-presets.yaml defaults"
+            )
+
     def test_archival_flag_flows_through(self):
         cfg = {**self._base_cfg(), "archival_enabled": True}
         targets = resolve_mastering_targets(
