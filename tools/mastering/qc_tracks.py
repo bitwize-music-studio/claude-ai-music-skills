@@ -362,12 +362,15 @@ def _check_spectral(data: Any, rate: int) -> dict[str, str]:
         issues.append(f"Sub-bass very low ({band_pct['sub_bass']:.1f}%)")
         status = "WARN"
 
-    # Check tinniness (high_mid to mid ratio)
+    # Check tinniness (high_mid to mid ratio). Always WARN, never FAIL —
+    # the mastering stage's cut_highmid EQ exists to tame high-mid buildup,
+    # so a pre-master FAIL here would block work the limiter/EQ can fix.
     if band_pct["mid"] > 0:
         tinniness = band_pct["high_mid"] / band_pct["mid"]
         if tinniness > 0.8:
             issues.append(f"High-mid spike (tinniness ratio {tinniness:.2f})")
-            status = "FAIL" if tinniness > 1.2 else "WARN"
+            if status != "FAIL":
+                status = "WARN"
 
     # Check highs presence
     highs_total = band_pct["high"] + band_pct["air"]

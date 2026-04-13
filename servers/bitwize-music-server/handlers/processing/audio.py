@@ -756,11 +756,24 @@ async def master_album(
     }
 
     # --- Stage 3: Pre-QC ---
+    # Skip `truepeak` and `clicks` on the raw/polished input:
+    #   • truepeak: polished audio is pre-limiter — the mastering stage's
+    #     limiter is what enforces the ceiling. Post-master verification
+    #     (Stage 5) is the real ceiling gate.
+    #   • clicks: polish already runs declick; residual transients here
+    #     false-positive on legitimate percussive content (drum hits,
+    #     electronic transients). A later pass with genre-aware thresholds
+    #     could re-enable this.
+    # The remaining checks catch issues mastering cannot fix.
     from tools.mastering.qc_tracks import qc_track
+
+    PRE_QC_CHECKS = ["format", "mono", "phase", "clipping", "silence", "spectral"]
 
     pre_qc_results = []
     for wav in wav_files:
-        result = await loop.run_in_executor(None, qc_track, str(wav), None)
+        result = await loop.run_in_executor(
+            None, qc_track, str(wav), PRE_QC_CHECKS
+        )
         pre_qc_results.append(result)
 
     pre_passed = sum(1 for r in pre_qc_results if r["verdict"] == "PASS")
