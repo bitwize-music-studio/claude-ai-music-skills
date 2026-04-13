@@ -403,6 +403,17 @@ class TestCheckSpectral:
         assert result["status"] in ("WARN", "FAIL")
         assert "tinniness" in result["detail"].lower() or "High-mid" in result["detail"]
 
+    def test_extreme_tinniness_warns_not_fails(self, tinny_wav):
+        """Tinniness should WARN, never FAIL — mastering's cut_highmid exists to tame it.
+
+        The pre-master QC gate should surface tinniness as a signal to the operator
+        (bump cut_highmid) but not block mastering, since the mastering stage can
+        compensate. Post-master QC is the real gate.
+        """
+        data, rate = sf.read(tinny_wav)
+        result = _check_spectral(data, rate)
+        assert result["status"] == "WARN"
+
 
 class TestCheckTruePeak:
     """Tests for the true peak QC check."""

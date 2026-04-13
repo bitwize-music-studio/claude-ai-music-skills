@@ -498,6 +498,63 @@ class TestMasterAlbumPipeline:
             "final_peak": -1.5,
         }
 
+    def test_pre_qc_skips_truepeak_and_clicks(self, tmp_path):
+        """Pre-QC must skip truepeak and clicks checks.
+
+        Polished audio is pre-limiter (hot peaks are expected — the master
+        stage's limiter brings them down), and polish runs its own declick,
+        so a generic click detector here false-positives on legitimate
+        percussive transients. The essential checks (format, mono, phase,
+        clipping, silence, spectral) remain so pre-QC still catches things
+        mastering cannot fix.
+        """
+        audio_dir, state = self._make_audio_dir(tmp_path, 1)
+        mock_cache = MockStateCache(state)
+
+        qc_calls = []
+
+        def mock_qc(filepath, checks=None, genre=None):
+            qc_calls.append({"path": Path(filepath).name, "checks": checks})
+            return self._mock_qc_result(Path(filepath).name)
+
+        def mock_master(input_path, output_path, **kwargs):
+            Path(output_path).write_bytes(b"")
+            return {
+                "original_lufs": -20.0,
+                "final_lufs": -14.0,
+                "gain_applied": 6.0,
+                "final_peak": -1.5,
+            }
+
+        def mock_analyze(filepath):
+            return self._mock_analyze(Path(filepath).name, lufs=-14.0)
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track", side_effect=mock_qc), \
+             patch.object(server, "write_state"):
+            _run(server.master_album("test-album"))
+
+        assert len(qc_calls) >= 1, "qc_track must be invoked at least once (pre-QC)"
+        pre_qc = qc_calls[0]
+        assert pre_qc["checks"] is not None, "Pre-QC must pass an explicit checks list"
+        assert "truepeak" not in pre_qc["checks"], (
+            "Pre-QC must not run truepeak — the limiter brings peaks down; "
+            "post-master verification is the real ceiling gate"
+        )
+        assert "clicks" not in pre_qc["checks"], (
+            "Pre-QC must not run clicks — polish already ran declick, so "
+            "residual transients here false-positive on percussive content"
+        )
+        # Essential checks mastering can't fix must remain
+        for essential in ("format", "mono", "phase", "clipping", "silence", "spectral"):
+            assert essential in pre_qc["checks"], (
+                f"Pre-QC must still run '{essential}' — mastering cannot fix it"
+            )
+
     def test_pre_qc_failure_stops_pipeline(self, tmp_path):
         """Pre-QC FAIL should stop pipeline before mastering."""
         audio_dir, state = self._make_audio_dir(tmp_path, 2)
