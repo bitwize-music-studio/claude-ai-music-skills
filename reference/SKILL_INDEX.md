@@ -153,6 +153,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`researchers-verifier`](/skills/researchers-verifier/SKILL.md) | Quality control, citation validation, fact-checking | Verifying research before human review |
 | [`resume`](/skills/resume/SKILL.md) | Find album and resume work where you left off | Continuing work on an existing album |
 | [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
+| [`setup`](/skills/setup/SKILL.md) | Verify environment and dependencies | First-time installation check |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
 | [`skill-model-updater`](/skills/skill-model-updater/SKILL.md) | Update model references when new Claude models release | Keeping skills on current Claude models |
 | [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno V5 prompting, genre selection | Crafting optimal Suno style prompts |
