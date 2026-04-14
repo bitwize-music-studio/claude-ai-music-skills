@@ -179,13 +179,32 @@ class TestVocalRmsStem:
         assert result['vocal_rms'] is not None
         assert abs(result['vocal_rms'] - (-15.0)) < 2.0
 
-    def test_unreadable_stem_does_not_crash(self, tmp_path):
+    def test_unreadable_stem_falls_back(self, tmp_path):
         full_mono = _sine(220, duration=30.0, rate=48000, amplitude=0.5)
         full_stereo = np.column_stack([full_mono, full_mono])
         full_path = tmp_path / "track.wav"
         _write_wav(full_path, full_stereo, 48000)
         bad_stem = tmp_path / "vocals.wav"
         bad_stem.write_bytes(b"not a wav file")
-        # Task 3 only implements the stem branch; if unreadable, result is None.
+        # Unreadable stem → logged warning → band fallback applies.
         result = analyze_track(str(full_path), vocal_stem_path=str(bad_stem))
+        assert result['vocal_rms'] is not None
+
+
+class TestVocalRmsFallback:
+    def test_no_stem_falls_back_to_band(self, tmp_path):
+        rate = 48000
+        duration = 30.0
+        # Mid-range-heavy mix: 2 kHz sine dominates 1-4 kHz band.
+        mono = _sine(2000, duration=duration, rate=rate, amplitude=0.5)
+        stereo = np.column_stack([mono, mono])
+        path = tmp_path / "midrange.wav"
+        _write_wav(path, stereo, rate)
+        result = analyze_track(str(path))
+        assert result['vocal_rms'] is not None
+        # 2 kHz at 0.5 amplitude → passes bandpass intact → RMS ≈ -9 dB.
+        assert result['vocal_rms'] > -15.0
+
+    def test_silent_track_vocal_rms_is_none(self, silent_60_wav):
+        result = analyze_track(silent_60_wav)
         assert result['vocal_rms'] is None

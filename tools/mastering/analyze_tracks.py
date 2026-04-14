@@ -192,6 +192,16 @@ def analyze_track(filepath: Path | str, *,
                 vocal_rms = float(rms_val)
                 vocal_rms_source = "stem"
 
+    if vocal_rms is None:
+        try:
+            band_filtered = _bandpass_sos(mono, rate, 1000.0, 4000.0)
+            rms_val = _rms_db(band_filtered)
+            if np.isfinite(rms_val):
+                vocal_rms = float(rms_val)
+                vocal_rms_source = "band_fallback"
+        except Exception as exc:
+            logger.warning("1-4 kHz band fallback failed: %s", exc)
+
     # Momentary: 400ms window, 100ms hop
     mom_window = int(0.4 * rate)
     mom_hop = int(0.1 * rate)
