@@ -81,6 +81,7 @@ def test_master_audio_honors_delivery_bit_depth_16(
     one_track_audio_dir: Path,
 ) -> None:
     """Setting delivery_bit_depth=16 in config produces 16-bit output."""
+    from tools.mastering import config as mastering_config_mod
     from tools.mastering.config import DEFAULT_MASTERING_CONFIG
 
     custom = {**DEFAULT_MASTERING_CONFIG, "delivery_bit_depth": 16}
@@ -90,7 +91,7 @@ def test_master_audio_honors_delivery_bit_depth_16(
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
          patch.object(shared_mod, "cache", _MockCache()), \
-         patch.object(audio_mod, "load_mastering_config", return_value=custom):
+         patch.object(mastering_config_mod, "load_mastering_config", return_value=custom):
         result_json = asyncio.run(audio_mod.master_audio("test-album"))
 
     result = json.loads(result_json)
@@ -106,6 +107,7 @@ def test_master_audio_honors_legacy_source_rate(
     one_track_audio_dir: Path,
 ) -> None:
     """delivery_sample_rate=44100 matches Suno source → no upsampling."""
+    from tools.mastering import config as mastering_config_mod
     from tools.mastering.config import DEFAULT_MASTERING_CONFIG
 
     custom = {**DEFAULT_MASTERING_CONFIG, "delivery_sample_rate": 44100}
@@ -115,7 +117,7 @@ def test_master_audio_honors_legacy_source_rate(
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
          patch.object(shared_mod, "cache", _MockCache()), \
-         patch.object(audio_mod, "load_mastering_config", return_value=custom):
+         patch.object(mastering_config_mod, "load_mastering_config", return_value=custom):
         result_json = asyncio.run(audio_mod.master_audio("test-album"))
 
     result = json.loads(result_json)

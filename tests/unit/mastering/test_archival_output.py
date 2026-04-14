@@ -74,6 +74,7 @@ def test_archival_disabled_by_default(tmp_path: Path) -> None:
 
 def test_archival_enabled_writes_32bit_float(tmp_path: Path) -> None:
     """With archival_enabled=true, archival/ contains 32-bit float copies."""
+    from tools.mastering import config as mastering_config_mod
     from tools.mastering.config import DEFAULT_MASTERING_CONFIG
 
     audio_dir = _three_track_dir(tmp_path)
@@ -84,7 +85,7 @@ def test_archival_enabled_writes_32bit_float(tmp_path: Path) -> None:
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
          patch.object(shared_mod, "cache", _MockCache()), \
-         patch.object(audio_mod, "load_mastering_config", return_value=custom):
+         patch.object(mastering_config_mod, "load_mastering_config", return_value=custom):
         result_json = asyncio.run(audio_mod.master_album("test-album"))
 
     result = json.loads(result_json)
@@ -105,6 +106,7 @@ def test_archival_enabled_writes_32bit_float(tmp_path: Path) -> None:
 
 def test_archival_stage_recorded_in_stages(tmp_path: Path) -> None:
     """stages dict records archival step when enabled."""
+    from tools.mastering import config as mastering_config_mod
     from tools.mastering.config import DEFAULT_MASTERING_CONFIG
 
     audio_dir = _three_track_dir(tmp_path)
@@ -115,7 +117,7 @@ def test_archival_stage_recorded_in_stages(tmp_path: Path) -> None:
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
          patch.object(shared_mod, "cache", _MockCache()), \
-         patch.object(audio_mod, "load_mastering_config", return_value=custom):
+         patch.object(mastering_config_mod, "load_mastering_config", return_value=custom):
         result_json = asyncio.run(audio_mod.master_album("test-album"))
 
     result = json.loads(result_json)

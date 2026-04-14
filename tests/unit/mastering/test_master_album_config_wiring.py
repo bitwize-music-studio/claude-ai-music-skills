@@ -142,6 +142,7 @@ def test_master_album_no_upsampling_notice_when_rates_match(
     three_track_audio_dir: Path,
 ) -> None:
     """delivery_sample_rate=44100 → no upsampling notice."""
+    from tools.mastering import config as mastering_config_mod
     from tools.mastering.config import DEFAULT_MASTERING_CONFIG
 
     custom = {**DEFAULT_MASTERING_CONFIG, "delivery_sample_rate": 44100}
@@ -151,7 +152,7 @@ def test_master_album_no_upsampling_notice_when_rates_match(
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
          patch.object(shared_mod, "cache", _MockCache()), \
-         patch.object(audio_mod, "load_mastering_config", return_value=custom):
+         patch.object(mastering_config_mod, "load_mastering_config", return_value=custom):
         result_json = asyncio.run(audio_mod.master_album("test-album"))
 
     result = json.loads(result_json)
