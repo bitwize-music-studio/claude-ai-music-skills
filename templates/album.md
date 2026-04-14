@@ -4,6 +4,7 @@ release_date: ""  # YYYY-MM-DD (fill in when releasing)
 genres: []  # e.g., ["hip-hop", "documentary"]
 tags: []  # e.g., ["tech", "linux", "true-story"]
 explicit: false  # true or false
+# anchor_track: null  # Optional: 1-based track number to anchor album mastering (issue #290). Empty = auto-select by composite score.
 streaming:
   soundcloud: ""    # Fill in when released
   spotify: ""       # Fill in when released

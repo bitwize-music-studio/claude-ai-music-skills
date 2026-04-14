@@ -130,6 +130,62 @@ class TestParseAlbumReadme:
         for platform in ('soundcloud', 'spotify', 'apple_music', 'youtube_music', 'amazon_music'):
             assert platform in streaming, f"streaming block missing: {platform}"
 
+    def test_parses_anchor_track_when_set(self, tmp_path):
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title: "Test"\n'
+            'anchor_track: 3\n'
+            '---\n'
+            '# Test\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        assert result.get("anchor_track") == 3
+
+    def test_anchor_track_absent_returns_none(self, tmp_path):
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title: "Test"\n'
+            '---\n'
+            '# Test\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        assert result.get("anchor_track") is None
+
+    def test_anchor_track_null_returns_none(self, tmp_path):
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title: "Test"\n'
+            'anchor_track: null\n'
+            '---\n'
+            '# Test\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        assert result.get("anchor_track") is None
+
+    def test_anchor_track_non_int_coerced_to_none(self, tmp_path):
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title: "Test"\n'
+            'anchor_track: "not a number"\n'
+            '---\n'
+            '# Test\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        # Malformed value must not crash and must not poison downstream code.
+        assert result.get("anchor_track") is None
+
 
 class TestParseTrackFile:
     """Tests for parse_track_file()."""

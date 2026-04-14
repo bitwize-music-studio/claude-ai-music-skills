@@ -164,6 +164,17 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     result['release_date'] = fm.get('release_date') or None
     result['explicit'] = fm.get('explicit', False)
 
+    # Optional anchor-track override for album mastering (issue #290 phase 2).
+    # Frontmatter uses 1-based track numbers. Non-int / null / missing → None,
+    # and the mastering pipeline falls through to composite anchor scoring.
+    anchor_raw = fm.get('anchor_track')
+    if isinstance(anchor_raw, bool):  # bool is an int subclass; exclude it
+        result['anchor_track'] = None
+    elif isinstance(anchor_raw, int):
+        result['anchor_track'] = anchor_raw
+    else:
+        result['anchor_track'] = None
+
     # Streaming URLs from frontmatter
     streaming_fm = fm.get('streaming', {})
     if isinstance(streaming_fm, dict):
