@@ -83,3 +83,125 @@ def _representativeness_score(track: dict[str, Any],
 def _ceiling_penalty_score(peak_db: float) -> float:
     """Penalty for tracks pinned near 0 dBFS. 0 at ≤ -3 dB, 1 at 0 dBFS."""
     return max(0.0, min(1.0, (float(peak_db) - (-3.0)) / 3.0))
+
+
+def _is_eligible(track: dict[str, Any]) -> tuple[bool, str | None]:
+    for key in SIGNATURE_KEYS:
+        if track.get(key) is None:
+            return False, f"{key} is None (analyzer could not compute it)"
+    if "band_energy" not in track or not track["band_energy"]:
+        return False, "band_energy missing"
+    return True, None
+
+
+def select_anchor(
+    tracks: list[dict[str, Any]],
+    preset: dict[str, Any],
+    override_index: int | None = None,
+) -> dict[str, Any]:
+    """Select the anchor track for album mastering.
+
+    Args:
+        tracks: List of ``analyze_track`` result dicts, in track order
+                (index 0 == track #1). Must include ``filename``,
+                ``stl_95``, ``short_term_range``, ``low_rms``,
+                ``vocal_rms``, ``peak_db``, ``band_energy``.
+        preset: Genre preset dict; must include
+                ``genre_ideal_lra_lu`` and ``spectral_reference_energy``
+                (fall back to defaults.yaml shape when missing).
+        override_index: Optional 1-based track number from album README
+                frontmatter ``anchor_track``. Values ≤ 0 or > len(tracks)
+                fall through to composite scoring.
+
+    Returns:
+        Dict — see module docstring + plan design section for shape.
+    """
+    ideal_lra = float(preset.get("genre_ideal_lra_lu", 8.0))
+    spectral_ref = preset.get("spectral_reference_energy") or {
+        "sub_bass": 8.0, "bass": 18.0, "low_mid": 20.0, "mid": 25.0,
+        "high_mid": 14.0, "high": 10.0, "air": 5.0,
+    }
+
+    # Override path
+    override_reason: str | None = None
+    if override_index is not None and override_index > 0:
+        if 1 <= override_index <= len(tracks):
+            return {
+                "selected_index": override_index,
+                "method": "override",
+                "scores": [
+                    {"index": i + 1,
+                     "filename": t.get("filename"),
+                     "score": None,
+                     "eligible": None,
+                     "reason": "skipped — override in effect"}
+                    for i, t in enumerate(tracks)
+                ],
+                "override_index": override_index,
+                "override_reason": None,
+            }
+        override_reason = (
+            f"out of range [1, {len(tracks)}] — fell through to composite scoring"
+        )
+    elif override_index is not None and override_index <= 0:
+        override_reason = "non-positive — treated as no override"
+
+    # Composite scoring
+    eligible_tracks: list[tuple[int, dict[str, Any]]] = []
+    scores: list[dict[str, Any]] = []
+    for i, track in enumerate(tracks):
+        ok, reason = _is_eligible(track)
+        entry: dict[str, Any] = {
+            "index": i + 1,
+            "filename": track.get("filename"),
+            "eligible": ok,
+        }
+        if not ok:
+            entry["score"] = None
+            entry["reason"] = reason
+            scores.append(entry)
+            continue
+        eligible_tracks.append((i + 1, track))
+        entry["reason"] = None
+        scores.append(entry)
+
+    if not eligible_tracks:
+        return {
+            "selected_index": None,
+            "method": "no_eligible_tracks",
+            "scores": scores,
+            "override_index": override_index,
+            "override_reason": override_reason,
+        }
+
+    medians = _album_medians([t for _, t in eligible_tracks])
+    for entry in scores:
+        if not entry["eligible"]:
+            continue
+        idx = entry["index"]
+        track = tracks[idx - 1]
+        mq = _mix_quality_score(track, spectral_ref, ideal_lra)
+        rp = _representativeness_score(track, medians)
+        cp = _ceiling_penalty_score(float(track.get("peak_db", 0.0)))
+        composite = 0.4 * mq + 0.4 * rp - 1.0 * cp
+        entry["mix_quality"] = mq
+        entry["representativeness"] = rp
+        entry["ceiling_penalty"] = cp
+        entry["score"] = composite
+
+    ranked = sorted(
+        (e for e in scores if e["eligible"]),
+        key=lambda e: (-e["score"], e["index"]),
+    )
+    top = ranked[0]
+    method = "composite"
+    if len(ranked) >= 2 and abs(ranked[0]["score"] - ranked[1]["score"]) < TIE_BREAKER_EPSILON:
+        method = "tie_breaker"
+
+    return {
+        "selected_index": top["index"],
+        "method": method,
+        "scores": scores,
+        "override_index": override_index,
+        "override_reason": override_reason,
+    }

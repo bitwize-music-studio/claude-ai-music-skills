@@ -107,3 +107,99 @@ class TestCeilingPenalty:
 
     def test_peak_midway_scaled(self):
         assert _ceiling_penalty_score(-1.5) == pytest.approx(0.5)
+
+
+from tools.mastering.anchor_selector import select_anchor
+
+
+def _preset(ideal_lra: float = 8.0) -> dict:
+    return {
+        "genre_ideal_lra_lu": ideal_lra,
+        "spectral_reference_energy": dict(REF),
+    }
+
+
+class TestSelectAnchorComposite:
+    def test_picks_representative_track(self):
+        # Track 1 matches album median exactly; track 2 is an outlier.
+        t1 = _track(filename="01.wav", stl_95=-14.0, short_term_range=8.0,
+                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-5.0)
+        t2 = _track(filename="02.wav", stl_95=-14.0, short_term_range=8.0,
+                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-5.0)
+        t3 = _track(filename="03.wav", stl_95=-10.0, short_term_range=3.0,
+                    low_rms=-12.0, vocal_rms=-10.0, peak_db=-2.0)
+        result = select_anchor([t1, t2, t3], _preset())
+        assert result["method"] == "tie_breaker"  # 01 and 02 identical
+        assert result["selected_index"] == 1
+        assert result["scores"][2]["score"] < result["scores"][0]["score"]
+
+    def test_ceiling_penalty_demotes_hot_track(self):
+        # Representative but near 0 dBFS → penalty beats representativeness.
+        t1 = _track(filename="01.wav", stl_95=-14.0, short_term_range=8.0,
+                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-0.5)
+        t2 = _track(filename="02.wav", stl_95=-14.0, short_term_range=8.0,
+                    low_rms=-20.0, vocal_rms=-18.0, peak_db=-6.0)
+        result = select_anchor([t1, t2], _preset())
+        assert result["selected_index"] == 2  # cooler track wins
+        assert result["scores"][0]["ceiling_penalty"] > 0
+        assert result["scores"][1]["ceiling_penalty"] == 0.0
+
+
+class TestSelectAnchorOverride:
+    def test_valid_override_short_circuits_scoring(self):
+        t1 = _track(filename="01.wav", peak_db=-5.0)
+        t2 = _track(filename="02.wav", peak_db=-5.0)
+        t3 = _track(filename="03.wav", peak_db=-5.0)
+        result = select_anchor([t1, t2, t3], _preset(), override_index=2)
+        assert result["method"] == "override"
+        assert result["selected_index"] == 2
+        assert result["override_index"] == 2
+        assert result["override_reason"] is None
+
+    def test_out_of_range_override_falls_through_to_scoring(self):
+        t1 = _track(filename="01.wav", peak_db=-5.0)
+        t2 = _track(filename="02.wav", peak_db=-5.0)
+        result = select_anchor([t1, t2], _preset(), override_index=99)
+        assert result["method"] in ("composite", "tie_breaker")
+        assert result["override_index"] == 99
+        assert "out of range" in (result["override_reason"] or "")
+
+    def test_zero_override_treated_as_no_override(self):
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav")
+        result = select_anchor([t1, t2], _preset(), override_index=0)
+        assert result["method"] != "override"
+
+
+class TestSelectAnchorTieBreaker:
+    def test_ties_resolve_to_lowest_index(self):
+        # Three identical tracks → lowest index wins.
+        tracks = [_track(filename=f"0{i}.wav") for i in (1, 2, 3)]
+        result = select_anchor(tracks, _preset())
+        assert result["method"] == "tie_breaker"
+        assert result["selected_index"] == 1
+
+    def test_scores_outside_epsilon_use_composite(self):
+        t1 = _track(filename="01.wav", short_term_range=8.0)   # on-target LRA
+        t2 = _track(filename="02.wav", short_term_range=20.0)  # far-off LRA
+        result = select_anchor([t1, t2], _preset())
+        assert result["method"] == "composite"
+        assert result["selected_index"] == 1
+
+
+class TestSelectAnchorEligibility:
+    def test_missing_signature_track_marked_ineligible(self):
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav", stl_95=None)  # missing
+        result = select_anchor([t1, t2], _preset())
+        assert result["selected_index"] == 1
+        score_entry = next(s for s in result["scores"] if s["index"] == 2)
+        assert score_entry["eligible"] is False
+        assert "stl_95" in score_entry["reason"]
+
+    def test_all_ineligible_returns_no_selection(self):
+        t1 = _track(filename="01.wav", stl_95=None)
+        t2 = _track(filename="02.wav", stl_95=None)
+        result = select_anchor([t1, t2], _preset())
+        assert result["selected_index"] is None
+        assert result["method"] == "no_eligible_tracks"
