@@ -1727,6 +1727,171 @@ async def prune_archival(album_slug: str, keep: int = 3) -> str:
     })
 
 
+async def measure_album_signature(
+    album_slug: str,
+    subfolder: str = "mastered",
+    genre: str = "",
+    anchor_track: int | None = None,
+) -> str:
+    """Measure an album's multi-metric signature from its WAV files.
+
+    Runs analyze_track() on every WAV in the album's ``subfolder``
+    directory, then aggregates the results into:
+      • per-track signature metrics (LUFS, peak, STL-95, short-term
+        range, low-RMS, vocal-RMS, spectral band energy);
+      • album-level aggregates (median, p95, min, max, range);
+      • an optional anchor block (when ``genre`` or ``anchor_track`` is
+        given) with the selected-anchor index, the anchor-selector scores,
+        and per-track deltas from the anchor.
+
+    The tool is read-only — no files are written. It's intended for
+    tuning genre tolerance presets from reference albums and for feeding
+    the album_coherence_check / album_coherence_correct tools in phase 3b.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album").
+        subfolder: Subfolder under the album's audio directory to scan
+            for WAVs. Default "mastered". Pass "" to scan the base audio
+            dir, or any confined relative path.
+        genre: Optional genre preset slug (e.g., "pop"). When set, the
+            anchor selector runs with the resolved preset's
+            ``genre_ideal_lra_lu`` and ``spectral_reference_energy``.
+        anchor_track: Optional explicit 1-based track number to use as
+            the anchor. Overrides both ``genre``-based selection and any
+            album-README ``anchor_track:`` frontmatter value. Out-of-range
+            values fall through to composite scoring (and are surfaced
+            via ``anchor.override_reason``).
+
+    Returns:
+        JSON string. On success includes ``tracks``, ``album``, and —
+        when an anchor was computed — an ``anchor`` block. On failure
+        returns ``{"error": str, ...}``.
+    """
+    dep_err = _helpers._check_mastering_deps()
+    if dep_err:
+        return _safe_json({"error": dep_err})
+
+    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
+    if err:
+        return err
+    assert audio_dir is not None
+
+    # Resolve source directory (subfolder) with confinement guard.
+    if subfolder:
+        if not _is_path_confined(audio_dir, subfolder):
+            return _safe_json({
+                "error": (
+                    f"Invalid subfolder: path must not escape the album "
+                    f"directory (got {subfolder!r})"
+                ),
+            })
+        source_dir = audio_dir / subfolder
+        if not source_dir.is_dir():
+            return _safe_json({
+                "error": f"Subfolder not found: {source_dir}",
+                "suggestion": (
+                    f"Pass subfolder='' to scan the base audio dir, or "
+                    f"verify {subfolder!r} exists under {audio_dir}."
+                ),
+            })
+    else:
+        source_dir = _find_wav_source_dir(audio_dir)
+
+    wav_files = sorted([
+        f for f in source_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+    if not wav_files:
+        return _safe_json({
+            "error": f"No WAV files found in {source_dir}",
+        })
+
+    # Resolve genre preset (only when caller gave a genre — otherwise
+    # skip the preset step entirely so unknown-genre doesn't error a
+    # signature-only measurement run).
+    preset_dict: dict[str, Any] | None = None
+    if genre:
+        from tools.mastering.config import build_effective_preset
+        bundle = build_effective_preset(
+            genre=genre,
+            cut_highmid_arg=0.0,
+            cut_highs_arg=0.0,
+            target_lufs_arg=-14.0,
+            ceiling_db_arg=-1.0,
+        )
+        if bundle["error"] is not None:
+            return _safe_json({
+                "error": bundle["error"]["reason"],
+                "available_genres": bundle["error"].get("available_genres", []),
+            })
+        preset_dict = bundle["preset_dict"]
+
+    # Determine whether an anchor is requested and which override to use.
+    # Precedence: explicit arg > README frontmatter > composite scoring > none.
+    override_index: int | None = None
+    if isinstance(anchor_track, int) and not isinstance(anchor_track, bool):
+        override_index = anchor_track
+    elif _shared.cache is not None:
+        state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+        album_state = state_albums.get(_normalize_slug(album_slug), {})
+        raw_override = album_state.get("anchor_track")
+        if isinstance(raw_override, int) and not isinstance(raw_override, bool):
+            override_index = raw_override
+
+    anchor_requested = bool(genre) or override_index is not None
+
+    # Run analyzer on every WAV. Block-executor keeps the event loop responsive.
+    from tools.mastering.analyze_tracks import analyze_track
+    from tools.mastering.album_signature import (
+        build_signature,
+        compute_anchor_deltas,
+    )
+
+    loop = asyncio.get_running_loop()
+    analysis_results: list[dict[str, Any]] = []
+    for wav in wav_files:
+        result = await loop.run_in_executor(None, analyze_track, str(wav))
+        analysis_results.append(result)
+
+    signature = build_signature(analysis_results)
+    response: dict[str, Any] = {
+        "album_slug": album_slug,
+        "source_dir": str(source_dir),
+        "settings": {
+            "genre": genre.lower() if genre else None,
+            "subfolder": subfolder,
+        },
+        "tracks": signature["tracks"],
+        "album":  signature["album"],
+    }
+
+    if anchor_requested:
+        from tools.mastering.anchor_selector import select_anchor
+        anchor_preset = preset_dict or {}
+        anchor_result = select_anchor(
+            analysis_results,
+            anchor_preset,
+            override_index=override_index,
+        )
+        anchor_block: dict[str, Any] = {
+            "selected_index":  anchor_result["selected_index"],
+            "method":          anchor_result["method"],
+            "override_index":  anchor_result["override_index"],
+            "override_reason": anchor_result["override_reason"],
+            "scores":          anchor_result["scores"],
+        }
+        selected = anchor_result["selected_index"]
+        if isinstance(selected, int) and 1 <= selected <= len(analysis_results):
+            anchor_block["deltas"] = compute_anchor_deltas(
+                analysis_results, anchor_index_1based=selected,
+            )
+        else:
+            anchor_block["deltas"] = []
+        response["anchor"] = anchor_block
+
+    return _safe_json(response)
+
+
 def register(mcp: Any) -> None:
     """Register audio mastering tools."""
     mcp.tool()(analyze_audio)
@@ -1738,3 +1903,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(render_codec_preview)
     mcp.tool()(mono_fold_check)
     mcp.tool()(prune_archival)
+    mcp.tool()(measure_album_signature)

@@ -24,6 +24,7 @@ from handlers.processing.audio import (  # noqa: F401
     master_album,
     master_audio,
     master_with_reference,
+    measure_album_signature,
     mono_fold_check,
     prune_archival,
     qc_audio,
