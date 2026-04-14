@@ -267,13 +267,14 @@ async def master_audio(
             "error": bundle["error"]["reason"],
             "available_genres": bundle["error"]["available_genres"],
         })
-    preset_dict = bundle["preset_dict"]
     targets = bundle["targets"]
+    settings = bundle["settings"]
+    effective_preset = bundle["effective_preset"]
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
-    effective_highmid = bundle["settings"]["cut_highmid"]
-    effective_highs = bundle["settings"]["cut_highs"]
-    effective_compress = bundle["effective_preset"]["compress_ratio"]
+    effective_highmid = settings["cut_highmid"]
+    effective_highs = settings["cut_highs"]
+    effective_compress = effective_preset["compress_ratio"]
     genre_applied = bundle["genre_applied"]
 
     # EQ is applied inside master_track from preset.cut_highmid / cut_highs
@@ -326,8 +327,6 @@ async def master_audio(
                 track_info = album_data.get("tracks", {}).get(track_slug, {})
                 if track_info.get("fade_out") is not None:
                     fade_out_val = track_info["fade_out"]
-
-            effective_preset = bundle["effective_preset"]
 
             def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
                 return _master_track(
@@ -711,15 +710,14 @@ async def master_album(
             "failed_stage": "pre_flight",
             "failure_detail": bundle["error"],
         })
-    preset_dict = bundle["preset_dict"]
     targets = bundle["targets"]
+    settings = bundle["settings"]
+    effective_preset = bundle["effective_preset"]
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
-    effective_highmid = bundle["settings"]["cut_highmid"]
-    effective_highs = bundle["settings"]["cut_highs"]
-    effective_compress = bundle["effective_preset"]["compress_ratio"]
-    genre_applied = bundle["genre_applied"]
-    settings = bundle["settings"]
+    effective_highmid = settings["cut_highmid"]
+    effective_highs = settings["cut_highs"]
+    effective_compress = effective_preset["compress_ratio"]
 
     loop = asyncio.get_running_loop()
 
@@ -853,8 +851,6 @@ async def master_album(
             track_slug = _normalize_slug(track_stem)
             track_meta = album_tracks.get(track_slug, {})
             fade_out_val = track_meta.get("fade_out")
-
-            effective_preset = bundle["effective_preset"]
 
             def _do_master(
                 in_path: Path,
