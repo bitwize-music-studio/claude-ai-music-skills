@@ -569,6 +569,8 @@ async def master_album(
     cut_highmid: float = 0.0,
     cut_highs: float = 0.0,
     source_subfolder: str = "",
+    freeze_signature: bool = False,
+    new_anchor: bool = False,
 ) -> str:
     """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
 
@@ -590,6 +592,14 @@ async def master_album(
         cut_highs: High shelf cut in dB at 8kHz
         source_subfolder: Read WAV files from this subfolder instead of the
             base audio dir (e.g., "polished" to master from mix-engineer output)
+        freeze_signature: Force frozen-signature mode regardless of album
+            status. Skips anchor selection and masters against
+            ``ALBUM_SIGNATURE.yaml``. Useful for bonus tracks during
+            release prep. Mutually exclusive with ``new_anchor``.
+        new_anchor: Force fresh anchor selection regardless of album
+            status. Useful for remastering a Released album with a new
+            anchor (e.g. re-release). Mutually exclusive with
+            ``freeze_signature``.
 
     Returns:
         JSON with per-stage results, settings, warnings, and failure info
@@ -599,6 +609,20 @@ async def master_album(
 
     stages: dict[str, Any] = {}
     warnings: list[Any] = []
+
+    if freeze_signature and new_anchor:
+        return _safe_json({
+            "album_slug": album_slug,
+            "stage_reached": "pre_flight",
+            "stages": {"pre_flight": {
+                "status": "fail",
+                "detail": "freeze_signature and new_anchor are mutually exclusive",
+            }},
+            "failed_stage": "pre_flight",
+            "failure_detail": {
+                "reason": "freeze_signature and new_anchor are mutually exclusive",
+            },
+        })
 
     # --- Stage 1: Pre-flight ---
     dep_err = _helpers._check_mastering_deps()
