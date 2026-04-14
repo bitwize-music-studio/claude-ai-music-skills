@@ -208,3 +208,23 @@ class TestVocalRmsFallback:
     def test_silent_track_vocal_rms_is_none(self, silent_60_wav):
         result = analyze_track(silent_60_wav)
         assert result['vocal_rms'] is None
+
+
+class TestSignatureMeta:
+    def test_meta_keys_on_full_length_track(self, long_constant_wav):
+        result = analyze_track(long_constant_wav)
+        assert 'signature_meta' in result
+        meta = result['signature_meta']
+        assert meta['stl_window_count'] >= 20
+        assert meta['stl_top_5pct_count'] == max(1, int(round(0.05 * meta['stl_window_count'])))
+        assert meta['vocal_rms_source'] == 'band_fallback'
+
+    def test_meta_source_stem_when_stem_provided(self, full_mix_and_stem):
+        full, stem = full_mix_and_stem
+        result = analyze_track(full, vocal_stem_path=stem)
+        assert result['signature_meta']['vocal_rms_source'] == 'stem'
+
+    def test_meta_source_unavailable_on_silence(self, silent_60_wav):
+        result = analyze_track(silent_60_wav)
+        assert result['signature_meta']['vocal_rms_source'] == 'unavailable'
+        assert result['signature_meta']['stl_top_5pct_count'] == 0

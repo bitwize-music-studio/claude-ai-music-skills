@@ -216,6 +216,14 @@ def analyze_track(filepath: Path | str, *,
                         if np.isfinite(max_short_term) and np.isfinite(min_short_term)
                         else 0.0)
 
+    # signature_meta records provenance for downstream consumers (anchor
+    # selector in phase 2a, coherence check in phase 2b).
+    signature_meta = {
+        'stl_window_count': len(st_values),
+        'stl_top_5pct_count': int(len(stl_top_5pct_indices)),
+        'vocal_rms_source': vocal_rms_source,
+    }
+
     return {
         'filename': os.path.basename(filepath),
         'duration': len(mono) / rate,
@@ -232,6 +240,7 @@ def analyze_track(filepath: Path | str, *,
         'stl_95': stl_95,
         'low_rms': low_rms,
         'vocal_rms': vocal_rms,
+        'signature_meta': signature_meta,
     }
 
 def main() -> None:
