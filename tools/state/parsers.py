@@ -175,6 +175,24 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         result['anchor_track'] = None
 
+    # Optional layout override for album-mastering LAYOUT.md emitter (#290
+    # phase 5, step 7). Accepted shape:
+    #
+    #     layout:
+    #       default_transition: gap | gapless
+    #
+    # Anything else (missing, non-dict, unknown value, non-string) collapses
+    # to None so downstream consumers can default to "gap".
+    layout_raw = fm.get('layout')
+    parsed_layout: dict[str, str] | None = None
+    if isinstance(layout_raw, dict):
+        dt_raw = layout_raw.get('default_transition')
+        if isinstance(dt_raw, str):
+            dt_norm = dt_raw.strip().lower()
+            if dt_norm in ('gap', 'gapless'):
+                parsed_layout = {'default_transition': dt_norm}
+    result['layout'] = parsed_layout
+
     # Streaming URLs from frontmatter
     streaming_fm = fm.get('streaming', {})
     if isinstance(streaming_fm, dict):
