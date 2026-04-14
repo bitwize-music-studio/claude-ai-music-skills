@@ -176,8 +176,85 @@ def build_correction_plan(
     analysis_results: list[dict[str, Any]],
     anchor_index_1based: int,
 ) -> dict[str, Any]:
-    """Build per-track correction plan targeting LUFS outliers.
+    """Build a per-track correction plan targeting LUFS outliers.
 
-    Implementation lands in Task 4.
+    Args:
+        classifications: Output of ``classify_outliers``.
+        analysis_results: Original ``analyze_track`` dicts (used for
+            anchor LUFS lookup).
+        anchor_index_1based: 1-based track number of the anchor.
+
+    Returns:
+        Dict with:
+          anchor_index: 1-based anchor index
+          anchor_lufs:  measured LUFS of the anchor (ground truth)
+          corrections:  list of per-track correction dicts
+          skipped:      list of {index, filename, reason} for the
+                        anchor + clean tracks
     """
-    raise NotImplementedError
+    if not (1 <= anchor_index_1based <= len(analysis_results)):
+        raise ValueError(
+            f"anchor_index_1based={anchor_index_1based} out of range "
+            f"[1, {len(analysis_results)}]"
+        )
+
+    anchor_analysis = analysis_results[anchor_index_1based - 1]
+    anchor_lufs = float(anchor_analysis.get("lufs", 0.0))
+
+    corrections: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+
+    for cls in classifications:
+        if cls["is_anchor"]:
+            skipped.append({
+                "index":    cls["index"],
+                "filename": cls.get("filename"),
+                "reason":   "is_anchor",
+            })
+            continue
+
+        lufs_violation = next(
+            (v for v in cls["violations"]
+             if v["metric"] == "lufs" and v["severity"] == "outlier"),
+            None,
+        )
+        non_lufs_outliers = [
+            v for v in cls["violations"]
+            if v["metric"] != "lufs" and v["severity"] == "outlier"
+        ]
+
+        if lufs_violation is not None:
+            corrections.append({
+                "index":                cls["index"],
+                "filename":             cls.get("filename"),
+                "correctable":          True,
+                "corrected_target_lufs": anchor_lufs,
+                "reason": (
+                    f"LUFS outlier: delta={lufs_violation['delta']:+.2f}, "
+                    f"tolerance=±{lufs_violation['tolerance']:.2f}"
+                ),
+            })
+        elif non_lufs_outliers:
+            metrics = ", ".join(sorted({v["metric"] for v in non_lufs_outliers}))
+            corrections.append({
+                "index":       cls["index"],
+                "filename":    cls.get("filename"),
+                "correctable": False,
+                "reason": (
+                    f"Only non-LUFS violations ({metrics}) — MVP scope "
+                    f"skips; revisit when compression-ratio correction lands."
+                ),
+            })
+        else:
+            skipped.append({
+                "index":    cls["index"],
+                "filename": cls.get("filename"),
+                "reason":   "no_violations",
+            })
+
+    return {
+        "anchor_index":  anchor_index_1based,
+        "anchor_lufs":   anchor_lufs,
+        "corrections":   corrections,
+        "skipped":       skipped,
+    }

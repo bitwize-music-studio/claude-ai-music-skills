@@ -214,3 +214,87 @@ class TestClassifyOutliers:
         ]
         result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
         assert result[0]["is_outlier"] is False
+
+
+class TestBuildCorrectionPlan:
+    def test_anchor_is_in_skipped(self):
+        classifications = [
+            {"index": 1, "filename": "01.wav", "is_anchor": False,
+             "is_outlier": False, "violations": []},
+            {"index": 2, "filename": "02.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+        ]
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.1),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=2)
+        skipped_indices = {s["index"] for s in plan["skipped"]}
+        assert 2 in skipped_indices
+        anchor_entry = next(s for s in plan["skipped"] if s["index"] == 2)
+        assert anchor_entry["reason"] == "is_anchor"
+
+    def test_clean_tracks_are_skipped(self):
+        classifications = [
+            {"index": 1, "filename": "01.wav", "is_anchor": False,
+             "is_outlier": False, "violations": [
+                 {"metric": "lufs", "delta": 0.1, "tolerance": 0.5,
+                  "severity": "ok", "correctable": False},
+             ]},
+            {"index": 2, "filename": "02.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+        ]
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.1),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=2)
+        skipped_reasons = {s["index"]: s["reason"] for s in plan["skipped"]}
+        assert skipped_reasons.get(1) == "no_violations"
+
+    def test_lufs_outlier_is_correctable_with_anchor_lufs(self):
+        classifications = [
+            {"index": 1, "filename": "01.wav", "is_anchor": False,
+             "is_outlier": True, "violations": [
+                 {"metric": "lufs", "delta": 1.3, "tolerance": 0.5,
+                  "severity": "outlier", "correctable": True},
+             ]},
+            {"index": 2, "filename": "02.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+        ]
+        analyses = [
+            _analysis(filename="01.wav", lufs=-12.8),   # outlier
+            _analysis(filename="02.wav", lufs=-14.1),   # anchor, measured
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=2)
+
+        assert plan["anchor_index"] == 2
+        assert plan["anchor_lufs"] == pytest.approx(-14.1)
+        correctable = [c for c in plan["corrections"] if c["correctable"]]
+        assert len(correctable) == 1
+        entry = correctable[0]
+        assert entry["index"] == 1
+        assert entry["corrected_target_lufs"] == pytest.approx(-14.1)
+        assert "LUFS outlier" in entry["reason"]
+
+    def test_non_lufs_only_outlier_is_not_correctable(self):
+        classifications = [
+            {"index": 1, "filename": "01.wav", "is_anchor": False,
+             "is_outlier": True, "violations": [
+                 {"metric": "lufs", "delta": 0.2, "tolerance": 0.5,
+                  "severity": "ok", "correctable": False},
+                 {"metric": "stl_95", "delta": 0.9, "tolerance": 0.5,
+                  "severity": "outlier", "correctable": False},
+             ]},
+            {"index": 2, "filename": "02.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+        ]
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.1),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=2)
+
+        uncorrectable = [c for c in plan["corrections"] if not c["correctable"]]
+        assert len(uncorrectable) == 1
+        assert "MVP scope" in uncorrectable[0]["reason"]
