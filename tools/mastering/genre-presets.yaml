@@ -77,6 +77,16 @@
 #                            compares each track's band_energy to this curve via
 #                            Euclidean distance. Genre overrides merge key-by-key;
 #                            missing keys inherit from defaults.
+#   coherence_stl_95_lu    - Max |track.stl_95 - anchor.stl_95| (LU) before
+#                            the track is classified an STL-95 outlier by
+#                            album_coherence_check (#290 phase 3b). Default 0.5.
+#   coherence_lra_floor_lu - Minimum short_term_range (LU) allowed; tracks
+#                            below trip an LRA-floor violation regardless of
+#                            anchor. Default 1.0.
+#   coherence_low_rms_db   - Max |delta_low_rms| (dB) before low-RMS outlier.
+#                            Default 2.0.
+#   coherence_vocal_rms_db - Max |delta_vocal_rms| (dB) before vocal-RMS outlier.
+#                            Default 2.0.
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -151,6 +161,15 @@ defaults:
     high_mid: 14.0
     high:     10.0
     air:       5.0
+
+  # Album-mastering coherence tolerance bands (#290 phase 3b).
+  # Used by album_coherence_check / album_coherence_correct to classify
+  # outlier tracks relative to the selected anchor. All thresholds are
+  # absolute-value deltas from the anchor unless otherwise noted.
+  coherence_stl_95_lu: 0.5         # ±LU around anchor's STL-95
+  coherence_lra_floor_lu: 1.0      # minimum short_term_range allowed (absolute)
+  coherence_low_rms_db: 2.0        # ±dB around anchor's low_rms
+  coherence_vocal_rms_db: 2.0      # ±dB around anchor's vocal_rms
 
 genres:
   # === Pop / Mainstream ===
