@@ -927,6 +927,45 @@ class TestScanAlbums:
         assert '01-boot-sequence' in album['tracks']
         assert '04-kernel-panic' in album['tracks']
 
+    def test_anchor_track_propagated_from_frontmatter(self, tmp_path):
+        """#290 phase 2: scan_albums must copy anchor_track from parser
+        output into state.albums[slug]. Without this, the README
+        frontmatter override chain never fires in production."""
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Anchor Album"
+genres: ["rock"]
+explicit: false
+anchor_track: 2
+---
+
+# Anchor Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "rock", "anchor-album",
+                         readme_text=readme_text)
+
+        result = scan_albums(content_root, "testartist")
+        assert "anchor-album" in result
+        assert result["anchor-album"]["anchor_track"] == 2
+
+    def test_anchor_track_absent_when_not_in_frontmatter(self, tmp_path):
+        """#290 phase 2: anchor_track defaults to None when frontmatter
+        omits it — the mastering pipeline then falls through to
+        composite scoring."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "no-anchor-album")
+
+        result = scan_albums(content_root, "testartist")
+        assert "no-anchor-album" in result
+        assert result["no-anchor-album"]["anchor_track"] is None
+
 
 @pytest.mark.unit
 class TestScanTracks:
@@ -1372,6 +1411,66 @@ class TestIncrementalUpdate:
         updated = incremental_update(existing, config)
         assert updated['session']['last_album'] == 'my-album'
         assert updated['session']['pending_actions'] == ['do something']
+
+    def test_anchor_track_propagated_on_readme_rewrite(self, tmp_path, monkeypatch):
+        """#290 phase 2: incremental re-parse path must also carry
+        anchor_track into state.albums[slug]. A README rewrite forces
+        this branch (readme_mtime differs)."""
+        content_root = tmp_path / "content"
+        readme_initial = """---
+title: "My Album"
+genres: ["rock"]
+explicit: false
+---
+
+# My Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "rock", "my-album",
+                         readme_text=readme_initial)
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['albums']['my-album']['anchor_track'] is None
+
+        # Rewrite README with anchor_track set — changes readme_mtime,
+        # forcing the incremental path to re-parse and rebuild the entry.
+        readme_updated = """---
+title: "My Album"
+genres: ["rock"]
+explicit: false
+anchor_track: 3
+---
+
+# My Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+"""
+        readme_path = (content_root / "artists" / "testartist" / "albums" /
+                       "rock" / "my-album" / "README.md")
+        time.sleep(0.05)  # Ensure mtime changes
+        readme_path.write_text(readme_updated)
+
+        updated = incremental_update(existing, config)
+        assert updated['albums']['my-album']['anchor_track'] == 3
 
 
 @pytest.mark.unit

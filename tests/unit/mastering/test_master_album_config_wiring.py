@@ -220,3 +220,44 @@ def test_master_album_records_anchor_selection_stage(
     assert "scores" in anchor
     assert isinstance(anchor["scores"], list)
     assert len(anchor["scores"]) == 2
+
+
+def test_master_album_honors_anchor_track_override(
+    two_track_long_audio_dir: Path,
+) -> None:
+    """#290 phase 2: anchor_track frontmatter overrides composite scoring.
+
+    Exercises the full override chain: state cache albums[slug].anchor_track
+    → handler reads it via _shared.cache.get_state() → passes override_index
+    to select_anchor → anchor_selection stage records method=="override".
+    This is the end-to-end regression test for review finding C1.
+    """
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, two_track_long_audio_dir
+
+    # Pre-populate the mock state cache exactly as the indexer would
+    # after parsing a README with `anchor_track: 2` in frontmatter.
+    mock_cache = _MockCache()
+    mock_cache._state = {
+        "albums": {
+            "test-album": {
+                "anchor_track": 2,
+                "tracks": {},
+            },
+        },
+    }
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
+         patch.object(shared_mod, "cache", mock_cache):
+        result_json = asyncio.run(
+            audio_mod.master_album("test-album", genre="pop")
+        )
+
+    result = json.loads(result_json)
+    assert result.get("failed_stage") is None, result
+    anchor = result["stages"]["anchor_selection"]
+    assert anchor["method"] == "override"
+    assert anchor["selected_index"] == 2
+    assert anchor["override_index"] == 2
+    assert anchor["override_reason"] is None

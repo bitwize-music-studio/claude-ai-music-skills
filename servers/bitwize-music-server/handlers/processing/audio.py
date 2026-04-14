@@ -758,15 +758,12 @@ async def master_album(
     if isinstance(raw_override, int) and not isinstance(raw_override, bool):
         anchor_override = raw_override
 
-    # Build anchor preset — prefer the genre preset's spectral reference
-    # when present, else fall back to the defaults block. load_genre_presets
-    # filters through _PRESET_DEFAULTS, so nested-dict defaults are not
-    # inherited into per-genre presets today (see #290 phase 2 Task 4).
+    # Build anchor preset. load_genre_presets() filters through
+    # _PRESET_DEFAULTS, so nested-dict defaults (spectral_reference_energy)
+    # don't inherit into per-genre presets. select_anchor carries its own
+    # pop-balanced defaults for `genre_ideal_lra_lu` and
+    # `spectral_reference_energy` when the preset omits them.
     anchor_preset = preset_dict or {}
-    if "genre_ideal_lra_lu" not in anchor_preset or "spectral_reference_energy" not in anchor_preset:
-        from tools.mastering.master_tracks import load_genre_presets
-        defaults_block = load_genre_presets().get("defaults", {})
-        anchor_preset = {**defaults_block, **anchor_preset}
 
     anchor_result = select_anchor(
         analysis_results,
