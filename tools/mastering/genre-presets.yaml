@@ -67,6 +67,16 @@
 #   mono_fold_lufs_warn_db - Warn threshold for integrated LUFS delta (default 3.0 dB).
 #   mono_fold_vocal_warn_db - Warn threshold for vocal-band (1–4 kHz) RMS delta (default 2.0 dB).
 #   mono_fold_correlation_warn - Warn threshold for stereo correlation coefficient (default 0.3).
+#   genre_ideal_lra_lu     - Target loudness-range (LU) used by the album-mastering
+#                            anchor selector (#290 phase 2). Tracks whose LRA is
+#                            close to this score higher on mix_quality. Default 8.0
+#                            matches balanced pop; dynamic genres override upward.
+#   spectral_reference_energy - 7-band reference curve (sub_bass / bass / low_mid /
+#                            mid / high_mid / high / air) as percentages of total
+#                            spectral energy, summing to 100. Anchor selector
+#                            compares each track's band_energy to this curve via
+#                            Euclidean distance. Genre overrides merge key-by-key;
+#                            missing keys inherit from defaults.
 #
 # Override per-user: copy to {overrides}/mastering-presets.yaml and edit.
 # User overrides merge on top of these defaults (genre-level).
@@ -130,6 +140,17 @@ defaults:
   mono_fold_lufs_warn_db: 3.0
   mono_fold_vocal_warn_db: 2.0
   mono_fold_correlation_warn: 0.3
+
+  # Album-mastering anchor selector (#290 phase 2) — pop defaults
+  genre_ideal_lra_lu: 8.0
+  spectral_reference_energy:
+    sub_bass: 8.0
+    bass:     18.0
+    low_mid:  20.0
+    mid:      25.0
+    high_mid: 14.0
+    high:     10.0
+    air:       5.0
 
 genres:
   # === Pop / Mainstream ===
