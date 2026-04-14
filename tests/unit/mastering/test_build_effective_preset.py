@@ -36,6 +36,10 @@ class TestBuildEffectivePreset:
         assert s["genre"] == "pop"
         assert s["target_lufs"] == -14.0
         assert s["ceiling_db"] == -1.0
+        # source_sample_rate threads through to both targets and settings
+        assert result["targets"]["source_sample_rate"] == 44100
+        assert result["targets"]["upsampled_from_source"] is True
+        assert s["upsampled_from_source"] is True
 
     def test_empty_genre_no_preset(self):
         result = build_effective_preset(

@@ -187,7 +187,9 @@ def build_effective_preset(
     On genre lookup failure, error is populated and all other fields may be
     None / {} — callers must check `error` first.
     """
-    # Local import to avoid circular dependency at module load.
+    # Local import — master_tracks.py runs load_genre_presets() at import
+    # time (reads YAML from disk), and config.py is imported during server
+    # startup. Keep the disk I/O off the startup path.
     from tools.mastering.master_tracks import load_genre_presets
 
     effective_highmid = cut_highmid_arg
