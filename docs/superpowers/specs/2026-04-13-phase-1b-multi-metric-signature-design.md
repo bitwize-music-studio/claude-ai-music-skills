@@ -12,7 +12,9 @@ Extend `analyze_track()` with three new signature metrics — STL-95, low-RMS (S
 ## Architectural context
 
 - Core metric computation lives in `tools/mastering/analyze_tracks.py` (pure Python, no MCP coupling).
-- MCP boundary stays thin in `servers/bitwize-music-server/handlers/processing/audio.py`. The `analyze_audio` handler gains one optional kwarg (`vocal_stem_path`) and passes it through.
+- MCP boundary in `servers/bitwize-music-server/handlers/processing/audio.py` is **unchanged**. The `analyze_audio` handler batches per-album (one call covers many tracks), so a single `vocal_stem_path` kwarg wouldn't fit. Auto-resolve inside `analyze_track()` handles per-file lookup correctly.
+- The new `vocal_stem_path` kwarg exists only on `analyze_track()` itself, for Phase 2 callers (anchor selector, coherence check) that call it programmatically per-track and may already know the stem path.
+- The handler's JSON return blob automatically picks up the new fields through existing serialization — no handler edit required.
 - No consumers in Phase 1b. Phase 2a and 2b read these fields.
 - Fields are **additive**: existing tests and callers only assert on fields they care about, so adding keys cannot regress them.
 
@@ -61,7 +63,7 @@ Whole-track (not windowed) is the spec wording: *"measured directly on the polis
 
 First hit wins; no hit → fall back to band. Walking two levels covers every current layout (raw at album root, polished output, mastered output) without touching the wider filesystem.
 
-The handler `analyze_audio` accepts the same optional kwarg and passes it through. This keeps analyze_audio usable without extra context while letting Phase 2 callers (anchor selector, coherence check) be explicit when they already know the stem path.
+The handler `analyze_audio` does **not** gain the kwarg — it batches per-album and would need per-track values anyway; auto-resolve gives that for free. Phase 2 callers that invoke `analyze_track()` directly per-track can still pass `vocal_stem_path` explicitly when they already know it.
 
 ## Interface
 
@@ -94,16 +96,7 @@ New return keys (all others unchanged):
 
 ### `servers/bitwize-music-server/handlers/processing/audio.py`
 
-```python
-async def analyze_audio(
-    audio_path: str,
-    *,
-    vocal_stem_path: str | None = None,
-) -> str:
-    ...
-```
-
-MCP schema is implicit from the Python signature; existing callers that don't pass `vocal_stem_path` get the auto-resolve behavior.
+No signature change. The handler's existing per-file call to `analyze_track(str(wav))` picks up auto-resolve automatically, and the new return keys flow through JSON serialization unchanged.
 
 ## Error handling
 
@@ -145,12 +138,10 @@ Model after `tests/unit/mastering/test_analyze_tracks.py`. Use existing `_genera
 ## File structure
 
 **Create:**
-- `tests/unit/mastering/test_signature_metrics.py`
-- `tests/unit/mastering/test_analyze_audio_vocal_stem.py`
+- `tests/unit/mastering/test_signature_metrics.py` — unit tests for STL-95, low-RMS, vocal-RMS, auto-resolve.
 
 **Modify:**
-- `tools/mastering/analyze_tracks.py` — extend `analyze_track()` with STL-95, low-RMS, vocal-RMS, `signature_meta`; add `vocal_stem_path` kwarg.
-- `servers/bitwize-music-server/handlers/processing/audio.py` — pass `vocal_stem_path` through `analyze_audio`.
+- `tools/mastering/analyze_tracks.py` — extend `analyze_track()` with STL-95, low-RMS, vocal-RMS, `signature_meta`; add `vocal_stem_path` kwarg and auto-resolve helper.
 - `config/config.example.yaml` — fold in E2 review item: disk-usage note on `delivery_sample_rate` comment.
 
 ## Out of scope / follow-ups
