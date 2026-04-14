@@ -81,6 +81,29 @@ def silent_60_wav(tmp_path):
     return str(path)
 
 
+@pytest.fixture
+def bass_chorus_verse_wav(tmp_path):
+    """60 s: loud bass chorus (3s, 80 Hz at -6 dBFS) + near-silent verse (5s)."""
+    rate = 48000
+    duration = 60.0
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    bass = np.sin(2 * np.pi * 80 * t).astype(np.float32)
+    envelope = np.zeros_like(t, dtype=np.float32)
+    period = 8.0
+    for i in range(int(duration / period) + 1):
+        loud_start = i * period
+        loud_end = loud_start + 3.0
+        mask = (t >= loud_start) & (t < loud_end)
+        envelope[mask] = 0.5
+        quiet_mask = (t >= loud_end) & (t < loud_start + period)
+        envelope[quiet_mask] = 0.001
+    mono = (bass * envelope).astype(np.float32)
+    stereo = np.column_stack([mono, mono])
+    path = tmp_path / "bass_chorus_verse.wav"
+    _write_wav(path, stereo, rate)
+    return str(path)
+
+
 class TestShortTerm95:
     def test_constant_level_stl_95_close_to_lufs(self, long_constant_wav):
         result = analyze_track(long_constant_wav)
@@ -99,3 +122,21 @@ class TestShortTerm95:
     def test_silent_track_stl_95_is_none(self, silent_60_wav):
         result = analyze_track(silent_60_wav)
         assert result['stl_95'] is None
+
+
+class TestLowRms:
+    def test_bass_chorus_low_rms_reflects_loud_windows(self, bass_chorus_verse_wav):
+        result = analyze_track(bass_chorus_verse_wav)
+        assert result['low_rms'] is not None
+        # Chorus at 0.5 amplitude for 80 Hz → RMS ≈ -9 dB; windowed on loud
+        # choruses should report much louder than if whole-track averaged
+        # with the near-silent verses.
+        assert result['low_rms'] > -20.0
+
+    def test_short_track_low_rms_is_none(self, short_wav):
+        result = analyze_track(short_wav)
+        assert result['low_rms'] is None
+
+    def test_silent_track_low_rms_is_none(self, silent_60_wav):
+        result = analyze_track(silent_60_wav)
+        assert result['low_rms'] is None

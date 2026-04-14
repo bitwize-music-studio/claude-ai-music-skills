@@ -25,6 +25,22 @@ from tools.shared.progress import ProgressBar
 
 logger = logging.getLogger(__name__)
 
+
+def _bandpass_sos(data: np.ndarray, rate: int, low_hz: float, high_hz: float,
+                  order: int = 4) -> np.ndarray:
+    """Zero-phase Butterworth bandpass via SOS form (numerically stable)."""
+    nyquist = rate / 2
+    low = max(low_hz, 1.0) / nyquist
+    high = min(high_hz, nyquist - 1.0) / nyquist
+    sos = signal.butter(order, [low, high], btype='bandpass', output='sos')
+    return signal.sosfiltfilt(sos, data)
+
+
+def _rms_db(samples: np.ndarray) -> float:
+    rms = float(np.sqrt(np.mean(samples ** 2)))
+    return 20.0 * np.log10(rms) if rms > 0 else float('-inf')
+
+
 def analyze_track(filepath: Path | str) -> dict[str, Any]:
     """Analyze a single track and return metrics."""
     data, rate = sf.read(filepath)
@@ -111,6 +127,24 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
         stl_95 = None
         stl_top_5pct_indices = np.array([], dtype=np.int64)
 
+    # low-RMS: 20-200 Hz band, measured within top-5% STL windows only.
+    # Whole-track measurement false-alarms on arrangements with quiet verses
+    # and wall-of-bass choruses (see #290 spec footnote †).
+    low_rms: float | None
+    if stl_95 is not None and len(stl_top_5pct_indices) > 0:
+        low_filtered = _bandpass_sos(mono, rate, 20.0, 200.0)
+        window_rms_values: list[float] = []
+        for window_idx in stl_top_5pct_indices:
+            start = int(window_idx) * st_hop
+            end = start + st_window
+            chunk = low_filtered[start:end]
+            rms_val = _rms_db(chunk)
+            if np.isfinite(rms_val):
+                window_rms_values.append(rms_val)
+        low_rms = float(np.median(window_rms_values)) if window_rms_values else None
+    else:
+        low_rms = None
+
     # Momentary: 400ms window, 100ms hop
     mom_window = int(0.4 * rate)
     mom_hop = int(0.1 * rate)
@@ -139,6 +173,7 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
         'max_momentary_lufs': max_momentary if np.isfinite(max_momentary) else None,
         'short_term_range': short_term_range,
         'stl_95': stl_95,
+        'low_rms': low_rms,
     }
 
 def main() -> None:
