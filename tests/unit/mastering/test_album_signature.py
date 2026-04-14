@@ -135,3 +135,77 @@ class TestBuildSignatureBoundaryCases:
         # numpy.percentile(..., 95) with linear interpolation on this
         # 5-value set returns -13.1 (between -13.5 and -13.0).
         assert sig["album"]["p95"]["lufs"] == pytest.approx(-13.1, abs=1e-6)
+
+
+class TestComputeAnchorDeltas:
+    def test_deltas_are_track_minus_anchor(self):
+        results = [
+            _analysis(filename="01.wav", lufs=-13.0, stl_95=-10.0),
+            _analysis(filename="02.wav", lufs=-14.0, stl_95=-10.5),  # anchor
+            _analysis(filename="03.wav", lufs=-15.0, stl_95=-11.5),
+        ]
+        deltas = compute_anchor_deltas(results, anchor_index_1based=2)
+
+        # Track 1 - Anchor: -13.0 - -14.0 = +1.0
+        assert deltas[0]["delta_lufs"] == pytest.approx(1.0)
+        assert deltas[0]["delta_stl_95"] == pytest.approx(0.5)
+        assert deltas[0]["is_anchor"] is False
+
+        # Track 2 (anchor) - itself = 0.0
+        assert deltas[1]["delta_lufs"] == pytest.approx(0.0)
+        assert deltas[1]["is_anchor"] is True
+
+        # Track 3 - Anchor: -15.0 - -14.0 = -1.0
+        assert deltas[2]["delta_lufs"] == pytest.approx(-1.0)
+        assert deltas[2]["delta_stl_95"] == pytest.approx(-1.0)
+        assert deltas[2]["is_anchor"] is False
+
+    def test_none_in_track_or_anchor_yields_none_delta(self):
+        results = [
+            _analysis(filename="01.wav", vocal_rms=None),  # track missing
+            _analysis(filename="02.wav", vocal_rms=-16.0),  # anchor present
+            _analysis(filename="03.wav", vocal_rms=-15.0),
+        ]
+        deltas = compute_anchor_deltas(results, anchor_index_1based=2)
+
+        assert deltas[0]["delta_vocal_rms"] is None
+        assert deltas[1]["delta_vocal_rms"] == pytest.approx(0.0)
+        assert deltas[2]["delta_vocal_rms"] == pytest.approx(1.0)
+
+    def test_none_in_anchor_propagates_to_every_row(self):
+        results = [
+            _analysis(filename="01.wav", low_rms=-18.0),
+            _analysis(filename="02.wav", low_rms=None),    # anchor missing
+        ]
+        deltas = compute_anchor_deltas(results, anchor_index_1based=2)
+
+        assert deltas[0]["delta_low_rms"] is None
+        assert deltas[1]["delta_low_rms"] is None
+        # Anchor row is still marked, just without a delta value
+        assert deltas[1]["is_anchor"] is True
+
+    def test_empty_results_raises(self):
+        with pytest.raises(ValueError, match="empty"):
+            compute_anchor_deltas([], anchor_index_1based=1)
+
+    def test_out_of_range_anchor_raises(self):
+        results = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        with pytest.raises(ValueError, match="out of range"):
+            compute_anchor_deltas(results, anchor_index_1based=3)
+        with pytest.raises(ValueError, match="out of range"):
+            compute_anchor_deltas(results, anchor_index_1based=0)
+        with pytest.raises(ValueError, match="out of range"):
+            compute_anchor_deltas(results, anchor_index_1based=-1)
+
+    def test_all_aggregate_keys_are_represented(self):
+        results = [
+            _analysis(filename="01.wav"),
+            _analysis(filename="02.wav"),
+        ]
+        deltas = compute_anchor_deltas(results, anchor_index_1based=1)
+        expected_keys = {
+            "index", "filename", "is_anchor",
+            "delta_lufs", "delta_peak_db", "delta_stl_95",
+            "delta_short_term_range", "delta_low_rms", "delta_vocal_rms",
+        }
+        assert set(deltas[0].keys()) == expected_keys
