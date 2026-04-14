@@ -144,7 +144,7 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
 
     Returns:
         Dict with keys: title, status, genre, explicit, release_date,
-        track_count, tracks_completed, tracklist.
+        track_count, tracks_completed, tracklist, anchor_track, layout.
         On error, includes '_error' key.
     """
     try:
