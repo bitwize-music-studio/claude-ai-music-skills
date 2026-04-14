@@ -490,6 +490,7 @@ from handlers.processing import (  # noqa: F401
     master_album,
     master_audio,
     master_with_reference,
+    measure_album_signature,
     mono_fold_check,
     polish_album,
     polish_and_master_album,
