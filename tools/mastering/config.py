@@ -159,3 +159,106 @@ def resolve_mastering_targets(
         targets["upsampled_from_source"] = False
 
     return targets
+
+
+def build_effective_preset(
+    *,
+    genre: str,
+    cut_highmid_arg: float,
+    cut_highs_arg: float,
+    target_lufs_arg: float,
+    ceiling_db_arg: float,
+    source_sample_rate: int | None = None,
+) -> dict[str, Any]:
+    """Return an effective_preset bundle for the mastering pipeline.
+
+    Consolidates the duplicated preset-construction block that used to live in
+    both master_audio() and master_album() handlers (D1 review item from #304).
+
+    Returns a dict with keys:
+        preset_dict          — raw genre preset (or None if genre="")
+        effective_preset     — merged dict suitable for master_track(preset=...)
+        settings             — flat dict suitable for the JSON response
+        targets              — output of resolve_mastering_targets()
+        genre_applied        — normalized genre key (or None)
+        error                — None on success, otherwise
+                                {"reason": str, "available_genres": list[str]}
+
+    On genre lookup failure, error is populated and all other fields may be
+    None / {} — callers must check `error` first.
+    """
+    # Local import to avoid circular dependency at module load.
+    from tools.mastering.master_tracks import load_genre_presets
+
+    effective_highmid = cut_highmid_arg
+    effective_highs = cut_highs_arg
+    effective_compress = 1.5
+    genre_applied: str | None = None
+    preset_dict: dict[str, Any] | None = None
+
+    if genre:
+        presets = load_genre_presets()
+        genre_key = genre.lower()
+        if genre_key not in presets:
+            return {
+                "preset_dict": None,
+                "effective_preset": {},
+                "settings": {},
+                "targets": {},
+                "genre_applied": None,
+                "error": {
+                    "reason": f"Unknown genre: {genre}",
+                    "available_genres": sorted(presets.keys()),
+                },
+            }
+        preset_dict = dict(presets[genre_key])
+        if cut_highmid_arg == 0.0:
+            effective_highmid = preset_dict["cut_highmid"]
+        if cut_highs_arg == 0.0:
+            effective_highs = preset_dict["cut_highs"]
+        effective_compress = preset_dict["compress_ratio"]
+        genre_applied = genre_key
+
+    mastering_cfg = load_mastering_config()
+    targets = resolve_mastering_targets(
+        config=mastering_cfg,
+        preset=preset_dict,
+        target_lufs_arg=target_lufs_arg,
+        ceiling_db_arg=ceiling_db_arg,
+        source_sample_rate=source_sample_rate,
+    )
+    effective_lufs = targets["target_lufs"]
+    effective_ceiling = targets["ceiling_db"]
+
+    effective_preset: dict[str, Any] = {
+        **(preset_dict or {}),
+        "target_lufs": effective_lufs,
+        "output_bits": targets["output_bits"],
+        "output_sample_rate": targets["output_sample_rate"],
+        "cut_highmid": effective_highmid,
+        "cut_highs": effective_highs,
+        "compress_ratio": effective_compress,
+    }
+
+    settings: dict[str, Any] = {
+        "genre": genre_applied,
+        "target_lufs": effective_lufs,
+        "ceiling_db": effective_ceiling,
+        "output_bits": targets["output_bits"],
+        "output_sample_rate": targets["output_sample_rate"],
+        "source_sample_rate": targets["source_sample_rate"],
+        "upsampled_from_source": targets["upsampled_from_source"],
+        "archival_enabled": targets["archival_enabled"],
+        "adm_aac_encoder": targets["adm_aac_encoder"],
+        "cut_highmid": effective_highmid,
+        "cut_highs": effective_highs,
+    }
+
+    return {
+        "preset_dict": preset_dict,
+        "effective_preset": effective_preset,
+        "settings": settings,
+        "targets": targets,
+        "genre_applied": genre_applied,
+        "error": None,
+    }
