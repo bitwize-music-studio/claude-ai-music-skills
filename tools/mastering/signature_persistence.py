@@ -99,8 +99,11 @@ def write_signature_file(
             etc. for this album. Signature lives alongside those.
         payload: Caller-built payload dict. Must contain ``album_slug``,
             ``anchor``, ``album_median``, ``delivery_targets``. May
-            contain ``tolerances``, ``pipeline``, or other keys —
-            everything passes through verbatim.
+            contain ``tolerances``, ``pipeline``, or other keys — those
+            pass through verbatim. If the payload happens to contain
+            any envelope-owned key (``schema_version``, ``written_at``,
+            ``plugin_version``), the envelope value wins to preserve the
+            schema contract.
         plugin_version: Plugin semver string (e.g. ``"0.91.0"``) for
             forward-compat debugging.
 
@@ -112,9 +115,12 @@ def write_signature_file(
         "written_at":     _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "plugin_version": plugin_version,
     }
-    # payload keys override envelope ordering but envelope keys are
-    # emitted first — YAML preserves insertion order when sort_keys=False.
-    combined: dict[str, Any] = {**envelope, **payload}
+    # Envelope keys (schema_version, written_at, plugin_version) are
+    # authoritative — if a caller's payload contains any of them, the
+    # envelope values win. This prevents accidental shadowing of the
+    # schema contract. YAML preserves insertion order when
+    # sort_keys=False, so envelope keys also emit first.
+    combined: dict[str, Any] = {**payload, **envelope}
 
     path = audio_dir / SIGNATURE_FILENAME
     text = yaml.safe_dump(

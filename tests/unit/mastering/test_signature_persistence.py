@@ -122,3 +122,10 @@ def test_write_is_atomic(tmp_path: Path) -> None:
     write_signature_file(tmp_path, payload, plugin_version="0.91.0")
     read = read_signature_file(tmp_path)
     assert read["anchor"]["index"] == 3
+
+
+def test_read_raises_on_non_mapping_yaml(tmp_path: Path) -> None:
+    """Top-level YAML that parses to a list / scalar / null is rejected."""
+    (tmp_path / SIGNATURE_FILENAME).write_text("- not\n- a\n- mapping\n")
+    with pytest.raises(SignaturePersistenceError, match="expected YAML mapping"):
+        read_signature_file(tmp_path)
