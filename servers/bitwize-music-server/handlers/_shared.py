@@ -473,11 +473,6 @@ def get_plugin_version() -> str:
         return "unknown"
 
 
-def _normalize_album_slug(slug: str) -> str:
-    """Normalize an album slug for cache lookup (lowercase + strip)."""
-    return slug.strip().lower()
-
-
 def is_album_released(album_slug: str) -> bool:
     """Return True when the album's cached status is ``Released``.
 
@@ -486,16 +481,25 @@ def is_album_released(album_slug: str) -> bool:
     from what shipped.
 
     Safe to call before the cache is fully initialized (returns ``False``
-    for any lookup that can't resolve).
+    for any lookup that can't resolve — missing cache, invalid slug,
+    corrupt state, missing album, or any non-"Released" status).
     """
     if cache is None:
         return False
     try:
-        state = cache.get_state() or {}
-    except Exception:  # defensive — cache may raise on corrupt state
+        normalized = _normalize_slug(album_slug)
+    except ValueError:
+        # Invalid slug (path separators, null bytes, traversal) can't
+        # match any album. Safe default.
+        return False
+    try:
+        state = cache.get_state()
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
+    if not state:
         return False
     albums = state.get("albums", {})
-    entry = albums.get(album_slug) or albums.get(_normalize_album_slug(album_slug))
+    entry = albums.get(normalized)
     if not isinstance(entry, dict):
         return False
     return entry.get("status") == ALBUM_RELEASED

@@ -32,21 +32,38 @@ def _restore_cache(monkeypatch):
     _shared.cache = original
 
 
-def test_is_album_released_true_when_status_is_released(monkeypatch):
+def test_is_album_released_true_when_status_is_released():
     _shared.cache = _FakeCache({"albums": {"my-album": {"status": "Released"}}})
     assert _shared.is_album_released("my-album") is True
 
 
-def test_is_album_released_false_when_status_is_in_progress(monkeypatch):
+def test_is_album_released_false_when_status_is_in_progress():
     _shared.cache = _FakeCache({"albums": {"my-album": {"status": "In Progress"}}})
     assert _shared.is_album_released("my-album") is False
 
 
-def test_is_album_released_false_when_album_missing(monkeypatch):
+def test_is_album_released_false_when_album_missing():
     _shared.cache = _FakeCache({"albums": {}})
     assert _shared.is_album_released("my-album") is False
 
 
-def test_is_album_released_false_when_cache_not_ready(monkeypatch):
+def test_is_album_released_false_when_cache_not_ready():
     _shared.cache = None
+    assert _shared.is_album_released("my-album") is False
+
+
+def test_is_album_released_false_on_invalid_slug():
+    """_normalize_slug raises ValueError on path separators etc."""
+    _shared.cache = _FakeCache({"albums": {"my-album": {"status": "Released"}}})
+    # Path traversal in slug → normalized lookup raises → False
+    assert _shared.is_album_released("../my-album") is False
+    assert _shared.is_album_released("my/album") is False
+
+
+def test_is_album_released_false_when_cache_raises():
+    """Corrupt state / filesystem error during get_state → False."""
+    class _RaisingCache:
+        def get_state(self):
+            raise OSError("simulated disk failure")
+    _shared.cache = _RaisingCache()
     assert _shared.is_album_released("my-album") is False
