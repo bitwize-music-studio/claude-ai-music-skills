@@ -713,6 +713,7 @@ async def master_album(
     targets = bundle["targets"]
     settings = bundle["settings"]
     effective_preset = bundle["effective_preset"]
+    preset_dict = bundle["preset_dict"]
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
     effective_highmid = settings["cut_highmid"]
@@ -744,6 +745,50 @@ async def master_album(
         "lufs_range": round(lufs_range, 1),
         "tinny_tracks": tinny_tracks,
     }
+
+    # --- Stage 2b: Anchor selection (#290 phase 2) ---
+    from tools.mastering.anchor_selector import select_anchor
+
+    # Read anchor_track override from state cache (parse_album_readme
+    # surfaces it as an int or None).
+    anchor_override: int | None = None
+    state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+    album_state = state_albums.get(_normalize_slug(album_slug), {})
+    raw_override = album_state.get("anchor_track")
+    if isinstance(raw_override, int) and not isinstance(raw_override, bool):
+        anchor_override = raw_override
+
+    # Build anchor preset — prefer the genre preset's spectral reference
+    # when present, else fall back to the defaults block. load_genre_presets
+    # filters through _PRESET_DEFAULTS, so nested-dict defaults are not
+    # inherited into per-genre presets today (see #290 phase 2 Task 4).
+    anchor_preset = preset_dict or {}
+    if "genre_ideal_lra_lu" not in anchor_preset or "spectral_reference_energy" not in anchor_preset:
+        from tools.mastering.master_tracks import load_genre_presets
+        defaults_block = load_genre_presets().get("defaults", {})
+        anchor_preset = {**defaults_block, **anchor_preset}
+
+    anchor_result = select_anchor(
+        analysis_results,
+        anchor_preset,
+        override_index=anchor_override,
+    )
+
+    # Phase 2 records the result but does not yet re-order the mastering
+    # loop — coherence correction lands in a later phase.
+    stages["anchor_selection"] = {
+        "status": "pass" if anchor_result["selected_index"] is not None else "warn",
+        "selected_index": anchor_result["selected_index"],
+        "method": anchor_result["method"],
+        "override_index": anchor_result["override_index"],
+        "override_reason": anchor_result["override_reason"],
+        "scores": anchor_result["scores"],
+    }
+    if anchor_result["selected_index"] is None:
+        warnings.append(
+            "Anchor selector: no eligible tracks (signature metrics missing). "
+            "Mastering proceeds without an anchor; coherence correction disabled."
+        )
 
     # --- Stage 3: Pre-QC ---
     # Skip `truepeak` and `clicks` on the raw/polished input:
