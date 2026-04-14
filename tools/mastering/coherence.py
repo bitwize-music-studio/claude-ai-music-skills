@@ -53,11 +53,122 @@ def classify_outliers(
     tolerances: dict[str, float],
     anchor_index_1based: int,
 ) -> list[dict[str, Any]]:
-    """Classify each track as outlier / ok / missing per metric.
+    """Classify each track against the coherence tolerance bands.
 
-    Implementation lands in Task 3.
+    Args:
+        deltas: Output of ``album_signature.compute_anchor_deltas``.
+        analysis_results: Original ``analyze_track`` dicts (for
+            absolute-value checks like ``lra_floor`` that don't fit
+            the delta-from-anchor pattern).
+        tolerances: Output of ``load_tolerances``.
+        anchor_index_1based: 1-based track number of the anchor.
+            Anchor's own row is returned with empty violations.
+
+    Returns:
+        List of classification dicts — one per track, in track-number
+        order. See the phase-3b plan for the full shape.
     """
-    raise NotImplementedError
+    if len(deltas) != len(analysis_results):
+        raise ValueError(
+            f"deltas length ({len(deltas)}) != analysis_results length "
+            f"({len(analysis_results)})"
+        )
+
+    out: list[dict[str, Any]] = []
+    for delta, track in zip(deltas, analysis_results):
+        idx = delta["index"]
+        is_anchor = (idx == anchor_index_1based)
+        row: dict[str, Any] = {
+            "index":       idx,
+            "filename":    delta.get("filename") or track.get("filename"),
+            "is_anchor":   is_anchor,
+            "is_outlier":  False,
+            "violations":  [],
+        }
+
+        if is_anchor:
+            out.append(row)
+            continue
+
+        # LUFS — correctable in MVP
+        row["violations"].append(_delta_check(
+            metric="lufs",
+            delta=delta.get("delta_lufs"),
+            tolerance=tolerances["lufs_tolerance_lu"],
+            correctable=True,
+        ))
+        # STL-95 — not correctable
+        row["violations"].append(_delta_check(
+            metric="stl_95",
+            delta=delta.get("delta_stl_95"),
+            tolerance=tolerances["coherence_stl_95_lu"],
+            correctable=False,
+        ))
+        # LRA floor — absolute value check, not delta
+        row["violations"].append(_floor_check(
+            metric="lra_floor",
+            value=track.get("short_term_range"),
+            floor=tolerances["coherence_lra_floor_lu"],
+        ))
+        # low-RMS — not correctable
+        row["violations"].append(_delta_check(
+            metric="low_rms",
+            delta=delta.get("delta_low_rms"),
+            tolerance=tolerances["coherence_low_rms_db"],
+            correctable=False,
+        ))
+        # vocal-RMS — not correctable
+        row["violations"].append(_delta_check(
+            metric="vocal_rms",
+            delta=delta.get("delta_vocal_rms"),
+            tolerance=tolerances["coherence_vocal_rms_db"],
+            correctable=False,
+        ))
+
+        row["is_outlier"] = any(
+            v["severity"] == "outlier" for v in row["violations"]
+        )
+        out.append(row)
+    return out
+
+
+def _delta_check(*, metric: str, delta: float | None, tolerance: float,
+                 correctable: bool) -> dict[str, Any]:
+    if delta is None:
+        return {
+            "metric":      metric,
+            "delta":       None,
+            "tolerance":   tolerance,
+            "severity":    "missing",
+            "correctable": False,
+        }
+    severity = "outlier" if abs(float(delta)) > float(tolerance) else "ok"
+    return {
+        "metric":      metric,
+        "delta":       float(delta),
+        "tolerance":   tolerance,
+        "severity":    severity,
+        "correctable": correctable if severity == "outlier" else False,
+    }
+
+
+def _floor_check(*, metric: str, value: float | None, floor: float) -> dict[str, Any]:
+    if value is None:
+        return {
+            "metric":      metric,
+            "value":       None,
+            "floor":       floor,
+            "severity":    "missing",
+            "correctable": False,
+        }
+    severity = "outlier" if float(value) < float(floor) else "ok"
+    return {
+        "metric":      metric,
+        "value":       float(value),
+        "floor":       floor,
+        "severity":    severity,
+        "correctable": False,
+    }
 
 
 def build_correction_plan(
