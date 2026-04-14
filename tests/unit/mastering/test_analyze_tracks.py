@@ -105,6 +105,7 @@ class TestAnalyzeTrackBasic:
             'peak_db', 'rms_db', 'dynamic_range',
             'band_energy', 'tinniness_ratio',
             'max_short_term_lufs', 'max_momentary_lufs', 'short_term_range',
+            'stl_95', 'low_rms', 'vocal_rms', 'signature_meta',
         }
         assert expected_keys == set(result.keys())
 
