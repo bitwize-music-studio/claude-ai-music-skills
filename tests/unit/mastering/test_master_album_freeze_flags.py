@@ -58,3 +58,36 @@ def test_freeze_and_new_anchor_mutually_exclusive(tmp_path, monkeypatch):
     result = json.loads(result_json)
     assert result["failed_stage"] == "pre_flight"
     assert "mutually exclusive" in result["failure_detail"]["reason"].lower()
+
+
+def test_released_album_missing_signature_halts(tmp_path, monkeypatch):
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, "released-no-sig", status="Released")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(album_slug="released-no-sig"))
+
+    result = json.loads(result_json)
+    assert result["failed_stage"] == "freeze_decision"
+    assert "released" in result["failure_detail"]["reason"].lower()
+    assert "album_signature.yaml" in result["failure_detail"]["reason"].lower()
+
+
+def test_freeze_signature_flag_without_file_errors(tmp_path, monkeypatch):
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, "freeze-no-sig")  # In Progress
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(
+            album_slug="freeze-no-sig", freeze_signature=True,
+        ))
+
+    result = json.loads(result_json)
+    assert result["failed_stage"] == "freeze_decision"
+    assert "requested" in result["failure_detail"]["reason"].lower()

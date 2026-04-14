@@ -132,3 +132,141 @@ def test_master_album_signature_write_failure_is_nonfatal(tmp_path: Path, monkey
     assert result.get("failed_stage") is None
     assert result["stages"]["signature_persist"]["status"] == "warn"
     assert "simulated failure" in result["stages"]["signature_persist"]["error"]
+
+
+def test_released_album_with_signature_enters_frozen_mode(tmp_path: Path, monkeypatch) -> None:
+    from tools.mastering.signature_persistence import write_signature_file
+
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _write_sine_wav(tmp_path / "02-track.wav", amplitude=0.3, freq=330.0)
+    _install_album(monkeypatch, tmp_path, "rel-album", status="Released")
+
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+
+    # Pre-seed the signature as if a prior master run wrote it.
+    payload = {
+        "album_slug": "rel-album",
+        "anchor": {
+            "index": 1,
+            "filename": "01-track.wav",
+            "method": "composite",
+            "score": 0.5,
+            "signature": {"lufs": -14.0, "peak_db": -3.0, "stl_95": -14.1,
+                          "short_term_range": 8.0, "low_rms": -22.0, "vocal_rms": -17.5},
+        },
+        "album_median": {"lufs": -14.0, "stl_95": -14.1, "low_rms": -22.0,
+                         "vocal_rms": -17.5, "short_term_range": 8.0},
+        "delivery_targets": {"target_lufs": -14.0, "tp_ceiling_db": -1.0,
+                             "lra_target_lu": 8.0, "output_bits": 24,
+                             "output_sample_rate": 96000},
+        "tolerances": {},
+        "pipeline": {},
+    }
+    write_signature_file(tmp_path, payload, plugin_version="0.91.0")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(album_slug="rel-album"))
+
+    result = json.loads(result_json)
+    assert result.get("failed_stage") is None, result.get("failure_detail")
+    assert result["stages"]["freeze_decision"]["mode"] == "frozen"
+    # Anchor selection is skipped in frozen mode.
+    assert result["stages"]["anchor_selection"]["method"] == "frozen_signature"
+    assert result["stages"]["anchor_selection"]["selected_index"] == 1
+
+
+def test_in_progress_album_uses_fresh_mode(tmp_path: Path, monkeypatch) -> None:
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _write_sine_wav(tmp_path / "02-track.wav", amplitude=0.32, freq=330.0)
+    _install_album(monkeypatch, tmp_path, "wip-album", status="In Progress")
+
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(album_slug="wip-album"))
+
+    result = json.loads(result_json)
+    assert result["stages"]["freeze_decision"]["mode"] == "fresh"
+    assert result["stages"]["anchor_selection"]["method"] in ("composite", "tie_breaker")
+
+
+def test_new_anchor_forces_fresh_on_released(tmp_path: Path, monkeypatch) -> None:
+    from tools.mastering.signature_persistence import write_signature_file
+
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _install_album(monkeypatch, tmp_path, "relock-album", status="Released")
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+    # Signature present, but --new-anchor overrides the default frozen routing.
+    write_signature_file(tmp_path, {
+        "album_slug": "relock-album",
+        "anchor": {"index": 1, "filename": "01-track.wav", "method": "composite",
+                   "score": 0.5, "signature": {}},
+        "album_median": {}, "delivery_targets": {}, "tolerances": {}, "pipeline": {},
+    }, plugin_version="0.91.0")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(
+            album_slug="relock-album", new_anchor=True,
+        ))
+
+    result = json.loads(result_json)
+    assert result["stages"]["freeze_decision"]["mode"] == "fresh"
+    assert result["stages"]["freeze_decision"]["reason"] == "new_anchor_override"
+
+
+def test_frozen_mode_preserves_original_anchor_block(tmp_path: Path, monkeypatch) -> None:
+    """Re-mastering a Released album keeps anchor.method from the shipped
+    signature (e.g. "composite"), not "frozen_signature"."""
+    import pytest
+    from tools.mastering.signature_persistence import (
+        read_signature_file, write_signature_file,
+    )
+
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _write_sine_wav(tmp_path / "02-track.wav", amplitude=0.3, freq=330.0)
+    _install_album(monkeypatch, tmp_path, "pres-album", status="Released")
+
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+
+    original_anchor = {
+        "index": 2,
+        "filename": "02-track.wav",
+        "method": "composite",
+        "score": 0.612,
+        "signature": {"lufs": -14.0, "peak_db": -3.0, "stl_95": -14.1,
+                      "short_term_range": 8.0, "low_rms": -22.0, "vocal_rms": -17.5},
+    }
+    write_signature_file(tmp_path, {
+        "album_slug": "pres-album",
+        "anchor": original_anchor,
+        "album_median": {}, "delivery_targets": {
+            "target_lufs": -14.0, "tp_ceiling_db": -1.0,
+            "lra_target_lu": 8.0, "output_bits": 24, "output_sample_rate": 96000,
+        },
+        "tolerances": {}, "pipeline": {},
+    }, plugin_version="0.91.0")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        asyncio.run(audio_mod.master_album(album_slug="pres-album"))
+
+    after = read_signature_file(tmp_path)
+    assert after is not None
+    assert after["anchor"]["method"] == "composite"
+    assert after["anchor"]["score"] == pytest.approx(0.612)
+    assert after["anchor"]["filename"] == "02-track.wav"
