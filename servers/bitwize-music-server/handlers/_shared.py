@@ -473,6 +473,34 @@ def get_plugin_version() -> str:
         return "unknown"
 
 
+def _normalize_album_slug(slug: str) -> str:
+    """Normalize an album slug for cache lookup (lowercase + strip)."""
+    return slug.strip().lower()
+
+
+def is_album_released(album_slug: str) -> bool:
+    """Return True when the album's cached status is ``Released``.
+
+    Consumed by ``master_album``'s freeze-decision stage — frozen mode
+    is the default for Released albums so re-mastering never drifts
+    from what shipped.
+
+    Safe to call before the cache is fully initialized (returns ``False``
+    for any lookup that can't resolve).
+    """
+    if cache is None:
+        return False
+    try:
+        state = cache.get_state() or {}
+    except Exception:  # defensive — cache may raise on corrupt state
+        return False
+    albums = state.get("albums", {})
+    entry = albums.get(album_slug) or albums.get(_normalize_album_slug(album_slug))
+    if not isinstance(entry, dict):
+        return False
+    return entry.get("status") == ALBUM_RELEASED
+
+
 def _find_wav_source_dir(audio_dir: Path) -> Path:
     """Return originals/ if it exists, else album root (legacy fallback)."""
     originals = audio_dir / "originals"
