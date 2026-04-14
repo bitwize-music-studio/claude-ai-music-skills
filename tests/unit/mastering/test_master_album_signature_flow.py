@@ -55,6 +55,11 @@ def test_master_album_writes_signature_on_success(tmp_path: Path, monkeypatch) -
     _write_sine_wav(tmp_path / "02-track.wav", amplitude=0.32, freq=330.0)
     _install_album(monkeypatch, tmp_path, album_slug="sig-album")
 
+    # Force PLUGIN_ROOT=None so plugin_version falls back deterministically
+    # (other tests may leave PLUGIN_ROOT populated).
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+
     def _fake_resolve(slug, *_, **__):
         return None, tmp_path
 
@@ -106,6 +111,11 @@ def test_master_album_signature_write_failure_is_nonfatal(tmp_path: Path, monkey
     """Stage 7.5 warnings when signature write fails — master_album still succeeds."""
     _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
     _install_album(monkeypatch, tmp_path, album_slug="warn-album")
+
+    # Force PLUGIN_ROOT=None so plugin_version falls back deterministically
+    # (other tests may leave PLUGIN_ROOT populated).
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
 
     def _fake_resolve(slug, *_, **__):
         return None, tmp_path
