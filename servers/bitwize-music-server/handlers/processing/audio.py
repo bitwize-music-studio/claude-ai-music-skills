@@ -23,12 +23,18 @@ from handlers._shared import (
     _safe_json,
     get_plugin_version as _read_plugin_version,
 )
+from handlers._atomic import atomic_write_text
 from handlers.processing import _helpers
 from tools.mastering.album_signature import build_signature
 from tools.mastering.ceiling_guard import (
     CeilingGuardError,
     apply_pull_down_db,
     compute_overshoots as _ceiling_guard_compute_overshoots,
+)
+from tools.mastering.layout import (
+    LayoutError,
+    compute_transitions as _layout_compute_transitions,
+    render_layout_markdown as _layout_render_markdown,
 )
 from tools.mastering.signature_persistence import (
     SIGNATURE_FILENAME,
@@ -1659,6 +1665,49 @@ async def master_album(
             "output_dir": str(archival_dir),
             "errors": archive_errors or None,
         }
+
+    # --- Stage 6.7: Album layout emitter (#290 step 7) ---
+    # Write LAYOUT.md to the audio dir (sibling of ALBUM_SIGNATURE.yaml)
+    # with one transition per adjacent track pair. MVP emits defaults —
+    # humans tune by hand-editing after generation.
+    layout_frontmatter = None
+    try:
+        _state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+        _album_state = _state_albums.get(_normalize_slug(album_slug), {})
+        layout_frontmatter = _album_state.get("layout")
+    except Exception as _layout_state_exc:
+        logger.debug(
+            "Layout: could not read state.albums[%s].layout — %s. "
+            "Falling back to default transition.",
+            album_slug, _layout_state_exc,
+        )
+
+    default_transition = "gap"
+    if isinstance(layout_frontmatter, dict):
+        dt = layout_frontmatter.get("default_transition")
+        if dt in ("gap", "gapless"):
+            default_transition = dt
+
+    layout_stage: dict[str, Any] = {
+        "status":             "pass",
+        "path":               str(audio_dir / "LAYOUT.md"),
+        "default_transition": default_transition,
+        "transition_count":   0,
+    }
+    try:
+        track_filenames = [p.name for p in mastered_files]
+        transitions = _layout_compute_transitions(
+            track_filenames, default_transition=default_transition
+        )
+        layout_md = _layout_render_markdown(album_slug, transitions)
+        atomic_write_text(audio_dir / "LAYOUT.md", layout_md)
+        layout_stage["transition_count"] = len(transitions)
+    except (LayoutError, OSError) as exc:
+        layout_stage["status"] = "warn"
+        layout_stage["error"]  = str(exc)
+        warnings.append(f"Layout emitter: {exc}")
+
+    stages["layout"] = layout_stage
 
     # --- Stage 7: Update statuses ---
     state = _shared.cache.get_state_ref()
