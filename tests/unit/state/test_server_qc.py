@@ -1173,8 +1173,15 @@ class TestMasterAlbumPipeline:
         assert result["settings"]["cut_highmid"] == -2.0
 
         assert len(captured_kwargs) == 1
-        eq = captured_kwargs[0]["eq_settings"]
-        assert eq == [(3500, -2.0, 1.5)]
+        # Since #290 phase 1a, EQ is passed via preset dict; master_track
+        # rebuilds eq_settings from preset.cut_highmid / preset.cut_highs.
+        preset_in = captured_kwargs[0].get("preset") or {}
+        assert preset_in.get("cut_highmid") == -2.0, (
+            f"Expected preset.cut_highmid=-2.0 from country preset, got {preset_in!r}"
+        )
+        assert preset_in.get("cut_highs") == 0.0, (
+            f"Expected preset.cut_highs=0.0 from country preset, got {preset_in!r}"
+        )
 
     # --- Auto-recovery tests ---
 

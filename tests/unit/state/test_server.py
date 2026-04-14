@@ -12452,7 +12452,7 @@ class TestMasterAudioComprehensive:
         assert result["settings"]["target_lufs"] == -12.0
 
     def test_eq_settings_propagated(self, tmp_path):
-        """EQ settings should be passed to master_track."""
+        """EQ settings should reach master_track — via preset since #290/1a."""
         audio_dir, state = self._make_audio_dir(tmp_path, 1)
         mock_cache = MockStateCache(state)
 
@@ -12476,10 +12476,15 @@ class TestMasterAudioComprehensive:
             )))
 
         assert len(captured_kwargs) == 1
-        eq = captured_kwargs[0]["eq_settings"]
-        assert len(eq) == 2
-        assert eq[0] == (3500, -2.0, 1.5)
-        assert eq[1] == (8000, -1.5, 0.7)
+        # Since #290 phase 1a, master_audio passes EQ values through the
+        # preset dict; master_track rebuilds eq_settings from preset fields.
+        preset_in = captured_kwargs[0].get("preset") or {}
+        assert preset_in.get("cut_highmid") == -2.0, (
+            f"Expected preset.cut_highmid=-2.0, got {preset_in!r}"
+        )
+        assert preset_in.get("cut_highs") == -1.5, (
+            f"Expected preset.cut_highs=-1.5, got {preset_in!r}"
+        )
 
     def test_summary_gain_range(self, tmp_path):
         """Summary should include correct gain range across tracks."""

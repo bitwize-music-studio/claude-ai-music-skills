@@ -23,6 +23,10 @@ from handlers._shared import (
     _safe_json,
 )
 from handlers.processing import _helpers
+from tools.mastering.config import (
+    load_mastering_config,
+    resolve_mastering_targets,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -258,11 +262,11 @@ async def master_audio(
     )
 
     # Apply genre preset if specified
-    effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
     effective_compress = 1.5
     genre_applied = None
+    preset_dict: dict[str, Any] | None = None
 
     if genre:
         presets = load_genre_presets()
@@ -272,23 +276,27 @@ async def master_audio(
                 "error": f"Unknown genre: {genre}",
                 "available_genres": sorted(presets.keys()),
             })
-        preset = presets[genre_key]
-        # Genre preset provides defaults; explicit non-default args override
-        if target_lufs == -14.0:
-            effective_lufs = preset['target_lufs']
+        preset_dict = dict(presets[genre_key])
         if cut_highmid == 0.0:
-            effective_highmid = preset['cut_highmid']
+            effective_highmid = preset_dict['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset['cut_highs']
-        effective_compress = preset['compress_ratio']
+            effective_highs = preset_dict['cut_highs']
+        effective_compress = preset_dict['compress_ratio']
         genre_applied = genre_key
 
-    # Build EQ settings
-    eq_settings = []
-    if effective_highmid != 0:
-        eq_settings.append((3500.0, effective_highmid, 1.5))
-    if effective_highs != 0:
-        eq_settings.append((8000.0, effective_highs, 0.7))
+    # Resolve effective delivery targets (explicit arg > preset > config > default)
+    mastering_config = load_mastering_config()
+    targets = resolve_mastering_targets(
+        config=mastering_config,
+        preset=preset_dict,
+        target_lufs_arg=target_lufs,
+        ceiling_db_arg=ceiling_db,
+    )
+    effective_lufs = targets["target_lufs"]
+    effective_ceiling = targets["ceiling_db"]
+
+    # EQ is applied inside master_track from preset.cut_highmid / cut_highs
+    # below; no need to pre-build an eq_settings tuple list here.
 
     output_dir = audio_dir / "mastered"
     if not dry_run:
@@ -338,14 +346,28 @@ async def master_audio(
                 if track_info.get("fade_out") is not None:
                     fade_out_val = track_info["fade_out"]
 
+            # Build effective preset: merge genre preset (if any) with
+            # resolved delivery targets. Resolved values always win over
+            # preset values for delivery-target fields.
+            effective_preset: dict[str, Any] = {
+                **(preset_dict or {}),
+                "target_lufs": effective_lufs,
+                "output_bits": targets["output_bits"],
+                "output_sample_rate": targets["output_sample_rate"],
+                "cut_highmid": effective_highmid,
+                "cut_highs": effective_highs,
+                "compress_ratio": effective_compress,
+            }
+
             def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
-                    eq_settings=eq_settings if eq_settings else None,
-                    ceiling_db=ceiling_db,
+                    eq_settings=None,  # built from preset inside master_track
+                    ceiling_db=effective_ceiling,
                     fade_out=fo,
                     compress_ratio=effective_compress,
+                    preset=effective_preset,
                 )
             result = await loop.run_in_executor(None, _do_master, wav_file, output_path, fade_out_val)
             if result and not result.get("skipped"):
@@ -364,7 +386,9 @@ async def master_audio(
         "tracks": track_results,
         "settings": {
             "target_lufs": effective_lufs,
-            "ceiling_db": ceiling_db,
+            "ceiling_db": effective_ceiling,
+            "output_bits": targets["output_bits"],
+            "output_sample_rate": targets["output_sample_rate"],
             "cut_highmid": effective_highmid,
             "cut_highs": effective_highs,
             "genre": genre_applied,
@@ -691,11 +715,11 @@ async def master_album(
         master_track as _master_track,
     )
 
-    effective_lufs = target_lufs
     effective_highmid = cut_highmid
     effective_highs = cut_highs
     effective_compress = 1.5
     genre_applied = None
+    preset_dict: dict[str, Any] | None = None
 
     if genre:
         presets = load_genre_presets()
@@ -711,20 +735,51 @@ async def master_album(
                     "available_genres": sorted(presets.keys()),
                 },
             })
-        preset = presets[genre_key]
-        if target_lufs == -14.0:
-            effective_lufs = preset['target_lufs']
+        preset_dict = dict(presets[genre_key])
         if cut_highmid == 0.0:
-            effective_highmid = preset['cut_highmid']
+            effective_highmid = preset_dict['cut_highmid']
         if cut_highs == 0.0:
-            effective_highs = preset['cut_highs']
-        effective_compress = preset['compress_ratio']
+            effective_highs = preset_dict['cut_highs']
+        effective_compress = preset_dict['compress_ratio']
         genre_applied = genre_key
+
+    # Probe the first WAV to record the source sample rate for the
+    # upsampling notice. All album tracks share a rate post-polish.
+    source_sample_rate: int | None = None
+    try:
+        import soundfile as _sf
+        source_sample_rate = int(_sf.info(str(wav_files[0])).samplerate)
+    except Exception as _probe_exc:  # pragma: no cover - probe is best-effort
+        logger.debug(
+            "Source sample rate probe failed for %s: %s — "
+            "upsampling notice will be suppressed",
+            wav_files[0],
+            _probe_exc,
+        )
+        source_sample_rate = None
+
+    # Resolve effective delivery targets (explicit arg > preset > config > default)
+    mastering_config = load_mastering_config()
+    targets = resolve_mastering_targets(
+        config=mastering_config,
+        preset=preset_dict,
+        target_lufs_arg=target_lufs,
+        ceiling_db_arg=ceiling_db,
+        source_sample_rate=source_sample_rate,
+    )
+    effective_lufs = targets["target_lufs"]
+    effective_ceiling = targets["ceiling_db"]
 
     settings = {
         "genre": genre_applied,
         "target_lufs": effective_lufs,
-        "ceiling_db": ceiling_db,
+        "ceiling_db": effective_ceiling,
+        "output_bits": targets["output_bits"],
+        "output_sample_rate": targets["output_sample_rate"],
+        "source_sample_rate": targets["source_sample_rate"],
+        "upsampled_from_source": targets["upsampled_from_source"],
+        "archival_enabled": targets["archival_enabled"],
+        "adm_aac_encoder": targets["adm_aac_encoder"],
         "cut_highmid": effective_highmid,
         "cut_highs": effective_highs,
     }
@@ -862,20 +917,43 @@ async def master_album(
             track_meta = album_tracks.get(track_slug, {})
             fade_out_val = track_meta.get("fade_out")
 
-            def _do_master(in_path: Path, out_path: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float, fade: float | None, comp: float) -> dict[str, Any]:
+            # Build effective preset: genre preset (if any) with resolved
+            # delivery targets layered on top. This ensures output_bits /
+            # output_sample_rate / target_lufs come from config when the
+            # genre preset leaves them unset or at legacy defaults.
+            effective_preset: dict[str, Any] = {
+                **(preset_dict or {}),
+                "target_lufs": effective_lufs,
+                "output_bits": targets["output_bits"],
+                "output_sample_rate": targets["output_sample_rate"],
+                "cut_highmid": effective_highmid,
+                "cut_highs": effective_highs,
+                "compress_ratio": effective_compress,
+            }
+
+            def _do_master(
+                in_path: Path,
+                out_path: Path,
+                lufs: float,
+                ceil: float,
+                fade: float | None,
+                comp: float,
+                p: dict[str, Any],
+            ) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=lufs,
-                    eq_settings=eq if eq else None,
+                    eq_settings=None,  # built from preset inside master_track
                     ceiling_db=ceil,
                     fade_out=fade,
                     compress_ratio=comp,
+                    preset=p,
                 )
 
             result = await loop.run_in_executor(
                 None, _do_master, wav_file, output_path,
-                effective_lufs, eq_settings, ceiling_db, fade_out_val,
-                effective_compress,
+                effective_lufs, effective_ceiling, fade_out_val,
+                effective_compress, effective_preset,
             )
             if result and not result.get("skipped"):
                 result["filename"] = wav_file.name
@@ -935,8 +1013,10 @@ async def master_album(
         issues = []
         if abs(r["lufs"] - effective_lufs) > 0.5:
             issues.append(f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}")
-        if r["peak_db"] > ceiling_db:
-            issues.append(f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB")
+        if r["peak_db"] > effective_ceiling:
+            issues.append(
+                f"Peak {r['peak_db']:.1f} dB exceeds ceiling {effective_ceiling} dB"
+            )
         if issues:
             out_of_spec.append({"filename": r["filename"], "issues": issues})
 
@@ -955,12 +1035,19 @@ async def master_album(
             if not vr:
                 continue
             lufs_too_low = vr["lufs"] < effective_lufs - 0.5
-            peak_at_ceiling = vr["peak_db"] >= ceiling_db - 0.1
+            peak_at_ceiling = vr["peak_db"] >= effective_ceiling - 0.1
             if lufs_too_low and peak_at_ceiling and not has_peak_issue:
                 recoverable.append(spec["filename"])
 
         if recoverable:
             from tools.mastering.fix_dynamic_track import fix_dynamic
+
+            # Recovery writes at source rate (fix_dynamic is a rescue path
+            # that doesn't resample) but honors the configured output bit
+            # depth from targets["output_bits"].
+            recovery_subtype = (
+                "PCM_24" if targets["output_bits"] > 16 else "PCM_16"
+            )
 
             auto_recovered = []
             for fname in recoverable:
@@ -970,7 +1057,14 @@ async def master_album(
                 if not raw_path.exists():
                     continue
 
-                def _do_recovery(src: Path, dst: Path, lufs: float, eq: list[tuple[float, float, float]], ceil: float) -> dict[str, Any]:
+                def _do_recovery(
+                    src: Path,
+                    dst: Path,
+                    lufs: float,
+                    eq: list[tuple[float, float, float]],
+                    ceil: float,
+                    subtype: str,
+                ) -> dict[str, Any]:
                     import soundfile as sf
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
@@ -981,13 +1075,14 @@ async def master_album(
                         eq_settings=eq if eq else None,
                         ceiling_db=ceil,
                     )
-                    sf.write(str(dst), data, rate, subtype="PCM_16")
+                    sf.write(str(dst), data, rate, subtype=subtype)
                     return metrics
 
                 mastered_path = output_dir / fname
                 metrics = await loop.run_in_executor(
                     None, _do_recovery, raw_path, mastered_path,
-                    effective_lufs, eq_settings, ceiling_db,
+                    effective_lufs, eq_settings, effective_ceiling,
+                    recovery_subtype,
                 )
                 auto_recovered.append({
                     "filename": fname,
@@ -1021,9 +1116,9 @@ async def master_album(
                         issues.append(
                             f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}"
                         )
-                    if r["peak_db"] > ceiling_db:
+                    if r["peak_db"] > effective_ceiling:
                         issues.append(
-                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling {ceiling_db} dB"
+                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling {effective_ceiling} dB"
                         )
                     if issues:
                         out_of_spec.append({"filename": r["filename"], "issues": issues})
@@ -1263,6 +1358,34 @@ async def master_album(
         "verdict": "ALL PASS" if post_warned == 0 else "WARNINGS",
     }
 
+    # --- Stage 6.5: Archival (opt-in) ---
+    # When mastering.archival_enabled is true, write a 32-bit float copy
+    # of each mastered track to archival/. This is a bit-depth-expanded
+    # copy of the delivery master (not a separate render), intended for
+    # re-mastering without re-polishing stems.
+    if targets.get("archival_enabled"):
+        import soundfile as _sf_archival
+
+        archival_dir = audio_dir / "archival"
+        archival_dir.mkdir(exist_ok=True)
+        archived = 0
+        archive_errors: list[str] = []
+        for mastered_path in mastered_files:
+            arch_path = archival_dir / mastered_path.name
+            try:
+                data, rate = _sf_archival.read(str(mastered_path), dtype="float32")
+                _sf_archival.write(str(arch_path), data, rate, subtype="FLOAT")
+                archived += 1
+            except Exception as exc:  # pragma: no cover - filesystem error path
+                archive_errors.append(f"{mastered_path.name}: {exc}")
+
+        stages["archival"] = {
+            "status": "pass" if not archive_errors else "warn",
+            "count": archived,
+            "output_dir": str(archival_dir),
+            "errors": archive_errors or None,
+        }
+
     # --- Stage 7: Update statuses ---
     state = _shared.cache.get_state_ref()
     albums = state.get("albums", {})
@@ -1270,7 +1393,8 @@ async def master_album(
     album_data = albums.get(normalized_album)
 
     tracks_updated = 0
-    status_errors = []
+    status_errors: list[str] = []
+    album_status: str | None = None
 
     if album_data:
         tracks = album_data.get("tracks", {})
@@ -1327,7 +1451,6 @@ async def master_album(
             t.get("status", "").lower() == TRACK_FINAL.lower()
             for t in tracks.values()
         )
-        album_status = None
         if all_final:
             album_path_str = album_data.get("path", "")
             if album_path_str:
@@ -1368,12 +1491,25 @@ async def master_album(
         "errors": status_errors if status_errors else None,
     }
 
+    # Build runtime notices (caveats worth surfacing to the user).
+    notices: list[str] = []
+    if targets.get("upsampled_from_source"):
+        src_rate = targets.get("source_sample_rate") or 0
+        dst_rate = targets["output_sample_rate"]
+        notices.append(
+            f"Delivery at {dst_rate // 1000} kHz "
+            f"(upsampled from {src_rate / 1000:.1f} kHz source). "
+            f"Badge-eligible for Apple Hi-Res Lossless and Tidal Max — "
+            f"no additional audio information vs. source."
+        )
+
     return _safe_json({
         "album_slug": album_slug,
         "stage_reached": "complete",
         "stages": stages,
         "settings": settings,
         "warnings": warnings,
+        "notices": notices,
         "failed_stage": None,
         "failure_detail": None,
     })
@@ -1568,6 +1704,66 @@ async def mono_fold_check(
     })
 
 
+async def prune_archival(album_slug: str, keep: int = 3) -> str:
+    """Prune the album's archival/ directory, keeping the N newest files.
+
+    The archival/ directory holds 32-bit float pre-downconvert masters
+    written by master_album when mastering.archival_enabled is true.
+    Each re-master adds new files; this tool lets users cap disk usage
+    by pruning older entries by modification time.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album").
+        keep: Number of most-recent files to keep (by mtime). Default: 3.
+            0 removes everything. Negative values are treated as 0.
+
+    Returns:
+        JSON with {"kept": [names...], "removed": [names...]}. Includes
+        "note" when the archival directory is absent.
+    """
+    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
+    if err:
+        return err
+    assert audio_dir is not None
+
+    archival_dir = audio_dir / "archival"
+    if not archival_dir.is_dir():
+        return _safe_json({
+            "kept": [],
+            "removed": [],
+            "note": "no archival directory",
+        })
+
+    files = sorted(
+        (f for f in archival_dir.iterdir() if f.is_file()),
+        key=lambda f: f.stat().st_mtime,
+    )
+
+    if keep < 0:
+        keep = 0
+    if keep >= len(files):
+        return _safe_json({
+            "kept": [f.name for f in files],
+            "removed": [],
+        })
+
+    to_remove = files if keep == 0 else files[: len(files) - keep]
+    to_keep = [] if keep == 0 else files[len(files) - keep:]
+
+    removed_names: list[str] = []
+    for f in to_remove:
+        try:
+            f.unlink()
+            removed_names.append(f.name)
+        except OSError as exc:  # pragma: no cover - filesystem edge case
+            logger.warning("prune_archival: could not remove %s: %s", f, exc)
+
+    return _safe_json({
+        "kept": [f.name for f in to_keep],
+        "removed": removed_names,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register audio mastering tools."""
     mcp.tool()(analyze_audio)
@@ -1578,3 +1774,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(master_album)
     mcp.tool()(render_codec_preview)
     mcp.tool()(mono_fold_check)
+    mcp.tool()(prune_archival)
