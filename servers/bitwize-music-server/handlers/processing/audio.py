@@ -25,6 +25,11 @@ from handlers._shared import (
 )
 from handlers.processing import _helpers
 from tools.mastering.album_signature import build_signature
+from tools.mastering.ceiling_guard import (
+    CeilingGuardError,
+    apply_pull_down_db,
+    compute_overshoots as _ceiling_guard_compute_overshoots,
+)
 from tools.mastering.signature_persistence import (
     SIGNATURE_FILENAME,
     SignaturePersistenceError,
@@ -1306,6 +1311,117 @@ async def master_album(
     if auto_recovered:
         verification_stage["auto_recovered"] = auto_recovered
     stages["verification"] = verification_stage
+
+    # --- Stage 5.4: Album-ceiling guard (#290 step 8) ---
+    # Gate every track against album_median + 2 LU. Small overshoots
+    # (<= 0.5 LU) get a silent scalar pull-down; large overshoots halt
+    # and escalate (signals coherence correction didn't converge on LUFS-I).
+    ceiling_tracks_input = [
+        {"filename": r["filename"], "lufs": r["lufs"]}
+        for r in verify_results
+    ]
+    ceiling_result = _ceiling_guard_compute_overshoots(ceiling_tracks_input)
+
+    ceiling_stage: dict[str, Any] = {
+        "status":       "pass",
+        "action":       "no_op",
+        "median_lufs":  None if ceiling_result["median_lufs"] is None
+                        else round(ceiling_result["median_lufs"], 2),
+        "threshold_lu": None if ceiling_result["threshold_lu"] is None
+                        else round(ceiling_result["threshold_lu"], 2),
+        "tracks":       ceiling_result["tracks"],
+        "pulled_down":  [],
+    }
+
+    halt_rows = [r for r in ceiling_result["tracks"] if r["classification"] == "halt"]
+    if halt_rows:
+        ceiling_stage["status"] = "fail"
+        ceiling_stage["action"] = "halt"
+        stages["ceiling_guard"] = ceiling_stage
+        return _safe_json({
+            "album_slug":      album_slug,
+            "stage_reached":   "ceiling_guard",
+            "stages":          stages,
+            "settings":        settings,
+            "warnings":        warnings,
+            "failed_stage":    "ceiling_guard",
+            "failure_detail": {
+                "reason": (
+                    f"Album-ceiling guard: "
+                    f"{len(halt_rows)} track(s) with overshoot > 0.5 LU. "
+                    f"Coherence correction (step 6) did not converge on LUFS-I; "
+                    f"re-run master_album with coherence corrections or adjust "
+                    f"per-track mastering."
+                ),
+                "tracks": [
+                    {
+                        "filename":      r["filename"],
+                        "lufs":          round(r["lufs"], 2),
+                        "overshoot_lu":  round(r["overshoot_lu"], 2),
+                    }
+                    for r in halt_rows
+                ],
+                "threshold_lu": ceiling_stage["threshold_lu"],
+                "median_lufs":  ceiling_stage["median_lufs"],
+            },
+        })
+
+    correctable_rows = [
+        r for r in ceiling_result["tracks"]
+        if r["classification"] == "correctable"
+    ]
+    if correctable_rows:
+        # Apply scalar pull-down in-place to each correctable track, then
+        # re-analyze so downstream stages (mastering samples, post-QC,
+        # archival, signature persist) see accurate numbers.
+        # lambda binds kwargs because run_in_executor only forwards positional
+        # args and apply_pull_down_db uses keyword-only params.
+        output_bits = int(targets.get("output_bits") or 24)
+        pull_down_errors: list[str] = []
+        pulled_files: list[str] = []
+        for row in correctable_rows:
+            target_path = output_dir / row["filename"]
+            try:
+                await loop.run_in_executor(
+                    None,
+                    lambda p=target_path, g=row["pull_down_db"], b=output_bits:
+                        apply_pull_down_db(p, gain_db=g, output_bits=b),
+                )
+                pulled_files.append(row["filename"])
+            except CeilingGuardError as exc:
+                pull_down_errors.append(f"{row['filename']}: {exc}")
+
+        if pull_down_errors:
+            ceiling_stage["status"] = "warn"
+            ceiling_stage["pull_down_errors"] = pull_down_errors
+            warnings.append(
+                "Ceiling guard: pull-down failed for "
+                f"{len(pull_down_errors)} track(s); see stage output"
+            )
+        ceiling_stage["action"] = "pull_down"
+        ceiling_stage["pulled_down"] = pulled_files
+
+        # Patch verify_results so stages["verification"] and signature
+        # persist see post-pull-down numbers.
+        filename_to_index = {
+            r["filename"]: i for i, r in enumerate(verify_results)
+        }
+        for fname in pulled_files:
+            wav_path = output_dir / fname
+            fresh = await loop.run_in_executor(
+                None, analyze_track, str(wav_path),
+            )
+            idx = filename_to_index.get(fname)
+            if idx is not None:
+                verify_results[idx] = fresh
+
+        verify_lufs = [r["lufs"] for r in verify_results]
+        stages["verification"]["avg_lufs"] = round(float(np.mean(verify_lufs)), 1)
+        stages["verification"]["lufs_range"] = round(
+            float(max(verify_lufs) - min(verify_lufs)), 2
+        )
+
+    stages["ceiling_guard"] = ceiling_stage
 
     # --- Stage 5.5: Mastering samples (codec preview + mono fold-down QC) ---
     # Issue #296. Writes .aac.m4a and .MONO_FOLD.md sidecars to the
