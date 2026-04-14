@@ -49,7 +49,7 @@ def _album_medians(tracks: list[dict[str, Any]]) -> dict[str, float | None]:
     """
     medians: dict[str, float | None] = {}
     for key in SIGNATURE_KEYS:
-        values = [t[key] for t in tracks if t.get(key) is not None]
+        values = [t.get(key) for t in tracks if t.get(key) is not None]
         medians[key] = float(np.median(values)) if values else None
     return medians
 
@@ -89,8 +89,12 @@ def _is_eligible(track: dict[str, Any]) -> tuple[bool, str | None]:
     for key in SIGNATURE_KEYS:
         if track.get(key) is None:
             return False, f"{key} is None (analyzer could not compute it)"
-    if "band_energy" not in track or not track["band_energy"]:
+    band_energy = track.get("band_energy")
+    if not band_energy:
         return False, "band_energy missing"
+    missing_bands = [b for b in BANDS if b not in band_energy]
+    if missing_bands:
+        return False, f"band_energy missing bands: {missing_bands}"
     return True, None
 
 
@@ -121,9 +125,27 @@ def select_anchor(
         "sub_bass": 8.0, "bass": 18.0, "low_mid": 20.0, "mid": 25.0,
         "high_mid": 14.0, "high": 10.0, "air": 5.0,
     }
+    missing_ref_bands = [b for b in BANDS if b not in spectral_ref]
+    if missing_ref_bands:
+        raise ValueError(
+            f"spectral_reference_energy missing bands: {missing_ref_bands}"
+        )
+
+    # Normalize override: reject anything that isn't a plain int.
+    # (bool is an int subclass in Python; callers should not pass True/False.)
+    # Preserve the original caller-supplied value for the result dict so
+    # diagnostics can show what was passed.
+    original_override = override_index
+    override_reason: str | None = None
+    if override_index is not None and (
+        not isinstance(override_index, int) or isinstance(override_index, bool)
+    ):
+        override_reason = (
+            f"non-integer override ({override_index!r}) — treated as no override"
+        )
+        override_index = None
 
     # Override path
-    override_reason: str | None = None
     if override_index is not None and override_index > 0:
         if 1 <= override_index <= len(tracks):
             return {
@@ -170,7 +192,7 @@ def select_anchor(
             "selected_index": None,
             "method": "no_eligible_tracks",
             "scores": scores,
-            "override_index": override_index,
+            "override_index": original_override,
             "override_reason": override_reason,
         }
 
@@ -202,6 +224,6 @@ def select_anchor(
         "selected_index": top["index"],
         "method": method,
         "scores": scores,
-        "override_index": override_index,
+        "override_index": original_override,
         "override_reason": override_reason,
     }

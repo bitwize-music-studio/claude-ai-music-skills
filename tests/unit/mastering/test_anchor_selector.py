@@ -203,3 +203,69 @@ class TestSelectAnchorEligibility:
         result = select_anchor([t1, t2], _preset())
         assert result["selected_index"] is None
         assert result["method"] == "no_eligible_tracks"
+
+
+class TestSelectAnchorInputHardening:
+    def test_float_override_rejected_as_no_override(self):
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav")
+        result = select_anchor([t1, t2], _preset(), override_index=1.5)
+        assert result["method"] != "override"
+        assert result["override_index"] == 1.5
+        assert "non-integer" in (result["override_reason"] or "")
+
+    def test_bool_override_rejected_as_no_override(self):
+        # bool is an int subclass in Python; selector must still reject it.
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav")
+        result = select_anchor([t1, t2], _preset(), override_index=True)
+        assert result["method"] != "override"
+        assert "non-integer" in (result["override_reason"] or "")
+
+    def test_string_override_rejected_without_raising(self):
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav")
+        # Must not raise TypeError from `> 0` comparison.
+        result = select_anchor([t1, t2], _preset(), override_index="2")
+        assert result["method"] != "override"
+        assert "non-integer" in (result["override_reason"] or "")
+
+    def test_band_energy_missing_a_band_marks_ineligible(self):
+        bad = {k: v for k, v in REF.items() if k != "air"}
+        t1 = _track(filename="01.wav", band_energy=bad)
+        t2 = _track(filename="02.wav")
+        result = select_anchor([t1, t2], _preset())
+        assert result["selected_index"] == 2
+        entry1 = next(s for s in result["scores"] if s["index"] == 1)
+        assert entry1["eligible"] is False
+        assert "air" in entry1["reason"]
+
+    def test_malformed_spectral_reference_raises_valueerror(self):
+        bad_preset = {
+            "genre_ideal_lra_lu": 8.0,
+            "spectral_reference_energy": {
+                k: v for k, v in REF.items() if k != "air"
+            },
+        }
+        t1 = _track(filename="01.wav")
+        with pytest.raises(ValueError, match="missing bands"):
+            select_anchor([t1], bad_preset)
+
+    def test_empty_tracks_returns_no_selection(self):
+        result = select_anchor([], _preset())
+        assert result["selected_index"] is None
+        assert result["method"] == "no_eligible_tracks"
+        assert result["scores"] == []
+
+    def test_track_missing_signature_key_entirely_handled_by_medians(self):
+        # Latent I4: a track dict without the key at all (not None) must
+        # not crash _album_medians when other tracks do have the key.
+        t1 = _track(filename="01.wav")
+        t2 = _track(filename="02.wav")
+        t3 = dict(t1)
+        del t3["stl_95"]  # key entirely absent, not just None
+        t3["filename"] = "03.wav"
+        result = select_anchor([t1, t2, t3], _preset())
+        # t3 is ineligible (_is_eligible sees missing stl_95),
+        # but t1 and t2 must still get scored without a KeyError.
+        assert result["selected_index"] in (1, 2)
