@@ -2385,3 +2385,5 @@ def register(mcp: Any) -> None:
     mcp.tool()(mono_fold_check)
     mcp.tool()(prune_archival)
     mcp.tool()(measure_album_signature)
+    mcp.tool()(album_coherence_check)
+    mcp.tool()(album_coherence_correct)

@@ -19,6 +19,8 @@ from typing import Any
 
 # Audio mastering tools
 from handlers.processing.audio import (  # noqa: F401
+    album_coherence_check,
+    album_coherence_correct,
     analyze_audio,
     fix_dynamic_track,
     master_album,
