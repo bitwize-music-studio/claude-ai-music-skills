@@ -2302,10 +2302,10 @@ async def album_coherence_correct(
             modified_preset["target_lufs"] = entry["corrected_target_lufs"]
             staged = staging_dir / filename
             try:
+                from functools import partial
                 await loop.run_in_executor(
                     None,
-                    lambda sp=src, op=staged, mp=modified_preset:
-                        master_track(sp, op, preset=mp),
+                    partial(master_track, src, staged, preset=modified_preset),
                 )
             except Exception as exc:  # pragma: no cover - defensive
                 response["corrections"].append({
