@@ -116,3 +116,109 @@ def test_measure_album_signature_no_wavs_returns_error(tmp_path: Path) -> None:
     result = json.loads(result_json)
     assert "error" in result
     assert "no wav" in result["error"].lower()
+
+
+def test_measure_album_signature_with_genre_returns_anchor_block(tmp_path: Path) -> None:
+    _setup_album(tmp_path, track_count=3)
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(
+            audio_mod.measure_album_signature(
+                album_slug="test-album", subfolder="mastered", genre="pop",
+            )
+        )
+
+    result = json.loads(result_json)
+    assert "error" not in result
+    assert result["settings"]["genre"] == "pop"
+    assert "anchor" in result
+    # Short sine-wave fixtures typically satisfy stl_95 eligibility —
+    # but if scoring can't converge (pathological synthetic audio), the
+    # selector still returns a structured dict; assert on shape, not
+    # specific index.
+    anchor = result["anchor"]
+    assert "selected_index" in anchor
+    assert "method" in anchor
+    assert "scores" in anchor
+    assert isinstance(anchor["scores"], list)
+    assert len(anchor["scores"]) == 3
+    if anchor["selected_index"] is not None:
+        assert anchor["deltas"]  # non-empty when a selection was made
+        # Exactly one delta row should be flagged as the anchor.
+        assert sum(1 for r in anchor["deltas"] if r["is_anchor"]) == 1
+
+
+def test_measure_album_signature_with_explicit_anchor_track(tmp_path: Path) -> None:
+    _setup_album(tmp_path, track_count=4)
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(
+            audio_mod.measure_album_signature(
+                album_slug="test-album",
+                subfolder="mastered",
+                anchor_track=2,
+            )
+        )
+
+    result = json.loads(result_json)
+    assert "error" not in result
+    assert "anchor" in result
+    anchor = result["anchor"]
+    assert anchor["selected_index"] == 2
+    assert anchor["method"] == "override"
+    assert anchor["override_index"] == 2
+    assert len(anchor["deltas"]) == 4
+    assert anchor["deltas"][1]["is_anchor"] is True  # track #2 (1-based)
+
+
+def test_measure_album_signature_unknown_genre_returns_error(tmp_path: Path) -> None:
+    _setup_album(tmp_path, track_count=2)
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(
+            audio_mod.measure_album_signature(
+                album_slug="test-album", subfolder="mastered",
+                genre="not-a-real-genre",
+            )
+        )
+
+    result = json.loads(result_json)
+    assert "error" in result
+    assert "unknown genre" in result["error"].lower()
+    # build_effective_preset surfaces the catalogue for fix-forward guidance.
+    assert "available_genres" in result
+
+
+def test_measure_album_signature_out_of_range_override_falls_through(tmp_path: Path) -> None:
+    _setup_album(tmp_path, track_count=3)
+
+    def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(
+            audio_mod.measure_album_signature(
+                album_slug="test-album", subfolder="mastered",
+                anchor_track=99,  # out of range
+            )
+        )
+
+    result = json.loads(result_json)
+    assert "error" not in result
+    assert "anchor" in result
+    anchor = result["anchor"]
+    # Override is rejected but still surfaces in the block for diagnostics.
+    assert anchor["override_index"] == 99
+    assert anchor["override_reason"] is not None
+    assert "out of range" in anchor["override_reason"].lower()
+    # method falls through to composite, tie_breaker, or no_eligible_tracks.
+    assert anchor["method"] in ("composite", "tie_breaker", "no_eligible_tracks")
