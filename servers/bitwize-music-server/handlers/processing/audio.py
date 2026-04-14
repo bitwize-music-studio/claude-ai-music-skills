@@ -798,16 +798,17 @@ async def master_album(
         try:
             frozen_signature = read_signature_file(audio_dir)
         except SignaturePersistenceError as exc:
+            reason_text = f"Corrupt {SIGNATURE_FILENAME}: {exc}"
             return _safe_json({
                 "album_slug": album_slug,
                 "stage_reached": "freeze_decision",
                 "stages": {**stages, "freeze_decision": {
                     "status": "fail",
                     "mode": freeze_mode,
-                    "reason": f"Corrupt {SIGNATURE_FILENAME}: {exc}",
+                    "reason": reason_text,
                 }},
                 "failed_stage": "freeze_decision",
-                "failure_detail": {"reason": str(exc)},
+                "failure_detail": {"reason": reason_text},
             })
         if frozen_signature is None:
             if freeze_signature:
@@ -875,12 +876,59 @@ async def master_album(
             val = frozen_targets.get(sig_key)
             if val is not None:
                 targets[k] = val
+
+        # I2: recompute upsampled_from_source after sample-rate mutation.
+        _src_sr = targets.get("source_sample_rate")
+        _out_sr = targets.get("output_sample_rate")
+        if _src_sr is not None and _out_sr is not None:
+            targets["upsampled_from_source"] = _out_sr > _src_sr
+
         # Rebuild `settings` so the JSON response reflects the frozen
         # targets (settings is already emitted in earlier stages' output).
         settings["target_lufs"] = targets.get("target_lufs")
         settings["ceiling_db"]  = targets.get("ceiling_db")
         settings["output_bits"] = targets.get("output_bits")
         settings["output_sample_rate"] = targets.get("output_sample_rate")
+        settings["upsampled_from_source"] = targets.get("upsampled_from_source")
+
+        # C1: Refresh effective_preset in-place with frozen delivery-target
+        # fields so Stage 4's mastering loop and _master_track receive the
+        # frozen values, not the genre defaults cached at Stage 1.
+        _frozen_preset_overrides: dict[str, Any] = {}
+        _lufs_override = frozen_targets.get("target_lufs")
+        if _lufs_override is not None:
+            _frozen_preset_overrides["target_lufs"] = _lufs_override
+        _ceil_override = frozen_targets.get("tp_ceiling_db")
+        if _ceil_override is not None:
+            _frozen_preset_overrides["ceiling_db"] = _ceil_override
+        _bits_override = frozen_targets.get("output_bits")
+        if _bits_override is not None:
+            _frozen_preset_overrides["output_bits"] = _bits_override
+        _sr_override = frozen_targets.get("output_sample_rate")
+        if _sr_override is not None:
+            _frozen_preset_overrides["output_sample_rate"] = _sr_override
+        _lra_override = frozen_targets.get("lra_target_lu")
+        if _lra_override is not None:
+            _frozen_preset_overrides["genre_ideal_lra_lu"] = _lra_override
+        effective_preset.update(_frozen_preset_overrides)
+
+        # I1: Also propagate frozen tolerance fields into effective_preset.
+        for _tol_key in (
+            "coherence_stl_95_lu",
+            "coherence_lra_floor_lu",
+            "coherence_low_rms_db",
+            "coherence_vocal_rms_db",
+        ):
+            _tol_val = frozen_signature.get("tolerances", {}).get(_tol_key)
+            if _tol_val is not None:
+                effective_preset[_tol_key] = _tol_val
+
+        # C1: Reassign cached effective_* locals from updated targets/preset
+        # so all downstream code (Stage 4 mastering loop, Stage 5 verification)
+        # operates on the frozen values.
+        effective_lufs = targets["target_lufs"]
+        effective_ceiling = targets["ceiling_db"]
+        effective_compress = effective_preset.get("compress_ratio", effective_compress)
     else:
         from tools.mastering.anchor_selector import select_anchor
 

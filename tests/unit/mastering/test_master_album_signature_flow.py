@@ -270,3 +270,70 @@ def test_frozen_mode_preserves_original_anchor_block(tmp_path: Path, monkeypatch
     assert after["anchor"]["method"] == "composite"
     assert after["anchor"]["score"] == pytest.approx(0.612)
     assert after["anchor"]["filename"] == "02-track.wav"
+
+
+def test_frozen_mode_delivery_matches_frozen_target(tmp_path: Path, monkeypatch) -> None:
+    """Phase-4 core guarantee: frozen re-master delivers at the frozen target,
+    not at the genre default.
+
+    Regression for the bug where Stage 2b mutated targets but the effective_*
+    locals cached at Stage 1 were never refreshed, so Stage 4's mastering loop
+    silently used the genre default (-14 LUFS) instead of the frozen target.
+    """
+    import soundfile as sf
+    import pyloudnorm as pyln
+
+    from tools.mastering.signature_persistence import write_signature_file
+
+    # Wav amplitude chosen so genre-default mastering would drive it to ~-14 LUFS;
+    # frozen target at -11 LUFS lets us detect the delta clearly.
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _install_album(monkeypatch, tmp_path, "drift-album", status="Released")
+
+    from handlers import _shared
+    monkeypatch.setattr(_shared, "PLUGIN_ROOT", None)
+
+    frozen_target_lufs = -11.0
+    write_signature_file(tmp_path, {
+        "album_slug": "drift-album",
+        "anchor": {
+            "index": 1, "filename": "01-track.wav",
+            "method": "composite", "score": 0.5,
+            "signature": {"lufs": frozen_target_lufs, "peak_db": -3.0,
+                          "stl_95": -11.1, "short_term_range": 8.0,
+                          "low_rms": -22.0, "vocal_rms": -17.5},
+        },
+        "album_median": {},
+        "delivery_targets": {
+            "target_lufs": frozen_target_lufs,
+            "tp_ceiling_db": -1.0,
+            "lra_target_lu": 8.0,
+            "output_bits": 24,
+            "output_sample_rate": 96000,
+        },
+        "tolerances": {}, "pipeline": {},
+    }, plugin_version="0.91.0")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+        result_json = asyncio.run(audio_mod.master_album(album_slug="drift-album"))
+
+    result = json.loads(result_json)
+    assert result.get("failed_stage") is None, result.get("failure_detail")
+    assert result["stages"]["freeze_decision"]["mode"] == "frozen"
+
+    # Read the delivered WAV and compute integrated LUFS.
+    mastered_path = tmp_path / "mastered" / "01-track.wav"
+    assert mastered_path.exists(), "mastered file missing"
+    data, sr = sf.read(str(mastered_path))
+    meter = pyln.Meter(sr)
+    delivered_lufs = meter.integrated_loudness(data)
+
+    # Frozen mode must deliver within 0.5 LU of the frozen target.
+    assert abs(delivered_lufs - frozen_target_lufs) < 0.5, (
+        f"Frozen re-master drifted: delivered {delivered_lufs:.2f} LUFS vs "
+        f"frozen target {frozen_target_lufs} LUFS "
+        f"(delta {delivered_lufs - frozen_target_lufs:+.2f})"
+    )
