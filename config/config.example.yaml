@@ -792,6 +792,11 @@ sheet_music:
 #   #   48000 — broadcast standard; still below Apple Hi-Res threshold.
 #   #   96000 — unlocks Apple Hi-Res Lossless + Tidal Max badges.
 #   #
+#   # Disk-usage note: at 24-bit / 96 kHz, mastered WAVs are roughly
+#   # ~33 MB per stereo minute (vs. ~10 MB at 44.1 kHz). A 12-track
+#   # album averages ~1.5 GB of mastered/ output before archival; enable
+#   # archival only when you have headroom for an extra ~3x of that.
+#   #
 #   # delivery_sample_rate: 96000
 #
 #   # ---------------------------
