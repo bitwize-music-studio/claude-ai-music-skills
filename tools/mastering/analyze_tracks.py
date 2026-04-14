@@ -41,8 +41,41 @@ def _rms_db(samples: np.ndarray) -> float:
     return 20.0 * np.log10(rms) if rms > 0 else float('-inf')
 
 
-def analyze_track(filepath: Path | str) -> dict[str, Any]:
-    """Analyze a single track and return metrics."""
+def _read_vocal_stem(stem_path: Path | str, target_rate: int) -> np.ndarray | None:
+    """Read a vocal stem, mono-mix, resample to target_rate.
+
+    Returns None if the file cannot be read or resampled.
+    """
+    try:
+        data, rate = sf.read(str(stem_path))
+    except Exception as exc:
+        logger.warning("Could not read vocal stem %s: %s", stem_path, exc)
+        return None
+    if data.ndim > 1:
+        mono = np.mean(data, axis=1)
+    else:
+        mono = data
+    if rate != target_rate:
+        try:
+            from math import gcd
+            g = gcd(int(rate), int(target_rate))
+            up = int(target_rate) // g
+            down = int(rate) // g
+            mono = signal.resample_poly(mono, up, down)
+        except Exception as exc:
+            logger.warning("Could not resample vocal stem %s: %s", stem_path, exc)
+            return None
+    return np.asarray(mono, dtype=np.float64)
+
+
+def analyze_track(filepath: Path | str, *,
+                  vocal_stem_path: Path | str | None = None) -> dict[str, Any]:
+    """Analyze a single track and return metrics.
+
+    Optional vocal_stem_path lets Phase 2 callers feed a known stem path
+    directly; omitted calls auto-resolve via the polished/<name>/vocals.wav
+    sibling convention (added in later tasks).
+    """
     data, rate = sf.read(filepath)
 
     # Handle mono
@@ -145,6 +178,20 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
     else:
         low_rms = None
 
+    # vocal-RMS: whole-stem RMS when stem path resolves; 1-4 kHz band of
+    # full mix otherwise. See #290 spec footnote ‡.
+    vocal_rms: float | None = None
+    vocal_rms_source: str = "unavailable"
+
+    resolved_stem = Path(vocal_stem_path) if vocal_stem_path else None
+    if resolved_stem is not None and resolved_stem.is_file():
+        stem_mono = _read_vocal_stem(resolved_stem, rate)
+        if stem_mono is not None:
+            rms_val = _rms_db(stem_mono)
+            if np.isfinite(rms_val):
+                vocal_rms = float(rms_val)
+                vocal_rms_source = "stem"
+
     # Momentary: 400ms window, 100ms hop
     mom_window = int(0.4 * rate)
     mom_hop = int(0.1 * rate)
@@ -174,6 +221,7 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
         'short_term_range': short_term_range,
         'stl_95': stl_95,
         'low_rms': low_rms,
+        'vocal_rms': vocal_rms,
     }
 
 def main() -> None:

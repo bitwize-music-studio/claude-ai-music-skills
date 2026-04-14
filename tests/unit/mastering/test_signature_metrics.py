@@ -140,3 +140,52 @@ class TestLowRms:
     def test_silent_track_low_rms_is_none(self, silent_60_wav):
         result = analyze_track(silent_60_wav)
         assert result['low_rms'] is None
+
+
+@pytest.fixture
+def full_mix_and_stem(tmp_path):
+    """Full mix at -6 dBFS and a quieter vocal stem at -12 dBFS."""
+    rate = 48000
+    duration = 30.0
+    full_mono = _sine(220, duration=duration, rate=rate, amplitude=0.5)
+    stem_mono = _sine(1000, duration=duration, rate=rate, amplitude=0.25)
+    full_stereo = np.column_stack([full_mono, full_mono])
+    stem_stereo = np.column_stack([stem_mono, stem_mono])
+    full_path = tmp_path / "track.wav"
+    stem_path = tmp_path / "vocals.wav"
+    _write_wav(full_path, full_stereo, rate)
+    _write_wav(stem_path, stem_stereo, rate)
+    return str(full_path), str(stem_path)
+
+
+class TestVocalRmsStem:
+    def test_explicit_stem_path_uses_stem(self, full_mix_and_stem):
+        full, stem = full_mix_and_stem
+        result = analyze_track(full, vocal_stem_path=stem)
+        assert result['vocal_rms'] is not None
+        # Stem at amplitude 0.25 → RMS = 0.25/sqrt(2) ≈ 0.177 → ~ -15 dB
+        assert abs(result['vocal_rms'] - (-15.0)) < 2.0
+
+    def test_stem_different_sample_rate_resamples(self, tmp_path):
+        full_mono = _sine(220, duration=30.0, rate=48000, amplitude=0.5)
+        full_stereo = np.column_stack([full_mono, full_mono])
+        stem_mono = _sine(1000, duration=30.0, rate=44100, amplitude=0.25)
+        stem_stereo = np.column_stack([stem_mono, stem_mono])
+        full_path = tmp_path / "track.wav"
+        stem_path = tmp_path / "vocals.wav"
+        _write_wav(full_path, full_stereo, 48000)
+        _write_wav(stem_path, stem_stereo, 44100)
+        result = analyze_track(str(full_path), vocal_stem_path=str(stem_path))
+        assert result['vocal_rms'] is not None
+        assert abs(result['vocal_rms'] - (-15.0)) < 2.0
+
+    def test_unreadable_stem_does_not_crash(self, tmp_path):
+        full_mono = _sine(220, duration=30.0, rate=48000, amplitude=0.5)
+        full_stereo = np.column_stack([full_mono, full_mono])
+        full_path = tmp_path / "track.wav"
+        _write_wav(full_path, full_stereo, 48000)
+        bad_stem = tmp_path / "vocals.wav"
+        bad_stem.write_bytes(b"not a wav file")
+        # Task 3 only implements the stem branch; if unreadable, result is None.
+        result = analyze_track(str(full_path), vocal_stem_path=str(bad_stem))
+        assert result['vocal_rms'] is None
