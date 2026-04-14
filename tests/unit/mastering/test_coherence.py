@@ -42,3 +42,175 @@ class TestLoadTolerances:
         preset = {"lufs_tolerance_lu": 99.0}
         tolerances = load_tolerances(preset)
         assert tolerances["lufs_tolerance_lu"] == pytest.approx(0.5)
+
+
+def _delta(**overrides) -> dict:
+    """Minimal delta dict matching compute_anchor_deltas output."""
+    base = {
+        "index": 1,
+        "filename": "01.wav",
+        "is_anchor": False,
+        "delta_lufs": 0.0,
+        "delta_peak_db": 0.0,
+        "delta_stl_95": 0.0,
+        "delta_short_term_range": 0.0,
+        "delta_low_rms": 0.0,
+        "delta_vocal_rms": 0.0,
+    }
+    base.update(overrides)
+    return base
+
+
+def _analysis(**overrides) -> dict:
+    """Minimal analyze_track dict — only fields the classifier needs."""
+    base = {
+        "filename": "01.wav",
+        "lufs": -14.0,
+        "short_term_range": 6.5,
+        "stl_95": -10.5,
+        "low_rms": -18.0,
+        "vocal_rms": -16.0,
+    }
+    base.update(overrides)
+    return base
+
+
+TOLERANCES = dict(DEFAULTS)
+
+
+class TestClassifyOutliers:
+    def test_anchor_row_has_no_violations(self):
+        deltas = [_delta(index=1, is_anchor=True)]
+        analyses = [_analysis()]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=1)
+        assert len(result) == 1
+        assert result[0]["is_anchor"] is True
+        assert result[0]["is_outlier"] is False
+        assert result[0]["violations"] == []
+
+    def test_lufs_outlier_flagged_and_marked_correctable(self):
+        deltas = [
+            _delta(index=1, delta_lufs=1.3),  # well beyond tolerance 0.5
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        track1 = result[0]
+        assert track1["is_outlier"] is True
+        lufs_violations = [v for v in track1["violations"] if v["metric"] == "lufs"]
+        assert len(lufs_violations) == 1
+        v = lufs_violations[0]
+        assert v["delta"] == pytest.approx(1.3)
+        assert v["tolerance"] == pytest.approx(0.5)
+        assert v["severity"] == "outlier"
+        assert v["correctable"] is True
+
+    def test_lufs_within_tolerance_is_ok(self):
+        deltas = [
+            _delta(index=1, delta_lufs=0.3),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        track1 = result[0]
+        assert track1["is_outlier"] is False
+        lufs_violations = [v for v in track1["violations"] if v["metric"] == "lufs"]
+        assert len(lufs_violations) == 1
+        assert lufs_violations[0]["severity"] == "ok"
+
+    def test_stl_95_outlier_flagged_and_not_correctable(self):
+        deltas = [
+            _delta(index=1, delta_stl_95=0.9),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        stl_violations = [
+            v for v in result[0]["violations"] if v["metric"] == "stl_95"
+        ]
+        assert len(stl_violations) == 1
+        assert stl_violations[0]["severity"] == "outlier"
+        assert stl_violations[0]["correctable"] is False
+
+    def test_lra_floor_violation_uses_absolute_threshold(self):
+        deltas = [
+            _delta(index=1),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [
+            _analysis(filename="01.wav", short_term_range=0.7),   # below floor
+            _analysis(filename="02.wav", short_term_range=6.5),
+        ]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        floor_violations = [
+            v for v in result[0]["violations"] if v["metric"] == "lra_floor"
+        ]
+        assert len(floor_violations) == 1
+        assert floor_violations[0]["value"] == pytest.approx(0.7)
+        assert floor_violations[0]["floor"] == pytest.approx(1.0)
+        assert floor_violations[0]["severity"] == "outlier"
+        assert floor_violations[0]["correctable"] is False
+
+    def test_low_rms_outlier_flagged(self):
+        deltas = [
+            _delta(index=1, delta_low_rms=2.5),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        lr_violations = [
+            v for v in result[0]["violations"] if v["metric"] == "low_rms"
+        ]
+        assert len(lr_violations) == 1
+        assert lr_violations[0]["severity"] == "outlier"
+        assert lr_violations[0]["correctable"] is False
+
+    def test_vocal_rms_outlier_flagged(self):
+        deltas = [
+            _delta(index=1, delta_vocal_rms=-2.8),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        vr = [v for v in result[0]["violations"] if v["metric"] == "vocal_rms"]
+        assert vr[0]["severity"] == "outlier"
+
+    def test_missing_metric_produces_missing_severity(self):
+        deltas = [
+            _delta(index=1, delta_low_rms=None),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [
+            _analysis(filename="01.wav", low_rms=None),
+            _analysis(filename="02.wav"),
+        ]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        lr = [v for v in result[0]["violations"] if v["metric"] == "low_rms"]
+        assert len(lr) == 1
+        assert lr[0]["severity"] == "missing"
+
+    def test_multiple_violations_on_one_track(self):
+        deltas = [
+            _delta(index=1, delta_lufs=1.3, delta_stl_95=0.9, delta_vocal_rms=2.5),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [_analysis(filename="01.wav"), _analysis(filename="02.wav")]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        track1 = result[0]
+        assert track1["is_outlier"] is True
+        outlier_metrics = {
+            v["metric"] for v in track1["violations"] if v["severity"] == "outlier"
+        }
+        assert outlier_metrics == {"lufs", "stl_95", "vocal_rms"}
+
+    def test_missing_alone_does_not_flag_outlier(self):
+        deltas = [
+            _delta(index=1, delta_low_rms=None),
+            _delta(index=2, is_anchor=True),
+        ]
+        analyses = [
+            _analysis(filename="01.wav", low_rms=None),
+            _analysis(filename="02.wav"),
+        ]
+        result = classify_outliers(deltas, analyses, TOLERANCES, anchor_index_1based=2)
+        assert result[0]["is_outlier"] is False
