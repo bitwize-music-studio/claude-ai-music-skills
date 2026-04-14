@@ -1326,11 +1326,20 @@ async def master_album(
     # of each mastered track to archival/. This is a bit-depth-expanded
     # copy of the delivery master (not a separate render), intended for
     # re-mastering without re-polishing stems.
+    #
+    # The archival dir is a MIRROR of mastered/: orphans (files whose
+    # basename is no longer in mastered/) are removed before the new
+    # float copies go down. Keeps re-mastered albums in sync when tracks
+    # are dropped or renamed (#290 phase 4 — PR #304 review item A5).
     if targets.get("archival_enabled"):
         import soundfile as _sf_archival
+        from tools.mastering.archival import prune_archival_orphans
 
         archival_dir = audio_dir / "archival"
         archival_dir.mkdir(exist_ok=True)
+        mastered_names = {p.name for p in mastered_files}
+        pruned = prune_archival_orphans(archival_dir, mastered_names)
+
         archived = 0
         archive_errors: list[str] = []
         for mastered_path in mastered_files:
@@ -1345,6 +1354,7 @@ async def master_album(
         stages["archival"] = {
             "status": "pass" if not archive_errors else "warn",
             "count": archived,
+            "pruned": pruned or None,
             "output_dir": str(archival_dir),
             "errors": archive_errors or None,
         }
