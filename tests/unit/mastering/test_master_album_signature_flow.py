@@ -254,9 +254,16 @@ def test_frozen_mode_preserves_original_anchor_block(tmp_path: Path, monkeypatch
         "anchor": original_anchor,
         "album_median": {}, "delivery_targets": {
             "target_lufs": -14.0, "tp_ceiling_db": -1.0,
-            "lra_target_lu": 8.0, "output_bits": 24, "output_sample_rate": 96000,
+            "lra_target_lu": 7.3,  # non-default value to detect drift
+            "output_bits": 24, "output_sample_rate": 96000,
         },
-        "tolerances": {}, "pipeline": {},
+        "tolerances": {
+            "coherence_stl_95_lu": 0.75,   # non-default: default is 1.0
+            "coherence_lra_floor_lu": 5.0, # non-default: default is 6.0
+            "coherence_low_rms_db": 1.8,   # non-default: default is 2.0
+            "coherence_vocal_rms_db": 1.2, # non-default: default is 1.5
+        },
+        "pipeline": {},
     }, plugin_version="0.91.0")
 
     def _fake_resolve(slug, *_, **__):
@@ -270,6 +277,13 @@ def test_frozen_mode_preserves_original_anchor_block(tmp_path: Path, monkeypatch
     assert after["anchor"]["method"] == "composite"
     assert after["anchor"]["score"] == pytest.approx(0.612)
     assert after["anchor"]["filename"] == "02-track.wav"
+
+    # Frozen mode must preserve tolerances and LRA target across re-masters.
+    assert after["delivery_targets"]["lra_target_lu"] == pytest.approx(7.3)
+    assert after["tolerances"]["coherence_stl_95_lu"] == pytest.approx(0.75)
+    assert after["tolerances"]["coherence_lra_floor_lu"] == pytest.approx(5.0)
+    assert after["tolerances"]["coherence_low_rms_db"] == pytest.approx(1.8)
+    assert after["tolerances"]["coherence_vocal_rms_db"] == pytest.approx(1.2)
 
 
 def test_frozen_mode_delivery_matches_frozen_target(tmp_path: Path, monkeypatch) -> None:

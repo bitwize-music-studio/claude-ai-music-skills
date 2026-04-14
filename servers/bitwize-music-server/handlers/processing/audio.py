@@ -1659,16 +1659,40 @@ async def master_album(
     try:
         _plugin_version = _read_plugin_version()
 
-        sig = build_signature(
-            analysis_results,
-            delivery_targets={
-                "target_lufs":        targets.get("target_lufs"),
-                "tp_ceiling_db":      targets.get("ceiling_db"),
-                "lra_target_lu":      preset_dict.get("genre_ideal_lra_lu") if preset_dict else None,
-                "output_bits":        targets.get("output_bits"),
-                "output_sample_rate": targets.get("output_sample_rate"),
-            },
-            tolerances={
+        # In frozen mode, prefer tolerances + lra_target_lu from the
+        # frozen signature to prevent drift (preset_dict holds the
+        # current genre preset, not the shipped values).
+        if frozen_signature is not None:
+            _frozen_targets = frozen_signature.get("delivery_targets") or {}
+            _frozen_tolerances = frozen_signature.get("tolerances") or {}
+            _lra_target_lu = _frozen_targets.get("lra_target_lu")
+            if _lra_target_lu is None:
+                _lra_target_lu = preset_dict.get("genre_ideal_lra_lu") if preset_dict else None
+            _tolerances = {
+                k: _frozen_tolerances.get(k)
+                for k in (
+                    "coherence_stl_95_lu",
+                    "coherence_lra_floor_lu",
+                    "coherence_low_rms_db",
+                    "coherence_vocal_rms_db",
+                )
+                if _frozen_tolerances.get(k) is not None
+            }
+            # If frozen file omits tolerances entirely, fall back to preset_dict.
+            if not _tolerances:
+                _tolerances = {
+                    k: preset_dict.get(k)
+                    for k in (
+                        "coherence_stl_95_lu",
+                        "coherence_lra_floor_lu",
+                        "coherence_low_rms_db",
+                        "coherence_vocal_rms_db",
+                    )
+                    if preset_dict is not None and preset_dict.get(k) is not None
+                }
+        else:
+            _lra_target_lu = preset_dict.get("genre_ideal_lra_lu") if preset_dict else None
+            _tolerances = {
                 k: preset_dict.get(k)
                 for k in (
                     "coherence_stl_95_lu",
@@ -1677,7 +1701,18 @@ async def master_album(
                     "coherence_vocal_rms_db",
                 )
                 if preset_dict is not None and preset_dict.get(k) is not None
+            }
+
+        sig = build_signature(
+            analysis_results,
+            delivery_targets={
+                "target_lufs":        targets.get("target_lufs"),
+                "tp_ceiling_db":      targets.get("ceiling_db"),
+                "lra_target_lu":      _lra_target_lu,
+                "output_bits":        targets.get("output_bits"),
+                "output_sample_rate": targets.get("output_sample_rate"),
             },
+            tolerances=_tolerances,
         )
         anchor_idx = anchor_result.get("selected_index")
         anchor_track_sig: dict[str, Any] | None = None

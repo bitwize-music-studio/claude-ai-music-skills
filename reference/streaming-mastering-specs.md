@@ -41,7 +41,10 @@ album_slug: "my-album"
 anchor:
   index: 3              # 1-based
   filename: "03-track.wav"
-  method: composite     # composite | override | tie_breaker | frozen_signature
+  method: composite     # composite | override | tie_breaker (persisted file
+                        # always preserves the shipped method; the JSON response
+                        # may temporarily surface "frozen_signature" during a
+                        # frozen-mode run, but that marker is never persisted)
   score: 0.512          # null when method is override or frozen
   signature:            # the anchor's own pre-master signature
     stl_95: -14.8
