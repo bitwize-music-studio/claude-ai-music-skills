@@ -68,3 +68,70 @@ class TestBuildSignatureHappyPath:
         assert sig["album"]["median"]["stl_95"] == pytest.approx(-10.2)
         # Range: max(-13.8) - min(-14.2) = 0.4
         assert sig["album"]["range"]["lufs"] == pytest.approx(0.4)
+
+
+class TestBuildSignatureMissingMetrics:
+    def test_none_stl_95_excluded_from_median(self):
+        results = [
+            _analysis(filename="01.wav", stl_95=-10.0),
+            _analysis(filename="02.wav", stl_95=None),
+            _analysis(filename="03.wav", stl_95=-10.4),
+        ]
+        sig = build_signature(results)
+
+        # Median across {-10.0, -10.4} (two finite values) == -10.2
+        assert sig["album"]["median"]["stl_95"] == pytest.approx(-10.2)
+        assert sig["album"]["eligible_count"]["stl_95"] == 2
+
+    def test_all_none_metric_returns_none_aggregate(self):
+        results = [
+            _analysis(vocal_rms=None),
+            _analysis(vocal_rms=None),
+        ]
+        sig = build_signature(results)
+
+        assert sig["album"]["median"]["vocal_rms"] is None
+        assert sig["album"]["p95"]["vocal_rms"] is None
+        assert sig["album"]["min"]["vocal_rms"] is None
+        assert sig["album"]["max"]["vocal_rms"] is None
+        assert sig["album"]["range"]["vocal_rms"] is None
+        assert sig["album"]["eligible_count"]["vocal_rms"] == 0
+
+    def test_nonfinite_lufs_excluded(self):
+        results = [
+            _analysis(lufs=-14.0),
+            _analysis(lufs=float("-inf")),
+            _analysis(lufs=float("nan")),
+            _analysis(lufs=-13.8),
+        ]
+        sig = build_signature(results)
+
+        # Only -14.0 and -13.8 contribute
+        assert sig["album"]["median"]["lufs"] == pytest.approx(-13.9)
+        assert sig["album"]["range"]["lufs"] == pytest.approx(0.2)
+
+
+class TestBuildSignatureBoundaryCases:
+    def test_empty_album_returns_empty_tracks_and_none_aggregates(self):
+        sig = build_signature([])
+
+        assert sig["tracks"] == []
+        assert sig["album"]["track_count"] == 0
+        for key in ("lufs", "stl_95", "low_rms", "vocal_rms"):
+            assert sig["album"]["median"][key] is None
+            assert sig["album"]["range"][key] is None
+
+    def test_single_track_range_is_zero(self):
+        results = [_analysis(lufs=-14.0, stl_95=-10.0)]
+        sig = build_signature(results)
+
+        assert sig["album"]["median"]["lufs"] == pytest.approx(-14.0)
+        assert sig["album"]["range"]["lufs"] == pytest.approx(0.0)
+
+    def test_p95_with_odd_count_uses_interpolation(self):
+        results = [_analysis(lufs=v) for v in (-15.0, -14.5, -14.0, -13.5, -13.0)]
+        sig = build_signature(results)
+
+        # numpy.percentile(..., 95) with linear interpolation on this
+        # 5-value set returns -13.1 (between -13.5 and -13.0).
+        assert sig["album"]["p95"]["lufs"] == pytest.approx(-13.1, abs=1e-6)
