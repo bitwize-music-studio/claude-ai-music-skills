@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
-from handlers._shared import _safe_json
+from handlers._shared import _safe_json, get_plugin_version as _read_plugin_version
 
 logger = logging.getLogger(__name__)
 
@@ -175,16 +175,9 @@ async def get_plugin_version() -> str:
     state = _shared.cache.get_state()
     stored = state.get("plugin_version")
 
-    # Read current version from plugin.json
-    assert _shared.PLUGIN_ROOT is not None
-    plugin_json = _shared.PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
-    current = None
-    try:
-        if plugin_json.exists():
-            data = json.loads(plugin_json.read_text(encoding="utf-8"))
-            current = data.get("version")
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Cannot read plugin.json: %s", e)
+    # Read current version via shared helper (handles missing file / bad JSON).
+    current_raw = _read_plugin_version()
+    current = None if current_raw == "unknown" else current_raw
 
     needs_upgrade = False
     if stored is None and current is not None:

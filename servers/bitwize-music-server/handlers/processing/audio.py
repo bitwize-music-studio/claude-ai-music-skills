@@ -21,8 +21,10 @@ from handlers._shared import (
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
+    get_plugin_version as _read_plugin_version,
 )
 from handlers.processing import _helpers
+from tools.mastering.album_signature import build_signature
 from tools.mastering.signature_persistence import (
     SignaturePersistenceError,
     write_signature_file,
@@ -1478,18 +1480,7 @@ async def master_album(
     # the branching below so a frozen-mode run preserves the original
     # anchor block instead of overwriting with ``method=frozen_signature``.
     try:
-        from tools.mastering.album_signature import build_signature
-
-        _plugin_version = "unknown"
-        if _shared.PLUGIN_ROOT is not None:
-            _manifest = _shared.PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
-            try:
-                _plugin_version = str(
-                    json.loads(_manifest.read_text(encoding="utf-8"))
-                    .get("version", "unknown")
-                )
-            except (OSError, json.JSONDecodeError):
-                pass
+        _plugin_version = _read_plugin_version()
 
         sig = build_signature(
             analysis_results,
@@ -1551,7 +1542,14 @@ async def master_album(
         # yaml.safe_dump cannot represent numpy scalars — round-trip through
         # JSON (which already uses float for numpy floats via json default) to
         # produce a plain-Python dict before handing off to signature_persistence.
-        payload = json.loads(json.dumps(payload, default=lambda v: v.item() if hasattr(v, "item") else None))
+        def _coerce_numeric(v: Any) -> Any:
+            if hasattr(v, "item"):
+                return v.item()
+            raise TypeError(
+                f"signature payload contains unserializable {type(v).__name__}: {v!r}"
+            )
+
+        payload = json.loads(json.dumps(payload, default=_coerce_numeric))
 
         sig_path = write_signature_file(
             audio_dir, payload, plugin_version=_plugin_version,
@@ -1560,7 +1558,7 @@ async def master_album(
             "status": "pass",
             "path":   str(sig_path),
         }
-    except (SignaturePersistenceError, OSError) as exc:
+    except (SignaturePersistenceError, OSError, TypeError) as exc:
         # Non-fatal: mastering already succeeded, just couldn't persist.
         warnings.append(f"Signature persist: {exc}")
         stages["signature_persist"] = {

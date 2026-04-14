@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -75,6 +74,18 @@ def test_master_album_writes_signature_on_success(tmp_path: Path, monkeypatch) -
     assert sig["delivery_targets"]["tp_ceiling_db"] == -1.0
     assert sig["delivery_targets"]["target_lufs"] == -14.0
 
+    # Verify numpy coercion produced native Python floats.
+    anchor_sig = sig["anchor"]["signature"]
+    assert anchor_sig is not None
+    assert isinstance(anchor_sig["peak_db"], float)
+    assert isinstance(anchor_sig["lufs"], float)
+
+    # Verify method, pipeline, album_median, and plugin version fallback.
+    assert sig["anchor"]["method"] in ("composite", "tie_breaker", "override")
+    assert sig["pipeline"]["source_sample_rate"] == 44100
+    assert sig["album_median"]["lufs"] is not None
+    assert sig["plugin_version"] == "unknown"  # PLUGIN_ROOT=None in tests
+
 
 def test_master_album_does_not_write_signature_on_stage_failure(tmp_path: Path, monkeypatch) -> None:
     # No WAV files → pre_flight fails.
@@ -89,3 +100,25 @@ def test_master_album_does_not_write_signature_on_stage_failure(tmp_path: Path, 
     result = json.loads(result_json)
     assert result["failed_stage"] == "pre_flight"
     assert not (tmp_path / SIGNATURE_FILENAME).exists()
+
+
+def test_master_album_signature_write_failure_is_nonfatal(tmp_path: Path, monkeypatch) -> None:
+    """Stage 7.5 warnings when signature write fails — master_album still succeeds."""
+    _write_sine_wav(tmp_path / "01-track.wav", amplitude=0.3)
+    _install_album(monkeypatch, tmp_path, album_slug="warn-album")
+
+    def _fake_resolve(slug, *_, **__):
+        return None, tmp_path
+
+    def _raising_write(*_args, **_kw):
+        from tools.mastering.signature_persistence import SignaturePersistenceError
+        raise SignaturePersistenceError("simulated failure")
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
+         patch.object(audio_mod, "write_signature_file", _raising_write):
+        result_json = asyncio.run(audio_mod.master_album(album_slug="warn-album"))
+
+    result = json.loads(result_json)
+    assert result.get("failed_stage") is None
+    assert result["stages"]["signature_persist"]["status"] == "warn"
+    assert "simulated failure" in result["stages"]["signature_persist"]["error"]

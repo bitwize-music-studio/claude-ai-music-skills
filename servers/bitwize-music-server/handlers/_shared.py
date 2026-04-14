@@ -452,6 +452,27 @@ _STREAMING_PLACEHOLDER_MARKERS = [
 _CODE_BLOCK_SECTIONS = frozenset({"Style Box", "Exclude Styles", "Lyrics Box", "Streaming Lyrics", "Original Quote"})
 
 
+def get_plugin_version() -> str:
+    """Return the plugin version string from .claude-plugin/plugin.json.
+
+    Reads ``PLUGIN_ROOT / ".claude-plugin" / "plugin.json"`` and returns the
+    ``version`` field as a string.  Returns ``"unknown"`` on any failure
+    (PLUGIN_ROOT is None, file missing, JSON malformed, field absent).
+
+    This is intentionally a simple helper — use it wherever a plain version
+    string is needed.  For the full stored-vs-current comparison tool, see
+    ``handlers.health.get_plugin_version`` (the async MCP tool).
+    """
+    if PLUGIN_ROOT is None:
+        return "unknown"
+    manifest = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        return str(data.get("version", "unknown"))
+    except (OSError, json.JSONDecodeError):
+        return "unknown"
+
+
 def _find_wav_source_dir(audio_dir: Path) -> Path:
     """Return originals/ if it exists, else album root (legacy fallback)."""
     originals = audio_dir / "originals"
