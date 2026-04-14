@@ -846,7 +846,7 @@ async def master_album(
         frozen_anchor = frozen_signature.get("anchor") or {}
         frozen_targets = frozen_signature.get("delivery_targets") or {}
 
-        anchor_result = {
+        anchor_result: dict[str, Any] = {
             "selected_index":  frozen_anchor.get("index"),
             "method":          "frozen_signature",
             "override_index":  None,
