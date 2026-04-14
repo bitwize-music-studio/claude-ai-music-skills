@@ -1903,3 +1903,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(render_codec_preview)
     mcp.tool()(mono_fold_check)
     mcp.tool()(prune_archival)
+    mcp.tool()(measure_album_signature)
