@@ -507,6 +507,19 @@ class TestMasterAlbumPipeline:
             "band_energy": {"sub_bass": 5, "bass": 20, "low_mid": 15,
                             "mid": 30, "high_mid": 20, "high": 8, "air": 2},
             "tinniness_ratio": tinniness,
+            # Phase 1b signature metrics — added so the Phase 2 anchor selector
+            # (#290) can mark these tracks eligible and run composite scoring.
+            "max_short_term_lufs": lufs + 0.5,
+            "max_momentary_lufs": lufs + 1.0,
+            "short_term_range": 8.0,
+            "stl_95": lufs + 0.3,
+            "low_rms": -20.0,
+            "vocal_rms": -18.0,
+            "signature_meta": {
+                "stl_window_count": 60,
+                "stl_top_5pct_count": 3,
+                "vocal_rms_source": "band_fallback",
+            },
         }
 
     def _mock_qc_result(self, filename, verdict="PASS", phase_status="PASS"):
