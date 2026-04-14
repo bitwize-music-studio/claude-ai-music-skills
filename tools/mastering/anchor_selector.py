@@ -40,3 +40,46 @@ def _spectral_match_score(band_energy: dict[str, float],
     ref_vec   = np.array([reference[b]    / 100.0 for b in BANDS])
     distance = float(np.linalg.norm(track_vec - ref_vec))
     return 1.0 / (1.0 + distance)
+
+
+def _album_medians(tracks: list[dict[str, Any]]) -> dict[str, float | None]:
+    """Median of each signature key across tracks with finite values.
+
+    Returns ``None`` for a key when every track's value is ``None``.
+    """
+    medians: dict[str, float | None] = {}
+    for key in SIGNATURE_KEYS:
+        values = [t[key] for t in tracks if t.get(key) is not None]
+        medians[key] = float(np.median(values)) if values else None
+    return medians
+
+
+def _mix_quality_score(track: dict[str, Any],
+                       spectral_reference: dict[str, float],
+                       genre_ideal_lra: float) -> float:
+    """Combined LRA-match × spectral-match score, ∈ (0, 1]."""
+    lra = track.get("short_term_range")
+    if lra is None:
+        return 0.0
+    lra_match = 1.0 / (1.0 + abs(float(lra) - float(genre_ideal_lra)))
+    spectral = _spectral_match_score(track["band_energy"], spectral_reference)
+    return lra_match * spectral
+
+
+def _representativeness_score(track: dict[str, Any],
+                              medians: dict[str, float | None]) -> float:
+    """How close track's signature sits to the album median across SIGNATURE_KEYS."""
+    total = 0.0
+    for key in SIGNATURE_KEYS:
+        median = medians.get(key)
+        value = track.get(key)
+        if median is None or value is None:
+            continue
+        denom = abs(median) if abs(median) > 1e-6 else 1.0
+        total += abs(float(value) - float(median)) / denom
+    return 1.0 / (1.0 + total)
+
+
+def _ceiling_penalty_score(peak_db: float) -> float:
+    """Penalty for tracks pinned near 0 dBFS. 0 at ≤ -3 dB, 1 at 0 dBFS."""
+    return max(0.0, min(1.0, (float(peak_db) - (-3.0)) / 3.0))
