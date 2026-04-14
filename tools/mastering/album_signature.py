@@ -68,17 +68,30 @@ def _aggregate(values: list[float]) -> dict[str, float | None]:
     }
 
 
-def build_signature(analysis_results: list[dict[str, Any]]) -> dict[str, Any]:
+def build_signature(
+    analysis_results: list[dict[str, Any]],
+    *,
+    delivery_targets: dict[str, Any] | None = None,
+    tolerances: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Build per-track + album-level signature summary.
 
     Args:
         analysis_results: List of ``analyze_track()`` result dicts, in
             track-number order (index 0 == track #1). Dicts may have
             ``None`` values for ``stl_95`` / ``low_rms`` / ``vocal_rms``.
+        delivery_targets: Optional dict of mastering delivery targets
+            (``target_lufs``, ``tp_ceiling_db``, ``lra_target_lu``,
+            ``output_bits``, ``output_sample_rate``). When provided, gets
+            embedded under ``album.delivery_targets`` for downstream
+            persistence. Only the keys present in the input dict are
+            forwarded — unknown keys pass through.
+        tolerances: Optional dict of coherence tolerances (e.g.
+            ``coherence_stl_95_lu``). Embedded under ``album.tolerances``.
 
     Returns:
         Dict with ``tracks`` (per-track signature list) and ``album``
-        (aggregates). See the phase-3a plan doc for the full shape.
+        (aggregates, plus optional ``delivery_targets`` / ``tolerances``).
     """
     tracks: list[dict[str, Any]] = []
     for i, t in enumerate(analysis_results):
@@ -119,6 +132,11 @@ def build_signature(analysis_results: list[dict[str, Any]]) -> dict[str, Any]:
             album["range"][key] = agg["max"] - agg["min"]
     for key in ELIGIBILITY_KEYS:
         album["eligible_count"][key] = len(_finite_values(analysis_results, key))
+
+    if delivery_targets is not None:
+        album["delivery_targets"] = dict(delivery_targets)
+    if tolerances is not None:
+        album["tolerances"] = dict(tolerances)
 
     return {"tracks": tracks, "album": album}
 

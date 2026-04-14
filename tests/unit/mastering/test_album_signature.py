@@ -209,3 +209,48 @@ class TestComputeAnchorDeltas:
             "delta_short_term_range", "delta_low_rms", "delta_vocal_rms",
         }
         assert set(deltas[0].keys()) == expected_keys
+
+
+def test_build_signature_embeds_delivery_targets_when_provided() -> None:
+    from tools.mastering.album_signature import build_signature
+    analysis = [
+        {"filename": "01.wav", "lufs": -14.0, "peak_db": -3.0, "stl_95": -14.2,
+         "short_term_range": 8.0, "low_rms": -22.0, "vocal_rms": -17.5,
+         "band_energy": {"mid": 25.0}, "duration": 120.0, "sample_rate": 96000},
+        {"filename": "02.wav", "lufs": -14.1, "peak_db": -3.1, "stl_95": -14.3,
+         "short_term_range": 8.1, "low_rms": -22.1, "vocal_rms": -17.6,
+         "band_energy": {"mid": 25.1}, "duration": 125.0, "sample_rate": 96000},
+    ]
+    sig = build_signature(
+        analysis,
+        delivery_targets={
+            "target_lufs": -14.0,
+            "tp_ceiling_db": -1.0,
+            "lra_target_lu": 8.0,
+            "output_bits": 24,
+            "output_sample_rate": 96000,
+        },
+        tolerances={
+            "coherence_stl_95_lu": 1.0,
+            "coherence_lra_floor_lu": 6.0,
+            "coherence_low_rms_db": 2.0,
+            "coherence_vocal_rms_db": 1.5,
+        },
+    )
+    assert sig["album"]["delivery_targets"]["target_lufs"] == -14.0
+    assert sig["album"]["delivery_targets"]["tp_ceiling_db"] == -1.0
+    assert sig["album"]["delivery_targets"]["lra_target_lu"] == 8.0
+    assert sig["album"]["tolerances"]["coherence_stl_95_lu"] == 1.0
+
+
+def test_build_signature_omits_delivery_block_when_args_absent() -> None:
+    """Backward compat: existing callers that don't pass targets keep working."""
+    from tools.mastering.album_signature import build_signature
+    analysis = [
+        {"filename": "01.wav", "lufs": -14.0, "peak_db": -3.0, "stl_95": -14.2,
+         "short_term_range": 8.0, "low_rms": -22.0, "vocal_rms": -17.5,
+         "band_energy": {"mid": 25.0}, "duration": 120.0, "sample_rate": 96000},
+    ]
+    sig = build_signature(analysis)
+    assert "delivery_targets" not in sig["album"]
+    assert "tolerances" not in sig["album"]
