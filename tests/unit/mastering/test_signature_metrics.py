@@ -228,3 +228,57 @@ class TestSignatureMeta:
         result = analyze_track(silent_60_wav)
         assert result['signature_meta']['vocal_rms_source'] == 'unavailable'
         assert result['signature_meta']['stl_top_5pct_count'] == 0
+
+
+class TestAutoResolveStem:
+    def _make_mix(self, path, rate=48000, duration=30.0, amplitude=0.5, freq=220):
+        mono = _sine(freq, duration=duration, rate=rate, amplitude=amplitude)
+        stereo = np.column_stack([mono, mono])
+        _write_wav(path, stereo, rate)
+
+    def _make_stem(self, path, rate=48000, duration=30.0, amplitude=0.25, freq=1000):
+        mono = _sine(freq, duration=duration, rate=rate, amplitude=amplitude)
+        stereo = np.column_stack([mono, mono])
+        _write_wav(path, stereo, rate)
+
+    def test_auto_resolve_album_root_layout(self, tmp_path):
+        mix = tmp_path / "01-song.wav"
+        self._make_mix(mix)
+        stem_dir = tmp_path / "polished" / "01-song"
+        stem_dir.mkdir(parents=True)
+        stem = stem_dir / "vocals.wav"
+        self._make_stem(stem)
+        result = analyze_track(str(mix))
+        assert result['signature_meta']['vocal_rms_source'] == 'stem'
+
+    def test_auto_resolve_mastered_subfolder_layout(self, tmp_path):
+        mastered_dir = tmp_path / "mastered"
+        mastered_dir.mkdir()
+        mix = mastered_dir / "01-song.wav"
+        self._make_mix(mix)
+        stem_dir = tmp_path / "polished" / "01-song"
+        stem_dir.mkdir(parents=True)
+        stem = stem_dir / "vocals.wav"
+        self._make_stem(stem)
+        result = analyze_track(str(mix))
+        assert result['signature_meta']['vocal_rms_source'] == 'stem'
+
+    def test_auto_resolve_miss_falls_back(self, tmp_path):
+        mix = tmp_path / "01-song.wav"
+        self._make_mix(mix)
+        result = analyze_track(str(mix))
+        assert result['signature_meta']['vocal_rms_source'] == 'band_fallback'
+
+    def test_explicit_kwarg_overrides_auto_resolve(self, tmp_path):
+        mix = tmp_path / "01-song.wav"
+        self._make_mix(mix)
+        auto_dir = tmp_path / "polished" / "01-song"
+        auto_dir.mkdir(parents=True)
+        auto_stem = auto_dir / "vocals.wav"
+        self._make_stem(auto_stem, freq=500, amplitude=0.25)
+        explicit_stem = tmp_path / "explicit.wav"
+        self._make_stem(explicit_stem, amplitude=0.1, freq=1500)
+        result = analyze_track(str(mix), vocal_stem_path=str(explicit_stem))
+        assert result['signature_meta']['vocal_rms_source'] == 'stem'
+        # Explicit is at amplitude 0.1 → RMS ≈ -23 dB; auto would give ≈ -15 dB.
+        assert result['vocal_rms'] < -18.0

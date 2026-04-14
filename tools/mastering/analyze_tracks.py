@@ -68,6 +68,27 @@ def _read_vocal_stem(stem_path: Path | str, target_rate: int) -> np.ndarray | No
     return np.asarray(mono, dtype=np.float64)
 
 
+def _auto_resolve_vocal_stem(input_path: Path) -> Path | None:
+    """Find a matching polished vocal stem without explicit kwarg.
+
+    Checks, in order:
+      1. <input_dir>/polished/<input_stem>/vocals.wav  (album-root input)
+      2. <input_dir>/../polished/<input_stem>/vocals.wav  (mastered/ or
+         polished/ subfolder input)
+
+    Returns the first existing path, or None.
+    """
+    stem_name = input_path.stem
+    candidates = [
+        input_path.parent / "polished" / stem_name / "vocals.wav",
+        input_path.parent.parent / "polished" / stem_name / "vocals.wav",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def analyze_track(filepath: Path | str, *,
                   vocal_stem_path: Path | str | None = None) -> dict[str, Any]:
     """Analyze a single track and return metrics.
@@ -183,7 +204,11 @@ def analyze_track(filepath: Path | str, *,
     vocal_rms: float | None = None
     vocal_rms_source: str = "unavailable"
 
-    resolved_stem = Path(vocal_stem_path) if vocal_stem_path else None
+    resolved_stem: Path | None
+    if vocal_stem_path is not None:
+        resolved_stem = Path(vocal_stem_path)
+    else:
+        resolved_stem = _auto_resolve_vocal_stem(Path(filepath))
     if resolved_stem is not None and resolved_stem.is_file():
         stem_mono = _read_vocal_stem(resolved_stem, rate)
         if stem_mono is not None:
