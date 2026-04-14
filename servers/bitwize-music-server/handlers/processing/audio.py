@@ -1401,8 +1401,10 @@ async def master_album(
         ceiling_stage["action"] = "pull_down"
         ceiling_stage["pulled_down"] = pulled_files
 
-        # Patch verify_results so stages["verification"] and signature
-        # persist see post-pull-down numbers.
+        # Patch verify_results so stages["verification"], mastering samples
+        # (Stage 5.5), post-QC (Stage 6), and archival (Stage 6.5) see
+        # post-pull-down numbers. Note: Stage 7.5 signature persistence uses
+        # analysis_results (pre-master), not verify_results, by design.
         filename_to_index = {
             r["filename"]: i for i, r in enumerate(verify_results)
         }
