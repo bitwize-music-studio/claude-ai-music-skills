@@ -82,6 +82,7 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
     max_short_term = float('-inf')
     min_short_term = float('inf')
     max_momentary = float('-inf')
+    st_values: list[float] = []
 
     # Short-term: 3s window, 1s hop (EBU R128)
     st_window = int(3.0 * rate)
@@ -91,8 +92,24 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
             chunk = data[start:start + st_window]
             st_lufs = pyln.Meter(rate).integrated_loudness(chunk)
             if np.isfinite(st_lufs):
+                st_values.append(float(st_lufs))
                 max_short_term = max(max_short_term, st_lufs)
                 min_short_term = min(min_short_term, st_lufs)
+
+    # STL-95: 95th percentile of finite short-term LUFS. Gated to ≥20 windows
+    # (~23s audio) so the percentile has a meaningful spread; below that it
+    # collapses to near-max. Top-5% indices retained for downstream low-RMS.
+    stl_95: float | None
+    stl_top_5pct_indices: np.ndarray
+    if len(st_values) >= 20:
+        stl_array = np.asarray(st_values, dtype=np.float64)
+        stl_95 = float(np.percentile(stl_array, 95))
+        top_k = max(1, int(round(0.05 * len(st_values))))
+        order = np.argsort(-stl_array, kind='stable')
+        stl_top_5pct_indices = order[:top_k]
+    else:
+        stl_95 = None
+        stl_top_5pct_indices = np.array([], dtype=np.int64)
 
     # Momentary: 400ms window, 100ms hop
     mom_window = int(0.4 * rate)
@@ -121,6 +138,7 @@ def analyze_track(filepath: Path | str) -> dict[str, Any]:
         'max_short_term_lufs': max_short_term if np.isfinite(max_short_term) else None,
         'max_momentary_lufs': max_momentary if np.isfinite(max_momentary) else None,
         'short_term_range': short_term_range,
+        'stl_95': stl_95,
     }
 
 def main() -> None:

@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Unit tests for Phase 1b signature metrics (STL-95, low-RMS, vocal-RMS)."""
+
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+import soundfile as sf
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from tools.mastering.analyze_tracks import analyze_track
+
+
+def _write_wav(path, data, rate):
+    sf.write(str(path), data, rate, subtype='PCM_16')
+
+
+def _sine(freq, duration, rate, amplitude):
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    return (amplitude * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+
+
+@pytest.fixture
+def long_constant_wav(tmp_path):
+    """60 s constant-level stereo sine at ~-14 LUFS."""
+    rate = 48000
+    mono = _sine(440, duration=60.0, rate=rate, amplitude=0.3)
+    stereo = np.column_stack([mono, mono])
+    path = tmp_path / "constant.wav"
+    _write_wav(path, stereo, rate)
+    return str(path)
+
+
+@pytest.fixture
+def chorus_verse_wav(tmp_path):
+    """90 s pattern: 2 s loud chorus, 7 s medium verse — verse stays in EBU
+    relative gate so integrated LUFS trends toward verse level while STL-95
+    peaks on the chorus windows."""
+    rate = 48000
+    duration = 90.0
+    t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+    base = np.sin(2 * np.pi * 440 * t).astype(np.float32)
+    envelope = np.zeros_like(t, dtype=np.float32)
+    period = 9.0
+    for i in range(int(duration / period) + 1):
+        loud_start = i * period
+        loud_end = loud_start + 2.0
+        mask = (t >= loud_start) & (t < loud_end)
+        envelope[mask] = 0.7
+        quiet_mask = (t >= loud_end) & (t < loud_start + period)
+        envelope[quiet_mask] = 0.2
+    mono = (base * envelope).astype(np.float32)
+    stereo = np.column_stack([mono, mono])
+    path = tmp_path / "chorus_verse.wav"
+    _write_wav(path, stereo, rate)
+    return str(path)
+
+
+@pytest.fixture
+def short_wav(tmp_path):
+    """10 s sine — too short for STL-95 (< 20 ST windows)."""
+    rate = 48000
+    mono = _sine(440, duration=10.0, rate=rate, amplitude=0.3)
+    stereo = np.column_stack([mono, mono])
+    path = tmp_path / "short.wav"
+    _write_wav(path, stereo, rate)
+    return str(path)
+
+
+@pytest.fixture
+def silent_60_wav(tmp_path):
+    """60 s of silence."""
+    rate = 48000
+    stereo = np.zeros((int(rate * 60.0), 2), dtype=np.float32)
+    path = tmp_path / "silent_60.wav"
+    _write_wav(path, stereo, rate)
+    return str(path)
+
+
+class TestShortTerm95:
+    def test_constant_level_stl_95_close_to_lufs(self, long_constant_wav):
+        result = analyze_track(long_constant_wav)
+        assert result['stl_95'] is not None
+        assert abs(result['stl_95'] - result['lufs']) < 1.5
+
+    def test_chorus_verse_stl_95_above_integrated(self, chorus_verse_wav):
+        result = analyze_track(chorus_verse_wav)
+        assert result['stl_95'] is not None
+        assert result['stl_95'] > result['lufs'] + 2.0
+
+    def test_short_track_stl_95_is_none(self, short_wav):
+        result = analyze_track(short_wav)
+        assert result['stl_95'] is None
+
+    def test_silent_track_stl_95_is_none(self, silent_60_wav):
+        result = analyze_track(silent_60_wav)
+        assert result['stl_95'] is None
