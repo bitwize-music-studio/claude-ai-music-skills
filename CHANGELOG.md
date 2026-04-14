@@ -31,6 +31,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   - Extended loudness metering (short-term, momentary LUFS)
 - **Mix pipeline enhancements** — saturation, sub-bass exciter, transient shaping wired into per-stem processing
 - **Configurable mastering presets** — refactored from tuples to dicts; all parameters exposed via CLI and genre presets
+- **Album signature persistence (#290 phase 4):** `master_album` now writes `ALBUM_SIGNATURE.yaml` alongside `mastered/` after every successful run, capturing the anchor, album medians, delivery targets (LUFS, TP ceiling, LRA), and coherence tolerances. Released albums automatically enter "frozen mode" on re-master — the shipped anchor + targets are reused so subsequent masters don't drift from what's on DSPs.
+- **`freeze_signature` / `new_anchor` params on `master_album`** — force frozen or fresh routing regardless of album status. Mutually exclusive; enforced in pre-flight.
+- **`is_album_released` helper** in `handlers/_shared.py` for cache-backed status checks.
+- **`get_plugin_version` helper** in `handlers/_shared.py` — single source of truth for plugin version reads (DRYed from health.py and master_album's new stage).
+- **`reference/streaming-mastering-specs.md`** — new authoritative reference for delivery targets, the signature contract, and re-mastering behavior.
 
 ### Changed
 - **Default mastered output format** — `master_album` / `master_audio` / `polish_and_master_album` now produce **24-bit WAV at 96 kHz** by default (was 16-bit at source rate, typically 44.1 kHz). Existing user configs without a `mastering:` block pick up the new defaults on the next run. To preserve the legacy 16/44.1 output, set `mastering.delivery_bit_depth: 16` and `mastering.delivery_sample_rate: 44100` in `~/.bitwize-music/config.yaml`. Users with custom `{overrides}/mastering-presets.yaml` per-genre values continue to honor those overrides. Disk usage increases ~3x per track at the new defaults (~33 MB vs. ~10 MB for a 3-minute stereo track).
@@ -51,6 +56,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   Polish results now surface `clicks_removed` per stem and on the full-mix
   result so operators can see whether polish acted (#289).
 - `analyze_mix_issues` in stems mode now analyzes every stem per track and reports per-stem diagnostics under `tracks[].stems[stem_name]`, rather than sampling only the alphabetically first stem. Issues in specific stems (muddy bass, harsh vocals, etc.) are no longer missed, and per-track issue rollups are the union across stems (#272)
+- **Archival stage now mirrors `mastered/` (#290 phase 4, PR #304 review A5):** orphans whose basename is no longer in `mastered/` are pruned before new files are written, so re-masters with fewer or renamed tracks don't retain stale archival entries. Records pruned names under `stages.archival.pruned`.
 
 ## [0.89.0] - 2026-04-10
 
