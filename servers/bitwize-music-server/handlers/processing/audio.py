@@ -23,6 +23,10 @@ from handlers._shared import (
     _safe_json,
 )
 from handlers.processing import _helpers
+from tools.mastering.signature_persistence import (
+    SignaturePersistenceError,
+    write_signature_file,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -1463,6 +1467,106 @@ async def master_album(
         "album_status": album_status,
         "errors": status_errors if status_errors else None,
     }
+
+    # --- Stage 7.5: Persist ALBUM_SIGNATURE.yaml (#290 phase 4) ---
+    # Build from the same analysis_results used for anchor selection so
+    # the signature reflects pre-master state of the shipped tracks
+    # (inputs to mastering, not the mastered output).
+    #
+    # ``frozen_signature`` is a local reference introduced by task 7
+    # (Stage 2a). For this task's commit it's always None; task 7 amends
+    # the branching below so a frozen-mode run preserves the original
+    # anchor block instead of overwriting with ``method=frozen_signature``.
+    try:
+        from tools.mastering.album_signature import build_signature
+
+        _plugin_version = "unknown"
+        if _shared.PLUGIN_ROOT is not None:
+            _manifest = _shared.PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
+            try:
+                _plugin_version = str(
+                    json.loads(_manifest.read_text(encoding="utf-8"))
+                    .get("version", "unknown")
+                )
+            except (OSError, json.JSONDecodeError):
+                pass
+
+        sig = build_signature(
+            analysis_results,
+            delivery_targets={
+                "target_lufs":        targets.get("target_lufs"),
+                "tp_ceiling_db":      targets.get("ceiling_db"),
+                "lra_target_lu":      preset_dict.get("genre_ideal_lra_lu") if preset_dict else None,
+                "output_bits":        targets.get("output_bits"),
+                "output_sample_rate": targets.get("output_sample_rate"),
+            },
+            tolerances={
+                k: preset_dict.get(k)
+                for k in (
+                    "coherence_stl_95_lu",
+                    "coherence_lra_floor_lu",
+                    "coherence_low_rms_db",
+                    "coherence_vocal_rms_db",
+                )
+                if preset_dict is not None and preset_dict.get(k) is not None
+            },
+        )
+        anchor_idx = anchor_result.get("selected_index")
+        anchor_track_sig: dict[str, Any] | None = None
+        anchor_filename: str | None = None
+        if anchor_idx is not None and 1 <= anchor_idx <= len(sig["tracks"]):
+            row = sig["tracks"][anchor_idx - 1]
+            anchor_filename = row.get("filename")
+            anchor_track_sig = {
+                k: row.get(k)
+                for k in ("stl_95", "low_rms", "vocal_rms",
+                          "short_term_range", "lufs", "peak_db")
+            }
+
+        payload: dict[str, Any] = {
+            "album_slug":       album_slug,
+            "anchor": {
+                "index":           anchor_idx,
+                "filename":        anchor_filename,
+                "method":          anchor_result.get("method"),
+                "score":           None,  # filled below when composite
+                "signature":       anchor_track_sig,
+            },
+            "album_median":     sig["album"]["median"],
+            "delivery_targets": sig["album"].get("delivery_targets", {}),
+            "tolerances":       sig["album"].get("tolerances", {}),
+            "pipeline": {
+                "polish_subfolder":       source_subfolder or None,
+                "source_sample_rate":     targets.get("source_sample_rate"),
+                "upsampled_from_source":  bool(targets.get("upsampled_from_source")),
+            },
+        }
+        # Carry the composite score when the anchor was chosen by scoring.
+        if anchor_idx is not None:
+            for s in anchor_result.get("scores", []) or []:
+                if s.get("index") == anchor_idx:
+                    payload["anchor"]["score"] = s.get("score")
+                    break
+
+        # yaml.safe_dump cannot represent numpy scalars — round-trip through
+        # JSON (which already uses float for numpy floats via json default) to
+        # produce a plain-Python dict before handing off to signature_persistence.
+        payload = json.loads(json.dumps(payload, default=lambda v: v.item() if hasattr(v, "item") else None))
+
+        sig_path = write_signature_file(
+            audio_dir, payload, plugin_version=_plugin_version,
+        )
+        stages["signature_persist"] = {
+            "status": "pass",
+            "path":   str(sig_path),
+        }
+    except (SignaturePersistenceError, OSError) as exc:
+        # Non-fatal: mastering already succeeded, just couldn't persist.
+        warnings.append(f"Signature persist: {exc}")
+        stages["signature_persist"] = {
+            "status": "warn",
+            "error":  str(exc),
+        }
 
     # Build runtime notices (caveats worth surfacing to the user).
     notices: list[str] = []
