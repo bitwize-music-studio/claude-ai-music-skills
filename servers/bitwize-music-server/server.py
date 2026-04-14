@@ -481,6 +481,8 @@ from handlers.maintenance import (  # noqa: F401
 
 # Processing tools
 from handlers.processing import (  # noqa: F401
+    album_coherence_check,
+    album_coherence_correct,
     analyze_audio,
     analyze_mix_issues,
     create_songbook,
