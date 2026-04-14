@@ -135,6 +135,12 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'mono_fold_lufs_warn_db': 3.0,
     'mono_fold_vocal_warn_db': 2.0,
     'mono_fold_correlation_warn': 0.3,
+    # Album-mastering coherence tolerance bands (issue #290 phase 3b —
+    # consumed by tools/mastering/coherence.py via load_tolerances()).
+    'coherence_stl_95_lu': 0.5,
+    'coherence_lra_floor_lu': 1.0,
+    'coherence_low_rms_db': 2.0,
+    'coherence_vocal_rms_db': 2.0,
 }
 
 
