@@ -17,6 +17,7 @@ SERVER_DIR = PROJECT_ROOT / "servers" / "bitwize-music-server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
+from handlers import _shared as handlers_shared  # noqa: E402
 from handlers.processing import _helpers as processing_helpers  # noqa: E402
 from handlers.processing import audio as audio_mod  # noqa: E402
 
@@ -50,7 +51,11 @@ def test_measure_album_signature_no_anchor_returns_tracks_and_album(tmp_path: Pa
     def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
         return None, tmp_path
 
-    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+    # Patch _shared.cache to None so the handler doesn't pull a stale
+    # anchor_track from CI's persistent state cache (which may hold
+    # leftover entries from other tests in the suite).
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
+         patch.object(handlers_shared, "cache", None):
         result_json = asyncio.run(
             audio_mod.measure_album_signature(album_slug="test-album", subfolder="mastered")
         )
