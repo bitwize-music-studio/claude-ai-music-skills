@@ -622,11 +622,10 @@ async def master_album(
             # even on pre_flight failures (returns no notices when targets empty).
             _album_stages._build_notices(ctx)
             try:
-                import json as _json
-                _d = _json.loads(result)
+                _d = json.loads(result)
                 _d.setdefault("notices", ctx.notices)
-                result = _json.dumps(_d)
-            except Exception:
+                result = json.dumps(_d)
+            except (json.JSONDecodeError, KeyError):
                 pass
             return result
 
