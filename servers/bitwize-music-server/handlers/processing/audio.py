@@ -653,7 +653,6 @@ async def master_album(
         return result
     import numpy as np
     from tools.mastering.analyze_tracks import analyze_track
-    from tools.mastering.master_tracks import master_track as _master_track
 
     audio_dir = ctx.audio_dir
     source_dir = ctx.source_dir
@@ -692,178 +691,24 @@ async def master_album(
     settings = ctx.settings
 
     # --- Stage 3: Pre-QC ---
-    # Skip `truepeak` and `clicks` on the raw/polished input:
-    #   • truepeak: polished audio is pre-limiter — the mastering stage's
-    #     limiter is what enforces the ceiling. Post-master verification
-    #     (Stage 5) is the real ceiling gate.
-    #   • clicks: polish already runs declick; residual transients here
-    #     false-positive on legitimate percussive content (drum hits,
-    #     electronic transients). A later pass with genre-aware thresholds
-    #     could re-enable this.
-    # The remaining checks catch issues mastering cannot fix.
-    from tools.mastering.qc_tracks import qc_track
-
-    PRE_QC_CHECKS = ["format", "mono", "phase", "clipping", "silence", "spectral"]
-
-    pre_qc_results = []
-    for wav in wav_files:
-        result = await loop.run_in_executor(
-            None, qc_track, str(wav), PRE_QC_CHECKS
-        )
-        pre_qc_results.append(result)
-
-    pre_passed = sum(1 for r in pre_qc_results if r["verdict"] == "PASS")
-    pre_warned = sum(1 for r in pre_qc_results if r["verdict"] == "WARN")
-    pre_failed = sum(1 for r in pre_qc_results if r["verdict"] == "FAIL")
-
-    # Collect warnings
-    for r in pre_qc_results:
-        for check_name, check_info in r["checks"].items():
-            if check_info["status"] == "WARN":
-                warnings.append(f"Pre-QC {r['filename']}: {check_name} WARN — {check_info['detail']}")
-
-    if pre_failed > 0:
-        failed_tracks = [r for r in pre_qc_results if r["verdict"] == "FAIL"]
-        fail_details = []
-        for r in failed_tracks:
-            for check_name, check_info in r["checks"].items():
-                if check_info["status"] == "FAIL":
-                    fail_details.append({
-                        "filename": r["filename"],
-                        "check": check_name,
-                        "status": "FAIL",
-                        "detail": check_info["detail"],
-                    })
-
-        stages["pre_qc"] = {
-            "status": "fail",
-            "passed": pre_passed,
-            "warned": pre_warned,
-            "failed": pre_failed,
-            "verdict": "FAILURES FOUND",
-        }
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "pre_qc",
-            "stages": stages,
-            "settings": settings,
-            "warnings": warnings,
-            "failed_stage": "pre_qc",
-            "failure_detail": {
-                "tracks_failed": [r["filename"] for r in failed_tracks],
-                "details": fail_details,
-            },
-        })
-
-    stages["pre_qc"] = {
-        "status": "pass",
-        "passed": pre_passed,
-        "warned": pre_warned,
-        "failed": 0,
-        "verdict": "ALL PASS" if pre_warned == 0 else "WARNINGS",
-    }
+    if result := await _album_stages._stage_pre_qc(ctx):
+        return result
 
     # --- Stage 4: Mastering ---
+    if result := await _album_stages._stage_mastering(ctx):
+        return result
+
+    output_dir = ctx.output_dir
+    mastered_files = ctx.mastered_files
+
+    # Build eq_settings for auto-recovery in Stage 5 (mirrors Stage 4 logic).
     eq_settings = []
     if effective_highmid != 0:
         eq_settings.append((3500.0, effective_highmid, 1.5))
     if effective_highs != 0:
         eq_settings.append((8000.0, effective_highs, 0.7))
 
-    output_dir = audio_dir / "mastered"
-
-    # Use a staging directory so that a mid-batch crash never leaves
-    # partial results in mastered/.  Files move atomically after all
-    # tracks succeed; staging is cleaned up on any failure path.
-    staging_dir = audio_dir / ".mastering_staging"
-    if staging_dir.exists():
-        import shutil as _shutil
-        _shutil.rmtree(staging_dir)
-    staging_dir.mkdir()
-
-    # Look up per-track metadata for fade_out values
-    state = _shared.cache.get_state() or {}
-    album_tracks = (state.get("albums", {})
-                         .get(_normalize_slug(album_slug), {})
-                         .get("tracks", {}))
-
-    try:
-        master_results = []
-        for wav_file in wav_files:
-            output_path = staging_dir / wav_file.name
-
-            # Derive track slug from WAV filename and look up fade_out
-            track_stem = wav_file.stem
-            track_slug = _normalize_slug(track_stem)
-            track_meta = album_tracks.get(track_slug, {})
-            fade_out_val = track_meta.get("fade_out")
-
-            def _do_master(
-                in_path: Path,
-                out_path: Path,
-                lufs: float,
-                ceil: float,
-                fade: float | None,
-                comp: float,
-                p: dict[str, Any],
-            ) -> dict[str, Any]:
-                return _master_track(
-                    str(in_path), str(out_path),
-                    target_lufs=lufs,
-                    eq_settings=None,  # built from preset inside master_track
-                    ceiling_db=ceil,
-                    fade_out=fade,
-                    compress_ratio=comp,
-                    preset=p,
-                )
-
-            result = await loop.run_in_executor(
-                None, _do_master, wav_file, output_path,
-                effective_lufs, effective_ceiling, fade_out_val,
-                effective_compress, effective_preset,
-            )
-            if result and not result.get("skipped"):
-                result["filename"] = wav_file.name
-                master_results.append(result)
-    except Exception:
-        if staging_dir.exists():
-            import shutil as _shutil
-            _shutil.rmtree(staging_dir)
-        raise
-
-    if not master_results:
-        if staging_dir.exists():
-            import shutil as _shutil
-            _shutil.rmtree(staging_dir)
-        stages["mastering"] = {"status": "fail", "detail": "No tracks processed (all silent)"}
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "mastering",
-            "stages": stages,
-            "settings": settings,
-            "warnings": warnings,
-            "failed_stage": "mastering",
-            "failure_detail": {"reason": "No tracks processed (all silent or no WAV files)"},
-        })
-
-    # All tracks mastered successfully — move staging files to final output_dir
-    output_dir.mkdir(exist_ok=True)
-    for staged_file in staging_dir.iterdir():
-        os.replace(str(staged_file), str(output_dir / staged_file.name))
-    staging_dir.rmdir()
-
-    stages["mastering"] = {
-        "status": "pass",
-        "tracks_processed": len(master_results),
-        "settings": settings,
-        "output_dir": str(output_dir),
-    }
-
     # --- Stage 5: Verification ---
-    mastered_files = sorted([
-        f for f in output_dir.iterdir()
-        if f.suffix.lower() == ".wav" and "venv" not in str(f)
-    ])
 
     verify_results = []
     for wav in mastered_files:
@@ -1287,6 +1132,8 @@ async def master_album(
     stages["mastering_samples"] = samples_stage
 
     # --- Stage 6: Post-QC ---
+    from tools.mastering.qc_tracks import qc_track
+
     post_qc_results = []
     for wav in mastered_files:
         result = await loop.run_in_executor(None, qc_track, str(wav), None)
