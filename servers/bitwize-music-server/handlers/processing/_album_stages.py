@@ -65,7 +65,6 @@ from tools.mastering.adm_validation import (
     render_adm_validation_markdown,
 )
 from tools.mastering.metadata import (
-    MetadataEmbedError,
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
 
@@ -1737,7 +1736,7 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
                 ),
             )
             embed_count += 1
-        except (MetadataEmbedError, Exception) as exc:
+        except Exception as exc:
             embed_errors.append(f"{wav.name}: {exc}")
 
     for e in embed_errors:
