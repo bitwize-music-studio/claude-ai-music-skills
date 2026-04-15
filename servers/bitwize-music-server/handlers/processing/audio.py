@@ -611,6 +611,7 @@ async def master_album(
         _album_stages._stage_mastering_samples,
         _album_stages._stage_post_qc,
         _album_stages._stage_archival,
+        _album_stages._stage_metadata,     # ← Stage 6.6: embed ID3v2.4 tags
         _album_stages._stage_layout,
         _album_stages._stage_status_update,
         _album_stages._stage_signature_persist,

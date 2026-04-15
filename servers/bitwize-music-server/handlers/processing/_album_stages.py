@@ -64,6 +64,10 @@ from tools.mastering.adm_validation import (
     check_aac_intersample_clips as _adm_check_fn_default,
     render_adm_validation_markdown,
 )
+from tools.mastering.metadata import (
+    MetadataEmbedError,
+    embed_wav_metadata as _embed_wav_metadata_fn_default,
+)
 
 logger = logging.getLogger("bitwize-music-state")
 
@@ -164,6 +168,7 @@ def _build_notices(ctx: MasterAlbumCtx) -> None:
 
 # Injectable for test monkeypatching (tests patch this module-level name).
 _adm_check_fn = _adm_check_fn_default
+_embed_wav_metadata_fn = _embed_wav_metadata_fn_default
 
 
 # ---------------------------------------------------------------------------
@@ -1678,5 +1683,69 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
         "tracks_checked": len(results),
         "encoder_used": encoder_used,
         "ceiling_db": ceiling_db,
+    }
+    return None
+
+
+async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6.6: Embed ID3v2.4 metadata into mastered WAV delivery files (#290).
+
+    Reads artist, copyright, and label from config. Reads album name and
+    track titles from state cache. All fields optional — missing fields are
+    silently skipped. Errors go to ctx.warnings; this stage never halts.
+
+    Reads ctx: album_slug, mastered_files, warnings
+    Sets ctx:  stages["metadata"]
+    Returns: None always.
+    """
+    from tools.shared.config import load_config
+
+    assert ctx.audio_dir is not None
+
+    # --- resolve config metadata ---
+    config = load_config() or {}
+    artist_cfg = config.get("artist") or {}
+    artist_name = str(artist_cfg.get("name") or "")
+    copyright_text = str(artist_cfg.get("copyright_holder") or artist_name)
+    label = str(artist_cfg.get("label") or artist_name)
+
+    # --- resolve track titles from state cache ---
+    state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+    album_data = state_albums.get(_normalize_slug(ctx.album_slug)) or {}
+    album_name = album_data.get("name") or ctx.album_slug
+    state_tracks: dict[str, Any] = album_data.get("tracks") or {}
+
+    embed_count = 0
+    embed_errors: list[str] = []
+
+    for wav in ctx.mastered_files:
+        stem = wav.stem
+        track_info = state_tracks.get(stem) or {}
+        title = str(track_info.get("title") or stem)
+
+        try:
+            await ctx.loop.run_in_executor(
+                None,
+                functools.partial(
+                    _embed_wav_metadata_fn,
+                    wav,
+                    title=title,
+                    artist=artist_name,
+                    album=album_name,
+                    copyright_text=copyright_text,
+                    label=label,
+                ),
+            )
+            embed_count += 1
+        except (MetadataEmbedError, Exception) as exc:
+            embed_errors.append(f"{wav.name}: {exc}")
+
+    for e in embed_errors:
+        ctx.warnings.append(f"Metadata embed: {e}")
+
+    ctx.stages["metadata"] = {
+        "status": "warn" if embed_errors else "pass",
+        "embedded": embed_count,
+        "errors": embed_errors or None,
     }
     return None
