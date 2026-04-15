@@ -19,7 +19,6 @@ from handlers._shared import (
 )
 from handlers.processing import _helpers
 from handlers.processing import _album_stages
-from tools.mastering.album_signature import build_signature
 from tools.mastering.ceiling_guard import (
     compute_overshoots as _ceiling_guard_compute_overshoots,
 )
