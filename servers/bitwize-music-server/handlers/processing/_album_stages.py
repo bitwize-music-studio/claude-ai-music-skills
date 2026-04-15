@@ -1018,3 +1018,303 @@ async def _stage_ceiling_guard(
 
     ctx.stages["ceiling_guard"] = ceiling_stage
     return None
+
+
+async def _stage_mastering_samples(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 5.5: Codec preview (.aac.m4a) + mono fold-down QC.
+
+    Reads ctx: audio_dir, mastered_files, genre, loop, warnings
+    Sets ctx:  (appends to ctx.warnings; never sets new ctx fields)
+    Returns: None on pass/warn, failure JSON on mono fold hard-fail.
+    """
+    from tools.mastering.master_tracks import GENRE_PRESETS, _PRESET_DEFAULTS
+
+    assert ctx.audio_dir is not None
+
+    if ctx.genre and ctx.genre.lower() in GENRE_PRESETS:
+        sample_cfg: dict[str, Any] = dict(GENRE_PRESETS[ctx.genre.lower()])
+    else:
+        sample_cfg = dict(_PRESET_DEFAULTS)
+
+    codec_enabled = bool(int(sample_cfg.get("codec_preview_enabled", 1)))
+    codec_bitrate = int(sample_cfg.get("codec_preview_bitrate_kbps", 128))
+    monofold_enabled = bool(int(sample_cfg.get("mono_fold_enabled", 1)))
+    monofold_write_audio = bool(int(sample_cfg.get("mono_fold_write_audio", 1)))
+    monofold_thresholds = {
+        "band_drop_fail_db": float(sample_cfg.get("mono_fold_band_drop_fail_db", 6.0)),
+        "lufs_warn_db": float(sample_cfg.get("mono_fold_lufs_warn_db", 3.0)),
+        "vocal_warn_db": float(sample_cfg.get("mono_fold_vocal_warn_db", 2.0)),
+        "correlation_warn": float(sample_cfg.get("mono_fold_correlation_warn", 0.3)),
+    }
+
+    samples_dir = ctx.audio_dir / "mastering_samples"
+    samples_stage: dict[str, Any] = {
+        "status": "pass",
+        "codec_preview_enabled": codec_enabled,
+        "mono_fold_enabled": monofold_enabled,
+        "output_dir": str(samples_dir),
+    }
+
+    if codec_enabled or monofold_enabled:
+        samples_dir.mkdir(exist_ok=True)
+
+    if codec_enabled:
+        from tools.mastering.codec_preview import CodecPreviewError, render_aac_preview
+
+        codec_results: list[dict[str, Any]] = []
+        codec_errors: list[str] = []
+        for wav in ctx.mastered_files:
+            out_path = samples_dir / f"{wav.stem}.aac.m4a"
+            try:
+                info = await ctx.loop.run_in_executor(
+                    None, render_aac_preview, wav, out_path, codec_bitrate
+                )
+                codec_results.append({
+                    "track": wav.name,
+                    "output_path": info["output_path"],
+                    "bitrate_kbps": info["bitrate_kbps"],
+                })
+            except CodecPreviewError as e:
+                codec_errors.append(f"{wav.name}: {e}")
+                ctx.warnings.append(f"Codec preview {wav.name}: {e}")
+        samples_stage["codec_previews"] = codec_results
+        if codec_errors:
+            samples_stage["codec_errors"] = codec_errors
+
+    if monofold_enabled:
+        import soundfile as sf
+        from tools.mastering.mono_fold import mono_fold_metrics
+        from tools.mastering.mono_fold_report import render_mono_fold_markdown
+
+        def _do_mono_fold(wav_path: Path) -> dict[str, Any]:
+            import numpy as _np
+            data, rate = sf.read(str(wav_path))
+            if data.ndim == 1:
+                data = _np.column_stack([data, data])
+            metrics = mono_fold_metrics(data, rate, thresholds=monofold_thresholds)
+            stem = wav_path.stem
+            sample_filename = f"{stem}.mono.wav" if monofold_write_audio else None
+            if sample_filename:
+                sf.write(
+                    str(samples_dir / sample_filename),
+                    metrics["mono_audio"], rate, subtype="PCM_24",
+                )
+            md = render_mono_fold_markdown(stem, metrics, sample_filename)
+            (samples_dir / f"{stem}.MONO_FOLD.md").write_text(md, encoding="utf-8")
+            return {
+                "track": wav_path.name,
+                "verdict": metrics["verdict"],
+                "band_drop_fail": metrics["band_drop_fail"],
+                "worst_band": metrics["worst_band"],
+                "lufs_delta_db": metrics["lufs"]["delta_db"],
+                "vocal_delta_db": metrics["vocal_rms"]["delta_db"],
+                "stereo_correlation": metrics["stereo_correlation"],
+                "report_path": str(samples_dir / f"{stem}.MONO_FOLD.md"),
+            }
+
+        mono_results = []
+        for wav in ctx.mastered_files:
+            mono_results.append(
+                await ctx.loop.run_in_executor(None, _do_mono_fold, wav)
+            )
+
+        mono_passed = sum(1 for r in mono_results if r["verdict"] == "PASS")
+        mono_warned = sum(1 for r in mono_results if r["verdict"] == "WARN")
+        mono_failed = sum(1 for r in mono_results if r["verdict"] == "FAIL")
+
+        for r in mono_results:
+            if r["verdict"] == "WARN":
+                ctx.warnings.append(
+                    f"Mono fold {r['track']}: WARN — see {Path(r['report_path']).name}"
+                )
+
+        samples_stage["mono_fold"] = {
+            "tracks": mono_results,
+            "passed": mono_passed,
+            "warned": mono_warned,
+            "failed": mono_failed,
+        }
+
+        if mono_failed > 0:
+            failed_tracks = [r for r in mono_results if r["verdict"] == "FAIL"]
+            samples_stage["status"] = "fail"
+            ctx.stages["mastering_samples"] = samples_stage
+            return _safe_json({
+                "album_slug": ctx.album_slug,
+                "stage_reached": "mastering_samples",
+                "stages": ctx.stages,
+                "settings": ctx.settings,
+                "warnings": ctx.warnings,
+                "failed_stage": "mastering_samples",
+                "failure_detail": {
+                    "reason": "Mono fold-down hard-fail (phase cancellation)",
+                    "tracks_failed": [r["track"] for r in failed_tracks],
+                    "details": [
+                        {
+                            "track": r["track"],
+                            "worst_band": r["worst_band"],
+                            "report": r["report_path"],
+                        }
+                        for r in failed_tracks
+                    ],
+                },
+            })
+
+    ctx.stages["mastering_samples"] = samples_stage
+    return None
+
+
+async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6: Technical QC on mastered files (all checks enabled).
+
+    Reads ctx: mastered_files, loop
+    Sets ctx:  (appends to ctx.warnings)
+    Returns: None on pass/warn, failure JSON if any track FAILs.
+    """
+    from tools.mastering.qc_tracks import qc_track
+
+    post_qc_results = []
+    for wav in ctx.mastered_files:
+        result = await ctx.loop.run_in_executor(None, qc_track, str(wav), None)
+        post_qc_results.append(result)
+
+    post_passed = sum(1 for r in post_qc_results if r["verdict"] == "PASS")
+    post_warned = sum(1 for r in post_qc_results if r["verdict"] == "WARN")
+    post_failed = sum(1 for r in post_qc_results if r["verdict"] == "FAIL")
+
+    for r in post_qc_results:
+        for check_name, check_info in r["checks"].items():
+            if check_info["status"] == "WARN":
+                ctx.warnings.append(
+                    f"Post-QC {r['filename']}: {check_name} WARN — {check_info['detail']}"
+                )
+
+    if post_failed > 0:
+        failed_tracks = [r for r in post_qc_results if r["verdict"] == "FAIL"]
+        fail_details = []
+        for r in failed_tracks:
+            for check_name, check_info in r["checks"].items():
+                if check_info["status"] == "FAIL":
+                    fail_details.append({
+                        "filename": r["filename"],
+                        "check": check_name,
+                        "status": "FAIL",
+                        "detail": check_info["detail"],
+                    })
+        ctx.stages["post_qc"] = {
+            "status": "fail",
+            "passed": post_passed,
+            "warned": post_warned,
+            "failed": post_failed,
+            "verdict": "FAILURES FOUND",
+        }
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "post_qc",
+            "stages": ctx.stages,
+            "settings": ctx.settings,
+            "warnings": ctx.warnings,
+            "failed_stage": "post_qc",
+            "failure_detail": {
+                "tracks_failed": [r["filename"] for r in failed_tracks],
+                "details": fail_details,
+            },
+        })
+
+    ctx.stages["post_qc"] = {
+        "status": "pass",
+        "passed": post_passed,
+        "warned": post_warned,
+        "failed": 0,
+        "verdict": "ALL PASS" if post_warned == 0 else "WARNINGS",
+    }
+    return None
+
+
+async def _stage_archival(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6.5: Write 32-bit float archival copies (opt-in).
+
+    Reads ctx: audio_dir, mastered_files, targets
+    Sets ctx:  (nothing — archival output is filesystem-side only)
+    Returns: None always (archival errors go to warnings, never halt).
+    """
+    if not ctx.targets.get("archival_enabled"):
+        return None
+
+    import soundfile as _sf_archival
+    from tools.mastering.archival import prune_archival_orphans
+
+    assert ctx.audio_dir is not None
+    archival_dir = ctx.audio_dir / "archival"
+    archival_dir.mkdir(exist_ok=True)
+    mastered_names = {p.name for p in ctx.mastered_files}
+    pruned = prune_archival_orphans(archival_dir, mastered_names)
+
+    archived = 0
+    archive_errors: list[str] = []
+    for mastered_path in ctx.mastered_files:
+        arch_path = archival_dir / mastered_path.name
+        try:
+            data, rate = _sf_archival.read(str(mastered_path), dtype="float32")
+            _sf_archival.write(str(arch_path), data, rate, subtype="FLOAT")
+            archived += 1
+        except Exception as exc:
+            archive_errors.append(f"{mastered_path.name}: {exc}")
+
+    ctx.stages["archival"] = {
+        "status": "pass" if not archive_errors else "warn",
+        "count": archived,
+        "pruned": pruned or None,
+        "output_dir": str(archival_dir),
+        "errors": archive_errors or None,
+    }
+    return None
+
+
+async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6.7: Write LAYOUT.md with per-transition defaults (#290 step 7).
+
+    Reads ctx: album_slug, audio_dir, mastered_files, warnings
+    Sets ctx:  (nothing — layout output is filesystem-side only)
+    Returns: None always (write errors go to warnings, never halt).
+    """
+    assert ctx.audio_dir is not None
+
+    layout_frontmatter = None
+    try:
+        _state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+        _album_state = _state_albums.get(_normalize_slug(ctx.album_slug), {})
+        layout_frontmatter = _album_state.get("layout")
+    except Exception as _layout_state_exc:
+        logger.debug(
+            "Layout: could not read state.albums[%s].layout — %s.",
+            ctx.album_slug, _layout_state_exc,
+        )
+
+    default_transition = "gap"
+    if isinstance(layout_frontmatter, dict):
+        dt = layout_frontmatter.get("default_transition")
+        if dt in ("gap", "gapless"):
+            default_transition = dt
+
+    layout_stage: dict[str, Any] = {
+        "status": "pass",
+        "path": str(ctx.audio_dir / "LAYOUT.md"),
+        "default_transition": default_transition,
+        "transition_count": 0,
+    }
+    try:
+        track_filenames = [p.name for p in ctx.mastered_files]
+        transitions = _layout_compute_transitions(
+            track_filenames, default_transition=default_transition
+        )
+        layout_md = _layout_render_markdown(ctx.album_slug, transitions)
+        atomic_write_text(ctx.audio_dir / "LAYOUT.md", layout_md)
+        layout_stage["transition_count"] = len(transitions)
+    except (LayoutError, OSError) as exc:
+        layout_stage["status"] = "warn"
+        layout_stage["error"] = str(exc)
+        ctx.warnings.append(f"Layout emitter: {exc}")
+
+    ctx.stages["layout"] = layout_stage
+    return None

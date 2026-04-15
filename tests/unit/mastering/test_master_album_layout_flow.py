@@ -20,6 +20,7 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 from handlers.processing import _helpers as processing_helpers  # noqa: E402
+from handlers.processing import _album_stages as album_stages_mod  # noqa: E402
 from handlers.processing import audio as audio_mod  # noqa: E402
 
 
@@ -153,8 +154,9 @@ def test_layout_never_halts_pipeline_on_write_failure(
         raise OSError("disk full")
 
     monkeypatch.setattr(_atomic, "atomic_write_text", _boom)
-    # audio_mod imports atomic_write_text at call time through the layout
-    # path, so patch both the re-export and the original.
+    # Patch all module-level bindings that hold a reference to atomic_write_text.
+    # _stage_layout lives in _album_stages, which imports it at module load time.
+    monkeypatch.setattr(album_stages_mod, "atomic_write_text", _boom)
     if hasattr(audio_mod, "atomic_write_text"):
         monkeypatch.setattr(audio_mod, "atomic_write_text", _boom)
 
