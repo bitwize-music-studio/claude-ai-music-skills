@@ -4,12 +4,12 @@ All notable changes to claude-ai-music-skills.
 
 This project uses [Conventional Commits](https://conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.90.0] - 2026-04-15
 
 ### Added
 - **opus_safe TP override (#290)**: `opus_safe: true` preset field applies -1.5 dBTP ceiling for dense-transient genres (EDM, trap, metal, dubstep, drum-and-bass, hardstyle, industrial, punk).
 - **ADM validation stage (#290 step 9)**: `master_album` now runs `_stage_adm_validation` after ceiling guard — encodes each mastered WAV to AAC (ffmpeg native `aac` default; afconvert on macOS; `libfdk_aac` via config override), decodes back, checks for inter-sample peaks. Emits `ADM_VALIDATION.md` sidecar. Halts if clips found.
-- **ID3v2.4 metadata embedding (#290)**: `master_album` embeds artist, album, title, copyright, label, ISRC, and UPC into mastered WAV delivery files via `tools/mastering/metadata.py`.
+- **ID3v2.4 metadata embedding (#290)**: `master_album` embeds artist, album, title, copyright, and label into mastered WAV delivery files via `tools/mastering/metadata.py`. ISRC and UPC fields are supported by the tool but not yet sourced in the pipeline (follow-up).
 - **polish_audio per-stem WAVs (#290)**: Stems mode now writes `polished/<track>/vocals.wav` (and other processed stems) alongside the full mix, activating stem-first vocal-RMS measurement in the mastering analysis.
 - **Album-ceiling guard (#290 phase 5, step 8)**: `master_album` now gates
   mastered tracks against `album_median + 2 LU`. Small overshoots (≤0.5 LU)
