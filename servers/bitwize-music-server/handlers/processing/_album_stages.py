@@ -709,3 +709,312 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
         if f.suffix.lower() == ".wav" and "venv" not in str(f)
     ])
     return None
+
+
+async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 5: Check mastered output meets targets; auto-recover dynamic tracks.
+
+    Reads ctx: mastered_files, output_dir, source_dir, audio_dir,
+               effective_lufs, effective_ceiling, effective_highmid,
+               effective_highs, targets, settings, warnings, loop
+    Sets ctx:  verify_results
+    Returns: None on pass (all within spec), failure JSON otherwise.
+    """
+    import numpy as np
+    from tools.mastering.analyze_tracks import analyze_track
+    from tools.mastering.fix_dynamic_track import fix_dynamic
+
+    assert ctx.output_dir is not None and ctx.source_dir is not None
+
+    verify_results = []
+    for wav in ctx.mastered_files:
+        result = await ctx.loop.run_in_executor(None, analyze_track, str(wav))
+        verify_results.append(result)
+
+    verify_lufs = [r["lufs"] for r in verify_results]
+    verify_avg = float(np.mean(verify_lufs))
+    verify_range = float(max(verify_lufs) - min(verify_lufs))
+    effective_lufs = ctx.effective_lufs
+    effective_ceiling = ctx.effective_ceiling
+
+    out_of_spec = []
+    for r in verify_results:
+        issues = []
+        if abs(r["lufs"] - effective_lufs) > 0.5:
+            issues.append(
+                f"LUFS {r['lufs']:.1f} outside ±0.5 dB of target {effective_lufs}"
+            )
+        if r["peak_db"] > effective_ceiling:
+            issues.append(
+                f"Peak {r['peak_db']:.1f} dB exceeds ceiling {effective_ceiling} dB"
+            )
+        if issues:
+            out_of_spec.append({"filename": r["filename"], "issues": issues})
+
+    album_range_fail = verify_range >= 1.0
+    auto_recovered: list[dict[str, Any]] = []
+
+    if out_of_spec or album_range_fail:
+        recoverable = []
+        for spec in out_of_spec:
+            has_peak_issue = any("Peak" in iss for iss in spec["issues"])
+            vr = next(
+                (r for r in verify_results if r["filename"] == spec["filename"]), None
+            )
+            if not vr:
+                continue
+            lufs_too_low = vr["lufs"] < effective_lufs - 0.5
+            peak_at_ceiling = vr["peak_db"] >= effective_ceiling - 0.1
+            if lufs_too_low and peak_at_ceiling and not has_peak_issue:
+                recoverable.append(spec["filename"])
+
+        if recoverable:
+            import soundfile as sf
+            import numpy as _np
+
+            eq_settings = []
+            if ctx.effective_highmid != 0:
+                eq_settings.append((3500.0, ctx.effective_highmid, 1.5))
+            if ctx.effective_highs != 0:
+                eq_settings.append((8000.0, ctx.effective_highs, 0.7))
+
+            recovery_subtype = (
+                "PCM_24" if ctx.targets["output_bits"] > 16 else "PCM_16"
+            )
+
+            for fname in recoverable:
+                raw_path = ctx.source_dir / fname
+                if not raw_path.exists():
+                    raw_path = _find_wav_source_dir(ctx.audio_dir) / fname
+                if not raw_path.exists():
+                    continue
+
+                def _do_recovery(
+                    src: Path,
+                    dst: Path,
+                    lufs: float,
+                    eq: list[tuple[float, float, float]],
+                    ceil: float,
+                    subtype: str,
+                ) -> dict[str, Any]:
+                    data, rate = sf.read(str(src))
+                    if len(data.shape) == 1:
+                        data = _np.column_stack([data, data])
+                    data, metrics = fix_dynamic(
+                        data, rate,
+                        target_lufs=lufs,
+                        eq_settings=eq if eq else None,
+                        ceiling_db=ceil,
+                    )
+                    sf.write(str(dst), data, rate, subtype=subtype)
+                    return metrics
+
+                mastered_path = ctx.output_dir / fname
+                metrics = await ctx.loop.run_in_executor(
+                    None, _do_recovery, raw_path, mastered_path,
+                    effective_lufs, eq_settings, effective_ceiling,
+                    recovery_subtype,
+                )
+                auto_recovered.append({
+                    "filename": fname,
+                    "original_lufs": metrics["original_lufs"],
+                    "final_lufs": metrics["final_lufs"],
+                    "final_peak_db": metrics["final_peak_db"],
+                })
+
+            if auto_recovered:
+                ctx.warnings.append({
+                    "type": "auto_recovery",
+                    "tracks_fixed": [r["filename"] for r in auto_recovered],
+                })
+                verify_results = []
+                for wav in ctx.mastered_files:
+                    result = await ctx.loop.run_in_executor(
+                        None, analyze_track, str(wav),
+                    )
+                    verify_results.append(result)
+                verify_lufs = [r["lufs"] for r in verify_results]
+                verify_avg = float(np.mean(verify_lufs))
+                verify_range = float(max(verify_lufs) - min(verify_lufs))
+                out_of_spec = []
+                for r in verify_results:
+                    issues = []
+                    if abs(r["lufs"] - effective_lufs) > 0.5:
+                        issues.append(
+                            f"LUFS {r['lufs']:.1f} outside ±0.5 dB "
+                            f"of target {effective_lufs}"
+                        )
+                    if r["peak_db"] > effective_ceiling:
+                        issues.append(
+                            f"Peak {r['peak_db']:.1f} dB exceeds ceiling "
+                            f"{effective_ceiling} dB"
+                        )
+                    if issues:
+                        out_of_spec.append(
+                            {"filename": r["filename"], "issues": issues}
+                        )
+                album_range_fail = verify_range >= 1.0
+
+        if out_of_spec or album_range_fail:
+            fail_detail: dict[str, Any] = {}
+            if out_of_spec:
+                fail_detail["tracks_out_of_spec"] = out_of_spec
+            if album_range_fail:
+                fail_detail["album_lufs_range"] = round(verify_range, 2)
+                fail_detail["album_range_limit"] = 1.0
+            ctx.stages["verification"] = {
+                "status": "fail",
+                "avg_lufs": round(verify_avg, 1),
+                "lufs_range": round(verify_range, 2),
+                "all_within_spec": False,
+            }
+            return _safe_json({
+                "album_slug": ctx.album_slug,
+                "stage_reached": "verification",
+                "stages": ctx.stages,
+                "settings": ctx.settings,
+                "warnings": ctx.warnings,
+                "failed_stage": "verification",
+                "failure_detail": fail_detail,
+            })
+
+    verification_stage: dict[str, Any] = {
+        "status": "pass",
+        "avg_lufs": round(verify_avg, 1),
+        "lufs_range": round(verify_range, 2),
+        "all_within_spec": True,
+    }
+    if auto_recovered:
+        verification_stage["auto_recovered"] = auto_recovered
+    ctx.stages["verification"] = verification_stage
+    ctx.verify_results = verify_results
+    return None
+
+
+async def _stage_ceiling_guard(
+    ctx: MasterAlbumCtx,
+    _compute_overshoots: Any = None,
+) -> str | None:
+    """Stage 5.4: Album-ceiling guard — enforce album_median + 2 LU (#290 step 8).
+
+    Reads ctx: verify_results, output_dir, targets, loop
+    Sets ctx:  (mutates verify_results on pull-down; updates stages["verification"])
+    Returns: None on pass/pull-down, failure JSON on halt (>0.5 LU overshoot).
+
+    _compute_overshoots: injectable for testing (defaults to the module-level
+        _ceiling_guard_compute_overshoots). Callers that need monkeypatching
+        should pass their patched version explicitly.
+    """
+    import numpy as np
+    from tools.mastering.analyze_tracks import analyze_track
+
+    compute_fn = _compute_overshoots if _compute_overshoots is not None else _ceiling_guard_compute_overshoots
+
+    assert ctx.output_dir is not None
+
+    ceiling_tracks_input = [
+        {"filename": r["filename"], "lufs": r["lufs"]}
+        for r in ctx.verify_results
+    ]
+    ceiling_result = compute_fn(ceiling_tracks_input)
+
+    ceiling_stage: dict[str, Any] = {
+        "status": "pass",
+        "action": "no_op",
+        "median_lufs": (
+            None if ceiling_result["median_lufs"] is None
+            else round(ceiling_result["median_lufs"], 2)
+        ),
+        "threshold_lu": (
+            None if ceiling_result["threshold_lu"] is None
+            else round(ceiling_result["threshold_lu"], 2)
+        ),
+        "tracks": ceiling_result["tracks"],
+        "pulled_down": [],
+    }
+
+    halt_rows = [r for r in ceiling_result["tracks"] if r["classification"] == "halt"]
+    if halt_rows:
+        ceiling_stage["status"] = "fail"
+        ceiling_stage["action"] = "halt"
+        ctx.stages["ceiling_guard"] = ceiling_stage
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "ceiling_guard",
+            "stages": ctx.stages,
+            "settings": ctx.settings,
+            "warnings": ctx.warnings,
+            "failed_stage": "ceiling_guard",
+            "failure_detail": {
+                "reason": (
+                    f"Album-ceiling guard: {len(halt_rows)} track(s) with "
+                    f"overshoot > 0.5 LU. Coherence correction (step 6) did not "
+                    f"converge on LUFS-I; re-run master_album with coherence "
+                    f"corrections or adjust per-track mastering."
+                ),
+                "tracks": [
+                    {
+                        "filename": r["filename"],
+                        "lufs": round(r["lufs"], 2),
+                        "overshoot_lu": round(r["overshoot_lu"], 2),
+                    }
+                    for r in halt_rows
+                ],
+                "threshold_lu": ceiling_stage["threshold_lu"],
+                "median_lufs": ceiling_stage["median_lufs"],
+            },
+        })
+
+    correctable_rows = [
+        r for r in ceiling_result["tracks"] if r["classification"] == "correctable"
+    ]
+    if correctable_rows:
+        output_bits = int(ctx.targets.get("output_bits") or 24)
+        pull_down_errors: list[str] = []
+        pulled_files: list[str] = []
+        for row in correctable_rows:
+            target_path = ctx.output_dir / row["filename"]
+            try:
+                await ctx.loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        apply_pull_down_db,
+                        target_path,
+                        gain_db=row["pull_down_db"],
+                        output_bits=output_bits,
+                    ),
+                )
+                pulled_files.append(row["filename"])
+            except CeilingGuardError as exc:
+                pull_down_errors.append(f"{row['filename']}: {exc}")
+
+        if pull_down_errors:
+            ceiling_stage["status"] = "warn"
+            ceiling_stage["pull_down_errors"] = pull_down_errors
+            ctx.warnings.append(
+                "Ceiling guard: pull-down failed for "
+                f"{len(pull_down_errors)} track(s); see stage output"
+            )
+        ceiling_stage["action"] = "pull_down"
+        ceiling_stage["pulled_down"] = pulled_files
+
+        filename_to_index = {
+            r["filename"]: i for i, r in enumerate(ctx.verify_results)
+        }
+        for fname in pulled_files:
+            wav_path = ctx.output_dir / fname
+            fresh = await ctx.loop.run_in_executor(
+                None, analyze_track, str(wav_path),
+            )
+            idx = filename_to_index.get(fname)
+            if idx is not None:
+                ctx.verify_results[idx] = fresh
+
+        verify_lufs = [r["lufs"] for r in ctx.verify_results]
+        ctx.stages["verification"]["avg_lufs"] = round(float(np.mean(verify_lufs)), 1)
+        ctx.stages["verification"]["lufs_range"] = round(
+            float(max(verify_lufs) - min(verify_lufs)), 2
+        )
+
+    ctx.stages["ceiling_guard"] = ceiling_stage
+    return None
