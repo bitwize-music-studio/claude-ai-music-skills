@@ -1598,9 +1598,13 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
 
     for wav in ctx.mastered_files:
         try:
-            def _make_check(p: Path, enc: str = encoder, ceil: float = ceiling_db) -> dict[str, Any]:
-                return _adm_check_fn(p, encoder=enc, ceiling_db=ceil, bitrate_kbps=256)
-            r = await ctx.loop.run_in_executor(None, _make_check, wav)
+            r = await ctx.loop.run_in_executor(
+                None,
+                functools.partial(
+                    _adm_check_fn, wav,
+                    encoder=encoder, ceiling_db=ceiling_db, bitrate_kbps=256,
+                ),
+            )
             results.append(r)
         except ADMValidationError as exc:
             encoder_errors.append(f"{wav.name}: {exc}")
@@ -1611,14 +1615,17 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
     encoder_used = encoder
     if results:
         encoder_used = results[0].get("encoder_used", encoder)
-    try:
-        md = render_adm_validation_markdown(
-            ctx.album_slug, results,
-            encoder_used=encoder_used, ceiling_db=ceiling_db,
-        )
-        atomic_write_text(ctx.audio_dir / "ADM_VALIDATION.md", md)
-    except OSError as exc:
-        ctx.warnings.append(f"ADM sidecar write: {exc}")
+    if not results:
+        ctx.notices.append("ADM validation skipped — no results to write")
+    else:
+        try:
+            md = render_adm_validation_markdown(
+                ctx.album_slug, results,
+                encoder_used=encoder_used, ceiling_db=ceiling_db,
+            )
+            atomic_write_text(ctx.audio_dir / "ADM_VALIDATION.md", md)
+        except Exception as exc:
+            ctx.warnings.append(f"ADM sidecar write: {exc}")
 
     # Encoder errors → warn but never halt (ffmpeg may not be installed)
     if encoder_errors:

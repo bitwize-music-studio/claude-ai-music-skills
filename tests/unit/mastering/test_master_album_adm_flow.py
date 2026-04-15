@@ -100,15 +100,17 @@ def test_adm_validation_halt_on_clips(
         ctx.audio_dir = tmp_path
         ctx.mastered_files = [wav1]
         ctx.targets = {"ceiling_db": -1.0, "adm_aac_encoder": "aac"}
-        return await album_stages_mod._stage_adm_validation(ctx)
+        return await album_stages_mod._stage_adm_validation(ctx), ctx
 
-    result = asyncio.run(_run())
+    result, ctx = asyncio.run(_run())
 
     assert result is not None  # halted
     payload = json.loads(result)
     assert payload["failed_stage"] == "adm_validation"
     assert "inter-sample" in payload["failure_detail"]["reason"].lower()
     assert (tmp_path / "ADM_VALIDATION.md").exists()
+    assert ctx.stages["adm_validation"]["status"] == "fail"
+    assert ctx.stages["adm_validation"]["clips_found"] is True
 
 
 def test_adm_validation_encoder_error_warns_not_halts(
