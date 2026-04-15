@@ -6,43 +6,22 @@ import asyncio
 import functools
 import json
 import logging
-import os
-import re
 from pathlib import Path
 from typing import Any
 
 from handlers import _shared
 from handlers._shared import (
-    ALBUM_COMPLETE,
-    TRACK_FINAL,
-    TRACK_GENERATED,
-    TRACK_NOT_STARTED,
     _find_wav_source_dir,
     _is_path_confined,
     _normalize_slug,
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
-    get_plugin_version as _read_plugin_version,
 )
-from handlers._atomic import atomic_write_text
 from handlers.processing import _helpers
 from handlers.processing import _album_stages
 from tools.mastering.album_signature import build_signature
 from tools.mastering.ceiling_guard import (
-    CeilingGuardError,
-    apply_pull_down_db,
     compute_overshoots as _ceiling_guard_compute_overshoots,
-)
-from tools.mastering.layout import (
-    LayoutError,
-    compute_transitions as _layout_compute_transitions,
-    render_layout_markdown as _layout_render_markdown,
-)
-from tools.mastering.signature_persistence import (
-    SIGNATURE_FILENAME,
-    SignaturePersistenceError,
-    read_signature_file,
-    write_signature_file,
 )
 
 logger = logging.getLogger("bitwize-music-state")
@@ -589,39 +568,9 @@ async def master_album(
 ) -> str:
     """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
 
-    Runs 7 sequential stages, stopping on failure:
-        1. Pre-flight — resolve audio dir, check deps, find WAV files
-        2. Analyze — measure LUFS, peaks, spectral balance on raw files
-        3. Pre-QC — run technical QC checks on raw files (fails on FAIL verdict)
-        4. Master — normalize loudness, apply EQ, limit peaks
-        5. Verify — check mastered output meets targets (±0.5 dB LUFS, peak < ceiling)
-        6. Post-QC — run technical QC on mastered files (fails on FAIL verdict)
-        7. Update status — set tracks to Final, album to Complete
-
-    Args:
-        album_slug: Album slug (e.g., "my-album")
-        genre: Genre preset to apply (overrides EQ/LUFS defaults if set)
-        target_lufs: Target integrated loudness (default: -14.0)
-        ceiling_db: True peak ceiling in dB (default: -1.0)
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
-        cut_highs: High shelf cut in dB at 8kHz
-        source_subfolder: Read WAV files from this subfolder instead of the
-            base audio dir (e.g., "polished" to master from mix-engineer output)
-        freeze_signature: Force frozen-signature mode regardless of album
-            status. Skips anchor selection and masters against
-            ``ALBUM_SIGNATURE.yaml``. Useful for bonus tracks during
-            release prep. Mutually exclusive with ``new_anchor``.
-        new_anchor: Force fresh anchor selection regardless of album
-            status. Useful for remastering a Released album with a new
-            anchor (e.g. re-release). Mutually exclusive with
-            ``freeze_signature``.
-
-    Returns:
-        JSON with per-stage results, settings, warnings, and failure info
+    Runs 14 sequential stages, stopping on failure. See _album_stages.py for
+    per-stage implementation. Stage order mirrors the #290 pipeline spec.
     """
-    from tools.state.indexer import write_state
-    from tools.state.parsers import parse_track_file
-
     if freeze_signature and new_anchor:
         return _safe_json({
             "album_slug": album_slug,
@@ -645,359 +594,37 @@ async def master_album(
         freeze_signature=freeze_signature, new_anchor=new_anchor,
         loop=loop,
     )
-    stages = ctx.stages
-    warnings = ctx.warnings
 
-    # --- Stage 1: Pre-flight ---
-    if result := await _album_stages._stage_pre_flight(ctx):
-        return result
+    for stage_fn in [
+        _album_stages._stage_pre_flight,
+        _album_stages._stage_analysis,
+        _album_stages._stage_freeze_decision,
+        _album_stages._stage_anchor_selection,
+        _album_stages._stage_pre_qc,
+        _album_stages._stage_mastering,
+        _album_stages._stage_verification,
+        functools.partial(
+            _album_stages._stage_ceiling_guard,
+            _compute_overshoots=_ceiling_guard_compute_overshoots,
+        ),
+        _album_stages._stage_mastering_samples,
+        _album_stages._stage_post_qc,
+        _album_stages._stage_archival,
+        _album_stages._stage_layout,
+        _album_stages._stage_status_update,
+        _album_stages._stage_signature_persist,
+    ]:
+        if result := await stage_fn(ctx):
+            return result
 
-    audio_dir = ctx.audio_dir
-    source_dir = ctx.source_dir
-    wav_files = ctx.wav_files
-    targets = ctx.targets
-    settings = ctx.settings
-    effective_preset = ctx.effective_preset
-    effective_lufs = ctx.effective_lufs
-    effective_ceiling = ctx.effective_ceiling
-    effective_highmid = ctx.effective_highmid
-    effective_highs = ctx.effective_highs
-    effective_compress = ctx.effective_compress
-
-    # --- Stage 2: Analysis ---
-    if result := await _album_stages._stage_analysis(ctx):
-        return result
-
-    # --- Stage 2a: Freeze decision (#290 phase 4) ---
-    if result := await _album_stages._stage_freeze_decision(ctx):
-        return result
-
-    # --- Stage 2b: Anchor selection (#290 phase 2 / routed by 2a in phase 4) ---
-    if result := await _album_stages._stage_anchor_selection(ctx):
-        return result
-
-    # Refresh locals that downstream inline stages still reference by name.
-    # effective_* may have been overwritten in frozen mode by _stage_anchor_selection.
-    effective_lufs = ctx.effective_lufs
-    effective_ceiling = ctx.effective_ceiling
-    effective_compress = ctx.effective_compress
-    analysis_results = ctx.analysis_results
-    frozen_signature = ctx.frozen_signature
-    anchor_result = ctx.anchor_result
-    preset_dict = ctx.preset_dict
-    targets = ctx.targets
-    settings = ctx.settings
-
-    # --- Stage 3: Pre-QC ---
-    if result := await _album_stages._stage_pre_qc(ctx):
-        return result
-
-    # --- Stage 4: Mastering ---
-    if result := await _album_stages._stage_mastering(ctx):
-        return result
-
-    output_dir = ctx.output_dir
-    mastered_files = ctx.mastered_files
-
-    # --- Stage 5: Verification ---
-    if result := await _album_stages._stage_verification(ctx):
-        return result
-
-    # --- Stage 5.4: Album-ceiling guard (#290 step 8) ---
-    if result := await _album_stages._stage_ceiling_guard(
-        ctx, _compute_overshoots=_ceiling_guard_compute_overshoots
-    ):
-        return result
-
-    # --- Stage 5.5: Mastering samples (codec preview + mono fold-down QC) ---
-    if result := await _album_stages._stage_mastering_samples(ctx):
-        return result
-
-    # --- Stage 6: Post-QC ---
-    if result := await _album_stages._stage_post_qc(ctx):
-        return result
-
-    # --- Stage 6.5: Archival (opt-in) ---
-    if result := await _album_stages._stage_archival(ctx):
-        return result
-
-    # --- Stage 6.7: Album layout emitter (#290 step 7) ---
-    if result := await _album_stages._stage_layout(ctx):
-        return result
-
-    # --- Stage 7: Update statuses ---
-    state = _shared.cache.get_state_ref()
-    albums = state.get("albums", {})
-    normalized_album = _normalize_slug(album_slug)
-    album_data = albums.get(normalized_album)
-
-    tracks_updated = 0
-    status_errors: list[str] = []
-    album_status: str | None = None
-
-    if album_data:
-        tracks = album_data.get("tracks", {})
-
-        for track_slug, track_info in tracks.items():
-            current_track_status = track_info.get("status", TRACK_NOT_STARTED)
-
-            # Only transition Generated → Final; skip already-Final tracks
-            if current_track_status.lower() == TRACK_FINAL.lower():
-                continue  # already Final — nothing to do
-            if current_track_status.lower() != TRACK_GENERATED.lower():
-                status_errors.append(
-                    f"Skipped '{track_slug}': status is '{current_track_status}' "
-                    f"(expected '{TRACK_GENERATED}')"
-                )
-                continue
-
-            track_path_str = track_info.get("path", "")
-            if not track_path_str:
-                status_errors.append(f"No path for track '{track_slug}'")
-                continue
-
-            track_path = Path(track_path_str)
-            if not track_path.exists():
-                status_errors.append(f"Track file not found: {track_path}")
-                continue
-
-            try:
-                text = track_path.read_text(encoding="utf-8")
-                pattern = re.compile(
-                    r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
-                    re.MULTILINE,
-                )
-                match = pattern.search(text)
-                if match:
-                    new_row = f"{match.group(1)} {TRACK_FINAL} |"
-                    updated_text = text[:match.start()] + new_row + text[match.end():]
-                    track_path.write_text(updated_text, encoding="utf-8")
-
-                    # Update cache
-                    parsed = parse_track_file(track_path)
-                    track_info.update({
-                        "status": parsed.get("status", TRACK_FINAL),
-                        "mtime": track_path.stat().st_mtime,
-                    })
-                    tracks_updated += 1
-                else:
-                    status_errors.append(f"Status field not found in {track_slug}")
-            except Exception as e:
-                status_errors.append(f"Error updating {track_slug}: {e}")
-
-        # Update album status to Complete if all tracks are Final
-        all_final = all(
-            t.get("status", "").lower() == TRACK_FINAL.lower()
-            for t in tracks.values()
-        )
-        if all_final:
-            album_path_str = album_data.get("path", "")
-            if album_path_str:
-                readme_path = Path(album_path_str) / "README.md"
-                if readme_path.exists():
-                    try:
-                        text = readme_path.read_text(encoding="utf-8")
-                        pattern = re.compile(
-                            r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
-                            re.MULTILINE,
-                        )
-                        match = pattern.search(text)
-                        if match:
-                            new_row = f"{match.group(1)} {ALBUM_COMPLETE} |"
-                            updated_text = text[:match.start()] + new_row + text[match.end():]
-                            readme_path.write_text(updated_text, encoding="utf-8")
-                            album_data["status"] = ALBUM_COMPLETE
-                            album_status = ALBUM_COMPLETE
-                    except Exception as e:
-                        status_errors.append(f"Error updating album status: {e}")
-
-        # Persist state cache
-        try:
-            write_state(state)
-        except Exception as e:
-            status_errors.append(f"Cache write failed: {e}")
-    else:
-        status_errors.append(f"Album '{album_slug}' not found in state cache")
-
-    if status_errors:
-        for err_msg in status_errors:
-            warnings.append(f"Status update: {err_msg}")
-
-    stages["status_update"] = {
-        "status": "pass",
-        "tracks_updated": tracks_updated,
-        "album_status": album_status,
-        "errors": status_errors if status_errors else None,
-    }
-
-    # --- Stage 7.5: Persist ALBUM_SIGNATURE.yaml (#290 phase 4) ---
-    # Build from the same analysis_results used for anchor selection so
-    # the signature reflects pre-master state of the shipped tracks
-    # (inputs to mastering, not the mastered output).
-    #
-    # In frozen mode the original anchor block is preserved verbatim so
-    # re-writes keep method/score from what shipped rather than overwriting
-    # with "frozen_signature". album_median + pipeline still refresh so
-    # added/regenerated tracks get surfaced in the aggregates.
-    try:
-        _plugin_version = _read_plugin_version()
-
-        # In frozen mode, prefer tolerances + lra_target_lu from the
-        # frozen signature to prevent drift (preset_dict holds the
-        # current genre preset, not the shipped values).
-        if frozen_signature is not None:
-            _frozen_targets = frozen_signature.get("delivery_targets") or {}
-            _frozen_tolerances = frozen_signature.get("tolerances") or {}
-            _lra_target_lu = _frozen_targets.get("lra_target_lu")
-            if _lra_target_lu is None:
-                _lra_target_lu = preset_dict.get("genre_ideal_lra_lu") if preset_dict else None
-            _tolerances = {
-                k: _frozen_tolerances.get(k)
-                for k in (
-                    "coherence_stl_95_lu",
-                    "coherence_lra_floor_lu",
-                    "coherence_low_rms_db",
-                    "coherence_vocal_rms_db",
-                )
-                if _frozen_tolerances.get(k) is not None
-            }
-            # If frozen file omits tolerances entirely, fall back to preset_dict.
-            if not _tolerances:
-                _tolerances = {
-                    k: preset_dict.get(k)
-                    for k in (
-                        "coherence_stl_95_lu",
-                        "coherence_lra_floor_lu",
-                        "coherence_low_rms_db",
-                        "coherence_vocal_rms_db",
-                    )
-                    if preset_dict is not None and preset_dict.get(k) is not None
-                }
-        else:
-            _lra_target_lu = preset_dict.get("genre_ideal_lra_lu") if preset_dict else None
-            _tolerances = {
-                k: preset_dict.get(k)
-                for k in (
-                    "coherence_stl_95_lu",
-                    "coherence_lra_floor_lu",
-                    "coherence_low_rms_db",
-                    "coherence_vocal_rms_db",
-                )
-                if preset_dict is not None and preset_dict.get(k) is not None
-            }
-
-        sig = build_signature(
-            analysis_results,
-            delivery_targets={
-                "target_lufs":        targets.get("target_lufs"),
-                "tp_ceiling_db":      targets.get("ceiling_db"),
-                "lra_target_lu":      _lra_target_lu,
-                "output_bits":        targets.get("output_bits"),
-                "output_sample_rate": targets.get("output_sample_rate"),
-            },
-            tolerances=_tolerances,
-        )
-        anchor_idx = anchor_result.get("selected_index")
-        anchor_track_sig: dict[str, Any] | None = None
-        anchor_filename: str | None = None
-        if anchor_idx is not None and 1 <= anchor_idx <= len(sig["tracks"]):
-            row = sig["tracks"][anchor_idx - 1]
-            anchor_filename = row.get("filename")
-            anchor_track_sig = {
-                k: row.get(k)
-                for k in ("stl_95", "low_rms", "vocal_rms",
-                          "short_term_range", "lufs", "peak_db")
-            }
-
-        if frozen_signature is not None:
-            # Frozen mode: preserve the anchor block from the shipped
-            # signature verbatim. album_median + pipeline still refresh
-            # so added/regenerated tracks get surfaced in the aggregates.
-            frozen_anchor_block = frozen_signature.get("anchor") or {}
-            payload: dict[str, Any] = {
-                "album_slug":       album_slug,
-                "anchor":           dict(frozen_anchor_block),
-                "album_median":     sig["album"]["median"],
-                "delivery_targets": sig["album"].get("delivery_targets", {}),
-                "tolerances":       sig["album"].get("tolerances", {}),
-                "pipeline": {
-                    "polish_subfolder":       source_subfolder or None,
-                    "source_sample_rate":     targets.get("source_sample_rate"),
-                    "upsampled_from_source":  bool(targets.get("upsampled_from_source")),
-                },
-            }
-        else:
-            payload = {
-                "album_slug":       album_slug,
-                "anchor": {
-                    "index":           anchor_idx,
-                    "filename":        anchor_filename,
-                    "method":          anchor_result.get("method"),
-                    "score":           None,  # filled below when composite
-                    "signature":       anchor_track_sig,
-                },
-                "album_median":     sig["album"]["median"],
-                "delivery_targets": sig["album"].get("delivery_targets", {}),
-                "tolerances":       sig["album"].get("tolerances", {}),
-                "pipeline": {
-                    "polish_subfolder":       source_subfolder or None,
-                    "source_sample_rate":     targets.get("source_sample_rate"),
-                    "upsampled_from_source":  bool(targets.get("upsampled_from_source")),
-                },
-            }
-            # Carry the composite score when the anchor was chosen by scoring.
-            if anchor_idx is not None:
-                for s in anchor_result.get("scores", []) or []:
-                    if s.get("index") == anchor_idx:
-                        payload["anchor"]["score"] = s.get("score")
-                        break
-
-        # yaml.safe_dump cannot represent numpy scalars — round-trip through
-        # JSON (which already uses float for numpy floats via json default) to
-        # produce a plain-Python dict before handing off to signature_persistence.
-        def _coerce_numeric(v: Any) -> Any:
-            if hasattr(v, "item"):
-                return v.item()
-            raise TypeError(
-                f"signature payload contains unserializable {type(v).__name__}: {v!r}"
-            )
-
-        payload = json.loads(json.dumps(payload, default=_coerce_numeric))
-
-        sig_path = write_signature_file(
-            audio_dir, payload, plugin_version=_plugin_version,
-        )
-        stages["signature_persist"] = {
-            "status": "pass",
-            "path":   str(sig_path),
-        }
-    except (SignaturePersistenceError, OSError, TypeError) as exc:
-        # Non-fatal: mastering already succeeded, just couldn't persist.
-        warnings.append(f"Signature persist: {exc}")
-        stages["signature_persist"] = {
-            "status": "warn",
-            "error":  str(exc),
-        }
-
-    # Build runtime notices (caveats worth surfacing to the user).
-    notices: list[str] = []
-    if targets.get("upsampled_from_source"):
-        src_rate = targets.get("source_sample_rate") or 0
-        dst_rate = targets["output_sample_rate"]
-        notices.append(
-            f"Delivery at {dst_rate // 1000} kHz "
-            f"(upsampled from {src_rate / 1000:.1f} kHz source). "
-            f"Badge-eligible for Apple Hi-Res Lossless and Tidal Max — "
-            f"no additional audio information vs. source."
-        )
-
+    _album_stages._build_notices(ctx)
     return _safe_json({
         "album_slug": album_slug,
         "stage_reached": "complete",
-        "stages": stages,
-        "settings": settings,
-        "warnings": warnings,
-        "notices": notices,
+        "stages": ctx.stages,
+        "settings": ctx.settings,
+        "warnings": ctx.warnings,
+        "notices": ctx.notices,
         "failed_stage": None,
         "failure_detail": None,
     })

@@ -21,6 +21,7 @@ import asyncio
 import functools
 import json
 import logging
+import re
 import os
 import tempfile
 from dataclasses import dataclass, field
@@ -1317,4 +1318,249 @@ async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
         ctx.warnings.append(f"Layout emitter: {exc}")
 
     ctx.stages["layout"] = layout_stage
+    return None
+
+
+async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 7: Transition Generated → Final tracks; advance album to Complete.
+
+    Reads ctx: album_slug, warnings
+    Sets ctx:  (appends to ctx.warnings on errors; no new ctx fields)
+    Returns: None always (status errors go to warnings, never halt).
+    """
+    from tools.state.indexer import write_state
+    from tools.state.parsers import parse_track_file
+
+    state = _shared.cache.get_state_ref()
+    albums = state.get("albums", {})
+    normalized_album = _normalize_slug(ctx.album_slug)
+    album_data = albums.get(normalized_album)
+
+    tracks_updated = 0
+    status_errors: list[str] = []
+    album_status: str | None = None
+
+    if album_data:
+        tracks = album_data.get("tracks", {})
+        for track_slug, track_info in tracks.items():
+            current_track_status = track_info.get("status", TRACK_NOT_STARTED)
+            if current_track_status.lower() == TRACK_FINAL.lower():
+                continue
+            if current_track_status.lower() != TRACK_GENERATED.lower():
+                status_errors.append(
+                    f"Skipped '{track_slug}': status is '{current_track_status}' "
+                    f"(expected '{TRACK_GENERATED}')"
+                )
+                continue
+            track_path_str = track_info.get("path", "")
+            if not track_path_str:
+                status_errors.append(f"No path for track '{track_slug}'")
+                continue
+            track_path = Path(track_path_str)
+            if not track_path.exists():
+                status_errors.append(f"Track file not found: {track_path}")
+                continue
+            try:
+                text = track_path.read_text(encoding="utf-8")
+                pattern = re.compile(
+                    r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
+                    re.MULTILINE,
+                )
+                match = pattern.search(text)
+                if match:
+                    new_row = f"{match.group(1)} {TRACK_FINAL} |"
+                    updated_text = (
+                        text[:match.start()] + new_row + text[match.end():]
+                    )
+                    track_path.write_text(updated_text, encoding="utf-8")
+                    parsed = parse_track_file(track_path)
+                    track_info.update({
+                        "status": parsed.get("status", TRACK_FINAL),
+                        "mtime": track_path.stat().st_mtime,
+                    })
+                    tracks_updated += 1
+                else:
+                    status_errors.append(f"Status field not found in {track_slug}")
+            except Exception as e:
+                status_errors.append(f"Error updating {track_slug}: {e}")
+
+        all_final = all(
+            t.get("status", "").lower() == TRACK_FINAL.lower()
+            for t in tracks.values()
+        )
+        if all_final:
+            album_path_str = album_data.get("path", "")
+            if album_path_str:
+                readme_path = Path(album_path_str) / "README.md"
+                if readme_path.exists():
+                    try:
+                        text = readme_path.read_text(encoding="utf-8")
+                        pattern = re.compile(
+                            r'^(\|\s*\*\*Status\*\*\s*\|)\s*.*?\s*\|',
+                            re.MULTILINE,
+                        )
+                        match = pattern.search(text)
+                        if match:
+                            new_row = f"{match.group(1)} {ALBUM_COMPLETE} |"
+                            updated_text = (
+                                text[:match.start()] + new_row + text[match.end():]
+                            )
+                            readme_path.write_text(updated_text, encoding="utf-8")
+                            album_data["status"] = ALBUM_COMPLETE
+                            album_status = ALBUM_COMPLETE
+                    except Exception as e:
+                        status_errors.append(f"Error updating album status: {e}")
+
+        try:
+            write_state(state)
+        except Exception as e:
+            status_errors.append(f"Cache write failed: {e}")
+    else:
+        status_errors.append(f"Album '{ctx.album_slug}' not found in state cache")
+
+    for err_msg in status_errors:
+        ctx.warnings.append(f"Status update: {err_msg}")
+
+    ctx.stages["status_update"] = {
+        "status": "pass",
+        "tracks_updated": tracks_updated,
+        "album_status": album_status,
+        "errors": status_errors if status_errors else None,
+    }
+    return None
+
+
+async def _stage_signature_persist(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 7.5: Write ALBUM_SIGNATURE.yaml (#290 phase 4).
+
+    Reads ctx: album_slug, audio_dir, analysis_results, anchor_result,
+               frozen_signature, targets, preset_dict, source_subfolder,
+               warnings
+    Sets ctx:  (appends to ctx.warnings on error; no new ctx fields)
+    Returns: None always (errors go to warnings, never halt).
+    """
+    try:
+        _plugin_version = _read_plugin_version()
+
+        assert ctx.audio_dir is not None
+
+        if ctx.frozen_signature is not None:
+            _frozen_targets = ctx.frozen_signature.get("delivery_targets") or {}
+            _frozen_tolerances = ctx.frozen_signature.get("tolerances") or {}
+            _lra_target_lu = _frozen_targets.get("lra_target_lu")
+            if _lra_target_lu is None:
+                _lra_target_lu = (
+                    ctx.preset_dict.get("genre_ideal_lra_lu")
+                    if ctx.preset_dict else None
+                )
+            _tolerances = {
+                k: _frozen_tolerances.get(k)
+                for k in (
+                    "coherence_stl_95_lu", "coherence_lra_floor_lu",
+                    "coherence_low_rms_db", "coherence_vocal_rms_db",
+                )
+                if _frozen_tolerances.get(k) is not None
+            }
+            if not _tolerances:
+                _tolerances = {
+                    k: ctx.preset_dict.get(k)
+                    for k in (
+                        "coherence_stl_95_lu", "coherence_lra_floor_lu",
+                        "coherence_low_rms_db", "coherence_vocal_rms_db",
+                    )
+                    if ctx.preset_dict is not None and ctx.preset_dict.get(k) is not None
+                }
+        else:
+            _lra_target_lu = (
+                ctx.preset_dict.get("genre_ideal_lra_lu")
+                if ctx.preset_dict else None
+            )
+            _tolerances = {
+                k: ctx.preset_dict.get(k)
+                for k in (
+                    "coherence_stl_95_lu", "coherence_lra_floor_lu",
+                    "coherence_low_rms_db", "coherence_vocal_rms_db",
+                )
+                if ctx.preset_dict is not None and ctx.preset_dict.get(k) is not None
+            }
+
+        sig = build_signature(
+            ctx.analysis_results,
+            delivery_targets={
+                "target_lufs":        ctx.targets.get("target_lufs"),
+                "tp_ceiling_db":      ctx.targets.get("ceiling_db"),
+                "lra_target_lu":      _lra_target_lu,
+                "output_bits":        ctx.targets.get("output_bits"),
+                "output_sample_rate": ctx.targets.get("output_sample_rate"),
+            },
+            tolerances=_tolerances,
+        )
+        anchor_idx = ctx.anchor_result.get("selected_index")
+        anchor_track_sig: dict[str, Any] | None = None
+        anchor_filename: str | None = None
+        if anchor_idx is not None and 1 <= anchor_idx <= len(sig["tracks"]):
+            row = sig["tracks"][anchor_idx - 1]
+            anchor_filename = row.get("filename")
+            anchor_track_sig = {
+                k: row.get(k)
+                for k in ("stl_95", "low_rms", "vocal_rms",
+                          "short_term_range", "lufs", "peak_db")
+            }
+
+        if ctx.frozen_signature is not None:
+            frozen_anchor_block = ctx.frozen_signature.get("anchor") or {}
+            payload: dict[str, Any] = {
+                "album_slug":       ctx.album_slug,
+                "anchor":           dict(frozen_anchor_block),
+                "album_median":     sig["album"]["median"],
+                "delivery_targets": sig["album"].get("delivery_targets", {}),
+                "tolerances":       sig["album"].get("tolerances", {}),
+                "pipeline": {
+                    "polish_subfolder":      ctx.source_subfolder or None,
+                    "source_sample_rate":    ctx.targets.get("source_sample_rate"),
+                    "upsampled_from_source": bool(ctx.targets.get("upsampled_from_source")),
+                },
+            }
+        else:
+            payload = {
+                "album_slug":       ctx.album_slug,
+                "anchor": {
+                    "index":     anchor_idx,
+                    "filename":  anchor_filename,
+                    "method":    ctx.anchor_result.get("method"),
+                    "score":     None,
+                    "signature": anchor_track_sig,
+                },
+                "album_median":     sig["album"]["median"],
+                "delivery_targets": sig["album"].get("delivery_targets", {}),
+                "tolerances":       sig["album"].get("tolerances", {}),
+                "pipeline": {
+                    "polish_subfolder":      ctx.source_subfolder or None,
+                    "source_sample_rate":    ctx.targets.get("source_sample_rate"),
+                    "upsampled_from_source": bool(ctx.targets.get("upsampled_from_source")),
+                },
+            }
+            if anchor_idx is not None:
+                for s in ctx.anchor_result.get("scores", []) or []:
+                    if s.get("index") == anchor_idx:
+                        payload["anchor"]["score"] = s.get("score")
+                        break
+
+        def _coerce_numeric(v: Any) -> Any:
+            if hasattr(v, "item"):
+                return v.item()
+            raise TypeError(
+                f"signature payload contains unserializable "
+                f"{type(v).__name__}: {v!r}"
+            )
+
+        payload = json.loads(json.dumps(payload, default=_coerce_numeric))
+        sig_path = write_signature_file(
+            ctx.audio_dir, payload, plugin_version=_plugin_version,
+        )
+        ctx.stages["signature_persist"] = {"status": "pass", "path": str(sig_path)}
+    except (SignaturePersistenceError, OSError, TypeError) as exc:
+        ctx.warnings.append(f"Signature persist: {exc}")
+        ctx.stages["signature_persist"] = {"status": "warn", "error": str(exc)}
+
     return None
