@@ -724,7 +724,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
     from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.fix_dynamic_track import fix_dynamic
 
-    assert ctx.output_dir is not None and ctx.source_dir is not None
+    assert ctx.output_dir is not None and ctx.source_dir is not None and ctx.audio_dir is not None
 
     verify_results = []
     for wav in ctx.mastered_files:

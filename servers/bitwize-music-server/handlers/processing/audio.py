@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import functools
 import json
 import logging
 from pathlib import Path
@@ -594,6 +593,11 @@ async def master_album(
         loop=loop,
     )
 
+    async def _ceiling_guard(c: _album_stages.MasterAlbumCtx) -> str | None:
+        return await _album_stages._stage_ceiling_guard(
+            c, _compute_overshoots=_ceiling_guard_compute_overshoots,
+        )
+
     for stage_fn in [
         _album_stages._stage_pre_flight,
         _album_stages._stage_analysis,
@@ -602,10 +606,7 @@ async def master_album(
         _album_stages._stage_pre_qc,
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
-        functools.partial(
-            _album_stages._stage_ceiling_guard,
-            _compute_overshoots=_ceiling_guard_compute_overshoots,
-        ),
+        _ceiling_guard,
         _album_stages._stage_mastering_samples,
         _album_stages._stage_post_qc,
         _album_stages._stage_archival,
