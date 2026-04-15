@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import json
 import logging
 import os
@@ -1390,8 +1391,12 @@ async def master_album(
             try:
                 await loop.run_in_executor(
                     None,
-                    lambda p=target_path, g=row["pull_down_db"], b=output_bits:
-                        apply_pull_down_db(p, gain_db=g, output_bits=b),
+                    functools.partial(
+                        apply_pull_down_db,
+                        target_path,
+                        gain_db=row["pull_down_db"],
+                        output_bits=output_bits,
+                    ),
                 )
                 pulled_files.append(row["filename"])
             except CeilingGuardError as exc:
