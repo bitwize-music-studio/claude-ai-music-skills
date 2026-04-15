@@ -7,6 +7,10 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- **opus_safe TP override (#290)**: `opus_safe: true` preset field applies -1.5 dBTP ceiling for dense-transient genres (EDM, trap, metal, dubstep, drum-and-bass, hardstyle, industrial, punk).
+- **ADM validation stage (#290 step 9)**: `master_album` now runs `_stage_adm_validation` after ceiling guard — encodes each mastered WAV to AAC (ffmpeg native `aac` default; afconvert on macOS; `libfdk_aac` via config override), decodes back, checks for inter-sample peaks. Emits `ADM_VALIDATION.md` sidecar. Halts if clips found.
+- **ID3v2.4 metadata embedding (#290)**: `master_album` embeds artist, album, title, copyright, label, ISRC, and UPC into mastered WAV delivery files via `tools/mastering/metadata.py`.
+- **polish_audio per-stem WAVs (#290)**: Stems mode now writes `polished/<track>/vocals.wav` (and other processed stems) alongside the full mix, activating stem-first vocal-RMS measurement in the mastering analysis.
 - **Album-ceiling guard (#290 phase 5, step 8)**: `master_album` now gates
   mastered tracks against `album_median + 2 LU`. Small overshoots (≤0.5 LU)
   get a silent scalar pull-down; larger overshoots halt + escalate.
@@ -49,6 +53,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **Default mastered output format** — `master_album` / `master_audio` / `polish_and_master_album` now produce **24-bit WAV at 96 kHz** by default (was 16-bit at source rate, typically 44.1 kHz). Existing user configs without a `mastering:` block pick up the new defaults on the next run. To preserve the legacy 16/44.1 output, set `mastering.delivery_bit_depth: 16` and `mastering.delivery_sample_rate: 44100` in `~/.bitwize-music/config.yaml`. Users with custom `{overrides}/mastering-presets.yaml` per-genre values continue to honor those overrides. Disk usage increases ~3x per track at the new defaults (~33 MB vs. ~10 MB for a 3-minute stereo track).
 
 ### Fixed
+- **Notices on early-exit paths (A4 #290)**: Failure JSON from `master_album` now always includes the `notices` key, even when the pipeline halts before successful completion.
 - LRA targeting now iteratively adjusts compression ratio (was measurement-only)
 - Added missing `--deess-bandwidth` CLI arg
 - Added missing CLI args for multiband ratios/thresholds and mid/side frequencies
