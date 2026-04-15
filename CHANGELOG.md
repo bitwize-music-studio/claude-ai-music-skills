@@ -45,6 +45,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **`reference/streaming-mastering-specs.md`** — new authoritative reference for delivery targets, the signature contract, and re-mastering behavior.
 
 ### Changed
+- **Stage extraction refactor (#290 D5)**: `master_album` is now a ~60-line orchestrator delegating to 14 standalone stage functions in `handlers/processing/_album_stages.py`. Zero behavior change; enables ADM validation (step 9) to land cleanly.
 - **Default mastered output format** — `master_album` / `master_audio` / `polish_and_master_album` now produce **24-bit WAV at 96 kHz** by default (was 16-bit at source rate, typically 44.1 kHz). Existing user configs without a `mastering:` block pick up the new defaults on the next run. To preserve the legacy 16/44.1 output, set `mastering.delivery_bit_depth: 16` and `mastering.delivery_sample_rate: 44100` in `~/.bitwize-music/config.yaml`. Users with custom `{overrides}/mastering-presets.yaml` per-genre values continue to honor those overrides. Disk usage increases ~3x per track at the new defaults (~33 MB vs. ~10 MB for a 3-minute stereo track).
 
 ### Fixed
