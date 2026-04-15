@@ -296,6 +296,7 @@ genres:
     cut_highmid: -1.0
     cut_highs: 0
   trap:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
@@ -592,6 +593,7 @@ genres:
 
   # === Punk ===
   punk:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: 0
@@ -666,6 +668,7 @@ genres:
 
   # === Metal ===
   metal:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
@@ -754,6 +757,7 @@ genres:
     click_peak_ratio: 8.0
     click_fail_count: 15
   industrial:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
@@ -804,6 +808,7 @@ genres:
     click_peak_ratio: 8.0
     click_fail_count: 15
   edm:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
@@ -844,6 +849,7 @@ genres:
     cut_highmid: -1.0
     cut_highs: 0
   drum-and-bass:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
@@ -860,6 +866,7 @@ genres:
     cut_highmid: -1.0
     cut_highs: 0
   dubstep:
+    opus_safe: true
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
@@ -888,6 +895,7 @@ genres:
     cut_highmid: -1.0
     cut_highs: 0
   hardstyle:
+    opus_safe: true
     target_lufs: -12.0
     cut_highmid: -2.0
     cut_highs: 0

@@ -115,11 +115,14 @@ def resolve_mastering_targets(
     else:
         target_lufs = float(config.get("target_lufs", -14.0))
 
-    # True peak ceiling
+    # True peak ceiling — precedence: explicit arg > preset true_peak_ceiling
+    # > opus_safe flag (-1.5 headroom for dense-transient genres) > config default
     if ceiling_db_arg != -1.0:
         ceiling_db = float(ceiling_db_arg)
     elif preset is not None and preset.get("true_peak_ceiling") is not None:
         ceiling_db = float(preset["true_peak_ceiling"])
+    elif preset is not None and preset.get("opus_safe"):
+        ceiling_db = -1.5
     else:
         ceiling_db = float(config.get("true_peak_ceiling", -1.0))
 

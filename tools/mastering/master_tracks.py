@@ -141,6 +141,10 @@ _PRESET_DEFAULTS: dict[str, float] = {
     'coherence_lra_floor_lu': 1.0,
     'coherence_low_rms_db': 2.0,
     'coherence_vocal_rms_db': 2.0,
+    # True-peak headroom flag: 1.0 = use -1.5 dBTP ceiling (dense-transient
+    # genres), 0.0 = use config/arg default.  Consumed by config.py
+    # resolve_mastering_targets() via the opus_safe branch.
+    'opus_safe': 0.0,
 }
 
 

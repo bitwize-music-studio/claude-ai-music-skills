@@ -220,3 +220,54 @@ class TestResolveMasteringTargets:
             ceiling_db_arg=-1.0,
         )
         assert targets["archival_enabled"] is True
+
+
+def test_opus_safe_preset_applies_1_5_ceiling() -> None:
+    """opus_safe: true tightens ceiling from -1.0 to -1.5 when caller uses default."""
+    from tools.mastering.config import resolve_mastering_targets
+    config = {"true_peak_ceiling": -1.0, "delivery_bit_depth": 24,
+              "delivery_sample_rate": 96000, "target_lufs": -14.0,
+              "archival_enabled": False, "adm_aac_encoder": "aac"}
+    preset = {"opus_safe": True}
+    result = resolve_mastering_targets(
+        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+    )
+    assert result["ceiling_db"] == -1.5
+
+
+def test_opus_safe_does_not_override_explicit_ceiling() -> None:
+    """Explicit ceiling_db_arg always wins over opus_safe."""
+    from tools.mastering.config import resolve_mastering_targets
+    config = {"true_peak_ceiling": -1.0, "delivery_bit_depth": 24,
+              "delivery_sample_rate": 96000, "target_lufs": -14.0,
+              "archival_enabled": False, "adm_aac_encoder": "aac"}
+    preset = {"opus_safe": True}
+    result = resolve_mastering_targets(
+        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-2.0
+    )
+    assert result["ceiling_db"] == -2.0
+
+
+def test_opus_safe_does_not_override_preset_true_peak_ceiling() -> None:
+    """explicit true_peak_ceiling in preset wins over opus_safe."""
+    from tools.mastering.config import resolve_mastering_targets
+    config = {"true_peak_ceiling": -1.0, "delivery_bit_depth": 24,
+              "delivery_sample_rate": 96000, "target_lufs": -14.0,
+              "archival_enabled": False, "adm_aac_encoder": "aac"}
+    preset = {"opus_safe": True, "true_peak_ceiling": -1.2}
+    result = resolve_mastering_targets(
+        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+    )
+    assert result["ceiling_db"] == -1.2
+
+
+def test_build_effective_preset_edm_gets_opus_safe_ceiling() -> None:
+    """EDM genre preset (opus_safe: true) resolves to -1.5 dBTP ceiling."""
+    from tools.mastering.config import build_effective_preset
+    bundle = build_effective_preset(
+        genre="edm",
+        cut_highmid_arg=0.0, cut_highs_arg=0.0,
+        target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+    )
+    assert bundle["error"] is None
+    assert bundle["targets"]["ceiling_db"] == -1.5
