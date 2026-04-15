@@ -617,6 +617,17 @@ async def master_album(
         _album_stages._stage_signature_persist,
     ]:
         if result := await stage_fn(ctx):
+            # A4: surface runtime notices on early-exit paths (#290).
+            # _build_notices needs ctx.targets to be populated; safe to call
+            # even on pre_flight failures (returns no notices when targets empty).
+            _album_stages._build_notices(ctx)
+            try:
+                import json as _json
+                _d = _json.loads(result)
+                _d.setdefault("notices", ctx.notices)
+                result = _json.dumps(_d)
+            except Exception:
+                pass
             return result
 
     _album_stages._build_notices(ctx)
