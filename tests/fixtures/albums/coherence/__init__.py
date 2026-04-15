@@ -55,12 +55,12 @@ def write_coherent_album(
     directory.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     for i, (data, rate) in enumerate(make_coherent_tracks(n_coherent), 1):
-        p = directory / f"0{i}-coherent.wav"
+        p = directory / f"{i:02d}-coherent.wav"
         sf.write(str(p), data, rate, subtype="PCM_24")
         paths.append(p)
     if include_outlier:
         data, rate = make_outlier_track()
-        p = directory / f"0{n_coherent + 1}-outlier.wav"
+        p = directory / f"{n_coherent + 1:02d}-outlier.wav"
         sf.write(str(p), data, rate, subtype="PCM_24")
         paths.append(p)
     return paths
