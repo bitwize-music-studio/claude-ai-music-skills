@@ -62,8 +62,12 @@ def _ffmpeg_encode_decode(
         return data, int(rate)
 
 
-def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int]:
-    """Encode WAV→AAC via afconvert (macOS), decode via ffmpeg, return samples."""
+def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
+    """Encode WAV→AAC via afconvert (macOS), decode via ffmpeg, return (samples, rate, encoder_name).
+
+    Returns ``"afconvert"`` as the encoder name when afconvert succeeds, or
+    ``"aac"`` when it falls back to ffmpeg.
+    """
     try:
         subprocess.run(
             ["afconvert", "--help"],
@@ -71,7 +75,8 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int]:
         )
     except (FileNotFoundError, subprocess.CalledProcessError):
         # afconvert not available — fall back to ffmpeg
-        return _ffmpeg_encode_decode(input_path, encoder="aac")
+        data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
+        return data, rate, "aac"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         aac_path = Path(tmpdir) / "encoded.m4a"
@@ -88,7 +93,8 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int]:
         enc = subprocess.run(enc_cmd, capture_output=True, text=True)
         if enc.returncode != 0:
             # afconvert failed — fall back to ffmpeg
-            return _ffmpeg_encode_decode(input_path, encoder="aac")
+            data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
+            return data, rate, "aac"
 
         dec_cmd = [
             "ffmpeg", "-y", "-i", str(aac_path),
@@ -101,7 +107,7 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int]:
             )
 
         data, rate = sf.read(str(decoded_path), dtype="float32")
-        return data, int(rate)
+        return data, int(rate), "afconvert"
 
 
 def check_aac_intersample_clips(
@@ -132,7 +138,7 @@ def check_aac_intersample_clips(
 
     encoder_used = encoder
     if encoder == "afconvert":
-        data, _rate = _afconvert_encode_decode(input_path)
+        data, _rate, encoder_used = _afconvert_encode_decode(input_path)
     elif encoder in ("aac", "libfdk_aac"):
         data, _rate = _ffmpeg_encode_decode(
             input_path, encoder=encoder, bitrate_kbps=bitrate_kbps
