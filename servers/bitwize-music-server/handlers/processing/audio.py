@@ -607,6 +607,7 @@ async def master_album(
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
         _ceiling_guard,
+        _album_stages._stage_adm_validation,   # ← new
         _album_stages._stage_mastering_samples,
         _album_stages._stage_post_qc,
         _album_stages._stage_archival,
