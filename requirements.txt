@@ -21,6 +21,7 @@ pyloudnorm==0.2.0
 scipy==1.17.1
 numpy==2.4.4
 soundfile==0.13.1
+mutagen==1.47.0
 
 # =============================================================================
 # AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
