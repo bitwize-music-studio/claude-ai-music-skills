@@ -1599,7 +1599,7 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
     for wav in ctx.mastered_files:
         try:
             def _make_check(p: Path, enc: str = encoder, ceil: float = ceiling_db) -> dict[str, Any]:
-                return _adm_check_fn(p, encoder=enc, ceiling_db=ceil)
+                return _adm_check_fn(p, encoder=enc, ceiling_db=ceil, bitrate_kbps=256)
             r = await ctx.loop.run_in_executor(None, _make_check, wav)
             results.append(r)
         except ADMValidationError as exc:
@@ -1623,11 +1623,12 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
     # Encoder errors → warn but never halt (ffmpeg may not be installed)
     if encoder_errors:
         for e in encoder_errors:
-            ctx.warnings.append(f"ADM validation skipped: {e}")
+            ctx.notices.append(f"ADM validation skipped: {e}")
         ctx.stages["adm_validation"] = {
             "status": "warn",
-            "reason": "encoder errors — see warnings",
+            "reason": "encoder errors — see notices",
             "errors": encoder_errors,
+            "clips_found": False,
         }
         return None
 
@@ -1635,6 +1636,7 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
     if clips_found:
         ctx.stages["adm_validation"] = {
             "status": "fail",
+            "clips_found": True,
             "tracks_checked": len(results),
             "tracks_with_clips": len(clips_found),
             "encoder_used": encoder_used,
@@ -1665,6 +1667,7 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
 
     ctx.stages["adm_validation"] = {
         "status": "pass",
+        "clips_found": False,
         "tracks_checked": len(results),
         "encoder_used": encoder_used,
         "ceiling_db": ceiling_db,

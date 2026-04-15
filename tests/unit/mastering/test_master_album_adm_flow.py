@@ -138,5 +138,5 @@ def test_adm_validation_encoder_error_warns_not_halts(
     result, ctx = asyncio.run(_run())
 
     assert result is None  # not halted
-    assert any("ADM" in w for w in ctx.warnings)
+    assert any("ADM" in n for n in ctx.notices)
     assert ctx.stages["adm_validation"]["status"] == "warn"
