@@ -18,7 +18,10 @@ stages import directly from tools.* and handlers.* as needed.
 from __future__ import annotations
 
 import asyncio
+import functools
+import json
 import logging
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -153,3 +156,149 @@ def _build_notices(ctx: MasterAlbumCtx) -> None:
 # ---------------------------------------------------------------------------
 # Stage functions (populated in subsequent tasks)
 # ---------------------------------------------------------------------------
+
+
+async def _stage_pre_flight(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 1: Resolve audio dir, find WAV files, build effective preset.
+
+    Reads ctx: album_slug, genre, target_lufs, ceiling_db, cut_highmid,
+               cut_highs, source_subfolder
+    Sets ctx:  audio_dir, source_dir, wav_files, targets, settings,
+               effective_preset, preset_dict, effective_lufs,
+               effective_ceiling, effective_highmid, effective_highs,
+               effective_compress
+    Returns: None on success, failure JSON on halt.
+    """
+    dep_err = _helpers._check_mastering_deps()
+    if dep_err:
+        ctx.stages["pre_flight"] = {"status": "fail", "detail": dep_err}
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "pre_flight",
+            "stages": ctx.stages,
+            "failed_stage": "pre_flight",
+            "failure_detail": {"reason": dep_err},
+        })
+
+    err, audio_dir = _helpers._resolve_audio_dir(ctx.album_slug)
+    if err:
+        ctx.stages["pre_flight"] = {
+            "status": "fail",
+            "detail": "Audio directory not found",
+        }
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "pre_flight",
+            "stages": ctx.stages,
+            "failed_stage": "pre_flight",
+            "failure_detail": json.loads(err),
+        })
+    assert audio_dir is not None
+
+    if ctx.source_subfolder:
+        if not _is_path_confined(audio_dir, ctx.source_subfolder):
+            ctx.stages["pre_flight"] = {
+                "status": "fail",
+                "detail": "Invalid source_subfolder: path must not escape the album directory",
+            }
+            return _safe_json({
+                "album_slug": ctx.album_slug,
+                "stage_reached": "pre_flight",
+                "stages": ctx.stages,
+                "failed_stage": "pre_flight",
+                "failure_detail": {
+                    "reason": "Invalid source_subfolder: path escapes album directory",
+                    "source_subfolder": ctx.source_subfolder,
+                },
+            })
+        source_dir = audio_dir / ctx.source_subfolder
+        if not source_dir.is_dir():
+            ctx.stages["pre_flight"] = {
+                "status": "fail",
+                "detail": f"Source subfolder not found: {source_dir}",
+            }
+            return _safe_json({
+                "album_slug": ctx.album_slug,
+                "stage_reached": "pre_flight",
+                "stages": ctx.stages,
+                "failed_stage": "pre_flight",
+                "failure_detail": {
+                    "reason": f"Source subfolder not found: {source_dir}",
+                    "suggestion": (
+                        f"Run polish_audio first to create "
+                        f"{ctx.source_subfolder}/ output."
+                    ),
+                },
+            })
+    else:
+        source_dir = _find_wav_source_dir(audio_dir)
+
+    wav_files = sorted([
+        f for f in source_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+
+    if not wav_files:
+        ctx.stages["pre_flight"] = {
+            "status": "fail",
+            "detail": f"No WAV files found in {source_dir}",
+        }
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "pre_flight",
+            "stages": ctx.stages,
+            "failed_stage": "pre_flight",
+            "failure_detail": {"reason": f"No WAV files in {source_dir}"},
+        })
+
+    ctx.stages["pre_flight"] = {
+        "status": "pass",
+        "track_count": len(wav_files),
+        "audio_dir": str(audio_dir),
+        "source_dir": str(source_dir),
+    }
+    ctx.audio_dir = audio_dir
+    ctx.source_dir = source_dir
+    ctx.wav_files = wav_files
+
+    source_sample_rate: int | None = None
+    try:
+        import soundfile as _sf
+        source_sample_rate = int(_sf.info(str(wav_files[0])).samplerate)
+    except Exception as _probe_exc:
+        logger.debug(
+            "Source sample rate probe failed for %s: %s",
+            wav_files[0], _probe_exc,
+        )
+
+    bundle = build_effective_preset(
+        genre=ctx.genre,
+        cut_highmid_arg=ctx.cut_highmid,
+        cut_highs_arg=ctx.cut_highs,
+        target_lufs_arg=ctx.target_lufs,
+        ceiling_db_arg=ctx.ceiling_db,
+        source_sample_rate=source_sample_rate,
+    )
+    if bundle["error"] is not None:
+        ctx.stages["pre_flight"] = {
+            "status": "fail",
+            "detail": "Failed to build effective preset",
+        }
+        return _safe_json({
+            "album_slug": ctx.album_slug,
+            "stage_reached": "pre_flight",
+            "stages": ctx.stages,
+            "failed_stage": "pre_flight",
+            "failure_detail": bundle["error"],
+        })
+
+    ctx.targets = bundle["targets"]
+    ctx.settings = bundle["settings"]
+    ctx.effective_preset = bundle["effective_preset"]
+    ctx.preset_dict = bundle["preset_dict"]
+    ctx.effective_lufs = ctx.targets["target_lufs"]
+    ctx.effective_ceiling = ctx.targets["ceiling_db"]
+    ctx.effective_highmid = ctx.settings["cut_highmid"]
+    ctx.effective_highs = ctx.settings["cut_highs"]
+    ctx.effective_compress = ctx.effective_preset["compress_ratio"]
+    return None

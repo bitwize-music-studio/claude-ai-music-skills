@@ -26,6 +26,7 @@ from handlers._shared import (
 )
 from handlers._atomic import atomic_write_text
 from handlers.processing import _helpers
+from handlers.processing import _album_stages
 from tools.mastering.album_signature import build_signature
 from tools.mastering.ceiling_guard import (
     CeilingGuardError,
@@ -621,9 +622,6 @@ async def master_album(
     from tools.state.indexer import write_state
     from tools.state.parsers import parse_track_file
 
-    stages: dict[str, Any] = {}
-    warnings: list[Any] = []
-
     if freeze_signature and new_anchor:
         return _safe_json({
             "album_slug": album_slug,
@@ -638,133 +636,36 @@ async def master_album(
             },
         })
 
-    # --- Stage 1: Pre-flight ---
-    dep_err = _helpers._check_mastering_deps()
-    if dep_err:
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "pre_flight",
-            "stages": {"pre_flight": {"status": "fail", "detail": dep_err}},
-            "failed_stage": "pre_flight",
-            "failure_detail": {"reason": dep_err},
-        })
-
-    err, audio_dir = _helpers._resolve_audio_dir(album_slug)
-    if err:
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "pre_flight",
-            "stages": {"pre_flight": {"status": "fail", "detail": "Audio directory not found"}},
-            "failed_stage": "pre_flight",
-            "failure_detail": json.loads(err),
-        })
-    assert audio_dir is not None
-
-    # If source_subfolder specified, read from that subfolder
-    if source_subfolder:
-        if not _is_path_confined(audio_dir, source_subfolder):
-            return _safe_json({
-                "album_slug": album_slug,
-                "stage_reached": "pre_flight",
-                "stages": {"pre_flight": {
-                    "status": "fail",
-                    "detail": "Invalid source_subfolder: path must not escape the album directory",
-                }},
-                "failed_stage": "pre_flight",
-                "failure_detail": {
-                    "reason": "Invalid source_subfolder: path escapes album directory",
-                    "source_subfolder": source_subfolder,
-                },
-            })
-        source_dir = audio_dir / source_subfolder
-        if not source_dir.is_dir():
-            return _safe_json({
-                "album_slug": album_slug,
-                "stage_reached": "pre_flight",
-                "stages": {"pre_flight": {
-                    "status": "fail",
-                    "detail": f"Source subfolder not found: {source_dir}",
-                }},
-                "failed_stage": "pre_flight",
-                "failure_detail": {
-                    "reason": f"Source subfolder not found: {source_dir}",
-                    "suggestion": f"Run polish_audio first to create {source_subfolder}/ output.",
-                },
-            })
-    else:
-        source_dir = _find_wav_source_dir(audio_dir)
-
-    wav_files = sorted([
-        f for f in source_dir.iterdir()
-        if f.suffix.lower() == ".wav" and "venv" not in str(f)
-    ])
-
-    if not wav_files:
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "pre_flight",
-            "stages": {"pre_flight": {
-                "status": "fail",
-                "detail": f"No WAV files found in {source_dir}",
-            }},
-            "failed_stage": "pre_flight",
-            "failure_detail": {"reason": f"No WAV files in {source_dir}"},
-        })
-
-    stages["pre_flight"] = {
-        "status": "pass",
-        "track_count": len(wav_files),
-        "audio_dir": str(audio_dir),
-        "source_dir": str(source_dir),
-    }
-
-    import numpy as np
-
-    from tools.mastering.config import build_effective_preset
-    from tools.mastering.master_tracks import (
-        master_track as _master_track,
-    )
-
-    source_sample_rate: int | None = None
-    try:
-        import soundfile as _sf
-        source_sample_rate = int(_sf.info(str(wav_files[0])).samplerate)
-    except Exception as _probe_exc:  # pragma: no cover - probe is best-effort
-        logger.debug(
-            "Source sample rate probe failed for %s: %s — "
-            "upsampling notice will be suppressed",
-            wav_files[0],
-            _probe_exc,
-        )
-        source_sample_rate = None
-
-    bundle = build_effective_preset(
-        genre=genre,
-        cut_highmid_arg=cut_highmid,
-        cut_highs_arg=cut_highs,
-        target_lufs_arg=target_lufs,
-        ceiling_db_arg=ceiling_db,
-        source_sample_rate=source_sample_rate,
-    )
-    if bundle["error"] is not None:
-        return _safe_json({
-            "album_slug": album_slug,
-            "stage_reached": "pre_flight",
-            "stages": stages,
-            "failed_stage": "pre_flight",
-            "failure_detail": bundle["error"],
-        })
-    targets = bundle["targets"]
-    settings = bundle["settings"]
-    effective_preset = bundle["effective_preset"]
-    preset_dict = bundle["preset_dict"]
-    effective_lufs = targets["target_lufs"]
-    effective_ceiling = targets["ceiling_db"]
-    effective_highmid = settings["cut_highmid"]
-    effective_highs = settings["cut_highs"]
-    effective_compress = effective_preset["compress_ratio"]
-
     loop = asyncio.get_running_loop()
+    ctx = _album_stages.MasterAlbumCtx(
+        album_slug=album_slug, genre=genre,
+        target_lufs=target_lufs, ceiling_db=ceiling_db,
+        cut_highmid=cut_highmid, cut_highs=cut_highs,
+        source_subfolder=source_subfolder,
+        freeze_signature=freeze_signature, new_anchor=new_anchor,
+        loop=loop,
+    )
+    stages = ctx.stages
+    warnings = ctx.warnings
+
+    # --- Stage 1: Pre-flight ---
+    if result := await _album_stages._stage_pre_flight(ctx):
+        return result
+    import numpy as np
+    from tools.mastering.master_tracks import master_track as _master_track
+
+    audio_dir = ctx.audio_dir
+    source_dir = ctx.source_dir
+    wav_files = ctx.wav_files
+    targets = ctx.targets
+    settings = ctx.settings
+    effective_preset = ctx.effective_preset
+    preset_dict = ctx.preset_dict
+    effective_lufs = ctx.effective_lufs
+    effective_ceiling = ctx.effective_ceiling
+    effective_highmid = ctx.effective_highmid
+    effective_highs = ctx.effective_highs
+    effective_compress = ctx.effective_compress
 
     # --- Stage 2: Analysis ---
     from tools.mastering.analyze_tracks import analyze_track
