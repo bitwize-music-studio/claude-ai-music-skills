@@ -116,12 +116,14 @@ async def polish_audio(
 
             out_path = str(output_dir / f"{track_dir.name}.wav")
 
-            def _do_stems(sp: dict[str, str | list[str]], op: str, g: str | None, dr: bool) -> dict[str, Any]:
-                return mix_track_stems(sp, op, genre=g, dry_run=dr)
+            _stem_output_dir = (output_dir / track_dir.name) if not dry_run else None
+
+            def _do_stems(sp: dict[str, str | list[str]], op: str, g: str | None, dr: bool, sd: Path | None) -> dict[str, Any]:
+                return mix_track_stems(sp, op, genre=g, dry_run=dr, stem_output_dir=sd)
 
             result = await loop.run_in_executor(
                 None, _do_stems, stem_paths, out_path,
-                genre or None, dry_run,
+                genre or None, dry_run, _stem_output_dir,
             )
 
             if result:

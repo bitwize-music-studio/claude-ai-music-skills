@@ -1709,7 +1709,8 @@ STEM_PROCESSORS: dict[str, Callable[..., Any]] = {
 
 
 def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | str,
-                    genre: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+                    genre: str | None = None, dry_run: bool = False,
+                    stem_output_dir: Path | None = None) -> dict[str, Any]:
     """Full stems pipeline: load stems, process each, remix, write output.
 
     Args:
@@ -1815,6 +1816,15 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         post_rms = float(np.sqrt(np.mean(data ** 2)))
 
         processed_stems[stem_name] = (data, rate)
+
+        # Write per-stem polished WAV when stem_output_dir is set and not dry_run.
+        # Used by mastering pipeline to resolve polished/<track>/vocals.wav for
+        # stem-first vocal-RMS measurement (analyze_tracks._auto_resolve_vocal_stem).
+        if stem_output_dir is not None and not dry_run:
+            stem_out_path = Path(stem_output_dir) / f"{stem_name}.wav"
+            stem_out_path.parent.mkdir(parents=True, exist_ok=True)
+            sf.write(str(stem_out_path), data, rate, subtype='PCM_16')
+
         result['stems_processed'].append({
             'stem': stem_name,
             'pre_peak': pre_peak,
