@@ -17,6 +17,7 @@ SERVER_DIR = PROJECT_ROOT / "servers" / "bitwize-music-server"
 if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
+from handlers.processing import _album_stages as album_stages_mod  # noqa: E402
 from handlers.processing import _helpers as processing_helpers  # noqa: E402
 from handlers.processing import audio as audio_mod  # noqa: E402
 from tools.mastering.signature_persistence import (  # noqa: E402
@@ -125,7 +126,7 @@ def test_master_album_signature_write_failure_is_nonfatal(tmp_path: Path, monkey
         raise SignaturePersistenceError("simulated failure")
 
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
-         patch.object(audio_mod, "write_signature_file", _raising_write):
+         patch.object(album_stages_mod, "write_signature_file", _raising_write):
         result_json = asyncio.run(audio_mod.master_album(album_slug="warn-album"))
 
     result = json.loads(result_json)
