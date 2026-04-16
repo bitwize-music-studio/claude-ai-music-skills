@@ -42,7 +42,10 @@ def _ffmpeg_encode_decode(
             "-c:a", encoder, "-b:a", f"{bitrate_kbps}k",
             str(aac_path),
         ]
-        enc = subprocess.run(enc_cmd, capture_output=True, text=True)
+        try:
+            enc = subprocess.run(enc_cmd, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise ADMValidationError(f"ffmpeg not found: {exc}") from exc
         if enc.returncode != 0:
             raise ADMValidationError(
                 f"ffmpeg encode failed for {input_path.name}: {enc.stderr[-500:]}"
@@ -52,7 +55,10 @@ def _ffmpeg_encode_decode(
             "ffmpeg", "-y", "-i", str(aac_path),
             "-c:a", "pcm_f32le", str(decoded_path),
         ]
-        dec = subprocess.run(dec_cmd, capture_output=True, text=True)
+        try:
+            dec = subprocess.run(dec_cmd, capture_output=True, text=True)
+        except FileNotFoundError as exc:
+            raise ADMValidationError(f"ffmpeg not found: {exc}") from exc
         if dec.returncode != 0:
             raise ADMValidationError(
                 f"ffmpeg decode failed for {input_path.name}: {dec.stderr[-500:]}"

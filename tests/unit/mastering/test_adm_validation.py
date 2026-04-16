@@ -10,9 +10,17 @@ import numpy as np
 import pytest
 import soundfile as sf
 
+import shutil
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+_ffmpeg_available = shutil.which("ffmpeg") is not None
+requires_ffmpeg = pytest.mark.skipif(
+    not _ffmpeg_available,
+    reason="ffmpeg not installed",
+)
 
 
 def _write_sine(path: Path, *, amplitude: float = 0.3,
@@ -26,6 +34,7 @@ def _write_sine(path: Path, *, amplitude: float = 0.3,
     return path
 
 
+@requires_ffmpeg
 def test_check_aac_intersample_clips_clean_pass(tmp_path: Path) -> None:
     """Quiet sine (-12 dBTP) survives AAC encoding without clipping."""
     pytest.importorskip("subprocess")
@@ -39,6 +48,7 @@ def test_check_aac_intersample_clips_clean_pass(tmp_path: Path) -> None:
     assert "peak_db_decoded" in result
 
 
+@requires_ffmpeg
 def test_check_aac_intersample_clips_result_keys(tmp_path: Path) -> None:
     """Result dict has all required keys."""
     from tools.mastering.adm_validation import check_aac_intersample_clips
@@ -58,6 +68,7 @@ def test_check_aac_intersample_clips_missing_file_raises(tmp_path: Path) -> None
         check_aac_intersample_clips(tmp_path / "missing.wav", ceiling_db=-1.0)
 
 
+@requires_ffmpeg
 def test_check_aac_intersample_clips_encoder_recorded(tmp_path: Path) -> None:
     """encoder_used reflects the encoder argument."""
     from tools.mastering.adm_validation import check_aac_intersample_clips
@@ -83,6 +94,7 @@ def test_render_adm_validation_markdown_all_pass() -> None:
     assert "01.wav" in md
 
 
+@requires_ffmpeg
 def test_check_aac_intersample_clips_silent_audio(tmp_path: Path) -> None:
     """Silent audio (all zeros) produces peak_db_decoded of -inf, no clips."""
     import soundfile as sf
