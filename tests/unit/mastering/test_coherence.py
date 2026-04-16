@@ -163,7 +163,8 @@ class TestClassifyOutliers:
         ]
         assert len(lr_violations) == 1
         assert lr_violations[0]["severity"] == "outlier"
-        assert lr_violations[0]["correctable"] is False
+        # low_rms outliers are correctable via tilt-EQ (#290 step 6).
+        assert lr_violations[0]["correctable"] is True
 
     def test_vocal_rms_outlier_flagged(self):
         deltas = [
@@ -277,7 +278,10 @@ class TestBuildCorrectionPlan:
         assert entry["corrected_target_lufs"] == pytest.approx(-14.1)
         assert "LUFS outlier" in entry["reason"]
 
-    def test_non_lufs_only_outlier_is_not_correctable(self):
+    def test_stl_95_only_outlier_is_not_correctable(self):
+        """STL-95 / LRA outliers still aren't correctable — only LUFS and
+        spectral (low_rms/vocal_rms) violations route to the correctable
+        path after the #290 step-6 tilt-EQ extension."""
         classifications = [
             {"index": 1, "filename": "01.wav", "is_anchor": False,
              "is_outlier": True, "violations": [
@@ -297,4 +301,4 @@ class TestBuildCorrectionPlan:
 
         uncorrectable = [c for c in plan["corrections"] if not c["correctable"]]
         assert len(uncorrectable) == 1
-        assert "MVP scope" in uncorrectable[0]["reason"]
+        assert "stl_95" in uncorrectable[0]["reason"]

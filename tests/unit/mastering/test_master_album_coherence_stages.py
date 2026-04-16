@@ -327,3 +327,184 @@ def test_coherence_correct_clamps_when_target_below_window(
     assert applied == pytest.approx(expected_clamped, abs=1e-6), (
         f"Expected clamped target {expected_clamped}, got {applied}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 5: spectral-only outlier triggers tilt-EQ correction (#290 step 6)
+# ---------------------------------------------------------------------------
+
+def test_coherence_correct_applies_tilt_for_low_rms_outlier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A low_rms-only outlier (LUFS clean) triggers a tilt-EQ correction.
+
+    The re-master should run with tilt_db clamped to ±0.5 dB and
+    target_lufs falling back to anchor_lufs (no gain move).
+    """
+    anchor_lufs = -14.0
+
+    source_dir = tmp_path / "polished"
+    source_dir.mkdir()
+    output_dir = tmp_path / "mastered"
+    output_dir.mkdir()
+    _write_sine_wav(source_dir / "02-bassy.wav", amplitude=0.2)
+    import shutil
+    shutil.copy(source_dir / "02-bassy.wav", output_dir / "02-bassy.wav")
+    _write_sine_wav(output_dir / "01-anchor.wav")
+
+    captured_calls: list[dict] = []
+
+    def _fake_master_track(src: str, dst: str, **kwargs) -> dict:
+        captured_calls.append({"src": src, "dst": dst, **kwargs})
+        shutil.copy(src, dst)
+        return {"status": "ok"}
+
+    import tools.mastering.master_tracks as _mt_mod
+    monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
+
+    # Plan: spectral-only outlier — no corrected_target_lufs, tilt_db=+0.5
+    def _fake_plan(classifications, analysis_results, anchor_index_1based):
+        return {
+            "anchor_index": anchor_index_1based,
+            "anchor_lufs": anchor_lufs,
+            "corrections": [
+                {
+                    "index": 2,
+                    "filename": "02-bassy.wav",
+                    "correctable": True,
+                    "corrected_tilt_db": 0.5,
+                    "reason": "Spectral outlier (low_rms) → tilt_db=+0.50",
+                }
+            ],
+            "skipped": [{"index": 1, "filename": "01-anchor.wav", "reason": "is_anchor"}],
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_coherence_build_plan", _fake_plan)
+    monkeypatch.setattr(album_stages_mod, "_COHERENCE_MAX_ITERATIONS", 1)
+
+    # Fabricate classifications marking track 2 as a low_rms outlier only
+    # (not a LUFS outlier). Real classify_outliers would do the same given
+    # a large delta_low_rms.
+    classifications = [
+        {
+            "index": 1,
+            "filename": "01-anchor.wav",
+            "is_anchor": True,
+            "is_outlier": False,
+            "violations": [],
+        },
+        {
+            "index": 2,
+            "filename": "02-bassy.wav",
+            "is_anchor": False,
+            "is_outlier": True,
+            "violations": [
+                {"metric": "lufs", "delta": 0.1, "tolerance": 0.5,
+                 "severity": "ok", "correctable": False},
+                {"metric": "low_rms", "delta": 3.0, "tolerance": 2.0,
+                 "severity": "outlier", "correctable": True},
+            ],
+        },
+    ]
+
+    verify_results = [
+        _make_verify_result("01-anchor.wav", lufs=anchor_lufs, low_rms=-20.0),
+        _make_verify_result("02-bassy.wav", lufs=-14.0, low_rms=-17.0),
+    ]
+
+    async def _run():
+        ctx = MasterAlbumCtx(
+            album_slug="test-album", genre="", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.anchor_result = {"selected_index": 1}
+        ctx.verify_results = verify_results
+        ctx.coherence_classifications = classifications
+        ctx.source_dir = source_dir
+        ctx.output_dir = output_dir
+        ctx.mastered_files = [
+            output_dir / "01-anchor.wav",
+            output_dir / "02-bassy.wav",
+        ]
+        ctx.effective_ceiling = -1.0
+        ctx.effective_compress = 1.0
+        ctx.effective_preset = {}
+        ctx.preset_dict = None
+        result = await _stage_coherence_correct(ctx)
+        return result, ctx
+
+    result, ctx = asyncio.run(_run())
+    assert result is None
+    assert len(captured_calls) == 1
+    call = captured_calls[0]
+    assert call["tilt_db"] == pytest.approx(0.5, abs=1e-6)
+    # Spectral-only correction: target falls back to anchor LUFS, no gain move.
+    assert call["target_lufs"] == pytest.approx(anchor_lufs, abs=1e-6)
+    corrections = ctx.stages["coherence_correct"]["corrections"]
+    assert corrections[0]["applied_tilt_db"] == pytest.approx(0.5, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Test 6: build_correction_plan emits tilt for low_rms-only outliers
+# ---------------------------------------------------------------------------
+
+def test_build_correction_plan_emits_tilt_for_spectral_outlier() -> None:
+    """A low_rms outlier produces a correction with corrected_tilt_db set."""
+    from tools.mastering.coherence import build_correction_plan
+
+    classifications = [
+        {
+            "index": 1, "filename": "01.wav",
+            "is_anchor": True, "is_outlier": False, "violations": [],
+        },
+        {
+            "index": 2, "filename": "02.wav",
+            "is_anchor": False, "is_outlier": True,
+            "violations": [
+                {"metric": "lufs", "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok", "correctable": False},
+                {"metric": "low_rms", "delta": 1.0, "tolerance": 2.0,
+                 "severity": "outlier", "correctable": True},
+            ],
+        },
+    ]
+    analysis = [{"lufs": -14.0}, {"lufs": -14.1}]
+    plan = build_correction_plan(classifications, analysis, anchor_index_1based=1)
+
+    assert len(plan["corrections"]) == 1
+    c = plan["corrections"][0]
+    assert c["correctable"] is True
+    assert c["corrected_tilt_db"] == pytest.approx(0.5, abs=1e-6)  # clamped
+    assert "corrected_target_lufs" not in c
+
+
+def test_build_correction_plan_vocal_rms_inverts_sign() -> None:
+    """A vocal_rms outlier inverts the tilt sign (pivot below vocal band)."""
+    from tools.mastering.coherence import build_correction_plan
+
+    classifications = [
+        {
+            "index": 1, "filename": "01.wav",
+            "is_anchor": True, "is_outlier": False, "violations": [],
+        },
+        {
+            "index": 2, "filename": "02.wav",
+            "is_anchor": False, "is_outlier": True,
+            "violations": [
+                {"metric": "lufs", "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok", "correctable": False},
+                {"metric": "low_rms", "delta": 0.1, "tolerance": 2.0,
+                 "severity": "ok", "correctable": False},
+                {"metric": "vocal_rms", "delta": 0.3, "tolerance": 1.5,
+                 "severity": "outlier", "correctable": True},
+            ],
+        },
+    ]
+    analysis = [{"lufs": -14.0}, {"lufs": -14.1}]
+    plan = build_correction_plan(classifications, analysis, anchor_index_1based=1)
+
+    c = plan["corrections"][0]
+    # vocal delta +0.3 → tilt = -0.3 (cut highs since vocals are above pivot)
+    assert c["corrected_tilt_db"] == pytest.approx(-0.3, abs=1e-6)

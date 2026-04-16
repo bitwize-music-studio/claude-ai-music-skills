@@ -7,11 +7,13 @@ Pure-Python module — no I/O, no MCP coupling. Consumed by the
 Depends only on phase 3a's ``album_signature.AGGREGATE_KEYS`` /
 ``compute_anchor_deltas`` output shape and the phase 1b analyzer fields.
 
-Scope limit (MVP): ``build_correction_plan`` marks only LUFS outliers
-as correctable. STL-95 / LRA / RMS violations are reported by
-``classify_outliers`` but deferred for correction to a later phase —
-fixing those requires per-track compression/EQ adjustment that this
-phase intentionally doesn't ship.
+Correction coverage:
+ - LUFS deltas                → bounded gain re-master (±1.5 dB)
+ - low-RMS / vocal-RMS deltas → bounded tilt-EQ (±0.5 dB) applied
+   during the re-master (per #290 step 6 "≤1.5 dB gain, ≤0.5 dB tilt-EQ")
+ - STL-95 / LRA violations    → surfaced by ``classify_outliers`` but
+   not directly correctable (needs per-track compression changes that
+   this phase intentionally does not ship)
 """
 
 from __future__ import annotations
@@ -110,19 +112,19 @@ def classify_outliers(
             value=track.get("short_term_range"),
             floor=tolerances["coherence_lra_floor_lu"],
         ))
-        # low-RMS — not correctable
+        # low-RMS — correctable via tilt-EQ (spec step 6, ±0.5 dB)
         row["violations"].append(_delta_check(
             metric="low_rms",
             delta=delta.get("delta_low_rms"),
             tolerance=tolerances["coherence_low_rms_db"],
-            correctable=False,
+            correctable=True,
         ))
-        # vocal-RMS — not correctable
+        # vocal-RMS — correctable via tilt-EQ fallback when low-RMS is clean
         row["violations"].append(_delta_check(
             metric="vocal_rms",
             delta=delta.get("delta_vocal_rms"),
             tolerance=tolerances["coherence_vocal_rms_db"],
-            correctable=False,
+            correctable=True,
         ))
 
         row["is_outlier"] = any(
@@ -171,12 +173,50 @@ def _floor_check(*, metric: str, value: float | None, floor: float) -> dict[str,
     }
 
 
+# Spec #290 step 6: tilt-EQ correction bounded to ±0.5 dB.
+TILT_CORRECTION_MAX_DB: float = 0.5
+
+
+def _compute_tilt_db(violations: list[dict[str, Any]]) -> float:
+    """Derive a bounded tilt-EQ correction from spectral violations.
+
+    Tilt sign convention (matches ``master_tracks.apply_tilt_eq``):
+      - positive tilt → cut lows, boost highs (brighter)
+      - negative tilt → boost lows, cut highs (warmer)
+
+    ``delta_low_rms`` is the primary signal (#290 calls low-end RMS the
+    #1 inter-track variance source). A track with too much bass has
+    ``delta_low_rms > 0`` and wants positive tilt (cut bass). Vocal-RMS
+    is used as a fallback when low-RMS is clean; since the vocal band
+    (1-4 kHz) sits above the 650 Hz pivot, its sign is inverted.
+    """
+    low = next(
+        (v for v in violations
+         if v["metric"] == "low_rms" and v["severity"] == "outlier"),
+        None,
+    )
+    if low is not None and low.get("delta") is not None:
+        raw = float(low["delta"])
+        return max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw))
+
+    vocal = next(
+        (v for v in violations
+         if v["metric"] == "vocal_rms" and v["severity"] == "outlier"),
+        None,
+    )
+    if vocal is not None and vocal.get("delta") is not None:
+        raw = -float(vocal["delta"])
+        return max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw))
+
+    return 0.0
+
+
 def build_correction_plan(
     classifications: list[dict[str, Any]],
     analysis_results: list[dict[str, Any]],
     anchor_index_1based: int,
 ) -> dict[str, Any]:
-    """Build a per-track correction plan targeting LUFS outliers.
+    """Build a per-track correction plan for LUFS + spectral outliers.
 
     Args:
         classifications: Output of ``classify_outliers``.
@@ -188,7 +228,11 @@ def build_correction_plan(
         Dict with:
           anchor_index: 1-based anchor index
           anchor_lufs:  measured LUFS of the anchor (ground truth)
-          corrections:  list of per-track correction dicts
+          corrections:  list of per-track correction dicts. Each dict
+                        has ``correctable``, ``corrected_target_lufs``
+                        (present when gain correction applies), and
+                        ``corrected_tilt_db`` (non-zero when spectral
+                        correction applies, clamped to ±0.5 dB).
           skipped:      list of {index, filename, reason} for the
                         anchor + clean tracks
     """
@@ -213,36 +257,55 @@ def build_correction_plan(
             })
             continue
 
+        violations = cls["violations"]
         lufs_violation = next(
-            (v for v in cls["violations"]
+            (v for v in violations
              if v["metric"] == "lufs" and v["severity"] == "outlier"),
             None,
         )
-        non_lufs_outliers = [
-            v for v in cls["violations"]
-            if v["metric"] != "lufs" and v["severity"] == "outlier"
+        spectral_violations = [
+            v for v in violations
+            if v["metric"] in ("low_rms", "vocal_rms")
+            and v["severity"] == "outlier"
+        ]
+        uncorrectable_outliers = [
+            v for v in violations
+            if v["metric"] in ("stl_95", "lra_floor")
+            and v["severity"] == "outlier"
         ]
 
-        if lufs_violation is not None:
-            corrections.append({
-                "index":                cls["index"],
-                "filename":             cls.get("filename"),
-                "correctable":          True,
-                "corrected_target_lufs": anchor_lufs,
-                "reason": (
+        tilt_db = _compute_tilt_db(violations) if spectral_violations else 0.0
+
+        if lufs_violation is not None or spectral_violations:
+            reason_parts: list[str] = []
+            entry: dict[str, Any] = {
+                "index":       cls["index"],
+                "filename":    cls.get("filename"),
+                "correctable": True,
+            }
+            if lufs_violation is not None:
+                entry["corrected_target_lufs"] = anchor_lufs
+                reason_parts.append(
                     f"LUFS outlier: delta={lufs_violation['delta']:+.2f}, "
                     f"tolerance=±{lufs_violation['tolerance']:.2f}"
-                ),
-            })
-        elif non_lufs_outliers:
-            metrics = ", ".join(sorted({v["metric"] for v in non_lufs_outliers}))
+                )
+            if spectral_violations:
+                entry["corrected_tilt_db"] = tilt_db
+                metrics = ", ".join(sorted({v["metric"] for v in spectral_violations}))
+                reason_parts.append(
+                    f"Spectral outlier ({metrics}) → tilt_db={tilt_db:+.2f}"
+                )
+            entry["reason"] = "; ".join(reason_parts)
+            corrections.append(entry)
+        elif uncorrectable_outliers:
+            metrics = ", ".join(sorted({v["metric"] for v in uncorrectable_outliers}))
             corrections.append({
                 "index":       cls["index"],
                 "filename":    cls.get("filename"),
                 "correctable": False,
                 "reason": (
-                    f"Only non-LUFS violations ({metrics}) — MVP scope "
-                    f"skips; revisit when compression-ratio correction lands."
+                    f"Only uncorrectable violations ({metrics}) — "
+                    f"requires per-track compression changes."
                 ),
             })
         else:

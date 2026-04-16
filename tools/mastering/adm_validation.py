@@ -21,6 +21,10 @@ from typing import Any
 import numpy as np
 import soundfile as sf
 
+# ffmpeg encode/decode of a typical ~5-minute master finishes in seconds; a
+# 120s cap catches a hung subprocess without false-alarming on slow hosts.
+_FFMPEG_TIMEOUT_SEC = 120
+
 
 class ADMValidationError(RuntimeError):
     """Raised when ADM validation cannot proceed (missing file, ffmpeg error)."""
@@ -43,9 +47,17 @@ def _ffmpeg_encode_decode(
             str(aac_path),
         ]
         try:
-            enc = subprocess.run(enc_cmd, capture_output=True, text=True)
+            enc = subprocess.run(
+                enc_cmd, capture_output=True, text=True,
+                timeout=_FFMPEG_TIMEOUT_SEC,
+            )
         except FileNotFoundError as exc:
             raise ADMValidationError(f"ffmpeg not found: {exc}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ADMValidationError(
+                f"ffmpeg encode timed out after {_FFMPEG_TIMEOUT_SEC}s "
+                f"for {input_path.name}"
+            ) from exc
         if enc.returncode != 0:
             raise ADMValidationError(
                 f"ffmpeg encode failed for {input_path.name}: {enc.stderr[-500:]}"
@@ -56,9 +68,17 @@ def _ffmpeg_encode_decode(
             "-c:a", "pcm_f32le", str(decoded_path),
         ]
         try:
-            dec = subprocess.run(dec_cmd, capture_output=True, text=True)
+            dec = subprocess.run(
+                dec_cmd, capture_output=True, text=True,
+                timeout=_FFMPEG_TIMEOUT_SEC,
+            )
         except FileNotFoundError as exc:
             raise ADMValidationError(f"ffmpeg not found: {exc}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ADMValidationError(
+                f"ffmpeg decode timed out after {_FFMPEG_TIMEOUT_SEC}s "
+                f"for {input_path.name}"
+            ) from exc
         if dec.returncode != 0:
             raise ADMValidationError(
                 f"ffmpeg decode failed for {input_path.name}: {dec.stderr[-500:]}"
@@ -78,8 +98,9 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
         subprocess.run(
             ["afconvert", "--help"],
             capture_output=True, check=True,
+            timeout=_FFMPEG_TIMEOUT_SEC,
         )
-    except (FileNotFoundError, subprocess.CalledProcessError):
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         # afconvert not available — fall back to ffmpeg
         data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
         return data, rate, "aac"
@@ -96,7 +117,15 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
             str(input_path),
             str(aac_path),
         ]
-        enc = subprocess.run(enc_cmd, capture_output=True, text=True)
+        try:
+            enc = subprocess.run(
+                enc_cmd, capture_output=True, text=True,
+                timeout=_FFMPEG_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            # afconvert hung — fall back to ffmpeg
+            data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
+            return data, rate, "aac"
         if enc.returncode != 0:
             # afconvert failed — fall back to ffmpeg
             data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
@@ -106,7 +135,16 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
             "ffmpeg", "-y", "-i", str(aac_path),
             "-c:a", "pcm_f32le", str(decoded_path),
         ]
-        dec = subprocess.run(dec_cmd, capture_output=True, text=True)
+        try:
+            dec = subprocess.run(
+                dec_cmd, capture_output=True, text=True,
+                timeout=_FFMPEG_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ADMValidationError(
+                f"ffmpeg decode after afconvert timed out after "
+                f"{_FFMPEG_TIMEOUT_SEC}s"
+            ) from exc
         if dec.returncode != 0:
             raise ADMValidationError(
                 f"ffmpeg decode after afconvert failed: {dec.stderr[-500:]}"

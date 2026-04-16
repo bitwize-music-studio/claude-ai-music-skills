@@ -96,19 +96,19 @@ def test_render_adm_validation_markdown_all_pass() -> None:
 
 @requires_ffmpeg
 def test_check_aac_intersample_clips_silent_audio(tmp_path: Path) -> None:
-    """Silent audio (all zeros) produces peak_db_decoded of -inf, no clips."""
+    """Silent audio (all zeros) clamps peak_db_decoded to -120 dBTP, no clips."""
     import soundfile as sf
     from tools.mastering.adm_validation import check_aac_intersample_clips
-    import math
 
     silent_wav = tmp_path / "silent.wav"
     sf.write(str(silent_wav), np.zeros((44100, 2), dtype=np.float32), 44100, subtype="PCM_16")
     result = check_aac_intersample_clips(silent_wav, ceiling_db=-1.0)
     assert result["clips_found"] is False
     assert result["clip_count"] == 0
-    # Silent audio: peak_db should be -inf (or a very large negative after AAC decode introduces noise)
-    # AAC encoding of silence may introduce tiny noise floor - just check no clips
+    # Silent input clamps to -120 dBTP (JSON spec forbids Infinity); AAC decode
+    # of silence may introduce a tiny noise floor just above that clamp.
     assert isinstance(result["peak_db_decoded"], float)
+    assert result["peak_db_decoded"] >= -120.0
 
 
 def test_render_adm_validation_markdown_clip_fail() -> None:

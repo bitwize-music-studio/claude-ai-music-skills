@@ -334,6 +334,37 @@ def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float,
         return result
 
 
+def apply_tilt_eq(data: Any, rate: int, tilt_db: float,
+                  pivot_hz: float = 650.0) -> Any:
+    """Apply a tilt EQ: low-shelf cut + high-shelf boost around *pivot_hz*.
+
+    Used by #290 coherence correction (step 6) for bounded spectral nudges
+    when an outlier's low-band or vocal-band RMS drifts from the album
+    anchor. Positive tilt → brighter (lows cut, highs boosted); negative →
+    warmer. Pivot of 650 Hz is a common neutral choice that affects bass
+    and presence symmetrically without touching the vocal fundamentals.
+
+    The coherence-correct spec bounds this to ±0.5 dB; callers are
+    expected to clamp before calling.
+
+    Args:
+        data:     Audio samples (mono 1-D or stereo 2-D).
+        rate:     Sample rate in Hz.
+        tilt_db:  Tilt amount in dB. Short-circuits when ``|tilt_db| < 0.01``.
+        pivot_hz: Shelf corner for both low and high shelves.
+
+    Returns:
+        Filtered audio (same shape as input).
+    """
+    if abs(tilt_db) < 0.01:
+        return data
+    # Low shelf gets the opposite sign so the two shelves meet near the
+    # pivot and produce a smooth tilted magnitude response.
+    data = apply_low_shelf(data, rate, freq=pivot_hz, gain_db=-tilt_db)
+    data = apply_high_shelf(data, rate, freq=pivot_hz, gain_db=tilt_db)
+    return data
+
+
 def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
                             q: float, filter_type: str,
                             num_taps: int = 4095) -> np.ndarray | None:
@@ -978,7 +1009,8 @@ def master_track(input_path: Path | str, output_path: Path | str,
                  eq_settings: list[tuple[float, float, float]] | None = None,
                  ceiling_db: float = -1.0, fade_out: float | None = None,
                  compress_ratio: float = 1.5,
-                 preset: dict[str, float] | None = None) -> dict[str, Any]:
+                 preset: dict[str, float] | None = None,
+                 tilt_db: float = 0.0) -> dict[str, Any]:
     """Master a single track.
 
     Args:
@@ -992,6 +1024,9 @@ def master_track(input_path: Path | str, output_path: Path | str,
         compress_ratio: Compression ratio (ignored if preset provided)
         preset: Full preset dict. When provided, target_lufs, eq_settings,
             and compress_ratio are read from the preset instead.
+        tilt_db: Bounded tilt-EQ correction in dB, applied post-EQ and
+            pre-compression for #290 coherence correction. Callers must
+            clamp to ±0.5 dB. Default 0.0 (bypass).
     """
     # Resolve parameters from preset or legacy args
     p = {**_PRESET_DEFAULTS}
@@ -1072,6 +1107,13 @@ def master_track(input_path: Path | str, output_path: Path | str,
     bass_mono = int(p.get('stereo_bass_mono_freq', 0))
     if stereo_w != 1.0 or bass_mono > 0:
         data = apply_stereo_width(data, rate, width=stereo_w, bass_mono_freq=bass_mono)
+
+    # Tilt EQ for #290 coherence correction — clamp defensively so a caller
+    # bug can't push beyond the spec's ±0.5 dB bound. Applied after all
+    # preset-driven EQ so this is purely a correction nudge.
+    if tilt_db != 0.0:
+        _clamped_tilt = max(-0.5, min(0.5, tilt_db))
+        data = apply_tilt_eq(data, rate, tilt_db=_clamped_tilt)
 
     # Apply fade-out if specified (before loudness measurement so LUFS
     # is measured correctly with the fade included)

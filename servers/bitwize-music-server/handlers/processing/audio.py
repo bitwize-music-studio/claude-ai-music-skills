@@ -664,6 +664,15 @@ async def master_album(
                 )
                 if is_adm_clip:
                     ctx.effective_ceiling -= 0.5
+                    # Propagate the tightened ceiling everywhere the ADM stage
+                    # and downstream consumers (sidecar, halt JSON, signature
+                    # persist) read it. Without this, cycle-2 masters to the
+                    # new ceiling but ADM still compares against the original.
+                    ctx.targets["ceiling_db"] = ctx.effective_ceiling
+                    if isinstance(ctx.effective_preset, dict):
+                        ctx.effective_preset["true_peak_ceiling"] = (
+                            ctx.effective_ceiling
+                        )
                     ctx.notices.append(
                         f"ADM cycle {adm_cycle + 1}: inter-sample clips detected, "
                         f"tightening ceiling to {ctx.effective_ceiling:.1f} dBTP "
@@ -1520,31 +1529,43 @@ async def album_coherence_correct(
             if not entry["correctable"]:
                 continue
             filename = entry["filename"]
+            # Spectral-only outliers have no LUFS target — re-master at the
+            # anchor LUFS so the tilt nudge passes through the limiter chain
+            # without an incidental gain move.
+            applied_target = entry.get(
+                "corrected_target_lufs", plan["anchor_lufs"]
+            )
+            applied_tilt_db = float(entry.get("corrected_tilt_db", 0.0))
             src = polished_dir / filename
             if not src.is_file():
                 response["corrections"].append({
                     "filename":           filename,
                     "status":             "failed",
                     "failure_reason":     f"Polished source missing: {src}",
-                    "applied_target_lufs": entry["corrected_target_lufs"],
+                    "applied_target_lufs": applied_target,
+                    "applied_tilt_db":    applied_tilt_db,
                 })
                 failed += 1
                 continue
             modified_preset = dict(effective_preset)
-            modified_preset["target_lufs"] = entry["corrected_target_lufs"]
+            modified_preset["target_lufs"] = applied_target
             staged = staging_dir / filename
             try:
                 from functools import partial
                 await loop.run_in_executor(
                     None,
-                    partial(master_track, src, staged, preset=modified_preset),
+                    partial(
+                        master_track, src, staged,
+                        preset=modified_preset, tilt_db=applied_tilt_db,
+                    ),
                 )
             except Exception as exc:  # pragma: no cover - defensive
                 response["corrections"].append({
                     "filename":           filename,
                     "status":             "failed",
                     "failure_reason":     f"master_track raised: {exc}",
-                    "applied_target_lufs": entry["corrected_target_lufs"],
+                    "applied_target_lufs": applied_target,
+                    "applied_tilt_db":    applied_tilt_db,
                 })
                 failed += 1
                 continue
@@ -1559,7 +1580,8 @@ async def album_coherence_correct(
                     (t["lufs"] for t in pre_analysis if t["filename"] == filename),
                     None,
                 ),
-                "applied_target_lufs":  entry["corrected_target_lufs"],
+                "applied_target_lufs":  applied_target,
+                "applied_tilt_db":      applied_tilt_db,
                 "result_lufs":          staged_result["lufs"],
                 "status":               "ok",
                 "delta_from_anchor":    delta,

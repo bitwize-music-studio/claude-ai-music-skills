@@ -1020,21 +1020,35 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
     current_verify = list(ctx.verify_results)
     classifications = list(ctx.coherence_classifications)
 
+    # Freeze anchor LUFS from step-5 verification — spec #290 step 6 requires
+    # the album median (anchor-based here) be captured once and held constant
+    # across inner iterations to prevent correction feedback loops.
+    frozen_anchor_lufs = float(
+        current_verify[anchor_idx - 1].get("lufs", 0.0)
+    ) if 1 <= anchor_idx <= len(current_verify) else 0.0
+
     for _iter in range(_COHERENCE_MAX_ITERATIONS):
         plan = _coherence_build_plan(classifications, current_verify, anchor_idx)
         correctable = [c for c in plan["corrections"] if c["correctable"]]
         if not correctable:
             break
 
-        anchor_lufs = plan["anchor_lufs"]
+        anchor_lufs = frozen_anchor_lufs
         iterations_run += 1
 
         for entry in correctable:
             filename = entry["filename"]
-            raw_target = entry["corrected_target_lufs"]
+            # Spectral-only outliers have no LUFS target; re-master at the
+            # anchor LUFS so the tilt-EQ nudge passes through the full
+            # limiter chain without a separate gain move.
+            raw_target = entry.get("corrected_target_lufs", anchor_lufs)
+            tilt_db = float(entry.get("corrected_tilt_db", 0.0))
             clamped = False
 
-            # Clamp to ±1.5 dB window around anchor
+            # Clamp to ±1.5 dB window around the FROZEN step-5 anchor, not
+            # the plan's fresh recomputation — prevents clamp bounds from
+            # drifting if the anchor's post-limit LUFS measurement shifts
+            # slightly between iterations.
             if raw_target < anchor_lufs - _COHERENCE_MAX_CORRECTION_DB:
                 raw_target = anchor_lufs - _COHERENCE_MAX_CORRECTION_DB
                 clamped = True
@@ -1049,6 +1063,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "status": "skipped",
                     "reason": "source_not_found",
                     "applied_target_lufs": None,
+                    "applied_tilt_db": None,
                     "clamped": clamped,
                     "iteration": _iter + 1,
                 })
@@ -1066,12 +1081,14 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                         ceiling_db=ctx.effective_ceiling,
                         compress_ratio=ctx.effective_compress,
                         preset=ctx.effective_preset,
+                        tilt_db=tilt_db,
                     ),
                 )
                 all_corrections.append({
                     "filename": filename,
                     "status": "corrected",
                     "applied_target_lufs": raw_target,
+                    "applied_tilt_db": tilt_db,
                     "clamped": clamped,
                     "iteration": _iter + 1,
                 })
@@ -1083,6 +1100,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "status": "error",
                     "reason": str(exc),
                     "applied_target_lufs": raw_target,
+                    "applied_tilt_db": tilt_db,
                     "clamped": clamped,
                     "iteration": _iter + 1,
                 })
@@ -1115,9 +1133,12 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
             "corrections": all_corrections,
             "remaining_outliers": remaining_outliers,
         }
+        # Tag with ADM cycle so retry-loop runs produce distinguishable
+        # warnings instead of silently conflating cycle-1 and cycle-2 state.
         ctx.warnings.append(
-            f"Coherence correct: {remaining_outliers} LUFS outlier(s) remain "
-            f"after {iterations_run} iteration(s); ceiling_guard may apply pull-down."
+            f"Coherence correct (ADM cycle {ctx.adm_cycle + 1}): "
+            f"{remaining_outliers} outlier(s) remain after "
+            f"{iterations_run} iteration(s); ceiling_guard may apply pull-down."
         )
     else:
         ctx.stages["coherence_correct"] = {
@@ -1229,8 +1250,9 @@ async def _stage_ceiling_guard(
             ceiling_stage["status"] = "warn"
             ceiling_stage["pull_down_errors"] = pull_down_errors
             ctx.warnings.append(
-                "Ceiling guard: pull-down failed for "
-                f"{len(pull_down_errors)} track(s); see stage output"
+                f"Ceiling guard (ADM cycle {ctx.adm_cycle + 1}): "
+                f"pull-down failed for {len(pull_down_errors)} track(s); "
+                "see stage output"
             )
         ceiling_stage["action"] = "pull_down"
         ceiling_stage["pulled_down"] = pulled_files
@@ -1468,11 +1490,11 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
         lra_violations = [
             {
                 "filename": r["filename"],
-                "lra_lu": r["short_term_range"],
+                "lra_lu": r.get("short_term_range", float("inf")),
                 "floor_lu": lra_floor,
             }
             for r in ctx.verify_results
-            if r["short_term_range"] < lra_floor
+            if r.get("short_term_range", float("inf")) < lra_floor
         ]
         if lra_violations:
             ctx.stages["post_qc"] = {
@@ -1996,8 +2018,19 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
     album_data = state_albums.get(_normalize_slug(ctx.album_slug)) or {}
     album_name = album_data.get("name") or ctx.album_slug
     release_date = str(album_data.get("release_date") or "")
-    year = release_date[:4] if len(release_date) >= 4 else ""
+    # TDRC requires YYYY; reject malformed values ("15/06/2026", "unknown").
+    year = ""
+    year_match = re.match(r"^(\d{4})", release_date)
+    if year_match:
+        year = year_match.group(1)
+    # TCON: spec (#290 metadata table) sources genre from the album path
+    # segment (albums/[genre]/[album]). ctx.genre (the master_album arg) acts
+    # as a user override when explicitly passed.
     genre = ctx.genre or ""
+    if not genre:
+        album_path = album_data.get("path") or ""
+        if album_path:
+            genre = Path(album_path).parent.name
     album_upc = str(album_data.get("upc") or "")
     state_tracks: dict[str, Any] = album_data.get("tracks") or {}
 
