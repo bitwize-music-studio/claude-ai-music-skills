@@ -41,7 +41,12 @@ from handlers._shared import (
 )
 from handlers._atomic import atomic_write_text
 from handlers.processing import _helpers
-from tools.mastering.album_signature import build_signature
+from tools.mastering.album_signature import build_signature, compute_anchor_deltas
+from tools.mastering.coherence import (
+    build_correction_plan as _coherence_build_plan,
+    classify_outliers as _coherence_classify,
+    load_tolerances as _coherence_load_tolerances,
+)
 from tools.mastering.ceiling_guard import (
     CeilingGuardError,
     apply_pull_down_db,
@@ -140,6 +145,11 @@ class MasterAlbumCtx:
 
     # ── stage 5 (verification) ───────────────────────────────────────────────
     verify_results: list[dict[str, Any]] = field(default_factory=list)
+
+    # ── stage 5.1 (coherence check) ───────────────────────────────────────────
+    coherence_classifications: list[dict[str, Any]] = field(default_factory=list)
+    # ── stage 5.2 (coherence correct) ─────────────────────────────────────────
+    coherence_corrected_tracks: list[str] = field(default_factory=list)
 
     # ── stage 5.5 (ADM validation) ────────────────────────────────────────────
     adm_validation_results: list[dict[str, Any]] = field(default_factory=list)
@@ -906,6 +916,212 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
         verification_stage["auto_recovered"] = auto_recovered
     ctx.stages["verification"] = verification_stage
     ctx.verify_results = verify_results
+    return None
+
+
+_COHERENCE_MAX_CORRECTION_DB = 1.5
+_COHERENCE_MAX_ITERATIONS = 2
+
+
+async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 5.1: Classify tracks against coherence tolerance bands (#290 step 5).
+
+    Reads ctx: anchor_result, verify_results, preset_dict
+    Sets ctx:  coherence_classifications, stages["coherence_check"]
+    Returns: None always (outliers are warnings, not pipeline halts).
+    """
+    anchor_idx = ctx.anchor_result.get("selected_index")
+    if not isinstance(anchor_idx, int) or anchor_idx < 1:
+        ctx.stages["coherence_check"] = {
+            "status": "warn",
+            "reason": "no_anchor",
+            "outlier_count": 0,
+            "correctable_count": 0,
+            "anchor_index": None,
+        }
+        return None
+
+    if not ctx.verify_results:
+        ctx.stages["coherence_check"] = {
+            "status": "warn",
+            "reason": "no_verify_results",
+            "outlier_count": 0,
+            "correctable_count": 0,
+            "anchor_index": anchor_idx,
+        }
+        return None
+
+    tolerances = _coherence_load_tolerances(ctx.preset_dict)
+    deltas = compute_anchor_deltas(ctx.verify_results, anchor_index_1based=anchor_idx)
+    classifications = _coherence_classify(
+        deltas, ctx.verify_results, tolerances, anchor_index_1based=anchor_idx
+    )
+    ctx.coherence_classifications = classifications
+
+    outlier_count = sum(1 for c in classifications if c.get("is_outlier"))
+    correctable_count = sum(
+        1 for c in classifications
+        if not c.get("is_anchor") and any(
+            v["metric"] == "lufs" and v["severity"] == "outlier"
+            for v in c.get("violations", [])
+        )
+    )
+
+    ctx.stages["coherence_check"] = {
+        "status": "pass" if outlier_count == 0 else "warn",
+        "outlier_count": outlier_count,
+        "correctable_count": correctable_count,
+        "anchor_index": anchor_idx,
+    }
+    return None
+
+
+async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 5.2: Re-master LUFS outliers within ±1.5 dB of anchor (#290 step 6).
+
+    Reads ctx: anchor_result, coherence_classifications, verify_results,
+               source_dir, output_dir, mastered_files, effective_ceiling,
+               effective_compress, effective_preset, preset_dict, loop
+    Sets ctx:  verify_results (updated), coherence_classifications (updated),
+               coherence_corrected_tracks, stages["coherence_correct"]
+    Returns: None always (unconverged outliers go to warnings).
+    """
+    from tools.mastering.analyze_tracks import analyze_track
+    from tools.mastering.master_tracks import master_track as _master_track
+
+    anchor_idx = ctx.anchor_result.get("selected_index")
+    if not isinstance(anchor_idx, int) or anchor_idx < 1:
+        ctx.stages["coherence_correct"] = {
+            "status": "warn",
+            "reason": "no_anchor",
+            "iterations": 0,
+            "corrections": [],
+        }
+        return None
+
+    if not ctx.coherence_classifications:
+        ctx.stages["coherence_correct"] = {
+            "status": "pass",
+            "iterations": 0,
+            "corrections": [],
+        }
+        return None
+
+    assert ctx.source_dir is not None
+    assert ctx.output_dir is not None
+
+    tolerances = _coherence_load_tolerances(ctx.preset_dict)
+    all_corrections: list[dict[str, Any]] = []
+    iterations_run = 0
+
+    current_verify = list(ctx.verify_results)
+    classifications = list(ctx.coherence_classifications)
+
+    for _iter in range(_COHERENCE_MAX_ITERATIONS):
+        plan = _coherence_build_plan(classifications, current_verify, anchor_idx)
+        correctable = [c for c in plan["corrections"] if c["correctable"]]
+        if not correctable:
+            break
+
+        anchor_lufs = plan["anchor_lufs"]
+        iterations_run += 1
+
+        for entry in correctable:
+            filename = entry["filename"]
+            raw_target = entry["corrected_target_lufs"]
+            clamped = False
+
+            # Clamp to ±1.5 dB window around anchor
+            if raw_target < anchor_lufs - _COHERENCE_MAX_CORRECTION_DB:
+                raw_target = anchor_lufs - _COHERENCE_MAX_CORRECTION_DB
+                clamped = True
+            elif raw_target > anchor_lufs + _COHERENCE_MAX_CORRECTION_DB:
+                raw_target = anchor_lufs + _COHERENCE_MAX_CORRECTION_DB
+                clamped = True
+
+            src = ctx.source_dir / filename
+            if not src.exists():
+                all_corrections.append({
+                    "filename": filename,
+                    "status": "skipped",
+                    "reason": "source_not_found",
+                    "applied_target_lufs": None,
+                    "clamped": clamped,
+                    "iteration": _iter + 1,
+                })
+                continue
+
+            dst = ctx.output_dir / filename
+            try:
+                await ctx.loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        _master_track,
+                        str(src),
+                        str(dst),
+                        target_lufs=raw_target,
+                        ceiling_db=ctx.effective_ceiling,
+                        compress_ratio=ctx.effective_compress,
+                        preset=ctx.effective_preset,
+                    ),
+                )
+                all_corrections.append({
+                    "filename": filename,
+                    "status": "corrected",
+                    "applied_target_lufs": raw_target,
+                    "clamped": clamped,
+                    "iteration": _iter + 1,
+                })
+                if filename not in ctx.coherence_corrected_tracks:
+                    ctx.coherence_corrected_tracks.append(filename)
+            except Exception as exc:
+                all_corrections.append({
+                    "filename": filename,
+                    "status": "error",
+                    "reason": str(exc),
+                    "applied_target_lufs": raw_target,
+                    "clamped": clamped,
+                    "iteration": _iter + 1,
+                })
+
+        # Re-analyze all mastered files after this iteration's corrections
+        fresh_results: list[dict[str, Any]] = []
+        for wav in ctx.mastered_files:
+            result = await ctx.loop.run_in_executor(None, analyze_track, str(wav))
+            fresh_results.append(result)
+
+        # Re-classify with fresh analysis
+        fresh_deltas = compute_anchor_deltas(
+            fresh_results, anchor_index_1based=anchor_idx
+        )
+        classifications = _coherence_classify(
+            fresh_deltas, fresh_results, tolerances, anchor_index_1based=anchor_idx
+        )
+        current_verify = fresh_results
+
+    # Commit updated state back to ctx
+    ctx.verify_results = current_verify
+    ctx.coherence_classifications = classifications
+
+    remaining_outliers = sum(1 for c in classifications if c.get("is_outlier"))
+    if remaining_outliers > 0:
+        ctx.stages["coherence_correct"] = {
+            "status": "warn",
+            "reason": f"{remaining_outliers} outlier(s) remain after {_COHERENCE_MAX_ITERATIONS} iteration(s)",
+            "iterations": iterations_run,
+            "corrections": all_corrections,
+            "remaining_outliers": remaining_outliers,
+        }
+        ctx.warnings.append(
+            f"Coherence correct: {remaining_outliers} LUFS outlier(s) remain "
+            f"after {iterations_run} iteration(s); ceiling_guard may apply pull-down."
+        )
+    else:
+        ctx.stages["coherence_correct"] = {
+            "status": "pass",
+            "iterations": iterations_run,
+            "corrections": all_corrections,
+        }
     return None
 
 

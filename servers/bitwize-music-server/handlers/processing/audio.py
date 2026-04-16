@@ -566,7 +566,7 @@ async def master_album(
 ) -> str:
     """End-to-end mastering pipeline: analyze, QC, master, verify, update status.
 
-    Runs 16 sequential stages, stopping on failure. See _album_stages.py for
+    Runs 18 sequential stages, stopping on failure. See _album_stages.py for
     per-stage implementation. Stage order mirrors the #290 pipeline spec.
     """
     if freeze_signature and new_anchor:
@@ -606,6 +606,8 @@ async def master_album(
         _album_stages._stage_pre_qc,
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
+        _album_stages._stage_coherence_check,     # NEW step 5
+        _album_stages._stage_coherence_correct,    # NEW step 6
         _ceiling_guard,
         _album_stages._stage_adm_validation,
         _album_stages._stage_mastering_samples,
