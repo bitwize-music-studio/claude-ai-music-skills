@@ -97,3 +97,39 @@ def test_embed_wav_metadata_missing_file_raises(tmp_path: Path) -> None:
     from tools.mastering.metadata import MetadataEmbedError, embed_wav_metadata
     with pytest.raises(MetadataEmbedError, match="not found"):
         embed_wav_metadata(tmp_path / "missing.wav", title="x")
+
+
+def test_embed_wav_metadata_track_number(tmp_path: Path) -> None:
+    """Track number written as TRCK tag."""
+    from tools.mastering.metadata import embed_wav_metadata
+    from mutagen.wave import WAVE
+
+    wav = _write_wav(tmp_path / "track.wav")
+    embed_wav_metadata(wav, track_number="3")
+    tags = WAVE(str(wav)).tags
+    assert tags is not None
+    assert "3" in str(tags.get("TRCK"))
+
+
+def test_embed_wav_metadata_year(tmp_path: Path) -> None:
+    """Year written as TDRC tag."""
+    from tools.mastering.metadata import embed_wav_metadata
+    from mutagen.wave import WAVE
+
+    wav = _write_wav(tmp_path / "track.wav")
+    embed_wav_metadata(wav, year="2026")
+    tags = WAVE(str(wav)).tags
+    assert tags is not None
+    assert "2026" in str(tags.get("TDRC"))
+
+
+def test_embed_wav_metadata_genre(tmp_path: Path) -> None:
+    """Genre written as TCON tag."""
+    from tools.mastering.metadata import embed_wav_metadata
+    from mutagen.wave import WAVE
+
+    wav = _write_wav(tmp_path / "track.wav")
+    embed_wav_metadata(wav, genre="Electronic")
+    tags = WAVE(str(wav)).tags
+    assert tags is not None
+    assert "Electronic" in str(tags.get("TCON"))

@@ -82,6 +82,72 @@ def test_metadata_stage_embeds_artist_tag(
     assert str(tags.get("TPE1")) == "bitwize"
 
 
+def test_metadata_stage_embeds_track_number_year_genre(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Metadata stage embeds TRCK, TDRC, TCON, TSRC, and TXXX:UPC."""
+    from handlers import _shared
+    fake_state = {"albums": {"my-album": {
+        "path": str(tmp_path),
+        "status": "In Progress",
+        "name": "My Album",
+        "release_date": "2026-06-15",
+        "upc": "123456789012",
+        "tracks": {"01-track": {
+            "title": "My Track",
+            "status": "Generated",
+            "isrc": "USRC12345678",
+        }},
+    }}}
+    class _FakeCache:
+        def get_state(self): return fake_state
+        def get_state_ref(self): return fake_state
+    monkeypatch.setattr(_shared, "cache", _FakeCache())
+
+    monkeypatch.setattr(
+        "tools.shared.config.load_config",
+        lambda: {
+            "artist": {
+                "name": "bitwize",
+                "copyright_holder": "bitwize 2026",
+                "label": "bitwize records",
+            }
+        },
+    )
+
+    wav = _write_wav(tmp_path / "01-track.wav")
+
+    async def _run():
+        ctx = album_stages_mod.MasterAlbumCtx(
+            album_slug="my-album", genre="pop", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.audio_dir = tmp_path
+        ctx.mastered_files = [wav]
+        ctx.targets = {}
+        return await album_stages_mod._stage_metadata(ctx), ctx
+
+    result, ctx = asyncio.run(_run())
+
+    assert result is None
+    assert ctx.stages["metadata"]["status"] == "pass"
+
+    from mutagen.wave import WAVE
+    tags = WAVE(str(wav)).tags
+    assert tags is not None
+    assert str(tags.get("TRCK")) == "1"
+    assert "2026" in str(tags.get("TDRC"))
+    assert "pop" in str(tags.get("TCON"))
+    assert "USRC12345678" in str(tags.get("TSRC"))
+    txxx = tags.getall("TXXX")
+    upc_tag = next((t for t in txxx if t.desc == "UPC"), None)
+    assert upc_tag is not None
+    assert "123456789012" in str(upc_tag)
+
+
 def test_metadata_stage_warns_on_embed_error(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -1764,6 +1764,10 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
     state_albums = (_shared.cache.get_state() or {}).get("albums", {})
     album_data = state_albums.get(_normalize_slug(ctx.album_slug)) or {}
     album_name = album_data.get("name") or ctx.album_slug
+    release_date = str(album_data.get("release_date") or "")
+    year = release_date[:4] if len(release_date) >= 4 else ""
+    genre = ctx.genre or ""
+    album_upc = str(album_data.get("upc") or "")
     state_tracks: dict[str, Any] = album_data.get("tracks") or {}
 
     embed_count = 0
@@ -1773,6 +1777,11 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
         stem = wav.stem
         track_info = state_tracks.get(stem) or {}
         title = str(track_info.get("title") or stem)
+        track_number = ""
+        match = re.match(r"^(\d+)", stem)
+        if match:
+            track_number = str(int(match.group(1)))
+        isrc = str(track_info.get("isrc") or "")
 
         try:
             await ctx.loop.run_in_executor(
@@ -1783,8 +1792,13 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
                     title=title,
                     artist=artist_name,
                     album=album_name,
+                    track_number=track_number,
+                    year=year,
+                    genre=genre,
                     copyright_text=copyright_text,
                     label=label,
+                    isrc=isrc,
+                    upc=album_upc,
                 ),
             )
             embed_count += 1
