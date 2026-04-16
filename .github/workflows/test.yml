@@ -195,6 +195,11 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends ffmpeg
+
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
