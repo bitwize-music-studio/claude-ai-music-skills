@@ -302,3 +302,58 @@ class TestBuildCorrectionPlan:
         uncorrectable = [c for c in plan["corrections"] if not c["correctable"]]
         assert len(uncorrectable) == 1
         assert "stl_95" in uncorrectable[0]["reason"]
+
+
+class TestTiltClampedFlag:
+    """#323 follow-up: correction entries expose tilt_clamped so downstream
+    stages can detect structurally unconvergent corrections."""
+
+    def _classifications_with_low_rms_delta(self, delta: float) -> list[dict]:
+        return [
+            {"index": 1, "filename": "01.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+            {"index": 2, "filename": "02.wav", "is_anchor": False,
+             "is_outlier": True, "violations": [
+                {"metric": "lufs",      "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "stl_95",    "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "lra_floor", "value": 3.0, "floor": 1.0,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "low_rms",   "delta": delta, "tolerance": 2.0,
+                 "severity": "outlier", "correctable": True},
+                {"metric": "vocal_rms", "delta": 0.0, "tolerance": 2.0,
+                 "severity": "ok",      "correctable": False},
+             ]},
+        ]
+
+    def test_build_correction_plan_tilt_clamped_flag(self):
+        """tilt_clamped=True when raw tilt exceeds ±0.5 dB."""
+        classifications = self._classifications_with_low_rms_delta(3.0)
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.0),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=1)
+        assert len(plan["corrections"]) == 1
+        entry = plan["corrections"][0]
+        assert entry["correctable"] is True
+        assert entry["corrected_tilt_db"] == pytest.approx(0.5)
+        assert entry["tilt_clamped"] is True
+
+    def test_build_correction_plan_tilt_not_clamped(self):
+        """tilt_clamped=False when raw tilt within ±0.5 dB."""
+        classifications = self._classifications_with_low_rms_delta(0.3)
+        # low_rms delta of 0.3 is below tolerance 2.0 → not an outlier.
+        # Force severity=outlier via tolerance override so the spectral
+        # path still fires with a small raw tilt.
+        classifications[1]["violations"][3]["tolerance"] = 0.1
+        classifications[1]["violations"][3]["severity"] = "outlier"
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.0),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=1)
+        entry = plan["corrections"][0]
+        assert entry["corrected_tilt_db"] == pytest.approx(0.3, abs=1e-9)
+        assert entry["tilt_clamped"] is False

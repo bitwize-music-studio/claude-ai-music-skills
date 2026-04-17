@@ -177,8 +177,14 @@ def _floor_check(*, metric: str, value: float | None, floor: float) -> dict[str,
 TILT_CORRECTION_MAX_DB: float = 0.5
 
 
-def _compute_tilt_db(violations: list[dict[str, Any]]) -> float:
+def _compute_tilt_db(violations: list[dict[str, Any]]) -> tuple[float, bool]:
     """Derive a bounded tilt-EQ correction from spectral violations.
+
+    Returns ``(tilt_db, clamped)``. ``clamped`` is True when the raw
+    tilt exceeded ``TILT_CORRECTION_MAX_DB`` and was capped — the
+    stage-level coherence loop uses this to detect structurally
+    unconvergent corrections (tilt can't close the gap regardless of
+    how many iterations run).
 
     Tilt sign convention (matches ``master_tracks.apply_tilt_eq``):
       - positive tilt → cut lows, boost highs (brighter)
@@ -197,7 +203,11 @@ def _compute_tilt_db(violations: list[dict[str, Any]]) -> float:
     )
     if low is not None and low.get("delta") is not None:
         raw = float(low["delta"])
-        return max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw))
+        clamped = abs(raw) > TILT_CORRECTION_MAX_DB
+        return (
+            max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw)),
+            clamped,
+        )
 
     vocal = next(
         (v for v in violations
@@ -206,9 +216,13 @@ def _compute_tilt_db(violations: list[dict[str, Any]]) -> float:
     )
     if vocal is not None and vocal.get("delta") is not None:
         raw = -float(vocal["delta"])
-        return max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw))
+        clamped = abs(raw) > TILT_CORRECTION_MAX_DB
+        return (
+            max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw)),
+            clamped,
+        )
 
-    return 0.0
+    return 0.0, False
 
 
 def build_correction_plan(
@@ -274,14 +288,18 @@ def build_correction_plan(
             and v["severity"] == "outlier"
         ]
 
-        tilt_db = _compute_tilt_db(violations) if spectral_violations else 0.0
+        tilt_db = 0.0
+        tilt_clamped = False
+        if spectral_violations:
+            tilt_db, tilt_clamped = _compute_tilt_db(violations)
 
         if lufs_violation is not None or spectral_violations:
             reason_parts: list[str] = []
             entry: dict[str, Any] = {
-                "index":       cls["index"],
-                "filename":    cls.get("filename"),
-                "correctable": True,
+                "index":        cls["index"],
+                "filename":     cls.get("filename"),
+                "correctable":  True,
+                "tilt_clamped": tilt_clamped,
             }
             if lufs_violation is not None:
                 entry["corrected_target_lufs"] = anchor_lufs
@@ -292,8 +310,9 @@ def build_correction_plan(
             if spectral_violations:
                 entry["corrected_tilt_db"] = tilt_db
                 metrics = ", ".join(sorted({v["metric"] for v in spectral_violations}))
+                clamp_note = " (clamped)" if tilt_clamped else ""
                 reason_parts.append(
-                    f"Spectral outlier ({metrics}) → tilt_db={tilt_db:+.2f}"
+                    f"Spectral outlier ({metrics}) → tilt_db={tilt_db:+.2f}{clamp_note}"
                 )
             entry["reason"] = "; ".join(reason_parts)
             corrections.append(entry)
