@@ -298,6 +298,58 @@ class TestAnalyzeMixIssues:
             assert "issues" in stem_analysis
         assert "issues" in track
 
+    def test_vocal_stem_does_not_false_positive_clicks(self, tmp_path):
+        """Formant-shaped vocal with sibilant bursts must not emit a
+        `click_removal` recommendation — vocal consonants have high
+        instantaneous derivatives but their energy is spread across the
+        10 ms detector window. Regression for #323 where the old
+        sample-wise 6·σ(diff) detector flagged tens of thousands of
+        "clicks" on every clean vocal stem.
+        """
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        data, rate = make_vocal(duration=3.0)
+        write_wav(str(audio_dir / "vocal.wav"), data, rate)
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        track = result["tracks"][0]
+        assert track["click_count"] < 10, (
+            f"vocal stem produced {track['click_count']} false-positive clicks"
+        )
+        assert "clicks_detected" not in track["issues"]
+        assert "click_removal" not in track["recommendations"]
+
+    def test_actual_clicks_still_detected(self, tmp_path):
+        """Single-sample discontinuities inserted into an otherwise clean
+        tone must still trigger the `click_removal` recommendation — the
+        detector recalibration for #323 must not regress genuine click
+        detection.
+        """
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        rate = 44100
+        duration = 3.0
+        t = np.linspace(0, duration, int(rate * duration), endpoint=False)
+        mono = 0.02 * np.sin(2 * np.pi * 440 * t)
+        # 30 single-sample spikes spaced ~100 ms apart — each lifts one
+        # 10 ms window's peak-to-RMS ratio well above 15.
+        for i in range(30):
+            idx = 2000 + i * 4410
+            mono[idx] = 0.9
+        data = np.column_stack([mono, mono]).astype(np.float64)
+        write_wav(str(audio_dir / "clicky.wav"), data, rate)
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        track = result["tracks"][0]
+        assert "clicks_detected" in track["issues"]
+        assert track["recommendations"].get("click_removal") is True
+
 
 # ---------------------------------------------------------------------------
 # Tests: polish_album (3-stage pipeline)

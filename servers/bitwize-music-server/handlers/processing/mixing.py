@@ -284,11 +284,29 @@ async def analyze_mix_issues(
                 result["issues"].append("harsh_highmids")
                 result["recommendations"]["high_tame_db"] = -2.0
 
-        # Click detection (sudden amplitude spikes)
-        diff = np.diff(data[:, 0])
-        diff_std = float(np.std(diff))
-        if diff_std > 0:
-            click_count = int(np.sum(np.abs(diff) > 6 * diff_std))
+        # Click detection (sudden amplitude spikes).
+        #
+        # Count 10 ms windows whose peak-to-RMS ratio exceeds `peak_ratio`
+        # — genuine digital clicks are single-sample discontinuities that
+        # spike a short window's crest factor well above 10×, while
+        # musical transients (vocal consonants, synth attacks, kick
+        # drums) distribute energy across the window and stay below.
+        # The previous sample-wise `|diff| > 6·σ(diff)` detector flagged
+        # tens of thousands of musical samples per stem on vocals/synth/
+        # bass and emitted false `click_removal` recommendations that
+        # the polish pipeline silently ignored (#323).
+        mono_col = data[:, 0]
+        window = max(int(rate * 0.01), 1)
+        n_windows = len(mono_col) // window
+        if n_windows > 0:
+            windows = mono_col[: n_windows * window].reshape(n_windows, window)
+            win_rms = np.sqrt(np.mean(windows ** 2, axis=1))
+            win_peak = np.max(np.abs(windows), axis=1)
+            active = win_rms > 1e-8
+            ratios = np.zeros(n_windows, dtype=np.float64)
+            np.divide(win_peak, win_rms, out=ratios, where=active)
+            peak_ratio = 15.0
+            click_count = int(np.sum(ratios > peak_ratio))
             result["click_count"] = click_count
             if click_count > 10:
                 result["issues"].append("clicks_detected")
