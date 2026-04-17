@@ -263,66 +263,88 @@ def _check_clicks(
 
 
 def _check_silence(data: Any, rate: int) -> dict[str, str]:
-    """Check for excessive leading, trailing, or internal silence."""
+    """Check for excessive leading, trailing, or internal silence.
+
+    A silent region (samples below -60 dBFS) is classified as leading if
+    it starts within the boundary tolerance AND has essentially no
+    non-silent content before it; trailing by the symmetric rule at the
+    file end. Everything else is internal. The content-side check is what
+    distinguishes a fade-out tail (sub-threshold noise blip above -60 dBFS
+    sitting between the silence and the file end) from a mid-song gap
+    whose region happens to touch the tolerance window (e.g. a sine-wave
+    zero crossing) — without it, legitimate internal gaps get silently
+    demoted to "trailing". Regression for #321.
+    """
     if data.ndim > 1:
         mono = np.mean(data, axis=1)
     else:
         mono = data
 
-    # Threshold: -60 dBFS
     threshold = 10 ** (-60 / 20)
     is_silent = np.abs(mono) < threshold
-
     total_samples = len(mono)
+    if total_samples == 0:
+        return {"status": "PASS", "value": "L:0.0s T:0.0s", "detail": "Empty file"}
+
+    padded = np.concatenate([[False], is_silent, [False]])
+    diffs = np.diff(padded.astype(np.int8))
+    region_starts = np.where(diffs == 1)[0]
+    region_ends = np.where(diffs == -1)[0]  # exclusive
+
+    boundary_tolerance_sec = 1.0
+    tol_samples = int(rate * boundary_tolerance_sec)
+    gap_threshold_samples = int(rate * 0.5)
+    # Permissible non-silent content between a silent region and the
+    # file edge for that region to still count as leading/trailing.
+    min_boundary_content_samples = int(rate * 0.3)
+
+    non_silent_cumsum = np.cumsum((~is_silent).astype(np.int64))
+    total_non_silent = int(non_silent_cumsum[-1])
+
+    def non_silent_before(idx: int) -> int:
+        return int(non_silent_cumsum[idx - 1]) if idx > 0 else 0
+
+    leading_sec = 0.0
+    trailing_sec = 0.0
+    internal_gap_count = 0
+
+    for rs, re in zip(region_starts, region_ends):
+        length_samples = int(re - rs)
+        length_sec = length_samples / rate
+        is_leading = False
+        is_trailing = False
+
+        if rs < tol_samples:
+            if non_silent_before(rs) < min_boundary_content_samples:
+                is_leading = True
+
+        if not is_leading and re > total_samples - tol_samples:
+            ns_after = total_non_silent - non_silent_before(re)
+            if ns_after < min_boundary_content_samples:
+                is_trailing = True
+
+        if is_leading:
+            leading_sec = max(leading_sec, length_sec)
+        elif is_trailing:
+            trailing_sec = max(trailing_sec, length_sec)
+        elif length_samples >= gap_threshold_samples:
+            internal_gap_count += 1
+
     issues = []
     status = "PASS"
 
-    # Leading silence
-    leading = 0
-    for s in is_silent:
-        if s:
-            leading += 1
-        else:
-            break
-    leading_sec = leading / rate
     if leading_sec > 0.5:
         status = "FAIL"
         issues.append(f"Leading silence: {leading_sec:.1f}s")
 
-    # Trailing silence
-    trailing = 0
-    for s in reversed(is_silent):
-        if s:
-            trailing += 1
-        else:
-            break
-    trailing_sec = trailing / rate
-    if trailing_sec > 5.0 or trailing_sec > 3.0:
+    if trailing_sec > 3.0:
         if status != "FAIL":
             status = "WARN"
         issues.append(f"Trailing silence: {trailing_sec:.1f}s")
 
-    # Internal silence gaps (> 0.5s)
-    gap_threshold = int(rate * 0.5)
-    # Skip leading/trailing for internal gap detection
-    content_start = leading
-    content_end = total_samples - trailing
-    if content_end > content_start:
-        interior = is_silent[content_start:content_end]
-        gap_length = 0
-        gap_count = 0
-        for s in interior:
-            if s:
-                gap_length += 1
-            else:
-                if gap_length >= gap_threshold:
-                    gap_count += 1
-                gap_length = 0
-        if gap_length >= gap_threshold:
-            gap_count += 1
-        if gap_count > 0:
-            status = "FAIL"
-            issues.append(f"{gap_count} internal gap(s) > 0.5s")
+    if internal_gap_count > 0:
+        status = "FAIL"
+        issues.append(f"{internal_gap_count} internal gap(s) > 0.5s")
 
     detail = "; ".join(issues) if issues else "No silence issues"
     value = f"L:{leading_sec:.1f}s T:{trailing_sec:.1f}s"

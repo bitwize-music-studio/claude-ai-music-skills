@@ -4,6 +4,11 @@ All notable changes to claude-ai-music-skills.
 
 This project uses [Conventional Commits](https://conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **qc_audio silence check (#321)**: Trailing silence followed by a sub-threshold noise-floor blip no longer gets misclassified as an internal gap. The silence detector now classifies each silent region by position AND by the amount of non-silent content between the region and the file edge — a region ending within 1s of the file end (with <300ms of non-silent content after it) counts as trailing, not internal. Unblocks the `master_album` / `polish_album` pre-QC gate on tracks with natural fade-outs.
+
 ## [0.90.0] - 2026-04-15
 
 ### Added

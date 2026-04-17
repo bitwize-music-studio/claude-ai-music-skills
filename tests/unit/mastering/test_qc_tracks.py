@@ -377,6 +377,31 @@ class TestCheckSilence:
         assert result["status"] == "FAIL"
         assert "internal gap" in result["detail"]
 
+    def test_trailing_silence_with_boundary_blip_not_internal(self):
+        """Trailing silence followed by a sub-audible noise blip at the
+        file end must be classified as trailing, not an internal gap (#321).
+
+        Regression for the mastering pipeline failing on tracks whose
+        fade-out tail has a noise-floor sample above -60 dBFS within the
+        last few hundred ms — the old detector counted the tail silence
+        as interior because ``trailing`` counted only strictly-silent
+        samples at the very end.
+        """
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        sig = 0.5 * np.sin(2 * np.pi * 440 * t)
+        silence = np.zeros(int(rate * 0.6), dtype=np.float64)
+        # ~ -46 dBFS: below the -50 dBFS ffmpeg silencedetect threshold
+        # but above the -60 dBFS QC threshold
+        blip = np.full(10, 0.005, dtype=np.float64)
+        mono = np.concatenate([sig, silence, blip])
+        data = np.column_stack([mono, mono])
+
+        result = _check_silence(data, rate)
+
+        assert "internal gap" not in result["detail"]
+        assert result["status"] != "FAIL"
+
 
 class TestCheckSpectral:
     """Tests for the spectral balance check."""
