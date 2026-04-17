@@ -640,6 +640,46 @@ def remove_clicks(
     return result, total_clicks
 
 
+def _apply_click_removal(
+    data: Any,
+    rate: int,
+    settings: dict[str, Any],
+    report: dict[str, Any] | None,
+    default_repair: str = "linear",
+) -> Any:
+    """Shared click-removal step for every stem's processing chain.
+
+    Reads `settings`:
+        click_removal (bool): on/off. Default True — every stem gets
+            declicked. Pre-#323-followup only drums / percussion did.
+        click_peak_ratio (float): windowed peak/RMS ratio above which a
+            10 ms window is flagged as a click. Defaults to 15.0 when
+            absent — matches the analyzer in `analyze_mix_issues` so
+            polish and analysis report the same events (#323 comment).
+            Genre presets (`genre-presets.yaml`) override this per-
+            genre (e.g. `electronic: 10.0`) via `_get_stem_settings`'s
+            mastering overlay.
+        click_repair (str): "linear" (safer on dense mixes, vocals) or
+            "cubic" (better spectral reconstruction on isolated stems).
+
+    `report` is accumulated (`report["clicks_removed"] += n`) so the
+    dispatch in mix_track_stems can surface a per-stem count regardless
+    of which processor ran.
+    """
+    if not settings.get('click_removal', False):
+        return data
+    repair = settings.get('click_repair', default_repair)
+    peak_ratio = float(settings.get('click_peak_ratio', 15.0))
+    data, n_clicks = remove_clicks(
+        data, rate,
+        peak_ratio=peak_ratio,
+        repair=repair,
+    )
+    if report is not None:
+        report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
+    return data
+
+
 def enhance_stereo(data: Any, rate: int, amount: float = 0.2) -> Any:
     """Adjust stereo width using mid-side processing.
 
@@ -1054,18 +1094,23 @@ def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
     return result
 
 
-def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process vocal stem: noise reduction -> presence boost -> high tame -> compress -> sat -> lp.
+def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                   report: dict[str, Any] | None = None) -> Any:
+    """Process vocal stem: declick -> noise reduction -> presence boost -> high tame -> compress -> sat -> lp.
 
     Args:
         data: Audio data
         rate: Sample rate
         settings: Dict of vocal processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('vocals')
+
+    # Click removal (linear repair — safer on vocal consonants)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction
     nr_strength = settings.get('noise_reduction', 0.5)
@@ -1098,8 +1143,9 @@ def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None)
     return data
 
 
-def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process backing vocal stem: noise reduction -> presence boost -> high tame -> width -> compress -> sat -> lp.
+def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                            report: dict[str, Any] | None = None) -> Any:
+    """Process backing vocal stem: declick -> noise reduction -> presence boost -> high tame -> width -> compress -> sat -> lp.
 
     Lighter presence than lead vocals so backing sits behind. Wider stereo
     spread and slightly more aggressive high tame for de-essing.
@@ -1108,11 +1154,15 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
         data: Audio data
         rate: Sample rate
         settings: Dict of backing vocal processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('backing_vocals')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (same as lead)
     nr_strength = settings.get('noise_reduction', 0.5)
@@ -1166,20 +1216,9 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None,
     """
     settings = settings or _get_stem_settings('drums')
 
-    # Click removal
-    if settings.get('click_removal', True):
-        peak_ratio = settings.get('click_peak_ratio')
-        if peak_ratio is not None:
-            data, n_clicks = remove_clicks(
-                data, rate,
-                peak_ratio=float(peak_ratio),
-                repair="cubic",
-            )
-        else:
-            click_threshold = settings.get('click_threshold', 6.0)
-            data, n_clicks = remove_clicks(data, rate, threshold=click_threshold)
-        if report is not None:
-            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
+    # Click removal (cubic repair — isolated drum stems let cubic
+    # exploit thin spectral content around the click)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="cubic")
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)
@@ -1201,18 +1240,24 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None,
     return data
 
 
-def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process bass stem: highpass -> mud cut -> compress -> sub-bass exciter -> sat.
+def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                 report: dict[str, Any] | None = None) -> Any:
+    """Process bass stem: declick -> highpass -> mud cut -> compress -> sub-bass exciter -> sat.
 
     Args:
         data: Audio data
         rate: Sample rate
         settings: Dict of bass processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('bass')
+
+    # Click removal (linear repair — dense low-end benefits from
+    # linear interpolation vs. cubic)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass for sub-rumble removal
     hp_cutoff = settings.get('highpass_cutoff', 30)
@@ -1245,8 +1290,9 @@ def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None) -
     return data
 
 
-def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process synth stem: highpass -> mid boost -> high tame -> width -> compress -> sat -> lp.
+def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                  report: dict[str, Any] | None = None) -> Any:
+    """Process synth stem: declick -> highpass -> mid boost -> high tame -> width -> compress -> sat -> lp.
 
     Highpass avoids bass competition. Mid boost adds body/presence.
     Light compression preserves dynamics.
@@ -1255,11 +1301,15 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) 
         data: Audio data
         rate: Sample rate
         settings: Dict of synth processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('synth')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — avoid bass competition
     hp_cutoff = settings.get('highpass_cutoff', 80)
@@ -1295,8 +1345,9 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     return data
 
 
-def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process guitar stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
+def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                   report: dict[str, Any] | None = None) -> Any:
+    """Process guitar stem: declick -> highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
 
     Mud cut at 250 Hz targets guitar-specific boxiness. Presence at 3 kHz
     brings out pick articulation. Moderate compression preserves dynamics.
@@ -1305,11 +1356,15 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None)
         data: Audio data
         rate: Sample rate
         settings: Dict of guitar processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('guitar')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — remove sub-bass
     hp_cutoff = settings.get('highpass_cutoff', 80)
@@ -1351,8 +1406,9 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None)
     return data
 
 
-def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process keyboard stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
+def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                     report: dict[str, Any] | None = None) -> Any:
+    """Process keyboard stem: declick -> highpass -> mud cut -> presence -> high tame -> width -> compress -> sat -> lp.
 
     Low highpass (40 Hz) preserves piano bass notes. Presence at 2.5 kHz avoids
     vocal zone. Light compression preserves expressive dynamics.
@@ -1361,11 +1417,15 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
         data: Audio data
         rate: Sample rate
         settings: Dict of keyboard processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('keyboard')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — low cutoff to preserve piano bass notes
     hp_cutoff = settings.get('highpass_cutoff', 40)
@@ -1407,8 +1467,9 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     return data
 
 
-def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process strings stem: highpass -> mud cut -> presence -> high tame -> width -> compress -> lp.
+def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                    report: dict[str, Any] | None = None) -> Any:
+    """Process strings stem: declick -> highpass -> mud cut -> presence -> high tame -> width -> compress -> lp.
 
     Lightest processing of all stems. Very gentle compression (1.5:1) preserves
     orchestral dynamics. Wide stereo for orchestral spread. Presence at 3.5 kHz
@@ -1418,11 +1479,15 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
         data: Audio data
         rate: Sample rate
         settings: Dict of strings processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('strings')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — very low cutoff for cello/bass range
     hp_cutoff = settings.get('highpass_cutoff', 35)
@@ -1464,8 +1529,9 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     return data
 
 
-def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process brass stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
+def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                  report: dict[str, Any] | None = None) -> Any:
+    """Process brass stem: declick -> highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
 
     Presence at 2 kHz for brass "bite" (below vocals). Aggressive high tame
     (-2 dB at 7 kHz) because brass is piercing. No stereo width (brass is
@@ -1475,11 +1541,15 @@ def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None) 
         data: Audio data
         rate: Sample rate
         settings: Dict of brass processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('brass')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass
     hp_cutoff = settings.get('highpass_cutoff', 60)
@@ -1518,8 +1588,9 @@ def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     return data
 
 
-def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process woodwinds stem: highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
+def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                      report: dict[str, Any] | None = None) -> Any:
+    """Process woodwinds stem: declick -> highpass -> mud cut -> presence -> high tame -> compress -> sat -> lp.
 
     Tuned for reed/breath instruments. Light high tame preserves breathiness.
     No stereo width (solo instruments are centered).
@@ -1528,11 +1599,15 @@ def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = No
         data: Audio data
         rate: Sample rate
         settings: Dict of woodwinds processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('woodwinds')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass
     hp_cutoff = settings.get('highpass_cutoff', 50)
@@ -1598,20 +1673,8 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
-    # Click removal
-    if settings.get('click_removal', True):
-        peak_ratio = settings.get('click_peak_ratio')
-        if peak_ratio is not None:
-            data, n_clicks = remove_clicks(
-                data, rate,
-                peak_ratio=float(peak_ratio),
-                repair="cubic",
-            )
-        else:
-            click_threshold = settings.get('click_threshold', 6.0)
-            data, n_clicks = remove_clicks(data, rate, threshold=click_threshold)
-        if report is not None:
-            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
+    # Click removal (cubic repair — isolated percussion stems)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="cubic")
 
     # Transient shaping (before compression to preserve punch)
     attack_db = settings.get('transient_attack_db', 0)
@@ -1648,18 +1711,23 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     return data
 
 
-def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) -> Any:
-    """Process 'other' stem (instruments, synths): noise reduction -> mud cut -> high tame -> lp.
+def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None,
+                  report: dict[str, Any] | None = None) -> Any:
+    """Process 'other' stem (instruments, synths): declick -> noise reduction -> mud cut -> high tame -> lp.
 
     Args:
         data: Audio data
         rate: Sample rate
         settings: Dict of processing settings
+        report: Accumulates ``clicks_removed`` (see ``_apply_click_removal``).
 
     Returns:
         Processed audio data.
     """
     settings = settings or _get_stem_settings('other')
+
+    # Click removal (linear repair)
+    data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (lighter than vocals)
     nr_strength = settings.get('noise_reduction', 0.3)
@@ -1684,11 +1752,10 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None) 
     return data
 
 
-# Stem processor dispatch. Callable[..., Any] covers the signature
-# asymmetry — drums and percussion accept an extra `report` kwarg that
-# the other processors don't; callers that want to pass `report` dispatch
-# directly to `process_drums` / `process_percussion` instead of going
-# through this registry.
+# Stem processor dispatch. Every processor accepts `(data, rate,
+# settings=None, report=None)` and accumulates `clicks_removed` via
+# the shared `_apply_click_removal` helper, so callers can pass
+# `report` uniformly through this registry (#323 comment).
 STEM_PROCESSORS: dict[str, Callable[..., Any]] = {
     'vocals': process_vocals,
     'backing_vocals': process_backing_vocals,
@@ -1796,17 +1863,12 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         # the append-below always has a value, even for non-declicking stems.
         stem_report: dict[str, Any] = {'clicks_removed': 0}
         if not dry_run:
-            # Get settings and process
+            # Get settings and process. Every processor now accepts
+            # `report` and accumulates `clicks_removed` via
+            # `_apply_click_removal`, so the dispatch is uniform.
             settings = _get_stem_settings(stem_name, genre)
-            # Dispatch declicking stems directly so mypy sees the
-            # `report` kwarg; other stems go through STEM_PROCESSORS.
-            if stem_name == 'drums':
-                data = process_drums(data, rate, settings, report=stem_report)
-            elif stem_name == 'percussion':
-                data = process_percussion(data, rate, settings, report=stem_report)
-            else:
-                processor = STEM_PROCESSORS[stem_name]
-                data = processor(data, rate, settings)
+            processor = STEM_PROCESSORS[stem_name]
+            data = processor(data, rate, settings, report=stem_report)
 
             # Get remix gain
             gains[stem_name] = settings.get('gain_db', 0.0)
@@ -1915,20 +1977,13 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
 
         # Click removal — full-mix stays on linear repair per #289
         # (dense mix content amplifies the artefacts of any deeper
-        # surgical repair). peak_ratio is preferred when the genre
-        # preset supplies one so polish and QC stay aligned.
-        clicks_removed = 0
-        if settings.get('click_removal', True):
-            peak_ratio = settings.get('click_peak_ratio')
-            if peak_ratio is not None:
-                data, clicks_removed = remove_clicks(
-                    data, rate,
-                    peak_ratio=float(peak_ratio),
-                    repair="linear",
-                )
-            else:
-                data, clicks_removed = remove_clicks(data, rate)
-        result['clicks_removed'] = int(clicks_removed)
+        # surgical repair). Delegate to the shared helper so full-mix
+        # and per-stem paths align with the analyzer (#323 comment).
+        _report: dict[str, Any] = {'clicks_removed': 0}
+        data = _apply_click_removal(
+            data, rate, settings, _report, default_repair="linear"
+        )
+        result['clicks_removed'] = int(_report['clicks_removed'])
 
         # Mud cut
         mud_cut_db = settings.get('mud_cut_db', -2.0)

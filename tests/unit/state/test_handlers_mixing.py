@@ -322,6 +322,37 @@ class TestAnalyzeMixIssues:
         assert "clicks_detected" not in track["issues"]
         assert "click_removal" not in track["recommendations"]
 
+    def test_vocal_click_removal_wired_through_polish(self, tmp_path):
+        """Genuine clicks on a vocal stem must now get removed by polish
+        (#323 comment). Pre-fix the vocal chain had no declicker so
+        analyze_mix_issues would flag clicks that polish silently
+        ignored. With click_removal wired onto every stem's chain, the
+        count from analyzer and polish should both be > 0.
+        """
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        # Quiet vocal-like background with single-sample spikes.
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(10):
+            mono[2000 + i * 4000] = 0.9
+        data = np.column_stack([mono, mono])
+        stem_path = audio_dir / "vocals.wav"
+        write_wav(str(stem_path), data, rate)
+
+        result = mix_track_stems(
+            {"vocals": str(stem_path)},
+            str(audio_dir / "out.wav"),
+        )
+
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] >= 1, (
+            f"vocal declicker did not run: {by_stem['vocals']}"
+        )
+
     def test_actual_clicks_still_detected(self, tmp_path):
         """Single-sample discontinuities inserted into an otherwise clean
         tone must still trigger the `click_removal` recommendation — the

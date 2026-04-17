@@ -1230,17 +1230,21 @@ class TestMixTrackStems:
         # Build a drums-stem wav with a click at t≈0.5s.
         # Offset by 50 samples so the click falls mid-window (not on a
         # 10 ms window boundary) — this prevents the click's energy from
-        # being diluted across two windows, keeping peak/RMS well above 8.0.
-        # Sine amplitude of 0.10 gives peak/RMS ≈ 9.9 > electronic threshold 8.0.
+        # being diluted across two windows, keeping peak/RMS well above 10.0.
+        # Single-sample spike against quiet sine → peak/RMS > 20 in the
+        # window containing the click, well above the electronic genre's
+        # peak_ratio=10 threshold.
         t = np.linspace(0, 1.0, rate, endpoint=False)
-        mono = (0.10 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
-        click_idx = int(0.5 * rate) + 50  # 22100 — not on a 441-sample boundary
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50  # 22150 — not on a 441-sample boundary
         mono[click_idx] = 0.95
-        mono[click_idx + 1] = -0.95
         drums = np.column_stack([mono, mono])
 
-        # And a clean vocal stem for completeness
-        vocal_mono = (0.1 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        # Vocal stem also with a single-sample spike — after #323 follow-up
+        # every stem (not just drums/percussion) runs the declicker, so the
+        # count should come back > 0 on vocals too.
+        vocal_mono = (0.02 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        vocal_mono[click_idx] = 0.95
         vocals = np.column_stack([vocal_mono, vocal_mono])
 
         drums_path = tmp_path / "drums.wav"
@@ -1255,13 +1259,13 @@ class TestMixTrackStems:
             genre='electronic',
         )
 
-        # Each stem entry should carry clicks_removed; drums must be > 0.
+        # Every stem should carry clicks_removed and drums + vocals both
+        # have injected clicks, so both counts must be > 0.
         by_stem = {s['stem']: s for s in result['stems_processed']}
         assert 'clicks_removed' in by_stem['drums']
         assert by_stem['drums']['clicks_removed'] >= 1
-        # Vocals don't run the declicker, so clicks_removed should be 0
-        # or absent; assert the presence contract only for declicking stems.
-        assert by_stem['vocals'].get('clicks_removed', 0) == 0
+        assert 'clicks_removed' in by_stem['vocals']
+        assert by_stem['vocals']['clicks_removed'] >= 1
 
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
@@ -1652,21 +1656,22 @@ class TestMixTrackFull:
         assert result['clicks_removed'] >= 1
 
     def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path):
-        """A big click against a quiet sine should register clicks_removed>0
-        even on the legacy std-path (no genre → no peak_ratio → std default)."""
+        """A big single-sample click against a quiet sine should register
+        clicks_removed>0 even without a genre — the helper falls back to
+        ``peak_ratio=15.0`` (matches the analyzer in `analyze_mix_issues`)."""
         rate = 44100
         t = np.linspace(0, 1.0, rate, endpoint=False)
-        mono = (0.05 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
         click_idx = int(0.5 * rate) + 50
-        mono[click_idx] = 0.9
-        mono[click_idx + 1] = -0.9
+        mono[click_idx] = 0.95
         data = np.column_stack([mono, mono])
 
         in_path = tmp_path / "in.wav"
         out_path = tmp_path / "out.wav"
         sf.write(str(in_path), data, rate, subtype='PCM_16')
 
-        # No genre → std path with default threshold=6.0.
+        # No genre → helper default peak_ratio=15.0; single-sample spike
+        # at 0.95 against 0.02 sine gives ratio > 20 in the click window.
         result = mix_track_full(in_path, out_path)
         assert result['clicks_removed'] >= 1
 
@@ -1882,15 +1887,16 @@ class TestMasterClickThresholdsThreaded:
     from the mastering genre preset so polish and QC stay aligned (#289)."""
 
     def test_stem_settings_inherit_master_click_thresholds(self):
-        # 'electronic' is one of the mastering-tuned genres (ratio 8.0, fail 15)
+        # 'electronic' is one of the mastering-tuned genres
+        # (ratio 10.0, fail 30 — bumped from 8.0 / 15 in #323 follow-up)
         settings = _get_stem_settings('drums', genre='electronic')
-        assert settings.get('click_peak_ratio') == 8.0
-        assert settings.get('click_fail_count') == 15
+        assert settings.get('click_peak_ratio') == 10.0
+        assert settings.get('click_fail_count') == 30
 
     def test_full_mix_settings_inherit_master_click_thresholds(self):
         settings = _get_full_mix_settings(genre='electronic')
-        assert settings.get('click_peak_ratio') == 8.0
-        assert settings.get('click_fail_count') == 15
+        assert settings.get('click_peak_ratio') == 10.0
+        assert settings.get('click_fail_count') == 30
 
     def test_no_genre_leaves_click_thresholds_unset(self):
         settings = _get_stem_settings('drums')
