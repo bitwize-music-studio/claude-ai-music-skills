@@ -94,6 +94,48 @@ def test_coherence_check_classifies_tracks() -> None:
 # Test 2: coherence check warns when anchor is missing
 # ---------------------------------------------------------------------------
 
+def test_coherence_check_counts_spectral_correctables() -> None:
+    """#323 follow-up: correctable_count in coherence_check must agree with
+    the entries _stage_coherence_correct will actually act on.
+
+    Previously correctable_count counted LUFS outliers only, but
+    _stage_coherence_correct runs corrections on spectral outliers
+    (low_rms / vocal_rms) too. When a track had only a spectral outlier,
+    correctable_count reported 0 while the correct stage still ran — a
+    misleading pre-correct report. This test pins the two views together.
+    """
+    # Anchor clean, track 2 has a +4 dB low_rms delta (spectral outlier
+    # only, LUFS matches anchor).
+    anchor = _make_verify_result("01-anchor.wav", lufs=-14.0, low_rms=-18.0)
+    spectral_outlier = _make_verify_result(
+        "02-bright.wav", lufs=-14.0, low_rms=-14.0,
+    )
+    verify_results = [anchor, spectral_outlier]
+
+    async def _run():
+        ctx = MasterAlbumCtx(
+            album_slug="test-album", genre="", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.anchor_result = {"selected_index": 1}
+        ctx.verify_results = verify_results
+        ctx.preset_dict = None
+        result = await _stage_coherence_check(ctx)
+        return result, ctx
+
+    _, ctx = asyncio.run(_run())
+    stage = ctx.stages["coherence_check"]
+    assert stage["outlier_count"] == 1, (
+        f"Expected 1 outlier (spectral), got {stage['outlier_count']}"
+    )
+    assert stage["correctable_count"] == 1, (
+        "correctable_count must include spectral outliers — "
+        f"got {stage['correctable_count']}"
+    )
+
+
 def test_coherence_check_warns_without_anchor() -> None:
     """No valid anchor → stage status warn with reason no_anchor."""
     async def _run():

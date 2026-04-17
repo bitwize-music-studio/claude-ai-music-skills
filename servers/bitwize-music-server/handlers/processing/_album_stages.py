@@ -968,13 +968,18 @@ async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
     ctx.coherence_classifications = classifications
 
     outlier_count = sum(1 for c in classifications if c.get("is_outlier"))
-    correctable_count = sum(
-        1 for c in classifications
-        if not c.get("is_anchor") and any(
-            v["metric"] == "lufs" and v["severity"] == "outlier"
-            for v in c.get("violations", [])
-        )
+
+    # correctable_count must match what _stage_coherence_correct actually
+    # acts on. Delegate to build_correction_plan so both stages share one
+    # definition of "correctable" (LUFS outliers OR spectral outliers with
+    # bounded tilt-EQ correction). Previously this counted LUFS-only,
+    # hiding spectral corrections and misreporting 0 while the correct
+    # stage still ran iterations.
+    from tools.mastering.coherence import build_correction_plan
+    plan = build_correction_plan(
+        classifications, ctx.verify_results, anchor_index_1based=anchor_idx
     )
+    correctable_count = sum(1 for c in plan["corrections"] if c["correctable"])
 
     ctx.stages["coherence_check"] = {
         "status": "pass" if outlier_count == 0 else "warn",
