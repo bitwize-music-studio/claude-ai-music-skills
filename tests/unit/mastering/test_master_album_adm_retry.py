@@ -119,6 +119,21 @@ def test_adm_retry_tightens_ceiling_on_clips(
     # Bypass mutagen (not installed in test env) — no-op metadata embed
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
+    # Capture the ceiling_db passed to master_track on each call so we can
+    # pin the retry contract (#323 comment — cycle 2 must re-master with
+    # the tightened ceiling, not just re-check). Wrap the real function so
+    # downstream verify/ADM still see properly mastered output.
+    mastered_ceilings: list[float] = []
+
+    import tools.mastering.master_tracks as _mt_mod
+    _real_master_track = _mt_mod.master_track
+
+    def _capture_master_track(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real_master_track(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture_master_track)
+
     result = _run_master_album(tmp_path, album_slug=album_slug)
 
     assert result.get("failed_stage") is None, (
@@ -131,6 +146,17 @@ def test_adm_retry_tightens_ceiling_on_clips(
     notices = result.get("notices", [])
     assert any("ADM cycle" in n for n in notices), (
         f"Expected ADM retry notice, got notices: {notices}"
+    )
+
+    # #323 comment: cycle 2 must re-master with the tightened ceiling.
+    # Default ceiling is -1.0 dBTP; tightened by 0.5 dB → -1.5 dBTP.
+    assert mastered_ceilings, (
+        f"Expected master_track to be called, got no calls"
+    )
+    tightened = [c for c in mastered_ceilings if c <= -1.4]
+    assert tightened, (
+        f"Expected at least one master_track call with ceiling <= -1.5 dBTP "
+        f"on cycle 2, got ceilings: {mastered_ceilings}"
     )
 
 
