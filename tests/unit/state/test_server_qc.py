@@ -666,7 +666,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             result = json.loads(_run(server.master_album("test-album")))
 
         assert master_called[0], "Mastering should have run before verification"
@@ -704,7 +704,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] == "verification"
@@ -875,7 +875,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"), \
              patch.object(server, "parse_track_file", return_value={"status": "Final"}):
             result = json.loads(_run(server.master_album("test-album")))
@@ -933,7 +933,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"), \
              patch.object(server, "parse_track_file", return_value={"status": "Final"}):
             result = json.loads(_run(server.master_album("test-album")))
@@ -966,7 +966,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album", genre="rock")))
 
@@ -1042,7 +1042,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1080,7 +1080,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] == "verification"
@@ -1102,7 +1102,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] == "mastering"
@@ -1141,7 +1141,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1178,7 +1178,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-13.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album", genre="country")))
 
@@ -1247,7 +1247,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
              patch("soundfile.read", return_value=(fake_audio, 44100)), \
              patch("soundfile.write"):
@@ -1290,7 +1290,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1333,7 +1333,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
              patch("soundfile.read", return_value=(fake_audio, 44100)), \
              patch("soundfile.write"):
@@ -1386,7 +1386,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
              patch("soundfile.read", return_value=(fake_audio, 44100)), \
              patch("soundfile.write"):
@@ -1433,7 +1433,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             json.loads(_run(server.master_album("test-album")))
 
@@ -1486,7 +1486,7 @@ class TestMasterAlbumPipeline:
              patch("tools.mastering.master_tracks.master_track", side_effect=mock_master), \
              patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
              patch("soundfile.read", return_value=(fake_audio, 44100)), \
              patch("soundfile.write"):
@@ -1769,7 +1769,7 @@ class TestMasterAlbumStaging:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             with pytest.raises(RuntimeError, match="simulated mastering crash"):
                 _run(server.master_album("test-album"))
 
@@ -1804,7 +1804,7 @@ class TestMasterAlbumStaging:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1847,7 +1847,7 @@ class TestMasterAlbumStaging:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1873,7 +1873,7 @@ class TestMasterAlbumStaging:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc_result(Path(f).name)):
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)):
             result = json.loads(_run(server.master_album("test-album")))
 
         assert result["failed_stage"] == "mastering"
@@ -1958,7 +1958,7 @@ class TestMasterAlbumMasteringSamplesStage:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 
@@ -1994,7 +1994,7 @@ class TestMasterAlbumMasteringSamplesStage:
              patch("tools.mastering.analyze_tracks.analyze_track",
                    side_effect=lambda f: self._mock_analyze(Path(f).name)), \
              patch("tools.mastering.qc_tracks.qc_track",
-                   side_effect=lambda f, c=None: self._mock_qc(Path(f).name)), \
+                   side_effect=lambda f, c=None, g=None: self._mock_qc(Path(f).name)), \
              patch.object(server, "write_state"):
             result = json.loads(_run(server.master_album("test-album")))
 

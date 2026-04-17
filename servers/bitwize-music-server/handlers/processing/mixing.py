@@ -482,8 +482,17 @@ async def polish_album(
     qc_genre = genre or None
     verify_results = []
 
+    # Pre-master verify skips `truepeak` and `clicks`. Polished audio is
+    # un-limited so peaks legitimately sit above the streaming ceiling
+    # until mastering applies its limiter; genre-dense-transient stems
+    # (kicks, snares) legitimately trip the click detector until the
+    # full mix is mastered. Those checks are gates at post-master QC,
+    # not pre-master. (Matches `_stage_pre_qc` in `_album_stages.py`.)
+    VERIFY_CHECKS = ["format", "mono", "phase", "clipping", "silence", "spectral"]
     for wav in polished_files:
-        result = await loop.run_in_executor(None, qc_track, str(wav), None, qc_genre)
+        result = await loop.run_in_executor(
+            None, qc_track, str(wav), VERIFY_CHECKS, qc_genre
+        )
         verify_results.append(result)
 
     failed = [r["filename"] for r in verify_results if r["verdict"] == "FAIL"]
@@ -507,6 +516,8 @@ async def polish_album(
     stages["verify"] = {
         "status": verify_status,
         "tracks_verified": len(verify_results),
+        "checks_run": VERIFY_CHECKS,
+        "checks_deferred_to_post_master": ["truepeak", "clicks"],
         "failed_tracks": failed,
         "warned_tracks": warned,
         "qc_issues": qc_warnings,

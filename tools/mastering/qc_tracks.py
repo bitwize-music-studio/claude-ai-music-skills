@@ -262,7 +262,12 @@ def _check_clicks(
     }
 
 
-def _check_silence(data: Any, rate: int) -> dict[str, str]:
+def _check_silence(
+    data: Any,
+    rate: int,
+    leading_max_s: float = 0.5,
+    trailing_max_s: float = 3.0,
+) -> dict[str, str]:
     """Check for excessive leading, trailing, or internal silence.
 
     A silent region (samples below -60 dBFS) is classified as leading if
@@ -274,6 +279,12 @@ def _check_silence(data: Any, rate: int) -> dict[str, str]:
     whose region happens to touch the tolerance window (e.g. a sine-wave
     zero crossing) — without it, legitimate internal gaps get silently
     demoted to "trailing". Regression for #321.
+
+    Args:
+        leading_max_s: Leading silence > this duration FAILs. Raise for
+            genres with intentional intro builds/filter sweeps (e.g.
+            electronic ~1.5 s).
+        trailing_max_s: Trailing silence > this duration WARNs.
     """
     if data.ndim > 1:
         mono = np.mean(data, axis=1)
@@ -333,11 +344,11 @@ def _check_silence(data: Any, rate: int) -> dict[str, str]:
     issues = []
     status = "PASS"
 
-    if leading_sec > 0.5:
+    if leading_sec > leading_max_s:
         status = "FAIL"
         issues.append(f"Leading silence: {leading_sec:.1f}s")
 
-    if trailing_sec > 3.0:
+    if trailing_sec > trailing_max_s:
         if status != "FAIL":
             status = "WARN"
         issues.append(f"Trailing silence: {trailing_sec:.1f}s")
@@ -436,6 +447,32 @@ def _resolve_click_thresholds(genre: str | None) -> tuple[float, int]:
     return float(preset.get('click_peak_ratio', 6.0)), int(preset.get('click_fail_count', 3))
 
 
+def _resolve_silence_thresholds(genre: str | None) -> tuple[float, float]:
+    """Look up silence_leading_max_s and silence_trailing_max_s for a genre preset.
+
+    Falls back to (0.5, 3.0) if no genre is given. Raises ValueError
+    for an unknown genre name. Electronic/EDM and similar builds-with-
+    intros genres override `silence_leading_max_s` upward so natural
+    filter sweeps / builds don't FAIL QC.
+    """
+    if genre is None:
+        return 0.5, 3.0
+
+    from tools.mastering.master_tracks import GENRE_PRESETS
+
+    key = genre.lower()
+    if key not in GENRE_PRESETS:
+        raise ValueError(
+            f"Unknown genre: {genre}. "
+            f"Available: {', '.join(sorted(GENRE_PRESETS.keys()))}"
+        )
+    preset = GENRE_PRESETS[key]
+    return (
+        float(preset.get('silence_leading_max_s', 0.5)),
+        float(preset.get('silence_trailing_max_s', 3.0)),
+    )
+
+
 def qc_track(
     filepath: Path | str,
     checks: list[str] | None = None,
@@ -460,6 +497,7 @@ def qc_track(
     active_checks = checks or ALL_CHECKS
 
     click_peak_ratio, click_fail_count = _resolve_click_thresholds(genre)
+    silence_leading_max_s, silence_trailing_max_s = _resolve_silence_thresholds(genre)
 
     info = sf.info(filepath)
     data, rate = sf.read(filepath)
@@ -493,7 +531,11 @@ def qc_track(
         )
 
     if "silence" in active_checks:
-        results["silence"] = _check_silence(data, rate)
+        results["silence"] = _check_silence(
+            data, rate,
+            leading_max_s=silence_leading_max_s,
+            trailing_max_s=silence_trailing_max_s,
+        )
 
     if "spectral" in active_checks:
         results["spectral"] = _check_spectral(data, rate)

@@ -377,6 +377,28 @@ class TestCheckSilence:
         assert result["status"] == "FAIL"
         assert "internal gap" in result["detail"]
 
+    def test_leading_silence_electronic_allows_build_intro(self, tmp_path):
+        """An electronic track opening with a 1.0 s filter-sweep build
+        must not FAIL the silence gate — `electronic` preset raises the
+        leading-silence limit to 1.5 s (#323 comment point 4).
+        """
+        rate = 44100
+        silence = np.zeros(int(rate * 1.0), dtype=np.float64)
+        t = np.linspace(0, 2.0, rate * 2, endpoint=False)
+        sig = 0.5 * np.sin(2 * np.pi * 440 * t)
+        mono = np.concatenate([silence, sig])
+        data = np.column_stack([mono, mono])
+        wav_path = tmp_path / "electronic_intro.wav"
+        sf.write(str(wav_path), data, rate)
+
+        # Default (no genre) — 1.0 s leading silence FAILs at 0.5 s cap.
+        default_result = qc_track(str(wav_path), checks=["silence"])
+        assert default_result["checks"]["silence"]["status"] == "FAIL"
+
+        # Electronic preset — 1.5 s cap, so 1.0 s passes.
+        electronic_result = qc_track(str(wav_path), checks=["silence"], genre="electronic")
+        assert electronic_result["checks"]["silence"]["status"] != "FAIL"
+
     def test_trailing_silence_with_boundary_blip_not_internal(self):
         """Trailing silence followed by a sub-audible noise blip at the
         file end must be classified as trailing, not an internal gap (#321).
