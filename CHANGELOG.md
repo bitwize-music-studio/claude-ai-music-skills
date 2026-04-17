@@ -6,6 +6,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Changed
+- **Dense-transient genre click QC thresholds bumped** to match `idm`'s calibration (`click_peak_ratio: 10.0`, `click_fail_count: 30`, was 8.0/15). Applies to `electronic`, `edm`, `techno`, `drum-and-bass`, `jungle`, `dubstep`, `hardstyle`, `breakbeat`, `metal`, `industrial`, `trap`, `drill`, `phonk`, `grime`, `shoegaze`, `dream-pop`. Prior values were flagging post-polish electronic drum transients as clicks (20+ clicks on a 3-min track → FAIL) even though the hits are musical, not digital pops. (#323 comment)
+- **`polish_album` verify stage** now runs a pre-master check subset (`format, mono, phase, clipping, silence, spectral`) and defers `truepeak` / `clicks` to post-mastering QC. Polished audio is un-limited and dense-transient (the limiter is what enforces the ceiling), so failing those checks on pre-master files is a false gate. The stage surfaces `checks_run` and `checks_deferred_to_post_master` for transparency. (#323 comment)
+- **`master_album` pre-QC stage** now forwards `genre` to `qc_track` (so genre-preset silence / click thresholds apply) and surfaces `checks_run` / `checks_deferred_to_post_master` in its status output. (#323 comment)
+
+### Added
+- **Genre-aware silence QC thresholds**: new `silence_leading_max_s` / `silence_trailing_max_s` preset fields (`tools/mastering/genre-presets.yaml`). Defaults 0.5 / 3.0 s. `electronic` and `edm` override `silence_leading_max_s: 1.5` so filter-sweep / build intros don't FAIL the silence gate. (#323 comment)
+
 ### Fixed
 - **qc_audio silence check (#321)**: Trailing silence followed by a sub-threshold noise-floor blip no longer gets misclassified as an internal gap. The silence detector now classifies each silent region by position AND by the amount of non-silent content between the region and the file edge — a region ending within 1s of the file end (with <300ms of non-silent content after it) counts as trailing, not internal. Unblocks the `master_album` / `polish_album` pre-QC gate on tracks with natural fade-outs.
 - **analyze_mix_issues click detection (#323)**: Replaced the sample-wise `|diff| > 6·σ(diff)` detector with a windowed peak-to-RMS check (matches `qc_tracks._check_clicks`) at `peak_ratio=15` over 10 ms windows. The old detector flagged tens of thousands of "clicks" on every clean vocal, bass, and synth stem (vocal consonants and synth attacks have high instantaneous derivatives but spread their energy across a window), emitting `click_removal: true` recommendations that the polish pipeline silently ignored. The analyzer now only recommends click removal when genuine single-sample discontinuities exist.

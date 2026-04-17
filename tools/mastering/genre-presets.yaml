@@ -52,6 +52,11 @@
 #                            sharp transients (e.g., 8.0–10.0 for electronic/IDM/metal).
 #   click_fail_count       - QC click detector: absolute click count above which clicks FAIL
 #                            (default 3). Raise alongside peak_ratio for dense-transient genres.
+#   silence_leading_max_s  - QC silence check: leading silence longer than this duration (s)
+#                            FAILs. Default 0.5. Raise (e.g. 1.5) for genres whose intros
+#                            open with filter sweeps / builds (electronic, EDM, progressive).
+#   silence_trailing_max_s - QC silence check: trailing silence longer than this duration (s)
+#                            WARNs. Default 3.0.
 #   codec_preview_enabled  - Render a 128 kbps AAC .aac.m4a next to each master in
 #                            mastering_samples/ for operator Bluetooth audition (issue #296).
 #                            1 = on (default), 0 = off.
@@ -201,8 +206,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   dream-pop:
     target_lufs: -16.0
     cut_highmid: -1.0
@@ -247,8 +252,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   jangle-pop:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -300,20 +305,20 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   drill:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   phonk:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   grime:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -358,8 +363,8 @@ genres:
     target_lufs: -12.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   mumble-rap:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -536,8 +541,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   britpop:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -609,26 +614,26 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   crust-punk:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   d-beat:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   powerviolence:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   screamo:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -672,20 +677,20 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   thrash-metal:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   black-metal:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   doom-metal:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -694,14 +699,14 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   metalcore:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   nu-metal:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -722,20 +727,20 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   grindcore:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   groove-metal:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   sludge-metal:
     target_lufs: -14.0
     cut_highmid: -2.5
@@ -748,21 +753,21 @@ genres:
     target_lufs: -14.0
     cut_highmid: -3.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   djent:
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   industrial:
     opus_safe: true
     target_lufs: -14.0
     cut_highmid: -2.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   hair-metal:
     target_lufs: -14.0
     cut_highmid: -2.0
@@ -805,15 +810,19 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
+    # Electronic intros often open with filter sweeps / builds that
+    # read as near-silence for the first 1-2 s.
+    silence_leading_max_s: 1.5
   edm:
     opus_safe: true
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
+    silence_leading_max_s: 1.5
   eurodance:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -842,8 +851,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   trance:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -853,14 +862,14 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   jungle:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   uk-garage:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -870,8 +879,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   synthwave:
     target_lufs: -14.0
     cut_highmid: -1.5
@@ -888,8 +897,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   electro:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -899,8 +908,8 @@ genres:
     target_lufs: -12.0
     cut_highmid: -2.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   electroswing:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -941,8 +950,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   speedcore:
     target_lufs: -12.0
     cut_highmid: -2.0
@@ -953,8 +962,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   wave:
     target_lufs: -16.0
     cut_highmid: -1.0
@@ -971,8 +980,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   vocal-trance:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -989,8 +998,8 @@ genres:
     target_lufs: -12.0
     cut_highmid: -2.0
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   dub-techno:
     target_lufs: -16.0
     cut_highmid: -1.0
@@ -1005,14 +1014,14 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   glitch-pop:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   moombahton:
     target_lufs: -14.0
     cut_highmid: -1.0
@@ -1021,8 +1030,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -1.5
     cut_highs: 0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   witch-house:
     target_lufs: -16.0
     cut_highmid: -1.0
@@ -1031,8 +1040,8 @@ genres:
     target_lufs: -14.0
     cut_highmid: -2.0
     cut_highs: -1.0
-    click_peak_ratio: 8.0
-    click_fail_count: 15
+    click_peak_ratio: 10.0
+    click_fail_count: 30
   ebm:
     target_lufs: -14.0
     cut_highmid: -1.5

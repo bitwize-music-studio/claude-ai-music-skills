@@ -569,11 +569,13 @@ async def _stage_pre_qc(ctx: MasterAlbumCtx) -> str | None:
     from tools.mastering.qc_tracks import qc_track
 
     PRE_QC_CHECKS = ["format", "mono", "phase", "clipping", "silence", "spectral"]
+    PRE_QC_DEFERRED = ["truepeak", "clicks"]
 
     pre_qc_results = []
+    qc_genre = ctx.genre or None
     for wav in ctx.wav_files:
         result = await ctx.loop.run_in_executor(
-            None, qc_track, str(wav), PRE_QC_CHECKS
+            None, qc_track, str(wav), PRE_QC_CHECKS, qc_genre
         )
         pre_qc_results.append(result)
 
@@ -605,6 +607,8 @@ async def _stage_pre_qc(ctx: MasterAlbumCtx) -> str | None:
             "passed": pre_passed,
             "warned": pre_warned,
             "failed": pre_failed,
+            "checks_run": PRE_QC_CHECKS,
+            "checks_deferred_to_post_master": PRE_QC_DEFERRED,
             "verdict": "FAILURES FOUND",
         }
         return _safe_json({
@@ -625,6 +629,8 @@ async def _stage_pre_qc(ctx: MasterAlbumCtx) -> str | None:
         "passed": pre_passed,
         "warned": pre_warned,
         "failed": 0,
+        "checks_run": PRE_QC_CHECKS,
+        "checks_deferred_to_post_master": PRE_QC_DEFERRED,
         "verdict": "ALL PASS" if pre_warned == 0 else "WARNINGS",
     }
     return None
