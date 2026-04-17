@@ -1038,11 +1038,42 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
         current_verify[anchor_idx - 1].get("lufs", 0.0)
     ) if 1 <= anchor_idx <= len(current_verify) else 0.0
 
+    prev_plan_signature: tuple[tuple[str, float, float], ...] | None = None
+
     for _iter in range(_COHERENCE_MAX_ITERATIONS):
         plan = _coherence_build_plan(classifications, current_verify, anchor_idx)
         correctable = [c for c in plan["corrections"] if c["correctable"]]
         if not correctable:
             break
+
+        # Fixed-point detection (#323 comment): when consecutive iterations
+        # produce identical correction plans AND at least one entry has
+        # tilt clamped, re-mastering from the same polished source with
+        # the same clamped tilt will yield the same output. Flag each
+        # unconvergent track and break the loop rather than burning the
+        # remaining iteration budget on a known-futile repeat.
+        plan_signature = tuple(
+            (
+                str(c["filename"]),
+                round(float(c.get("corrected_target_lufs", 0.0)), 3),
+                round(float(c.get("corrected_tilt_db", 0.0)), 3),
+            )
+            for c in correctable
+        )
+        any_tilt_clamped = any(c.get("tilt_clamped") for c in correctable)
+        if plan_signature == prev_plan_signature and any_tilt_clamped:
+            for entry in correctable:
+                all_corrections.append({
+                    "filename": entry["filename"],
+                    "status": "unconvergent",
+                    "reason": "fixed_point_tilt_clamp",
+                    "applied_target_lufs": entry.get("corrected_target_lufs"),
+                    "applied_tilt_db": entry.get("corrected_tilt_db"),
+                    "tilt_clamped": entry.get("tilt_clamped", False),
+                    "iteration": _iter + 1,
+                })
+            break
+        prev_plan_signature = plan_signature
 
         anchor_lufs = frozen_anchor_lufs
         iterations_run += 1
