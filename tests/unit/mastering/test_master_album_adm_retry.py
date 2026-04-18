@@ -71,11 +71,31 @@ def _install_album(
     monkeypatch.setattr(_shared, "cache", _FakeCache())
 
 
-def _run_master_album(tmp_path: Path, album_slug: str = "adm-retry-album") -> dict:
+def _run_master_album(
+    tmp_path: Path,
+    album_slug: str = "adm-retry-album",
+    adm_enabled: bool = True,
+) -> dict:
+    """Invoke master_album with ADM toggled on/off via config patching.
+
+    ADM is opt-in (default false) as of the adm_validation_enabled
+    config gate. These ADM-retry tests all test ADM-specific logic, so
+    default to True and let new tests override when exercising the
+    skip path.
+    """
     def _fake_resolve(slug, subfolder=""):
         return None, tmp_path
 
-    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve):
+    from tools.mastering import config as _master_config
+    real_load = _master_config.load_mastering_config
+
+    def _load_with_adm() -> dict:
+        cfg = real_load()
+        cfg["adm_validation_enabled"] = adm_enabled
+        return cfg
+
+    with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
+         patch.object(_master_config, "load_mastering_config", _load_with_adm):
         return json.loads(asyncio.run(audio_mod.master_album(album_slug=album_slug)))
 
 
@@ -552,3 +572,192 @@ def test_adm_warn_fallback_runs_post_loop_stages(
             f"Expected post-loop stage {stage_name!r} to run after "
             f"warn-fallback, got stages: {sorted(stages.keys())}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Gate tests: ADM validation is opt-in via mastering.adm_validation_enabled
+# ---------------------------------------------------------------------------
+
+def test_adm_skipped_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Missing `mastering.adm_validation_enabled` config key → ADM off.
+
+    Each ADM cycle re-masters every track and AAC encode/decode adds
+    ~10-12 min per cycle on a 10-track album. Default off keeps normal
+    mastering runs fast; users opt in for ADM submission prep.
+    """
+    album_slug = "adm-gate-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    adm_called = {"n": 0}
+
+    def _should_not_be_called(*args, **kwargs):
+        adm_called["n"] += 1
+        raise AssertionError(
+            "_adm_check_fn should not be called when adm_validation_enabled=False"
+        )
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _should_not_be_called)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=False)
+
+    assert result.get("failed_stage") is None, (
+        f"Expected pipeline to complete, got failure: {result.get('failure_detail')}"
+    )
+    assert adm_called["n"] == 0, (
+        f"Expected 0 ADM calls when disabled, got {adm_called['n']}"
+    )
+    adm_stage = result.get("stages", {}).get("adm_validation", {})
+    assert adm_stage.get("status") == "skipped", (
+        f"Expected adm_validation.status=skipped, got: {adm_stage}"
+    )
+    assert adm_stage.get("reason") == "disabled_by_config", (
+        f"Expected reason=disabled_by_config, got: {adm_stage}"
+    )
+    notices = result.get("notices", [])
+    assert any(
+        "ADM validation skipped" in n and "adm_validation_enabled" in n
+        for n in notices
+    ), f"Expected ADM-skipped notice, got notices: {notices}"
+
+
+def test_adm_enabled_runs_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Explicit `adm_validation_enabled: true` → ADM stage runs.
+
+    Companion to the default-skip test. Pins the gate bidirectionally.
+    """
+    album_slug = "adm-gate-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    adm_called = {"n": 0}
+
+    def _clean(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        adm_called["n"] += 1
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 0,
+            "peak_db_decoded": ceiling_db - 0.5,
+            "ceiling_db": ceiling_db,
+            "clips_found": False,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _clean)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+
+    assert result.get("failed_stage") is None
+    assert adm_called["n"] >= 1, (
+        f"Expected >= 1 ADM call when enabled, got {adm_called['n']}"
+    )
+    adm_stage = result.get("stages", {}).get("adm_validation", {})
+    assert adm_stage.get("status") == "pass", (
+        f"Expected adm_validation.status=pass with clean checks, got: {adm_stage}"
+    )
+
+
+def test_adm_failure_detail_suggests_dynamic_ceiling(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """failure_detail.suggestion must reflect the current ceiling, not a
+    hardcoded -1.5.
+
+    Bug reported: "the suggestion field says 'set mastering.
+    true_peak_ceiling: -1.5 in config.yaml' — but the ceiling is
+    already at -1.5". Pin the dynamic computation.
+
+    Approach: set the starting ceiling to -2.5 via a genre override is
+    involved, so we instead test by letting the retry loop tighten then
+    inspecting the final halt suggestion. Since warn-fallback is the
+    normal terminal state now, halt JSON isn't returned on clip failure
+    — we test the suggestion string via the stage-level failure return
+    by forcing clips on the last cycle only (cycle 3 with 2 prior
+    tightenings). That last cycle's ceiling is well below -1.5, so the
+    suggestion must reflect that.
+
+    Simpler: we force a persistent clip on the first cycle and capture
+    the notices pushed during tightening — the retry notice already
+    shows the dynamic next ceiling (implemented in audio.py). What we
+    pin here is the stage-level failure_detail.suggestion contents at
+    the moment it's first generated.
+    """
+    album_slug = "adm-gate-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    # Force a single ADM failure on cycle 0, clean thereafter (so retry
+    # is attempted once and the pipeline completes successfully).
+    # We capture the failure_detail that would have been returned to
+    # the retry driver before it moved on.
+    captured_suggestions: list[str] = []
+    captured_suggested_ceilings: list[float] = []
+    original_stage = album_stages_mod._stage_adm_validation
+
+    async def _wrap_stage(ctx):
+        result = await original_stage(ctx)
+        if result:
+            payload = json.loads(result)
+            fd = payload.get("failure_detail", {})
+            if "suggestion" in fd:
+                captured_suggestions.append(str(fd["suggestion"]))
+            if "suggested_ceiling_db" in fd:
+                captured_suggested_ceilings.append(float(fd["suggested_ceiling_db"]))
+        return result
+
+    monkeypatch.setattr(album_stages_mod, "_stage_adm_validation", _wrap_stage)
+
+    call_count = {"n": 0}
+
+    def _check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        call_count["n"] += 1
+        clips = call_count["n"] == 1
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 5 if clips else 0,
+            # Peak at -0.4 dBTP when ceiling -1.0 → overshoot 0.6
+            "peak_db_decoded": -0.4 if clips else ceiling_db - 0.5,
+            "ceiling_db": ceiling_db,
+            "clips_found": clips,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _check)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+
+    assert captured_suggestions, (
+        f"Expected at least one suggestion to be generated on clip failure"
+    )
+    suggestion = captured_suggestions[0]
+    suggested_ceiling = captured_suggested_ceilings[0]
+    # Dynamic suggestion: worst_peak -0.4 at ceiling -1.0 → min(
+    # ceiling - 0.5, peak - 0.3) = min(-1.5, -0.7) = -1.5. Acceptable
+    # in a band around -1.5 given float precision.
+    assert -1.55 <= suggested_ceiling <= -1.45, (
+        f"Expected suggested_ceiling near -1.5 (computed from "
+        f"peak=-0.4, ceiling=-1.0), got: {suggested_ceiling}"
+    )
+    # The string must name the actual computed value, not a hardcoded
+    # one. For this fixture the computed value IS -1.5, but the string
+    # must NOT use the literal hardcoded phrasing from the pre-fix
+    # code: "set mastering.true_peak_ceiling: -1.5 in config.yaml"
+    # without the "Worst decoded peak was ..." prefix.
+    assert "Worst decoded peak" in suggestion, (
+        f"Suggestion must reference observed worst peak (dynamic), got: "
+        f"{suggestion}"
+    )
+    assert f"{suggested_ceiling:.2f}" in suggestion, (
+        f"Suggestion must name the computed ceiling {suggested_ceiling:.2f}, got: "
+        f"{suggestion}"
+    )

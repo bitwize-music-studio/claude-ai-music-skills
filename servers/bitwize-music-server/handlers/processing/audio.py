@@ -648,7 +648,14 @@ async def master_album(
     # tightening uses the observed worst decoded peak to pick the next
     # ceiling in one shot, then backs that with a hard floor and a
     # warn-fallback so any album can complete without halting.
-    _ADM_MAX_CYCLES = 3
+    #
+    # ADM validation is OPT-IN via `mastering.adm_validation_enabled: true`
+    # (default false) because each cycle re-masters every track and the
+    # AAC encode/decode adds ~10-12 min per cycle on a 10-track album.
+    # Most albums don't need the ADM loop; reserve it for Apple Hi-Res
+    # Lossless / ADM submission prep.
+    adm_enabled = bool(ctx.targets.get("adm_validation_enabled", False))
+    _ADM_MAX_CYCLES = 3 if adm_enabled else 1
     _ADM_MIN_CEILING_DB = -6.0       # never tighten below this
     _ADM_SAFETY_DB = 0.3             # extra headroom below observed peak
     _ADM_MIN_TIGHTEN_DB = 0.5        # preserves legacy step as the floor
@@ -658,8 +665,20 @@ async def master_album(
         _album_stages._stage_coherence_check,
         _album_stages._stage_coherence_correct,
         _ceiling_guard,
-        _album_stages._stage_adm_validation,
     ]
+    if adm_enabled:
+        adm_loop_stages.append(_album_stages._stage_adm_validation)
+    else:
+        ctx.stages["adm_validation"] = {
+            "status": "skipped",
+            "reason": "disabled_by_config",
+        }
+        ctx.notices.append(
+            "ADM validation skipped — enable with "
+            "`mastering.adm_validation_enabled: true` in config.yaml "
+            "when preparing for Apple Hi-Res Lossless / ADM submission "
+            "(adds ~10-12 min per cycle on a 10-track album)."
+        )
 
     def _adm_adaptive_ceiling(
         failure_detail: dict[str, Any], current: float,

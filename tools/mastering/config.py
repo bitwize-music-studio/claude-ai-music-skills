@@ -28,6 +28,14 @@ DEFAULT_MASTERING_CONFIG: dict[str, Any] = {
     "true_peak_ceiling": -1.0,
     "archival_enabled": False,
     "adm_aac_encoder": "aac",
+    # ADM (Apple Digital Masters) validation runs AAC encode + decode
+    # per track to scan for inter-sample peaks above the ceiling, plus
+    # up to two adaptive retry cycles when clips are found. Each cycle
+    # re-masters every track, so on a 10-track album this adds ~10-12
+    # minutes per cycle. Default OFF — opt in per album via
+    # `mastering.adm_validation_enabled: true` when preparing for an
+    # Apple Hi-Res Lossless / ADM submission.
+    "adm_validation_enabled": False,
 }
 
 # Per-key type coercion. Values from YAML may come through as strings when
@@ -41,6 +49,7 @@ _KEY_TYPES: dict[str, type] = {
     "true_peak_ceiling": float,
     "archival_enabled": bool,
     "adm_aac_encoder": str,
+    "adm_validation_enabled": bool,
 }
 
 
@@ -150,6 +159,9 @@ def resolve_mastering_targets(
         "output_sample_rate": output_sample_rate,
         "archival_enabled": bool(config.get("archival_enabled", False)),
         "adm_aac_encoder": str(config.get("adm_aac_encoder", "aac")),
+        "adm_validation_enabled": bool(
+            config.get("adm_validation_enabled", False)
+        ),
     }
 
     if source_sample_rate is not None:
@@ -255,6 +267,7 @@ def build_effective_preset(
         "upsampled_from_source": targets["upsampled_from_source"],
         "archival_enabled": targets["archival_enabled"],
         "adm_aac_encoder": targets["adm_aac_encoder"],
+        "adm_validation_enabled": targets["adm_validation_enabled"],
         "cut_highmid": effective_highmid,
         "cut_highs": effective_highs,
     }

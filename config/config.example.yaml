@@ -847,6 +847,24 @@ sheet_music:
 #   #                 (--enable-libfdk_aac).
 #   #
 #   # adm_aac_encoder: aac
+#
+#   # ---------------------------
+#   # adm_validation_enabled [optional, default: false]
+#   # ---------------------------
+#   # When true, master_album runs the ADM (Apple Digital Masters)
+#   # validation stage — encodes each mastered track to AAC, decodes,
+#   # and scans for inter-sample peaks above the true-peak ceiling.
+#   # If clips are found, the adaptive retry loop tightens the ceiling
+#   # up to 2 additional times.
+#   #
+#   # Cost: each cycle re-masters every track, so on a 10-track album
+#   # this adds ~10-12 minutes per cycle (up to ~30-36 min in the worst
+#   # case). Default OFF — opt in per album when preparing for Apple
+#   # Hi-Res Lossless / ADM submission, or when you need provable
+#   # zero-clip delivery. Normal streaming-target mastering doesn't
+#   # need it.
+#   #
+#   # adm_validation_enabled: false
 
 
 # =============================================================================

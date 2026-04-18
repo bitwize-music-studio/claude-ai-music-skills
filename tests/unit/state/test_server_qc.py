@@ -825,7 +825,17 @@ class TestMasterAlbumPipeline:
         assert "status_update" in result["stages"]
 
         for stage_name, stage_data in result["stages"].items():
-            assert stage_data["status"] == "pass", f"Stage '{stage_name}' did not pass"
+            # adm_validation is opt-in via `mastering.adm_validation_enabled`
+            # (default false) — "skipped" is the expected healthy state when
+            # the config key is missing. Every other stage must PASS.
+            if stage_name == "adm_validation":
+                assert stage_data["status"] in ("pass", "skipped"), (
+                    f"adm_validation must be pass or skipped, got: {stage_data}"
+                )
+            else:
+                assert stage_data["status"] == "pass", (
+                    f"Stage '{stage_name}' did not pass"
+                )
 
     def test_full_pipeline_updates_track_status(self, tmp_path):
         """Successful pipeline should write 'Final' to track files."""
