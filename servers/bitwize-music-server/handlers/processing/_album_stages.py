@@ -2004,6 +2004,21 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
             "tracks_with_clips": len(clips_found),
             "encoder_used": encoder_used,
         }
+        # Compute a dynamic suggestion: the next ceiling the adaptive
+        # loop would try. Previously this string was hardcoded to
+        # "-1.5 dBTP" regardless of the current ceiling, which was
+        # misleading when the loop had already tightened past that.
+        worst_decoded = max(
+            (float(r.get("peak_db_decoded", 0.0)) for r in clips_found),
+            default=ceiling_db,
+        )
+        suggested_ceiling = min(
+            ceiling_db - 0.5,
+            worst_decoded - 0.3,
+        )
+        # Clamp suggestion to the -6 dBTP adaptive floor for consistency
+        # with the actual retry formula.
+        suggested_ceiling = max(suggested_ceiling, -6.0)
         return _safe_json({
             "album_slug": ctx.album_slug,
             "stage_reached": "adm_validation",
@@ -2022,9 +2037,13 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
                      "peak_db_decoded": r["peak_db_decoded"]}
                     for r in clips_found
                 ],
+                "suggested_ceiling_db": suggested_ceiling,
                 "suggestion": (
-                    "Tighten true-peak ceiling by 0.5 dB and re-master, "
-                    "or set mastering.true_peak_ceiling: -1.5 in config.yaml."
+                    f"Worst decoded peak was {worst_decoded:.2f} dBTP; "
+                    f"tighten true-peak ceiling to {suggested_ceiling:.2f} dBTP "
+                    f"and re-master, or set "
+                    f"`mastering.true_peak_ceiling: {suggested_ceiling:.2f}` "
+                    f"in config.yaml."
                 ),
             },
         })
