@@ -1478,9 +1478,20 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
     """
     from tools.mastering.qc_tracks import qc_track
 
+    # Post-QC must pass the genre through just like pre-QC does. Without
+    # it, `_resolve_click_thresholds(None)` returns the generic default
+    # (peak_ratio=6.0, fail_count=3), which causes every electronic /
+    # EDM / IDM / metal kick and snare transient to read as a "click"
+    # and fails 10/10 tracks on a legitimate master. The electronic
+    # preset's intentional peak_ratio=10.0, fail_count=30 only applies
+    # when the genre reaches the click detector.
+    qc_genre = ctx.genre or None
+
     post_qc_results = []
     for wav in ctx.mastered_files:
-        result = await ctx.loop.run_in_executor(None, qc_track, str(wav), None)
+        result = await ctx.loop.run_in_executor(
+            None, qc_track, str(wav), None, qc_genre,
+        )
         post_qc_results.append(result)
 
     post_passed = sum(1 for r in post_qc_results if r["verdict"] == "PASS")

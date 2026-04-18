@@ -761,3 +761,182 @@ def test_adm_failure_detail_suggests_dynamic_ceiling(
         f"Suggestion must name the computed ceiling {suggested_ceiling:.2f}, got: "
         f"{suggestion}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Slope-aware adaptive tightening — 0.6:1 ripple scaling converges
+# ---------------------------------------------------------------------------
+
+def test_adm_slope_aware_scales_tighten_on_sub_linear_ripple(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When AAC ripple shrinks at ~0.6 dB per 1 dB of ceiling tighten,
+    the slope-aware formula must scale the tighten proportionally so
+    convergence happens within the cycle budget.
+
+    Reporter's real data: cycles 0→1→2 with ceiling going -1.5 →
+    -2.33 → -3.49 and decoded peaks -0.97 → -1.47 → -2.80. The 1:1
+    legacy formula proposed too-small tightens and never converged in
+    3 cycles. The slope-aware formula observes d_peak / d_ceiling ≈
+    0.6 after cycle 1 and multiplies subsequent tightens by ~1.67×.
+    """
+    album_slug = "adm-slope-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    # Model: decoded_peak(ceiling) = ceiling + base_overshoot - 0.6 *
+    # tighten_from_start. Converges when overshoot ≤ 0.
+    start_ceiling = -1.0
+    base_overshoot = 1.0
+
+    def _check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        tighten_from_start = start_ceiling - ceiling_db
+        remaining_overshoot = base_overshoot - 0.6 * tighten_from_start
+        clips_here = remaining_overshoot > 0
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 1 if clips_here else 0,
+            "peak_db_decoded": ceiling_db + remaining_overshoot,
+            "ceiling_db": ceiling_db,
+            "clips_found": clips_here,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _check)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    mastered_ceilings: list[float] = []
+    import tools.mastering.master_tracks as _mt_mod
+    _real_master_track = _mt_mod.master_track
+
+    def _capture(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real_master_track(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+
+    assert result.get("failed_stage") is None, (
+        f"Expected pipeline completion, got: {result.get('failure_detail')}"
+    )
+    # On 0.6:1 material, slope-aware convergence fits inside the 5-
+    # cycle budget. Pre-fix behavior (fixed 0.5 dB steps) would NOT
+    # converge with base_overshoot=1.0. Upper bound: ≤4 re-masters.
+    assert len(mastered_ceilings) <= 4, (
+        f"Expected convergence in ≤4 re-masters with slope-aware formula, "
+        f"got {len(mastered_ceilings)}: {mastered_ceilings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Divergence detection: ripple grows with tightening → warn-fallback
+# ---------------------------------------------------------------------------
+
+def test_adm_divergence_triggers_warn_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Material where tightening increases decoded ripple must
+    terminate the loop early with a divergence notice, not burn all
+    5 cycles. Mimics limiter pumping harder on tighter ceilings.
+    """
+    album_slug = "adm-divergent-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    # Pathological limiter: tightening the ceiling makes the decoded
+    # peak GROW, not shrink. On cycle 0 at ceiling -1.0 the peak is
+    # -0.5 dBTP; on cycle 1 at a tighter ceiling the peak rises to
+    # -0.3 dBTP (higher = closer to 0 = worse). slope = Δpeak/Δceiling
+    # = (-0.5 - (-0.3)) / (-1.0 - tightened) is negative — divergent.
+    def _check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        if ceiling_db >= -1.25:  # cycle 0 only
+            peak = -0.5
+        else:  # cycle 1 and beyond — peak actually worsened
+            peak = -0.3
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 5,
+            "peak_db_decoded": peak,
+            "ceiling_db": ceiling_db,
+            "clips_found": True,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _check)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    mastered_ceilings: list[float] = []
+    import tools.mastering.master_tracks as _mt_mod
+    _real_master_track = _mt_mod.master_track
+
+    def _capture(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real_master_track(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+
+    assert result.get("failed_stage") is None, (
+        f"Expected warn-fallback completion on divergent material, "
+        f"got: {result.get('failure_detail')}"
+    )
+    stage = result.get("stages", {}).get("adm_validation", {})
+    assert stage.get("status") == "warn", (
+        f"Expected warn status on divergent material, got: {stage}"
+    )
+    assert stage.get("diverging") is True, (
+        f"Expected diverging=True on slope-≤-0 material, got: {stage}"
+    )
+    # Divergence detection must bail well before the 5-cycle budget —
+    # cycle 0 + cycle 1 produce enough observations, cycle 2 detects.
+    assert len(mastered_ceilings) <= 2, (
+        f"Expected divergence bail after ≤2 re-masters, got "
+        f"{len(mastered_ceilings)}: {mastered_ceilings}"
+    )
+    notices = result.get("notices", [])
+    assert any(
+        "divergent" in n.lower() or "slope" in n.lower() for n in notices
+    ), f"Expected divergence notice, got notices: {notices}"
+
+
+# ---------------------------------------------------------------------------
+# Warn-fallback terminal notice appears in notices
+# ---------------------------------------------------------------------------
+
+def test_adm_warn_fallback_emits_terminal_notice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Operators reading the notice stream must see an explicit
+    'ADM loop terminated without convergence' notice so they know the
+    exit condition without scanning warnings. Previously only
+    per-cycle tightening notices were emitted; no terminal notice
+    named the warn-fallback exit.
+    """
+    album_slug = "adm-terminal-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    def _always_clips(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 5,
+            "peak_db_decoded": ceiling_db + 0.3,
+            "ceiling_db": ceiling_db,
+            "clips_found": True,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    notices = result.get("notices", [])
+    assert any(
+        "terminated" in n.lower() and "convergence" in n.lower()
+        for n in notices
+    ), f"Expected terminal warn-fallback notice, got notices: {notices}"

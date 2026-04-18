@@ -655,10 +655,15 @@ async def master_album(
     # Most albums don't need the ADM loop; reserve it for Apple Hi-Res
     # Lossless / ADM submission prep.
     adm_enabled = bool(ctx.targets.get("adm_validation_enabled", False))
-    _ADM_MAX_CYCLES = 3 if adm_enabled else 1
-    _ADM_MIN_CEILING_DB = -6.0       # never tighten below this
-    _ADM_SAFETY_DB = 0.3             # extra headroom below observed peak
-    _ADM_MIN_TIGHTEN_DB = 0.5        # preserves legacy step as the floor
+    # Bumped 3 → 5: dense-transient electronic content needs more cycles
+    # because AAC ripple shrinks only ~0.6 dB per 1 dB of ceiling tighten,
+    # not 1:1. Combined with slope-aware tightening below, 5 cycles
+    # converges any album that isn't structurally divergent.
+    _ADM_MAX_CYCLES = 5 if adm_enabled else 1
+    _ADM_MIN_CEILING_DB = -6.0              # never tighten below this
+    _ADM_SAFETY_DB = 0.3                    # extra headroom below observed peak
+    _ADM_MIN_TIGHTEN_DB = 0.5               # preserves legacy step as floor
+    _ADM_MIN_EFFECTIVE_RATIO = 0.4          # floor on slope efficacy
     adm_loop_stages: list[_StageFn] = [
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
@@ -680,17 +685,31 @@ async def master_album(
             "(adds ~10-12 min per cycle on a 10-track album)."
         )
 
+    # Per-cycle (ceiling, worst_peak) observations. Used to estimate the
+    # actual AAC-ripple-to-ceiling slope and pick a convergent tighten,
+    # and to detect divergence (slope ≤ 0) where tightening the limiter
+    # drives it harder and actually grows inter-sample ripple.
+    adm_history: list[dict[str, float]] = []
+
     def _adm_adaptive_ceiling(
         failure_detail: dict[str, Any], current: float,
-    ) -> tuple[float, bool]:
-        """Compute next ceiling from observed worst decoded peak.
+    ) -> tuple[float, bool, bool]:
+        """Compute next ceiling from observed worst decoded peak + history.
 
-        Returns ``(new_ceiling, hit_floor)``. The WAV ceiling is placed
-        ``_ADM_SAFETY_DB`` below the worst decoded peak so the re-master
-        starts with enough headroom for AAC ripple. Clamped to
-        ``_ADM_MIN_CEILING_DB``; when clamped, ``hit_floor=True`` so the
-        loop can fall through to warn-fallback instead of looping forever
-        at the same ceiling.
+        Returns ``(new_ceiling, hit_floor, diverging)``.
+
+        - With no history yet: assumes 1:1 ripple-to-ceiling scaling
+          (legacy formula).
+        - With ≥2 history points: fits a slope from the last two cycles
+          and scales the tighten by ``1/effective_ratio``, so material
+          with a 0.6:1 ripple scaling gets a ~1.67× larger tighten than
+          the legacy formula would apply.
+        - When slope ≤ 0 (ripple growing as we tighten): flags
+          ``diverging=True`` so the caller falls through to warn-fallback
+          instead of looping forever with worsening decoded peaks.
+
+        Clamped to ``_ADM_MIN_CEILING_DB``; ``hit_floor=True`` when the
+        proposed ceiling would go below the floor.
         """
         tracks = failure_detail.get("tracks_with_clips") or []
         peaks = [
@@ -699,16 +718,46 @@ async def master_album(
         ]
         if not peaks:
             proposed = current - _ADM_MIN_TIGHTEN_DB
+            floored = proposed < _ADM_MIN_CEILING_DB
+            return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
+
+        worst_peak = max(peaks)
+        overshoot = worst_peak - current
+        adm_history.append({"ceiling": current, "worst_peak": worst_peak})
+
+        if len(adm_history) >= 2:
+            prev, curr = adm_history[-2], adm_history[-1]
+            # d_ceiling > 0 when we tightened between cycles; d_peak > 0
+            # when the decoded peak dropped as a result.
+            d_ceiling = prev["ceiling"] - curr["ceiling"]
+            d_peak = prev["worst_peak"] - curr["worst_peak"]
+            if d_ceiling > 1e-3:
+                slope = d_peak / d_ceiling
+                if slope <= 0:
+                    # Ripple grew (or held) despite tightening — the
+                    # limiter is contributing more inter-sample content
+                    # than we're gaining headroom. Not convergent.
+                    return (current, True, True)
+                effective_ratio = max(slope, _ADM_MIN_EFFECTIVE_RATIO)
+                tighten = (overshoot + _ADM_SAFETY_DB) / effective_ratio
+                tighten = max(tighten, _ADM_MIN_TIGHTEN_DB)
+            else:
+                tighten = max(
+                    overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
+                )
         else:
-            worst_peak = max(peaks)
-            overshoot = worst_peak - current
-            tighten = max(overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB)
-            proposed = current - tighten
+            # First retry — no slope yet, assume 1:1 scaling.
+            tighten = max(
+                overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
+            )
+
+        proposed = current - tighten
         floored = proposed < _ADM_MIN_CEILING_DB
-        return (max(proposed, _ADM_MIN_CEILING_DB), floored)
+        return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
 
     adm_clip_failure_persisted = False
     adm_last_failure_detail: dict[str, Any] = {}
+    adm_diverging = False
 
     for adm_cycle in range(_ADM_MAX_CYCLES):
         ctx.adm_cycle = adm_cycle
@@ -727,9 +776,26 @@ async def master_album(
                 if is_adm_clip_failure:
                     adm_last_failure_detail = _d.get("failure_detail") or {}
                     if adm_cycle < _ADM_MAX_CYCLES - 1:
-                        new_ceiling, hit_floor = _adm_adaptive_ceiling(
-                            adm_last_failure_detail, ctx.effective_ceiling,
+                        new_ceiling, hit_floor, diverging = (
+                            _adm_adaptive_ceiling(
+                                adm_last_failure_detail,
+                                ctx.effective_ceiling,
+                            )
                         )
+                        if diverging:
+                            # Ripple grew with tightening — any further
+                            # tightening makes it worse. Bail to warn.
+                            adm_diverging = True
+                            adm_clip_failure_persisted = True
+                            ctx.notices.append(
+                                f"ADM cycle {adm_cycle + 1}: decoded peak "
+                                f"grew despite ceiling tightening (slope "
+                                f"≤ 0 between last two cycles). Material "
+                                f"not convergent at current limiter "
+                                f"settings — falling through to "
+                                f"warn-fallback."
+                            )
+                            break
                         # If the adaptive pass can't move the ceiling any
                         # further (already at floor from a previous cycle)
                         # then another retry would just repeat the same
@@ -770,15 +836,21 @@ async def master_album(
     # the manual call on whether to republish.
     if adm_clip_failure_persisted:
         stage = ctx.stages.get("adm_validation")
+        reason_suffix = (
+            "; ripple growing with tightening (divergent)"
+            if adm_diverging else ""
+        )
         if isinstance(stage, dict):
             stage["status"] = "warn"
             stage["reason"] = (
                 f"inter-sample clips persist at ceiling "
                 f"{ctx.effective_ceiling:.2f} dBTP after "
                 f"{_ADM_MAX_CYCLES} cycle(s); floor is "
-                f"{_ADM_MIN_CEILING_DB:.1f} dBTP"
+                f"{_ADM_MIN_CEILING_DB:.1f} dBTP{reason_suffix}"
             )
             stage["clip_failure_persisted"] = True
+            stage["diverging"] = adm_diverging
+            stage["adm_history"] = list(adm_history)
         tracks_with_clips = adm_last_failure_detail.get("tracks_with_clips") or []
         clip_count = len(tracks_with_clips)
         ctx.warnings.append(
@@ -787,6 +859,18 @@ async def master_album(
             f"{ctx.effective_ceiling:.2f} dBTP, floor "
             f"{_ADM_MIN_CEILING_DB:.1f} dBTP). Album delivered with flag — "
             f"see ADM_VALIDATION.md for per-track detail."
+        )
+        # Terminal notice so operators reading the notice stream see the
+        # final state immediately, without having to scan warnings. The
+        # existing per-cycle tightening notices only cover cycles that
+        # triggered a retry — this one names the exit condition.
+        ctx.notices.append(
+            f"ADM loop terminated without convergence after "
+            f"{_ADM_MAX_CYCLES} cycle(s). Final ceiling: "
+            f"{ctx.effective_ceiling:.2f} dBTP. Delivered with "
+            f"{clip_count} track(s) flagged for inter-sample clips — "
+            "inspect ADM_VALIDATION.md before republishing if AAC "
+            "delivery matters."
         )
 
     # ── Phase 3: post-loop stages (run once) ─────────────────────────────
