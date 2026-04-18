@@ -641,8 +641,17 @@ async def master_album(
         if result := await stage_fn(ctx):
             return _inject_notices_and_return(result)
 
-    # ── Phase 2: ADM loop (max 2 outer cycles) ───────────────────────────
-    _ADM_MAX_CYCLES = 2
+    # ── Phase 2: ADM loop (adaptive ceiling, max 3 cycles) ────────────────
+    # Convergence: fixed 0.5 dB steps failed on dense-transient content
+    # because AAC ripple only drops ~0.47 dB per 0.5 dB of ceiling — the
+    # loop would exhaust its budget with overshoot still present. Adaptive
+    # tightening uses the observed worst decoded peak to pick the next
+    # ceiling in one shot, then backs that with a hard floor and a
+    # warn-fallback so any album can complete without halting.
+    _ADM_MAX_CYCLES = 3
+    _ADM_MIN_CEILING_DB = -6.0       # never tighten below this
+    _ADM_SAFETY_DB = 0.3             # extra headroom below observed peak
+    _ADM_MIN_TIGHTEN_DB = 0.5        # preserves legacy step as the floor
     adm_loop_stages: list[_StageFn] = [
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
@@ -652,47 +661,114 @@ async def master_album(
         _album_stages._stage_adm_validation,
     ]
 
+    def _adm_adaptive_ceiling(
+        failure_detail: dict[str, Any], current: float,
+    ) -> tuple[float, bool]:
+        """Compute next ceiling from observed worst decoded peak.
+
+        Returns ``(new_ceiling, hit_floor)``. The WAV ceiling is placed
+        ``_ADM_SAFETY_DB`` below the worst decoded peak so the re-master
+        starts with enough headroom for AAC ripple. Clamped to
+        ``_ADM_MIN_CEILING_DB``; when clamped, ``hit_floor=True`` so the
+        loop can fall through to warn-fallback instead of looping forever
+        at the same ceiling.
+        """
+        tracks = failure_detail.get("tracks_with_clips") or []
+        peaks = [
+            float(t["peak_db_decoded"])
+            for t in tracks if t.get("peak_db_decoded") is not None
+        ]
+        if not peaks:
+            proposed = current - _ADM_MIN_TIGHTEN_DB
+        else:
+            worst_peak = max(peaks)
+            overshoot = worst_peak - current
+            tighten = max(overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB)
+            proposed = current - tighten
+        floored = proposed < _ADM_MIN_CEILING_DB
+        return (max(proposed, _ADM_MIN_CEILING_DB), floored)
+
+    adm_clip_failure_persisted = False
+    adm_last_failure_detail: dict[str, Any] = {}
+
     for adm_cycle in range(_ADM_MAX_CYCLES):
         ctx.adm_cycle = adm_cycle
         adm_retry = False
 
         for stage_fn in adm_loop_stages:
             if result := await stage_fn(ctx):
-                # Check if this is a retryable ADM clip failure
                 try:
                     _d = json.loads(result)
                 except json.JSONDecodeError:
                     _d = {}
-                is_adm_clip = (
+                is_adm_clip_failure = (
                     _d.get("failed_stage") == "adm_validation"
                     and _d.get("failure_detail", {}).get("clips_retry_eligible")
-                    and adm_cycle < _ADM_MAX_CYCLES - 1
                 )
-                if is_adm_clip:
-                    ctx.effective_ceiling -= 0.5
-                    # Propagate the tightened ceiling everywhere the ADM stage
-                    # and downstream consumers (sidecar, halt JSON, signature
-                    # persist) read it. Without this, cycle-2 masters to the
-                    # new ceiling but ADM still compares against the original.
-                    ctx.targets["ceiling_db"] = ctx.effective_ceiling
-                    if isinstance(ctx.effective_preset, dict):
-                        ctx.effective_preset["true_peak_ceiling"] = (
-                            ctx.effective_ceiling
+                if is_adm_clip_failure:
+                    adm_last_failure_detail = _d.get("failure_detail") or {}
+                    if adm_cycle < _ADM_MAX_CYCLES - 1:
+                        new_ceiling, hit_floor = _adm_adaptive_ceiling(
+                            adm_last_failure_detail, ctx.effective_ceiling,
                         )
-                    ctx.notices.append(
-                        f"ADM cycle {adm_cycle + 1}: inter-sample clips detected, "
-                        f"tightening ceiling to {ctx.effective_ceiling:.1f} dBTP "
-                        f"and re-mastering."
-                    )
-                    adm_retry = True
+                        # If the adaptive pass can't move the ceiling any
+                        # further (already at floor from a previous cycle)
+                        # then another retry would just repeat the same
+                        # re-master. Fall through to warn-fallback.
+                        if new_ceiling >= ctx.effective_ceiling:
+                            adm_clip_failure_persisted = True
+                            break
+                        ctx.effective_ceiling = new_ceiling
+                        # Propagate the tightened ceiling everywhere the
+                        # ADM stage and downstream consumers read it.
+                        ctx.targets["ceiling_db"] = ctx.effective_ceiling
+                        if isinstance(ctx.effective_preset, dict):
+                            ctx.effective_preset["true_peak_ceiling"] = (
+                                ctx.effective_ceiling
+                            )
+                        floor_note = " (floor reached)" if hit_floor else ""
+                        ctx.notices.append(
+                            f"ADM cycle {adm_cycle + 1}: inter-sample clips "
+                            f"detected, tightening ceiling to "
+                            f"{ctx.effective_ceiling:.2f} dBTP{floor_note} "
+                            f"and re-mastering."
+                        )
+                        adm_retry = True
+                        break
+                    # Last cycle with clips → warn-fallback, don't halt.
+                    adm_clip_failure_persisted = True
                     break
-
-                # Non-retryable halt
+                # Non-ADM / non-retryable halt
                 return _inject_notices_and_return(result)
 
         if adm_retry:
             continue
-        break  # ADM passed
+        break  # ADM passed, or warn-fallback break
+
+    # Warn-fallback: ADM clips persist after all retries or at floor. The
+    # album still finishes — operators get a flagged deliverable and the
+    # ADM_VALIDATION.md sidecar with per-track peak data so they can make
+    # the manual call on whether to republish.
+    if adm_clip_failure_persisted:
+        stage = ctx.stages.get("adm_validation")
+        if isinstance(stage, dict):
+            stage["status"] = "warn"
+            stage["reason"] = (
+                f"inter-sample clips persist at ceiling "
+                f"{ctx.effective_ceiling:.2f} dBTP after "
+                f"{_ADM_MAX_CYCLES} cycle(s); floor is "
+                f"{_ADM_MIN_CEILING_DB:.1f} dBTP"
+            )
+            stage["clip_failure_persisted"] = True
+        tracks_with_clips = adm_last_failure_detail.get("tracks_with_clips") or []
+        clip_count = len(tracks_with_clips)
+        ctx.warnings.append(
+            f"ADM validation: {clip_count} track(s) retain inter-sample "
+            f"clips after {_ADM_MAX_CYCLES} retry cycles (final ceiling "
+            f"{ctx.effective_ceiling:.2f} dBTP, floor "
+            f"{_ADM_MIN_CEILING_DB:.1f} dBTP). Album delivered with flag — "
+            f"see ADM_VALIDATION.md for per-track detail."
+        )
 
     # ── Phase 3: post-loop stages (run once) ─────────────────────────────
     post_loop_stages: list[_StageFn] = [
