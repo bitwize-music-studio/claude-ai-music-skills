@@ -1085,6 +1085,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
             # limiter chain without a separate gain move.
             raw_target = entry.get("corrected_target_lufs", anchor_lufs)
             tilt_db = float(entry.get("corrected_tilt_db", 0.0))
+            tilt_clamped = bool(entry.get("tilt_clamped", False))
             clamped = False
 
             # Clamp to ±1.5 dB window around the FROZEN step-5 anchor, not
@@ -1107,6 +1108,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "applied_target_lufs": None,
                     "applied_tilt_db": None,
                     "clamped": clamped,
+                    "tilt_clamped": tilt_clamped,
                     "iteration": _iter + 1,
                 })
                 continue
@@ -1132,6 +1134,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "applied_target_lufs": raw_target,
                     "applied_tilt_db": tilt_db,
                     "clamped": clamped,
+                    "tilt_clamped": tilt_clamped,
                     "iteration": _iter + 1,
                 })
                 if filename not in ctx.coherence_corrected_tracks:
@@ -1144,6 +1147,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "applied_target_lufs": raw_target,
                     "applied_tilt_db": tilt_db,
                     "clamped": clamped,
+                    "tilt_clamped": tilt_clamped,
                     "iteration": _iter + 1,
                 })
 

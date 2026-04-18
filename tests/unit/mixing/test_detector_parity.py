@@ -63,3 +63,25 @@ def test_analyzer_matches_processor_peak_ratio(stem: str, genre: str) -> None:
         f"genre={genre!r}: analyzer={analyzer_ratio}, "
         f"processor={processor_ratio}"
     )
+
+
+@pytest.mark.parametrize("genre", SAMPLE_GENRES)
+def test_analyzer_matches_full_mix_processor_peak_ratio(genre: str) -> None:
+    """Full-mix path: analyzer + processor must read the same peak_ratio.
+
+    When the analyzer handles a non-stems audio layout (or passes
+    ``stem_name=None``), it delegates to `_get_full_mix_settings`. The
+    processor's `mix_track_full` uses the same resolver. Pin parity on
+    that branch too.
+    """
+    from handlers.processing.mixing import _resolve_analyzer_peak_ratio
+    from tools.mixing.mix_tracks import _get_full_mix_settings
+
+    processor_settings = _get_full_mix_settings(genre or None)
+    processor_ratio = float(processor_settings.get("click_peak_ratio", 15.0))
+    analyzer_ratio = _resolve_analyzer_peak_ratio(None, genre or None)
+
+    assert analyzer_ratio == pytest.approx(processor_ratio), (
+        f"Full-mix peak_ratio mismatch for genre={genre!r}: "
+        f"analyzer={analyzer_ratio}, processor={processor_ratio}"
+    )

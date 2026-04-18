@@ -96,3 +96,36 @@ def test_polish_does_not_increase_peak(stem: str, genre: str) -> None:
         f"{pre_peak:.4f} → {post_peak:.4f} "
         f"(+{(post_peak - pre_peak) / pre_peak * 100:.1f}%)"
     )
+
+
+@pytest.mark.parametrize("genre", PEAK_INVARIANT_GENRES)
+def test_full_mix_polish_does_not_increase_peak(
+    genre: str, tmp_path: Path,
+) -> None:
+    """Full-mix fallback path must obey the same peak invariant as stems.
+
+    `mix_track_full` runs its own inline processing chain (not
+    dispatched through `STEM_PROCESSORS`), so `_with_peak_guard`
+    doesn't cover it. Same saturation + character-effects stack, same
+    under-normalization risk. Pin the contract here so the fallback
+    path can't regress.
+    """
+    import soundfile as sf
+    from tools.mixing.mix_tracks import mix_track_full
+
+    data, rate = _dynamic_stereo_content()
+    pre_peak = float(np.max(np.abs(data)))
+    input_path = tmp_path / "input.wav"
+    sf.write(str(input_path), data, rate, subtype="PCM_16")
+    output_path = tmp_path / "polished.wav"
+
+    result = mix_track_full(
+        input_path=input_path, output_path=output_path, genre=genre,
+    )
+    post_peak = float(result.get("post_peak", 0.0))
+
+    assert post_peak <= pre_peak + 1e-3, (
+        f"full_mix/{genre}: polish increased peak "
+        f"{pre_peak:.4f} → {post_peak:.4f} "
+        f"(+{(post_peak - pre_peak) / pre_peak * 100:.1f}%)"
+    )

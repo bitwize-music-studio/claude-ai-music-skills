@@ -271,6 +271,22 @@ def test_coherence_correct_clamps_to_1_5_db(
     assert applied == pytest.approx(anchor_lufs, abs=1e-6), (
         f"Expected target_lufs={anchor_lufs}, got {applied}"
     )
+    # tilt_clamped observability sentinel: every correction record,
+    # whether the tilt was clamped or not, must expose the field so
+    # operators reading the stage JSON can see fixed-point risk per
+    # track without having to re-derive it. Pins the record schema
+    # (the key must exist, value may be True or False depending on
+    # the fixture's spectral delta).
+    corrections = ctx.stages["coherence_correct"]["corrections"]
+    assert corrections, "Expected at least one correction record"
+    assert "tilt_clamped" in corrections[0], (
+        f"Correction record must expose tilt_clamped, got keys: "
+        f"{sorted(corrections[0].keys())}"
+    )
+    assert isinstance(corrections[0]["tilt_clamped"], bool), (
+        f"tilt_clamped must be bool, got: "
+        f"{type(corrections[0]['tilt_clamped']).__name__}"
+    )
 
 
 # ---------------------------------------------------------------------------

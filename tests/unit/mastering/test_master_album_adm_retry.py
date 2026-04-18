@@ -342,3 +342,213 @@ def test_adm_retry_respects_hard_floor(
     assert adm_stage.get("status") == "warn", (
         f"Expected warn status after floor exhaustion, got: {adm_stage}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Floor-then-cycle-again break path — ceiling can't decrease further
+# ---------------------------------------------------------------------------
+
+def test_adm_retry_breaks_when_ceiling_cannot_decrease(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """When adaptive tightening proposes a ceiling that's not lower than
+    the current one (already at floor from a prior cycle), the loop
+    must break rather than repeating a no-progress re-master.
+
+    Exercises the `if new_ceiling >= ctx.effective_ceiling` guard in
+    the ADM cycle loop in audio.py — the one that catches "we've
+    already hit the floor, another iteration would just mean mastering
+    with the same ceiling again".
+    """
+    album_slug = "adm-retry-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    def _catastrophic(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        # Peak is always +5 dBFS — any proposed tightening exceeds the
+        # -6 dBTP floor, so cycle 1 pins at -6.0 and cycle 2 would
+        # pin at -6.0 again → loop must break.
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 500,
+            "peak_db_decoded": 5.0,
+            "ceiling_db": ceiling_db,
+            "clips_found": True,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _catastrophic)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    mastered_ceilings: list[float] = []
+    import tools.mastering.master_tracks as _mt_mod
+    _real_master_track = _mt_mod.master_track
+
+    def _capture(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real_master_track(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture)
+
+    _run_master_album(tmp_path, album_slug=album_slug)
+
+    # One master_track call per cycle-mastering pass, one track in this
+    # fixture. Without the break guard this would be 3 (full budget).
+    # With the guard: cycle 0 at -1.0, cycle 1 at -6.0, then break
+    # before cycle 2 re-masters → exactly 2.
+    assert len(mastered_ceilings) == 2, (
+        f"Expected exactly 2 master_track calls (cycle 0 + cycle 1 at floor), "
+        f"got {len(mastered_ceilings)} — loop may not be breaking on "
+        f"no-decrease: ceilings={mastered_ceilings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Three-cycle convergence — cycle 2 is reachable and can pass
+# ---------------------------------------------------------------------------
+
+def test_adm_retry_converges_on_third_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Content needing two retries (cycles 1 + 2) must complete.
+
+    Before #329 `_ADM_MAX_CYCLES` was 2; content that only converged
+    on cycle 2 halted. The bump to 3 must be actually exercised: this
+    test forces clips on cycles 0 and 1, clean on cycle 2, and asserts
+    success.
+    """
+    album_slug = "adm-retry-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    cycle = {"n": 0}
+
+    def _check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        cycle["n"] += 1
+        # Cycle 0 + cycle 1 report clips (one track each cycle so n<=2
+        # is cycle 0, n==2-3 is cycle 1... wait, one track per cycle).
+        # Clips on first two calls, clean on third+.
+        clips = cycle["n"] <= 2
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 3 if clips else 0,
+            "peak_db_decoded": ceiling_db + 0.3 if clips else ceiling_db - 0.5,
+            "ceiling_db": ceiling_db,
+            "clips_found": clips,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _check)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    mastered_ceilings: list[float] = []
+    import tools.mastering.master_tracks as _mt_mod
+    _real_master_track = _mt_mod.master_track
+
+    def _capture(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real_master_track(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug)
+
+    assert result.get("failed_stage") is None, (
+        f"Expected 3-cycle convergence, got failure: {result.get('failure_detail')}"
+    )
+    # 3 cycles: initial + 2 retries. Exactly 3 master_track calls on a
+    # single-track fixture.
+    assert len(mastered_ceilings) == 3, (
+        f"Expected 3 master_track calls (cycle 0/1/2), got "
+        f"{len(mastered_ceilings)}: {mastered_ceilings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Warn-fallback writes ADM_VALIDATION.md sidecar
+# ---------------------------------------------------------------------------
+
+def test_adm_warn_fallback_writes_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Operators need the ADM_VALIDATION.md sidecar even when the loop
+    warn-falls-back, so they can inspect per-track decoded peaks and
+    decide whether to republish.
+
+    The sidecar is written inside `_stage_adm_validation` regardless
+    of outcome; this test pins that behavior against warn-fallback.
+    """
+    album_slug = "adm-retry-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    def _always_clips(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 5,
+            "peak_db_decoded": ceiling_db + 0.3,
+            "ceiling_db": ceiling_db,
+            "clips_found": True,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    _run_master_album(tmp_path, album_slug=album_slug)
+
+    sidecar = tmp_path / "ADM_VALIDATION.md"
+    assert sidecar.exists(), (
+        f"Expected ADM_VALIDATION.md to exist after warn-fallback, "
+        f"listing dir: {sorted(p.name for p in tmp_path.iterdir())}"
+    )
+    content = sidecar.read_text()
+    assert "01-track.wav" in content, (
+        f"Expected sidecar to reference track, got content head: "
+        f"{content[:300]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Warn-fallback still runs post-loop stages (metadata, etc.)
+# ---------------------------------------------------------------------------
+
+def test_adm_warn_fallback_runs_post_loop_stages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Warn-fallback must not short-circuit the pipeline's post-loop
+    stages — the whole point is that the album still finishes.
+
+    Asserts that metadata / layout / status_update ran by looking for
+    their stage entries in the returned result. Before #329 a failing
+    ADM stage halted the pipeline before these ran.
+    """
+    album_slug = "adm-retry-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    def _always_clips(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 5,
+            "peak_db_decoded": ceiling_db + 0.3,
+            "ceiling_db": ceiling_db,
+            "clips_found": True,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
+    monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
+
+    result = _run_master_album(tmp_path, album_slug=album_slug)
+
+    stages = result.get("stages", {})
+    for stage_name in ("metadata", "layout", "status_update"):
+        assert stage_name in stages, (
+            f"Expected post-loop stage {stage_name!r} to run after "
+            f"warn-fallback, got stages: {sorted(stages.keys())}"
+        )
