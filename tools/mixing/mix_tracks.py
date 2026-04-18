@@ -1752,23 +1752,60 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None,
     return data
 
 
+def _with_peak_guard(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Wrap a per-stem processor so post-peak never exceeds pre-peak.
+
+    Saturation normalizes by its transfer-function peak, not the actual
+    signal peak, so dynamic content can come out ~4-17% louder than it
+    went in. Combined with positive `gain_db` from genre presets, per-
+    stem processing was silently increasing peak amplitude — the 0.95
+    clipping guard on the summed bus never caught it because individual
+    stems stayed below the bus threshold (#323 follow-up).
+
+    This defensive wrapper measures pre-peak before the processor runs
+    and linearly attenuates the output to match if the processor boosts
+    peak. Attenuation is a no-op when the processor already preserves
+    or reduces peak (the normal case).
+    """
+    def _guarded(
+        data: Any, rate: int,
+        settings: dict[str, Any] | None = None,
+        report: dict[str, Any] | None = None,
+    ) -> Any:
+        if data is None or not hasattr(data, "size") or data.size == 0:
+            return fn(data, rate, settings, report=report)
+        pre_peak = float(np.max(np.abs(data)))
+        out = fn(data, rate, settings, report=report)
+        if pre_peak <= 0.0 or out is None or not hasattr(out, "size") or out.size == 0:
+            return out
+        post_peak = float(np.max(np.abs(out)))
+        if post_peak > pre_peak:
+            out = out * (pre_peak / post_peak)
+        return out
+    _guarded.__wrapped__ = fn  # type: ignore[attr-defined]
+    _guarded.__name__ = getattr(fn, "__name__", "_guarded")
+    return _guarded
+
+
 # Stem processor dispatch. Every processor accepts `(data, rate,
 # settings=None, report=None)` and accumulates `clicks_removed` via
 # the shared `_apply_click_removal` helper, so callers can pass
 # `report` uniformly through this registry (#323 comment).
+# Wrapped with `_with_peak_guard` so the per-stem post-peak ≤ pre-peak
+# invariant holds across every genre preset (#323 follow-up).
 STEM_PROCESSORS: dict[str, Callable[..., Any]] = {
-    'vocals': process_vocals,
-    'backing_vocals': process_backing_vocals,
-    'drums': process_drums,
-    'bass': process_bass,
-    'guitar': process_guitar,
-    'keyboard': process_keyboard,
-    'strings': process_strings,
-    'brass': process_brass,
-    'woodwinds': process_woodwinds,
-    'percussion': process_percussion,
-    'synth': process_synth,
-    'other': process_other,
+    'vocals': _with_peak_guard(process_vocals),
+    'backing_vocals': _with_peak_guard(process_backing_vocals),
+    'drums': _with_peak_guard(process_drums),
+    'bass': _with_peak_guard(process_bass),
+    'guitar': _with_peak_guard(process_guitar),
+    'keyboard': _with_peak_guard(process_keyboard),
+    'strings': _with_peak_guard(process_strings),
+    'brass': _with_peak_guard(process_brass),
+    'woodwinds': _with_peak_guard(process_woodwinds),
+    'percussion': _with_peak_guard(process_percussion),
+    'synth': _with_peak_guard(process_synth),
+    'other': _with_peak_guard(process_other),
 }
 
 

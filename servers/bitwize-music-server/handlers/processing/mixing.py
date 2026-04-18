@@ -183,8 +183,54 @@ async def polish_audio(
     })
 
 
+_ANALYZER_DEFAULT_PEAK_RATIO = 15.0
+
+
+def _resolve_analyzer_peak_ratio(
+    stem_name: str | None, genre: str | None,
+) -> float:
+    """Resolve the click detector `peak_ratio` for a (stem, genre) pair.
+
+    Single source of truth shared with the processor side. The analyzer
+    and the per-stem polish chain MUST agree on this threshold or users
+    see "393 detected / 1748 removed" divergence between
+    `analyze_mix_issues` output and polish output (#323 follow-up).
+
+    The processor's `tools.mixing.mix_tracks._get_stem_settings` already
+    merges `mix-presets.yaml` defaults → mix-preset genre overrides →
+    mastering-preset `click_peak_ratio` overlay. This function delegates
+    to it and pulls out the one field the analyzer cares about, so the
+    two sides are identical by construction.
+
+    Args:
+        stem_name: Canonical stem name (e.g. ``"keyboard"``). When None
+            or unknown, the full-mix resolver is used.
+        genre: Lowercase genre slug. Empty or None means no genre
+            overlay — defaults only.
+
+    Returns:
+        Effective `peak_ratio`. Falls back to
+        ``_ANALYZER_DEFAULT_PEAK_RATIO`` when no preset provides one.
+    """
+    try:
+        from tools.mixing.mix_tracks import (
+            _get_full_mix_settings, _get_stem_settings,
+        )
+    except ImportError:
+        return _ANALYZER_DEFAULT_PEAK_RATIO
+
+    g = genre or None
+    if stem_name:
+        settings = _get_stem_settings(stem_name, g)
+    else:
+        settings = _get_full_mix_settings(g)
+    raw = settings.get("click_peak_ratio", _ANALYZER_DEFAULT_PEAK_RATIO)
+    return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
+
+
 async def analyze_mix_issues(
     album_slug: str,
+    genre: str = "",
 ) -> str:
     """Analyze audio files for common mix issues and recommend settings.
 
@@ -194,6 +240,9 @@ async def analyze_mix_issues(
 
     Args:
         album_slug: Album slug (e.g., "my-album")
+        genre: Optional genre preset (e.g. "electronic"). Routed through
+            the same resolver the polish processors use so click counts
+            match what polish will actually remove (#323 follow-up).
 
     Returns:
         JSON with per-track analysis, detected issues, and recommendations
@@ -239,7 +288,9 @@ async def analyze_mix_issues(
     if not wav_files and not stem_track_map:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
-    def _analyze_one(wav_path: Path) -> dict[str, Any]:
+    def _analyze_one(
+        wav_path: Path, stem_name: str | None = None,
+    ) -> dict[str, Any]:
         data, rate = sf.read(str(wav_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
@@ -305,7 +356,7 @@ async def analyze_mix_issues(
             active = win_rms > 1e-8
             ratios = np.zeros(n_windows, dtype=np.float64)
             np.divide(win_peak, win_rms, out=ratios, where=active)
-            peak_ratio = 15.0
+            peak_ratio = _resolve_analyzer_peak_ratio(stem_name, genre)
             click_count = int(np.sum(ratios > peak_ratio))
             result["click_count"] = click_count
             if click_count > 10:
@@ -333,7 +384,9 @@ async def analyze_mix_issues(
             track_issues: set[str] = set()
             for stem_wav in stem_wavs:
                 stem_name = stem_wav.stem
-                analysis = await loop.run_in_executor(None, _analyze_one, stem_wav)
+                analysis = await loop.run_in_executor(
+                    None, _analyze_one, stem_wav, stem_name,
+                )
                 stems_result[stem_name] = analysis
                 track_issues.update(
                     i for i in analysis["issues"] if i != "none_detected"
