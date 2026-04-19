@@ -5,9 +5,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from collections.abc import Awaitable, Callable
 from typing import Any
+
+# Progress log filename written at the album's audio_dir. Operators
+# running long master_album calls (up to 30+ min with ADM enabled) can
+# `tail -f` this during the run to see stage-level progress without
+# waiting for the MCP tool call to return. Also survives crashes /
+# MCP client disconnects so the forensics are on disk.
+_PROGRESS_LOG_FILENAME = "MASTERING_PROGRESS.log"
 
 from handlers import _shared
 from handlers._shared import (
@@ -570,13 +579,31 @@ async def master_album(
     Runs in three phases, stopping on failure. See _album_stages.py for
     per-stage implementation. Stage order mirrors the #290 pipeline spec.
 
+    **Expected duration:**
+      - 3-5 min per track without ADM (ADM disabled by default).
+      - +10-12 min per ADM retry cycle when ADM is enabled
+        (`mastering.adm_validation_enabled: true`). Up to 5 cycles on
+        pathological content → 30-60 min total for a 10-track album.
+
+    MCP clients with per-tool-call timeouts should either raise the
+    timeout for this tool, or disable ADM for routine runs and only
+    enable when preparing for ADM / Apple Hi-Res Lossless submission.
+
+    **Progress visibility:** stage-level progress is written to
+    ``{audio_dir}/MASTERING_PROGRESS.log`` as it runs. Operators can
+    ``tail -f`` that file during a long call to see which stage is
+    active; the file also survives MCP disconnects for forensic use.
+
     Phase 1 (pre-loop): pre_flight → analysis → freeze_decision →
         anchor_selection → pre_qc  (run once)
 
-    Phase 2 (ADM loop, max 2 cycles): mastering → verification →
+    Phase 2 (ADM loop, max 1 or 5 cycles): mastering → verification →
         coherence_check → coherence_correct → ceiling_guard →
-        adm_validation.  On inter-sample clip failure the TP ceiling is
-        tightened by 0.5 dB and the loop restarts (up to _ADM_MAX_CYCLES).
+        adm_validation.  When ADM is enabled, inter-sample clip
+        failures trigger adaptive ceiling tightening (slope-aware from
+        cycle 2 onward). The loop halts early on divergence (slope ≤
+        0) or ceiling floor (-6 dBTP), falling through to a
+        warn-fallback so the album always completes.
 
     Phase 3 (post-loop): mastering_samples → post_qc → archival →
         metadata → layout → signature_persist → status_update  (run once)
@@ -629,6 +656,75 @@ async def master_album(
     # mixes _stage_* with the local _ceiling_guard wrapper.
     _StageFn = Callable[[_album_stages.MasterAlbumCtx], Awaitable[str | None]]
 
+    # ── Progress log sidecar ─────────────────────────────────────────────
+    # Appends stage-boundary events to MASTERING_PROGRESS.log at the
+    # album's audio_dir. `ctx.audio_dir` is only populated after
+    # _stage_pre_flight runs, so pre_flight's own events are buffered
+    # and flushed once the dir resolves.
+    _progress_buffer: list[str] = []
+    _progress_run_header_written = [False]
+
+    def _progress_log_stage(
+        stage_label: str, event: str,
+        elapsed_ms: float | None = None,
+        *, extra: str | None = None,
+    ) -> None:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        parts = [ts, event, stage_label]
+        if elapsed_ms is not None:
+            parts.append(f"{elapsed_ms:.0f}ms")
+        if ctx.adm_cycle > 0:
+            parts.append(f"adm_cycle={ctx.adm_cycle}")
+        if extra:
+            parts.append(extra)
+        line = " | ".join(parts)
+        # Buffer until audio_dir is resolved, then flush.
+        if ctx.audio_dir is None:
+            _progress_buffer.append(line)
+            return
+        log_path = ctx.audio_dir / _PROGRESS_LOG_FILENAME
+        try:
+            # First write of this run starts with a RUN_START header so
+            # `tail -f` viewers can visually separate runs. Use append
+            # mode so cross-run history is preserved for forensics.
+            with open(log_path, "a", encoding="utf-8") as f:
+                if not _progress_run_header_written[0]:
+                    f.write(
+                        f"=== RUN START @ {ts} | album={ctx.album_slug} | "
+                        f"genre={ctx.genre or '-'} ===\n"
+                    )
+                    _progress_run_header_written[0] = True
+                    # Flush any pre-audio_dir buffered events.
+                    for buffered in _progress_buffer:
+                        f.write(buffered + "\n")
+                    _progress_buffer.clear()
+                f.write(line + "\n")
+        except OSError as exc:
+            # Never fail the pipeline on log-write errors.
+            logger.warning("master_album: progress log write failed: %s", exc)
+
+    def _stage_label(stage_fn: _StageFn) -> str:
+        name = getattr(stage_fn, "__name__", "") or "unknown"
+        return name.removeprefix("_stage_")
+
+    async def _run_stage(stage_fn: _StageFn) -> str | None:
+        label = _stage_label(stage_fn)
+        _progress_log_stage(label, "ENTER")
+        t0 = time.monotonic()
+        try:
+            stage_result = await stage_fn(ctx)
+        except Exception as exc:
+            elapsed_ms = (time.monotonic() - t0) * 1000
+            _progress_log_stage(
+                label, "ERROR", elapsed_ms=elapsed_ms,
+                extra=f"exc={type(exc).__name__}",
+            )
+            raise
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        event = "HALT" if stage_result else "EXIT"
+        _progress_log_stage(label, event, elapsed_ms=elapsed_ms)
+        return stage_result
+
     # ── Phase 1: pre-loop stages (run once) ──────────────────────────────
     pre_loop_stages: list[_StageFn] = [
         _album_stages._stage_pre_flight,
@@ -638,7 +734,7 @@ async def master_album(
         _album_stages._stage_pre_qc,
     ]
     for stage_fn in pre_loop_stages:
-        if result := await stage_fn(ctx):
+        if result := await _run_stage(stage_fn):
             return _inject_notices_and_return(result)
 
     # ── Phase 2: ADM loop (adaptive ceiling, max 3 cycles) ────────────────
@@ -764,7 +860,7 @@ async def master_album(
         adm_retry = False
 
         for stage_fn in adm_loop_stages:
-            if result := await stage_fn(ctx):
+            if result := await _run_stage(stage_fn):
                 try:
                     _d = json.loads(result)
                 except json.JSONDecodeError:
@@ -888,9 +984,10 @@ async def master_album(
         _album_stages._stage_status_update,
     ]
     for stage_fn in post_loop_stages:
-        if result := await stage_fn(ctx):
+        if result := await _run_stage(stage_fn):
             return _inject_notices_and_return(result)
 
+    _progress_log_stage("pipeline", "COMPLETE")
     _album_stages._build_notices(ctx)
     return _safe_json({
         "album_slug": album_slug,
