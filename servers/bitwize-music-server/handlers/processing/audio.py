@@ -1730,7 +1730,8 @@ async def album_coherence_correct(
     if "error" in pre:
         return _safe_json({"error": pre["error"], **pre})
 
-    from tools.mastering.coherence import build_correction_plan
+    from tools.mastering.coherence import build_correction_plan, load_tolerances
+    from tools.mastering.config import build_effective_preset
     classifications = pre["classifications"]
     anchor_idx = pre["anchor"]["selected_index"]
     if anchor_idx is None:
@@ -1738,6 +1739,23 @@ async def album_coherence_correct(
             "error": "Anchor selector returned no eligible tracks — cannot correct.",
             "pre_correction": pre,
         })
+
+    # Resolve the preset so the tilt clamp honors coherence_tilt_max_db
+    # (parity with master_album's _stage_coherence_correct — without this,
+    # preset overrides of the ±0.5 dB default silently do nothing here).
+    bundle = build_effective_preset(
+        genre=genre,
+        cut_highmid_arg=0.0,
+        cut_highs_arg=0.0,
+        target_lufs_arg=-14.0,
+        ceiling_db_arg=-1.0,
+    )
+    if bundle["error"] is not None:
+        return _safe_json({
+            "error": bundle["error"]["reason"],
+            "available_genres": bundle["error"].get("available_genres", []),
+        })
+    tolerances = load_tolerances(bundle["preset_dict"])
 
     from tools.mastering.analyze_tracks import analyze_track
     loop = asyncio.get_running_loop()
@@ -1751,7 +1769,9 @@ async def album_coherence_correct(
         pre_analysis.append(result)
 
     plan = build_correction_plan(
-        classifications, pre_analysis, anchor_index_1based=anchor_idx,
+        classifications, pre_analysis,
+        anchor_index_1based=anchor_idx,
+        max_tilt_db=tolerances["coherence_tilt_max_db"],
     )
 
     response: dict[str, Any] = {

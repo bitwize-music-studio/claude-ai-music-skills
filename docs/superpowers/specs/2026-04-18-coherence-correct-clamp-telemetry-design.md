@@ -99,7 +99,7 @@ Extend each unconvergent correction entry with three fields:
 }
 ```
 
-- `intended_tilt_db` — the raw tilt returned by `_compute_tilt_db` before clamping. Tells operators how far outside the clamp the track actually was. Missing (field omitted) on `corrected` entries where intended == applied.
+- `intended_tilt_db` — the raw tilt returned by `_compute_tilt_db` before clamping. Tells operators how far outside the clamp the track actually was. Surfaced on `unconvergent` stage-level entries only; `corrected` entries don't carry it (diagnostics live where they're actionable). The underlying plan-level entry in `build_correction_plan`'s output always carries it when a spectral violation fired.
 - `limiting_metric` — which band-delta drove the tilt request: `"low_rms_db"` or `"vocal_rms_db"`. `_compute_tilt_db` short-circuits: if the `low_rms` band is an outlier, it wins; the `vocal_rms` band is only consulted when `low_rms` is within tolerance. There is no combined path today (and therefore no `"mixed"` value).
 - `spectral_delta_db` — signed delta from the album anchor on the limiting metric. Negative = track is darker than anchor (corrector wanted more brightness). Positive = track is brighter than anchor.
 
