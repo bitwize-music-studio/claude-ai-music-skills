@@ -930,6 +930,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
 
 _COHERENCE_MAX_CORRECTION_DB = 1.5
 _COHERENCE_MAX_ITERATIONS = 2
+_COHERENCE_REASON_CLAMP = "fixed_point_tilt_clamp"
 
 
 def _coherence_finalize_stage(
@@ -959,7 +960,7 @@ def _coherence_finalize_stage(
     unconvergent = [c for c in corrections if c.get("status") == "unconvergent"]
     clamp_bound = [
         c for c in unconvergent
-        if c.get("reason") == "fixed_point_tilt_clamp"
+        if c.get("reason") == _COHERENCE_REASON_CLAMP
     ]
 
     max_tilt = float(tolerances.get("coherence_tilt_max_db", 0.5))
@@ -997,7 +998,7 @@ def _coherence_finalize_stage(
         return stage
 
     # Mixed (some clamp, some drift) or all-drift: keep warn + warnings list.
-    stage: dict[str, Any] = {
+    stage = {
         "status": "warn",
         "reason": f"{remaining_outliers} outlier(s) remain after {_COHERENCE_MAX_ITERATIONS} iteration(s)",
         "iterations": iterations_run,
@@ -1153,7 +1154,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                 unconvergent: dict[str, Any] = {
                     "filename": entry["filename"],
                     "status": "unconvergent",
-                    "reason": "fixed_point_tilt_clamp",
+                    "reason": _COHERENCE_REASON_CLAMP,
                     "applied_target_lufs": entry.get("corrected_target_lufs"),
                     "applied_tilt_db": entry.get("corrected_tilt_db"),
                     "tilt_clamped": entry.get("tilt_clamped", False),

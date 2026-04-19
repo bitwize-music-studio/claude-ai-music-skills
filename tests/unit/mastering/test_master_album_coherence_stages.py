@@ -4,6 +4,7 @@ inside the master_album pipeline (#290 steps 5-6)."""
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -838,6 +839,7 @@ def test_coherence_correct_all_clamp_bound_downgrades_to_pass(
     """#334: when all remaining outliers are fixed_point_tilt_clamp, the
     stage downgrades status to 'pass', populates advisories, and does
     NOT append to ctx.warnings (benign ceiling hit, not a real warning)."""
+    caplog.set_level(logging.INFO)
     anchor_lufs = -14.0
     source_dir = tmp_path / "polished"
     source_dir.mkdir()
@@ -944,6 +946,12 @@ def test_coherence_correct_all_clamp_bound_downgrades_to_pass(
     assert ctx.warnings == [], (
         f"clamp-only should NOT append to ctx.warnings, got {ctx.warnings}"
     )
+    # Downgrade must log one INFO line so live-run operators still see it.
+    assert any(
+        "correction ceiling" in record.message
+        for record in caplog.records
+        if record.levelname == "INFO"
+    ), f"expected INFO log mentioning 'correction ceiling', got {[r.message for r in caplog.records]}"
 
 
 def test_coherence_correct_mixed_clamp_and_drift_stays_warn(
