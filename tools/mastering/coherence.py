@@ -179,14 +179,26 @@ def _floor_check(*, metric: str, value: float | None, floor: float) -> dict[str,
 TILT_CORRECTION_MAX_DB: float = 0.5
 
 
-def _compute_tilt_db(violations: list[dict[str, Any]]) -> tuple[float, bool]:
+def _compute_tilt_db(
+    violations: list[dict[str, Any]],
+    max_tilt_db: float = TILT_CORRECTION_MAX_DB,
+) -> tuple[float, bool, float, str | None, float | None]:
     """Derive a bounded tilt-EQ correction from spectral violations.
 
-    Returns ``(tilt_db, clamped)``. ``clamped`` is True when the raw
-    tilt exceeded ``TILT_CORRECTION_MAX_DB`` and was capped — the
-    stage-level coherence loop uses this to detect structurally
-    unconvergent corrections (tilt can't close the gap regardless of
-    how many iterations run).
+    Returns ``(tilt_db, clamped, raw_tilt_db, limiting_metric, delta_db)``.
+    ``clamped`` is True when the raw tilt exceeded ``max_tilt_db`` and was
+    capped — the stage-level coherence loop uses this to detect
+    structurally unconvergent corrections (tilt can't close the gap
+    regardless of how many iterations run).
+
+    ``limiting_metric`` identifies which spectral band drove the tilt
+    request (``"low_rms_db"`` or ``"vocal_rms_db"``); ``delta_db`` is the
+    signed anchor-relative delta on that metric. Both are ``None`` when
+    no spectral outlier fires.
+
+    ``max_tilt_db`` is loaded from the ``coherence_tilt_max_db`` preset
+    (default 0.5). Callers that don't pass it fall back to the module
+    constant for backward compatibility.
 
     Tilt sign convention (matches ``master_tracks.apply_tilt_eq``):
       - positive tilt → cut lows, boost highs (brighter)
@@ -204,11 +216,15 @@ def _compute_tilt_db(violations: list[dict[str, Any]]) -> tuple[float, bool]:
         None,
     )
     if low is not None and low.get("delta") is not None:
-        raw = float(low["delta"])
-        clamped = abs(raw) > TILT_CORRECTION_MAX_DB
+        delta = float(low["delta"])
+        raw = delta
+        clamped = abs(raw) > max_tilt_db
         return (
-            max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw)),
+            max(-max_tilt_db, min(max_tilt_db, raw)),
             clamped,
+            raw,
+            "low_rms_db",
+            delta,
         )
 
     vocal = next(
@@ -217,14 +233,18 @@ def _compute_tilt_db(violations: list[dict[str, Any]]) -> tuple[float, bool]:
         None,
     )
     if vocal is not None and vocal.get("delta") is not None:
-        raw = -float(vocal["delta"])
-        clamped = abs(raw) > TILT_CORRECTION_MAX_DB
+        delta = float(vocal["delta"])
+        raw = -delta
+        clamped = abs(raw) > max_tilt_db
         return (
-            max(-TILT_CORRECTION_MAX_DB, min(TILT_CORRECTION_MAX_DB, raw)),
+            max(-max_tilt_db, min(max_tilt_db, raw)),
             clamped,
+            raw,
+            "vocal_rms_db",
+            delta,
         )
 
-    return 0.0, False
+    return 0.0, False, 0.0, None, None
 
 
 def build_correction_plan(
@@ -293,7 +313,7 @@ def build_correction_plan(
         tilt_db = 0.0
         tilt_clamped = False
         if spectral_violations:
-            tilt_db, tilt_clamped = _compute_tilt_db(violations)
+            tilt_db, tilt_clamped, _raw, _metric, _delta = _compute_tilt_db(violations)
 
         if lufs_violation is not None or spectral_violations:
             reason_parts: list[str] = []
