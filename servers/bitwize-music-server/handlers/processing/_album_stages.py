@@ -932,6 +932,88 @@ _COHERENCE_MAX_CORRECTION_DB = 1.5
 _COHERENCE_MAX_ITERATIONS = 2
 
 
+def _coherence_finalize_stage(
+    *,
+    corrections: list[dict[str, Any]],
+    iterations_run: int,
+    remaining_outliers: int,
+    adm_cycle: int,
+    tolerances: dict[str, float],
+    ctx_warnings: list[str],
+) -> dict[str, Any]:
+    """Classify remaining unconvergent entries and build the stage-level
+    status + advisories dict. Called at the end of _stage_coherence_correct.
+
+    Returns the stage dict (caller assigns to ctx.stages["coherence_correct"]).
+    Mutates ``ctx_warnings`` by appending a warning only in the mixed /
+    all-drift case (see #334 spec: clamp-only remaining outliers are a
+    benign ceiling hit, not a warning).
+    """
+    if remaining_outliers <= 0:
+        return {
+            "status": "pass",
+            "iterations": iterations_run,
+            "corrections": corrections,
+        }
+
+    unconvergent = [c for c in corrections if c.get("status") == "unconvergent"]
+    clamp_bound = [
+        c for c in unconvergent
+        if c.get("reason") == "fixed_point_tilt_clamp"
+    ]
+
+    max_tilt = float(tolerances.get("coherence_tilt_max_db", 0.5))
+    advisories: list[dict[str, Any]] = []
+    for entry in clamp_bound:
+        intended = entry.get("intended_tilt_db")
+        applied = entry.get("applied_tilt_db")
+        if intended is None or applied is None:
+            message = f"spectral tilt exceeded ±{max_tilt:.2f} dB clamp"
+        else:
+            message = (
+                f"spectral tilt exceeded ±{max_tilt:.2f} dB clamp "
+                f"(intended {float(intended):+.2f} dB, "
+                f"applied {float(applied):+.2f} dB)"
+            )
+        advisories.append({
+            "filename": entry["filename"],
+            "kind":     "tilt_ceiling",
+            "message":  message,
+        })
+
+    all_clamp_bound = bool(unconvergent) and len(clamp_bound) == len(unconvergent)
+
+    if all_clamp_bound:
+        stage = {
+            "status": "pass",
+            "iterations": iterations_run,
+            "corrections": corrections,
+            "advisories": advisories,
+        }
+        logger.info(
+            "coherence_correct: %d track(s) at correction ceiling — see advisories",
+            len(advisories),
+        )
+        return stage
+
+    # Mixed (some clamp, some drift) or all-drift: keep warn + warnings list.
+    stage: dict[str, Any] = {
+        "status": "warn",
+        "reason": f"{remaining_outliers} outlier(s) remain after {_COHERENCE_MAX_ITERATIONS} iteration(s)",
+        "iterations": iterations_run,
+        "corrections": corrections,
+        "remaining_outliers": remaining_outliers,
+    }
+    if advisories:
+        stage["advisories"] = advisories
+    ctx_warnings.append(
+        f"Coherence correct (ADM cycle {adm_cycle + 1}): "
+        f"{remaining_outliers} outlier(s) remain after "
+        f"{iterations_run} iteration(s); ceiling_guard may apply pull-down."
+    )
+    return stage
+
+
 async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
     """Stage 5.1: Classify tracks against coherence tolerance bands (#290 step 5).
 
@@ -1183,27 +1265,14 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
     ctx.coherence_classifications = classifications
 
     remaining_outliers = sum(1 for c in classifications if c.get("is_outlier"))
-    if remaining_outliers > 0:
-        ctx.stages["coherence_correct"] = {
-            "status": "warn",
-            "reason": f"{remaining_outliers} outlier(s) remain after {_COHERENCE_MAX_ITERATIONS} iteration(s)",
-            "iterations": iterations_run,
-            "corrections": all_corrections,
-            "remaining_outliers": remaining_outliers,
-        }
-        # Tag with ADM cycle so retry-loop runs produce distinguishable
-        # warnings instead of silently conflating cycle-1 and cycle-2 state.
-        ctx.warnings.append(
-            f"Coherence correct (ADM cycle {ctx.adm_cycle + 1}): "
-            f"{remaining_outliers} outlier(s) remain after "
-            f"{iterations_run} iteration(s); ceiling_guard may apply pull-down."
-        )
-    else:
-        ctx.stages["coherence_correct"] = {
-            "status": "pass",
-            "iterations": iterations_run,
-            "corrections": all_corrections,
-        }
+    ctx.stages["coherence_correct"] = _coherence_finalize_stage(
+        corrections=all_corrections,
+        iterations_run=iterations_run,
+        remaining_outliers=remaining_outliers,
+        adm_cycle=ctx.adm_cycle,
+        tolerances=tolerances,
+        ctx_warnings=ctx.warnings,
+    )
     return None
 
 

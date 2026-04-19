@@ -826,3 +826,258 @@ def test_build_correction_plan_vocal_rms_inverts_sign() -> None:
     c = plan["corrections"][0]
     # vocal delta +0.3 → tilt = -0.3 (cut highs since vocals are above pivot)
     assert c["corrected_tilt_db"] == pytest.approx(-0.3, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Test 7: clamp-only remaining outliers → status pass + advisories (#334)
+# ---------------------------------------------------------------------------
+
+def test_coherence_correct_all_clamp_bound_downgrades_to_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+) -> None:
+    """#334: when all remaining outliers are fixed_point_tilt_clamp, the
+    stage downgrades status to 'pass', populates advisories, and does
+    NOT append to ctx.warnings (benign ceiling hit, not a real warning)."""
+    anchor_lufs = -14.0
+    source_dir = tmp_path / "polished"
+    source_dir.mkdir()
+    output_dir = tmp_path / "mastered"
+    output_dir.mkdir()
+    _write_sine_wav(source_dir / "02-bassy.wav", amplitude=0.2)
+    import shutil
+    shutil.copy(source_dir / "02-bassy.wav", output_dir / "02-bassy.wav")
+    _write_sine_wav(output_dir / "01-anchor.wav")
+
+    def _fake_master_track(src: str, dst: str, **kwargs) -> dict:
+        shutil.copy(src, dst)
+        return {"status": "ok"}
+
+    import tools.mastering.master_tracks as _mt_mod
+    monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
+
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
+        return {
+            "anchor_index": anchor_index_1based,
+            "anchor_lufs": anchor_lufs,
+            "corrections": [
+                {
+                    "index": 2,
+                    "filename": "02-bassy.wav",
+                    "correctable": True,
+                    "corrected_tilt_db": 0.5,
+                    "tilt_clamped": True,
+                    "intended_tilt_db": 0.78,
+                    "limiting_metric": "low_rms_db",
+                    "spectral_delta_db": 0.78,
+                    "reason": "Spectral outlier (low_rms) → tilt_db=+0.50 (clamped)",
+                }
+            ],
+            "skipped": [{"index": 1, "filename": "01-anchor.wav", "reason": "is_anchor"}],
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_coherence_build_plan", _fake_plan)
+
+    verify_results = [
+        _make_verify_result("01-anchor.wav", lufs=anchor_lufs, low_rms=-20.0),
+        _make_verify_result("02-bassy.wav", lufs=-14.0, low_rms=-15.0),
+    ]
+
+    def _fake_analyze(path: str) -> dict:
+        name = Path(path).name
+        for r in verify_results:
+            if r["filename"] == name:
+                return r
+        return verify_results[0]
+
+    import tools.mastering.analyze_tracks as _at_mod
+    monkeypatch.setattr(_at_mod, "analyze_track", _fake_analyze)
+
+    # Mark track 2 as an outlier so remaining_outliers > 0.
+    classifications = [
+        {"index": 1, "filename": "01-anchor.wav", "is_anchor": True,
+         "is_outlier": False, "violations": []},
+        {"index": 2, "filename": "02-bassy.wav", "is_anchor": False,
+         "is_outlier": True, "violations": [
+            {"metric": "low_rms", "delta": 5.0, "tolerance": 2.0,
+             "severity": "outlier", "correctable": True},
+         ]},
+    ]
+
+    import asyncio
+    async def _run():
+        ctx = MasterAlbumCtx(
+            album_slug="test-album", genre="", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.anchor_result = {"selected_index": 1}
+        ctx.verify_results = verify_results
+        ctx.coherence_classifications = classifications
+        ctx.source_dir = source_dir
+        ctx.output_dir = output_dir
+        ctx.mastered_files = [
+            output_dir / "01-anchor.wav",
+            output_dir / "02-bassy.wav",
+        ]
+        ctx.effective_ceiling = -1.0
+        ctx.effective_compress = 1.0
+        ctx.effective_preset = {}
+        ctx.preset_dict = None
+        await _stage_coherence_correct(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    stage = ctx.stages["coherence_correct"]
+    assert stage["status"] == "pass", f"expected pass (clamp-only), got {stage['status']}"
+    assert "advisories" in stage, f"expected advisories field, got keys {list(stage.keys())}"
+    advisories = stage["advisories"]
+    assert len(advisories) == 1
+    adv = advisories[0]
+    assert adv["filename"] == "02-bassy.wav"
+    assert adv["kind"] == "tilt_ceiling"
+    assert "±0.50 dB clamp" in adv["message"]
+    assert "intended +0.78 dB" in adv["message"]
+    assert "applied +0.50 dB" in adv["message"]
+    # ctx.warnings starts empty; clamp-only must NOT append.
+    assert ctx.warnings == [], (
+        f"clamp-only should NOT append to ctx.warnings, got {ctx.warnings}"
+    )
+
+
+def test_coherence_correct_mixed_clamp_and_drift_stays_warn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#334: if any remaining unconvergent entry has a non-clamp reason,
+    stage status stays 'warn' and a warning is appended."""
+    anchor_lufs = -14.0
+    source_dir = tmp_path / "polished"
+    source_dir.mkdir()
+    output_dir = tmp_path / "mastered"
+    output_dir.mkdir()
+    for name in ("02-clamp.wav", "03-drift.wav"):
+        _write_sine_wav(source_dir / name, amplitude=0.2)
+        import shutil
+        shutil.copy(source_dir / name, output_dir / name)
+    _write_sine_wav(output_dir / "01-anchor.wav")
+
+    def _fake_master_track(src: str, dst: str, **kwargs) -> dict:
+        import shutil
+        shutil.copy(src, dst)
+        return {"status": "ok"}
+
+    import tools.mastering.master_tracks as _mt_mod
+    monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
+
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
+        return {
+            "anchor_index": anchor_index_1based,
+            "anchor_lufs": anchor_lufs,
+            "corrections": [
+                {"index": 2, "filename": "02-clamp.wav", "correctable": True,
+                 "corrected_tilt_db": 0.5, "tilt_clamped": True,
+                 "intended_tilt_db": 0.78, "limiting_metric": "low_rms_db",
+                 "spectral_delta_db": 0.78, "reason": "spectral"},
+                {"index": 3, "filename": "03-drift.wav", "correctable": True,
+                 "corrected_tilt_db": 0.2, "tilt_clamped": False,
+                 "intended_tilt_db": 0.2, "limiting_metric": "low_rms_db",
+                 "spectral_delta_db": 0.2, "reason": "spectral"},
+            ],
+            "skipped": [{"index": 1, "filename": "01-anchor.wav", "reason": "is_anchor"}],
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_coherence_build_plan", _fake_plan)
+
+    verify_results = [
+        _make_verify_result("01-anchor.wav", lufs=anchor_lufs, low_rms=-20.0),
+        _make_verify_result("02-clamp.wav", lufs=-14.0, low_rms=-15.0),
+        _make_verify_result("03-drift.wav", lufs=-14.0, low_rms=-15.0),
+    ]
+
+    def _fake_analyze(path: str) -> dict:
+        name = Path(path).name
+        for r in verify_results:
+            if r["filename"] == name:
+                return r
+        return verify_results[0]
+
+    import tools.mastering.analyze_tracks as _at_mod
+    monkeypatch.setattr(_at_mod, "analyze_track", _fake_analyze)
+
+    classifications = [
+        {"index": 1, "filename": "01-anchor.wav", "is_anchor": True,
+         "is_outlier": False, "violations": []},
+        {"index": 2, "filename": "02-clamp.wav", "is_anchor": False,
+         "is_outlier": True, "violations": [
+            {"metric": "low_rms", "delta": 5.0, "tolerance": 2.0,
+             "severity": "outlier", "correctable": True},
+         ]},
+        {"index": 3, "filename": "03-drift.wav", "is_anchor": False,
+         "is_outlier": True, "violations": [
+            {"metric": "low_rms", "delta": 0.6, "tolerance": 2.0,
+             "severity": "outlier", "correctable": True},
+         ]},
+    ]
+
+    # Let the stage run its full fixed-point path — both tracks get
+    # reason=fixed_point_tilt_clamp. We then mutate one entry's reason to
+    # 'drift_regression' and re-invoke the severity classifier helper
+    # directly to verify the mixed-case branch.
+    import asyncio
+    async def _run():
+        ctx = MasterAlbumCtx(
+            album_slug="test-album", genre="", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.anchor_result = {"selected_index": 1}
+        ctx.verify_results = verify_results
+        ctx.coherence_classifications = classifications
+        ctx.source_dir = source_dir
+        ctx.output_dir = output_dir
+        ctx.mastered_files = [
+            output_dir / "01-anchor.wav",
+            output_dir / "02-clamp.wav",
+            output_dir / "03-drift.wav",
+        ]
+        ctx.effective_ceiling = -1.0
+        ctx.effective_compress = 1.0
+        ctx.effective_preset = {}
+        ctx.preset_dict = None
+        await _stage_coherence_correct(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    # Simulate the mixed case: flip one entry's reason to 'drift' and
+    # re-run the severity classifier (the _coherence_finalize_stage
+    # helper introduced in Task 5).
+    stage_corrections = ctx.stages["coherence_correct"]["corrections"]
+    drift_idx = next(
+        i for i, c in enumerate(stage_corrections)
+        if c["filename"] == "03-drift.wav" and c.get("status") == "unconvergent"
+    )
+    stage_corrections[drift_idx]["reason"] = "drift_regression"
+    # Re-run the classifier with the mutated list.
+    ctx.warnings.clear()
+    ctx.stages["coherence_correct"] = album_stages_mod._coherence_finalize_stage(
+        corrections=stage_corrections,
+        iterations_run=ctx.stages["coherence_correct"]["iterations"],
+        remaining_outliers=2,
+        adm_cycle=ctx.adm_cycle,
+        tolerances={"coherence_tilt_max_db": 0.5},
+        ctx_warnings=ctx.warnings,
+    )
+
+    stage = ctx.stages["coherence_correct"]
+    assert stage["status"] == "warn", (
+        f"mixed clamp+drift must stay warn, got {stage['status']}"
+    )
+    assert "advisories" in stage
+    assert len(stage["advisories"]) == 1  # only the clamp-bound track
+    assert stage["advisories"][0]["filename"] == "02-clamp.wav"
+    assert len(ctx.warnings) == 1, (
+        f"mixed case must append exactly one warning, got {ctx.warnings}"
+    )
