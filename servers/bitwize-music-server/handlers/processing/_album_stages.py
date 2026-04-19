@@ -977,7 +977,9 @@ async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
     # stage still ran iterations.
     from tools.mastering.coherence import build_correction_plan
     plan = build_correction_plan(
-        classifications, ctx.verify_results, anchor_index_1based=anchor_idx
+        classifications, ctx.verify_results,
+        anchor_index_1based=anchor_idx,
+        max_tilt_db=tolerances["coherence_tilt_max_db"],
     )
     correctable_count = sum(1 for c in plan["corrections"] if c["correctable"])
 
@@ -1041,7 +1043,10 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
     prev_plan_signature: tuple[tuple[str, float, float], ...] | None = None
 
     for _iter in range(_COHERENCE_MAX_ITERATIONS):
-        plan = _coherence_build_plan(classifications, current_verify, anchor_idx)
+        plan = _coherence_build_plan(
+            classifications, current_verify, anchor_idx,
+            max_tilt_db=tolerances["coherence_tilt_max_db"],
+        )
         correctable = [c for c in plan["corrections"] if c["correctable"]]
         if not correctable:
             break
@@ -1063,7 +1068,7 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
         any_tilt_clamped = any(c.get("tilt_clamped") for c in correctable)
         if plan_signature == prev_plan_signature and any_tilt_clamped:
             for entry in correctable:
-                all_corrections.append({
+                unconvergent: dict[str, Any] = {
                     "filename": entry["filename"],
                     "status": "unconvergent",
                     "reason": "fixed_point_tilt_clamp",
@@ -1071,7 +1076,14 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                     "applied_tilt_db": entry.get("corrected_tilt_db"),
                     "tilt_clamped": entry.get("tilt_clamped", False),
                     "iteration": _iter + 1,
-                })
+                }
+                if "intended_tilt_db" in entry:
+                    unconvergent["intended_tilt_db"] = entry["intended_tilt_db"]
+                if "limiting_metric" in entry:
+                    unconvergent["limiting_metric"] = entry["limiting_metric"]
+                if "spectral_delta_db" in entry:
+                    unconvergent["spectral_delta_db"] = entry["spectral_delta_db"]
+                all_corrections.append(unconvergent)
             break
         prev_plan_signature = plan_signature
 

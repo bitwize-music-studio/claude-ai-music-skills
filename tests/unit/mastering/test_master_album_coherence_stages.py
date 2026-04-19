@@ -320,7 +320,7 @@ def test_coherence_correct_clamps_when_target_below_window(
     import tools.mastering.master_tracks as _mt_mod
     monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
 
-    def _fake_plan(classifications, analysis_results, anchor_index_1based):
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
         return {
             "anchor_index": anchor_index_1based,
             "anchor_lufs": anchor_lufs,
@@ -421,7 +421,7 @@ def test_coherence_correct_applies_tilt_for_low_rms_outlier(
     monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
 
     # Plan: spectral-only outlier — no corrected_target_lufs, tilt_db=+0.5
-    def _fake_plan(classifications, analysis_results, anchor_index_1based):
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
         return {
             "anchor_index": anchor_index_1based,
             "anchor_lufs": anchor_lufs,
@@ -541,7 +541,7 @@ def test_coherence_correct_breaks_on_fixed_point_with_tilt_clamp(
 
     # Plan: spectral outlier whose tilt sits at the clamp. Same plan every
     # call → signature repeats → loop must break on iteration 2.
-    def _fake_plan(classifications, analysis_results, anchor_index_1based):
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
         return {
             "anchor_index": anchor_index_1based,
             "anchor_lufs": anchor_lufs,
@@ -651,6 +651,117 @@ def test_coherence_correct_breaks_on_fixed_point_with_tilt_clamp(
     assert "fixed_point" in unconvergent[0].get("reason", ""), (
         f"Expected fixed_point reason, got: {unconvergent[0].get('reason')}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6b: unconvergent entries expose diagnostic fields (#334)
+# ---------------------------------------------------------------------------
+
+def test_coherence_correct_unconvergent_entry_exposes_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#334: unconvergent entries (fixed_point_tilt_clamp) must include
+    intended_tilt_db, limiting_metric, and spectral_delta_db so operators
+    can see what the corrector was trying to fix and how far outside the
+    clamp the track was."""
+    anchor_lufs = -14.0
+    source_dir = tmp_path / "polished"
+    source_dir.mkdir()
+    output_dir = tmp_path / "mastered"
+    output_dir.mkdir()
+    _write_sine_wav(source_dir / "02-bassy.wav", amplitude=0.2)
+    import shutil
+    shutil.copy(source_dir / "02-bassy.wav", output_dir / "02-bassy.wav")
+    _write_sine_wav(output_dir / "01-anchor.wav")
+
+    def _fake_master_track(src: str, dst: str, **kwargs) -> dict:
+        shutil.copy(src, dst)
+        return {"status": "ok"}
+
+    import tools.mastering.master_tracks as _mt_mod
+    monkeypatch.setattr(_mt_mod, "master_track", _fake_master_track)
+
+    def _fake_plan(classifications, analysis_results, anchor_index_1based, max_tilt_db=None):
+        return {
+            "anchor_index": anchor_index_1based,
+            "anchor_lufs": anchor_lufs,
+            "corrections": [
+                {
+                    "index": 2,
+                    "filename": "02-bassy.wav",
+                    "correctable": True,
+                    "corrected_tilt_db": 0.5,
+                    "tilt_clamped": True,
+                    "intended_tilt_db": 0.78,
+                    "limiting_metric": "low_rms_db",
+                    "spectral_delta_db": 0.78,
+                    "reason": "Spectral outlier (low_rms) → tilt_db=+0.50 (clamped)",
+                }
+            ],
+            "skipped": [{"index": 1, "filename": "01-anchor.wav", "reason": "is_anchor"}],
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_coherence_build_plan", _fake_plan)
+
+    verify_results = [
+        _make_verify_result("01-anchor.wav", lufs=anchor_lufs, low_rms=-20.0),
+        _make_verify_result("02-bassy.wav", lufs=-14.0, low_rms=-15.0),
+    ]
+
+    def _fake_analyze(path: str) -> dict:
+        name = Path(path).name
+        for r in verify_results:
+            if r["filename"] == name:
+                return r
+        return verify_results[0]
+
+    import tools.mastering.analyze_tracks as _at_mod
+    monkeypatch.setattr(_at_mod, "analyze_track", _fake_analyze)
+
+    classifications = [
+        {"index": 1, "filename": "01-anchor.wav", "is_anchor": True,
+         "is_outlier": False, "violations": []},
+        {"index": 2, "filename": "02-bassy.wav", "is_anchor": False,
+         "is_outlier": True, "violations": [
+            {"metric": "low_rms", "delta": 5.0, "tolerance": 2.0,
+             "severity": "outlier", "correctable": True},
+         ]},
+    ]
+
+    import asyncio
+    async def _run():
+        ctx = MasterAlbumCtx(
+            album_slug="test-album", genre="", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.anchor_result = {"selected_index": 1}
+        ctx.verify_results = verify_results
+        ctx.coherence_classifications = classifications
+        ctx.source_dir = source_dir
+        ctx.output_dir = output_dir
+        ctx.mastered_files = [
+            output_dir / "01-anchor.wav",
+            output_dir / "02-bassy.wav",
+        ]
+        ctx.effective_ceiling = -1.0
+        ctx.effective_compress = 1.0
+        ctx.effective_preset = {}
+        ctx.preset_dict = None
+        await _stage_coherence_correct(ctx)
+        return ctx
+
+    ctx = asyncio.run(_run())
+
+    corrections = ctx.stages["coherence_correct"]["corrections"]
+    unconvergent = [c for c in corrections if c["status"] == "unconvergent"]
+    assert len(unconvergent) == 1, f"expected one unconvergent entry, got {corrections}"
+    entry = unconvergent[0]
+    assert entry["reason"] == "fixed_point_tilt_clamp"
+    assert entry["intended_tilt_db"] == pytest.approx(0.78)
+    assert entry["limiting_metric"] == "low_rms_db"
+    assert entry["spectral_delta_db"] == pytest.approx(0.78)
 
 
 # ---------------------------------------------------------------------------
