@@ -9,7 +9,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _find_album_or_error, _normalize_slug, _safe_json
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Private helpers

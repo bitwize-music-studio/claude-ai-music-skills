@@ -61,7 +61,7 @@ logging.basicConfig(
     format="%(levelname)s %(name)s: %(message)s",
     stream=sys.stderr,
 )
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 # Try to import MCP SDK
 try:

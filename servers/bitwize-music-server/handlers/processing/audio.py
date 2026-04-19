@@ -32,7 +32,7 @@ from tools.mastering.ceiling_guard import (
     compute_overshoots as _ceiling_guard_compute_overshoots,
 )
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 async def analyze_audio(album_slug: str, subfolder: str = "") -> str:

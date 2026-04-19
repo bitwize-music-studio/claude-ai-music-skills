@@ -11,7 +11,7 @@ from typing import Any
 from handlers._shared import _find_wav_source_dir, _is_path_confined, _safe_json
 from handlers.processing import _helpers
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 async def polish_audio(

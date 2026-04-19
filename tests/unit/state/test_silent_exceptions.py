@@ -172,7 +172,7 @@ class TestTextAnalysisOverridePathWarning:
                 "get_state",
                 side_effect=RuntimeError("lock error"),
             ),
-            caplog.at_level("WARNING", logger="bitwize-music-state"),
+            caplog.at_level("WARNING", logger="handlers.text_analysis"),
         ):
             # _load_explicit_words() is the function that resolves override_path
             # and contains the except handler we want to test.
@@ -245,7 +245,7 @@ class TestSheetMusicConfigWarning:
                 "sys.modules",
                 {"tools.shared.config": types.ModuleType("tools.shared.config")},
             ),
-            caplog.at_level("WARNING", logger="bitwize-music-state"),
+            caplog.at_level("WARNING", logger="handlers.processing._helpers"),
         ):
             stub = sys.modules["tools.shared.config"]
             stub.load_config = MagicMock(side_effect=ImportError("no module"))
