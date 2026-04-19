@@ -25,6 +25,7 @@ DEFAULTS: dict[str, float] = {
     "coherence_lra_floor_lu": 1.0,
     "coherence_low_rms_db":   2.0,
     "coherence_vocal_rms_db": 2.0,
+    "coherence_tilt_max_db":  0.5,
     # Hardcoded — matches master_album Stage 5 verify spec. Not a preset field.
     "lufs_tolerance_lu":      0.5,
 }
@@ -43,6 +44,7 @@ def load_tolerances(preset: dict[str, Any] | None) -> dict[str, float]:
             "coherence_lra_floor_lu",
             "coherence_low_rms_db",
             "coherence_vocal_rms_db",
+            "coherence_tilt_max_db",
         ):
             if key in preset and preset[key] is not None:
                 out[key] = float(preset[key])

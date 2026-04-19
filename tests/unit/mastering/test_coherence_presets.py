@@ -18,6 +18,7 @@ COHERENCE_FIELDS = {
     "coherence_lra_floor_lu": 1.0,
     "coherence_low_rms_db":   2.0,
     "coherence_vocal_rms_db": 2.0,
+    "coherence_tilt_max_db":  0.5,
 }
 
 

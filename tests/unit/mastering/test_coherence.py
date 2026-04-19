@@ -43,6 +43,14 @@ class TestLoadTolerances:
         tolerances = load_tolerances(preset)
         assert tolerances["lufs_tolerance_lu"] == pytest.approx(0.5)
 
+    def test_coherence_tilt_max_db_defaults_to_half_db(self):
+        tolerances = load_tolerances(None)
+        assert tolerances["coherence_tilt_max_db"] == pytest.approx(0.5)
+
+    def test_coherence_tilt_max_db_overridable_from_preset(self):
+        tolerances = load_tolerances({"coherence_tilt_max_db": 0.75})
+        assert tolerances["coherence_tilt_max_db"] == pytest.approx(0.75)
+
 
 def _delta(**overrides) -> dict:
     """Minimal delta dict matching compute_anchor_deltas output."""
