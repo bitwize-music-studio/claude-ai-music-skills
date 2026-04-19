@@ -455,3 +455,95 @@ class TestComputeTiltDb:
         assert tilt == pytest.approx(0.75)
         assert clamped is True
         assert raw == pytest.approx(1.2)
+
+
+class TestBuildCorrectionPlanDiagnostics:
+    """#334: plan entries expose intended_tilt_db, limiting_metric, spectral_delta_db."""
+
+    def _classifications(self, low_rms_delta: float) -> list[dict]:
+        return [
+            {"index": 1, "filename": "01.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+            {"index": 2, "filename": "02.wav", "is_anchor": False,
+             "is_outlier": True, "violations": [
+                {"metric": "lufs",      "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "stl_95",    "delta": 0.0, "tolerance": 0.5,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "lra_floor", "value": 3.0, "floor": 1.0,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "low_rms",   "delta": low_rms_delta, "tolerance": 2.0,
+                 "severity": "outlier", "correctable": True},
+                {"metric": "vocal_rms", "delta": 0.0, "tolerance": 2.0,
+                 "severity": "ok",      "correctable": False},
+             ]},
+        ]
+
+    def test_clamped_entry_reports_intended_and_limiting(self):
+        classifications = self._classifications(3.0)
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.0),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=1)
+        entry = plan["corrections"][0]
+        assert entry["corrected_tilt_db"] == pytest.approx(0.5)
+        assert entry["tilt_clamped"] is True
+        assert entry["intended_tilt_db"] == pytest.approx(3.0)
+        assert entry["limiting_metric"] == "low_rms_db"
+        assert entry["spectral_delta_db"] == pytest.approx(3.0)
+
+    def test_unclamped_entry_still_reports_diagnostics(self):
+        classifications = self._classifications(0.3)
+        # Force outlier severity so spectral path fires below default tolerance.
+        classifications[1]["violations"][3]["tolerance"] = 0.1
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.0),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=1)
+        entry = plan["corrections"][0]
+        assert entry["intended_tilt_db"] == pytest.approx(0.3, abs=1e-9)
+        assert entry["limiting_metric"] == "low_rms_db"
+        assert entry["spectral_delta_db"] == pytest.approx(0.3, abs=1e-9)
+
+    def test_max_tilt_db_kwarg_widens_the_clamp(self):
+        classifications = self._classifications(0.6)
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-14.0),
+        ]
+        plan = build_correction_plan(
+            classifications, analyses, anchor_index_1based=1, max_tilt_db=0.75
+        )
+        entry = plan["corrections"][0]
+        assert entry["corrected_tilt_db"] == pytest.approx(0.6)
+        assert entry["tilt_clamped"] is False
+        assert entry["intended_tilt_db"] == pytest.approx(0.6)
+
+    def test_lufs_only_entry_omits_spectral_diagnostics(self):
+        # LUFS outlier, no spectral violation → no tilt fields at all.
+        classifications = [
+            {"index": 1, "filename": "01.wav", "is_anchor": True,
+             "is_outlier": False, "violations": []},
+            {"index": 2, "filename": "02.wav", "is_anchor": False,
+             "is_outlier": True, "violations": [
+                {"metric": "lufs",     "delta": 1.0, "tolerance": 0.5,
+                 "severity": "outlier", "correctable": True},
+                {"metric": "low_rms",  "delta": 0.0, "tolerance": 2.0,
+                 "severity": "ok",      "correctable": False},
+                {"metric": "vocal_rms","delta": 0.0, "tolerance": 2.0,
+                 "severity": "ok",      "correctable": False},
+             ]},
+        ]
+        analyses = [
+            _analysis(filename="01.wav", lufs=-14.0),
+            _analysis(filename="02.wav", lufs=-15.0),
+        ]
+        plan = build_correction_plan(classifications, analyses, anchor_index_1based=1)
+        entry = plan["corrections"][0]
+        assert entry["correctable"] is True
+        assert "corrected_target_lufs" in entry
+        assert "intended_tilt_db" not in entry
+        assert "limiting_metric" not in entry
+        assert "spectral_delta_db" not in entry

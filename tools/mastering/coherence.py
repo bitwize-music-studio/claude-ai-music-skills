@@ -251,6 +251,7 @@ def build_correction_plan(
     classifications: list[dict[str, Any]],
     analysis_results: list[dict[str, Any]],
     anchor_index_1based: int,
+    max_tilt_db: float | None = None,
 ) -> dict[str, Any]:
     """Build a per-track correction plan for LUFS + spectral outliers.
 
@@ -259,6 +260,9 @@ def build_correction_plan(
         analysis_results: Original ``analyze_track`` dicts (used for
             anchor LUFS lookup).
         anchor_index_1based: 1-based track number of the anchor.
+        max_tilt_db: Clamp magnitude for tilt-EQ corrections. ``None``
+            falls back to ``TILT_CORRECTION_MAX_DB`` (0.5) so direct
+            callers keep working without threading the preset through.
 
     Returns:
         Dict with:
@@ -266,9 +270,14 @@ def build_correction_plan(
           anchor_lufs:  measured LUFS of the anchor (ground truth)
           corrections:  list of per-track correction dicts. Each dict
                         has ``correctable``, ``corrected_target_lufs``
-                        (present when gain correction applies), and
+                        (present when gain correction applies),
                         ``corrected_tilt_db`` (non-zero when spectral
-                        correction applies, clamped to ±0.5 dB).
+                        correction applies, clamped to ±max_tilt_db),
+                        and — when a spectral violation fires —
+                        ``intended_tilt_db`` (pre-clamp raw tilt),
+                        ``limiting_metric`` (``"low_rms_db"`` or
+                        ``"vocal_rms_db"``), and ``spectral_delta_db``
+                        (signed anchor-relative delta).
           skipped:      list of {index, filename, reason} for the
                         anchor + clean tracks
     """
@@ -277,6 +286,10 @@ def build_correction_plan(
             f"anchor_index_1based={anchor_index_1based} out of range "
             f"[1, {len(analysis_results)}]"
         )
+
+    effective_max_tilt = (
+        TILT_CORRECTION_MAX_DB if max_tilt_db is None else float(max_tilt_db)
+    )
 
     anchor_analysis = analysis_results[anchor_index_1based - 1]
     anchor_lufs = float(anchor_analysis.get("lufs", 0.0))
@@ -312,8 +325,17 @@ def build_correction_plan(
 
         tilt_db = 0.0
         tilt_clamped = False
+        raw_tilt_db = 0.0
+        limiting_metric: str | None = None
+        spectral_delta: float | None = None
         if spectral_violations:
-            tilt_db, tilt_clamped, _raw, _metric, _delta = _compute_tilt_db(violations)
+            (
+                tilt_db,
+                tilt_clamped,
+                raw_tilt_db,
+                limiting_metric,
+                spectral_delta,
+            ) = _compute_tilt_db(violations, max_tilt_db=effective_max_tilt)
 
         if lufs_violation is not None or spectral_violations:
             reason_parts: list[str] = []
@@ -331,6 +353,9 @@ def build_correction_plan(
                 )
             if spectral_violations:
                 entry["corrected_tilt_db"] = tilt_db
+                entry["intended_tilt_db"] = raw_tilt_db
+                entry["limiting_metric"] = limiting_metric
+                entry["spectral_delta_db"] = spectral_delta
                 metrics = ", ".join(sorted({v["metric"] for v in spectral_violations}))
                 clamp_note = " (clamped)" if tilt_clamped else ""
                 reason_parts.append(
