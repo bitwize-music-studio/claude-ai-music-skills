@@ -12,7 +12,6 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import copy
 import importlib
 import importlib.util
 import json
@@ -461,3 +460,130 @@ class TestPromoteIdeaDocumentary:
         album_path = Path(result["album_path"])
         assert not (album_path / "RESEARCH.md").exists()
         assert not (album_path / "SOURCES.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# Review-driven coverage (#328 review I1/I2)
+# ---------------------------------------------------------------------------
+
+
+class TestPromoteIdeaMaliciousSlug:
+    """I1: explicit album_slug with path-traversal chars must return a
+    structured error, not raise ValueError from _normalize_slug."""
+
+    @pytest.mark.parametrize("bad_slug", [
+        "../../../etc/passwd",
+        "../escaped",
+        "evil/subdir",
+        "evil\\subdir",
+        "null\x00byte",
+    ])
+    def test_rejects_path_traversal_slug(
+        self, content_root: Path, setup_handler, bad_slug: str,
+    ):
+        setup_handler([{
+            "title": "Kleine Welt",
+            "genre": "electronic",
+            "concept": "Inner journey.",
+            "status": "Pending",
+        }])
+        _write_ideas_md(
+            content_root,
+            _standard_ideas_md("Kleine Welt", "electronic", "Inner journey."),
+        )
+
+        # Must not raise — must return {"error": ...}.
+        result = json.loads(_run(
+            _ideas_mod.promote_idea("Kleine Welt", album_slug=bad_slug)
+        ))
+
+        assert "error" in result
+        assert "invalid album_slug" in result["error"].lower()
+
+
+class TestPromoteIdeaCaseMismatch:
+    """I2: the cache lookup is case-insensitive, but update_idea and
+    _set_promoted_to_field match the file case-sensitively. Use the canonical
+    title from the cache for downstream mutators so a lowercase call against
+    a title-case idea doesn't silently half-promote."""
+
+    def test_lowercase_call_against_titlecase_idea_updates_ideas_md(
+        self, content_root: Path, setup_handler,
+    ):
+        setup_handler([{
+            "title": "Kleine Welt",
+            "genre": "electronic",
+            "concept": "Inner journey.",
+            "status": "Pending",
+        }])
+        ideas_path = _write_ideas_md(
+            content_root,
+            _standard_ideas_md("Kleine Welt", "electronic", "Inner journey."),
+        )
+
+        # Caller passes lowercase even though IDEAS.md has title case.
+        result = json.loads(_run(_ideas_mod.promote_idea("kleine welt")))
+
+        assert result["promoted"] is True
+        # Canonical title from cache is returned, not the lowercase input.
+        assert result["idea_title"] == "Kleine Welt"
+
+        # IDEAS.md must reflect both mutations — silent half-promotion
+        # before the fix left both of these as no-ops.
+        text = ideas_path.read_text(encoding="utf-8")
+        assert "**Status**: In Progress" in text
+        assert "**Promoted To**: kleine-welt" in text
+
+    def test_uppercase_call_against_titlecase_idea_also_works(
+        self, content_root: Path, setup_handler,
+    ):
+        setup_handler([{
+            "title": "Kleine Welt",
+            "genre": "electronic",
+            "concept": "Inner journey.",
+            "status": "Pending",
+        }])
+        ideas_path = _write_ideas_md(
+            content_root,
+            _standard_ideas_md("Kleine Welt", "electronic", "Inner journey."),
+        )
+
+        result = json.loads(_run(_ideas_mod.promote_idea("KLEINE WELT")))
+
+        assert result["promoted"] is True
+        assert result["idea_title"] == "Kleine Welt"
+        text = ideas_path.read_text(encoding="utf-8")
+        assert "**Status**: In Progress" in text
+        assert "**Promoted To**: kleine-welt" in text
+
+
+class TestPromoteIdeaEmptyDerivedSlug:
+    """Titles that reduce to nothing after NFKD-ASCII + punctuation-stripping
+    must surface an explicit error rather than create an album at a slug that
+    consists entirely of dashes (or nothing)."""
+
+    @pytest.mark.parametrize("title", [
+        "!!!",            # pure punctuation
+        "???",            # pure punctuation
+        "…",              # single non-ASCII char
+        "   ",            # whitespace only after strip
+    ])
+    def test_empty_derived_slug_returns_error(
+        self, content_root: Path, setup_handler, title: str,
+    ):
+        setup_handler([{
+            "title": title,
+            "genre": "electronic",
+            "concept": "Edge case.",
+            "status": "Pending",
+        }])
+        _write_ideas_md(
+            content_root,
+            _standard_ideas_md(title, "electronic", "Edge case."),
+        )
+
+        result = json.loads(_run(_ideas_mod.promote_idea(title)))
+
+        # Either the lookup fails (title didn't round-trip) or the slug
+        # derivation fails — both are acceptable, but never a silent success.
+        assert "error" in result

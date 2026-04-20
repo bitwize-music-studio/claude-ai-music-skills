@@ -255,8 +255,8 @@ Is it purely pattern matching, file operations, or static info?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus 4.6 | 7 | 13.2% | Music-defining output, high error cost |
-| Sonnet 4.6 | 30 | 58.8% | Reasoning, coordination, moderate creativity |
-| Haiku 4.5 | 15 | 29.4% | Rule-based operations, no judgment |
+| Opus 4.6 | 7 | 13.0% | Music-defining output, high error cost |
+| Sonnet 4.6 | 30 | 55.6% | Reasoning, coordination, moderate creativity |
+| Haiku 4.5 | 17 | 31.5% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

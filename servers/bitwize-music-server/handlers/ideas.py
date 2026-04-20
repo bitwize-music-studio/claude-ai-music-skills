@@ -383,13 +383,35 @@ async def promote_idea(
             ),
         })
 
-    # Create album — surface errors (duplicate slug, invalid genre) verbatim.
-    album_result = json.loads(await create_album_structure(slug, genre, documentary))
+    # Use the canonical idea title from the state cache for all downstream
+    # IDEAS.md mutations. The cache lookup is case-insensitive (users can pass
+    # "kleine welt"), but update_idea and _set_promoted_to_field match the
+    # markdown file case-sensitively — if we passed the caller's casing through
+    # untouched, a lowercase call against a title-case idea would promote the
+    # album on disk but leave IDEAS.md untouched, producing a silent
+    # half-promotion (#328 review I2).
+    canonical_title = (idea.get("title") or idea_title).strip() or idea_title.strip()
+
+    # Create album — surface errors verbatim. create_album_structure's
+    # `_normalize_slug` raises ValueError on path-traversal inputs (`..`, `/`,
+    # `\`, NULs) when the caller supplied an explicit `album_slug`; catch it
+    # and return a structured error to honor this function's "no raised
+    # exceptions for documented failure modes" contract (#328 review I1).
+    try:
+        album_result_json = await create_album_structure(slug, genre, documentary)
+    except ValueError as exc:
+        return _safe_json({
+            "error": f"Invalid album_slug '{slug}': {exc}",
+            "idea_title": canonical_title,
+            "slug": slug,
+            "genre": genre,
+        })
+    album_result = json.loads(album_result_json)
     if not album_result.get("created"):
         error_msg = album_result.get("error", "Failed to create album structure")
         return _safe_json({
             "error": error_msg,
-            "idea_title": idea_title.strip(),
+            "idea_title": canonical_title,
             "slug": slug,
             "genre": genre,
         })
@@ -400,18 +422,30 @@ async def promote_idea(
     concept_injected = False
     if concept:
         concept_injected = _inject_concept_into_readme(
-            album_path / "README.md", idea_title.strip(), concept
+            album_path / "README.md", canonical_title, concept
         )
 
     # Update idea: status → In Progress, Promoted To → slug. Failures here are
-    # non-fatal (album already created); log but don't roll back.
-    status_result = json.loads(await update_idea(idea_title, "status", "In Progress"))
+    # non-fatal (album already created); log but don't roll back. Use
+    # canonical_title so the IDEAS.md regex match succeeds regardless of the
+    # caller's casing (#328 review I2).
+    status_result = json.loads(
+        await update_idea(canonical_title, "status", "In Progress")
+    )
     if status_result.get("error"):
         logger.warning(
             "Album created but status update failed for '%s': %s",
-            idea_title, status_result.get("error"),
+            canonical_title, status_result.get("error"),
         )
-    _set_promoted_to_field(idea_title, slug)
+    if not _set_promoted_to_field(canonical_title, slug):
+        # Non-fatal, but operators need to see this — the album is created
+        # and status is flipped, but the IDEAS.md back-link is missing so
+        # the two sides will drift apart (#328 review I3).
+        logger.warning(
+            "Album '%s' created but Promoted To back-link in IDEAS.md could "
+            "not be written for idea '%s'",
+            slug, canonical_title,
+        )
 
     try:
         _shared.cache.rebuild()
@@ -420,7 +454,7 @@ async def promote_idea(
 
     return _safe_json({
         "promoted": True,
-        "idea_title": idea_title.strip(),
+        "idea_title": canonical_title,
         "slug": slug,
         "genre": genre,
         "documentary": documentary,
