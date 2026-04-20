@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -250,7 +251,7 @@ def _resolve_analyzer_thresholds() -> tuple[float, float]:
 def _build_analyzer(
     dark_ratio: float = 0.10,
     harsh_ratio: float = 0.25,
-):
+) -> Callable[..., dict[str, Any]]:
     """Return an `analyze_one` callable bound to the given thresholds.
 
     The returned callable takes raw numpy audio data and produces the
