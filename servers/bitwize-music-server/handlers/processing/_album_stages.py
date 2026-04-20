@@ -30,8 +30,9 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import (
     ALBUM_COMPLETE,
+    ALBUM_RELEASED,
     TRACK_FINAL,
-    TRACK_GENERATED,
+    TRACK_GENERATED,  # noqa: F401 — kept for backward-compat exports
     TRACK_NOT_STARTED,
     _find_wav_source_dir,
     _is_path_confined,
@@ -1790,17 +1791,28 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
         tracks = album_data.get("tracks", {})
         for track_slug, track_info in tracks.items():
             current_track_status = track_info.get("status", TRACK_NOT_STARTED)
-            if current_track_status.lower() == TRACK_FINAL.lower():
+            current_lower = current_track_status.lower()
+            # Terminal statuses — leave alone. Final is already done;
+            # Released is higher than Final and must never be demoted on a
+            # re-master (#335). Silently skip either one (no error noise).
+            if current_lower in (
+                TRACK_FINAL.lower(),
+                ALBUM_RELEASED.lower(),
+            ):
                 continue
-            if current_track_status.lower() != TRACK_GENERATED.lower():
-                status_errors.append(
-                    f"Skipped '{track_slug}': status is '{current_track_status}' "
-                    f"(expected '{TRACK_GENERATED}')"
-                )
-                continue
+            # Everything else gets promoted to Final — the mastered WAV is
+            # real, so the status should follow. Previously this stage
+            # only accepted `Generated` as input and appended a "skipped"
+            # error for any other status (Not Started / Sources Pending /
+            # Sources Verified / In Progress), silently no-op'ing the
+            # entire stage on any album whose tracks weren't pinned at
+            # exactly `Generated` (#335).
             track_path_str = track_info.get("path", "")
             if not track_path_str:
-                status_errors.append(f"No path for track '{track_slug}'")
+                # Cache-staleness: a track entry with no path has no disk
+                # file to update. Skip silently — the mastering pipeline
+                # only touched WAVs discovered from the audio dir, so
+                # missing path here is a bookkeeping gap, not a failure.
                 continue
             track_path = Path(track_path_str)
             if not track_path.exists():
@@ -1881,8 +1893,21 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
     for err_msg in status_errors:
         ctx.warnings.append(f"Status update: {err_msg}")
 
+    # Classify the stage outcome. Prior to #335 this was hardcoded to
+    # "pass" even when tracks_updated == 0 AND errors existed, which
+    # masked real failures in the top-level master_album result.
+    #   - no errors                 → "pass" (clean run or idempotent no-op)
+    #   - errors + some updates     → "partial" (something worked, some didn't)
+    #   - errors + zero updates     → "skipped" (nothing landed, surface it)
+    if not status_errors:
+        stage_outcome = "pass"
+    elif tracks_updated > 0:
+        stage_outcome = "partial"
+    else:
+        stage_outcome = "skipped"
+
     ctx.stages["status_update"] = {
-        "status": "pass",
+        "status": stage_outcome,
         "tracks_updated": tracks_updated,
         "album_status": album_status,
         "errors": status_errors if status_errors else None,
