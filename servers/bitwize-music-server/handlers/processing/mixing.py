@@ -43,11 +43,13 @@ async def polish_audio(
             directory with the same stem name. In full-mix mode, matches
             the WAV filename directly. Empty = process whole album.
         analyzer_results: Optional pre-computed per-track/per-stem
-            analyzer output from `analyze_mix_issues`. When None (and
-            not dry_run), the analyzer is run internally so
-            recommendations still flow through. polish_album passes
-            its existing analyze-stage output here to avoid a
-            duplicate run. (#336)
+            analyzer output from `analyze_mix_issues`. When None and
+            `dry_run=False`, the analyzer is run internally so
+            recommendations still flow through. When None and
+            `dry_run=True`, the analyzer is skipped (dry-run is meant
+            to be fast) and `summary.overrides_applied` will be empty.
+            polish_album passes its existing analyze-stage output
+            here to avoid a duplicate run. (#336)
 
     Returns:
         JSON with per-track results, settings, and summary
@@ -90,8 +92,12 @@ async def polish_audio(
         analyzer_json = await analyze_mix_issues(album_slug, genre)
         analyzer_parsed = json.loads(analyzer_json)
         if "error" in analyzer_parsed:
-            # Analyzer failure is non-fatal for polish — proceed without recs.
-            analyzer_results = None
+            # Analyzer failure is non-fatal for polish — proceed without recs,
+            # but log the error so operators can see why overrides are empty.
+            logger.warning(
+                "polish_audio analyzer auto-run failed for album %r (genre=%r): %s",
+                album_slug, genre, analyzer_parsed.get("error"),
+            )
         else:
             analyzer_results = analyzer_parsed
 
@@ -206,11 +212,12 @@ async def polish_audio(
 
     aggregated_overrides: list[dict[str, Any]] = []
     for tr in track_results:
+        track_label = tr.get("track_name") or tr.get("filename") or ""
         for entry in tr.get("overrides_applied", []):
-            aggregated_overrides.append({
-                "track": tr.get("track_name") or tr.get("filename") or "",
-                **entry,
-            })
+            # Explicit track label last so it can't be shadowed by an entry
+            # that ever gains a "track" field (defensive — entries don't
+            # currently carry one).
+            aggregated_overrides.append({**entry, "track": track_label})
 
     return _safe_json({
         "tracks": track_results,
