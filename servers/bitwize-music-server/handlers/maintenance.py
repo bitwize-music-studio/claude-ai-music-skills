@@ -10,7 +10,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _normalize_slug, _resolve_audio_dir, _safe_json
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants

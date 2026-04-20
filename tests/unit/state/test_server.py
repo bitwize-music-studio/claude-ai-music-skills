@@ -12158,7 +12158,7 @@ class TestImportSheetMusicModule:
 
     def test_logs_warning_when_spec_missing(self, caplog):
         """Should warn before raising if the import spec cannot be created."""
-        caplog.set_level("WARNING", logger="bitwize-music-state")
+        caplog.set_level("WARNING", logger="handlers.processing._helpers")
 
         with patch("importlib.util.spec_from_file_location", return_value=None):
             mod = _processing_helpers._import_sheet_music_module("transcribe")
@@ -12168,7 +12168,7 @@ class TestImportSheetMusicModule:
 
     def test_returns_none_when_exec_fails(self, caplog):
         """Should warn and return None if module execution fails."""
-        caplog.set_level("WARNING", logger="bitwize-music-state")
+        caplog.set_level("WARNING", logger="handlers.processing._helpers")
         mock_loader = MagicMock()
         mock_loader.exec_module.side_effect = ImportError("missing optional dep")
         mock_spec = MagicMock(loader=mock_loader)
@@ -12187,7 +12187,7 @@ class TestImportCloudModule:
 
     def test_logs_warning_when_spec_missing(self, caplog):
         """Should warn and return None if the import spec cannot be created."""
-        caplog.set_level("WARNING", logger="bitwize-music-state")
+        caplog.set_level("WARNING", logger="handlers.processing._helpers")
 
         with patch("importlib.util.spec_from_file_location", return_value=None):
             mod = _processing_helpers._import_cloud_module("upload_to_cloud")
@@ -12197,7 +12197,7 @@ class TestImportCloudModule:
 
     def test_returns_none_when_exec_fails(self, caplog):
         """Should warn and return None if module execution fails."""
-        caplog.set_level("WARNING", logger="bitwize-music-state")
+        caplog.set_level("WARNING", logger="handlers.processing._helpers")
         mock_loader = MagicMock()
         mock_loader.exec_module.side_effect = ImportError("missing boto3")
         mock_spec = MagicMock(loader=mock_loader)

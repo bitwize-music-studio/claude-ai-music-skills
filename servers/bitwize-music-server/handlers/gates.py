@@ -19,7 +19,7 @@ from handlers._shared import (
     _safe_json,
 )
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================

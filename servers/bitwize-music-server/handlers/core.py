@@ -31,7 +31,7 @@ from handlers._shared import (
 from tools.state.indexer import write_state
 from tools.state.parsers import parse_track_file
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================

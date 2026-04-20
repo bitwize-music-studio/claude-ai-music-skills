@@ -76,7 +76,7 @@ from tools.mastering.metadata import (
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ from handlers._shared import (
 )
 from handlers.processing import _helpers
 
-logger = logging.getLogger("bitwize-music-state")
+logger = logging.getLogger(__name__)
 
 
 async def generate_promo_videos(
