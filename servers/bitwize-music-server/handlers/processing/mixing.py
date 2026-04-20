@@ -21,6 +21,7 @@ async def polish_audio(
     use_stems: bool = True,
     dry_run: bool = False,
     track_filename: str = "",
+    analyzer_results: dict[str, Any] | None = None,
 ) -> str:
     """Polish audio tracks by processing stems or full mixes.
 
@@ -41,6 +42,12 @@ async def polish_audio(
             "01-track-name.wav"). In stems mode, matches the stem track
             directory with the same stem name. In full-mix mode, matches
             the WAV filename directly. Empty = process whole album.
+        analyzer_results: Optional pre-computed per-track/per-stem
+            analyzer output from `analyze_mix_issues`. When None (and
+            not dry_run), the analyzer is run internally so
+            recommendations still flow through. polish_album passes
+            its existing analyze-stage output here to avoid a
+            duplicate run. (#336)
 
     Returns:
         JSON with per-track results, settings, and summary
@@ -74,6 +81,27 @@ async def polish_audio(
     output_dir = audio_dir / "polished"
     if not dry_run:
         output_dir.mkdir(exist_ok=True)
+
+    # #336: polish consumes analyzer per-stem recommendations. Auto-run
+    # the analyzer when the caller didn't provide results (so direct
+    # polish_audio calls still see the coupling). polish_album skips
+    # this by passing its existing analyze-stage output down.
+    if analyzer_results is None and not dry_run:
+        analyzer_json = await analyze_mix_issues(album_slug, genre)
+        analyzer_parsed = json.loads(analyzer_json)
+        if "error" in analyzer_parsed:
+            # Analyzer failure is non-fatal for polish — proceed without recs.
+            analyzer_results = None
+        else:
+            analyzer_results = analyzer_parsed
+
+    # Build per-track analyzer rec lookup: {track_basename: {stem: {...}}}
+    per_track_recs: dict[str, dict[str, dict[str, Any]]] = {}
+    if analyzer_results:
+        for track_entry in analyzer_results.get("tracks", []):
+            # Stems-mode entry shape: {"track": name, "stems": {stem: analysis}}
+            if "stems" in track_entry and isinstance(track_entry["stems"], dict):
+                per_track_recs[track_entry["track"]] = track_entry["stems"]
 
     loop = asyncio.get_running_loop()
     track_results = []
@@ -119,12 +147,20 @@ async def polish_audio(
 
             _stem_output_dir = (output_dir / track_dir.name) if not dry_run else None
 
-            def _do_stems(sp: dict[str, str | list[str]], op: str, g: str | None, dr: bool, sd: Path | None) -> dict[str, Any]:
-                return mix_track_stems(sp, op, genre=g, dry_run=dr, stem_output_dir=sd)
+            track_recs = per_track_recs.get(track_dir.name) or None
+
+            def _do_stems(
+                sp: dict[str, str | list[str]], op: str, g: str | None,
+                dr: bool, sd: Path | None, ar: dict[str, Any] | None,
+            ) -> dict[str, Any]:
+                return mix_track_stems(
+                    sp, op, genre=g, dry_run=dr,
+                    stem_output_dir=sd, analyzer_recs=ar,
+                )
 
             result = await loop.run_in_executor(
                 None, _do_stems, stem_paths, out_path,
-                genre or None, dry_run, _stem_output_dir,
+                genre or None, dry_run, _stem_output_dir, track_recs,
             )
 
             if result:
@@ -168,6 +204,14 @@ async def polish_audio(
     if not track_results:
         return _safe_json({"error": "No tracks were processed."})
 
+    aggregated_overrides: list[dict[str, Any]] = []
+    for tr in track_results:
+        for entry in tr.get("overrides_applied", []):
+            aggregated_overrides.append({
+                "track": tr.get("track_name") or tr.get("filename") or "",
+                **entry,
+            })
+
     return _safe_json({
         "tracks": track_results,
         "settings": {
@@ -180,6 +224,7 @@ async def polish_audio(
             "tracks_processed": len(track_results),
             "mode": "stems" if use_stems else "full_mix",
             "output_dir": str(output_dir) if not dry_run else None,
+            "overrides_applied": aggregated_overrides,
         },
     })
 
