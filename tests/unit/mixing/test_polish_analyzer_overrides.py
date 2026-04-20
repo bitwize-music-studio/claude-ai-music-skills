@@ -81,3 +81,90 @@ def test_empty_analyzer_rec_is_noop():
     baseline = _get_stem_settings("synth", genre="electronic")
     empty = _get_stem_settings("synth", genre="electronic", analyzer_rec={})
     assert baseline == empty
+
+
+class TestMixTrackStemsAnalyzerRecs:
+    """#336: mix_track_stems accepts per-stem analyzer recs and records overrides_applied."""
+
+    def _make_dummy_stem(self, tmp_path, name: str, amplitude: float = 0.2):
+        """Write a 1-second 100 Hz sine as a stem WAV; return the path."""
+        import numpy as np
+        import soundfile as sf
+        rate = 48000
+        t = np.linspace(0.0, 1.0, rate, endpoint=False)
+        mono = amplitude * np.sin(2 * np.pi * 100 * t).astype("float64")
+        stereo = np.column_stack([mono, mono])
+        p = tmp_path / f"{name}.wav"
+        sf.write(str(p), stereo, rate)
+        return str(p)
+
+    def test_mix_track_stems_records_overrides_applied_when_recs_present(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+        stem_paths = {
+            "vocals": self._make_dummy_stem(tmp_path, "vocals"),
+            "synth":  self._make_dummy_stem(tmp_path, "synth"),
+        }
+        out = tmp_path / "mix.wav"
+        analyzer_recs = {
+            "synth": {
+                "recommendations": {"high_tame_db": 0.0},
+                "issues": ["already_dark"],
+            }
+        }
+        result = mix_track_stems(
+            stem_paths, str(out),
+            genre="electronic", dry_run=True,
+            analyzer_recs=analyzer_recs,
+        )
+        assert "overrides_applied" in result
+        assert len(result["overrides_applied"]) == 1
+        entry = result["overrides_applied"][0]
+        assert entry["stem"] == "synth"
+        assert entry["parameter"] == "high_tame_db"
+        assert entry["analyzer_rec"] == pytest.approx(0.0)
+        assert entry["applied"] == pytest.approx(0.0)
+        assert entry["genre_default"] == pytest.approx(-1.5)
+        assert entry["reason"] == "already_dark"
+
+    def test_mix_track_stems_no_recs_yields_empty_overrides_list(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+        stem_paths = {"vocals": self._make_dummy_stem(tmp_path, "vocals")}
+        out = tmp_path / "mix.wav"
+        result = mix_track_stems(stem_paths, str(out), genre="electronic", dry_run=True)
+        assert result.get("overrides_applied", []) == []
+
+    def test_mix_track_stems_non_eq_rec_does_not_produce_override(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+        stem_paths = {"synth": self._make_dummy_stem(tmp_path, "synth")}
+        out = tmp_path / "mix.wav"
+        # Only click_removal (non-EQ whitelist) in recommendations
+        analyzer_recs = {
+            "synth": {
+                "recommendations": {"click_removal": True},
+                "issues": ["clicks_detected"],
+            }
+        }
+        result = mix_track_stems(
+            stem_paths, str(out), genre="electronic", dry_run=True,
+            analyzer_recs=analyzer_recs,
+        )
+        assert result.get("overrides_applied", []) == []
+
+    def test_mix_track_stems_missing_stem_in_recs_falls_through(self, tmp_path):
+        """When analyzer_recs has no entry for a stem, that stem uses genre default."""
+        from tools.mixing.mix_tracks import mix_track_stems
+        stem_paths = {
+            "synth": self._make_dummy_stem(tmp_path, "synth"),
+            "vocals": self._make_dummy_stem(tmp_path, "vocals"),
+        }
+        out = tmp_path / "mix.wav"
+        # Only synth has a rec; vocals should fall through without producing an override
+        analyzer_recs = {
+            "synth": {"recommendations": {"high_tame_db": -2.5}, "issues": ["harsh_highmids"]}
+        }
+        result = mix_track_stems(
+            stem_paths, str(out), genre="electronic", dry_run=True,
+            analyzer_recs=analyzer_recs,
+        )
+        stems_in_overrides = {e["stem"] for e in result.get("overrides_applied", [])}
+        assert stems_in_overrides == {"synth"}

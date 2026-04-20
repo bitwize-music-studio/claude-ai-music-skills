@@ -1845,9 +1845,14 @@ STEM_PROCESSORS: dict[str, Callable[..., Any]] = {
 # ─── Full Pipeline Functions ─────────────────────────────────────────
 
 
-def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | str,
-                    genre: str | None = None, dry_run: bool = False,
-                    stem_output_dir: Path | None = None) -> dict[str, Any]:
+def mix_track_stems(
+    stem_paths: dict[str, str | list[str]],
+    output_path: Path | str,
+    genre: str | None = None,
+    dry_run: bool = False,
+    stem_output_dir: Path | None = None,
+    analyzer_recs: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Full stems pipeline: load stems, process each, remix, write output.
 
     Args:
@@ -1856,14 +1861,25 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         output_path: Path for polished output WAV
         genre: Optional genre name for preset selection
         dry_run: If True, analyze only without writing files
+        stem_output_dir: Optional per-stem output directory
+        analyzer_recs: Optional per-stem analyzer output from
+            ``analyze_mix_issues``. Shape: ``{stem_name: {"recommendations":
+            {...}, "issues": [...]}}``. When provided, whitelisted EQ
+            keys in ``recommendations`` override genre defaults for that
+            stem. The overrides fired are recorded in the return dict's
+            ``overrides_applied`` list with ``(stem, parameter,
+            genre_default, analyzer_rec, applied, reason)``. (#336)
 
     Returns:
-        Dict with processing results and metrics.
+        Dict with processing results, metrics, and (when analyzer_recs
+        is present or absent) an ``overrides_applied`` list.
     """
     stems_processed: list[dict[str, Any]] = []
+    overrides_applied: list[dict[str, Any]] = []
     result: dict[str, Any] = {
         'mode': 'stems',
         'stems_processed': stems_processed,
+        'overrides_applied': overrides_applied,
         'dry_run': dry_run,
     }
 
@@ -1932,11 +1948,40 @@ def mix_track_stems(stem_paths: dict[str, str | list[str]], output_path: Path | 
         # initialized empty so the `get('clicks_removed', 0)` fallback in
         # the append-below always has a value, even for non-declicking stems.
         stem_report: dict[str, Any] = {'clicks_removed': 0}
+
+        # #336: pull per-stem recommendations from analyzer (if any).
+        stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
+        stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
+        stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
+
+        # Capture genre baseline BEFORE merging analyzer recs so we can
+        # report what the override changed.
+        if stem_recs:
+            baseline_settings = _get_stem_settings(stem_name, genre)
+            for key, rec_val in stem_recs.items():
+                if key in _ANALYZER_EQ_OVERRIDE_KEYS:
+                    # Issue tag that justifies this override, if any
+                    reason = next(
+                        (t for t in stem_issues
+                         if t in ("harsh_highmids", "already_dark",
+                                  "muddy_low_mids", "elevated_noise_floor",
+                                  "sub_rumble")),
+                        None,
+                    )
+                    overrides_applied.append({
+                        "stem":           stem_name,
+                        "parameter":      key,
+                        "genre_default":  baseline_settings.get(key),
+                        "analyzer_rec":   rec_val,
+                        "applied":        rec_val,
+                        "reason":         reason,
+                    })
+
         if not dry_run:
             # Get settings and process. Every processor now accepts
             # `report` and accumulates `clicks_removed` via
             # `_apply_click_removal`, so the dispatch is uniform.
-            settings = _get_stem_settings(stem_name, genre)
+            settings = _get_stem_settings(stem_name, genre, analyzer_rec=stem_recs or None)
             processor = STEM_PROCESSORS[stem_name]
             data = processor(data, rate, settings, report=stem_report)
 
