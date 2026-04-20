@@ -228,6 +228,143 @@ def _resolve_analyzer_peak_ratio(
     return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
 
 
+def _resolve_analyzer_thresholds() -> tuple[float, float]:
+    """Load (dark_high_mid_ratio, harsh_high_mid_ratio) from mix presets.
+
+    Falls back to (0.10, 0.25) when the analyzer preset block is absent.
+    Values are consumed by `_analyze_one` for the dark-track and
+    harsh-highmids branches respectively (#336).
+    """
+    try:
+        from tools.mixing.mix_tracks import load_mix_presets
+    except ImportError:
+        return 0.10, 0.25
+
+    presets = load_mix_presets()
+    analyzer = presets.get("defaults", {}).get("analyzer", {})
+    dark = float(analyzer.get("dark_high_mid_ratio", 0.10))
+    harsh = float(analyzer.get("harsh_high_mid_ratio", 0.25))
+    return dark, harsh
+
+
+def _build_analyzer(
+    dark_ratio: float = 0.10,
+    harsh_ratio: float = 0.25,
+):
+    """Return an `analyze_one` callable bound to the given thresholds.
+
+    The returned callable takes raw numpy audio data and produces the
+    per-file/per-stem analysis dict. Splitting it out of
+    `analyze_mix_issues` lets tests exercise the logic without mounting
+    an album directory.
+
+    Args:
+        dark_ratio: high_mid_ratio below which ``already_dark`` fires.
+        harsh_ratio: high_mid_ratio above which ``harsh_highmids`` fires.
+
+    Returns:
+        Callable ``analyze_one(data, rate, *, filename, stem_name, genre)``
+        producing a per-file analysis dict identical in shape to the
+        original ``_analyze_one`` output.
+    """
+    import numpy as np
+    from scipy import signal as sig
+
+    def analyze_one(
+        data: Any,
+        rate: int,
+        *,
+        filename: str,
+        stem_name: str | None = None,
+        genre: str = "",
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {"filename": filename, "issues": [], "recommendations": {}}
+
+        # Overall metrics
+        peak = float(np.max(np.abs(data)))
+        rms = float(np.sqrt(np.mean(data ** 2)))
+        result["peak"] = peak
+        result["rms"] = rms
+
+        # Noise floor estimate (quietest 10% of signal)
+        abs_signal = np.abs(data[:, 0])
+        sorted_abs = np.sort(abs_signal)
+        noise_floor = float(np.mean(sorted_abs[:len(sorted_abs) // 10]))
+        result["noise_floor"] = noise_floor
+        if noise_floor > 0.005:
+            result["issues"].append("elevated_noise_floor")
+            result["recommendations"]["noise_reduction"] = min(0.8, noise_floor * 100)
+
+        # Spectral analysis
+        freqs, psd = sig.welch(data[:, 0], rate, nperseg=min(4096, len(data)))
+
+        # Low-mid energy (150-400 Hz) — muddiness indicator
+        low_mid_mask = (freqs >= 150) & (freqs <= 400)
+        total_energy = float(np.sum(psd))
+        if total_energy > 0:
+            low_mid_ratio = float(np.sum(psd[low_mid_mask])) / total_energy
+            result["low_mid_ratio"] = low_mid_ratio
+            if low_mid_ratio > 0.35:
+                result["issues"].append("muddy_low_mids")
+                result["recommendations"]["mud_cut_db"] = -3.0
+
+        # High-mid energy (2-5 kHz) — harshness / darkness indicator
+        high_mid_mask = (freqs >= 2000) & (freqs <= 5000)
+        if total_energy > 0:
+            high_mid_ratio = float(np.sum(psd[high_mid_mask])) / total_energy
+            result["high_mid_ratio"] = high_mid_ratio
+            if high_mid_ratio > harsh_ratio:
+                result["issues"].append("harsh_highmids")
+                result["recommendations"]["high_tame_db"] = -2.0
+            elif high_mid_ratio < dark_ratio:
+                # #336: already-dark track — emit sentinel 0.0 to override
+                # genre-default high-shelf cuts (e.g. electronic's
+                # synth/keyboard/other stems at -1.5 dB @ 9 kHz) that
+                # would compound the darkness in polish.
+                result["issues"].append("already_dark")
+                result["recommendations"]["high_tame_db"] = 0.0
+
+        # Click detection (sudden amplitude spikes).
+        #
+        # Count 10 ms windows whose peak-to-RMS ratio exceeds `peak_ratio`
+        # — genuine digital clicks are single-sample discontinuities that
+        # spike a short window's crest factor well above 10×, while
+        # musical transients distribute energy across the window and stay
+        # below. The previous sample-wise detector was replaced in #323.
+        mono_col = data[:, 0]
+        window = max(int(rate * 0.01), 1)
+        n_windows = len(mono_col) // window
+        if n_windows > 0:
+            windows = mono_col[: n_windows * window].reshape(n_windows, window)
+            win_rms = np.sqrt(np.mean(windows ** 2, axis=1))
+            win_peak = np.max(np.abs(windows), axis=1)
+            active = win_rms > 1e-8
+            ratios = np.zeros(n_windows, dtype=np.float64)
+            np.divide(win_peak, win_rms, out=ratios, where=active)
+            peak_ratio = _resolve_analyzer_peak_ratio(stem_name, genre)
+            click_count = int(np.sum(ratios > peak_ratio))
+            result["click_count"] = click_count
+            if click_count > 10:
+                result["issues"].append("clicks_detected")
+                result["recommendations"]["click_removal"] = True
+
+        # Sub-bass rumble (< 30 Hz)
+        sub_mask = freqs < 30
+        if total_energy > 0:
+            sub_ratio = float(np.sum(psd[sub_mask])) / total_energy
+            result["sub_ratio"] = sub_ratio
+            if sub_ratio > 0.15:
+                result["issues"].append("sub_rumble")
+                result["recommendations"]["highpass_cutoff"] = 35
+
+        if not result["issues"]:
+            result["issues"].append("none_detected")
+
+        return result
+
+    return analyze_one
+
+
 async def analyze_mix_issues(
     album_slug: str,
     genre: str = "",
@@ -288,94 +425,20 @@ async def analyze_mix_issues(
     if not wav_files and not stem_track_map:
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
+    # Resolve analyzer thresholds once per run (preset-configurable, #336).
+    dark_ratio, harsh_ratio = _resolve_analyzer_thresholds()
+    analyze_core = _build_analyzer(dark_ratio=dark_ratio, harsh_ratio=harsh_ratio)
+
     def _analyze_one(
         wav_path: Path, stem_name: str | None = None,
     ) -> dict[str, Any]:
         data, rate = sf.read(str(wav_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
-
-        result: dict[str, Any] = {"filename": wav_path.name, "issues": [], "recommendations": {}}
-
-        # Overall metrics
-        peak = float(np.max(np.abs(data)))
-        rms = float(np.sqrt(np.mean(data ** 2)))
-        result["peak"] = peak
-        result["rms"] = rms
-
-        # Noise floor estimate (quietest 10% of signal)
-        abs_signal = np.abs(data[:, 0])
-        sorted_abs = np.sort(abs_signal)
-        noise_floor = float(np.mean(sorted_abs[:len(sorted_abs) // 10]))
-        result["noise_floor"] = noise_floor
-        if noise_floor > 0.005:
-            result["issues"].append("elevated_noise_floor")
-            result["recommendations"]["noise_reduction"] = min(0.8, noise_floor * 100)
-
-        # Spectral analysis (simplified: energy in frequency bands)
-        from scipy import signal as sig
-        freqs, psd = sig.welch(data[:, 0], rate, nperseg=min(4096, len(data)))
-
-        # Low-mid energy (150-400 Hz) — muddiness indicator
-        low_mid_mask = (freqs >= 150) & (freqs <= 400)
-        total_energy = float(np.sum(psd))
-        if total_energy > 0:
-            low_mid_ratio = float(np.sum(psd[low_mid_mask])) / total_energy
-            result["low_mid_ratio"] = low_mid_ratio
-            if low_mid_ratio > 0.35:
-                result["issues"].append("muddy_low_mids")
-                result["recommendations"]["mud_cut_db"] = -3.0
-
-        # High-mid energy (2-5 kHz) — harshness indicator
-        high_mid_mask = (freqs >= 2000) & (freqs <= 5000)
-        if total_energy > 0:
-            high_mid_ratio = float(np.sum(psd[high_mid_mask])) / total_energy
-            result["high_mid_ratio"] = high_mid_ratio
-            if high_mid_ratio > 0.25:
-                result["issues"].append("harsh_highmids")
-                result["recommendations"]["high_tame_db"] = -2.0
-
-        # Click detection (sudden amplitude spikes).
-        #
-        # Count 10 ms windows whose peak-to-RMS ratio exceeds `peak_ratio`
-        # — genuine digital clicks are single-sample discontinuities that
-        # spike a short window's crest factor well above 10×, while
-        # musical transients (vocal consonants, synth attacks, kick
-        # drums) distribute energy across the window and stay below.
-        # The previous sample-wise `|diff| > 6·σ(diff)` detector flagged
-        # tens of thousands of musical samples per stem on vocals/synth/
-        # bass and emitted false `click_removal` recommendations that
-        # the polish pipeline silently ignored (#323).
-        mono_col = data[:, 0]
-        window = max(int(rate * 0.01), 1)
-        n_windows = len(mono_col) // window
-        if n_windows > 0:
-            windows = mono_col[: n_windows * window].reshape(n_windows, window)
-            win_rms = np.sqrt(np.mean(windows ** 2, axis=1))
-            win_peak = np.max(np.abs(windows), axis=1)
-            active = win_rms > 1e-8
-            ratios = np.zeros(n_windows, dtype=np.float64)
-            np.divide(win_peak, win_rms, out=ratios, where=active)
-            peak_ratio = _resolve_analyzer_peak_ratio(stem_name, genre)
-            click_count = int(np.sum(ratios > peak_ratio))
-            result["click_count"] = click_count
-            if click_count > 10:
-                result["issues"].append("clicks_detected")
-                result["recommendations"]["click_removal"] = True
-
-        # Sub-bass rumble (< 30 Hz)
-        sub_mask = freqs < 30
-        if total_energy > 0:
-            sub_ratio = float(np.sum(psd[sub_mask])) / total_energy
-            result["sub_ratio"] = sub_ratio
-            if sub_ratio > 0.15:
-                result["issues"].append("sub_rumble")
-                result["recommendations"]["highpass_cutoff"] = 35
-
-        if not result["issues"]:
-            result["issues"].append("none_detected")
-
-        return result
+        return analyze_core(
+            data, rate, filename=wav_path.name,
+            stem_name=stem_name, genre=genre,
+        )
 
     track_analyses: list[dict[str, Any]] = []
     if stems_mode:

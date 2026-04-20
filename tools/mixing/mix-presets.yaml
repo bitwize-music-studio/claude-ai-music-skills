@@ -37,6 +37,15 @@
 # User overrides deep-merge on top of these defaults.
 
 defaults:
+  analyzer:
+    # Thresholds consumed by analyze_mix_issues — see
+    # servers/bitwize-music-server/handlers/processing/mixing.py
+    # _analyze_one. Dark tracks (high_mid_ratio < dark_high_mid_ratio) get
+    # recommendation high_tame_db: 0.0, overriding genre-default high-shelf
+    # cuts that would further darken them. Harsh tracks
+    # (high_mid_ratio > harsh_high_mid_ratio) get high_tame_db: -2.0.
+    dark_high_mid_ratio: 0.10
+    harsh_high_mid_ratio: 0.25
   # Click removal is on for every stem (#323 comment). The threshold
   # defaults to `click_peak_ratio: 15.0` (same as the analyzer in
   # `analyze_mix_issues`) so polish and analysis report the same
