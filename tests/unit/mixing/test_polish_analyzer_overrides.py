@@ -168,3 +168,27 @@ class TestMixTrackStemsAnalyzerRecs:
         )
         stems_in_overrides = {e["stem"] for e in result.get("overrides_applied", [])}
         assert stems_in_overrides == {"synth"}
+
+    def test_mix_track_stems_reason_is_per_parameter(self, tmp_path):
+        """#336: a stem with multiple issues gets the correct reason per override entry."""
+        from tools.mixing.mix_tracks import mix_track_stems
+        stem_paths = {"vocals": self._make_dummy_stem(tmp_path, "vocals")}
+        out = tmp_path / "mix.wav"
+        # Stem has BOTH muddy_low_mids AND harsh_highmids — each parameter
+        # should pick its own justifying tag, not the first-in-list one.
+        analyzer_recs = {
+            "vocals": {
+                "recommendations": {
+                    "mud_cut_db":   -4.0,
+                    "high_tame_db": -2.5,
+                },
+                "issues": ["muddy_low_mids", "harsh_highmids"],
+            }
+        }
+        result = mix_track_stems(
+            stem_paths, str(out), genre="electronic", dry_run=True,
+            analyzer_recs=analyzer_recs,
+        )
+        by_param = {e["parameter"]: e for e in result["overrides_applied"]}
+        assert by_param["mud_cut_db"]["reason"] == "muddy_low_mids"
+        assert by_param["high_tame_db"]["reason"] == "harsh_highmids"

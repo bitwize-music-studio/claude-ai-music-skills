@@ -1041,6 +1041,18 @@ _ANALYZER_EQ_OVERRIDE_KEYS = frozenset({
     "highpass_cutoff",
 })
 
+# #336: map each whitelisted EQ parameter to the analyzer issue tags
+# that justify it. Used by mix_track_stems to produce a per-parameter
+# `reason` in overrides_applied — without this map, a stem with
+# multiple issues spanning multiple parameters would show the same
+# (wrong) reason on every override entry.
+_ANALYZER_PARAM_REASONS: dict[str, tuple[str, ...]] = {
+    "high_tame_db":    ("harsh_highmids", "already_dark"),
+    "mud_cut_db":      ("muddy_low_mids",),
+    "noise_reduction": ("elevated_noise_floor",),
+    "highpass_cutoff": ("sub_rumble",),
+}
+
 
 def _get_stem_settings(
     stem_name: str,
@@ -1950,6 +1962,10 @@ def mix_track_stems(
         stem_report: dict[str, Any] = {'clicks_removed': 0}
 
         # #336: pull per-stem recommendations from analyzer (if any).
+        # INVARIANT: _ANALYZER_EQ_OVERRIDE_KEYS (used here for telemetry)
+        # MUST match the same whitelist _get_stem_settings applies in
+        # its merge below — otherwise overrides_applied would claim
+        # changes the merge didn't actually make.
         stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
         stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
         stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
@@ -1960,12 +1976,13 @@ def mix_track_stems(
             baseline_settings = _get_stem_settings(stem_name, genre)
             for key, rec_val in stem_recs.items():
                 if key in _ANALYZER_EQ_OVERRIDE_KEYS:
-                    # Issue tag that justifies this override, if any
+                    # Issue tag that justifies THIS parameter specifically.
+                    # Look up only the tags that are valid justifications for
+                    # this key — prevents a multi-issue stem from reporting
+                    # the same (wrong) first-match reason on every entry.
                     reason = next(
                         (t for t in stem_issues
-                         if t in ("harsh_highmids", "already_dark",
-                                  "muddy_low_mids", "elevated_noise_floor",
-                                  "sub_rumble")),
+                         if t in _ANALYZER_PARAM_REASONS.get(key, ())),
                         None,
                     )
                     overrides_applied.append({
