@@ -605,11 +605,15 @@ async def polish_album(
     }
 
     # --- Stage 2: Polish ---
+    # #336: pass the analysis-stage output into polish so analyzer
+    # recommendations become per-track overrides (no duplicate analysis
+    # run — polish_audio would otherwise re-invoke analyze_mix_issues).
     polish_json = await polish_audio(
         album_slug=album_slug,
         genre=genre,
         use_stems=use_stems,
         dry_run=False,
+        analyzer_results=analysis,
     )
     polish = json.loads(polish_json)
 
@@ -627,6 +631,7 @@ async def polish_album(
         "status": "pass",
         "tracks_processed": polish["summary"]["tracks_processed"],
         "output_dir": polish["summary"]["output_dir"],
+        "overrides_applied": polish["summary"].get("overrides_applied", []),
     }
 
     # --- Stage 3: Verify polished output (full QC suite) ---

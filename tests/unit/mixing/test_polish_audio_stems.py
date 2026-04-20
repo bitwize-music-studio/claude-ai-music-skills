@@ -231,3 +231,85 @@ class TestPolishAudioAnalyzerCoupling:
         assert entry["parameter"] == "high_tame_db"
         assert entry["applied"] == pytest.approx(0.0)
         assert entry["reason"] == "already_dark"
+
+    def test_polish_album_surfaces_overrides_in_stage_output(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """polish_album's final JSON carries overrides_applied under stages.polish."""
+        import asyncio
+        import json
+
+        audio_dir = self._setup_audio_dir(tmp_path, monkeypatch)
+        # Create an empty polished/ directory so the verify stage finds it
+        # (the verify stage needs polished_dir to exist but tolerates empty).
+        (audio_dir / "polished").mkdir(exist_ok=True)
+
+        from handlers.processing import mixing as mixing_mod
+
+        # Patch analyze_mix_issues to return a pre-baked response with
+        # one dark-synth track so polish_album can pipe it through.
+        pre_analyzed = {
+            "tracks": [
+                {
+                    "track": "01-dark",
+                    "stems": {
+                        "synth": {
+                            "filename": "synth.wav",
+                            "issues": ["already_dark"],
+                            "recommendations": {"high_tame_db": 0.0},
+                        },
+                        "vocals": {
+                            "filename": "vocals.wav",
+                            "issues": ["none_detected"],
+                            "recommendations": {},
+                        },
+                    },
+                    "issues": ["already_dark"],
+                },
+            ],
+            "album_summary": {
+                "tracks_analyzed": 1,
+                "common_issues": ["already_dark"],
+                "source_mode": "stems",
+            },
+        }
+
+        async def _fake_analyze(album_slug: str, genre: str = "") -> str:
+            return json.dumps(pre_analyzed)
+
+        monkeypatch.setattr(mixing_mod, "analyze_mix_issues", _fake_analyze)
+
+        # qc_track runs on polished/ output during the verify stage.
+        # Patch it to return a pass so the test doesn't require real WAVs.
+        import tools.mastering.qc_tracks as qc_mod
+
+        def _fake_qc(wav_path: str, checks: list, genre=None) -> dict:
+            return {
+                "filename": Path(wav_path).name,
+                "verdict": "PASS",
+                "checks": {},
+            }
+
+        monkeypatch.setattr(qc_mod, "qc_track", _fake_qc)
+
+        result_json = asyncio.run(mixing_mod.polish_album(
+            album_slug="test-album", genre="electronic",
+        ))
+        result = json.loads(result_json)
+
+        assert "stages" in result, f"expected stages in polish_album result, got {list(result.keys())}"
+        polish_stage = result["stages"].get("polish", {})
+        assert "overrides_applied" in polish_stage, (
+            f"polish_album stages.polish must expose overrides_applied; "
+            f"got {list(polish_stage.keys())}"
+        )
+        # Exactly one override expected: synth.high_tame_db = 0.0 (already_dark)
+        overrides = polish_stage["overrides_applied"]
+        assert isinstance(overrides, list)
+        assert len(overrides) == 1, (
+            f"expected 1 override for dark synth stem, got {overrides}"
+        )
+        assert overrides[0]["track"] == "01-dark"
+        assert overrides[0]["stem"] == "synth"
+        assert overrides[0]["parameter"] == "high_tame_db"
+        assert overrides[0]["reason"] == "already_dark"
