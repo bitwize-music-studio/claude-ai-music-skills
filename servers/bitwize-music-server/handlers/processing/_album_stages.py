@@ -672,9 +672,16 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
 
     Reads ctx: album_slug, audio_dir, wav_files, effective_lufs,
                effective_ceiling, effective_highmid, effective_highs,
-               effective_compress, effective_preset, source_dir, targets, loop
+               effective_compress, effective_preset, source_dir, targets, loop,
+               remaster_filenames, track_ceilings
     Sets ctx:  output_dir, mastered_files
     Returns: None on success, failure JSON if no tracks processed.
+
+    Selective remaster: when ctx.remaster_filenames is a set, only those
+    filenames are (re-)mastered; the rest are skipped and their existing
+    mastered files are preserved in output_dir (and thus in mastered_files).
+    Per-track ceiling: ctx.track_ceilings[fname] overrides effective_ceiling
+    for individual tracks; absent entries fall back to effective_ceiling.
     """
     import shutil as _shutil
 
@@ -700,14 +707,25 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
         .get("tracks", {})
     )
 
+    remaster_set = ctx.remaster_filenames
+
     try:
         master_results = []
         for wav_file in ctx.wav_files:
-            output_path = staging_dir / wav_file.name
+            fname = wav_file.name
+
+            # Selective remaster: skip tracks not in the requested set.
+            if remaster_set is not None and fname not in remaster_set:
+                continue
+
+            output_path = staging_dir / fname
             track_stem = wav_file.stem
             track_slug = _normalize_slug(track_stem)
             track_meta = album_tracks.get(track_slug, {})
             fade_out_val = track_meta.get("fade_out")
+
+            # Per-track ceiling: fall back to album-wide effective_ceiling.
+            per_track_ceiling = ctx.track_ceilings.get(fname, ctx.effective_ceiling)
 
             def _do_master(
                 in_path: Path,
@@ -730,11 +748,11 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
 
             result = await ctx.loop.run_in_executor(
                 None, _do_master, wav_file, output_path,
-                ctx.effective_lufs, ctx.effective_ceiling, fade_out_val,
+                ctx.effective_lufs, per_track_ceiling, fade_out_val,
                 ctx.effective_compress, ctx.effective_preset,
             )
             if result and not result.get("skipped"):
-                result["filename"] = wav_file.name
+                result["filename"] = fname
                 master_results.append(result)
     except Exception:
         if staging_dir.exists():
