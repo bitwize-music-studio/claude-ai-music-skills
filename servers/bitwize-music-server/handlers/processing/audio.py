@@ -759,6 +759,10 @@ async def master_album(
     _ADM_MIN_CEILING_DB = -6.0              # never tighten below this
     _ADM_SAFETY_DB = 0.3                    # extra headroom below observed peak
     _ADM_MIN_TIGHTEN_DB = 0.5               # preserves legacy step as floor
+    _ADM_MAX_TIGHTEN_DB = 1.0               # cap per-cycle step; shallow AAC
+    #                                         ripple (slope ≪ 1) would otherwise
+    #                                         propose 3–4 dB one-shot tightens,
+    #                                         starving the limiter of headroom.
     _ADM_MIN_EFFECTIVE_RATIO = 0.4          # floor on slope efficacy
     adm_loop_stages: list[_StageFn] = [
         _album_stages._stage_mastering,
@@ -847,6 +851,7 @@ async def master_album(
                 overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
             )
 
+        tighten = min(tighten, _ADM_MAX_TIGHTEN_DB)
         proposed = current - tighten
         floored = proposed < _ADM_MIN_CEILING_DB
         return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
