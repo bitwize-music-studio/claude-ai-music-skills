@@ -607,6 +607,21 @@ async def master_album(
 
     Phase 3 (post-loop): mastering_samples → post_qc → archival →
         metadata → layout → signature_persist → status_update  (run once)
+
+    Warn-fallback (album always completes, flagged deliverable):
+      - Verification: recovery-eligible tracks whose fix_dynamic pass
+        reports converged=False are written to the output dir, flagged
+        in VERIFICATION_WARNINGS.md, and the pipeline continues.
+      - ADM validation: inter-sample clips persisting at the ceiling
+        floor (or divergent ripple) emit an ADM_VALIDATION.md sidecar
+        and the pipeline continues.
+
+    Halt conditions (pipeline stops, no sidecar):
+      - pre_qc FAIL on any track (bad format, phase, clipping, silence).
+      - Verification failure where at least one out-of-spec track is
+        NOT a recovery casualty (peak issue, or album-range failure
+        with non-recovery-casualty participants).
+      - Any non-verification, non-ADM stage error.
     """
     if freeze_signature and new_anchor:
         return _safe_json({
