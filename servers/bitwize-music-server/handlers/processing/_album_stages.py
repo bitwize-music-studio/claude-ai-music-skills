@@ -872,10 +872,12 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     recovery_subtype, _delivery_rate,
                 )
                 auto_recovered.append({
-                    "filename": fname,
-                    "original_lufs": metrics["original_lufs"],
-                    "final_lufs": metrics["final_lufs"],
-                    "final_peak_db": metrics["final_peak_db"],
+                    "filename":       fname,
+                    "original_lufs":  metrics["original_lufs"],
+                    "final_lufs":     metrics["final_lufs"],
+                    "final_peak_db":  metrics["final_peak_db"],
+                    "converged":      bool(metrics.get("converged", True)),
+                    "iterations_run": int(metrics.get("iterations_run", 1)),
                 })
 
             if auto_recovered:
