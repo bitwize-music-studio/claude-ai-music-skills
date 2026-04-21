@@ -940,3 +940,75 @@ def test_adm_warn_fallback_emits_terminal_notice(
         "terminated" in n.lower() and "convergence" in n.lower()
         for n in notices
     ), f"Expected terminal warn-fallback notice, got notices: {notices}"
+
+
+# ---------------------------------------------------------------------------
+# Step-cap test: cycle-to-cycle tighten must not exceed _ADM_MAX_TIGHTEN_DB
+# ---------------------------------------------------------------------------
+
+def test_adm_retry_caps_tighten_per_cycle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A single retry must not drop the ceiling by more than 1.0 dB.
+
+    Regression: when AAC ripple scales poorly with ceiling (peak drops
+    only ~0.1 dB for every 1 dB of tightening), the slope-aware formula
+    `(overshoot + 0.3) / max(slope, 0.4)` proposes ~4 dB one-shot
+    tightens. The resulting ceiling is so low downstream limiting can't
+    reach target LUFS and verification fails with -20-to-24 LUFS
+    outputs. Cap each step at _ADM_MAX_TIGHTEN_DB.
+    """
+    album_slug = "adm-retry-album"
+    _write_sine_wav(tmp_path / "01-track.wav")
+    _install_album(monkeypatch, tmp_path, album_slug)
+
+    def _shallow_slope(
+        path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256,
+    ):
+        # Cycle 0 (ceiling -1.0): peak -0.4 → tighten 0.9 → ceiling -1.9
+        # Cycle 1 (ceiling -1.9): peak -0.5 → slope 0.11, clamped to
+        #   0.4 → uncapped tighten 4.25 dB (floored at -6.0). With cap:
+        #   tighten 1.0 → ceiling -2.9.
+        # Cycle 2+ (clean): exits the loop.
+        if ceiling_db > -1.5:
+            peak, clips = -0.4, True
+        elif ceiling_db > -2.5:
+            peak, clips = -0.5, True
+        else:
+            peak, clips = ceiling_db - 0.5, False
+        return {
+            "filename": Path(path).name,
+            "encoder_used": encoder,
+            "clip_count": 100 if clips else 0,
+            "peak_db_decoded": peak,
+            "ceiling_db": ceiling_db,
+            "clips_found": clips,
+        }
+
+    monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _shallow_slope)
+    monkeypatch.setattr(
+        album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None,
+    )
+
+    mastered_ceilings: list[float] = []
+    import tools.mastering.master_tracks as _mt_mod
+    _real = _mt_mod.master_track
+
+    def _capture(src, dst, *, ceiling_db=-1.0, **kwargs):
+        mastered_ceilings.append(float(ceiling_db))
+        return _real(src, dst, ceiling_db=ceiling_db, **kwargs)
+
+    monkeypatch.setattr(_mt_mod, "master_track", _capture)
+
+    _run_master_album(tmp_path, album_slug=album_slug)
+
+    assert len(mastered_ceilings) >= 2, (
+        f"Expected at least 2 cycles, got: {mastered_ceilings}"
+    )
+    for prev, curr in zip(mastered_ceilings, mastered_ceilings[1:]):
+        step = prev - curr
+        assert step <= 1.0 + 1e-3, (
+            f"Cycle-to-cycle ceiling step {step:.3f} dB exceeds 1.0 dB "
+            f"cap. Full ceiling history: {mastered_ceilings}"
+        )
