@@ -268,3 +268,99 @@ def test_verification_halts_on_mixed_failure(tmp_path: Path) -> None:
     payload = json.loads(result)
     assert payload["failed_stage"] == "verification"
     assert ctx.stages["verification"]["status"] == "fail"
+
+
+def test_verification_halts_on_pure_range_failure(tmp_path: Path) -> None:
+    """Album-range failure with no individually out-of-spec tracks
+    must halt, not warn-fallback with an empty sidecar.
+
+    Two tracks both landing within ±0.5 dB of target but with a
+    >=1 dB spread between them — the album-range check fails
+    but no track is individually out-of-spec, so recovery isn't
+    triggered and warn-fallback doesn't apply.
+
+    Values: -13.5 and -14.5 → both exactly 0.5 dB from target -14.0.
+    The out-of-spec check is strict (> 0.5), so neither fires.
+    Range = 1.0, which satisfies `>= 1.0`, so album_range_fail=True.
+    """
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "mastered"
+    source_dir.mkdir()
+    output_dir.mkdir()
+
+    rng = np.random.default_rng(0)
+    n = 48000 * 3
+    data = rng.standard_normal((n, 2)).astype(np.float64) * 0.01
+    for fname in ("01-hot.wav", "02-mild.wav"):
+        sf.write(str(source_dir / fname), data, 48000, subtype="PCM_24")
+        sf.write(str(output_dir / fname), data, 48000, subtype="PCM_24")
+
+    loop = asyncio.new_event_loop()
+    ctx = MasterAlbumCtx(
+        album_slug="test-album",
+        genre="",
+        target_lufs=-14.0,
+        ceiling_db=-1.5,
+        cut_highmid=0.0,
+        cut_highs=0.0,
+        source_subfolder="",
+        freeze_signature=False,
+        new_anchor=False,
+        loop=loop,
+    )
+    ctx.audio_dir = tmp_path
+    ctx.source_dir = source_dir
+    ctx.output_dir = output_dir
+    ctx.wav_files = [source_dir / "01-hot.wav", source_dir / "02-mild.wav"]
+    ctx.mastered_files = [output_dir / "01-hot.wav", output_dir / "02-mild.wav"]
+    ctx.targets = {
+        "output_sample_rate": 48000,
+        "output_bits": 24,
+        "target_lufs": -14.0,
+        "ceiling_db": -1.5,
+    }
+    ctx.settings = {}
+    ctx.effective_lufs = -14.0
+    ctx.effective_ceiling = -1.5
+    ctx.effective_highmid = 0.0
+    ctx.effective_highs = 0.0
+    ctx.effective_compress = 2.5
+
+    def _range_analyze(path: str) -> dict:
+        name = Path(path).name
+        # -13.5 and -14.5: both exactly 0.5 dB from target -14.0.
+        # out-of-spec check is abs(diff) > 0.5 (strict), so neither fires.
+        # Range = 1.0 satisfies >= 1.0, so album_range_fail=True.
+        lufs = -13.5 if "hot" in name else -14.5
+        return {
+            "filename": name,
+            "lufs": lufs,
+            "peak_db": -2.0,
+            "short_term_range": 6.0, "stl_95": 9.0,
+            "low_rms": -30.0, "vocal_rms": -22.0,
+        }
+
+    asyncio.set_event_loop(loop)
+    try:
+        with patch("tools.mastering.analyze_tracks.analyze_track",
+                   _range_analyze):
+            result = loop.run_until_complete(
+                _album_stages._stage_verification(ctx),
+            )
+    finally:
+        loop.close()
+
+    # Pure range failure → halt.
+    assert result is not None
+    import json
+    payload = json.loads(result)
+    assert payload["failed_stage"] == "verification"
+    assert payload["failure_detail"]["album_lufs_range"] >= 1.0
+    assert ctx.stages["verification"]["status"] == "fail"
+
+    # No sidecar should be written.
+    sidecar = ctx.output_dir / "VERIFICATION_WARNINGS.md"
+    assert not sidecar.exists(), (
+        "sidecar written on pure range failure — should not happen "
+        "(recovery was never attempted)"
+    )
