@@ -563,6 +563,65 @@ async def master_with_reference(
         })
 
 
+# ADM ceiling tightening constants — exposed at module scope so
+# _adm_adaptive_ceiling_per_track can read them without closing over
+# master_album's locals.
+_ADM_MIN_CEILING_DB = -6.0
+_ADM_SAFETY_DB = 0.3
+_ADM_MIN_TIGHTEN_DB = 0.5
+_ADM_MAX_TIGHTEN_DB = 1.0
+_ADM_MIN_EFFECTIVE_RATIO = 0.4
+
+
+def _adm_adaptive_ceiling_per_track(
+    entry: dict[str, Any],
+    current: float,
+    history: list[dict[str, float]],
+) -> tuple[float, bool, bool]:
+    """Per-track variant of the ADM ceiling tightener.
+
+    Same math as the inline closure in master_album, but with explicit
+    history + entry kwargs so callers can maintain independent per-track
+    state. Mutates ``history`` in-place by appending the current cycle's
+    (ceiling, worst_peak) observation.
+
+    Args:
+        entry: one element from ``failure_detail["tracks_with_clips"]``;
+            must carry ``peak_db_decoded``.
+        current: current per-track ceiling in dB.
+        history: ordered list of previous ``{"ceiling", "worst_peak"}``
+            observations for this track (may be empty on first call).
+
+    Returns:
+        ``(new_ceiling, hit_floor, diverging)`` — same semantics as the
+        existing closure.
+    """
+    worst_peak = float(entry.get("peak_db_decoded", current))
+    overshoot = worst_peak - current
+    history.append({"ceiling": current, "worst_peak": worst_peak})
+
+    if len(history) >= 2:
+        prev, curr = history[-2], history[-1]
+        d_ceiling = prev["ceiling"] - curr["ceiling"]
+        d_peak = prev["worst_peak"] - curr["worst_peak"]
+        if d_ceiling > 1e-3:
+            slope = d_peak / d_ceiling
+            if slope <= 0:
+                return (current, True, True)
+            effective_ratio = max(slope, _ADM_MIN_EFFECTIVE_RATIO)
+            tighten = (overshoot + _ADM_SAFETY_DB) / effective_ratio
+            tighten = max(tighten, _ADM_MIN_TIGHTEN_DB)
+        else:
+            tighten = max(overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB)
+    else:
+        tighten = max(overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB)
+
+    tighten = min(tighten, _ADM_MAX_TIGHTEN_DB)
+    proposed = current - tighten
+    floored = proposed < _ADM_MIN_CEILING_DB
+    return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
+
+
 async def master_album(
     album_slug: str,
     genre: str = "",
@@ -771,14 +830,8 @@ async def master_album(
     # not 1:1. Combined with slope-aware tightening below, 5 cycles
     # converges any album that isn't structurally divergent.
     _ADM_MAX_CYCLES = 5 if adm_enabled else 1
-    _ADM_MIN_CEILING_DB = -6.0              # never tighten below this
-    _ADM_SAFETY_DB = 0.3                    # extra headroom below observed peak
-    _ADM_MIN_TIGHTEN_DB = 0.5               # preserves legacy step as floor
-    _ADM_MAX_TIGHTEN_DB = 1.0               # cap per-cycle step; shallow AAC
-    #                                         ripple (slope ≪ 1) would otherwise
-    #                                         propose 3–4 dB one-shot tightens,
-    #                                         starving the limiter of headroom.
-    _ADM_MIN_EFFECTIVE_RATIO = 0.4          # floor on slope efficacy
+    # _ADM_MIN_CEILING_DB, _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
+    # _ADM_MAX_TIGHTEN_DB, _ADM_MIN_EFFECTIVE_RATIO — now at module scope.
     adm_loop_stages: list[_StageFn] = [
         _album_stages._stage_mastering,
         _album_stages._stage_verification,
