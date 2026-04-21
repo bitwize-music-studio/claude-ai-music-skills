@@ -910,7 +910,10 @@ async def master_album(
                         break
 
                     if not tightenable:
-                        # Every clipping track is dark — nothing to tighten.
+                        # No tightenable tracks. Either all clipping tracks are dark
+                        # (skip tightening, route to dark_adm_casualties for sidecar),
+                        # or the failure_detail carried no track filenames at all
+                        # (nothing to act on). Either way, warn-fallback.
                         adm_clip_failure_persisted = True
                         break
 
@@ -934,6 +937,14 @@ async def master_album(
                                 entry, current, history,
                             )
                         )
+                        # Mixed-result policy: per-track divergence does not
+                        # abort the cycle. Diverging tracks are recorded as
+                        # dark_adm_casualties so they appear in the
+                        # warn-fallback sidecar, but if OTHER tracks in the
+                        # tightenable set can still converge, we continue
+                        # tightening them. adm_diverging (the album-wide
+                        # flag) is only set below when next_remaster is
+                        # empty — i.e., NO track can still be tightened.
                         if diverging:
                             any_diverged = True
                             dark_adm_casualties[fname] = dict(entry)

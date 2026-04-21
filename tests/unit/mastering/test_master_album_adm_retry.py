@@ -241,6 +241,41 @@ def test_adm_retry_warn_fallback_after_max_cycles(
         f"Expected ADM warn-fallback warning, got warnings: {warnings}"
     )
 
+    # Post-loop warn-fallback must populate the new per-track fields
+    # on adm_validation stage so operators can inspect which tracks
+    # were tightened vs skipped as dark casualties.
+    stage = result.get("stages", {}).get("adm_validation")
+    assert stage is not None
+    assert "dark_casualties" in stage, (
+        f"Expected dark_casualties key in adm_validation stage, got: {list(stage.keys())}"
+    )
+    assert "tightened_tracks" in stage, (
+        f"Expected tightened_tracks key in adm_validation stage, got: {list(stage.keys())}"
+    )
+    assert "track_ceilings" in stage, (
+        f"Expected track_ceilings key in adm_validation stage, got: {list(stage.keys())}"
+    )
+    assert isinstance(stage["dark_casualties"], list), (
+        f"Expected dark_casualties to be a list, got: {type(stage['dark_casualties'])}"
+    )
+    assert isinstance(stage["tightened_tracks"], list), (
+        f"Expected tightened_tracks to be a list, got: {type(stage['tightened_tracks'])}"
+    )
+    assert isinstance(stage["track_ceilings"], dict), (
+        f"Expected track_ceilings to be a dict, got: {type(stage['track_ceilings'])}"
+    )
+    # This fixture has one bright (non-dark) track that clips every cycle.
+    # The _always_clips stub returns peak = ceiling + 0.3, so adaptive
+    # tightening does make progress each cycle (new_ceiling < current),
+    # meaning the track ends up in tightened_tracks (not dark_casualties).
+    assert len(stage["tightened_tracks"]) >= 1 or len(stage["dark_casualties"]) >= 1, (
+        f"Expected at least one track in tightened_tracks or dark_casualties, "
+        f"got tightened={stage['tightened_tracks']}, dark={stage['dark_casualties']}"
+    )
+    assert stage["tightened_tracks"] == ["01-track.wav"], (
+        f"Expected tightened_tracks=['01-track.wav'], got: {stage['tightened_tracks']}"
+    )
+
 
 # ---------------------------------------------------------------------------
 # Test 3: Adaptive tightening derives new ceiling from worst decoded peak
@@ -379,13 +414,23 @@ def test_adm_retry_breaks_when_ceiling_cannot_decrease(
     tmp_path: Path,
 ) -> None:
     """When adaptive tightening proposes a ceiling that's not lower than
-    the current one (already at floor from a prior cycle), the loop
-    must break rather than repeating a no-progress re-master.
+    the current per-track ceiling (already at floor from a prior cycle),
+    the loop must break rather than repeating a no-progress re-master.
 
-    Exercises the `if new_ceiling >= ctx.effective_ceiling` guard in
-    the ADM cycle loop in audio.py — the one that catches "we've
-    already hit the floor, another iteration would just mean mastering
-    with the same ceiling again".
+    Exercises the `if new_ceiling >= current` guard in the ADM cycle loop
+    in audio.py, where `current = ctx.track_ceilings.get(fname,
+    ctx.effective_ceiling)`.  Key contract details:
+
+    - `ctx.effective_ceiling` is NOT updated by the ADM loop; it stays at
+      its initial value (-1.0 dBTP) for the entire run.  Only
+      `ctx.track_ceilings[fname]` is tightened per cycle.
+    - After cycle 1 the single track's ceiling is pinned at the -6.0 dBTP
+      floor (peak +5 dBFS forces the maximum step every time).
+    - On the candidate cycle 2 pass, `_adm_adaptive_ceiling_per_track`
+      would again propose -6.0, which is not < current (-6.0), so
+      `new_ceiling >= current` is True → `any_floored` is set → the
+      track is not added to `next_remaster` → `next_remaster` is empty
+      → the loop breaks before issuing a third master_track call.
     """
     album_slug = "adm-retry-album"
     _write_sine_wav(tmp_path / "01-track.wav")
