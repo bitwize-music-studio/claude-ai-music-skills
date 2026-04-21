@@ -214,3 +214,64 @@ def test_all_dark_clipping_breaks_to_warn_fallback(
         f"Expected exactly 1 mastering cycle (no re-master for dark tracks), "
         f"got {mastering_call_count['n']} calls"
     )
+
+    # ── Observability guards (bugs #1, #2) ────────────────────────────────
+    # Bug #1: cycle counts must reflect what actually happened, not the
+    # configured _ADM_MAX_CYCLES. On an all-dark short-circuit, exactly
+    # 1 full ADM pass ran and 0 tightening cycles were attempted.
+    assert adm_stage.get("adm_cycles_executed") == 1, (
+        f"Expected adm_cycles_executed=1, got: "
+        f"{adm_stage.get('adm_cycles_executed')}"
+    )
+    assert adm_stage.get("adm_tightening_cycles") == 0, (
+        f"Expected adm_tightening_cycles=0 (all-dark short-circuit), "
+        f"got: {adm_stage.get('adm_tightening_cycles')}"
+    )
+
+    # Warning text must NOT report the configured max (_ADM_MAX_CYCLES=5)
+    # as if it were the executed count.
+    warnings_blob = " ".join(result.get("warnings", []))
+    assert "5 retry cycle" not in warnings_blob, (
+        f"Warning text hardcodes _ADM_MAX_CYCLES; should reflect actual "
+        f"cycles executed. Got: {warnings_blob!r}"
+    )
+    assert "5 tightening cycle" not in warnings_blob
+    # Warning should mention the all-dark short-circuit in some form.
+    assert "dark" in warnings_blob.lower() and (
+        "no tightening" in warnings_blob.lower()
+        or "first adm check" in warnings_blob.lower()
+    ), (
+        f"Warning should describe the all-dark short-circuit. "
+        f"Got: {warnings_blob!r}"
+    )
+
+    # Bug #2: per-track decisions must be populated even when no
+    # tightening happened. The orchestrator classified 01-dark.wav as a
+    # dark casualty — that decision must be visible in the stage output.
+    per_track = adm_stage.get("per_track_decisions", {})
+    assert "01-dark.wav" in per_track, (
+        f"Expected per_track_decisions to include '01-dark.wav', "
+        f"got: {per_track}"
+    )
+    dark_decision = per_track["01-dark.wav"]
+    assert dark_decision.get("classification") == "dark_casualty", (
+        f"Expected classification='dark_casualty', got: {dark_decision}"
+    )
+    assert dark_decision.get("outcome") == "not_tightened", (
+        f"Expected outcome='not_tightened', got: {dark_decision}"
+    )
+
+    # Bug #3: ADM_VALIDATION.md must not recommend the generic "tighten
+    # and re-master" action when all failing tracks are dark casualties.
+    adm_sidecar = tmp_path / "ADM_VALIDATION.md"
+    assert adm_sidecar.exists(), "ADM_VALIDATION.md not written"
+    sidecar_body = adm_sidecar.read_text()
+    assert "Tighten true-peak ceiling by 0.5 dB and re-master" not in sidecar_body, (
+        "ADM_VALIDATION.md gave contradictory advice: pipeline classified "
+        "these clips as dark casualties (tightening won't help), but the "
+        "markdown still recommended tightening."
+    )
+    assert "dark casualty" in sidecar_body.lower(), (
+        "ADM_VALIDATION.md should label dark-casualty rows as such; "
+        f"body was: {sidecar_body!r}"
+    )

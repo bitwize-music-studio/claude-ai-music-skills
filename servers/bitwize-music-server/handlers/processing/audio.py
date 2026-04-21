@@ -864,12 +864,26 @@ async def master_album(
     # time each dark track clips). Empty if no dark tracks clipped.
     dark_adm_casualties: dict[str, dict[str, Any]] = {}
 
+    # Per-track decision trace for the warn-fallback sidecar. Survives
+    # the all-dark short-circuit (where no tightening runs) so operators
+    # can still see why each clipping track was left alone vs. tightened.
+    per_track_decisions: dict[str, dict[str, Any]] = {}
+
     adm_clip_failure_persisted = False
     adm_last_failure_detail: dict[str, Any] = {}
     adm_diverging = False
 
+    # Separate counters: adm_cycles_executed is the number of full ADM
+    # passes the loop ran (stages: mastering → verification → coherence →
+    # ceiling_guard → adm_validation). adm_tightening_cycles is the
+    # number of times the loop actually retightened and re-mastered.
+    # They diverge on the all-dark short-circuit (executed=1, tightening=0).
+    adm_cycles_executed = 0
+    adm_tightening_cycles = 0
+
     for adm_cycle in range(_ADM_MAX_CYCLES):
         ctx.adm_cycle = adm_cycle
+        adm_cycles_executed = adm_cycle + 1
         adm_retry = False
 
         for stage_fn in adm_loop_stages:
@@ -903,6 +917,28 @@ async def master_album(
                             )
                             if entry is not None:
                                 dark_adm_casualties[fname] = dict(entry)
+                        # Decision trace: every dark clipper is classified
+                        # here regardless of cycle number. Survives the
+                        # all-dark short-circuit when no tightening runs.
+                        if fname not in per_track_decisions:
+                            entry = next(
+                                (e for e in clip_entries
+                                 if e.get("filename") == fname),
+                                None,
+                            )
+                            per_track_decisions[fname] = {
+                                "classification":   "dark_casualty",
+                                "outcome":          "not_tightened",
+                                "reason": (
+                                    "high_mid band energy < 10 % — "
+                                    "tightening would not improve ADM"
+                                ),
+                                "cycle_detected":   adm_cycle,
+                                "peak_db_decoded":  (
+                                    float(entry.get("peak_db_decoded", 0.0))
+                                    if entry else None
+                                ),
+                            }
 
                     if adm_cycle >= _ADM_MAX_CYCLES - 1:
                         # Last cycle: whatever's left goes to warn-fallback.
@@ -948,12 +984,50 @@ async def master_album(
                         if diverging:
                             any_diverged = True
                             dark_adm_casualties[fname] = dict(entry)
+                            per_track_decisions[fname] = {
+                                "classification":   "tightenable",
+                                "outcome":          "diverged",
+                                "reason": (
+                                    "limiter ripple grew despite "
+                                    "tightening — further tightening "
+                                    "would worsen ADM compliance"
+                                ),
+                                "cycle_detected":   adm_cycle,
+                                "final_ceiling":    current,
+                                "peak_db_decoded":  float(
+                                    entry.get("peak_db_decoded", 0.0),
+                                ),
+                            }
                             continue
                         if new_ceiling >= current:
                             any_floored = True
+                            per_track_decisions[fname] = {
+                                "classification":   "tightenable",
+                                "outcome":          "floor_reached",
+                                "reason": (
+                                    "per-track ceiling at adaptive floor"
+                                ),
+                                "cycle_detected":   adm_cycle,
+                                "final_ceiling":    current,
+                                "peak_db_decoded":  float(
+                                    entry.get("peak_db_decoded", 0.0),
+                                ),
+                            }
                             continue
                         ctx.track_ceilings[fname] = new_ceiling
                         next_remaster.add(fname)
+                        # Overwrite each cycle so the latest-state outcome
+                        # for this track is reflected (e.g. track may
+                        # tighten on cycle 0 then hit floor on cycle 1).
+                        per_track_decisions[fname] = {
+                            "classification":   "tightenable",
+                            "outcome":          "tightened",
+                            "cycle_applied":    adm_cycle,
+                            "final_ceiling":    new_ceiling,
+                            "peak_db_decoded":  float(
+                                entry.get("peak_db_decoded", 0.0),
+                            ),
+                        }
                         adm_history.append({
                             "ceiling": new_ceiling,
                             "worst_peak": float(entry.get("peak_db_decoded", 0.0)),
@@ -984,6 +1058,7 @@ async def master_album(
                 return _inject_notices_and_return(result)
 
         if adm_retry:
+            adm_tightening_cycles += 1
             continue
         break  # ADM passed, or warn-fallback break
 
@@ -996,45 +1071,77 @@ async def master_album(
         tightened_fnames = sorted(ctx.track_ceilings.keys())
         dark_casualty_count = len(dark_adm_casualties)
         tightened_count = len(tightened_fnames)
+        total_flagged = dark_casualty_count + tightened_count
 
-        reason_suffix = (
-            "; ripple growing with tightening (divergent)"
-            if adm_diverging else ""
-        )
-        if dark_casualty_count:
-            reason_suffix += (
-                f"; {dark_casualty_count} dark track(s) not tightened"
+        # Cycle-count-aware wording (observability bug: prior text
+        # hardcoded _ADM_MAX_CYCLES regardless of what actually ran).
+        if adm_tightening_cycles == 0:
+            # All-dark short-circuit: clips hit on first ADM check and
+            # every clipping track was classified dark-casualty. No
+            # tightening was attempted.
+            reason_text = (
+                f"all {dark_casualty_count} clipping track(s) classified "
+                f"as dark-casualty on first ADM check; no tightening "
+                f"attempted"
+            )
+            warn_text = (
+                f"ADM validation: {total_flagged} track(s) flagged on "
+                f"the first ADM check, all {dark_casualty_count} "
+                f"classified as dark-casualty. No tightening was "
+                f"attempted — tightening dark-content tracks would not "
+                f"improve ADM compliance. See ADM_VALIDATION.md."
+            )
+            notice_text = (
+                f"ADM loop terminated: {dark_casualty_count} dark "
+                f"casualty (no tightening attempted). Delivered with "
+                f"flagged tracks; inspect ADM_VALIDATION.md before "
+                f"republish."
+            )
+        else:
+            reason_text = (
+                f"inter-sample clips persist at per-track ceilings after "
+                f"{adm_tightening_cycles} tightening cycle(s) "
+                f"({adm_cycles_executed} ADM pass(es) total); floor is "
+                f"{_ADM_MIN_CEILING_DB:.1f} dBTP"
+            )
+            if adm_diverging:
+                reason_text += "; ripple growing with tightening (divergent)"
+            if dark_casualty_count:
+                reason_text += (
+                    f"; {dark_casualty_count} dark track(s) not tightened"
+                )
+            warn_text = (
+                f"ADM validation: clips persist on {total_flagged} "
+                f"track(s) after {adm_tightening_cycles} tightening "
+                f"cycle(s). {dark_casualty_count} dark (not tightened), "
+                f"{tightened_count} tightened to floor or diverged. "
+                f"See ADM_VALIDATION.md for per-track detail."
+            )
+            notice_text = (
+                f"ADM loop terminated after {adm_tightening_cycles} "
+                f"tightening cycle(s): {dark_casualty_count} dark "
+                f"casualty, {tightened_count} tightened casualty. "
+                f"Delivered with flagged tracks; inspect ADM_VALIDATION.md "
+                f"before republish."
             )
 
         if isinstance(stage, dict):
             stage["status"] = "warn"
-            stage["reason"] = (
-                f"inter-sample clips persist at per-track ceilings after "
-                f"{_ADM_MAX_CYCLES} cycle(s); floor is "
-                f"{_ADM_MIN_CEILING_DB:.1f} dBTP{reason_suffix}"
-            )
+            stage["reason"] = reason_text
             stage["clip_failure_persisted"] = True
             stage["diverging"] = adm_diverging
             stage["dark_casualties"] = sorted(dark_adm_casualties.keys())
             stage["tightened_tracks"] = tightened_fnames
             stage["track_ceilings"] = dict(ctx.track_ceilings)
             stage["adm_history"] = list(adm_history)
+            stage["per_track_decisions"] = dict(per_track_decisions)
+            stage["adm_cycles_executed"] = adm_cycles_executed
+            stage["adm_tightening_cycles"] = adm_tightening_cycles
 
-        total_flagged = dark_casualty_count + tightened_count
-        ctx.warnings.append(
-            f"ADM validation: clips persist on {total_flagged} track(s) "
-            f"after {_ADM_MAX_CYCLES} retry cycle(s). "
-            f"{dark_casualty_count} dark (not tightened), "
-            f"{tightened_count} tightened to floor or diverged. "
-            "See ADM_VALIDATION.md for per-track detail."
-        )
+        ctx.warnings.append(warn_text)
         # Terminal notice so operators reading the notice stream see the
         # final state immediately, without having to scan warnings.
-        ctx.notices.append(
-            f"ADM loop terminated: {dark_casualty_count} dark casualty, "
-            f"{tightened_count} tightened casualty. Delivered with "
-            "flagged tracks; inspect ADM_VALIDATION.md before republish."
-        )
+        ctx.notices.append(notice_text)
 
     # ── Phase 3: post-loop stages (run once) ─────────────────────────────
     post_loop_stages: list[_StageFn] = [
