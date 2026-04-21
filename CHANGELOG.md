@@ -15,6 +15,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **`/bitwize-music:promote-idea` skill + `promote_idea` MCP tool (#328)**: One-shot conversion of a `Pending` idea from `IDEAS.md` into a full album project. Auto-derives the album slug from the idea title (lowercase, ASCII-only, diacritics stripped, apostrophes elided, non-alphanumeric → hyphen) or accepts an explicit override. Calls `create_album_structure` with the idea's genre, injects the idea's `**Concept**` text into the new album `README.md` under a `## Concept` section, advances idea status `Pending → In Progress`, and adds a `**Promoted To**: <slug>` back-link in `IDEAS.md`. Distinct errors for missing idea, already-promoted idea, missing/invalid genre, and duplicate album slug. `documentary=True` flag mirrors `new-album` behavior (creates `RESEARCH.md` + `SOURCES.md`). The state indexer now also extracts `concept` and `promoted_to` fields from `IDEAS.md` so downstream tools can read the concept without re-parsing the markdown.
 - **Genre-aware silence QC thresholds**: new `silence_leading_max_s` / `silence_trailing_max_s` preset fields (`tools/mastering/genre-presets.yaml`). Defaults 0.5 / 3.0 s. `electronic` and `edm` override `silence_leading_max_s: 1.5` so filter-sweep / build intros don't FAIL the silence gate. (#323 comment)
 - **Click removal on every stem polish chain**: `vocals`, `backing_vocals`, `bass`, `synth`, `guitar`, `keyboard`, `strings`, `brass`, `woodwinds`, `other` now run click removal as the first step (was drums / percussion only). Shared `_apply_click_removal` helper standardizes the detector across all chains — `click_peak_ratio: 15.0` default matches the analyzer in `analyze_mix_issues` so polish and analysis report the same events. Genre presets (e.g. `electronic: 10.0`) overlay the default per-genre. Drum / percussion chains kept `cubic` repair (better spectral reconstruction on isolated transients); harmonic stems use `linear` repair (safer on dense mix content and vocal consonants). `mix_track_stems` dispatch unified — every processor now accepts `report` and surfaces `clicks_removed`. (#323 comment)
+- `ctx.track_ceilings`, `ctx.dark_tracks`, `ctx.remaster_filenames`
+  on `MasterAlbumCtx` — per-track ADM tightening state.
+- `is_dark` field on `analyze_track` output (`band_energy['high_mid']
+  < 10 %`).
+- `ADM_VALIDATION.md` sidecar now includes `dark_casualties`,
+  `tightened_tracks`, and per-track final `track_ceilings` in the
+  adm_validation stage output.
 
 ### Fixed
 - Auto-recovery path now writes at `output_sample_rate` (was using
@@ -35,6 +42,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **Dense-transient genre click QC thresholds bumped** to match `idm`'s calibration (`click_peak_ratio: 10.0`, `click_fail_count: 30`, was 8.0/15). Applies to `electronic`, `edm`, `techno`, `drum-and-bass`, `jungle`, `dubstep`, `hardstyle`, `breakbeat`, `metal`, `industrial`, `trap`, `drill`, `phonk`, `grime`, `shoegaze`, `dream-pop`. Prior values were flagging post-polish electronic drum transients as clicks (20+ clicks on a 3-min track → FAIL) even though the hits are musical, not digital pops. (#323 comment)
 - **`polish_album` verify stage** now runs a pre-master check subset (`format, mono, phase, clipping, silence, spectral`) and defers `truepeak` / `clicks` to post-mastering QC. Polished audio is un-limited and dense-transient (the limiter is what enforces the ceiling), so failing those checks on pre-master files is a false gate. The stage surfaces `checks_run` and `checks_deferred_to_post_master` for transparency. (#323 comment)
 - **`master_album` pre-QC stage** now forwards `genre` to `qc_track` (so genre-preset silence / click thresholds apply) and surfaces `checks_run` / `checks_deferred_to_post_master` in its status output. (#323 comment)
+- ADM ceiling tightening is now per-track. A single clipping track
+  no longer drags the album-wide ceiling down; clean tracks keep
+  their original ceiling regardless of neighbor ADM failures.
+- `_stage_mastering` honors `ctx.remaster_filenames` — on ADM retry
+  cycles, only clipping non-dark tracks are re-mastered.
+- Dark tracks (high_mid band_energy < 10 %) are excluded from ADM
+  tightening; their ADM clips route to warn-fallback instead of
+  forcing further ceiling reductions.
 
 ## [0.90.0] - 2026-04-15
 
