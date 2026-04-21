@@ -834,7 +834,11 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     eq: list[tuple[float, float, float]],
                     ceil: float,
                     subtype: str,
+                    target_rate: int,
                 ) -> dict[str, Any]:
+                    from math import gcd as _gcd
+                    from scipy import signal as _signal
+
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
                         data = _np.column_stack([data, data])
@@ -844,14 +848,24 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                         eq_settings=eq if eq else None,
                         ceiling_db=ceil,
                     )
+                    # Match _stage_mastering's delivery-format SRC so
+                    # recovered tracks don't end up at a different sample
+                    # rate from the rest of the album (bug #1).
+                    if target_rate and target_rate != rate:
+                        g = _gcd(target_rate, rate)
+                        data = _signal.resample_poly(
+                            data, up=target_rate // g, down=rate // g, axis=0,
+                        )
+                        rate = target_rate
                     sf.write(str(dst), data, rate, subtype=subtype)
                     return metrics
 
                 mastered_path = ctx.output_dir / fname
+                _delivery_rate = int(ctx.targets.get("output_sample_rate") or 0)
                 metrics = await ctx.loop.run_in_executor(
                     None, _do_recovery, raw_path, mastered_path,
                     effective_lufs, eq_settings, effective_ceiling,
-                    recovery_subtype,
+                    recovery_subtype, _delivery_rate,
                 )
                 auto_recovered.append({
                     "filename": fname,
