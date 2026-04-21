@@ -7,6 +7,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- Post-QC spectral regression guard — WARN when mastering pushed a
+  track's `tinniness_ratio` (high_mid/mid) above 0.6 AND the ratio
+  grew by more than +0.10 from pre-master. Preset-tunable via
+  `post_qc_tinniness_warn_floor` and `post_qc_tinniness_warn_delta`.
+  Flags the regressed track(s) in `ctx.stages["post_qc"]
+  ["tinniness_regressions"]` and in `ctx.warnings`.
 - `fix_dynamic` iterates up to 3 times to reach target LUFS,
   returning `converged` and `iterations_run` in metrics.
 - `_stage_verification` emits `VERIFICATION_WARNINGS.md` sidecar and
