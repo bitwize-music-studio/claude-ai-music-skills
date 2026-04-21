@@ -1850,12 +1850,62 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
                 },
             })
 
+    # ── Spectral regression (tinniness) guard ────────────────────────────────
+    # Mastering sometimes pushes high_mid/mid ratio up — typical cause is
+    # limiter-driven harmonic generation at tight ceilings, especially
+    # with the electronic preset. Cross-reference pre- vs post-master
+    # tinniness_ratio and WARN when both floor and delta are breached.
+    preset_for_tinniness = ctx.effective_preset or {}
+    warn_floor = float(
+        preset_for_tinniness.get("post_qc_tinniness_warn_floor", 0.6),
+    )
+    warn_delta = float(
+        preset_for_tinniness.get("post_qc_tinniness_warn_delta", 0.10),
+    )
+    pre_by_fname = {
+        a["filename"]: float(a.get("tinniness_ratio", 0.0) or 0.0)
+        for a in (ctx.analysis_results or [])
+        if a.get("filename")
+    }
+    tinniness_regressions: list[dict[str, Any]] = []
+    for vr in (ctx.verify_results or []):
+        fname = vr.get("filename")
+        if not fname or fname not in pre_by_fname:
+            continue
+        post_ratio = float(vr.get("tinniness_ratio", 0.0) or 0.0)
+        pre_ratio = pre_by_fname[fname]
+        if post_ratio > warn_floor and (post_ratio - pre_ratio) > warn_delta:
+            tinniness_regressions.append({
+                "filename":       fname,
+                "pre_tinniness":  round(pre_ratio, 3),
+                "post_tinniness": round(post_ratio, 3),
+                "delta":          round(post_ratio - pre_ratio, 3),
+            })
+            ctx.warnings.append(
+                f"Post-QC {fname}: tinniness regression — "
+                f"pre={pre_ratio:.2f}, post={post_ratio:.2f} "
+                f"(Δ{post_ratio - pre_ratio:+.2f}; floor={warn_floor}, "
+                f"delta={warn_delta})"
+            )
+
+    has_regressions = bool(tinniness_regressions)
+    if has_regressions or post_warned > 0:
+        base_status = "warn"
+    else:
+        base_status = "pass"
+    if has_regressions and post_warned == 0:
+        verdict = "TINNINESS REGRESSION"
+    elif post_warned > 0:
+        verdict = "WARNINGS"
+    else:
+        verdict = "ALL PASS"
     ctx.stages["post_qc"] = {
-        "status": "pass",
-        "passed": post_passed,
-        "warned": post_warned,
-        "failed": 0,
-        "verdict": "ALL PASS" if post_warned == 0 else "WARNINGS",
+        "status":                base_status,
+        "passed":                post_passed,
+        "warned":                post_warned,
+        "failed":                0,
+        "verdict":               verdict,
+        "tinniness_regressions": tinniness_regressions,
     }
     return None
 
