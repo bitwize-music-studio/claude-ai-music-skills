@@ -853,76 +853,16 @@ async def master_album(
             "(adds ~10-12 min per cycle on a 10-track album)."
         )
 
-    # Per-cycle (ceiling, worst_peak) observations. Used to estimate the
-    # actual AAC-ripple-to-ceiling slope and pick a convergent tighten,
-    # and to detect divergence (slope ≤ 0) where tightening the limiter
-    # drives it harder and actually grows inter-sample ripple.
+    # Per-track ADM history (one slope-tracking list per filename).
+    per_track_adm_history: dict[str, list[dict[str, float]]] = {}
+
+    # Legacy album-wide history retained for stage-output observability,
+    # but no longer drives tightening.
     adm_history: list[dict[str, float]] = []
 
-    def _adm_adaptive_ceiling(
-        failure_detail: dict[str, Any], current: float,
-    ) -> tuple[float, bool, bool]:
-        """Compute next ceiling from observed worst decoded peak + history.
-
-        Returns ``(new_ceiling, hit_floor, diverging)``.
-
-        - With no history yet: assumes 1:1 ripple-to-ceiling scaling
-          (legacy formula).
-        - With ≥2 history points: fits a slope from the last two cycles
-          and scales the tighten by ``1/effective_ratio``, so material
-          with a 0.6:1 ripple scaling gets a ~1.67× larger tighten than
-          the legacy formula would apply.
-        - When slope ≤ 0 (ripple growing as we tighten): flags
-          ``diverging=True`` so the caller falls through to warn-fallback
-          instead of looping forever with worsening decoded peaks.
-
-        Clamped to ``_ADM_MIN_CEILING_DB``; ``hit_floor=True`` when the
-        proposed ceiling would go below the floor.
-        """
-        tracks = failure_detail.get("tracks_with_clips") or []
-        peaks = [
-            float(t["peak_db_decoded"])
-            for t in tracks if t.get("peak_db_decoded") is not None
-        ]
-        if not peaks:
-            proposed = current - _ADM_MIN_TIGHTEN_DB
-            floored = proposed < _ADM_MIN_CEILING_DB
-            return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
-
-        worst_peak = max(peaks)
-        overshoot = worst_peak - current
-        adm_history.append({"ceiling": current, "worst_peak": worst_peak})
-
-        if len(adm_history) >= 2:
-            prev, curr = adm_history[-2], adm_history[-1]
-            # d_ceiling > 0 when we tightened between cycles; d_peak > 0
-            # when the decoded peak dropped as a result.
-            d_ceiling = prev["ceiling"] - curr["ceiling"]
-            d_peak = prev["worst_peak"] - curr["worst_peak"]
-            if d_ceiling > 1e-3:
-                slope = d_peak / d_ceiling
-                if slope <= 0:
-                    # Ripple grew (or held) despite tightening — the
-                    # limiter is contributing more inter-sample content
-                    # than we're gaining headroom. Not convergent.
-                    return (current, True, True)
-                effective_ratio = max(slope, _ADM_MIN_EFFECTIVE_RATIO)
-                tighten = (overshoot + _ADM_SAFETY_DB) / effective_ratio
-                tighten = max(tighten, _ADM_MIN_TIGHTEN_DB)
-            else:
-                tighten = max(
-                    overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
-                )
-        else:
-            # First retry — no slope yet, assume 1:1 scaling.
-            tighten = max(
-                overshoot + _ADM_SAFETY_DB, _ADM_MIN_TIGHTEN_DB,
-            )
-
-        tighten = min(tighten, _ADM_MAX_TIGHTEN_DB)
-        proposed = current - tighten
-        floored = proposed < _ADM_MIN_CEILING_DB
-        return (max(proposed, _ADM_MIN_CEILING_DB), floored, False)
+    # Dark-track casualties accumulated across cycles (captured the first
+    # time each dark track clips). Empty if no dark tracks clipped.
+    dark_adm_casualties: dict[str, dict[str, Any]] = {}
 
     adm_clip_failure_persisted = False
     adm_last_failure_detail: dict[str, Any] = {}
@@ -944,53 +884,90 @@ async def master_album(
                 )
                 if is_adm_clip_failure:
                     adm_last_failure_detail = _d.get("failure_detail") or {}
-                    if adm_cycle < _ADM_MAX_CYCLES - 1:
+                    clip_entries = adm_last_failure_detail.get(
+                        "tracks_with_clips",
+                    ) or []
+                    clipping_fnames = {
+                        e["filename"] for e in clip_entries if e.get("filename")
+                    }
+                    tightenable = clipping_fnames - ctx.dark_tracks
+                    dark_clipping = clipping_fnames & ctx.dark_tracks
+
+                    # Capture dark casualties for the sidecar (first-hit only).
+                    for fname in dark_clipping:
+                        if fname not in dark_adm_casualties:
+                            entry = next(
+                                (e for e in clip_entries
+                                 if e.get("filename") == fname),
+                                None,
+                            )
+                            if entry is not None:
+                                dark_adm_casualties[fname] = dict(entry)
+
+                    if adm_cycle >= _ADM_MAX_CYCLES - 1:
+                        # Last cycle: whatever's left goes to warn-fallback.
+                        adm_clip_failure_persisted = True
+                        break
+
+                    if not tightenable:
+                        # Every clipping track is dark — nothing to tighten.
+                        adm_clip_failure_persisted = True
+                        break
+
+                    next_remaster: set[str] = set()
+                    any_diverged = False
+                    any_floored = False
+                    for fname in sorted(tightenable):
+                        entry = next(
+                            (e for e in clip_entries
+                             if e.get("filename") == fname),
+                            None,
+                        )
+                        if entry is None:
+                            continue
+                        history = per_track_adm_history.setdefault(fname, [])
+                        current = ctx.track_ceilings.get(
+                            fname, ctx.effective_ceiling,
+                        )
                         new_ceiling, hit_floor, diverging = (
-                            _adm_adaptive_ceiling(
-                                adm_last_failure_detail,
-                                ctx.effective_ceiling,
+                            _adm_adaptive_ceiling_per_track(
+                                entry, current, history,
                             )
                         )
                         if diverging:
-                            # Ripple grew with tightening — any further
-                            # tightening makes it worse. Bail to warn.
-                            adm_diverging = True
-                            adm_clip_failure_persisted = True
-                            ctx.notices.append(
-                                f"ADM cycle {adm_cycle + 1}: decoded peak "
-                                f"grew despite ceiling tightening (slope "
-                                f"≤ 0 between last two cycles). Material "
-                                f"not convergent at current limiter "
-                                f"settings — falling through to "
-                                f"warn-fallback."
-                            )
-                            break
-                        # If the adaptive pass can't move the ceiling any
-                        # further (already at floor from a previous cycle)
-                        # then another retry would just repeat the same
-                        # re-master. Fall through to warn-fallback.
-                        if new_ceiling >= ctx.effective_ceiling:
-                            adm_clip_failure_persisted = True
-                            break
-                        ctx.effective_ceiling = new_ceiling
-                        # Propagate the tightened ceiling everywhere the
-                        # ADM stage and downstream consumers read it.
-                        ctx.targets["ceiling_db"] = ctx.effective_ceiling
-                        if isinstance(ctx.effective_preset, dict):
-                            ctx.effective_preset["true_peak_ceiling"] = (
-                                ctx.effective_ceiling
-                            )
-                        floor_note = " (floor reached)" if hit_floor else ""
-                        ctx.notices.append(
-                            f"ADM cycle {adm_cycle + 1}: inter-sample clips "
-                            f"detected, tightening ceiling to "
-                            f"{ctx.effective_ceiling:.2f} dBTP{floor_note} "
-                            f"and re-mastering."
-                        )
-                        adm_retry = True
+                            any_diverged = True
+                            dark_adm_casualties[fname] = dict(entry)
+                            continue
+                        if new_ceiling >= current:
+                            any_floored = True
+                            continue
+                        ctx.track_ceilings[fname] = new_ceiling
+                        next_remaster.add(fname)
+                        adm_history.append({
+                            "ceiling": new_ceiling,
+                            "worst_peak": float(entry.get("peak_db_decoded", 0.0)),
+                            "filename": fname,
+                        })
+
+                    if not next_remaster:
+                        # All tightenable tracks at floor or diverged.
+                        adm_diverging = any_diverged
+                        adm_clip_failure_persisted = True
                         break
-                    # Last cycle with clips → warn-fallback, don't halt.
-                    adm_clip_failure_persisted = True
+
+                    ctx.remaster_filenames = next_remaster
+                    tracks_summary = ", ".join(sorted(next_remaster))
+                    floor_note = (
+                        " (floor reached on some)" if any_floored else ""
+                    )
+                    ctx.notices.append(
+                        f"ADM cycle {adm_cycle + 1}: inter-sample clips on "
+                        f"{len(clipping_fnames)} track(s) "
+                        f"({len(dark_clipping)} dark → warn-fallback, "
+                        f"{len(next_remaster)} tightened). "
+                        f"Re-mastering: {tracks_summary}{floor_note}."
+                    )
+                    adm_retry = True
                     break
                 # Non-ADM / non-retryable halt
                 return _inject_notices_and_return(result)
@@ -1005,41 +982,47 @@ async def master_album(
     # the manual call on whether to republish.
     if adm_clip_failure_persisted:
         stage = ctx.stages.get("adm_validation")
+        tightened_fnames = sorted(ctx.track_ceilings.keys())
+        dark_casualty_count = len(dark_adm_casualties)
+        tightened_count = len(tightened_fnames)
+
         reason_suffix = (
             "; ripple growing with tightening (divergent)"
             if adm_diverging else ""
         )
+        if dark_casualty_count:
+            reason_suffix += (
+                f"; {dark_casualty_count} dark track(s) not tightened"
+            )
+
         if isinstance(stage, dict):
             stage["status"] = "warn"
             stage["reason"] = (
-                f"inter-sample clips persist at ceiling "
-                f"{ctx.effective_ceiling:.2f} dBTP after "
+                f"inter-sample clips persist at per-track ceilings after "
                 f"{_ADM_MAX_CYCLES} cycle(s); floor is "
                 f"{_ADM_MIN_CEILING_DB:.1f} dBTP{reason_suffix}"
             )
             stage["clip_failure_persisted"] = True
             stage["diverging"] = adm_diverging
+            stage["dark_casualties"] = sorted(dark_adm_casualties.keys())
+            stage["tightened_tracks"] = tightened_fnames
+            stage["track_ceilings"] = dict(ctx.track_ceilings)
             stage["adm_history"] = list(adm_history)
-        tracks_with_clips = adm_last_failure_detail.get("tracks_with_clips") or []
-        clip_count = len(tracks_with_clips)
+
+        total_flagged = dark_casualty_count + tightened_count
         ctx.warnings.append(
-            f"ADM validation: {clip_count} track(s) retain inter-sample "
-            f"clips after {_ADM_MAX_CYCLES} retry cycles (final ceiling "
-            f"{ctx.effective_ceiling:.2f} dBTP, floor "
-            f"{_ADM_MIN_CEILING_DB:.1f} dBTP). Album delivered with flag — "
-            f"see ADM_VALIDATION.md for per-track detail."
+            f"ADM validation: clips persist on {total_flagged} track(s) "
+            f"after {_ADM_MAX_CYCLES} retry cycle(s). "
+            f"{dark_casualty_count} dark (not tightened), "
+            f"{tightened_count} tightened to floor or diverged. "
+            "See ADM_VALIDATION.md for per-track detail."
         )
         # Terminal notice so operators reading the notice stream see the
-        # final state immediately, without having to scan warnings. The
-        # existing per-cycle tightening notices only cover cycles that
-        # triggered a retry — this one names the exit condition.
+        # final state immediately, without having to scan warnings.
         ctx.notices.append(
-            f"ADM loop terminated without convergence after "
-            f"{_ADM_MAX_CYCLES} cycle(s). Final ceiling: "
-            f"{ctx.effective_ceiling:.2f} dBTP. Delivered with "
-            f"{clip_count} track(s) flagged for inter-sample clips — "
-            "inspect ADM_VALIDATION.md before republishing if AAC "
-            "delivery matters."
+            f"ADM loop terminated: {dark_casualty_count} dark casualty, "
+            f"{tightened_count} tightened casualty. Delivered with "
+            "flagged tracks; inspect ADM_VALIDATION.md before republish."
         )
 
     # ── Phase 3: post-loop stages (run once) ─────────────────────────────

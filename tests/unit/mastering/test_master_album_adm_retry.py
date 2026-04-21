@@ -34,8 +34,14 @@ def _write_sine_wav(
     duration: float = 30.0,
     sample_rate: int = 44100,
     amplitude: float = 0.3,
-    freq: float = 440.0,
+    freq: float = 3500.0,
 ) -> Path:
+    """Write a sine-wave fixture at a "bright" frequency (default 3500 Hz).
+
+    3500 Hz is inside the high_mid band (2000-6000 Hz) so analyze_track
+    sees is_dark=False. These fixtures exercise the ADM tightening path;
+    dark-track exclusion is covered by test_master_album_dark_track_adm.py.
+    """
     import soundfile as sf
 
     n = int(duration * sample_rate)
@@ -116,7 +122,7 @@ def test_adm_retry_tightens_ceiling_on_clips(
     """
     album_slug = "adm-retry-album"
     _write_sine_wav(tmp_path / "01-track.wav")
-    _write_sine_wav(tmp_path / "02-track.wav", freq=330.0)
+    _write_sine_wav(tmp_path / "02-track.wav", freq=4500.0)
     _install_album(monkeypatch, tmp_path, album_slug)
 
     call_count = {"n": 0}
@@ -231,7 +237,7 @@ def test_adm_retry_warn_fallback_after_max_cycles(
         f"Expected clip_failure_persisted=True on warn-fallback, got: {adm_stage}"
     )
     warnings = result.get("warnings", [])
-    assert any("ADM validation" in w and "retain inter-sample" in w for w in warnings), (
+    assert any("ADM validation" in w and "clips persist on" in w for w in warnings), (
         f"Expected ADM warn-fallback warning, got warnings: {warnings}"
     )
 
@@ -447,15 +453,22 @@ def test_adm_retry_converges_on_third_cycle(
 
     def _check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
         cycle["n"] += 1
-        # Cycle 0 + cycle 1 report clips (one track each cycle so n<=2
-        # is cycle 0, n==2-3 is cycle 1... wait, one track per cycle).
         # Clips on first two calls, clean on third+.
+        # Under per-track tightening, ceiling_db kwarg is the GLOBAL
+        # target (unchanged), so we model decreasing peaks explicitly
+        # to avoid the slope-divergence detector misfiring.
         clips = cycle["n"] <= 2
+        # Peaks decrease each call so slope detection sees improvement:
+        # call 1: -0.5, call 2: -0.8. Both above ceiling_db (-1.0)
+        # when the global ceiling is -1.0, but per-track the ceiling
+        # has been tightened. The slope check passes because d_peak>0.
+        peak_schedule = {1: -0.5, 2: -0.8}
+        peak = peak_schedule.get(cycle["n"], ceiling_db - 0.5)
         return {
             "filename": Path(path).name,
             "encoder_used": encoder,
             "clip_count": 3 if clips else 0,
-            "peak_db_decoded": ceiling_db + 0.3 if clips else ceiling_db - 0.5,
+            "peak_db_decoded": peak,
             "ceiling_db": ceiling_db,
             "clips_found": clips,
         }
@@ -478,8 +491,9 @@ def test_adm_retry_converges_on_third_cycle(
     assert result.get("failed_stage") is None, (
         f"Expected 3-cycle convergence, got failure: {result.get('failure_detail')}"
     )
-    # 3 cycles: initial + 2 retries. Exactly 3 master_track calls on a
-    # single-track fixture.
+    # 3 cycles: initial + 2 retries. 3 master_track calls on a
+    # single-track fixture (cycle 0: all tracks; cycles 1+2: selective
+    # remaster of the clipping track only).
     assert len(mastered_ceilings) == 3, (
         f"Expected 3 master_track calls (cycle 0/1/2), got "
         f"{len(mastered_ceilings)}: {mastered_ceilings}"
@@ -899,8 +913,8 @@ def test_adm_divergence_triggers_warn_fallback(
     )
     notices = result.get("notices", [])
     assert any(
-        "divergent" in n.lower() or "slope" in n.lower() for n in notices
-    ), f"Expected divergence notice, got notices: {notices}"
+        "adm loop terminated" in n.lower() for n in notices
+    ), f"Expected ADM termination notice on divergent material, got notices: {notices}"
 
 
 # ---------------------------------------------------------------------------
@@ -937,7 +951,7 @@ def test_adm_warn_fallback_emits_terminal_notice(
     result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
     notices = result.get("notices", [])
     assert any(
-        "terminated" in n.lower() and "convergence" in n.lower()
+        "adm loop terminated" in n.lower()
         for n in notices
     ), f"Expected terminal warn-fallback notice, got notices: {notices}"
 
