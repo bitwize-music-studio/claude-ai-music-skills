@@ -766,6 +766,9 @@ def _emit_verification_warn_fallback(
     append notice + warning, and set ctx.verify_results. Called by
     _stage_verification when all remaining out-of-spec tracks are
     unrecoverable recovery casualties."""
+    assert ctx.output_dir is not None, (
+        "warn-fallback requires output_dir (set by _stage_mastering)"
+    )
     sidecar_lines = [
         "# Verification Warnings",
         "",
@@ -977,7 +980,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
             # not a recovery-casualty scenario; halt with the range
             # detail as before.
             if album_range_fail and not out_of_spec:
-                fail_detail = {
+                fail_detail: dict[str, Any] = {
                     "album_lufs_range":  round(verify_range, 2),
                     "album_range_limit": 1.0,
                 }
@@ -1018,7 +1021,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
             halt_on_range: bool = album_range_fail and bool(halt_eligible_tracks)
 
             if halt_eligible_tracks or halt_on_range:
-                fail_detail: dict[str, Any] = {}
+                fail_detail = {}
                 if halt_eligible_tracks:
                     fail_detail["tracks_out_of_spec"] = halt_eligible_tracks
                 if halt_on_range:
