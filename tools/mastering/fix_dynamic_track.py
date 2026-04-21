@@ -21,11 +21,28 @@ from tools.shared.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
+# (threshold_db, ratio) schedule used by fix_dynamic's iterative loop.
+# First iteration matches legacy single-pass behavior. Heavier passes trade
+# crest factor for headroom — needed when the ceiling is tight relative to the
+# material's K-weighted response (dark content). Exposed at module scope so
+# callers can reason about the max iteration count without hardcoding 3.
+_FIX_DYNAMIC_ITER_SCHEDULE: list[tuple[float, float]] = [
+    (-12.0, 2.5),
+    (-10.0, 3.5),
+    (-8.0,  5.0),
+]
+
 
 def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
                 eq_settings: list[tuple[float, float, float]] | None = None,
-                ceiling_db: float = -1.0) -> tuple[Any, dict[str, float]]:
-    """Core dynamic range fix: EQ → compress → normalize → limit.
+                ceiling_db: float = -1.0) -> tuple[Any, dict[str, Any]]:
+    """Core dynamic range fix: EQ → (compress → normalize → limit)×N.
+
+    Runs up to 3 iterations of compress→normalize→limit with progressively
+    heavier compression, stopping as soon as integrated LUFS is within
+    ±0.5 dB of ``target_lufs``. When no iteration converges, returns the
+    attempt with the smallest LUFS error and sets ``converged=False`` so
+    the caller can decide whether the track is salvageable.
 
     Args:
         data: Audio data (numpy array, stereo)
@@ -36,46 +53,75 @@ def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
         ceiling_db: Peak ceiling in dB (default: -1.0)
 
     Returns:
-        (processed_data, metrics_dict) tuple where metrics_dict contains
-        original_lufs, final_lufs, and final_peak_db.
+        (processed_data, metrics) tuple where metrics has:
+            original_lufs:   input integrated LUFS
+            final_lufs:      best-attempt integrated LUFS
+            final_peak_db:   best-attempt peak in dBTP
+            converged:       True if final_lufs within ±0.5 dB of target
+            iterations_run:  1, 2, or 3
     """
     meter = pyln.Meter(rate)
     original_lufs = meter.integrated_loudness(data)
 
-    # Step 1: EQ
+    # EQ is input conditioning — applied once, not part of the dynamics loop.
     if eq_settings is None:
         eq_settings = [(3500, -2.0, 1.5)]
+    eq_data = data
     for freq, gain_db, q in eq_settings:
-        data = apply_eq(data, rate, freq, gain_db, q)
+        eq_data = apply_eq(eq_data, rate, freq, gain_db, q)
 
-    # Step 2: Gentle compression
-    data = gentle_compress(data, threshold_db=-12, ratio=2.5, rate=rate)
-
-    # Step 3: Normalize to target LUFS
-    post_comp_lufs = meter.integrated_loudness(data)
-    if np.isfinite(post_comp_lufs):
-        gain_db_val = target_lufs - post_comp_lufs
-        gain_linear = 10 ** (gain_db_val / 20)
-        data = data * gain_linear
-
-    # Step 4: Limit peaks
     ceiling = 10 ** (ceiling_db / 20)
-    peak = np.max(np.abs(data))
-    if peak > ceiling:
-        data = data * (ceiling / peak)
-    data = soft_clip(data, ceiling)
+    tolerance_db = 0.5
 
-    final_lufs = meter.integrated_loudness(data)
-    peak_abs = np.max(np.abs(data))
+    best_data = eq_data
+    best_lufs = float("-inf")
+    best_diff = float("inf")
+    converged = False
+    iterations_run = 0
+
+    for i, (thr, ratio) in enumerate(_FIX_DYNAMIC_ITER_SCHEDULE):
+        iterations_run = i + 1
+
+        iter_data = gentle_compress(
+            eq_data, threshold_db=thr, ratio=ratio, rate=rate,
+        )
+
+        post_comp_lufs = meter.integrated_loudness(iter_data)
+        if np.isfinite(post_comp_lufs):
+            gain_db_val = target_lufs - post_comp_lufs
+            iter_data = iter_data * (10 ** (gain_db_val / 20))
+
+        peak = np.max(np.abs(iter_data))
+        if peak > ceiling:
+            iter_data = iter_data * (ceiling / peak)
+        iter_data = soft_clip(iter_data, ceiling)
+
+        iter_lufs = meter.integrated_loudness(iter_data)
+        iter_diff = (
+            abs(iter_lufs - target_lufs) if np.isfinite(iter_lufs) else float("inf")
+        )
+
+        if iter_diff < best_diff:
+            best_data = iter_data
+            best_lufs = iter_lufs
+            best_diff = iter_diff
+
+        if iter_diff <= tolerance_db:
+            converged = True
+            break
+
+    peak_abs = np.max(np.abs(best_data))
     final_peak = 20 * np.log10(peak_abs) if peak_abs > 0 else float("-inf")
 
-    metrics = {
-        "original_lufs": float(original_lufs),
-        "final_lufs": float(final_lufs),
-        "final_peak_db": float(final_peak),
+    metrics: dict[str, Any] = {
+        "original_lufs":   float(original_lufs),
+        "final_lufs":      float(best_lufs),
+        "final_peak_db":   float(final_peak),
+        "converged":       bool(converged),
+        "iterations_run":  int(iterations_run),
     }
 
-    return data, metrics
+    return best_data, metrics
 
 
 def gentle_compress(data: Any, threshold_db: float = -10, ratio: float = 3.0,

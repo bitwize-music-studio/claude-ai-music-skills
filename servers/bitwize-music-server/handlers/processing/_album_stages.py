@@ -75,6 +75,9 @@ from tools.mastering.metadata import (
     MetadataEmbedError,
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
+from math import gcd
+from scipy import signal
+from tools.mastering.master_tracks import limit_peaks
 
 logger = logging.getLogger(__name__)
 
@@ -749,6 +752,68 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
     return None
 
 
+def _emit_verification_warn_fallback(
+    ctx: MasterAlbumCtx,
+    *,
+    unrecoverable_map: dict[str, dict[str, Any]],
+    auto_recovered: list[dict[str, Any]],
+    verify_results: list[dict[str, Any]],
+    verify_avg: float,
+    verify_range: float,
+    effective_lufs: float,
+) -> None:
+    """Write VERIFICATION_WARNINGS.md, update stage status to warn,
+    append notice + warning, and set ctx.verify_results. Called by
+    _stage_verification when all remaining out-of-spec tracks are
+    unrecoverable recovery casualties."""
+    assert ctx.output_dir is not None, (
+        "warn-fallback requires output_dir (set by _stage_mastering)"
+    )
+    sidecar_lines = [
+        "# Verification Warnings",
+        "",
+        "Auto-recovery attempted but could not bring these tracks within",
+        f"±0.5 dB of the target LUFS ({effective_lufs:.1f}). The album was",
+        "delivered with the flagged tracks as-is. Typical cause: dark",
+        "spectral content (heavily K-weighted against) that cannot reach",
+        "target loudness at the current ceiling.",
+        "",
+        "| Track | Target LUFS | Final LUFS | Peak (dBTP) | Original LUFS | Iterations |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for fname, rec in sorted(unrecoverable_map.items()):
+        sidecar_lines.append(
+            f"| {fname} | {effective_lufs:.1f} | {rec['final_lufs']:.1f} | "
+            f"{rec['final_peak_db']:.2f} | {rec['original_lufs']:.1f} | "
+            f"{rec['iterations_run']} |"
+        )
+    sidecar_lines.append("")
+    sidecar_path = ctx.output_dir / "VERIFICATION_WARNINGS.md"
+    atomic_write_text(sidecar_path, "\n".join(sidecar_lines))
+
+    ctx.notices.append(
+        f"Verification warn-fallback: {len(unrecoverable_map)} "
+        f"track(s) could not converge to target LUFS after "
+        f"auto-recovery; see VERIFICATION_WARNINGS.md. "
+        f"Pipeline continuing."
+    )
+    ctx.warnings.append(
+        f"Verification: {len(unrecoverable_map)} unrecoverable "
+        f"track(s) delivered off-target — see "
+        f"VERIFICATION_WARNINGS.md for per-track detail."
+    )
+    ctx.stages["verification"] = {
+        "status":               "warn",
+        "avg_lufs":             round(verify_avg, 1),
+        "lufs_range":           round(verify_range, 2),
+        "all_within_spec":      False,
+        "auto_recovered":       auto_recovered,
+        "unrecoverable_tracks": sorted(unrecoverable_map.keys()),
+        "sidecar":              "VERIFICATION_WARNINGS.md",
+    }
+    ctx.verify_results = verify_results
+
+
 async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
     """Stage 5: Check mastered output meets targets; auto-recover dynamic tracks.
 
@@ -834,6 +899,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     eq: list[tuple[float, float, float]],
                     ceil: float,
                     subtype: str,
+                    target_rate: int,
                 ) -> dict[str, Any]:
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
@@ -844,20 +910,36 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                         eq_settings=eq if eq else None,
                         ceiling_db=ceil,
                     )
+                    # Match _stage_mastering's delivery-format SRC so
+                    # recovered tracks don't end up at a different sample
+                    # rate from the rest of the album (bug #1).
+                    src_rate = rate
+                    if target_rate and target_rate != src_rate:
+                        g = gcd(target_rate, src_rate)
+                        data = signal.resample_poly(
+                            data, up=target_rate // g, down=src_rate // g, axis=0,
+                        )
+                        rate = target_rate
+                        # Polyphase FIR ripple reintroduces sub-dB inter-sample
+                        # peaks — match _stage_mastering's final guard pass.
+                        data = limit_peaks(data, ceil)
                     sf.write(str(dst), data, rate, subtype=subtype)
                     return metrics
 
                 mastered_path = ctx.output_dir / fname
+                _delivery_rate = int(ctx.targets.get("output_sample_rate") or 0)
                 metrics = await ctx.loop.run_in_executor(
                     None, _do_recovery, raw_path, mastered_path,
                     effective_lufs, eq_settings, effective_ceiling,
-                    recovery_subtype,
+                    recovery_subtype, _delivery_rate,
                 )
                 auto_recovered.append({
-                    "filename": fname,
-                    "original_lufs": metrics["original_lufs"],
-                    "final_lufs": metrics["final_lufs"],
-                    "final_peak_db": metrics["final_peak_db"],
+                    "filename":       fname,
+                    "original_lufs":  metrics["original_lufs"],
+                    "final_lufs":     metrics["final_lufs"],
+                    "final_peak_db":  metrics["final_peak_db"],
+                    "converged":      bool(metrics.get("converged", True)),
+                    "iterations_run": int(metrics.get("iterations_run", 1)),
                 })
 
             if auto_recovered:
@@ -894,27 +976,90 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                 album_range_fail = verify_range >= 1.0
 
         if out_of_spec or album_range_fail:
-            fail_detail: dict[str, Any] = {}
-            if out_of_spec:
-                fail_detail["tracks_out_of_spec"] = out_of_spec
-            if album_range_fail:
-                fail_detail["album_lufs_range"] = round(verify_range, 2)
-                fail_detail["album_range_limit"] = 1.0
-            ctx.stages["verification"] = {
-                "status": "fail",
-                "avg_lufs": round(verify_avg, 1),
-                "lufs_range": round(verify_range, 2),
-                "all_within_spec": False,
+            # Pure range failure with no individual out-of-spec tracks —
+            # not a recovery-casualty scenario; halt with the range
+            # detail as before.
+            if album_range_fail and not out_of_spec:
+                fail_detail: dict[str, Any] = {
+                    "album_lufs_range":  round(verify_range, 2),
+                    "album_range_limit": 1.0,
+                }
+                ctx.stages["verification"] = {
+                    "status":          "fail",
+                    "avg_lufs":        round(verify_avg, 1),
+                    "lufs_range":      round(verify_range, 2),
+                    "all_within_spec": False,
+                }
+                return _safe_json({
+                    "album_slug":     ctx.album_slug,
+                    "stage_reached":  "verification",
+                    "stages":         ctx.stages,
+                    "settings":       ctx.settings,
+                    "warnings":       ctx.warnings,
+                    "failed_stage":   "verification",
+                    "failure_detail": fail_detail,
+                })
+
+            # Split remaining out-of-spec tracks into halt-eligible (this
+            # failure mode can't be warn-fallbacked) and unrecoverable
+            # (recovery ran, fix_dynamic reported converged=False — no
+            # amount of retrying will make this land, so the honest move
+            # is to deliver with a flagged sidecar).
+            unrecoverable_map: dict[str, dict[str, Any]] = {
+                r["filename"]: r
+                for r in auto_recovered
+                if not r.get("converged", True)
             }
-            return _safe_json({
-                "album_slug": ctx.album_slug,
-                "stage_reached": "verification",
-                "stages": ctx.stages,
-                "settings": ctx.settings,
-                "warnings": ctx.warnings,
-                "failed_stage": "verification",
-                "failure_detail": fail_detail,
-            })
+            halt_eligible_tracks: list[dict[str, Any]] = [
+                s for s in out_of_spec
+                if s["filename"] not in unrecoverable_map
+            ]
+            # Album-range failure is halt-eligible UNLESS the entire
+            # out-of-spec set is unrecoverable (in which case the range
+            # failure is a symptom of those unrecoverable tracks and
+            # warn-fallback already covers it via the sidecar).
+            halt_on_range: bool = album_range_fail and bool(halt_eligible_tracks)
+
+            if halt_eligible_tracks or halt_on_range:
+                fail_detail = {}
+                if halt_eligible_tracks:
+                    fail_detail["tracks_out_of_spec"] = halt_eligible_tracks
+                if halt_on_range:
+                    fail_detail["album_lufs_range"] = round(verify_range, 2)
+                    fail_detail["album_range_limit"] = 1.0
+                if unrecoverable_map:
+                    fail_detail["unrecoverable_tracks"] = sorted(
+                        unrecoverable_map.keys(),
+                    )
+                ctx.stages["verification"] = {
+                    "status":          "fail",
+                    "avg_lufs":        round(verify_avg, 1),
+                    "lufs_range":      round(verify_range, 2),
+                    "all_within_spec": False,
+                }
+                return _safe_json({
+                    "album_slug":     ctx.album_slug,
+                    "stage_reached":  "verification",
+                    "stages":         ctx.stages,
+                    "settings":       ctx.settings,
+                    "warnings":       ctx.warnings,
+                    "failed_stage":   "verification",
+                    "failure_detail": fail_detail,
+                })
+
+            # Warn-fallback: everything still out-of-spec is an
+            # unrecoverable recovery casualty. Delegate to helper,
+            # then let the pipeline continue.
+            _emit_verification_warn_fallback(
+                ctx,
+                unrecoverable_map=unrecoverable_map,
+                auto_recovered=auto_recovered,
+                verify_results=verify_results,
+                verify_avg=verify_avg,
+                verify_range=verify_range,
+                effective_lufs=effective_lufs,
+            )
+            return None
 
     verification_stage: dict[str, Any] = {
         "status": "pass",
