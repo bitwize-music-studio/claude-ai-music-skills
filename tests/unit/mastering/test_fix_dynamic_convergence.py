@@ -117,6 +117,5 @@ class TestFixDynamicConvergence:
 
         _, metrics = fix_dynamic(data, rate, target_lufs=-14.0, ceiling_db=-1.0)
         assert metrics["iterations_run"] >= 2
-        # Should still converge.
-        if metrics["converged"]:
-            assert abs(metrics["final_lufs"] - (-14.0)) <= 0.5
+        assert metrics["converged"] is True
+        assert abs(metrics["final_lufs"] - (-14.0)) <= 0.5

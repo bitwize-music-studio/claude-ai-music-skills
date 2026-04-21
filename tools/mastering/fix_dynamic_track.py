@@ -21,10 +21,21 @@ from tools.shared.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
+# (threshold_db, ratio) schedule used by fix_dynamic's iterative loop.
+# First iteration matches legacy single-pass behavior. Heavier passes trade
+# crest factor for headroom — needed when the ceiling is tight relative to the
+# material's K-weighted response (dark content). Exposed at module scope so
+# callers can reason about the max iteration count without hardcoding 3.
+_FIX_DYNAMIC_ITER_SCHEDULE: list[tuple[float, float]] = [
+    (-12.0, 2.5),
+    (-10.0, 3.5),
+    (-8.0,  5.0),
+]
+
 
 def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
                 eq_settings: list[tuple[float, float, float]] | None = None,
-                ceiling_db: float = -1.0) -> tuple[Any, dict[str, float]]:
+                ceiling_db: float = -1.0) -> tuple[Any, dict[str, Any]]:
     """Core dynamic range fix: EQ → (compress → normalize → limit)×N.
 
     Runs up to 3 iterations of compress→normalize→limit with progressively
@@ -62,23 +73,13 @@ def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
     ceiling = 10 ** (ceiling_db / 20)
     tolerance_db = 0.5
 
-    # (threshold_db, ratio) schedule. First iteration matches legacy
-    # single-pass behavior. Heavier passes trade crest factor for
-    # headroom — needed when the ceiling is tight relative to the
-    # material's K-weighted response (dark content).
-    _ITER_SCHEDULE = [
-        (-12.0, 2.5),
-        (-10.0, 3.5),
-        (-8.0,  5.0),
-    ]
-
     best_data = eq_data
     best_lufs = float("-inf")
     best_diff = float("inf")
     converged = False
     iterations_run = 0
 
-    for i, (thr, ratio) in enumerate(_ITER_SCHEDULE):
+    for i, (thr, ratio) in enumerate(_FIX_DYNAMIC_ITER_SCHEDULE):
         iterations_run = i + 1
 
         iter_data = gentle_compress(
@@ -112,7 +113,7 @@ def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
     peak_abs = np.max(np.abs(best_data))
     final_peak = 20 * np.log10(peak_abs) if peak_abs > 0 else float("-inf")
 
-    metrics: dict[str, float] = {
+    metrics: dict[str, Any] = {
         "original_lufs":   float(original_lufs),
         "final_lufs":      float(best_lufs),
         "final_peak_db":   float(final_peak),
