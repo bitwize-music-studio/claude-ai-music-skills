@@ -112,6 +112,18 @@ class MasterAlbumCtx:
     warnings: list[Any] = field(default_factory=list)
     notices: list[str] = field(default_factory=list)
 
+    # Per-track ADM ceiling machinery (populated during ADM loop; empty
+    # on first cycle). Absent filename = track uses effective_ceiling.
+    track_ceilings: dict[str, float] = field(default_factory=dict)
+    # Populated by _stage_analysis — tracks whose high_mid band_energy
+    # < 10 %. ADM ceiling tightening skips these (tightening dark
+    # material makes spectral balance worse, not ADM compliance better).
+    dark_tracks: set[str] = field(default_factory=set)
+    # When set, _stage_mastering only (re-)masters filenames in the set
+    # and leaves existing mastered files alone. None = master every
+    # wav in ctx.wav_files (cycle 1 behavior).
+    remaster_filenames: set[str] | None = None
+
     # ── stage 1 (pre-flight) ─────────────────────────────────────────────────
     audio_dir: Path | None = None
     source_dir: Path | None = None
