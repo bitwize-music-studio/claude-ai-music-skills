@@ -62,3 +62,45 @@ class TestAnalyzeTrackIsDark:
         _write_dark(path)
         result = analyze_track(str(path))
         assert type(result["is_dark"]) is bool
+
+
+def test_stage_analysis_populates_dark_tracks(tmp_path: Path) -> None:
+    """_stage_analysis should set ctx.dark_tracks from analyze_track's
+    is_dark field."""
+    import asyncio
+
+    SERVER_DIR = PROJECT_ROOT / "servers" / "bitwize-music-server"
+    if str(SERVER_DIR) not in sys.path:
+        sys.path.insert(0, str(SERVER_DIR))
+
+    from handlers.processing._album_stages import MasterAlbumCtx, _stage_analysis
+
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    _write_dark(source_dir / "01-dark.wav")
+    _write_bright(source_dir / "02-bright.wav")
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    ctx = MasterAlbumCtx(
+        album_slug="test",
+        genre="pop",
+        target_lufs=-14.0,
+        ceiling_db=-1.0,
+        cut_highmid=0.0,
+        cut_highs=0.0,
+        source_subfolder="",
+        freeze_signature=False,
+        new_anchor=False,
+        loop=loop,
+        source_dir=source_dir,
+        wav_files=sorted(source_dir.glob("*.wav")),
+    )
+    try:
+        loop.run_until_complete(_stage_analysis(ctx))
+    finally:
+        loop.close()
+
+    assert "01-dark.wav" in ctx.dark_tracks
+    assert "02-bright.wav" not in ctx.dark_tracks

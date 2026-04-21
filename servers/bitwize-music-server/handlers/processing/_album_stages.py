@@ -382,6 +382,21 @@ async def _stage_analysis(ctx: MasterAlbumCtx) -> str | None:
         "tinny_tracks": tinny_tracks,
     }
     ctx.analysis_results = analysis_results
+
+    # Dark-track detection for ADM ceiling exclusion. analyze_track
+    # computes high_mid band_energy; is_dark = band_energy < 10 % (matches
+    # the mix analyzer's already_dark threshold).
+    ctx.dark_tracks = {
+        r["filename"]
+        for r in ctx.analysis_results
+        if r.get("is_dark") is True
+    }
+    if ctx.dark_tracks:
+        logger.info(
+            "Analysis: %d dark track(s) — excluded from ADM tightening: %s",
+            len(ctx.dark_tracks), sorted(ctx.dark_tracks),
+        )
+
     return None
 
 
