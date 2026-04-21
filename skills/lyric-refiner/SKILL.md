@@ -26,19 +26,35 @@ allowed-tools:
 2. **Parse pass count**: Look for `--passes N` (default: 3, minimum: 1, maximum: 5)
    - If `--passes` > 5, warn: "Diminishing returns beyond 5 passes — capping at 5."
 
+### Instrumental Guard
+
+When invoked with a **single-track** path, **first check** the track's frontmatter for `instrumental: true` or the Track Details table for `**Instrumental** | Yes`. If the track is instrumental:
+
+- **STOP** and report: "This is an instrumental track — no lyrics to refine. Use `/bitwize-music:suno-engineer` for Style Box work."
+- Do NOT attempt to refine instrumental tracks.
+
+In **album mode**, instrumental tracks are **silently skipped with a one-line note** (not blocking) — see the triage in "Resolve Album & Tracks" below. A mix of instrumental and vocal tracks on the same album is the normal case, not an error.
+
 ### Resolve Album & Tracks
 
 1. Use `find_album(name)` MCP tool to locate the album
 2. Use `list_tracks(album_slug)` to get all tracks
-3. **Skip instrumental tracks** — check frontmatter for `instrumental: true` or Track Details for `**Instrumental** | Yes`
-4. For **album mode**: read ALL track lyrics before starting any refinement (full context needed for cohesion/unity passes)
-5. For **single-track mode**: still read all sibling tracks for cross-track context
+3. **Triage every track** into one of three buckets — the refiner only operates on the third:
+   - **Instrumental** — frontmatter `instrumental: true` or Track Details `**Instrumental** | Yes` → **skip**, emit `Skipping {track} — instrumental`
+   - **Not ready** — status `Not Started` / `Sources Pending`, OR no Lyrics Box content → **skip**, emit `Skipping {track} — no lyrics yet ({status})`
+   - **Refineable** — vocal track with lyrics written → include in the refinement pass set
+4. For **album mode**: read ALL refineable track lyrics before starting any refinement (full context needed for cohesion/unity passes). Instrumental and not-ready tracks do not need to be read.
+5. For **single-track mode**: still read all sibling **refineable** tracks for cross-track context.
 
-### Guard Clauses
+### Pre-flight Exits
 
-- **No lyrics found**: "No lyrics to refine — run `/lyric-writer` first."
-- **Track status `Not Started` or `Sources Pending`**: "Track isn't ready for refinement — lyrics must be written first."
-- **All tracks instrumental**: "No vocal tracks to refine."
+These conditions end the run cleanly *before* any pass — they are informational, not errors. Report and exit; do not treat as a guard-clause failure.
+
+- **Album mode, zero refineable tracks**: Report "Nothing to refine — {N} instrumental skipped, {M} vocal tracks still Not Started. Run `/lyric-writer` to write lyrics first." Then exit cleanly.
+- **Single-track mode, instrumental track**: See Instrumental Guard above.
+- **Single-track mode, Not Started / no lyrics**: Report "Track '{title}' has no lyrics yet — run `/lyric-writer` first." Then exit cleanly.
+
+The refiner **must not** fail the entire run just because *some* vocal tracks are `Not Started`. It processes whatever is refineable and reports what was skipped. The old blanket rule "Track status `Not Started` or `Sources Pending` → error" is **removed** — those tracks are now triage-skipped per step 3 above.
 
 ## Workflow
 
@@ -179,7 +195,7 @@ After all passes complete, present this consolidated report:
 # Lyric Refinement Report
 
 **Album**: [name]
-**Tracks refined**: X of Y (Z instrumental skipped)
+**Tracks refined**: X of Y (Z instrumental skipped, W Not Started skipped)
 **Passes completed**: N of M requested
 **Date**: YYYY-MM-DD
 

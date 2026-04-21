@@ -189,6 +189,7 @@ class TestInstrumentalGuard:
 
     @pytest.mark.parametrize("skill_name", [
         'lyric-writer',
+        'lyric-refiner',
         'lyric-reviewer',
         'pronunciation-specialist',
     ])
