@@ -127,6 +127,16 @@ def test_recovery_writes_at_delivery_sample_rate(tmp_path: Path) -> None:
     finally:
         loop.close()
 
+    # Recovery must have actually run — not halted before reaching it.
+    if result is not None:
+        import json
+        payload = json.loads(result)
+        warnings = payload.get("warnings", [])
+        recovery_ran = any(w.get("type") == "auto_recovery" for w in warnings)
+        assert recovery_ran, (
+            f"stage halted before recovery ran: {payload}"
+        )
+
     # The recovery path ran (result is None on pass-after-recovery or a
     # warn-fallback JSON — either way the file must have been rewritten).
     data, rate_written = sf.read(str(output_dir / fname))

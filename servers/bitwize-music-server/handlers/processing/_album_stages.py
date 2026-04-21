@@ -75,6 +75,9 @@ from tools.mastering.metadata import (
     MetadataEmbedError,
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
+from math import gcd
+from scipy import signal
+from tools.mastering.master_tracks import limit_peaks
 
 logger = logging.getLogger(__name__)
 
@@ -836,9 +839,6 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     subtype: str,
                     target_rate: int,
                 ) -> dict[str, Any]:
-                    from math import gcd as _gcd
-                    from scipy import signal as _signal
-
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
                         data = _np.column_stack([data, data])
@@ -851,12 +851,16 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     # Match _stage_mastering's delivery-format SRC so
                     # recovered tracks don't end up at a different sample
                     # rate from the rest of the album (bug #1).
-                    if target_rate and target_rate != rate:
-                        g = _gcd(target_rate, rate)
-                        data = _signal.resample_poly(
-                            data, up=target_rate // g, down=rate // g, axis=0,
+                    src_rate = rate
+                    if target_rate and target_rate != src_rate:
+                        g = gcd(target_rate, src_rate)
+                        data = signal.resample_poly(
+                            data, up=target_rate // g, down=src_rate // g, axis=0,
                         )
                         rate = target_rate
+                        # Polyphase FIR ripple reintroduces sub-dB inter-sample
+                        # peaks — match _stage_mastering's final guard pass.
+                        data = limit_peaks(data, ceil)
                     sf.write(str(dst), data, rate, subtype=subtype)
                     return metrics
 
