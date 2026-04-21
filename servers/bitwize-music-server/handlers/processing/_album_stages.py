@@ -2333,9 +2333,20 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
         ctx.notices.append("ADM validation skipped — no results to write")
     else:
         try:
+            # Tracks that are both in ctx.dark_tracks AND clipping WILL be
+            # routed to dark_adm_casualties by the orchestrator — predict
+            # that here so the markdown's advice doesn't contradict the
+            # pipeline's verdict (regression for observability bug: prior
+            # markdown unconditionally recommended tightening even when
+            # the orchestrator had already decided tightening won't help).
+            dark_casualty_fnames = {
+                r["filename"] for r in results
+                if r.get("clips_found") and r["filename"] in ctx.dark_tracks
+            }
             md = render_adm_validation_markdown(
                 ctx.album_slug, results,
                 encoder_used=encoder_used, ceiling_db=ceiling_db,
+                dark_casualty_filenames=dark_casualty_fnames,
             )
             atomic_write_text(ctx.audio_dir / "ADM_VALIDATION.md", md)
         except Exception as exc:

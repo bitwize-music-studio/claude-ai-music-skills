@@ -216,8 +216,18 @@ def render_adm_validation_markdown(
     *,
     encoder_used: str,
     ceiling_db: float,
+    dark_casualty_filenames: set[str] | None = None,
 ) -> str:
-    """Render ADM_VALIDATION.md content for the mastered album."""
+    """Render ADM_VALIDATION.md content for the mastered album.
+
+    Args:
+        dark_casualty_filenames: Tracks classified as dark-casualty by
+            the orchestrator (high_mid band_energy < 10 %). Their rows
+            are labelled 'FAIL (dark casualty)' and the recommendation
+            section tailors the advice — further limiter tightening
+            cannot improve ADM compliance on dark-content material.
+    """
+    dark_set = dark_casualty_filenames or set()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     clips_total = sum(r.get("clip_count", 0) for r in results)
     overall = "PASS" if clips_total == 0 else "FAIL"
@@ -234,17 +244,53 @@ def render_adm_validation_markdown(
         "|-------|---------------|-------|--------|",
     ]
     for r in results:
-        verdict = "FAIL ❌" if r.get("clips_found") else "PASS ✅"
+        fname = r["filename"]
+        if r.get("clips_found"):
+            verdict = "FAIL (dark casualty) ❌" if fname in dark_set else "FAIL ❌"
+        else:
+            verdict = "PASS ✅"
         peak = f"{r['peak_db_decoded']:.2f} dBTP"
         lines.append(
-            f"| {r['filename']} | {peak} | {r['clip_count']} | {verdict} |"
+            f"| {fname} | {peak} | {r['clip_count']} | {verdict} |"
         )
 
     if clips_total > 0:
+        failing = [r for r in results if r.get("clips_found")]
+        fail_count = len(failing)
+        dark_fail_count = sum(1 for r in failing if r["filename"] in dark_set)
+        tightenable_fail_count = fail_count - dark_fail_count
+
         lines += [
             "",
             f"> ⚠️ **{clips_total} inter-sample peak(s) detected** across "
-            f"{sum(1 for r in results if r.get('clips_found'))} track(s). "
-            f"Tighten true-peak ceiling by 0.5 dB and re-master.",
+            f"{fail_count} track(s).",
         ]
+        if dark_fail_count == fail_count:
+            # All flagged tracks are dark — tightening would not help.
+            lines.append(
+                "> All flagged tracks are dark-content (high_mid band "
+                "energy < 10 %). Further limiter tightening cannot "
+                "improve ADM compliance on dark-content material — the "
+                "missing high-frequency energy is the root cause. "
+                "Consider harmonic excitation during polish, or accept "
+                "the flag and ship."
+            )
+        elif dark_fail_count > 0:
+            # Partial — some tightenable, some dark.
+            lines.append(
+                f"> {tightenable_fail_count} track(s) can be improved "
+                "by tightening the true-peak ceiling by 0.5 dB and "
+                "re-mastering."
+            )
+            lines.append(
+                f"> {dark_fail_count} track(s) are dark-content "
+                "casualties (labelled above). Tightening will not help; "
+                "consider harmonic excitation in polish or accept the "
+                "flag."
+            )
+        else:
+            # No dark casualties — standard recommendation.
+            lines.append(
+                "> Tighten true-peak ceiling by 0.5 dB and re-master."
+            )
     return "\n".join(lines) + "\n"

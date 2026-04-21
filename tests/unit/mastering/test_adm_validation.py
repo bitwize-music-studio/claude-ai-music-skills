@@ -121,3 +121,54 @@ def test_render_adm_validation_markdown_clip_fail() -> None:
     md = render_adm_validation_markdown("my-album", results, encoder_used="aac", ceiling_db=-1.0)
     assert "FAIL" in md
     assert "5" in md
+    # No dark casualties → standard "tighten and re-master" advice.
+    assert "Tighten true-peak ceiling" in md
+
+
+def test_render_adm_validation_markdown_all_dark_casualties() -> None:
+    """When every failing track is a dark casualty, the advice must NOT
+    recommend tightening (which won't help for dark-content tracks).
+    Regression guard for observability bug #3."""
+    from tools.mastering.adm_validation import render_adm_validation_markdown
+    results = [
+        {"filename": "01-dark.wav", "peak_db_decoded": -0.3, "clip_count": 4,
+         "clips_found": True, "ceiling_db": -1.0, "encoder_used": "aac"},
+        {"filename": "02-dark.wav", "peak_db_decoded": -0.5, "clip_count": 2,
+         "clips_found": True, "ceiling_db": -1.0, "encoder_used": "aac"},
+    ]
+    md = render_adm_validation_markdown(
+        "my-album", results,
+        encoder_used="aac", ceiling_db=-1.0,
+        dark_casualty_filenames={"01-dark.wav", "02-dark.wav"},
+    )
+    assert "FAIL" in md
+    # Dark-casualty rows carry a distinguishing marker.
+    assert "dark casualty" in md.lower()
+    # Generic "Tighten and re-master" advice MUST NOT appear when every
+    # failure is dark — tightening would not help.
+    assert "Tighten true-peak ceiling by 0.5 dB and re-master" not in md
+    # Dark-specific advice should appear.
+    assert "harmonic excitation" in md.lower() or "cannot" in md.lower()
+
+
+def test_render_adm_validation_markdown_mixed_casualties() -> None:
+    """Mixed failures (some dark, some tightenable) → advice mentions
+    both: tighten the non-dark, skip the dark."""
+    from tools.mastering.adm_validation import render_adm_validation_markdown
+    results = [
+        {"filename": "01-dark.wav", "peak_db_decoded": -0.3, "clip_count": 4,
+         "clips_found": True, "ceiling_db": -1.0, "encoder_used": "aac"},
+        {"filename": "02-bright.wav", "peak_db_decoded": -0.4, "clip_count": 1,
+         "clips_found": True, "ceiling_db": -1.0, "encoder_used": "aac"},
+    ]
+    md = render_adm_validation_markdown(
+        "my-album", results,
+        encoder_used="aac", ceiling_db=-1.0,
+        dark_casualty_filenames={"01-dark.wav"},
+    )
+    # Both track types flagged with distinguishing labels.
+    assert "FAIL (dark casualty)" in md
+    # Advice should mention tightening for non-dark AND skipping for dark.
+    lower = md.lower()
+    assert "tightening" in lower
+    assert "dark" in lower

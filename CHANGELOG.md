@@ -6,6 +6,26 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- ADM warn-fallback reporting was inaccurate when the loop
+  short-circuited on the all-dark first check:
+  - Warning text hardcoded `_ADM_MAX_CYCLES` (the configured max)
+    instead of the actual executed count. Now reports
+    `adm_cycles_executed` + `adm_tightening_cycles` separately and
+    uses different wording when no tightening ran.
+  - `ADM_VALIDATION.md` advice contradicted the pipeline verdict —
+    recommended "Tighten true-peak ceiling by 0.5 dB and re-master"
+    even when every failure was a dark-content casualty. The
+    renderer now takes a `dark_casualty_filenames` kwarg and tailors
+    the advice: all-dark failures get harmonic-excitation guidance,
+    partial failures split advice by track class.
+  - `per_track_decisions` dict on `adm_validation` stage output —
+    records classification (`dark_casualty` / `tightenable`),
+    outcome (`not_tightened` / `diverged` / `floor_reached` /
+    `tightened`), reason, cycle, and final ceiling per clipping
+    track. Survives the all-dark short-circuit path where
+    `adm_history` and `track_ceilings` are both empty.
+
 ### Added
 - Post-QC spectral regression guard — WARN when mastering pushed a
   track's `tinniness_ratio` (high_mid/mid) above 0.6 AND the ratio
