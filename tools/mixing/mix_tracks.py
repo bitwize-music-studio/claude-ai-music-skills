@@ -1039,6 +1039,7 @@ _ANALYZER_EQ_OVERRIDE_KEYS = frozenset({
     "high_tame_db",
     "noise_reduction",
     "highpass_cutoff",
+    "excitation_db",
 })
 
 # #336: map each whitelisted EQ parameter to the analyzer issue tags
@@ -1051,6 +1052,7 @@ _ANALYZER_PARAM_REASONS: dict[str, tuple[str, ...]] = {
     "mud_cut_db":      ("muddy_low_mids",),
     "noise_reduction": ("elevated_noise_floor",),
     "highpass_cutoff": ("sub_rumble",),
+    "excitation_db":   ("already_dark",),
 }
 
 
