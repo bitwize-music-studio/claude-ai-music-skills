@@ -2089,3 +2089,71 @@ class TestTracklistNumberPadding:
         tracks = _parse_tracklist_table(text)
         assert tracks[0]['number'] == '10'
         assert tracks[1]['number'] == '12'
+
+
+class TestParseAlbumReadmeMastering:
+    """Tests for mastering frontmatter block surface."""
+
+    def test_parse_album_readme_surfaces_mastering_block(self, tmp_path: Path) -> None:
+        """Frontmatter `mastering:` block must surface as a dict on the
+        parsed result so downstream consumers (config.build_delivery_targets)
+        can apply the per-album ADM opt-in rule."""
+        from tools.state.parsers import parse_album_readme
+
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            "---\n"
+            "Title: Test Album\n"
+            "Genre: electronic\n"
+            "mastering:\n"
+            "  adm_validation_enabled: true\n"
+            "  ceiling_db: -1.5\n"
+            "---\n"
+            "\n"
+            "# Test Album\n",
+        )
+
+        result = parse_album_readme(readme)
+        assert "_error" not in result
+        assert result["mastering"] == {
+            "adm_validation_enabled": True,
+            "ceiling_db": -1.5,
+        }
+
+    def test_parse_album_readme_mastering_absent_is_empty_dict(self, tmp_path: Path) -> None:
+        """No mastering block → result['mastering'] is {} (empty dict, not
+        None). Downstream code can rely on .get() always finding a dict."""
+        from tools.state.parsers import parse_album_readme
+
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            "---\n"
+            "Title: Plain Album\n"
+            "---\n"
+            "\n"
+            "# Plain Album\n",
+        )
+
+        result = parse_album_readme(readme)
+        assert result["mastering"] == {}
+
+    def test_parse_album_readme_mastering_malformed_is_empty_dict(self, tmp_path: Path) -> None:
+        """Malformed mastering block (scalar, list, null) is treated as
+        empty — no override applied. Defensive against hand-edited READMEs."""
+        from tools.state.parsers import parse_album_readme
+
+        for malformed in ["null", "false", "some string", "- list\n  - items"]:
+            readme = tmp_path / "README.md"
+            readme.write_text(
+                "---\n"
+                "Title: Malformed\n"
+                f"mastering: {malformed}\n"
+                "---\n"
+                "\n"
+                "# Malformed\n",
+            )
+            result = parse_album_readme(readme)
+            assert result["mastering"] == {}, (
+                f"Malformed mastering value {malformed!r} should collapse to {{}}, "
+                f"got {result['mastering']!r}"
+            )
