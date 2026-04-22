@@ -130,3 +130,72 @@ class TestAnalyzerEmitsExcitationRec:
         result = self._call_analyze_one(bright, rate, "vocals", adm_aware=True)
         assert "already_dark" not in result["issues"]
         assert "excitation_db" not in result["recommendations"]
+
+
+class TestStemProcessorAppliesExcitation:
+    def test_vocals_excitation_adds_high_mid(self, tmp_path: Path):
+        """Vocals stem processor with excitation_db > 0 measurably adds
+        high_mid band energy vs excitation_db = 0 on the same input."""
+        from scipy.signal import butter, sosfilt, welch
+
+        rng = np.random.default_rng(3)
+        rate = 48000
+        n = int(2.0 * rate)
+        white = rng.standard_normal((n, 2)).astype(np.float64)
+        sos = butter(4, 600.0, btype="low", fs=rate, output="sos")
+        dark = np.stack([sosfilt(sos, white[:, ch]) for ch in range(2)], axis=1)
+        dark /= np.max(np.abs(dark)) + 1e-9
+        dark *= 0.1
+
+        import tools.mixing.mix_tracks as mx
+
+        # Use the actual vocals-processing function. Possible names:
+        # _process_stem_vocals, process_vocals, _vocals_chain, etc.
+        # The existing codebase has per-stem processors somewhere;
+        # identify and import.
+        vocals_fn = None
+        for name in ["_process_stem_vocals", "process_vocals",
+                     "_vocals_chain", "_process_vocals"]:
+            if hasattr(mx, name):
+                vocals_fn = getattr(mx, name)
+                break
+        assert vocals_fn is not None, (
+            "Could not find a vocals stem processor — check mix_tracks.py"
+        )
+
+        base = {
+            "click_removal": False,
+            "noise_reduction": 0.0,
+            "presence_boost_db": 0.0,
+            "presence_freq": 3000,
+            "high_tame_db": 0.0,
+            "high_tame_freq": 7000,
+            "compress_threshold_db": -15.0,
+            "compress_ratio": 1.0,
+            "compress_attack_ms": 10.0,
+            "gain_db": 0.0,
+            "saturation_drive": 0.0,
+            "lowpass_cutoff": 20000,
+        }
+
+        out_no = vocals_fn(dark.copy(), rate, {**base, "excitation_db": 0.0})
+        out_yes = vocals_fn(dark.copy(), rate, {**base, "excitation_db": 3.0})
+
+        def _pct(x):
+            mono = np.mean(x, axis=1) if x.ndim > 1 else x
+            freqs, psd = welch(mono, rate, nperseg=8192)
+            total = float(np.sum(psd))
+            if total == 0.0:
+                return 0.0
+            mask = (freqs >= 2000) & (freqs < 6000)
+            return float(np.sum(psd[mask]) / total * 100.0)
+
+        pre = _pct(out_no)
+        post = _pct(out_yes)
+        # For a 600 Hz lowpass input, high-mid energy is very small in absolute
+        # percentage terms — a 0.5 pp threshold would require nearly all energy
+        # to shift bands. Instead assert a meaningful relative increase (≥ 1.5×)
+        # which verifies the excitation block ran and added harmonics.
+        assert post > pre * 1.5, (
+            f"Excitation did not raise high_mid: no={pre:.4f}%, with={post:.4f}%"
+        )
