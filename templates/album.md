@@ -13,6 +13,8 @@ streaming:
   amazon_music: ""  # Fill in when released
 sheet_music:
   songbook: ""
+# mastering:  # Optional - per-album mastering settings
+#   adm_validation_enabled: true
 # slug: ""  # Optional - only uncomment if you need to override auto-generated slug
 ---
 
@@ -31,6 +33,30 @@ sheet_music:
 | **Status** | Concept |
 | **Explicit** | Yes / No |
 | **Concept** | [Brief concept description] |
+
+## Frontmatter Reference
+
+### mastering (optional)
+
+Per-album mastering settings. Currently supports:
+
+- `adm_validation_enabled: true` — opt in to Apple Digital Masters
+  inter-sample peak validation. **Defaults to OFF** even when
+  global `config.yaml::mastering.adm_validation_enabled` is `true`.
+  ADM runs the AAC encode/decode check on every mastered file and
+  can add 3-5 min/track to the pipeline. Only enable when the
+  album's source material is spectrally viable (well-balanced
+  highs) AND you're submitting the album for Apple Digital Masters
+  certification. For most Suno-generated albums, leave this off.
+
+Example (opt in for this album only):
+
+```yaml
+mastering:
+  adm_validation_enabled: true
+```
+
+Omit the block entirely to use the default (ADM off).
 
 ## Concept
 

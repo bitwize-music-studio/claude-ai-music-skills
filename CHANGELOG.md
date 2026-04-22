@@ -6,6 +6,45 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Changed (BREAKING)
+- **ADM validation is now per-album opt-in via README frontmatter**
+  (issue #353). Prior behavior: `mastering.adm_validation_enabled:
+  true` in `~/.bitwize-music/config.yaml` would run ADM on every
+  album. New behavior: the album's own README must include
+  `mastering: { adm_validation_enabled: true }` in its frontmatter.
+  Global `config.yaml` value is ignored for this key.
+
+  Context: a significant chunk of mid-April 2026 went into building
+  out the ADM pipeline — dark-casualty classification, per-track
+  ceiling tightening, harmonic excitation in polish, warn-fallback
+  sidecars, observability instrumentation (#347, #348, #349, #350,
+  #351, #352) — only to discover at the end that ADM (Apple Digital
+  Masters inter-sample peak validation) is an Apple-submission-tier
+  niche that almost never matters for Suno-generated tracks. Suno
+  output typically lacks the high-mid spectral content ADM requires,
+  so most tracks ship dark-casualty-flagged regardless of how much
+  the pipeline works at them.
+
+  Rather than rip out the ADM infrastructure — the work has real
+  value for the minority of albums that ARE submission-viable, and
+  much of the underlying machinery (warn-fallback contract,
+  per-track ceiling architecture, spectral regression guard) pays
+  off on normal mastering too — it stays enabled per-album via
+  frontmatter opt-in and defaults OFF for everyone else. No more
+  silent 3-5 min/track overhead on runs that can't pass anyway.
+
+  Operators who want ADM per album add `mastering: {
+  adm_validation_enabled: true }` to the album's README
+  frontmatter. Global `config.yaml` value is ignored for this
+  key — it's the kind of decision that should live with the
+  album, not with the operator's memory.
+
+### Added
+- Per-album `mastering:` frontmatter block. Currently accepts
+  `adm_validation_enabled`; future keys (ceiling_db, target_lufs,
+  archival_enabled) will use the same block with standard
+  frontmatter > config > default cascade.
+
 ### Fixed
 - **Analyzer recommendations never reached polish** (root cause of
   "9/10 dark_casualty" on Suno albums despite enabling
