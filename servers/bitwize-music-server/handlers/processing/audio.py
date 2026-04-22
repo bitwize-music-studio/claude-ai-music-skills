@@ -697,6 +697,17 @@ async def master_album(
         })
 
     loop = asyncio.get_running_loop()
+
+    # Per-album mastering overrides (issue #353). The album README's
+    # frontmatter `mastering:` block is the authoritative source for
+    # adm_validation_enabled (default-off semantic — see config.py's
+    # _resolve_adm_enabled). Future keys in the same block (ceiling,
+    # target_lufs, archival_enabled) will slot in the same way via
+    # build_delivery_targets' album_mastering kwarg.
+    _state_albums = (_shared.cache.get_state() or {}).get("albums", {})
+    _album_state = _state_albums.get(_normalize_slug(album_slug), {})
+    _album_mastering = _album_state.get("mastering") or {}
+
     ctx = _album_stages.MasterAlbumCtx(
         album_slug=album_slug, genre=genre,
         target_lufs=target_lufs, ceiling_db=ceiling_db,
@@ -704,6 +715,7 @@ async def master_album(
         source_subfolder=source_subfolder,
         freeze_signature=freeze_signature, new_anchor=new_anchor,
         loop=loop,
+        album_mastering=_album_mastering,
     )
 
     async def _ceiling_guard(c: _album_stages.MasterAlbumCtx) -> str | None:

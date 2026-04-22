@@ -106,6 +106,11 @@ class MasterAlbumCtx:
     freeze_signature: bool
     new_anchor: bool
     loop: asyncio.AbstractEventLoop
+    # Per-album mastering overrides from the album README frontmatter (issue
+    # #353). Populated by master_album from the state cache before pre-flight.
+    # Forwarded to build_effective_preset → build_delivery_targets so the
+    # ADM opt-in rule is applied at resolution time, not here.
+    album_mastering: dict[str, Any] = field(default_factory=dict)
 
     # ── accumulated outputs ───────────────────────────────────────────────────
     stages: dict[str, Any] = field(default_factory=dict)
@@ -326,6 +331,7 @@ async def _stage_pre_flight(ctx: MasterAlbumCtx) -> str | None:
         target_lufs_arg=ctx.target_lufs,
         ceiling_db_arg=ctx.ceiling_db,
         source_sample_rate=source_sample_rate,
+        album_mastering=ctx.album_mastering or None,
     )
     if bundle["error"] is not None:
         ctx.stages["pre_flight"] = {

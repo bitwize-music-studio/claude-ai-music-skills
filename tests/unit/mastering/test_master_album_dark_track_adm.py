@@ -55,13 +55,24 @@ def _install_album(
     audio_path: Path,
     album_slug: str,
     status: str = "In Progress",
+    mastering: dict | None = None,
 ) -> None:
+    """Install a fake album state in the cache.
+
+    ``mastering`` is the per-album mastering frontmatter block. Pass
+    ``{"adm_validation_enabled": True}`` to enable ADM for a test.
+    Defaults to ``{}`` (ADM off — the default-off semantic from issue #353).
+    """
     fake_state = {
         "albums": {
             album_slug: {
                 "path": str(audio_path),
                 "status": status,
                 "tracks": {},
+                # ADM is opt-in via frontmatter (issue #353). The mastering
+                # block here mirrors what the indexer writes when the album's
+                # README has a `mastering:` frontmatter block.
+                "mastering": mastering if mastering is not None else {},
             }
         }
     }
@@ -80,10 +91,21 @@ def _run_master_album(
     tmp_path: Path,
     album_slug: str = "dark-adm-album",
     adm_enabled: bool = True,
+    monkeypatch: pytest.MonkeyPatch | None = None,
 ) -> dict:
-    """Invoke master_album end-to-end with ADM toggled via config patching."""
+    """Invoke master_album end-to-end with ADM toggled.
+
+    When ``monkeypatch`` is supplied, re-installs the fake cache state
+    with the correct mastering block so ``adm_enabled`` is honoured.
+    """
     def _fake_resolve(slug, subfolder=""):
         return None, tmp_path
+
+    if monkeypatch is not None:
+        _install_album(
+            monkeypatch, tmp_path, album_slug,
+            mastering={"adm_validation_enabled": True} if adm_enabled else {},
+        )
 
     from tools.mastering import config as _master_config
     real_load = _master_config.load_mastering_config
@@ -117,10 +139,6 @@ def test_dark_clipping_track_not_tightened():
 # Integration test: all-dark clipping exits to warn-fallback immediately
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_all_dark_clipping_breaks_to_warn_fallback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -174,7 +192,7 @@ def test_all_dark_clipping_breaks_to_warn_fallback(
 
     monkeypatch.setattr(album_stages_mod, "_stage_mastering", _spy_stage_mastering)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     # Pipeline must complete (warn-fallback, not halt).
     assert result.get("failed_stage") is None, (

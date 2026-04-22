@@ -56,13 +56,24 @@ def _install_album(
     audio_path: Path,
     album_slug: str,
     status: str = "In Progress",
+    mastering: dict | None = None,
 ) -> None:
+    """Install a fake album state in the cache.
+
+    ``mastering`` is the per-album mastering frontmatter block. Pass
+    ``{"adm_validation_enabled": True}`` to enable ADM for a test.
+    Defaults to ``{}`` (ADM off — the default-off semantic from issue #353).
+    """
     fake_state = {
         "albums": {
             album_slug: {
                 "path": str(audio_path),
                 "status": status,
                 "tracks": {},
+                # ADM is opt-in via frontmatter (issue #353). The mastering
+                # block here mirrors what the indexer writes when the album's
+                # README has a `mastering:` frontmatter block.
+                "mastering": mastering if mastering is not None else {},
             }
         }
     }
@@ -81,16 +92,28 @@ def _run_master_album(
     tmp_path: Path,
     album_slug: str = "adm-retry-album",
     adm_enabled: bool = True,
+    monkeypatch: pytest.MonkeyPatch | None = None,
 ) -> dict:
-    """Invoke master_album with ADM toggled on/off via config patching.
+    """Invoke master_album with ADM toggled on/off.
 
-    ADM is opt-in (default false) as of the adm_validation_enabled
-    config gate. These ADM-retry tests all test ADM-specific logic, so
-    default to True and let new tests override when exercising the
-    skip path.
+    ADM is opt-in via album frontmatter (issue #353). When ``monkeypatch``
+    is supplied, this helper re-installs the fake cache state with the
+    correct mastering block so ``adm_enabled`` is honoured. Most ADM-retry
+    tests call ``_install_album`` *before* this helper and pass their own
+    ``monkeypatch`` so the mastering block can be set correctly here.
+
+    The legacy config-patch for ``adm_validation_enabled`` is kept for
+    coverage of other config keys; it has no effect on the ADM gate itself
+    (which is now controlled exclusively by the frontmatter block).
     """
     def _fake_resolve(slug, subfolder=""):
         return None, tmp_path
+
+    if monkeypatch is not None:
+        _install_album(
+            monkeypatch, tmp_path, album_slug,
+            mastering={"adm_validation_enabled": True} if adm_enabled else {},
+        )
 
     from tools.mastering import config as _master_config
     real_load = _master_config.load_mastering_config
@@ -109,10 +132,6 @@ def _run_master_album(
 # Test 1: Retry tightens ceiling and succeeds on second ADM cycle
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_tightens_ceiling_on_clips(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -164,7 +183,7 @@ def test_adm_retry_tightens_ceiling_on_clips(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture_master_track)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected pipeline to succeed, got failure: {result.get('failure_detail')}"
@@ -194,10 +213,6 @@ def test_adm_retry_tightens_ceiling_on_clips(
 # Test 2: Retry warn-falls-back after max cycles (was: halts) — #323 follow-up
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_warn_fallback_after_max_cycles(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -230,7 +245,7 @@ def test_adm_retry_warn_fallback_after_max_cycles(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     # Warn-fallback: pipeline completes rather than halting.
     assert result.get("failed_stage") is None, (
@@ -289,10 +304,6 @@ def test_adm_retry_warn_fallback_after_max_cycles(
 # Test 3: Adaptive tightening derives new ceiling from worst decoded peak
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_adaptive_ceiling_from_worst_peak(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -344,7 +355,7 @@ def test_adm_retry_adaptive_ceiling_from_worst_peak(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture_master_track)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected pipeline to succeed, got: {result.get('failure_detail')}"
@@ -365,10 +376,6 @@ def test_adm_retry_adaptive_ceiling_from_worst_peak(
 # Test 4: Hard floor at -6 dBTP never exceeded
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_respects_hard_floor(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -407,7 +414,7 @@ def test_adm_retry_respects_hard_floor(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture_master_track)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected warn-fallback completion, got: {result.get('failure_detail')}"
@@ -425,10 +432,6 @@ def test_adm_retry_respects_hard_floor(
 # Test 5: Floor-then-cycle-again break path — ceiling can't decrease further
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_breaks_when_ceiling_cannot_decrease(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -482,7 +485,7 @@ def test_adm_retry_breaks_when_ceiling_cannot_decrease(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture)
 
-    _run_master_album(tmp_path, album_slug=album_slug)
+    _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     # One master_track call per cycle-mastering pass, one track in this
     # fixture. Without the break guard this would be 3 (full budget).
@@ -499,10 +502,6 @@ def test_adm_retry_breaks_when_ceiling_cannot_decrease(
 # Test 6: Three-cycle convergence — cycle 2 is reachable and can pass
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_converges_on_third_cycle(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -555,7 +554,7 @@ def test_adm_retry_converges_on_third_cycle(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected 3-cycle convergence, got failure: {result.get('failure_detail')}"
@@ -573,10 +572,6 @@ def test_adm_retry_converges_on_third_cycle(
 # Test 7: Warn-fallback writes ADM_VALIDATION.md sidecar
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_warn_fallback_writes_sidecar(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -605,7 +600,7 @@ def test_adm_warn_fallback_writes_sidecar(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    _run_master_album(tmp_path, album_slug=album_slug)
+    _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     sidecar = tmp_path / "ADM_VALIDATION.md"
     assert sidecar.exists(), (
@@ -651,7 +646,7 @@ def test_adm_warn_fallback_runs_post_loop_stages(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug)
+    result = _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     stages = result.get("stages", {})
     for stage_name in ("metadata", "layout", "status_update"):
@@ -690,7 +685,7 @@ def test_adm_skipped_by_default(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _should_not_be_called)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=False)
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=False, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected pipeline to complete, got failure: {result.get('failure_detail')}"
@@ -712,10 +707,6 @@ def test_adm_skipped_by_default(
     ), f"Expected ADM-skipped notice, got notices: {notices}"
 
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_enabled_runs_validation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -744,7 +735,7 @@ def test_adm_enabled_runs_validation(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _clean)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None
     assert adm_called["n"] >= 1, (
@@ -756,10 +747,6 @@ def test_adm_enabled_runs_validation(
     )
 
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_failure_detail_suggests_dynamic_ceiling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -829,7 +816,7 @@ def test_adm_failure_detail_suggests_dynamic_ceiling(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _check)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True, monkeypatch=monkeypatch)
 
     assert captured_suggestions, (
         f"Expected at least one suggestion to be generated on clip failure"
@@ -911,7 +898,7 @@ def test_adm_slope_aware_scales_tighten_on_sub_linear_ripple(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected pipeline completion, got: {result.get('failure_detail')}"
@@ -929,10 +916,6 @@ def test_adm_slope_aware_scales_tighten_on_sub_linear_ripple(
 # Divergence detection: ripple grows with tightening → warn-fallback
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_divergence_triggers_warn_fallback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -977,7 +960,7 @@ def test_adm_divergence_triggers_warn_fallback(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True, monkeypatch=monkeypatch)
 
     assert result.get("failed_stage") is None, (
         f"Expected warn-fallback completion on divergent material, "
@@ -1006,10 +989,6 @@ def test_adm_divergence_triggers_warn_fallback(
 # Warn-fallback terminal notice appears in notices
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_warn_fallback_emits_terminal_notice(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1037,7 +1016,7 @@ def test_adm_warn_fallback_emits_terminal_notice(
     monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _always_clips)
     monkeypatch.setattr(album_stages_mod, "_embed_wav_metadata_fn", lambda *a, **kw: None)
 
-    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True)
+    result = _run_master_album(tmp_path, album_slug=album_slug, adm_enabled=True, monkeypatch=monkeypatch)
     notices = result.get("notices", [])
     assert any(
         "adm loop terminated" in n.lower()
@@ -1049,10 +1028,6 @@ def test_adm_warn_fallback_emits_terminal_notice(
 # Step-cap test: cycle-to-cycle tighten must not exceed _ADM_MAX_TIGHTEN_DB
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skip(
-    reason="Task 4: master_album must thread album_state['mastering'] into "
-    "build_delivery_targets before config-patching re-enables ADM in integration tests."
-)
 def test_adm_retry_caps_tighten_per_cycle(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1108,7 +1083,7 @@ def test_adm_retry_caps_tighten_per_cycle(
 
     monkeypatch.setattr(_mt_mod, "master_track", _capture)
 
-    _run_master_album(tmp_path, album_slug=album_slug)
+    _run_master_album(tmp_path, album_slug=album_slug, monkeypatch=monkeypatch)
 
     assert len(mastered_ceilings) >= 2, (
         f"Expected at least 2 cycles, got: {mastered_ceilings}"

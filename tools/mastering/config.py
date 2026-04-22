@@ -216,11 +216,17 @@ def build_effective_preset(
     target_lufs_arg: float,
     ceiling_db_arg: float,
     source_sample_rate: int | None = None,
+    album_mastering: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return an effective_preset bundle for the mastering pipeline.
 
     Consolidates the duplicated preset-construction block that used to live in
     both master_audio() and master_album() handlers (D1 review item from #304).
+
+    ``album_mastering`` is the per-album ``mastering:`` frontmatter block
+    (from the album's cached state). Forwarded unchanged to
+    ``build_delivery_targets`` so the ADM opt-in rule and any future
+    per-album overrides are applied at the correct resolution layer.
 
     Returns a dict with keys:
         preset_dict          — raw genre preset (or None if genre="")
@@ -275,6 +281,7 @@ def build_effective_preset(
         target_lufs_arg=target_lufs_arg,
         ceiling_db_arg=ceiling_db_arg,
         source_sample_rate=source_sample_rate,
+        album_mastering=album_mastering,
     )
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
