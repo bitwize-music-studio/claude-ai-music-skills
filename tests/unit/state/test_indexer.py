@@ -966,6 +966,48 @@ anchor_track: 2
         assert "no-anchor-album" in result
         assert result["no-anchor-album"]["anchor_track"] is None
 
+    def test_mastering_block_propagated_from_frontmatter(self, tmp_path):
+        """State cache must carry mastering overrides from album README
+        frontmatter so master_album's config resolution can find them."""
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Mastering Album"
+genres: ["electronic"]
+explicit: false
+mastering:
+  adm_validation_enabled: true
+  target_lufs: -13.0
+---
+
+# Mastering Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "electronic", "mastering-album",
+                         readme_text=readme_text)
+
+        result = scan_albums(content_root, "testartist")
+        assert "mastering-album" in result
+        assert result["mastering-album"]["mastering"] == {
+            "adm_validation_enabled": True,
+            "target_lufs": -13.0,
+        }
+
+    def test_mastering_block_defaults_to_empty_dict_when_absent(self, tmp_path):
+        """mastering defaults to {} when frontmatter omits it — the
+        mastering pipeline then falls through to defaults."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "no-mastering-album")
+
+        result = scan_albums(content_root, "testartist")
+        assert "no-mastering-album" in result
+        assert result["no-mastering-album"]["mastering"] == {}
+
 
 @pytest.mark.unit
 class TestScanTracks:
