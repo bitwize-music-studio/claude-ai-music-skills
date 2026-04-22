@@ -7,6 +7,20 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Analyzer recommendations never reached polish** (root cause of
+  "9/10 dark_casualty" on Suno albums despite enabling
+  `adm_aware_excitation`). `analyze_mix_issues` keyed per-stem
+  analyses by raw WAV filename stem (`01-Vocals`, `lead_vocals`, …)
+  while `mix_track_stems` looked them up by canonical `STEM_NAMES`
+  category (`vocals`, `drums`, …) from `discover_stems`. Keys
+  never matched → `stem_recs = {}` → `overrides_applied: []` →
+  excitation (and every other analyzer rec) was silently dropped.
+  Bonus bug: `_analyze_one`'s
+  `MIX_PRESETS["defaults"][stem_name]["excitation_db_when_dark"]`
+  lookup also failed for the same reason, falling back to a
+  hardcoded 2.0 for every stem regardless of type. Fix: analyzer
+  now uses `discover_stems` to canonicalize before storing
+  results, matching what polish looks up.
 - ADM warn-fallback reporting was inaccurate when the loop
   short-circuited on the all-dark first check:
   - Warning text hardcoded `_ADM_MAX_CYCLES` (the configured max)

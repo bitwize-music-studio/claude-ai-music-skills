@@ -485,19 +485,37 @@ async def analyze_mix_issues(
 
     # If no root WAVs, check stems/ for per-track directories and analyze
     # every stem in each track (per-stem diagnostics).
+    #
+    # CRITICAL: key the per-stem analyses by the CANONICAL STEM_NAMES
+    # category (vocals, drums, ...) — not by the raw WAV filename stem.
+    # polish's `mix_track_stems` looks up `analyzer_recs[stem_name]` where
+    # stem_name is the canonical category from `discover_stems`. If the
+    # analyzer stored keys by filename stem (e.g. "01-Vocals"), polish
+    # would never match the lookup and `overrides_applied` would be empty
+    # even when the analyzer emitted recommendations (including the
+    # excitation_db rec that fixes dark-material ADM casualties).
     stems_mode = False
-    stem_track_map: list[tuple[str, list[Path]]] = []
+    # Per-track categorized stem list: (track_name, [(category, path), ...])
+    stem_track_map: list[tuple[str, list[tuple[str, Path]]]] = []
     if not wav_files:
         stems_dir = audio_dir / "stems"
         if stems_dir.is_dir():
+            from tools.mixing.mix_tracks import discover_stems
             track_dirs = sorted([d for d in stems_dir.iterdir() if d.is_dir()])
             for td in track_dirs:
-                stem_wavs = sorted([
-                    f for f in td.iterdir()
-                    if f.suffix.lower() == ".wav"
-                ])
-                if stem_wavs:
-                    stem_track_map.append((td.name, stem_wavs))
+                categorized = discover_stems(td)
+                if not categorized:
+                    continue
+                # Flatten: for each category, take the first file (multi-file
+                # categories like multiple drum stems share one analysis —
+                # polish combines them during processing).
+                entries: list[tuple[str, Path]] = []
+                for category, paths in categorized.items():
+                    path_list = [paths] if isinstance(paths, str) else list(paths)
+                    if path_list:
+                        entries.append((category, Path(path_list[0])))
+                if entries:
+                    stem_track_map.append((td.name, entries))
             if stem_track_map:
                 stems_mode = True
 
@@ -525,15 +543,18 @@ async def analyze_mix_issues(
 
     track_analyses: list[dict[str, Any]] = []
     if stems_mode:
-        for track_name, stem_wavs in stem_track_map:
+        for track_name, stem_entries in stem_track_map:
             stems_result: dict[str, dict[str, Any]] = {}
             track_issues: set[str] = set()
-            for stem_wav in stem_wavs:
-                stem_name = stem_wav.stem
+            for category, stem_wav in stem_entries:
+                # Pass the CATEGORY as stem_name so _analyze_one's
+                # MIX_PRESETS["defaults"][stem_name] lookup finds the
+                # per-stem config (e.g. vocals → excitation_db_when_dark
+                # 2.5, drums → 0.0) instead of falling back to defaults.
                 analysis = await loop.run_in_executor(
-                    None, _analyze_one, stem_wav, stem_name,
+                    None, _analyze_one, stem_wav, category,
                 )
-                stems_result[stem_name] = analysis
+                stems_result[category] = analysis
                 track_issues.update(
                     i for i in analysis["issues"] if i != "none_detected"
                 )
