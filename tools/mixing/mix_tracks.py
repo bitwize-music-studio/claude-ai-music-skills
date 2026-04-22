@@ -43,6 +43,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from tools.mixing.excitation import apply_harmonic_excitation
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -1039,6 +1040,7 @@ _ANALYZER_EQ_OVERRIDE_KEYS = frozenset({
     "high_tame_db",
     "noise_reduction",
     "highpass_cutoff",
+    "excitation_db",
 })
 
 # #336: map each whitelisted EQ parameter to the analyzer issue tags
@@ -1051,6 +1053,7 @@ _ANALYZER_PARAM_REASONS: dict[str, tuple[str, ...]] = {
     "mud_cut_db":      ("muddy_low_mids",),
     "noise_reduction": ("elevated_noise_floor",),
     "highpass_cutoff": ("sub_rumble",),
+    "excitation_db":   ("already_dark",),
 }
 
 
@@ -1168,6 +1171,11 @@ def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None,
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs (~7 kHz)
     high_tame_db = settings.get('high_tame_db', -2.0)
     high_tame_freq = settings.get('high_tame_freq', 7000)
@@ -1219,6 +1227,11 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     presence_freq = settings.get('presence_freq', 3000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
+
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs — slightly more aggressive than lead for de-essing
     high_tame_db = settings.get('high_tame_db', -2.5)
@@ -1367,6 +1380,11 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None,
     if mid_boost_db != 0:
         data = apply_eq(data, rate, freq=mid_freq, gain_db=mid_boost_db, q=0.8)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs — control digital brightness
     high_tame_db = settings.get('high_tame_db', -1.5)
     high_tame_freq = settings.get('high_tame_freq', 9000)
@@ -1428,6 +1446,11 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None,
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.2)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs (~8 kHz)
     high_tame_db = settings.get('high_tame_db', -1.5)
     high_tame_freq = settings.get('high_tame_freq', 8000)
@@ -1488,6 +1511,11 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     presence_freq = settings.get('presence_freq', 2500)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=0.8)
+
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~9 kHz)
     high_tame_db = settings.get('high_tame_db', -1.5)
@@ -1551,6 +1579,11 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs (~9 kHz) — gentle
     high_tame_db = settings.get('high_tame_db', -1.0)
     high_tame_freq = settings.get('high_tame_freq', 9000)
@@ -1613,6 +1646,11 @@ def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None,
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs (~7 kHz) — aggressive, brass is piercing
     high_tame_db = settings.get('high_tame_db', -2.0)
     high_tame_freq = settings.get('high_tame_freq', 7000)
@@ -1670,6 +1708,11 @@ def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = No
     presence_freq = settings.get('presence_freq', 2500)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
+
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~8 kHz) — gentle, preserve breathiness
     high_tame_db = settings.get('high_tame_db', -1.0)
@@ -1733,6 +1776,11 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
+
     # Tame highs (~10 kHz) — highest of all stems, preserve shimmer
     high_tame_db = settings.get('high_tame_db', -1.0)
     high_tame_freq = settings.get('high_tame_freq', 10000)
@@ -1784,6 +1832,11 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None,
     mud_freq = settings.get('mud_freq', 300)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
+
+    # Harmonic excitation — adds upper harmonics before high tame
+    excitation_db = settings.get('excitation_db', 0.0)
+    if excitation_db > 0:
+        data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs
     high_tame_db = settings.get('high_tame_db', -1.5)

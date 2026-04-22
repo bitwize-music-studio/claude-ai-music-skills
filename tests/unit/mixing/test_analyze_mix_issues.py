@@ -16,11 +16,12 @@ if str(SERVER_DIR) not in sys.path:
 
 
 def test_resolve_analyzer_thresholds_defaults():
-    """With no preset overrides, resolver returns (0.10, 0.25)."""
+    """With no preset overrides, resolver returns (0.10, 0.25, False)."""
     from handlers.processing.mixing import _resolve_analyzer_thresholds
-    dark, harsh = _resolve_analyzer_thresholds()
+    dark, harsh, adm_aware = _resolve_analyzer_thresholds()
     assert dark == pytest.approx(0.10)
     assert harsh == pytest.approx(0.25)
+    assert adm_aware is False
 
 
 def test_dark_condition_emits_high_tame_zero_and_already_dark_issue():

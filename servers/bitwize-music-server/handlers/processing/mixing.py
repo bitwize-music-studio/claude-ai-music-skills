@@ -281,28 +281,33 @@ def _resolve_analyzer_peak_ratio(
     return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
 
 
-def _resolve_analyzer_thresholds() -> tuple[float, float]:
-    """Load (dark_high_mid_ratio, harsh_high_mid_ratio) from mix presets.
+def _resolve_analyzer_thresholds() -> tuple[float, float, bool]:
+    """Load (dark_high_mid_ratio, harsh_high_mid_ratio, adm_aware_excitation)
+    from mix presets.
 
-    Falls back to (0.10, 0.25) when the analyzer preset block is absent.
-    Values are consumed by `_analyze_one` for the dark-track and
-    harsh-highmids branches respectively (#336).
+    Falls back to (0.10, 0.25, False) when the analyzer preset block is absent.
+    Values are consumed by `_build_analyzer` for the dark-track and
+    harsh-highmids branches respectively (#336), and by the new
+    adm_aware_excitation path that emits an excitation_db recommendation
+    for dark-classified stems when the flag is enabled.
     """
     try:
         from tools.mixing.mix_tracks import load_mix_presets
     except ImportError:
-        return 0.10, 0.25
+        return 0.10, 0.25, False
 
     presets = load_mix_presets()
     analyzer = presets.get("defaults", {}).get("analyzer", {})
     dark = float(analyzer.get("dark_high_mid_ratio", 0.10))
     harsh = float(analyzer.get("harsh_high_mid_ratio", 0.25))
-    return dark, harsh
+    adm_aware = bool(analyzer.get("adm_aware_excitation", False))
+    return dark, harsh, adm_aware
 
 
 def _build_analyzer(
     dark_ratio: float = 0.10,
     harsh_ratio: float = 0.25,
+    adm_aware_excitation: bool = False,
 ) -> Callable[..., dict[str, Any]]:
     """Return an `analyze_one` callable bound to the given thresholds.
 
@@ -314,6 +319,10 @@ def _build_analyzer(
     Args:
         dark_ratio: high_mid_ratio below which ``already_dark`` fires.
         harsh_ratio: high_mid_ratio above which ``harsh_highmids`` fires.
+        adm_aware_excitation: When True, dark-classified stems receive an
+            ``excitation_db`` recommendation sourced from the stem's
+            ``excitation_db_when_dark`` preset field. Defaults to False so
+            existing behavior is unchanged unless the preset opts in.
 
     Returns:
         Callable ``analyze_one(data, rate, *, filename, stem_name, genre)``
@@ -376,6 +385,23 @@ def _build_analyzer(
                 # would compound the darkness in polish.
                 result["issues"].append("already_dark")
                 result["recommendations"]["high_tame_db"] = 0.0
+                if adm_aware_excitation:
+                    # Pull per-stem target from the preset; fall back to
+                    # 2.0 dB as a safe mid-ground if the preset doesn't
+                    # declare one. Drums and bass keep 0.0 (their
+                    # excitation_db_when_dark preset field is 0.0).
+                    try:
+                        from tools.mixing.mix_tracks import MIX_PRESETS
+                    except ImportError:
+                        MIX_PRESETS = {}
+                    preset_excitation = float(
+                        MIX_PRESETS
+                        .get("defaults", {})
+                        .get(stem_name or "", {})
+                        .get("excitation_db_when_dark", 2.0)
+                    )
+                    if preset_excitation > 0:
+                        result["recommendations"]["excitation_db"] = preset_excitation
 
         # Click detection (sudden amplitude spikes).
         #
@@ -479,8 +505,12 @@ async def analyze_mix_issues(
         return _safe_json({"error": f"No WAV files found in {audio_dir}"})
 
     # Resolve analyzer thresholds once per run (preset-configurable, #336).
-    dark_ratio, harsh_ratio = _resolve_analyzer_thresholds()
-    analyze_core = _build_analyzer(dark_ratio=dark_ratio, harsh_ratio=harsh_ratio)
+    dark_ratio, harsh_ratio, adm_aware = _resolve_analyzer_thresholds()
+    analyze_core = _build_analyzer(
+        dark_ratio=dark_ratio,
+        harsh_ratio=harsh_ratio,
+        adm_aware_excitation=adm_aware,
+    )
 
     def _analyze_one(
         wav_path: Path, stem_name: str | None = None,

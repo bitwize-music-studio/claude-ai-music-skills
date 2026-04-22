@@ -46,6 +46,16 @@ defaults:
     # (high_mid_ratio > harsh_high_mid_ratio) get high_tame_db: -2.0.
     dark_high_mid_ratio: 0.10
     harsh_high_mid_ratio: 0.25
+    # When true, stems classified `already_dark` (high_mid_ratio <
+    # dark_high_mid_ratio) get a harmonic excitation recommendation
+    # from _analyze_one. Per-stem intensity comes from each stem's
+    # `excitation_db_when_dark` field. Off by default — enabling
+    # changes the sound of dark-material polish (adds synthetic
+    # upper harmonics via tanh saturation); see the plan doc
+    # 2026-04-22-harmonic-excitation-polish.md for rationale and
+    # caveats. Pair with mastering's adm_validation_enabled when
+    # your target is Apple Digital Masters submission.
+    adm_aware_excitation: false
   # Click removal is on for every stem (#323 comment). The threshold
   # defaults to `click_peak_ratio: 15.0` (same as the analyzer in
   # `analyze_mix_issues`) so polish and analysis report the same
@@ -69,6 +79,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 2.5
   backing_vocals:
     click_removal: true
     noise_reduction: 0.5
@@ -83,6 +95,8 @@ defaults:
     gain_db: -1.5
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 2.0
   drums:
     click_removal: true
     compress_threshold_db: -12.0
@@ -92,6 +106,8 @@ defaults:
     saturation_drive: 0
     transient_attack_db: 0
     transient_sustain_db: 0
+    excitation_db: 0.0
+    excitation_db_when_dark: 0.0
   bass:
     click_removal: true
     highpass_cutoff: 30
@@ -104,6 +120,8 @@ defaults:
     saturation_drive: 0
     sub_bass_exciter: 0
     sub_bass_freq: 80
+    excitation_db: 0.0
+    excitation_db_when_dark: 0.0
   synth:
     click_removal: true
     highpass_cutoff: 80
@@ -118,6 +136,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 1.5
   guitar:
     click_removal: true
     highpass_cutoff: 80
@@ -134,6 +154,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 1.5
   keyboard:
     click_removal: true
     highpass_cutoff: 40
@@ -150,6 +172,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 1.5
   strings:
     click_removal: true
     highpass_cutoff: 35
@@ -166,6 +190,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 2.0
   brass:
     click_removal: true
     highpass_cutoff: 60
@@ -181,6 +207,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 1.5
   woodwinds:
     click_removal: true
     highpass_cutoff: 50
@@ -196,6 +224,8 @@ defaults:
     gain_db: 0.0
     saturation_drive: 0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 2.0
   percussion:
     click_removal: true
     highpass_cutoff: 60
@@ -211,6 +241,8 @@ defaults:
     transient_attack_db: 0
     transient_sustain_db: 0
     saturation_drive: 0
+    excitation_db: 0.0
+    excitation_db_when_dark: 2.0
   other:
     click_removal: true
     noise_reduction: 0.3
@@ -220,6 +252,8 @@ defaults:
     high_tame_freq: 8000
     gain_db: 0.0
     lowpass_cutoff: 20000
+    excitation_db: 0.0
+    excitation_db_when_dark: 1.0
   bus:
     compress_threshold_db: -14.0
     compress_ratio: 2.5
