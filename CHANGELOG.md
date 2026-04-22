@@ -27,6 +27,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
     `adm_history` and `track_ceilings` are both empty.
 
 ### Added
+- Harmonic excitation in polish — `apply_harmonic_excitation`
+  DSP primitive + per-stem `excitation_db` preset setting.
+  When `defaults.analyzer.adm_aware_excitation: true` in the
+  mix preset, dark-classified stems (high_mid band_energy < 10 %)
+  get synthetic upper-harmonic content added during polish via
+  tanh saturation → high-pass → attenuate → mix. Gives
+  mastering's limiter room to work on dark Suno material that
+  would otherwise ship with ADM inter-sample peak flags. Off by
+  default — enable per preset when targeting ADM compliance.
+  See `docs/superpowers/plans/2026-04-22-harmonic-excitation-polish.md`.
 - Post-QC spectral regression guard — WARN when mastering pushed a
   track's `tinniness_ratio` (high_mid/mid) above 0.6 AND the ratio
   grew by more than +0.10 from pre-master. Preset-tunable via

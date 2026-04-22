@@ -393,7 +393,7 @@ def _build_analyzer(
                     try:
                         from tools.mixing.mix_tracks import MIX_PRESETS
                     except ImportError:
-                        MIX_PRESETS = {}  # type: ignore[assignment]
+                        MIX_PRESETS = {}
                     preset_excitation = float(
                         MIX_PRESETS
                         .get("defaults", {})
