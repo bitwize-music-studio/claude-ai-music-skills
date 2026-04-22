@@ -193,6 +193,16 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
                 parsed_layout = {'default_transition': dt_norm}
     result['layout'] = parsed_layout
 
+    # Per-album mastering overrides (issue #353). The frontmatter
+    # `mastering:` block carries keys that override config.yaml::mastering
+    # for this album only. Malformed input collapses to {} so downstream
+    # consumers can rely on .get() always finding a dict.
+    mastering_raw = fm.get('mastering')
+    if isinstance(mastering_raw, dict):
+        result['mastering'] = mastering_raw
+    else:
+        result['mastering'] = {}
+
     # Streaming URLs from frontmatter
     streaming_fm = fm.get('streaming', {})
     if isinstance(streaming_fm, dict):

@@ -98,12 +98,28 @@ def load_mastering_config() -> dict[str, Any]:
     return result
 
 
-def resolve_mastering_targets(
+def _resolve_adm_enabled(album_mastering: dict[str, Any] | None) -> bool:
+    """Per-album ADM resolution: frontmatter-required, default OFF.
+
+    Returns True only when the album's frontmatter explicitly sets
+    mastering.adm_validation_enabled to a truthy value. Absent block,
+    absent key, and falsy values all resolve to False.
+    """
+    if not album_mastering:
+        return False
+    if "adm_validation_enabled" not in album_mastering:
+        return False
+    return bool(album_mastering["adm_validation_enabled"])
+
+
+def build_delivery_targets(
     config: dict[str, Any],
+    *,
     preset: dict[str, Any] | None,
     target_lufs_arg: float,
     ceiling_db_arg: float,
     source_sample_rate: int | None = None,
+    album_mastering: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resolve effective mastering targets from config + preset + explicit args.
 
@@ -115,6 +131,11 @@ def resolve_mastering_targets(
     ``target_lufs_arg`` defaults to -14.0 and ``ceiling_db_arg`` to -1.0 in
     handler signatures; a value equal to the default is treated as "not
     explicitly set" so the preset can take precedence.
+
+    ``album_mastering`` is the per-album ``mastering:`` frontmatter block
+    (from the album's README). For ``adm_validation_enabled`` specifically,
+    this is the ONLY source that enables ADM — the global config.yaml value
+    is ignored for this key (see ``_resolve_adm_enabled``).
     """
     # Loudness target
     if target_lufs_arg != -14.0:
@@ -159,9 +180,15 @@ def resolve_mastering_targets(
         "output_sample_rate": output_sample_rate,
         "archival_enabled": bool(config.get("archival_enabled", False)),
         "adm_aac_encoder": str(config.get("adm_aac_encoder", "aac")),
-        "adm_validation_enabled": bool(
-            config.get("adm_validation_enabled", False)
-        ),
+        # Per-album opt-in for ADM validation (issue #353). The album's
+        # README frontmatter `mastering.adm_validation_enabled: true` is
+        # the ONLY path that enables ADM — global config.yaml setting is
+        # ignored for this key. ADM is an Apple-submission-tier niche
+        # that rarely matters for Suno workflows and shouldn't silently
+        # add 3-5 min/track to every run. Other mastering.* frontmatter
+        # keys (future scope) follow the standard frontmatter > config
+        # > default cascade.
+        "adm_validation_enabled": _resolve_adm_enabled(album_mastering),
     }
 
     if source_sample_rate is not None:
@@ -176,6 +203,11 @@ def resolve_mastering_targets(
     return targets
 
 
+# Backward-compatibility alias — callers that imported resolve_mastering_targets
+# before the rename still work. New code should use build_delivery_targets.
+resolve_mastering_targets = build_delivery_targets
+
+
 def build_effective_preset(
     *,
     genre: str,
@@ -184,11 +216,17 @@ def build_effective_preset(
     target_lufs_arg: float,
     ceiling_db_arg: float,
     source_sample_rate: int | None = None,
+    album_mastering: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return an effective_preset bundle for the mastering pipeline.
 
     Consolidates the duplicated preset-construction block that used to live in
     both master_audio() and master_album() handlers (D1 review item from #304).
+
+    ``album_mastering`` is the per-album ``mastering:`` frontmatter block
+    (from the album's cached state). Forwarded unchanged to
+    ``build_delivery_targets`` so the ADM opt-in rule and any future
+    per-album overrides are applied at the correct resolution layer.
 
     Returns a dict with keys:
         preset_dict          — raw genre preset (or None if genre="")
@@ -243,6 +281,7 @@ def build_effective_preset(
         target_lufs_arg=target_lufs_arg,
         ceiling_db_arg=ceiling_db_arg,
         source_sample_rate=source_sample_rate,
+        album_mastering=album_mastering,
     )
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]

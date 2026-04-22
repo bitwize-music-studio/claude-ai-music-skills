@@ -230,7 +230,7 @@ def test_opus_safe_preset_applies_1_5_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True}
     result = resolve_mastering_targets(
-        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
     )
     assert result["ceiling_db"] == -1.5
 
@@ -243,7 +243,7 @@ def test_opus_safe_does_not_override_explicit_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True}
     result = resolve_mastering_targets(
-        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-2.0
+        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-2.0
     )
     assert result["ceiling_db"] == -2.0
 
@@ -256,7 +256,7 @@ def test_opus_safe_does_not_override_preset_true_peak_ceiling() -> None:
               "archival_enabled": False, "adm_aac_encoder": "aac"}
     preset = {"opus_safe": True, "true_peak_ceiling": -1.2}
     result = resolve_mastering_targets(
-        config, preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
+        config, preset=preset, target_lufs_arg=-14.0, ceiling_db_arg=-1.0
     )
     assert result["ceiling_db"] == -1.2
 
