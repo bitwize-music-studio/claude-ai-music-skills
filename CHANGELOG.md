@@ -39,6 +39,19 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   key — it's the kind of decision that should live with the
   album, not with the operator's memory.
 
+### Changed
+- **Opus skills migrated from 4.6 to 4.7** (#319). Bumped `model:`
+  frontmatter on the seven Opus-tier skills: `album-conceptualizer`,
+  `lyric-refiner`, `lyric-reviewer`, `lyric-writer`, `researchers-legal`,
+  `researchers-verifier`, `suno-engineer`. Co-author line in `CLAUDE.md`,
+  `CONTRIBUTING.md`, `.github/SECURITY.md`, and `.github/pull_request_template.md`
+  updated to `Claude Opus 4.7`. Docstring example in `tools/state/parsers.py`
+  and schema example in `reference/state-schema.md` updated to use the
+  current model ID. Sonnet/Haiku skills were already on current versions
+  and required no changes. CI skill-frontmatter regex already admits 4.7
+  IDs. No fixed thinking budgets exist in the repo, so 4.7's
+  adaptive-thinking-only constraint is a no-op here.
+
 ### Added
 - Per-album `mastering:` frontmatter block. Currently accepts
   `adm_validation_enabled`; future keys (ceiling_db, target_lufs,

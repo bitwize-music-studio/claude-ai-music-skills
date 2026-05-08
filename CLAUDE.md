@@ -275,7 +275,7 @@ Currently supports **Suno** (default). Service-specific template sections marked
 | `feat!:` | MAJOR |
 | `docs:`, `chore:` | None |
 
-**Co-author line**: `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`
+**Co-author line**: `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
 
 **Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 
