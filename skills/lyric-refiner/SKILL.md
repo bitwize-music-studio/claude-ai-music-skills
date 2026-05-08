@@ -60,7 +60,7 @@ The refiner **must not** fail the entire run just because *some* vocal tracks ar
 
 Run all passes autonomously. No human checkpoints between passes.
 
-1. **Load override** — Call `load_override("lyric-writing-guide.md")` for user style preferences
+1. **Load override** — Call `load_override("lyric-writing-guide.md")` for user style preferences. **Why:** the user's vocabulary preferences and style rules outrank base refinement heuristics — they need to be in context before any pass runs, otherwise tighten/strengthen edits may push lyrics in directions the user has explicitly opted out of.
 2. **Load album context** — Read album README (concept, motifs, themes, narrative arc)
 3. **Read all track lyrics** — Build full picture before touching anything
 4. **Execute passes** — Run each pass on every in-scope track sequentially
@@ -159,7 +159,7 @@ Every pass must follow these rules:
 3. **Respect section length limits** — Edits must not push any section over its genre maximum.
 4. **Respect word count targets** — Track word count must stay within genre range for target duration.
 5. **Respect override preferences** — User's lyric-writing-guide.md preferences take precedence.
-6. **Early exit** — If a pass produces zero changes across all in-scope tracks, skip remaining passes and report: "Early exit after pass N — no further improvements found."
+6. **Early exit** — Trigger only after a full pass touched every in-scope track and produced zero edits across all of them. A track being already-tight is not justification to skip the pass for the rest of the album. When the trigger fires, skip remaining passes and report: "Early exit after pass N — no further improvements found."
 
 ---
 
