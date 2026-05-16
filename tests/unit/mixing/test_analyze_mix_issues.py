@@ -15,9 +15,15 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 
-def test_resolve_analyzer_thresholds_defaults():
+def test_resolve_analyzer_thresholds_defaults(monkeypatch):
     """With no preset overrides, resolver returns (0.10, 0.25, False)."""
+    import tools.mixing.mix_tracks as mix_tracks
     from handlers.processing.mixing import _resolve_analyzer_thresholds
+
+    # Stub load_mix_presets so the test doesn't read the host's
+    # ~/bitwize-music/overrides/mix-presets.yaml — see #360.
+    monkeypatch.setattr(mix_tracks, "load_mix_presets", lambda: {"defaults": {}})
+
     dark, harsh, adm_aware = _resolve_analyzer_thresholds()
     assert dark == pytest.approx(0.10)
     assert harsh == pytest.approx(0.25)
