@@ -19,7 +19,7 @@ pyyaml==6.0.3
 matchering==2.0.6
 pyloudnorm==0.2.0
 scipy==1.17.1
-numpy==2.4.4
+numpy==2.4.6
 soundfile==0.13.1
 mutagen==1.47.0
 
@@ -44,7 +44,7 @@ reportlab==4.5.1
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.43.7
+boto3==1.43.12
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
@@ -55,4 +55,4 @@ psycopg2-binary==2.9.12
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================
-playwright==1.59.0
+playwright==1.60.0
