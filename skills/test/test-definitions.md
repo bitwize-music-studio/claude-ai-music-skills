@@ -1123,7 +1123,6 @@ Verify it includes:
 - Sonnet 4.5 for most tasks
 - Haiku 4.5 for pattern matching
 - "Why different models?" explanation
-- Reference to /skill-model-updater check command
 
 ### TEST: README has visual workflow diagram (quick win #6)
 Read README.md "## How It Works" section.

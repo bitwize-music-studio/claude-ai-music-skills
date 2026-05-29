@@ -13,11 +13,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 - **Added per-skill `effort:` levels** on Opus/Sonnet skills — `max` for core
   creative work (lyric writing/refinement/review, album concept), `high`/`medium`/
   `low` by task. Haiku skills omit `effort:` (unsupported on that tier) (#366).
-- **`skill-model-updater` repurposed** from a per-release version bumper into an
-  alias/effort auditor (and pinned→alias migrator); aliases make version bumps
-  unnecessary.
-- Updated `model-strategy.md`, `SKILL_INDEX.md`, the skill test suite, and the
-  commit co-author convention to reflect aliases, effort, and Opus 4.8.
+- **Removed the `skill-model-updater` skill** (53 skills total, down from 54). Its
+  per-release version-bumping job is obsolete under aliases, and the alias/effort
+  hygiene it would have audited is now enforced by the test suite.
+- Updated `model-strategy.md`, `SKILL_INDEX.md`, `docs/skills.md`, the skill test
+  suite, and the commit co-author convention to reflect aliases, effort, and Opus 4.8.
 
 ## [0.91.0] - 2026-05-08
 

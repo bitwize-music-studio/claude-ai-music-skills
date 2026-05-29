@@ -93,7 +93,7 @@ Compare `plugin_version` in state.json against current version in `${CLAUDE_PLUG
 
 ## Step 5: (Removed)
 
-Skill model checking is no longer part of session start. Run `/bitwize-music:skill-model-updater check` manually when new Claude models are released.
+Skill model checking is no longer part of session start. Skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene — so no manual model checking is needed when new Claude models are released.
 
 ## Step 6: Report From State Cache
 

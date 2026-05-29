@@ -28,8 +28,8 @@ back to `high` on Sonnet); `max` is honored on all Opus/Sonnet tiers.
 
 | Effort | Used for |
 |--------|----------|
-| `max` | Core creative output where quality is paramount — lyric writing/refinement/review, album concept |
-| `high` | Deep research, fact verification, legal interpretation, creative copy, prompt engineering |
+| `max` | Core creative output where quality is paramount — lyric writing/refinement/review, album concept, Suno prompt engineering |
+| `high` | Deep research, fact verification, legal interpretation, creative copy |
 | `medium` | Moderate-judgment coordination and structured creative tasks |
 | `low` | Script-running / coordination skills with little LLM reasoning |
 
@@ -37,11 +37,11 @@ Per-skill effort assignments:
 
 | Effort | Skills |
 |--------|--------|
-| `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer` |
-| `high` | `suno-engineer`, `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
+| `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
+| `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
 | `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `genre-creator`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
 | `low` | `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
-| *(none)* | All 17 Haiku skills — effort unsupported |
+| *(none)* | All 16 Haiku skills — effort unsupported |
 
 ---
 
@@ -206,7 +206,7 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ---
 
-## Haiku Skills (`model: haiku`, 17 skills)
+## Haiku Skills (`model: haiku`, 16 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 
@@ -236,9 +236,6 @@ These skills perform simple, rule-based operations with no creative judgment.
 
 ### setup
 **Why Haiku**: Detects Python environment and checks for installed dependencies. Rule-based checks: run commands, parse output, show appropriate installation instructions. No judgment - just environment detection and templated guidance.
-
-### skill-model-updater
-**Why Haiku**: Audits that skills use tier aliases (`opus`/`sonnet`/`haiku`) and valid effort levels, and can migrate any stray pinned model IDs to aliases. Pattern matching and replacement — no judgment about which tier to use (that's the deliberate per-skill choice documented here). With aliases auto-tracking the frontier, per-release version bumps are no longer needed.
 
 ### test
 **Why Haiku**: Runs predefined test suites. Executes checks and reports pass/fail. Tests are already defined - this just runs them and formats output.
@@ -302,8 +299,8 @@ Is it a script-runner / coordinator with little LLM reasoning?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus (`opus`) | 7 | 13.0% | Music-defining output, high error cost |
-| Sonnet (`sonnet`) | 30 | 55.6% | Reasoning, coordination, moderate creativity |
-| Haiku (`haiku`) | 17 | 31.5% | Rule-based operations, no judgment |
+| Opus (`opus`) | 7 | 13.2% | Music-defining output, high error cost |
+| Sonnet (`sonnet`) | 30 | 56.6% | Reasoning, coordination, moderate creativity |
+| Haiku (`haiku`) | 16 | 30.2% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

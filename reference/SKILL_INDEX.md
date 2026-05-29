@@ -102,7 +102,6 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...run plugin tests | `/test` |
-| ...audit skill model aliases & effort levels | `/skill-model-updater` |
 
 ---
 
@@ -157,7 +156,6 @@ Quick-reference guide for finding the right skill for any task.
 | [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
 | [`setup`](/skills/setup/SKILL.md) | Verify environment and dependencies | First-time installation check |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
-| [`skill-model-updater`](/skills/skill-model-updater/SKILL.md) | Audit model aliases & effort levels, migrate pinned IDs to aliases | Verifying model/effort hygiene across skills |
 | [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno V5 prompting, genre selection | Crafting optimal Suno style prompts |
 | [`test`](/skills/test/SKILL.md) | Run automated tests to validate plugin integrity | Verifying plugin works correctly |
 | [`tutorial`](/skills/tutorial/SKILL.md) | Interactive guided album creation | Learning the workflow step-by-step |
@@ -399,7 +397,6 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/promote-idea` - Idea → album orchestration
 - `/rename` - File/directory renaming
 - `/setup` - Environment detection
-- `/skill-model-updater` - Alias/effort audit
 - `/test` - Run predefined checks
 - `/validate-album` - Structure validation
 

@@ -3,7 +3,7 @@ name: suno-engineer
 description: Constructs technical Suno V5/V5.5 style prompts, selects genres, and optimizes generation settings. Use when creating or refining Suno prompts for track generation.
 argument-hint: <track-file-path or "create prompt for [concept]">
 model: opus
-effort: high
+effort: max
 prerequisites:
   - lyric-writer
 allowed-tools:
