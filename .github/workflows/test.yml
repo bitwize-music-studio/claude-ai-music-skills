@@ -101,8 +101,9 @@ jobs:
         import re
 
         REQUIRED_FIELDS = ['name', 'description', 'model']
-        # Pattern: claude-{tier}-{major}[-{minor}][-{date}] e.g. claude-opus-4-6 or claude-opus-4-5-20251101
-        MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+(-\d+)?(-\d{8})?$'
+        # Skills must use a tier alias (opus/sonnet/haiku) or inherit/default —
+        # never a pinned model ID. Aliases auto-track the frontier model.
+        MODEL_PATTERN = r'^(opus|sonnet|haiku|inherit|default)$'
 
         skill_dirs = [d for d in os.listdir('skills') if os.path.isdir(f'skills/{d}')]
 
@@ -136,7 +137,7 @@ jobs:
                 if field not in frontmatter:
                     frontmatter_errors.append(f'{skill_md_path}: missing required field \"{field}\"')
 
-            # Validate model format (allows new versions without updating check)
+            # Validate model format (alias-only — pinned IDs are rejected)
             if 'model' in frontmatter and not re.match(MODEL_PATTERN, frontmatter['model']):
                 frontmatter_errors.append(f'{skill_md_path}: invalid model format \"{frontmatter[\"model\"]}\"')
 
