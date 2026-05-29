@@ -129,25 +129,24 @@ done
 ```
 
 ### TEST: All model references are valid
-Each skill's `model:` field should use a **tier alias** so it automatically tracks
+Each skill's `model:` field MUST use a **tier alias** so it automatically tracks
 the frontier model of that tier (no per-release edits):
 ```
 opus | sonnet | haiku
 ```
-Special values `inherit` / `default` and fully pinned IDs
-(e.g. `claude-opus-4-8`) are also accepted, but aliases are preferred.
+The special values `inherit` / `default` are also accepted. Pinned model IDs
+(e.g. `claude-opus-4-8`) are **rejected** — use an alias.
 
 Examples of valid models:
 - `opus`
 - `sonnet`
 - `haiku`
-- `claude-opus-4-8` (pinned — still valid)
 
 Check with:
 ```bash
 for f in skills/*/SKILL.md; do
   model=$(grep -E '^model:' "$f" | sed 's/model: *//')
-  if ! echo "$model" | grep -qE '^(opus|sonnet|haiku|inherit|default|claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?)$'; then
+  if ! echo "$model" | grep -qE '^(opus|sonnet|haiku|inherit|default)$'; then
     echo "INVALID: $f has model: $model"
   fi
 done

@@ -9,12 +9,10 @@ pytestmark = pytest.mark.plugin
 # Required frontmatter fields
 REQUIRED_SKILL_FIELDS = {'name', 'description', 'model'}
 
-# Valid model values: tier aliases (preferred — auto-track the frontier model of
-# that tier), special values, or a fully pinned model ID (still accepted).
-MODEL_PATTERN = re.compile(
-    r'^(opus|sonnet|haiku|inherit|default'
-    r'|claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?)$'
-)
+# Valid model values: tier aliases (auto-track the frontier model of that tier) or
+# the special values inherit/default. Pinned model IDs are intentionally rejected —
+# skills must use an alias so new model releases need no file edits.
+MODEL_PATTERN = re.compile(r'^(opus|sonnet|haiku|inherit|default)$')
 
 # Valid values for the `effort:` frontmatter field. Availability is
 # model-dependent (e.g. xhigh is unsupported on Sonnet 4.6); Claude Code falls
