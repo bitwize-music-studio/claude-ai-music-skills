@@ -2,7 +2,7 @@
 name: rename
 description: Renames an album or track, updating slugs, titles, and all mirrored paths. Use when the user wants to rename an album or track.
 argument-hint: <album|track> <current-name> <new-name>
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Read
   - Bash

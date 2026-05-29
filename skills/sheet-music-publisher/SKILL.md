@@ -2,7 +2,8 @@
 name: sheet-music-publisher
 description: Converts mastered audio to sheet music and creates printable songbooks. Use after mastering when the user wants sheet music or a songbook for their album.
 argument-hint: <album-name or /path/to/track.wav>
-model: claude-sonnet-4-6
+model: sonnet
+effort: low
 allowed-tools:
   - Read
   - Edit

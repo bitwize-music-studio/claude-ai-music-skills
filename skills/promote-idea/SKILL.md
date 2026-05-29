@@ -2,7 +2,7 @@
 name: promote-idea
 description: Converts an album idea from IDEAS.md into an actual album project in one step. Use when the user says "promote [idea title]", "turn idea into album", or "start working on [idea]".
 argument-hint: <"idea title"> [album-slug-override]
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Read
   - bitwize-music-mcp

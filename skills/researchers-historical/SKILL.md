@@ -2,7 +2,8 @@
 name: researchers-historical
 description: Researches archives, contemporary accounts, and timeline reconstruction. Use when the album subject involves historical events that need primary source verification.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-6
+model: sonnet
+effort: high
 user-invocable: false
 context: fork
 allowed-tools:

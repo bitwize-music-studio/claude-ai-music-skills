@@ -2,7 +2,8 @@
 name: researchers-journalism
 description: Researches investigative articles, interviews, and news coverage. Use when research needs journalistic sources for cross-referencing or additional context.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-6
+model: sonnet
+effort: high
 user-invocable: false
 context: fork
 allowed-tools:

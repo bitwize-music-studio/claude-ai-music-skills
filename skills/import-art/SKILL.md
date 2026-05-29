@@ -2,7 +2,7 @@
 name: import-art
 description: Places album art files in the correct audio and content directory locations. Use when the user has generated or downloaded album artwork that needs to be saved.
 argument-hint: <file-path> <album-name>
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Read
   - Bash

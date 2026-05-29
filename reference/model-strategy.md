@@ -1,18 +1,51 @@
 # Model Selection Strategy
 
-This document explains the rationale for which Claude model is assigned to each skill in the AI Music Skills plugin.
+This document explains the rationale for which Claude model **tier** and **effort
+level** is assigned to each skill in the AI Music Skills plugin.
 
 ## Model Tiers Overview
 
-| Model | Strengths | Cost | When to Use |
+Skills declare their tier with a **`model:` alias** (`opus` / `sonnet` / `haiku`)
+rather than a pinned version like `claude-opus-4-8`. The alias always resolves to
+the current frontier model of that tier, so new releases are picked up
+automatically with no file edits. The deliberate choice is the *tier*; the version
+floats.
+
+| Tier (alias) | Strengths | Cost | When to Use |
 |-------|-----------|------|-------------|
-| **Opus 4.6** | Highest creative quality, nuanced judgment, complex synthesis | ~15x | Output directly impacts music quality; errors are costly |
-| **Sonnet 4.6** | Strong reasoning, good creativity, reliable coordination | ~5x | Most tasks; balance of capability and efficiency |
-| **Haiku 4.5** | Fastest, pattern matching, rule-following | 1x | Simple operations; binary decisions; no judgment needed |
+| **Opus** (`opus`) | Highest creative quality, nuanced judgment, complex synthesis | ~15x | Output directly impacts music quality; errors are costly |
+| **Sonnet** (`sonnet`) | Strong reasoning, good creativity, reliable coordination | ~5x | Most tasks; balance of capability and efficiency |
+| **Haiku** (`haiku`) | Fastest, pattern matching, rule-following | 1x | Simple operations; binary decisions; no judgment needed |
+
+## Effort Levels
+
+Opus and Sonnet skills also set an **`effort:`** field that tunes reasoning depth
+independently of the tier. Values: `low`, `medium`, `high`, `xhigh`, `max`.
+Availability is model-dependent (`xhigh` is honored only on Opus 4.7/4.8 and falls
+back to `high` on Sonnet); `max` is honored on all Opus/Sonnet tiers.
+**Haiku does not support effort**, so Haiku skills set no `effort:` field. See the
+[effort docs](https://code.claude.com/docs/en/model-config.md#adjust-effort-level).
+
+| Effort | Used for |
+|--------|----------|
+| `max` | Core creative output where quality is paramount — lyric writing/refinement/review, album concept |
+| `high` | Deep research, fact verification, legal interpretation, creative copy, prompt engineering |
+| `medium` | Moderate-judgment coordination and structured creative tasks |
+| `low` | Script-running / coordination skills with little LLM reasoning |
+
+Per-skill effort assignments:
+
+| Effort | Skills |
+|--------|--------|
+| `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer` |
+| `high` | `suno-engineer`, `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
+| `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `genre-creator`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
+| `low` | `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
+| *(none)* | All 17 Haiku skills — effort unsupported |
 
 ---
 
-## Opus 4.6 Skills (7 skills)
+## Opus Skills (`model: opus`, 7 skills)
 
 These skills directly impact music quality or have high error costs.
 
@@ -83,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet 4.6 Skills (30 skills)
+## Sonnet Skills (`model: sonnet`, 30 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -173,7 +206,7 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ---
 
-## Haiku 4.5 Skills (17 skills)
+## Haiku Skills (`model: haiku`, 17 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 
@@ -205,7 +238,7 @@ These skills perform simple, rule-based operations with no creative judgment.
 **Why Haiku**: Detects Python environment and checks for installed dependencies. Rule-based checks: run commands, parse output, show appropriate installation instructions. No judgment - just environment detection and templated guidance.
 
 ### skill-model-updater
-**Why Haiku**: Updates model references when new Claude versions release. Pattern matching and replacement: find old model ID, replace with new. No judgment about which model to use (that's documented separately).
+**Why Haiku**: Audits that skills use tier aliases (`opus`/`sonnet`/`haiku`) and valid effort levels, and can migrate any stray pinned model IDs to aliases. Pattern matching and replacement — no judgment about which tier to use (that's the deliberate per-skill choice documented here). With aliases auto-tracking the frontier, per-release version bumps are no longer needed.
 
 ### test
 **Why Haiku**: Runs predefined test suites. Executes checks and reports pass/fail. Tests are already defined - this just runs them and formats output.
@@ -249,14 +282,28 @@ Is it purely pattern matching, file operations, or static info?
   NO → Sonnet (default for uncertain cases)
 ```
 
+Then pick an effort level (Opus/Sonnet only — Haiku skips it):
+
+```
+Is this core creative output where quality is paramount (lyrics, concept)?
+  YES → max
+  NO ↓
+Does it need deep reasoning / careful synthesis (research, verification, copy)?
+  YES → high
+  NO ↓
+Is it a script-runner / coordinator with little LLM reasoning?
+  YES → low
+  NO → medium (default)
+```
+
 ---
 
 ## Distribution Summary
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus 4.6 | 7 | 13.0% | Music-defining output, high error cost |
-| Sonnet 4.6 | 30 | 55.6% | Reasoning, coordination, moderate creativity |
-| Haiku 4.5 | 17 | 31.5% | Rule-based operations, no judgment |
+| Opus (`opus`) | 7 | 13.0% | Music-defining output, high error cost |
+| Sonnet (`sonnet`) | 30 | 55.6% | Reasoning, coordination, moderate creativity |
+| Haiku (`haiku`) | 17 | 31.5% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

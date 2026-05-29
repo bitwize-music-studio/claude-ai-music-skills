@@ -1,7 +1,8 @@
 ---
 name: session-start
 description: Runs the session startup procedure - verifies setup, loads config and state, checks skill models, and reports project status. Use at the beginning of a fresh session.
-model: claude-sonnet-4-6
+model: sonnet
+effort: low
 allowed-tools:
   - Read
   - Bash

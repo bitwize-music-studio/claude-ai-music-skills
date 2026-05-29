@@ -122,7 +122,7 @@ Indexed metadata from `skills/*/SKILL.md` files in the plugin directory. Queryab
 |-------|------|-------------|
 | `name` | string | Skill identifier (kebab-case, e.g., `"lyric-writer"`) |
 | `description` | string | One-line description of the skill's purpose |
-| `model` | string | Full Claude model ID (e.g., `"claude-opus-4-7"`) |
+| `model` | string | Model from frontmatter — tier alias (e.g., `"opus"`) or a pinned ID (e.g., `"claude-opus-4-8"`) |
 | `model_tier` | string | Derived tier: `"opus"`, `"sonnet"`, `"haiku"`, or `"unknown"` |
 | `argument_hint` | string\|null | Expected input format hint |
 | `allowed_tools` | array | List of tool names the skill can access |

@@ -2,7 +2,8 @@
 name: researchers-security
 description: Researches malware analysis, CVEs, attribution reports, and hacker community sources. Use when the album subject involves cybersecurity incidents or threat actors.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-sonnet-4-6
+model: sonnet
+effort: high
 user-invocable: false
 context: fork
 allowed-tools:

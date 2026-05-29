@@ -105,7 +105,8 @@ For each skills/*/SKILL.md:
 Each SKILL.md must have:
 - `name:` (required)
 - `description:` (required)
-- `model:` (required)
+- `model:` (required — tier alias preferred, see below)
+- `effort:` (required on Opus/Sonnet skills; omit on Haiku — see below)
 - `allowed-tools:` (required, must be array)
 
 ### TEST: Skills with external deps have requirements field
@@ -128,22 +129,52 @@ done
 ```
 
 ### TEST: All model references are valid
-Each skill's `model:` field must match the pattern:
+Each skill's `model:` field should use a **tier alias** so it automatically tracks
+the frontier model of that tier (no per-release edits):
 ```
-claude-(opus|sonnet|haiku)-[0-9]+-[0-9]+-[0-9]{8}
+opus | sonnet | haiku
 ```
+Special values `inherit` / `default` and fully pinned IDs
+(e.g. `claude-opus-4-8`) are also accepted, but aliases are preferred.
 
 Examples of valid models:
-- `claude-opus-4-5-20251101`
-- `claude-sonnet-4-5-20250929`
-- `claude-haiku-4-5-20251001`
+- `opus`
+- `sonnet`
+- `haiku`
+- `claude-opus-4-8` (pinned — still valid)
 
 Check with:
 ```bash
 for f in skills/*/SKILL.md; do
   model=$(grep -E '^model:' "$f" | sed 's/model: *//')
-  if ! echo "$model" | grep -qE '^claude-(opus|sonnet|haiku)-[0-9]+-[0-9]+-[0-9]{8}$'; then
+  if ! echo "$model" | grep -qE '^(opus|sonnet|haiku|inherit|default|claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?)$'; then
     echo "INVALID: $f has model: $model"
+  fi
+done
+```
+
+### TEST: Effort levels are valid and correctly scoped
+Skills may set an `effort:` field (reasoning depth). Rules:
+- If present, the value must be one of: `low`, `medium`, `high`, `xhigh`, `max`.
+- **Opus/Sonnet** skills must set an effort level (these tiers honor it).
+- **Haiku** skills must NOT set effort — Haiku does not support it, so the field
+  would be a misleading no-op.
+
+`xhigh` is only honored on Opus 4.7/4.8; on Sonnet it gracefully falls back to
+`high`. `max` is honored on all Opus/Sonnet tiers. See the
+[effort docs](https://code.claude.com/docs/en/model-config.md#adjust-effort-level).
+
+Check with:
+```bash
+for f in skills/*/SKILL.md; do
+  model=$(grep -E '^model:' "$f" | sed 's/model: *//')
+  effort=$(grep -E '^effort:' "$f" | sed 's/effort: *//')
+  case "$model" in
+    *opus*|*sonnet*) [ -z "$effort" ] && echo "MISSING effort: $f" ;;
+    *haiku*) [ -n "$effort" ] && echo "UNSUPPORTED effort on haiku: $f" ;;
+  esac
+  if [ -n "$effort" ] && ! echo "$effort" | grep -qE '^(low|medium|high|xhigh|max)$'; then
+    echo "INVALID effort: $f has effort: $effort"
   fi
 done
 ```

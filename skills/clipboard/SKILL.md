@@ -2,7 +2,7 @@
 name: clipboard
 description: Copies track content (lyrics, style prompts, streaming lyrics) to the system clipboard. Use when the user needs to paste lyrics or style prompts into Suno or other external tools.
 argument-hint: <content-type> <album-name> <track-number>
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Read
   - Bash

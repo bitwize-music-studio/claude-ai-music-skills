@@ -2,7 +2,7 @@
 name: test
 description: Runs automated tests to validate plugin integrity across 14 categories. Use before creating PRs, after making changes to skills or templates, or to verify plugin health.
 argument-hint: [all | config | skills | templates | workflow | suno | research | mastering | sheet-music | release | consistency | terminology | behavior | quality | quick]
-model: claude-haiku-4-5-20251001
+model: haiku
 context: fork
 allowed-tools:
   - Read

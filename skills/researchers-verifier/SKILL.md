@@ -2,7 +2,8 @@
 name: researchers-verifier
 description: Performs quality control, citation validation, and fact-checking before human review. Use after research is complete to verify all sources and claims before production.
 argument-hint: <"research [topic]" or track-path to verify>
-model: claude-opus-4-7
+model: opus
+effort: high
 user-invocable: false
 context: fork
 allowed-tools:

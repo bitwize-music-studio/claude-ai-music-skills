@@ -2,7 +2,8 @@
 name: resume
 description: Finds an album by name and shows detailed status with next steps. Use when the user mentions an album name or wants to continue previous work.
 argument-hint: <album-name>
-model: claude-sonnet-4-6
+model: sonnet
+effort: low
 allowed-tools:
   - Read
   - Glob

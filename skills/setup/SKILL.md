@@ -2,7 +2,7 @@
 name: setup
 description: Detects your Python environment and guides you through installing plugin dependencies. Use on first-time setup or when MCP server fails to start.
 argument-hint: <blank for full check | "mcp" | "mastering" | "document-hunter">
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Bash
 ---

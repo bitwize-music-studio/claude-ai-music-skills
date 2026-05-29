@@ -98,7 +98,7 @@ At the beginning of a fresh session:
    - If `plugin_version` is null → first run, set to current version, skip migrations
    - If stored < current → read `{plugin_root}/migrations/*.md` for applicable versions, process actions
    - If versions match → no action
-5. _(Removed — run `/bitwize-music:skill-model-updater check` manually when new models are released)_
+5. _(Removed — skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, so no action is needed on new releases. Run `/bitwize-music:skill-model-updater check` only to audit model/effort hygiene.)_
 6. **Report from MCP state**:
    - Health warnings (from step 1.5 — omit if ok):
      - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`"
@@ -275,7 +275,7 @@ Currently supports **Suno** (default). Service-specific template sections marked
 | `feat!:` | MAJOR |
 | `docs:`, `chore:` | None |
 
-**Co-author line**: `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>`
+**Co-author line**: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
 
 **Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 

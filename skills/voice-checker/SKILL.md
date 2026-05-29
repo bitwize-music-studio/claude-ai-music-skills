@@ -2,7 +2,8 @@
 name: voice-checker
 description: Reviews lyrics and prose for AI-written patterns (abstract noun stacking, over-explained metaphors, cliche escalation, missing idiosyncrasy, prose AI tells). Advisory Warning/Info severity — flags issues, does not block or rewrite. Use when reviewing lyrics for authenticity or before generation to catch AI-sounding language.
 argument-hint: <track-path | album-path | prose-path> [--lyrics-only | --prose-only]
-model: claude-sonnet-4-6
+model: sonnet
+effort: high
 allowed-tools:
   - Read
   - Glob

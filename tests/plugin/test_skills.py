@@ -9,8 +9,30 @@ pytestmark = pytest.mark.plugin
 # Required frontmatter fields
 REQUIRED_SKILL_FIELDS = {'name', 'description', 'model'}
 
-# Valid model patterns
-MODEL_PATTERN = re.compile(r'^claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?$')
+# Valid model values: tier aliases (preferred — auto-track the frontier model of
+# that tier), special values, or a fully pinned model ID (still accepted).
+MODEL_PATTERN = re.compile(
+    r'^(opus|sonnet|haiku|inherit|default'
+    r'|claude-(opus|sonnet|haiku)-[0-9]+(-[0-9]+)?(-[0-9]{8})?)$'
+)
+
+# Valid values for the `effort:` frontmatter field. Availability is
+# model-dependent (e.g. xhigh is unsupported on Sonnet 4.6); Claude Code falls
+# back to the highest supported level at or below the one set.
+VALID_EFFORT = {'low', 'medium', 'high', 'xhigh', 'max'}
+
+# Model tiers that honor the `effort:` setting. Haiku does NOT support effort,
+# so setting it there is a no-op and we keep it off those skills.
+EFFORT_CAPABLE_TIERS = {'opus', 'sonnet'}
+
+
+def _model_tier(model: str) -> str:
+    """Derive tier (opus/sonnet/haiku) from a model alias or pinned ID."""
+    lowered = (model or '').lower()
+    for tier in ('opus', 'sonnet', 'haiku'):
+        if tier in lowered:
+            return tier
+    return 'unknown'
 
 # Skills that require external dependencies
 SKILLS_WITH_REQUIREMENTS = {
@@ -101,6 +123,46 @@ class TestModelReferences:
             if model and not MODEL_PATTERN.match(model):
                 invalid[name] = model
         assert not invalid, f"Invalid model references: {invalid}"
+
+
+class TestEffortLevels:
+    """The `effort:` field must be valid and present on effort-capable skills."""
+
+    def test_effort_value_valid(self, all_skill_frontmatter):
+        invalid = {}
+        for name, fm in all_skill_frontmatter.items():
+            if '_error' in fm:
+                continue
+            effort = fm.get('effort')
+            if effort is not None and effort not in VALID_EFFORT:
+                invalid[name] = effort
+        assert not invalid, (
+            f"Invalid effort values (allowed: {sorted(VALID_EFFORT)}): {invalid}"
+        )
+
+    def test_effort_present_on_capable_skills(self, all_skill_frontmatter):
+        missing = {}
+        for name, fm in all_skill_frontmatter.items():
+            if '_error' in fm:
+                continue
+            tier = _model_tier(fm.get('model', ''))
+            if tier in EFFORT_CAPABLE_TIERS and not fm.get('effort'):
+                missing[name] = tier
+        assert not missing, (
+            f"Opus/Sonnet skills must set an effort level: {missing}"
+        )
+
+    def test_effort_absent_on_haiku_skills(self, all_skill_frontmatter):
+        # Haiku does not support effort; setting it is a misleading no-op.
+        present = {}
+        for name, fm in all_skill_frontmatter.items():
+            if '_error' in fm:
+                continue
+            if _model_tier(fm.get('model', '')) == 'haiku' and fm.get('effort'):
+                present[name] = fm.get('effort')
+        assert not present, (
+            f"Haiku skills must not set effort (unsupported, no-op): {present}"
+        )
 
 
 class TestRequirements:

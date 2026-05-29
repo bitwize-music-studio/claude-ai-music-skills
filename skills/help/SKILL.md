@@ -1,7 +1,7 @@
 ---
 name: help
 description: Shows available skills, common workflows, and quick reference for the plugin. Use when the user asks for help, what skills are available, or how to do something.
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools: []
 ---
 

@@ -2,7 +2,7 @@
 name: new-album
 description: Creates a new album with the correct directory structure and templates. Use IMMEDIATELY when the user says 'make a new album' or similar, before any discussion.
 argument-hint: <album-name> <genre>
-model: claude-haiku-4-5-20251001
+model: haiku
 allowed-tools:
   - Read
   - Bash

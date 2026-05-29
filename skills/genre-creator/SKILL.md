@@ -1,7 +1,8 @@
 ---
 name: genre-creator
 description: Create new genre documentation files for the bitwize-music genre library. Use when the user wants to add a genre, says "/genre-creator", "neues Genre erstellen", "Genre hinzufuegen", "add genre", or asks to create genre documentation. Takes a genre name as argument.
-model: claude-sonnet-4-6
+model: sonnet
+effort: medium
 argument-hint: <genre-name e.g. "Math Rock" or "Nu-Metal">
 ---
 

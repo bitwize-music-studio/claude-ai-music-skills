@@ -1,7 +1,8 @@
 ---
 name: cloud-uploader
 description: Uploads promo videos and content to Cloudflare R2 or AWS S3. Use when the user wants to host promo content for social media or distribution.
-model: claude-sonnet-4-6
+model: sonnet
+effort: low
 prerequisites:
   - promo-director
 allowed-tools:
