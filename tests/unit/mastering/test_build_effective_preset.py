@@ -58,6 +58,42 @@ class TestBuildEffectivePreset:
         assert ep["compress_ratio"] == 1.5
         assert ep["cut_highmid"] == 0.0
 
+    def test_empty_genre_dither_follows_output_bits(self):
+        """Regression for #373: a genreless master must dither at output_bits.
+
+        _PRESET_DEFAULTS hardcodes dither_bits=16, and the genreless
+        effective_preset previously omitted dither_bits, so master_track
+        resolved output_bits=24 but dither_bits=16 — injecting a 16-bit noise
+        floor into a 24-bit file. The effective_preset must carry a dither_bits
+        that follows output_bits.
+        """
+        result = build_effective_preset(
+            genre="",
+            cut_highmid_arg=0.0,
+            cut_highs_arg=0.0,
+            target_lufs_arg=-14.0,
+            ceiling_db_arg=-1.0,
+        )
+        ep = result["effective_preset"]
+        assert "dither_bits" in ep, "genreless preset must set dither_bits explicitly"
+        assert ep["dither_bits"] == ep["output_bits"], (
+            f"dither_bits ({ep['dither_bits']}) must follow output_bits "
+            f"({ep['output_bits']}) for a genreless master"
+        )
+
+    def test_genre_preset_dither_follows_output_bits(self):
+        """A genre preset's effective_preset should also carry a dither_bits
+        consistent with output_bits (genre-presets.yaml sets dither_bits=24)."""
+        result = build_effective_preset(
+            genre="pop",
+            cut_highmid_arg=0.0,
+            cut_highs_arg=0.0,
+            target_lufs_arg=-14.0,
+            ceiling_db_arg=-1.0,
+        )
+        ep = result["effective_preset"]
+        assert ep["dither_bits"] == ep["output_bits"]
+
     def test_unknown_genre_returns_error(self):
         result = build_effective_preset(
             genre="not-a-real-genre",

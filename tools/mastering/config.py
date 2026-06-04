@@ -290,6 +290,11 @@ def build_effective_preset(
         **(preset_dict or {}),
         "target_lufs": effective_lufs,
         "output_bits": targets["output_bits"],
+        # dither_bits follows output_bits unless a genre preset overrides it.
+        # Without this, a genreless master (preset_dict is None) inherits the
+        # _PRESET_DEFAULTS dither_bits=16 in master_track while output_bits
+        # resolves to 24, dithering a 24-bit file to a 16-bit noise floor. (#373)
+        "dither_bits": (preset_dict or {}).get("dither_bits", targets["output_bits"]),
         "output_sample_rate": targets["output_sample_rate"],
         "cut_highmid": effective_highmid,
         "cut_highs": effective_highs,
