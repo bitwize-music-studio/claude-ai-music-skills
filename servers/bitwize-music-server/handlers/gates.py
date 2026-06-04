@@ -27,6 +27,38 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
+def _resolve_explicit_decision(file_text: str | None) -> tuple[bool, bool]:
+    """Return ``(is_set, value)`` for a track's Explicit flag from its raw file.
+
+    The cached ``explicit`` bool can't distinguish a deliberate "No" from the
+    unset template placeholder ("Yes / No") — both parse to ``False`` — so the
+    pre-generation gate inspects the raw track file instead. A decision counts
+    as *set* only when the Explicit table cell holds a recognized yes/no token
+    (not the placeholder) or frontmatter carries an explicit boolean. (#370)
+
+    Returns ``(False, False)`` when the flag is unset or the file is unavailable
+    so the gate fails closed.
+    """
+    if not file_text:
+        return False, False
+    # Reuse the canonical parsing helpers (other handlers import from
+    # tools.state.parsers the same way) so detection matches parse_track_file.
+    from tools.state.parsers import _extract_table_value, parse_frontmatter
+
+    raw = _extract_table_value(file_text, "Explicit")
+    if raw is not None:
+        token = raw.strip().lower()
+        if token in ("yes", "true"):
+            return True, True
+        if token in ("no", "false"):
+            return True, False
+        # Placeholder ("Yes / No"), dash, or blank → not a conscious decision.
+    fm = parse_frontmatter(file_text)
+    if "_error" not in fm and isinstance(fm.get("explicit"), bool):
+        return True, fm["explicit"]
+    return False, False
+
+
 def _check_pre_gen_gates_for_track(
     t_data: dict[str, Any], file_text: str | None, blocklist: list[dict[str, str]],
     max_lyric_words: int = 800,
@@ -102,15 +134,19 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Pronunciation Resolved", "status": "SKIP",
                       "detail": "Track file not readable"})
 
-    # Gate 4: Explicit Flag Set
-    explicit = t_data.get("explicit")
-    if explicit is None:
+    # Gate 4: Explicit Flag Set — re-derived from the raw track file. The cached
+    # t_data["explicit"] is always a bool (the "Yes / No" template placeholder
+    # resolves to False), so it can't distinguish "unset" from a deliberate "No"
+    # and the old `explicit is None` check could never fire. Fails closed when
+    # the field is unset or the file is unreadable. (#370)
+    explicit_set, explicit_val = _resolve_explicit_decision(file_text)
+    if explicit_set:
+        gates.append({"gate": "Explicit Flag Set", "status": "PASS",
+                      "detail": f"Explicit: {'Yes' if explicit_val else 'No'}"})
+    else:
         gates.append({"gate": "Explicit Flag Set", "status": "FAIL", "severity": "BLOCKING",
                       "detail": "Explicit field not set — set to Yes or No before generating"})
         blocking += 1
-    else:
-        gates.append({"gate": "Explicit Flag Set", "status": "PASS",
-                      "detail": f"Explicit: {'Yes' if explicit else 'No'}"})
 
     # Gate 5: Style Prompt Complete
     style_content = None

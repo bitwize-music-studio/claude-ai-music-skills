@@ -4304,14 +4304,16 @@ class TestRunPreGenerationGates:
         lyrics_gate = next(g for g in track["gates"] if g["gate"] == "Lyrics Reviewed")
         assert lyrics_gate["status"] == "FAIL"
 
-    def test_explicit_flag_true_passes(self, tmp_path):
-        """Track with explicit=True should pass the Explicit Flag gate."""
+    def test_explicit_flag_yes_passes(self, tmp_path):
+        """Track whose file sets Explicit to Yes passes the Explicit Flag gate."""
         track_file = tmp_path / "05-explicit.md"
-        track_file.write_text(_TRACK_ALL_GATES_PASS)
+        track_file.write_text(
+            _TRACK_ALL_GATES_PASS.replace("| **Explicit** | No |", "| **Explicit** | Yes |")
+        )
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["05-explicit"] = {
             "path": str(track_file), "title": "Explicit Track",
-            "status": "In Progress", "explicit": True,
+            "status": "In Progress", "explicit": False,  # cache value must not drive the gate
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
@@ -4322,14 +4324,16 @@ class TestRunPreGenerationGates:
         assert explicit_gate["status"] == "PASS"
         assert "Yes" in explicit_gate["detail"]
 
-    def test_explicit_flag_none_blocks(self, tmp_path):
-        """Track with explicit=None should BLOCK for Explicit Flag gate."""
+    def test_explicit_flag_placeholder_blocks(self, tmp_path):
+        """Track whose file leaves the 'Yes / No' placeholder blocks (#370)."""
         track_file = tmp_path / "05-no-explicit.md"
-        track_file.write_text(_TRACK_ALL_GATES_PASS)
+        track_file.write_text(
+            _TRACK_ALL_GATES_PASS.replace("| **Explicit** | No |", "| **Explicit** | Yes / No |")
+        )
         state = _fresh_state()
         state["albums"]["test-album"]["tracks"]["05-no-explicit"] = {
             "path": str(track_file), "title": "No Explicit Track",
-            "status": "In Progress", "explicit": None,
+            "status": "In Progress", "explicit": False,  # cache says False, but flag is unset
             "sources_verified": "Verified",
         }
         mock_cache = MockStateCache(state)
@@ -4739,11 +4743,12 @@ class TestPreGenGateEnforcementInUpdateTrackField:
             )))
         assert result["success"] is True
 
-    def test_generated_blocked_explicit_none(self, tmp_path):
-        """Status→Generated blocked when explicit flag is None (gate 4)."""
+    def test_generated_blocked_explicit_unset(self, tmp_path):
+        """Status→Generated blocked when the Explicit flag is unset (gate 4, #370)."""
         mock_cache, _ = self._make_cache_with_track(
-            tmp_path, _TRACK_ALL_GATES_PASS,
-            sources_verified="Verified", explicit=None,
+            tmp_path,
+            _TRACK_ALL_GATES_PASS.replace("| **Explicit** | No |", "| **Explicit** | Yes / No |"),
+            sources_verified="Verified", explicit=False,
         )
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
