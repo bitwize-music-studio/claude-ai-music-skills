@@ -155,8 +155,12 @@ def get_config_mtime() -> float:
 
 def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
-    paths = config.get('paths', {})
-    artist = config.get('artist', {})
+    # An empty YAML section header (e.g. `paths:` with nothing under it) parses
+    # to None, not {}. config.get('paths', {}) returns that None (the key
+    # exists), so `... or {}` is required to normalize None-valued sections —
+    # otherwise .get() on None aborts every cache rebuild/update. (#376)
+    paths = config.get('paths') or {}
+    artist = config.get('artist') or {}
 
     content_root_raw = paths.get('content_root', '.')
     content_root = str(resolve_path(content_root_raw))
@@ -166,7 +170,7 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
 
     # Database config (expose enabled flag, mask credentials)
-    db_config = config.get('database', {})
+    db_config = config.get('database') or {}
     database_section = {
         'enabled': bool(db_config.get('enabled', False)),
         'host': db_config.get('host', '') if db_config.get('enabled') else '',
@@ -174,7 +178,7 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     }
 
     # Generation config (service settings and gates)
-    gen_config = config.get('generation', {})
+    gen_config = config.get('generation') or {}
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
