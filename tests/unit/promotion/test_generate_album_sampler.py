@@ -1,5 +1,6 @@
 """Tests for tools/promotion/generate_album_sampler.py."""
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -236,6 +237,45 @@ class TestGenerateAlbumSampler:
             font_path="/tmp/font.ttf",
         )
         assert result is False
+
+    @patch.object(mod, "get_audio_duration", return_value=60.0)
+    @patch.object(mod, "concatenate_with_crossfade", return_value=True)
+    @patch.object(mod, "generate_clip", return_value=True)
+    @patch.object(mod, "find_best_segment", return_value=5.0)
+    @patch.object(mod, "extract_dominant_color", return_value=(201, 169, 110))
+    def test_auto_extracted_color_passes_downstream_validation(
+        self, _color, _seg, mock_clip, _concat, _dur, tmp_path
+    ):
+        """Auto-extracted wave color (no color_hex given) must be a format that
+        generate_waveform_video's validation accepts. Regression for #369:
+        rgb_to_hex returns ffmpeg-style '0x...', which the '^#?[0-9a-fA-F]{3,8}$'
+        validator rejects, failing every clip."""
+        # Same validation regex generate_waveform_video applies to color_hex.
+        validator = re.compile(r"^#?[0-9a-fA-F]{3,8}$")
+
+        tracks = tmp_path / "tracks"
+        tracks.mkdir()
+        (tracks / "01-track.wav").write_bytes(b"audio")
+        output = tmp_path / "out.mp4"
+        output.write_bytes(b"video")
+
+        mod.generate_album_sampler(
+            tracks_dir=tracks,
+            artwork_path=tmp_path / "art.png",
+            output_path=output,
+            font_path="/tmp/font.ttf",
+            # color_hex omitted -> auto-extract path
+        )
+
+        passed_color = mock_clip.call_args[1]["color_hex"]
+        assert not passed_color.startswith("0x"), (
+            f"auto-extracted color {passed_color!r} uses ffmpeg '0x' format that "
+            "downstream validation rejects"
+        )
+        assert validator.match(passed_color), (
+            f"auto-extracted color {passed_color!r} fails generate_waveform_video "
+            "validation, so every clip would be rejected"
+        )
 
     @patch.object(mod, "get_audio_duration", return_value=60.0)
     @patch.object(mod, "concatenate_with_crossfade", return_value=True)
