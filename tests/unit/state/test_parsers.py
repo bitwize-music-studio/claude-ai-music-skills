@@ -186,6 +186,41 @@ class TestParseAlbumReadme:
         # Malformed value must not crash and must not poison downstream code.
         assert result.get("anchor_track") is None
 
+    def test_null_title_falls_back_to_heading(self, tmp_path):
+        """A blank `title:` (YAML null) must not crash the parser (#377).
+
+        fm.get('title', '') returns the present None value, so the old
+        `.strip()` raised AttributeError and aborted the whole cache rebuild.
+        It must fall back to the H1 heading instead.
+        """
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title:\n'
+            '---\n'
+            '# My Album\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        assert '_error' not in result
+        assert result['title'] == 'My Album'
+
+    def test_numeric_title_does_not_crash(self, tmp_path):
+        """An unquoted numeric `title:` (YAML int) must not crash (#377)."""
+        readme = tmp_path / "README.md"
+        readme.write_text(
+            '---\n'
+            'title: 2024\n'
+            '---\n'
+            '# Fallback Heading\n'
+            '## Album Details\n'
+            '| **Status** | Concept |\n'
+        )
+        result = parse_album_readme(readme)
+        assert '_error' not in result
+        assert result['title'] == '2024'
+
 
 class TestParseTrackFile:
     """Tests for parse_track_file()."""

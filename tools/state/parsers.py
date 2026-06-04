@@ -160,7 +160,15 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
         result['_warning'] = fm['_error']
         fm = {}
 
-    result['title'] = fm.get('title', '').strip('"').strip("'") or _extract_heading(text)
+    # fm.get('title', '') returns the present value even when it is null or a
+    # non-string scalar (`title:` → None, `title: 2024` → int), so .strip() on
+    # it raised AttributeError and aborted the whole cache rebuild. Coerce via
+    # str() and short-circuit on falsy values, mirroring parse_track_file. (#377)
+    fm_title = fm.get('title')
+    if fm_title:
+        result['title'] = str(fm_title).strip('"').strip("'") or _extract_heading(text)
+    else:
+        result['title'] = _extract_heading(text)
     result['release_date'] = fm.get('release_date') or None
     result['explicit'] = fm.get('explicit', False)
 
