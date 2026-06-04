@@ -85,6 +85,14 @@ def apply_harmonic_excitation(
     # High-pass both signals at the lower excitation band boundary.
     # Using sosfiltfilt (zero-phase) to avoid phase delay artifacts.
     sos_hp = signal.butter(4, low / nyq, btype="high", output="sos")
+    # sosfiltfilt pads each edge by padlen samples (default 3*(2*n_sections+1)
+    # = 15 for this 4th-order filter) and requires len(signal) > padlen. Very
+    # short stem fragments (1-15 samples, e.g. a truncated export) carry no
+    # meaningful harmonic content; return them unchanged instead of raising
+    # ValueError and aborting the whole mix. (#374)
+    min_len = 3 * (2 * sos_hp.shape[0] + 1)
+    if data.shape[0] <= min_len:
+        return data
     hp_saturated = signal.sosfiltfilt(sos_hp, saturated, axis=0)
     hp_original = signal.sosfiltfilt(sos_hp, data, axis=0)
 
