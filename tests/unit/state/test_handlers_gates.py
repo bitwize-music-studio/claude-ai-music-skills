@@ -358,6 +358,34 @@ Stars are shining bright
 
 
 # =============================================================================
+# Track file builder for Explicit-flag gate tests (#370)
+# =============================================================================
+
+
+def _make_track_file(*, table=None, fm_explicit=None):
+    """Build a gate-complete track file with a configurable Explicit field.
+
+    table: value for the `| **Explicit** | <value> |` table row, or None to omit.
+    fm_explicit: value for a frontmatter `explicit:` key, or None to omit.
+    """
+    fm_line = f"\nexplicit: {fm_explicit}" if fm_explicit is not None else ""
+    table_block = f"\n| **Explicit** | {table} |\n" if table is not None else "\n"
+    return (
+        "---\n"
+        "title: Track\n"
+        f"status: In Progress{fm_line}\n"
+        "---\n"
+        f"{table_block}"
+        "## Lyrics Box\n\n"
+        "```\n[Verse 1]\nWalking down the road tonight\nStars are shining bright\n```\n\n"
+        "## Style Box\n\n"
+        "```\nupbeat electronic pop, 120 BPM\n```\n\n"
+        "## Pronunciation Notes\n\n"
+        "| Word | Phonetic | Note |\n| --- | --- | --- |\n| — | — | — |\n"
+    )
+
+
+# =============================================================================
 # Tests for _check_pre_gen_gates_for_track
 # =============================================================================
 
@@ -470,34 +498,57 @@ class TestGate3PronunciationResolved:
 
 
 class TestGate4ExplicitFlagSet:
-    """Gate 4: Explicit Flag Set."""
+    """Gate 4: Explicit Flag Set.
 
-    def test_explicit_none_fails(self):
-        t_data = {"sources_verified": "N/A", "explicit": None}
-        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, TRACK_FILE_COMPLETE, blocklist=[],
-        )
-        explicit_gate = next(g for g in gates if g["gate"] == "Explicit Flag Set")
-        assert explicit_gate["status"] == "FAIL"
-        assert explicit_gate["severity"] == "BLOCKING"
+    The conscious Yes/No decision is re-derived from the raw track file, not the
+    cached `explicit` bool — which can't distinguish a deliberate "No" from the
+    unset template placeholder ("Yes / No"), so it could never block. (#370)
+    The t_data["explicit"] value is deliberately set to the *opposite* of the
+    file in these tests to prove the cache no longer drives the gate.
+    """
 
-    def test_explicit_false_passes(self):
-        t_data = {"sources_verified": "N/A", "explicit": False}
-        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, TRACK_FILE_COMPLETE, blocklist=[],
+    def _explicit_gate(self, file_text, cached_explicit=False):
+        t_data = {"sources_verified": "N/A", "explicit": cached_explicit}
+        _b, _w, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, file_text, blocklist=[],
         )
-        explicit_gate = next(g for g in gates if g["gate"] == "Explicit Flag Set")
-        assert explicit_gate["status"] == "PASS"
-        assert "No" in explicit_gate["detail"]
+        return next(g for g in gates if g["gate"] == "Explicit Flag Set")
 
-    def test_explicit_true_passes(self):
-        t_data = {"sources_verified": "N/A", "explicit": True}
-        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, TRACK_FILE_COMPLETE, blocklist=[],
-        )
-        explicit_gate = next(g for g in gates if g["gate"] == "Explicit Flag Set")
-        assert explicit_gate["status"] == "PASS"
-        assert "Yes" in explicit_gate["detail"]
+    def test_template_placeholder_fails(self):
+        """The shipped '| Explicit | Yes / No |' placeholder is unset and must
+        block — the bug was that it silently passed as 'No'."""
+        gate = self._explicit_gate(_make_track_file(table="Yes / No"), cached_explicit=False)
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
+
+    def test_table_no_passes(self):
+        gate = self._explicit_gate(_make_track_file(table="No"), cached_explicit=True)
+        assert gate["status"] == "PASS"
+        assert "No" in gate["detail"]
+
+    def test_table_yes_passes(self):
+        gate = self._explicit_gate(_make_track_file(table="Yes"), cached_explicit=False)
+        assert gate["status"] == "PASS"
+        assert "Yes" in gate["detail"]
+
+    def test_frontmatter_bool_passes(self):
+        # No table row; frontmatter explicit: false is a conscious decision.
+        gate = self._explicit_gate(_make_track_file(fm_explicit="false"), cached_explicit=True)
+        assert gate["status"] == "PASS"
+        assert "No" in gate["detail"]
+
+    def test_missing_field_fails(self):
+        """No Explicit table row and no frontmatter key — unset, must block."""
+        gate = self._explicit_gate(_make_track_file(), cached_explicit=False)
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
+
+    def test_unreadable_file_fails_closed(self):
+        """A content-safety gate must block when the decision can't be
+        confirmed (file unreadable)."""
+        gate = self._explicit_gate(None, cached_explicit=False)
+        assert gate["status"] == "FAIL"
+        assert gate["severity"] == "BLOCKING"
 
 
 class TestGate5StylePromptComplete:
@@ -669,10 +720,11 @@ class TestBlockingAggregation:
         assert blocking == 0
 
     def test_multiple_failures_accumulate(self):
-        """Track with sources pending + no explicit flag = at least 2 blocking."""
-        t_data = {"sources_verified": "Pending", "explicit": None}
+        """Track with sources pending + unset explicit flag = at least 2 blocking."""
+        t_data = {"sources_verified": "Pending", "explicit": False}
+        # Placeholder Explicit field is unset, so the explicit gate also blocks.
         blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
-            t_data, TRACK_FILE_COMPLETE, blocklist=[],
+            t_data, _make_track_file(table="Yes / No"), blocklist=[],
         )
         assert blocking >= 2
 
