@@ -7,6 +7,7 @@ module's ``register()`` function is called.
 from __future__ import annotations
 
 import json
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -123,15 +124,43 @@ def _normalize_slug(name: str) -> str:
     return slug
 
 
+def _json_sanitize(value: Any) -> Any:
+    """Recursively replace non-finite floats (inf/-inf/nan) with None.
+
+    json.dumps emits the literal tokens ``Infinity``/``-Infinity``/``NaN``
+    for these by default (allow_nan=True), and ``default=`` never fires for
+    floats (only for non-serializable *types*). Those tokens are invalid per
+    the JSON spec and are rejected by strict parsers — JavaScript
+    ``JSON.parse`` and the MCP client — so a single non-finite float (e.g. a
+    silent track's -inf LUFS) corrupts the entire response. ``null`` is the
+    standard JS replacement (``JSON.stringify(Infinity) === "null"``).
+
+    numpy float64 is a subclass of ``float``, so the ``isinstance`` check
+    covers the values produced by the mastering/analysis tools.
+    """
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _json_sanitize(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_sanitize(v) for v in value]
+    return value
+
+
 def _safe_json(data: Any) -> str:
     """Serialize data to JSON with error fallback.
 
-    If json.dumps() fails (e.g., circular references, non-serializable types),
-    returns a JSON error object instead of crashing.
+    Non-finite floats are sanitized to ``null`` first (see _json_sanitize)
+    so the output is always valid JSON for strict parsers. If json.dumps()
+    still fails (e.g., circular references, non-serializable types), returns
+    a JSON error object instead of crashing.
     """
     try:
-        return json.dumps(data, default=str)
-    except (TypeError, ValueError, OverflowError) as e:
+        return json.dumps(_json_sanitize(data), default=str)
+    except (TypeError, ValueError, OverflowError, RecursionError) as e:
+        # RecursionError: _json_sanitize walks the structure before dumps, so a
+        # circular reference trips it here rather than as the ValueError that
+        # json.dumps would otherwise raise. Catch it to keep the no-crash contract.
         return json.dumps({"error": f"JSON serialization failed: {e}"})
 
 
