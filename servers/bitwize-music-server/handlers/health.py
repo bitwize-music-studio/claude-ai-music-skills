@@ -166,12 +166,17 @@ def _check_skill_registration() -> dict[str, Any]:
 async def get_plugin_version() -> str:
     """Get the current and stored plugin version.
 
-    Compares the plugin version stored in state.json with the current
-    version from .claude-plugin/plugin.json. Useful for upgrade detection.
+    Compares the installed plugin version (.claude-plugin/plugin.json) with
+    the last version whose migrations were processed
+    (state.last_migrated_version). ``needs_upgrade`` is true when migration
+    notes are still pending — see ``get_pending_migrations``.
 
     Returns:
-        JSON with stored_version, current_version, and needs_upgrade flag
+        JSON with stored_version, current_version, last_migrated_version,
+        pending_migration_count, and needs_upgrade flag
     """
+    from tools.state.indexer import get_pending_migrations as _compute_pending
+
     state = _shared.cache.get_state()
     stored = state.get("plugin_version")
 
@@ -179,18 +184,58 @@ async def get_plugin_version() -> str:
     current_raw = _read_plugin_version()
     current = None if current_raw == "unknown" else current_raw
 
-    needs_upgrade = False
-    if stored is None and current is not None:
-        needs_upgrade = True  # First run
-    elif stored and current and stored != current:
-        needs_upgrade = True
+    pending = _compute_pending(state, _shared.PLUGIN_ROOT)
 
     return _safe_json({
         "stored_version": stored,
         "current_version": current,
-        "needs_upgrade": needs_upgrade,
+        "last_migrated_version": pending["last_migrated_version"],
+        "pending_migration_count": len(pending["pending"]),
+        "needs_upgrade": bool(pending["pending"]),
         "plugin_root": str(_shared.PLUGIN_ROOT),
     })
+
+
+async def get_pending_migrations() -> str:
+    """List plugin migration notes not yet processed since the last upgrade.
+
+    Compares the installed plugin version against the last version whose
+    migrations were acknowledged (``state.last_migrated_version``) and returns
+    the pending migration notes (frontmatter + body), sorted ascending by
+    version. A pre-tracking state (``last_migrated_version`` null) surfaces the
+    full backlog once. Call this at session start (Step 4.5); after processing
+    the notes, call ``acknowledge_migrations`` so they stop surfacing.
+
+    Returns:
+        JSON with installed_version, last_migrated_version, reason
+        ("untracked" | "upgrade" | "current"), count, and pending[] (each with
+        version, summary, categories, actions, body, file).
+    """
+    from tools.state.indexer import get_pending_migrations as _compute_pending
+
+    state = _shared.cache.get_state()
+    result = _compute_pending(state, _shared.PLUGIN_ROOT)
+    result["count"] = len(result["pending"])
+    return _safe_json(result)
+
+
+async def acknowledge_migrations(version: str = "") -> str:
+    """Record that plugin migrations up to a version have been processed.
+
+    Advances ``state.last_migrated_version`` so already-seen migration notes
+    stop surfacing on subsequent session starts. Call after processing the
+    notes from ``get_pending_migrations``. With no version, acknowledges
+    everything up to the currently-installed plugin version.
+
+    Args:
+        version: Version through which migrations are acknowledged. Empty
+            string acknowledges up to the currently-installed version.
+
+    Returns:
+        JSON with the new last_migrated_version (or an error).
+    """
+    result = _shared.cache.acknowledge_migrations(version or None)
+    return _safe_json(result)
 
 
 async def check_venv_health() -> str:
@@ -544,8 +589,10 @@ async def diagnose() -> str:
     # Add version check
     version_result = json.loads(await get_plugin_version())
     if version_result.get("needs_upgrade"):
+        count = version_result.get("pending_migration_count", 0)
         checks.append({"name": "plugin_version", "status": "warn",
-                        "detail": f"Upgrade available: {version_result.get('stored_version')} → {version_result.get('current_version')}"})
+                        "detail": f"{count} migration note(s) pending up to "
+                                  f"v{version_result.get('current_version')} — run get_pending_migrations"})
     else:
         checks.append({"name": "plugin_version", "status": "ok",
                         "detail": f"v{version_result.get('current_version', 'unknown')}"})
@@ -576,6 +623,8 @@ async def diagnose() -> str:
 def register(mcp: Any) -> None:
     """Register plugin version, health check, venv, and diagnostic tools."""
     mcp.tool()(get_plugin_version)
+    mcp.tool()(get_pending_migrations)
+    mcp.tool()(acknowledge_migrations)
     mcp.tool()(check_venv_health)
     mcp.tool()(health_check)
     mcp.tool()(diagnose)
