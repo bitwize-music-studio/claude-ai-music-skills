@@ -338,6 +338,20 @@ class TestNormalizeSlug:
 # =============================================================================
 
 
+def _strict_json_loads(raw: str):
+    """json.loads that rejects Infinity/-Infinity/NaN like a strict parser.
+
+    Python's json.loads is lenient and silently accepts these non-finite
+    tokens, which is exactly why issue #371 slipped past the existing
+    tests. Strict consumers (JS JSON.parse, the MCP client) reject them.
+    ``parse_constant`` fires only for those three tokens.
+    """
+    def _reject(token: str) -> float:
+        raise AssertionError(f"invalid non-finite JSON token emitted: {token!r}")
+
+    return json.loads(raw, parse_constant=_reject)
+
+
 class TestSafeJson:
     """Tests for the _safe_json() helper function."""
 
@@ -415,6 +429,57 @@ class TestSafeJson:
         result = json.loads(server._safe_json(data))
         assert result["flag"] is True
         assert result["other"] is False
+
+    def test_non_finite_floats_become_null(self):
+        """inf/-inf/nan must serialize as null, not invalid JSON tokens.
+
+        json.dumps emits the literal tokens Infinity/-Infinity/NaN by
+        default; these are invalid per the JSON spec and rejected by
+        strict parsers. _safe_json must replace them with null
+        (JSON.stringify(Infinity) === "null"). Regression test for #371.
+        """
+        data = {
+            "pos": float("inf"),
+            "neg": float("-inf"),
+            "nan": float("nan"),
+            "ok": -14.5,
+        }
+        result = _strict_json_loads(server._safe_json(data))
+        assert result["pos"] is None
+        assert result["neg"] is None
+        assert result["nan"] is None
+        assert result["ok"] == -14.5
+
+    def test_non_finite_nested_in_list_and_dict(self):
+        """Sanitization must recurse into nested lists and dicts."""
+        data = {
+            "tracks": [
+                {"lufs": float("-inf"), "peak_db": -0.5},
+                {"lufs": -14.0, "dynamic_range": float("nan")},
+            ],
+            "summary": {"avg_lufs": float("-inf")},
+        }
+        result = _strict_json_loads(server._safe_json(data))
+        assert result["tracks"][0]["lufs"] is None
+        assert result["tracks"][0]["peak_db"] == -0.5
+        assert result["tracks"][1]["lufs"] == -14.0
+        assert result["tracks"][1]["dynamic_range"] is None
+        assert result["summary"]["avg_lufs"] is None
+
+    def test_numpy_non_finite_becomes_null(self):
+        """numpy float64 inf/nan (the real runtime type) is also sanitized."""
+        import numpy as np
+
+        data = {"lufs": np.float64("-inf"), "x": np.float64(2.5)}
+        result = _strict_json_loads(server._safe_json(data))
+        assert result["lufs"] is None
+        assert result["x"] == 2.5
+
+    def test_finite_floats_unchanged(self):
+        """Regression: finite floats still round-trip unchanged."""
+        data = {"a": 1.5, "b": -14.0, "c": 0.0}
+        result = _strict_json_loads(server._safe_json(data))
+        assert result == data
 
 
 # =============================================================================
@@ -12343,6 +12408,77 @@ class TestAnalyzeAudioComprehensive:
             result = json.loads(_run(server.analyze_audio("test-album")))
 
         assert result["recommendations"] == []
+
+    def _silent_result(self, filename):
+        """A fully-silent track as analyze_track returns it: pyln gives
+        -inf LUFS, peak/rms are -inf (log10 of 0), and dynamic_range is
+        nan (-inf minus -inf). Mirrors analyze_track on silence."""
+        return {
+            "filename": filename,
+            "duration": 180.0,
+            "sample_rate": 44100,
+            "lufs": float("-inf"),
+            "peak_db": float("-inf"),
+            "rms_db": float("-inf"),
+            "dynamic_range": float("nan"),
+            "band_energy": {"sub_bass": 0.0, "bass": 0.0, "low_mid": 0.0,
+                            "mid": 0.0, "high_mid": 0.0, "high": 0.0, "air": 0.0},
+            "tinniness_ratio": 0.0,
+        }
+
+    def test_silent_track_emits_valid_json(self, tmp_path):
+        """One silent track must not invalidate the whole album response.
+
+        Regression for #371: a -inf LUFS track poisoned avg_lufs/lufs_range
+        and serialized as Infinity/NaN, breaking strict JSON parsers.
+        """
+        audio_dir, state = self._make_audio_dir(tmp_path, 3)
+        mock_cache = MockStateCache(state)
+
+        def mock_analyze(filepath):
+            name = Path(filepath).name
+            if "02" in name:
+                return self._silent_result(name)
+            return self._mock_result(name, lufs=-14.0)
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            raw = _run(server.analyze_audio("test-album"))
+
+        # Strict parse mirrors the MCP/JS client: rejects Infinity/NaN.
+        result = _strict_json_loads(raw)
+
+        # Aggregates computed over finite tracks only → meaningful numbers.
+        assert result["summary"]["avg_lufs"] == pytest.approx(-14.0)
+        assert result["summary"]["lufs_range"] == pytest.approx(0.0)
+        # The silent track is named so operators know which file is bad.
+        assert "02-track-2.wav" in result["summary"]["silent_tracks"]
+        # Per-track non-finite fields serialize as null, not Infinity/NaN.
+        silent = next(t for t in result["tracks"] if t["filename"] == "02-track-2.wav")
+        assert silent["lufs"] is None
+        assert silent["dynamic_range"] is None
+        # A recommendation names the silent track, and none says "-inf".
+        assert any("02-track-2.wav" in r for r in result["recommendations"])
+        assert not any("inf" in r.lower() for r in result["recommendations"])
+
+    def test_all_silent_tracks_no_crash(self, tmp_path):
+        """An all-silent album yields null aggregates and valid JSON."""
+        audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        mock_cache = MockStateCache(state)
+
+        def mock_analyze(filepath):
+            return self._silent_result(Path(filepath).name)
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze):
+            raw = _run(server.analyze_audio("test-album"))
+
+        result = _strict_json_loads(raw)
+        assert result["summary"]["avg_lufs"] is None
+        assert result["summary"]["lufs_range"] is None
+        assert len(result["summary"]["silent_tracks"]) == 2
 
 
 class TestMasterAudioComprehensive:

@@ -6,6 +6,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`analyze_audio` no longer emits invalid JSON for silent tracks** (#371). A
+  fully/near-silent WAV made `analyze_track` return `-inf` LUFS (and `nan`
+  dynamic range), which poisoned `avg_lufs`/`lufs_range` and serialized as the
+  invalid tokens `Infinity`/`-Infinity`/`NaN` — rejected by strict parsers (JS
+  `JSON.parse`, the MCP client), so the whole album response failed to parse.
+  Fixed at two layers: `_safe_json` now sanitizes non-finite floats to `null`
+  (protects every MCP tool, mirroring `JSON.stringify(Infinity) === "null"`),
+  and `analyze_audio` computes its summary over finite LUFS only, reporting
+  silent tracks in a new `summary.silent_tracks` field plus a recommendation
+  instead of a nonsensical "Average LUFS is -inf".
+
 ## [0.92.0] - 2026-06-01
 
 ### Changed

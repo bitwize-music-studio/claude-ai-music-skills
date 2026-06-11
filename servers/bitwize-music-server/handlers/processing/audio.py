@@ -74,15 +74,29 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
         result = await loop.run_in_executor(None, analyze_track, str(wav))
         results.append(result)
 
-    # Build summary
+    # Build summary. A silent / near-silent track makes analyze_track return
+    # -inf LUFS (pyln.Meter.integrated_loudness never skips it, unlike
+    # master_track). Aggregating over -inf poisons avg_lufs/lufs_range with
+    # non-finite values and emits a nonsensical "Average LUFS is -inf"
+    # recommendation, so compute only over finite LUFS and report the silent
+    # tracks separately (mirrors master_audio's np.isfinite guard). See #371.
+    import math
+
     import numpy as np
-    lufs_values = [r["lufs"] for r in results]
-    avg_lufs = float(np.mean(lufs_values))
-    lufs_range = float(max(lufs_values) - min(lufs_values))
+    finite_lufs = [
+        r["lufs"] for r in results
+        if isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"])
+    ]
+    silent_tracks = [
+        r["filename"] for r in results
+        if not (isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"]))
+    ]
+    avg_lufs = float(np.mean(finite_lufs)) if finite_lufs else None
+    lufs_range = float(max(finite_lufs) - min(finite_lufs)) if finite_lufs else None
     tinny_tracks = [r["filename"] for r in results if r["tinniness_ratio"] > 0.6]
 
     recommendations = []
-    if lufs_range > 2.0:
+    if lufs_range is not None and lufs_range > 2.0:
         recommendations.append(
             f"LUFS range is {lufs_range:.1f} dB — target < 2 dB for album consistency."
         )
@@ -90,9 +104,14 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
         recommendations.append(
             f"Tinny tracks needing high-mid EQ cut (2-6kHz): {', '.join(tinny_tracks)}"
         )
-    if avg_lufs < -16:
+    if avg_lufs is not None and avg_lufs < -16:
         recommendations.append(
             f"Average LUFS is {avg_lufs:.1f} — consider boosting toward -14 LUFS for streaming."
+        )
+    if silent_tracks:
+        recommendations.append(
+            "Silent or unmeasurable tracks (no valid LUFS): "
+            f"{', '.join(silent_tracks)}. Check for failed renders or empty files."
         )
 
     return _safe_json({
@@ -102,6 +121,7 @@ async def analyze_audio(album_slug: str, subfolder: str = "") -> str:
             "avg_lufs": avg_lufs,
             "lufs_range": lufs_range,
             "tinny_tracks": tinny_tracks,
+            "silent_tracks": silent_tracks,
         },
         "recommendations": recommendations,
     })
