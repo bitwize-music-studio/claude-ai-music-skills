@@ -892,7 +892,8 @@ def get_pending_migrations(
     Returns:
         Dict with ``installed_version``, ``last_migrated_version``,
         ``pending`` (list of parsed migrations) and ``reason`` (one of
-        ``"untracked"``, ``"upgrade"``, ``"current"``).
+        ``"untracked"``, ``"upgrade"``, ``"current"``, or ``"unknown"`` when
+        the installed version can't be read).
     """
     if plugin_root is None:
         plugin_root = _PROJECT_ROOT
@@ -910,12 +911,14 @@ def get_pending_migrations(
                 parsed.append(migration)
 
     # Cannot compare without an installed version — surface nothing (no crash).
+    # Distinct from "current" so callers/telemetry can tell "up to date" apart
+    # from "couldn't read plugin.json".
     if installed is None:
         return {
             'installed_version': None,
             'last_migrated_version': last,
             'pending': [],
-            'reason': 'current',
+            'reason': 'unknown',
         }
 
     # Only consider migrations at or below the installed version.

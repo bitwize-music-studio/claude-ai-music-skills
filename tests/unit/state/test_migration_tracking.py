@@ -262,6 +262,7 @@ class TestGetPendingMigrations:
         result = get_pending_migrations({'last_migrated_version': None}, root)
         assert result['pending'] == []
         assert result['installed_version'] is None
+        assert result['reason'] == 'unknown'
 
 
 # ---------------------------------------------------------------------------

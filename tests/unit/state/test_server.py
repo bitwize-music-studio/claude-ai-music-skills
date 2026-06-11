@@ -714,6 +714,44 @@ class TestStateCacheRebuild:
         assert "error" in result
         assert "build failed" in result["error"].lower()
 
+    def test_rebuild_carries_last_migrated_version(self):
+        """A rebuild must NOT silently acknowledge migrations — the prior
+        last_migrated_version is carried over the freshly-built (installed)
+        seed (issue #320)."""
+        config = {"artist": {"name": "test"}, "paths": {"content_root": "/tmp"}}
+        new_state = _fresh_state()
+        new_state["last_migrated_version"] = "9.9.9"  # build_state's installed seed
+        existing_state = _fresh_state()
+        existing_state["last_migrated_version"] = "0.50.0"
+
+        cache = server.StateCache()
+        with patch.object(server, "read_config", return_value=config), \
+             patch.object(server, "read_state", return_value=existing_state), \
+             patch.object(server, "build_state", return_value=new_state), \
+             patch.object(server, "write_state"):
+            result = cache.rebuild()
+
+        assert result["last_migrated_version"] == "0.50.0"
+
+    def test_rebuild_carries_none_for_pre_field_state(self):
+        """Rebuilding over a state written before the field existed records
+        None, keeping pending migrations visible rather than marking the
+        install current (issue #320)."""
+        config = {"artist": {"name": "test"}, "paths": {"content_root": "/tmp"}}
+        new_state = _fresh_state()
+        new_state["last_migrated_version"] = "9.9.9"
+        existing_state = _fresh_state()
+        existing_state.pop("last_migrated_version", None)  # legacy pre-field state
+
+        cache = server.StateCache()
+        with patch.object(server, "read_config", return_value=config), \
+             patch.object(server, "read_state", return_value=existing_state), \
+             patch.object(server, "build_state", return_value=new_state), \
+             patch.object(server, "write_state"):
+            result = cache.rebuild()
+
+        assert result["last_migrated_version"] is None
+
 
 class TestStateCacheUpdateSession:
     """Tests for StateCache.update_session()."""

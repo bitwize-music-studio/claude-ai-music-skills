@@ -11,6 +11,7 @@ from typing import Any
 
 from handlers import _shared
 from handlers._shared import _safe_json, get_plugin_version as _read_plugin_version
+from tools.state import indexer
 
 logger = logging.getLogger(__name__)
 
@@ -175,8 +176,6 @@ async def get_plugin_version() -> str:
         JSON with stored_version, current_version, last_migrated_version,
         pending_migration_count, and needs_upgrade flag
     """
-    from tools.state.indexer import get_pending_migrations as _compute_pending
-
     state = _shared.cache.get_state()
     stored = state.get("plugin_version")
 
@@ -184,7 +183,7 @@ async def get_plugin_version() -> str:
     current_raw = _read_plugin_version()
     current = None if current_raw == "unknown" else current_raw
 
-    pending = _compute_pending(state, _shared.PLUGIN_ROOT)
+    pending = indexer.get_pending_migrations(state, _shared.PLUGIN_ROOT)
 
     return _safe_json({
         "stored_version": stored,
@@ -208,13 +207,11 @@ async def get_pending_migrations() -> str:
 
     Returns:
         JSON with installed_version, last_migrated_version, reason
-        ("untracked" | "upgrade" | "current"), count, and pending[] (each with
-        version, summary, categories, actions, body, file).
+        ("untracked" | "upgrade" | "current" | "unknown"), count, and
+        pending[] (each with version, summary, categories, actions, body, file).
     """
-    from tools.state.indexer import get_pending_migrations as _compute_pending
-
     state = _shared.cache.get_state()
-    result = _compute_pending(state, _shared.PLUGIN_ROOT)
+    result = indexer.get_pending_migrations(state, _shared.PLUGIN_ROOT)
     result["count"] = len(result["pending"])
     return _safe_json(result)
 
