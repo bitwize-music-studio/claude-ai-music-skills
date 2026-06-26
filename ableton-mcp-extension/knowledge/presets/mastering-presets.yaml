@@ -1,0 +1,453 @@
+# Mastering Presets for Ableton MCP Extension
+
+Genre-specific mastering chain settings optimized for streaming platforms. These presets are adapted from the Claude AI Music Skills project and calibrated for Ableton Live workflows.
+
+---
+
+## Universal Target
+
+**Default**: -14 LUFS, -1.0 dBTP (True Peak)  
+This works across all streaming platforms with loudness normalization.
+
+---
+
+## Platform Targets
+
+| Platform | Normalization | True Peak Limit | Notes |
+|----------|---------------|-----------------|-------|
+| Spotify | -14 LUFS | -1.0 dBTP | Loudness normalization on by default |
+| Apple Music | -16 LUFS | -1.0 dBTP | Sound Check enabled |
+| YouTube | -14 LUFS | -1.0 dBTP | Integrated loudness |
+| Tidal | -14 LUFS | -1.0 dBTP | HiFi tier preserves dynamics |
+| Bandcamp | No normalization | -1.0 dBTP | Artist-controlled |
+| SoundCloud | -8 to -13 LUFS | -1.0 dBTP | Varies by content type |
+| Amazon Music | -14 LUFS | -2.0 dBTP | Stricter true peak |
+| Deezer | -15 LUFS | -1.0 dBTP | Moderate normalization |
+
+---
+
+## Genre Presets
+
+### Hip-Hop/Rap
+```yaml
+target_lufs: -10
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 30
+compress_release_ms: 100
+eq_low_shelf: +1.5 @ 100Hz      # Weight
+eq_high_shelf: +1.0 @ 10kHz     # Air
+saturation_drive: 0.2
+stereo_width: 1.1
+mono_below_hz: 120
+multiband_compress: false
+notes: "Competitive loudness with punchy low end"
+```
+
+### Trap
+```yaml
+target_lufs: -9
+true_peak: -1.0
+compress_ratio: 2.5
+compress_attack_ms: 25
+compress_release_ms: 90
+eq_low_shelf: +2.0 @ 60Hz       # 808 weight
+eq_high_shelf: +1.5 @ 12kHz     # Hi-hat sparkle
+saturation_drive: 0.25
+stereo_width: 1.15
+mono_below_hz: 140
+multiband_compress: true
+multiband_low_threshold: -18    # Control 808 dynamics
+notes: "Louder master for trap aesthetics, tight low end"
+```
+
+### Rock
+```yaml
+target_lufs: -12
+true_peak: -1.0
+compress_ratio: 2.5
+compress_attack_ms: 15
+compress_release_ms: 80
+eq_low_shelf: +0.5 @ 80Hz       # Tight low end
+eq_mid_cut: -1.5 @ 400Hz        # Reduce boxiness
+eq_high_shelf: +1.5 @ 8kHz      # Guitar/bite
+saturation_drive: 0.3
+stereo_width: 1.15
+mono_below_hz: 100
+notes: "Balance punch and dynamics, control mid mud"
+```
+
+### Metal
+```yaml
+target_lufs: -10
+true_peak: -1.0
+compress_ratio: 3.0
+compress_attack_ms: 10
+compress_release_ms: 70
+eq_low_shelf: +1.0 @ 80Hz       # Kick/bass weight
+eq_mid_cut: -2.0 @ 350Hz        # Heavy mud cut
+eq_high_shelf: +2.0 @ 6kHz      # Guitar aggression
+saturation_drive: 0.35
+stereo_width: 1.2
+mono_below_hz: 100
+multiband_compress: true
+multiband_mid_threshold: -20    # Control guitar harshness
+notes: "Aggressive but controlled, tight low end"
+```
+
+### Pop
+```yaml
+target_lufs: -11
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 25
+compress_release_ms: 100
+eq_low_shelf: +1.0 @ 100Hz      # Warmth
+eq_presence: +1.5 @ 3kHz        # Vocal clarity
+eq_high_shelf: +1.5 @ 10kHz     # Polish
+saturation_drive: 0.2
+stereo_width: 1.2
+mono_below_hz: 120
+notes: "Radio-ready polish, vocal-forward"
+```
+
+### EDM/House
+```yaml
+target_lufs: -9
+true_peak: -1.0
+compress_ratio: 1.5
+compress_attack_ms: 50
+compress_release_ms: 150
+eq_low_shelf: +2.0 @ 60Hz       # Sub-bass weight
+eq_high_shelf: +2.0 @ 12kHz     # Sparkle
+saturation_drive: 0.25
+stereo_width: 1.25
+mono_below_hz: 140
+multiband_compress: true
+multiband_low_ratio: 2.0        # Control sub dynamics
+notes: "Loud and wide, club-ready"
+```
+
+### Techno
+```yaml
+target_lufs: -8
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 40
+compress_release_ms: 120
+eq_low_shelf: +2.5 @ 50Hz       # Maximum sub
+eq_high_shelf: +1.5 @ 10kHz     # Percussion shimmer
+saturation_drive: 0.3
+stereo_width: 1.3
+mono_below_hz: 150              # Strict mono low end
+multiband_compress: true
+notes: "Maximum impact for club systems"
+```
+
+### Drum & Bass
+```yaml
+target_lufs: -8
+true_peak: -1.0
+compress_ratio: 2.5
+compress_attack_ms: 20
+compress_release_ms: 80
+eq_low_shelf: +2.0 @ 60Hz       # Sub bass
+eq_presence: +1.5 @ 5kHz        # Snare crack
+eq_high_shelf: +1.5 @ 12kHz     # Atmospheric highs
+saturation_drive: 0.25
+stereo_width: 1.2
+mono_below_hz: 140
+multiband_compress: true
+notes: "Fast transients controlled, sub tight"
+```
+
+### Dubstep
+```yaml
+target_lufs: -7
+true_peak: -1.0
+compress_ratio: 3.0
+compress_attack_ms: 15
+compress_release_ms: 100
+eq_low_shelf: +2.5 @ 55Hz       # Massive sub
+eq_mid_boost: +1.0 @ 800Hz      # Wub frequency
+eq_high_shelf: +2.0 @ 10kHz     # Top-end grit
+saturation_drive: 0.35
+stereo_width: 1.3
+mono_below_hz: 150
+multiband_compress: true
+multiband_low_ratio: 3.0        # Heavy sub control
+notes: "Maximum aggression, mono sub essential"
+```
+
+### Jazz
+```yaml
+target_lufs: -16
+true_peak: -1.0
+compress_ratio: 1.5
+compress_attack_ms: 40
+compress_release_ms: 120
+eq_low_shelf: +0.5 @ 80Hz       # Subtle warmth
+eq_high_shelf: +0.5 @ 8kHz      # Gentle air
+saturation_drive: 0.1
+stereo_width: 1.1
+mono_below_hz: 100
+preserve_dynamics: true
+notes: "Preserve natural dynamics and acoustic character"
+```
+
+### Classical/Orchestral
+```yaml
+target_lufs: -18
+true_peak: -1.0
+compress_ratio: 1.2
+compress_attack_ms: 50
+compress_release_ms: 150
+eq_low_shelf: 0                 # Flat
+eq_high_shelf: 0                # Flat
+saturation_drive: 0             # None
+stereo_width: 1.0               # Preserve image
+mono_below_hz: 80
+preserve_dynamics: true
+no_limiting: true               # Or very gentle
+notes: "Maximum dynamic range, minimal processing"
+```
+
+### Ambient
+```yaml
+target_lufs: -15
+true_peak: -1.0
+compress_ratio: 1.5
+compress_attack_ms: 60
+compress_release_ms: 200
+eq_low_shelf: +0.5 @ 100Hz      # Warmth
+eq_high_shelf: -0.5 @ 10kHz     # Darker character
+saturation_drive: 0.15          # Tape warmth
+stereo_width: 1.3               # Wide atmosphere
+mono_below_hz: 100
+notes: "Preserve atmosphere, darker tonal balance"
+```
+
+### Lo-Fi Hip-Hop
+```yaml
+target_lufs: -14
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 30
+compress_release_ms: 100
+eq_low_shelf: +1.0 @ 100Hz      # Warmth
+eq_mid_cut: -1.0 @ 400Hz        # Slight mud reduction
+eq_high_shelf: -1.0 @ 8kHz      # Duller character
+saturation_drive: 0.2           # Vinyl/tape emulation
+stereo_width: 1.1
+mono_below_hz: 120
+bitcrush_simulation: 0.1        # Optional lo-fi character
+notes: "Warm, dark, vintage character"
+```
+
+### Funk/Soul
+```yaml
+target_lufs: -12
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 20
+compress_release_ms: 80
+eq_low_shelf: +1.0 @ 80Hz       # Bass weight
+eq_mid_boost: +1.0 @ 800Hz      # Groove pocket
+eq_high_shelf: +1.5 @ 8kHz      # Horn/brass bite
+saturation_drive: 0.25          # Analog warmth
+stereo_width: 1.15
+mono_below_hz: 120
+notes: "Groove-focused, analog warmth"
+```
+
+### R&B
+```yaml
+target_lufs: -11
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 25
+compress_release_ms: 100
+eq_low_shelf: +1.5 @ 80Hz       # Smooth bass
+eq_presence: +1.5 @ 3kHz        # Vocal presence
+eq_high_shelf: +1.5 @ 10kHz     # Silk
+saturation_drive: 0.2
+stereo_width: 1.2
+mono_below_hz: 120
+notes: "Smooth, vocal-forward, polished"
+```
+
+### Latin/Reggaeton
+```yaml
+target_lufs: -9
+true_peak: -1.0
+compress_ratio: 2.5
+compress_attack_ms: 20
+compress_release_ms: 90
+eq_low_shelf: +2.0 @ 60Hz       # Dembow weight
+eq_presence: +1.5 @ 4kHz        # Percussion clarity
+eq_high_shelf: +1.5 @ 10kHz     # Shimmer
+saturation_drive: 0.2
+stereo_width: 1.2
+mono_below_hz: 120
+percussion_forward: true
+notes: "Percussion-driven, rhythmic clarity"
+```
+
+### Afrobeats
+```yaml
+target_lufs: -9
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 20
+compress_release_ms: 90
+eq_low_shelf: +1.5 @ 70Hz       # Low end weight
+eq_presence: +1.5 @ 4kHz        # Percussion articulation
+eq_high_shelf: +1.5 @ 10kHz     # Brightness
+saturation_drive: 0.2
+stereo_width: 1.2
+mono_below_hz: 120
+notes: "Rhythmic, bright, percussive"
+```
+
+### Country
+```yaml
+target_lufs: -12
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 25
+compress_release_ms: 90
+eq_low_shelf: +1.0 @ 100Hz      # Acoustic warmth
+eq_presence: +1.5 @ 3kHz        # Vocal/vocal clarity
+eq_high_shelf: +1.0 @ 8kHz      # Acoustic sparkle
+saturation_drive: 0.15
+stereo_width: 1.15
+mono_below_hz: 100
+notes: "Natural, acoustic-forward, clear vocals"
+```
+
+### Folk/Acoustic
+```yaml
+target_lufs: -14
+true_peak: -1.0
+compress_ratio: 1.5
+compress_attack_ms: 35
+compress_release_ms: 100
+eq_low_shelf: +0.5 @ 100Hz      # Subtle warmth
+eq_high_shelf: +1.0 @ 8kHz      # Acoustic air
+saturation_drive: 0.1
+stereo_width: 1.1
+mono_below_hz: 100
+preserve_dynamics: true
+notes: "Minimal processing, preserve acoustic character"
+```
+
+### Indie/Alternative
+```yaml
+target_lufs: -12
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 25
+compress_release_ms: 90
+eq_low_shelf: +1.0 @ 100Hz      # Warmth
+eq_mid_cut: -1.0 @ 350Hz        // Light mud reduction
+eq_high_shelf: +1.5 @ 8kHz      // Character
+saturation_drive: 0.2           // Analog vibe
+stereo_width: 1.2
+mono_below_hz: 100
+notes: "Balanced, characterful, not over-processed"
+```
+
+### Punk/Hardcore
+```yaml
+target_lufs: -10
+true_peak: -1.0
+compress_ratio: 3.0
+compress_attack_ms: 10
+compress_release_ms: 60
+eq_low_shelf: +1.0 @ 100Hz      // Punch
+eq_mid_cut: -1.5 @ 400Hz        // Reduce boxiness
+eq_high_shelf: +2.0 @ 6kHz      // Aggression
+saturation_drive: 0.3
+stereo_width: 1.1
+mono_below_hz: 100
+notes: "Aggressive, in-your-face, controlled chaos"
+```
+
+### Gospel
+```yaml
+target_lufs: -13
+true_peak: -1.0
+compress_ratio: 2.0
+compress_attack_ms: 30
+compress_release_ms: 100
+eq_low_shelf: +1.0 @ 80Hz       // Foundation
+eq_presence: +1.5 @ 3kHz        // Vocal clarity
+eq_high_shelf: +1.5 @ 10kHz     // Choir brightness
+saturation_drive: 0.15
+stereo_width: 1.2
+mono_below_hz: 100
+notes: "Vocal/choir forward, warm foundation"
+```
+
+---
+
+## Processing Chain Order
+
+Standard mastering chain order for all presets:
+
+1. **EQ (Corrective)** — Surgical cuts for problem frequencies
+2. **EQ (Tonal)** — Broad strokes for tonal balance
+3. **Compression** — Glue compression for cohesion
+4. **Saturation** — Harmonic enhancement (subtle)
+5. **Stereo Imaging** — Width control
+6. **Limiting** — True peak limiting to ceiling
+7. **Dither** — When reducing bit depth (24-bit → 16-bit)
+
+---
+
+## Custom Overrides
+
+Create a custom preset file at `{overrides}/mastering-presets.yaml`:
+
+```yaml
+# Example: Custom preset for dark electronic music
+genres:
+  dark-electronic:
+    target_lufs: -12
+    true_peak: -1.0
+    compress_ratio: 2.0
+    compress_attack_ms: 40
+    eq_high_shelf: -1.0 @ 10kHz   # Darker character
+    saturation_drive: 0.25
+```
+
+Override files deep-merge: you only need to specify the values you want to change.
+
+---
+
+## Quality Checklist
+
+Before delivering mastered tracks:
+
+- [ ] Target LUFS achieved (±0.5 tolerance)
+- [ ] True peak ≤ -1.0 dBTP
+- [ ] No clipping or intersample peaks
+- [ ] Frequency balance translates across systems
+- [ ] Dynamic range appropriate for genre
+- [ ] Stereo image checked in mono
+- [ ] Metadata embedded (ISRC, artist, title, album)
+- [ ] File format matches delivery requirements (WAV 24-bit/44.1kHz minimum)
+- [ ] A/B tested against reference tracks
+
+---
+
+## Remember
+
+1. **-14 LUFS, -1.0 dBTP** is the universal safe target
+2. **Genre matters** — classical needs more dynamics than EDM
+3. **Reference constantly** — A/B against commercial releases
+4. **Less is more** — subtle processing beats aggressive chains
+5. **Mono compatibility** — always check low end in mono
+6. **Preserve transients** — don't squash the life out of music
+7. **Platform awareness** — different platforms have different targets
+8. **Your deliverable**: Delivery-ready files with correct metadata

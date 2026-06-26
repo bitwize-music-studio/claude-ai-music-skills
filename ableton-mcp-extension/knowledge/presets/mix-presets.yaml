@@ -1,0 +1,425 @@
+# Mix Presets for Ableton MCP Extension
+
+Per-stem processing settings organized by genre family. These presets are adapted from the Claude AI Music Skills project and optimized for Ableton Live workflows.
+
+---
+
+## How to Use
+
+Load presets based on your track's primary genre. Settings not specified inherit from defaults.
+
+**Defaults** are calibrated for typical AI-generated and home studio output:
+- Moderate noise reduction on vocals (0.5)
+- Presence boost at 3 kHz for vocal clarity
+- Mud cut around 200-300 Hz for low-mid cleanup
+- Gentle compression for dynamic consistency
+- Unity gain (0 dB) for each stem in the remix
+
+**Genre presets** override specific values. For example, hip-hop boosts vocal and bass gain to push those elements forward.
+
+---
+
+## Default Settings (All Genres)
+
+### Vocals (Lead)
+```yaml
+noise_reduction: 0.5
+presence_boost_db: 2.0 @ 3kHz
+high_tame_db: -2.0 @ 7kHz
+compress_threshold_db: -15.0
+compress_ratio: 2.5
+compress_attack_ms: 10.0
+gain_db: 0.0
+```
+
+### Backing Vocals
+```yaml
+noise_reduction: 0.5
+presence_boost_db: 1.0 @ 3kHz
+high_tame_db: -2.5 @ 7kHz
+stereo_width: 1.3
+compress_threshold_db: -14.0
+compress_ratio: 3.0
+compress_attack_ms: 8.0
+gain_db: -1.5
+```
+
+### Drums
+```yaml
+click_removal: true
+compress_threshold_db: -12.0
+compress_ratio: 2.0
+compress_attack_ms: 5.0
+gain_db: 0.0
+```
+
+### Bass
+```yaml
+highpass_cutoff: 30Hz
+mud_cut_db: -3.0 @ 200Hz
+compress_threshold_db: -15.0
+compress_ratio: 3.0
+gain_db: 0.0
+```
+
+### Guitar
+```yaml
+highpass_cutoff: 80Hz
+mud_cut_db: -2.5 @ 250Hz
+presence_boost_db: 1.5 @ 3kHz
+high_tame_db: -1.5 @ 8kHz
+stereo_width: 1.15
+compress_threshold_db: -14.0
+compress_ratio: 2.5
+gain_db: 0.0
+```
+
+### Keyboard
+```yaml
+highpass_cutoff: 40Hz
+mud_cut_db: -2.0 @ 300Hz
+presence_boost_db: 1.0 @ 2.5kHz
+high_tame_db: -1.5 @ 9kHz
+stereo_width: 1.1
+compress_threshold_db: -16.0
+compress_ratio: 2.0
+gain_db: 0.0
+```
+
+### Strings
+```yaml
+highpass_cutoff: 35Hz
+mud_cut_db: -1.5 @ 250Hz
+presence_boost_db: 1.0 @ 3.5kHz
+high_tame_db: -1.0 @ 9kHz
+stereo_width: 1.25
+compress_threshold_db: -18.0
+compress_ratio: 1.5
+gain_db: 0.0
+```
+
+---
+
+## Genre-Specific Overrides
+
+### Hip-Hop/Rap
+```yaml
+# Stem Gain Adjustments
+vocals_gain_db: +1.0
+drums_gain_db: +0.5
+bass_gain_db: +1.0
+strings_gain_db: -0.5
+brass_gain_db: -0.5
+synth_gain_db: -0.5
+percussion_gain_db: +0.5
+
+# Vocal Processing
+vocals_presence_boost_db: +2.5  # Stronger presence
+
+# Bass Processing
+bass_highpass_cutoff: 25Hz      # Keep sub-bass
+bass_gain_db: +1.0              # Push bass forward
+
+# Notes
+# - Vocals pushed forward with stronger presence
+# - Bass and drums emphasized for punch
+# - Sub-bass preserved with lower highpass
+```
+
+### Rock/Metal
+```yaml
+# Stem Gain Adjustments
+drums_gain_db: +0.5 to +1.0
+guitar_gain_db: +0.5
+synth_gain_db: -0.5
+
+# Vocal Processing
+vocals_high_tame_db: -2.5 to -3.0  # More aggressive de-essing
+
+# Guitar Processing
+guitar_saturation_drive: 0.2       # Add warmth/crunch
+guitar_mud_cut_db: -3.0            # Heavier mud cut
+
+# Drum Processing (Metal)
+drums_compress_ratio: 3.0          # Tighter drums
+drums_compress_attack_ms: 3.0      # Faster attack
+
+# Other Processing
+other_mud_cut_db: -3.0 to -3.5     # Clear room for guitars
+
+# Notes
+# - Aggressive high taming on vocals
+# - Drums forward in the mix
+# - Guitar saturation for character
+# - Heavier mud cuts overall
+```
+
+### EDM/Electronic
+```yaml
+# Stem Gain Adjustments
+bass_gain_db: +0.5 to +1.0
+drums_gain_db: +0.5 to +1.0
+percussion_gain_db: +0.5
+synth_gain_db: +0.5
+
+# Bass Processing
+bass_highpass_cutoff: 25Hz  # Preserve sub-bass
+
+# High Frequency Processing
+other_high_tame_db: -1.0    # Less taming, keep sparkle
+
+# Notes
+# - Bass and drums pushed forward
+# - Lower highpass on bass for sub preservation
+# - Synth sparkle preserved
+```
+
+### Pop
+```yaml
+# Stem Gain Adjustments
+vocals_gain_db: +0.5
+drums_gain_db: +0.5
+
+# Vocal Processing
+vocals_presence_boost_db: +2.5   # Maximum clarity
+vocals_compress_ratio: 3.0       # Consistent dynamics
+
+# Notes
+# - Vocals front and center
+# - Polished, radio-ready sound
+# - Controlled dynamics
+```
+
+### Folk/Country/Americana
+```yaml
+# Stem Gain Adjustments
+vocals_gain_db: +0.5
+
+# Guitar Processing
+guitar_presence_boost_db: +2.0   # Acoustic clarity
+guitar_stereo_width: 1.0         # Centered
+
+# Other Processing
+other_mud_cut_db: -1.5           # Preserve warmth
+
+# Vocal Processing
+vocals_compress_ratio: 2.0       # Don't squash dynamics
+
+# Notes
+# - Vocals forward for lyric clarity
+# - Guitar presence emphasized
+# - Natural dynamics preserved
+# - Acoustic warmth maintained
+```
+
+### Jazz/Classical
+```yaml
+# Compression (All Stems)
+all_compress_ratio: 1.2 to 1.5   # Light compression
+
+# Saturation (Selected Stems)
+guitar_saturation_drive: 0.1
+keyboard_saturation_drive: 0.1
+brass_saturation_drive: 0.1
+woodwinds_saturation_drive: 0.1
+
+# Woodwinds
+woodwinds_presence_boost_db: +1.5
+woodwinds_gain_db: +0.5
+
+# Strings
+strings_compress_ratio: 1.0      # Bypass for classical
+strings_stereo_width: 1.3        # Wide orchestral spread
+
+# Vocal Processing
+vocals_presence_boost_db: +1.5   # Moderate presence
+
+# Mud Cuts
+all_mud_cut_db: -1.0             # Light, preserve resonance
+
+# Notes
+# - Reduced compression across all stems
+# - Light saturation for analog warmth
+# - Woodwinds boosted for solo clarity
+# - Minimal mud cuts
+# - Preserve natural dynamics
+```
+
+### Funk
+```yaml
+# Stem Gain Adjustments
+bass_gain_db: +0.5
+drums_gain_db: +0.5
+brass_gain_db: +0.5
+percussion_gain_db: +0.5
+
+# Guitar Processing
+guitar_saturation_drive: 0.25    # Rhythmic attack
+guitar_compress_ratio: 3.0       # Tight compression
+guitar_compress_attack_ms: 8.0   # Fast attack
+
+# Keyboard Processing
+keyboard_saturation_drive: 0.3   # Clavinet/organ character
+
+# Brass Processing
+brass_compress_ratio: 2.5        # Tight brass
+brass_gain_db: +0.5
+
+# Notes
+# - Guitar saturation and tight compression
+# - Keyboard saturation for character
+# - Brass forward and tight
+# - Percussion emphasized for groove
+```
+
+### Latin/Afrobeats
+```yaml
+# Stem Gain Adjustments
+percussion_gain_db: +1.0
+drums_gain_db: +0.5 to +1.0
+bass_gain_db: +0.5
+brass_gain_db: +0.5
+vocals_gain_db: +0.5
+
+# Percussion Processing
+percussion_compress_ratio: 2.5   # Tighter percussion
+percussion_compress_attack_ms: 6.0
+
+# Brass Processing
+brass_presence_boost_db: +2.0    # Salsa/afrobeats arrangements
+
+# Notes
+# - Percussion forward (central to genre)
+# - Brass presence boosted
+# - Rhythmic elements emphasized
+```
+
+### Ambient/Lo-Fi
+```yaml
+# Noise Reduction
+vocals_noise_reduction: 0.2 to 0.3  # Some noise is character
+
+# Presence Boost
+vocals_presence_boost_db: +1.0      # Warmth over clarity
+
+# Vocal Compression
+vocals_compress_ratio: 1.5          # Preserve dynamics
+
+# High Frequency
+all_high_tame_db: -1.0 to -1.5      # Darker character
+
+# Stereo Width
+synth_stereo_width: 1.3             # Wide pads
+strings_stereo_width: 1.3
+
+# Notes
+# - Lighter processing overall
+# - Reduced noise reduction (noise = character)
+# - Reduced presence boost
+# - Preserve dynamics
+# - Wide atmospheric elements
+```
+
+### Metal (Specific)
+```yaml
+# Drum Processing
+drums_compress_ratio: 3.0
+drums_compress_attack_ms: 3.0
+drums_gain_db: +1.0
+
+# Guitar Processing
+guitar_saturation_drive: 0.3
+guitar_mud_cut_db: -3.5
+guitar_high_tame_db: -2.0
+guitar_gain_db: +0.5
+
+# Bass Processing
+bass_compress_ratio: 4.0           # Very consistent
+bass_gain_db: +0.5
+
+# Vocal Processing
+vocals_high_tame_db: -3.0          # Control harshness
+vocals_compress_ratio: 3.0
+
+# Notes
+# - Extra drum compression for tightness
+# - Guitar saturation for aggression
+# - Heavy mud cuts
+# - Aggressive vocal processing
+```
+
+---
+
+## Common Artifacts & Fixes
+
+### AI Hiss / Noise Floor
+**Symptom**: Faint background noise, especially on vocal stems  
+**Fix**: Spectral gating noise reduction  
+**Default**: 0.5 strength on vocals, 0.3 on instruments  
+**Override**: Reduce to 0.1-0.2 for clean stems, increase to 0.7-0.8 for noisy
+
+### Digital Clicks / Pops
+**Symptom**: Brief transient spikes from generation artifacts  
+**Fix**: Click detection (amplitude spike > 6σ) + linear interpolation  
+**Default**: Enabled on drums  
+**Override**: Raise threshold to 8-10σ for sharp intentional transients
+
+### Muddy Low-Mids
+**Symptom**: Excess energy in 150-400 Hz range  
+**Fix**: Parametric EQ cut  
+**Default**: -3 dB at 200 Hz (bass), -2 dB at 300 Hz (other)  
+**Override**: Reduce cut for warm genres, increase for muddy mixes
+
+### Harsh High-Mids / Sibilance
+**Symptom**: Piercing quality in 5-8 kHz range  
+**Fix**: High shelf cut  
+**Default**: -2 dB at 7 kHz (vocals), -1.5 dB at 8 kHz (other)  
+**Override**: Reduce for warm vocals, increase for bright sources
+
+### Sub-Bass Rumble
+**Symptom**: Inaudible low-frequency content below 30 Hz  
+**Fix**: Butterworth highpass filter  
+**Default**: 30 Hz on bass stem  
+**Override**: Lower to 20-25 Hz for sub-bass genres, raise to 40 Hz for rumble problems
+
+---
+
+## Custom Overrides
+
+Create a custom preset file at `{overrides}/mix-presets.yaml`:
+
+```yaml
+# Example: Custom preset for dark electronic music
+genres:
+  dark-electronic:
+    vocals:
+      noise_reduction: 0.7
+      high_tame_db: -3.0
+      gain_db: -0.5       # Vocals slightly back
+    bass:
+      highpass_cutoff: 20  # Keep all the sub
+      gain_db: 2.0         # Bass way forward
+    drums:
+      compress_ratio: 3.0  # Tight drums
+      gain_db: 1.0
+```
+
+Override files deep-merge: you only need to specify the values you want to change.
+
+---
+
+## Full-Mix Fallback
+
+When stems aren't available, process the full stereo mix:
+
+```yaml
+noise_reduction: 0.3         # Lighter since affects everything
+highpass_cutoff: 35Hz
+click_removal: true
+mud_cut_db: -2.0 @ 250Hz
+presence_boost_db: +1.5 @ 3kHz
+high_tame_db: -1.5 @ 7kHz
+compress_ratio: 2.0
+```
+
+**Limitation**: Can't adjust stem balance or target specific elements. Always prefer stems when available.

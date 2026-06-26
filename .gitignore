@@ -1,44 +1,66 @@
-# User content (private)
-/artists/
-!genres/**/artists/
-research/
-IDEAS.md
-
-# User configuration lives at ~/.bitwize-music/config.yaml (outside repo)
-
-# Generated files
+```
+# Compiled and binary files
 *.pyc
 __pycache__/
-.venv/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Dependencies
+node_modules/
 venv/
-mastered/
-*.wav
-*.mp3
+.venv/
+.env
+.env.local
+.env.*
 
-# Primary source documents - too large for Git
-*.pdf
-primary-sources/
+# Build artifacts
+dist/
+build/
+target/
+*.log
+*.tmp
 
-# OS files
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System files
 .DS_Store
 Thumbs.db
 
-# Editor files
-*.swp
-*.swo
-*~
-.idea/
-.vscode/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-TESTING.md
+# Coverage
+coverage/
+htmlcov/
 .coverage
-TODO.md
-.claude/worktrees/
-.worktrees/
 
-# Superpowers planning/spec docs - kept local, not committed
-docs/superpowers/
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
