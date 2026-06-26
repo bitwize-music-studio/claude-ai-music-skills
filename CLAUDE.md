@@ -95,7 +95,7 @@ At the beginning of a fresh session:
    - `get_session` → resume last session context
    - If MCP returns errors about missing/stale cache → `rebuild_state()` MCP tool
 4.5. **Check for plugin upgrades** — Call the `get_pending_migrations` MCP tool (compares the installed version against state's `last_migrated_version`, not `plugin_version`):
-   - `pending` empty (`reason: "current"`) → no action
+   - `pending` empty (`reason: "current"`, or `"unknown"` when plugin.json is unreadable) → no action
    - `pending` non-empty (`reason: "upgrade"` or `"untracked"`) → process each note's actions in order, then call `acknowledge_migrations` to record them as done
    - Never clear migrations by rebuilding state — a rebuild preserves pending status; only `acknowledge_migrations` advances `last_migrated_version`
 5. _(Removed — skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene, so no action is needed on new releases.)_

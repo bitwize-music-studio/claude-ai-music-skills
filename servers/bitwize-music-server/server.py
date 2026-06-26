@@ -243,6 +243,14 @@ class StateCache:
                 return {"error": f"State has error: {state['error']}"}
 
             target = version or _read_plugin_version(PLUGIN_ROOT)
+            if not target:
+                # Never write a null target: it would un-acknowledge every
+                # migration and resurface the full backlog next session (#320).
+                logger.warning(
+                    "Cannot acknowledge migrations: installed plugin version "
+                    "unavailable and no version supplied"
+                )
+                return {"error": "Cannot determine version to acknowledge"}
             state["last_migrated_version"] = target
             write_state(state)
             self._update_mtimes()

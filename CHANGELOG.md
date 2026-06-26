@@ -23,7 +23,10 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   instead of silently skipping it; a fresh install is seeded to the installed
   version so it sees nothing. No schema-version bump — bumping would force the
   live MCP path to auto-rebuild every existing state and erase the "behind"
-  status the fix depends on.
+  status the fix depends on. `acknowledge_migrations` also refuses to record a
+  null version (e.g. when plugin.json is unreadable and no version is supplied),
+  which would otherwise reset `last_migrated_version` and resurface the entire
+  backlog on the next session.
 - **`analyze_audio` no longer emits invalid JSON for silent tracks** (#371). A
   fully/near-silent WAV made `analyze_track` return `-inf` LUFS (and `nan`
   dynamic range), which poisoned `avg_lufs`/`lufs_range` and serialized as the

@@ -83,7 +83,8 @@ migrations were processed — distinct from `plugin_version`, which only records
 the installed version for display) and returns the pending notes already
 parsed and sorted.
 
-1. **If `pending` is empty** (`reason: "current"`): No action needed.
+1. **If `pending` is empty** (`reason: "current"`, or `reason: "unknown"` when the
+   installed version can't be read from plugin.json): No action needed.
 2. **If `pending` is non-empty** (`reason: "upgrade"` or `"untracked"`): For each
    migration, process its `actions` in order:
    - `auto`: Execute silently (run `check` first — skip if it returns 0)

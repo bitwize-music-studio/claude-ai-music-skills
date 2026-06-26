@@ -7090,6 +7090,38 @@ class TestStateCacheAcknowledgeMigrations:
 
         assert "error" in result
 
+    def test_state_with_error_returns_error(self, monkeypatch):
+        """An error sentinel in state short-circuits without writing."""
+        sc = server.StateCache()
+        sc._state = {"error": "boom"}
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        wrote = []
+        monkeypatch.setattr(server, "write_state", lambda s: wrote.append(s))
+
+        result = sc.acknowledge_migrations("0.91.0")
+
+        assert "error" in result
+        assert "boom" in result["error"]
+        assert wrote == []
+
+    def test_unreadable_plugin_version_does_not_reset(self, monkeypatch):
+        """If the installed version can't be read, acknowledging must not wipe
+        last_migrated_version back to None (issue #320 regression guard)."""
+        sc = server.StateCache()
+        sc._state = _fresh_state()
+        sc._state["last_migrated_version"] = "0.89.0"
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        writes = []
+        monkeypatch.setattr(server, "write_state",
+                            lambda s: writes.append(copy.deepcopy(s)))
+        monkeypatch.setattr(server, "_read_plugin_version", lambda root: None)
+
+        result = sc.acknowledge_migrations()
+
+        assert "error" in result
+        assert sc._state["last_migrated_version"] == "0.89.0"
+        assert writes == []
+
 
 # =============================================================================
 # Tests for _parse_requirements
