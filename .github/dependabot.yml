@@ -10,6 +10,13 @@ updates:
     labels:
       - "dependencies"
     open-pull-requests-limit: 10
+    # Plugin runs in the user's venv and supports Python 3.11 (see requirements.txt).
+    # scipy 1.18+ and numpy 2.5+ require Python >=3.12, so block those upgrades here.
+    ignore:
+      - dependency-name: "scipy"
+        versions: [">=1.18.0"]
+      - dependency-name: "numpy"
+        versions: [">=2.5.0"]
     groups:
       pip-all:
         patterns:
