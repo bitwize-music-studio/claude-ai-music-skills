@@ -77,19 +77,30 @@ Read `~/.bitwize-music/cache/state.json`:
 
 ## Step 4.5: Check for Plugin Upgrades
 
-Compare `plugin_version` in state.json against current version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`:
+Call the `get_pending_migrations` MCP tool. It compares the installed plugin
+version against `last_migrated_version` in state (the last version whose
+migrations were processed — distinct from `plugin_version`, which only records
+the installed version for display) and returns the pending notes already
+parsed and sorted.
 
-1. **If `plugin_version` is null** (first run or pre-upgrade-system): Set to current version, skip migrations
-2. **If versions match**: No action needed
-3. **If stored < current** (upgrade detected):
-   - Read migration files from `${CLAUDE_PLUGIN_ROOT}/migrations/` for versions between stored and current
-   - Process actions in order:
-     - `auto`: Execute silently (run `check` first — skip if returns 0)
-     - `action`: Show description, ask user to confirm before executing
-     - `info`: Display to user
-     - `manual`: Show instruction to user
-   - Rebuild state to update `plugin_version`
-4. Report: "Upgraded from X to Y" with summary of actions taken
+1. **If `pending` is empty** (`reason: "current"`, or `reason: "unknown"` when the
+   installed version can't be read from plugin.json): No action needed.
+2. **If `pending` is non-empty** (`reason: "upgrade"` or `"untracked"`): For each
+   migration, process its `actions` in order:
+   - `auto`: Execute silently (run `check` first — skip if it returns 0)
+   - `action`: Show description, ask the user to confirm before executing
+   - `info`: Display to the user
+   - `manual`: Show the instruction to the user
+3. **After processing all notes**, call `acknowledge_migrations` (no argument
+   acknowledges everything up to the installed version) so the same notes do
+   not surface again next session.
+4. Report: "Upgraded to Y" with a summary of the actions taken.
+
+> `reason: "untracked"` means the state predates migration tracking; the full
+> backlog up to the installed version is surfaced once, then cleared by
+> `acknowledge_migrations`. Do NOT just rebuild state to clear migrations —
+> a rebuild preserves the pending status; only `acknowledge_migrations` records
+> that you processed them.
 
 ## Step 5: (Removed)
 

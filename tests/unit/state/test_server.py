@@ -193,6 +193,24 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _write_plugin_json(plugin_root, version):
+    """Write .claude-plugin/plugin.json with the given version."""
+    plugin_dir = plugin_root / ".claude-plugin"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "plugin.json").write_text(f'{{"version": "{version}"}}')
+
+
+def _write_migration(plugin_root, version):
+    """Write a minimal migrations/<version>.md note under plugin_root."""
+    mdir = plugin_root / "migrations"
+    mdir.mkdir(parents=True, exist_ok=True)
+    (mdir / f"{version}.md").write_text(
+        f'---\nversion: "{version}"\nsummary: "Changes for {version}"\n'
+        f'categories:\n  - config\nactions:\n  - type: info\n'
+        f'    description: "noop"\n---\n\nBody for {version}.\n'
+    )
+
+
 def _fresh_state():
     """Return a deep copy of sample state so tests don't interfere."""
     return copy.deepcopy(SAMPLE_STATE)
@@ -695,6 +713,44 @@ class TestStateCacheRebuild:
             result = cache.rebuild()
         assert "error" in result
         assert "build failed" in result["error"].lower()
+
+    def test_rebuild_carries_last_migrated_version(self):
+        """A rebuild must NOT silently acknowledge migrations — the prior
+        last_migrated_version is carried over the freshly-built (installed)
+        seed (issue #320)."""
+        config = {"artist": {"name": "test"}, "paths": {"content_root": "/tmp"}}
+        new_state = _fresh_state()
+        new_state["last_migrated_version"] = "9.9.9"  # build_state's installed seed
+        existing_state = _fresh_state()
+        existing_state["last_migrated_version"] = "0.50.0"
+
+        cache = server.StateCache()
+        with patch.object(server, "read_config", return_value=config), \
+             patch.object(server, "read_state", return_value=existing_state), \
+             patch.object(server, "build_state", return_value=new_state), \
+             patch.object(server, "write_state"):
+            result = cache.rebuild()
+
+        assert result["last_migrated_version"] == "0.50.0"
+
+    def test_rebuild_carries_none_for_pre_field_state(self):
+        """Rebuilding over a state written before the field existed records
+        None, keeping pending migrations visible rather than marking the
+        install current (issue #320)."""
+        config = {"artist": {"name": "test"}, "paths": {"content_root": "/tmp"}}
+        new_state = _fresh_state()
+        new_state["last_migrated_version"] = "9.9.9"
+        existing_state = _fresh_state()
+        existing_state.pop("last_migrated_version", None)  # legacy pre-field state
+
+        cache = server.StateCache()
+        with patch.object(server, "read_config", return_value=config), \
+             patch.object(server, "read_state", return_value=existing_state), \
+             patch.object(server, "build_state", return_value=new_state), \
+             patch.object(server, "write_state"):
+            result = cache.rebuild()
+
+        assert result["last_migrated_version"] is None
 
 
 class TestStateCacheUpdateSession:
@@ -6758,20 +6814,23 @@ class TestGetPluginVersion:
     """Tests for the get_plugin_version() MCP tool."""
 
     def test_returns_stored_and_current(self, tmp_path):
-        """Returns both stored and current version."""
+        """Returns both stored and current version; needs_upgrade reflects
+        pending migration notes (issue #320)."""
         state = _fresh_state()
         state["plugin_version"] = "0.43.0"
+        state["last_migrated_version"] = "0.43.0"
         mock_cache = MockStateCache(state)
 
-        plugin_dir = tmp_path / ".claude-plugin"
-        plugin_dir.mkdir()
-        (plugin_dir / "plugin.json").write_text('{"version": "0.44.0"}')
+        _write_plugin_json(tmp_path, "0.44.0")
+        _write_migration(tmp_path, "0.44.0")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["stored_version"] == "0.43.0"
         assert result["current_version"] == "0.44.0"
+        assert result["last_migrated_version"] == "0.43.0"
+        assert result["pending_migration_count"] == 1
         assert result["needs_upgrade"] is True
 
     def test_versions_match(self, tmp_path):
@@ -6790,14 +6849,15 @@ class TestGetPluginVersion:
         assert result["needs_upgrade"] is False
 
     def test_null_stored_needs_upgrade(self, tmp_path):
-        """First run (null stored) triggers needs_upgrade."""
+        """Pre-tracking state (null last_migrated_version) surfaces the
+        backlog, so needs_upgrade is True (issue #320)."""
         state = _fresh_state()
         state["plugin_version"] = None
+        state["last_migrated_version"] = None
         mock_cache = MockStateCache(state)
 
-        plugin_dir = tmp_path / ".claude-plugin"
-        plugin_dir.mkdir()
-        (plugin_dir / "plugin.json").write_text('{"version": "0.44.0"}')
+        _write_plugin_json(tmp_path, "0.44.0")
+        _write_migration(tmp_path, "0.44.0")
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
@@ -6902,6 +6962,165 @@ class TestGetPluginVersion:
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.get_plugin_version()))
         assert result["plugin_root"] == str(tmp_path)
+
+
+# =============================================================================
+# Tests for get_pending_migrations / acknowledge_migrations (issue #320)
+# =============================================================================
+
+
+class _StatefulCache:
+    """Minimal stateful cache for the get→acknowledge→get loop."""
+
+    def __init__(self, state):
+        self._state = state
+
+    def get_state(self):
+        return self._state
+
+    def acknowledge_migrations(self, version=None):
+        target = version or "__installed__"
+        self._state["last_migrated_version"] = target
+        return {"last_migrated_version": target}
+
+
+class TestGetPendingMigrationsTool:
+    """Tests for the get_pending_migrations() MCP tool."""
+
+    def test_upgrade_lists_only_newer(self, tmp_path):
+        state = _fresh_state()
+        state["last_migrated_version"] = "0.89.0"
+        mock_cache = MockStateCache(state)
+        _write_plugin_json(tmp_path, "0.90.0")
+        _write_migration(tmp_path, "0.59.0")
+        _write_migration(tmp_path, "0.90.0")
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_pending_migrations()))
+        assert result["reason"] == "upgrade"
+        assert result["count"] == 1
+        assert [m["version"] for m in result["pending"]] == ["0.90.0"]
+        assert result["installed_version"] == "0.90.0"
+
+    def test_current_lists_nothing(self, tmp_path):
+        state = _fresh_state()
+        state["last_migrated_version"] = "0.90.0"
+        mock_cache = MockStateCache(state)
+        _write_plugin_json(tmp_path, "0.90.0")
+        _write_migration(tmp_path, "0.90.0")
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_pending_migrations()))
+        assert result["count"] == 0
+        assert result["reason"] == "current"
+
+    def test_untracked_surfaces_backlog(self, tmp_path):
+        state = _fresh_state()
+        state["last_migrated_version"] = None
+        mock_cache = MockStateCache(state)
+        _write_plugin_json(tmp_path, "0.91.0")
+        _write_migration(tmp_path, "0.44.0")
+        _write_migration(tmp_path, "0.91.0")
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            result = json.loads(_run(server.get_pending_migrations()))
+        assert result["reason"] == "untracked"
+        assert [m["version"] for m in result["pending"]] == ["0.44.0", "0.91.0"]
+
+
+class TestAcknowledgeMigrationsLoop:
+    """The full upgrade loop: behind → surfaced → acknowledged → clear (#320)."""
+
+    def test_full_loop(self, tmp_path):
+        state = _fresh_state()
+        state["last_migrated_version"] = "0.89.0"
+        cache = _StatefulCache(state)
+        _write_plugin_json(tmp_path, "0.90.0")
+        _write_migration(tmp_path, "0.90.0")
+        with patch.object(_shared_mod, "cache", cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
+            before = json.loads(_run(server.get_pending_migrations()))
+            assert [m["version"] for m in before["pending"]] == ["0.90.0"]
+
+            ack = json.loads(_run(server.acknowledge_migrations(version="0.90.0")))
+            assert ack["last_migrated_version"] == "0.90.0"
+
+            after = json.loads(_run(server.get_pending_migrations()))
+            assert after["pending"] == []
+            assert after["reason"] == "current"
+
+
+class TestStateCacheAcknowledgeMigrations:
+    """Direct tests for StateCache.acknowledge_migrations persistence."""
+
+    def test_sets_field_and_persists(self, monkeypatch):
+        sc = server.StateCache()
+        sc._state = _fresh_state()
+        sc._state["last_migrated_version"] = "0.89.0"
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        writes = []
+        monkeypatch.setattr(server, "write_state",
+                            lambda s: writes.append(copy.deepcopy(s)))
+
+        result = sc.acknowledge_migrations("0.91.0")
+
+        assert result["last_migrated_version"] == "0.91.0"
+        assert sc._state["last_migrated_version"] == "0.91.0"
+        assert writes and writes[-1]["last_migrated_version"] == "0.91.0"
+
+    def test_defaults_to_installed_version(self, monkeypatch):
+        sc = server.StateCache()
+        sc._state = _fresh_state()
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        monkeypatch.setattr(server, "write_state", lambda s: None)
+        monkeypatch.setattr(server, "_read_plugin_version", lambda root: "9.9.9")
+
+        result = sc.acknowledge_migrations()
+
+        assert result["last_migrated_version"] == "9.9.9"
+        assert sc._state["last_migrated_version"] == "9.9.9"
+
+    def test_no_state_returns_error(self, monkeypatch):
+        sc = server.StateCache()
+        sc._state = {}
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        monkeypatch.setattr(server, "write_state", lambda s: None)
+
+        result = sc.acknowledge_migrations("0.91.0")
+
+        assert "error" in result
+
+    def test_state_with_error_returns_error(self, monkeypatch):
+        """An error sentinel in state short-circuits without writing."""
+        sc = server.StateCache()
+        sc._state = {"error": "boom"}
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        wrote = []
+        monkeypatch.setattr(server, "write_state", lambda s: wrote.append(s))
+
+        result = sc.acknowledge_migrations("0.91.0")
+
+        assert "error" in result
+        assert "boom" in result["error"]
+        assert wrote == []
+
+    def test_unreadable_plugin_version_does_not_reset(self, monkeypatch):
+        """If the installed version can't be read, acknowledging must not wipe
+        last_migrated_version back to None (issue #320 regression guard)."""
+        sc = server.StateCache()
+        sc._state = _fresh_state()
+        sc._state["last_migrated_version"] = "0.89.0"
+        monkeypatch.setattr(sc, "_is_stale", lambda: False)
+        writes = []
+        monkeypatch.setattr(server, "write_state",
+                            lambda s: writes.append(copy.deepcopy(s)))
+        monkeypatch.setattr(server, "_read_plugin_version", lambda root: None)
+
+        result = sc.acknowledge_migrations()
+
+        assert "error" in result
+        assert sc._state["last_migrated_version"] == "0.89.0"
+        assert writes == []
 
 
 # =============================================================================

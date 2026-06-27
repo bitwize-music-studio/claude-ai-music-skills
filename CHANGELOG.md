@@ -7,6 +7,26 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Plugin migration notes now actually surface on upgrade** (#320). The
+  session-start migration check (Step 4.5) compared state's `plugin_version`
+  against the manifest, but `build_state`/`incremental_update` overwrote
+  `plugin_version` with the installed version on every rebuild — so "stored <
+  current" could never be true and migrations were silently skipped for every
+  upgrading user. Worse, no code actually parsed or surfaced migrations; Step
+  4.5 was prose with nothing behind it. Fixed by separating
+  `last_migrated_version` (only advanced on explicit acknowledgment, preserved
+  across rebuilds) from `plugin_version` (installed version, for display), and
+  adding two MCP tools: `get_pending_migrations` (computes the notes between
+  `last_migrated_version` and the installed version, already parsed and sorted)
+  and `acknowledge_migrations` (records them as processed). A pre-tracking
+  state (`last_migrated_version` null) now surfaces the full backlog once
+  instead of silently skipping it; a fresh install is seeded to the installed
+  version so it sees nothing. No schema-version bump — bumping would force the
+  live MCP path to auto-rebuild every existing state and erase the "behind"
+  status the fix depends on. `acknowledge_migrations` also refuses to record a
+  null version (e.g. when plugin.json is unreadable and no version is supplied),
+  which would otherwise reset `last_migrated_version` and resurface the entire
+  backlog on the next session.
 - **`analyze_audio` no longer emits invalid JSON for silent tracks** (#371). A
   fully/near-silent WAV made `analyze_track` return `-inf` LUFS (and `nan`
   dynamic range), which poisoned `avg_lufs`/`lufs_range` and serialized as the
