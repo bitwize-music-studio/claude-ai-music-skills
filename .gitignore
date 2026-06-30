@@ -1,7 +1,31 @@
-```
-# Compiled and binary files
-*.pyc
+```markdown
+# Documentation and temporary files
+*.tmp
+*.temp
+*.log
+
+# Environment files
+.env
+.env.local
+*.env.*
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Dependencies and build artifacts
+node_modules/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.class
 *.o
 *.obj
 *.exe
@@ -9,36 +33,15 @@ __pycache__/
 *.so
 *.a
 *.out
-
-# Dependencies
-node_modules/
-venv/
-.venv/
-.env
-.env.local
-.env.*
-
-# Build artifacts
 dist/
 build/
 target/
-*.log
-*.tmp
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# System files
-.DS_Store
-Thumbs.db
-
-# Coverage
+.venv/
+venv/
+.env/
+.coverage
 coverage/
 htmlcov/
-.coverage
 
 # Compressed files
 *.zip
