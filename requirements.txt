@@ -10,7 +10,7 @@
 # =============================================================================
 # MCP SERVER (required for plugin core functionality)
 # =============================================================================
-mcp[cli]==1.28.0
+mcp[cli]==1.28.1
 pyyaml==6.0.3
 
 # =============================================================================
@@ -23,7 +23,7 @@ pyloudnorm==0.2.0
 scipy==1.17.1
 numpy==2.4.6
 soundfile==0.14.0
-mutagen==1.48.0
+mutagen==1.48.1
 
 # =============================================================================
 # AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
@@ -41,12 +41,12 @@ librosa==0.11.0
 # SHEET MUSIC (required for /bitwize-music:sheet-music-publisher)
 # =============================================================================
 pypdf==6.14.2
-reportlab==4.5.1
+reportlab==5.0.0
 
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.43.36
+boto3==1.43.38
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
@@ -57,4 +57,4 @@ psycopg2-binary==2.9.12
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================
-playwright==1.60.0
+playwright==1.61.0
