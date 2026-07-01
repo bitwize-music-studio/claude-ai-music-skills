@@ -365,6 +365,8 @@ async def _stage_analysis(ctx: MasterAlbumCtx) -> str | None:
     Sets ctx:  analysis_results (also appends to ctx.warnings for tinny tracks)
     Returns: None always (analysis never halts the pipeline).
     """
+    import math
+
     import numpy as np
     from tools.mastering.analyze_tracks import analyze_track
 
@@ -373,19 +375,38 @@ async def _stage_analysis(ctx: MasterAlbumCtx) -> str | None:
         result = await ctx.loop.run_in_executor(None, analyze_track, str(wav))
         analysis_results.append(result)
 
-    lufs_values = [r["lufs"] for r in analysis_results]
-    avg_lufs = float(np.mean(lufs_values))
-    lufs_range = float(max(lufs_values) - min(lufs_values))
+    # A silent / near-silent track makes analyze_track return -inf LUFS, which
+    # poisons the np.mean / max-min aggregates with non-finite values (the same
+    # class of bug as #371 in analyze_audio). Aggregate over finite LUFS only,
+    # and surface silent tracks so the operator isn't left with null aggregates
+    # under a "pass" status. (Silent tracks are skipped later in
+    # _stage_mastering, so no mastering-side action is needed here.)
+    finite_lufs = [
+        r["lufs"] for r in analysis_results
+        if isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"])
+    ]
+    silent_tracks = [
+        r["filename"] for r in analysis_results
+        if not (isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"]))
+    ]
+    avg_lufs = float(np.mean(finite_lufs)) if finite_lufs else None
+    lufs_range = float(max(finite_lufs) - min(finite_lufs)) if finite_lufs else None
     tinny_tracks = [r["filename"] for r in analysis_results if r["tinniness_ratio"] > 0.6]
 
     for t in tinny_tracks:
         ctx.warnings.append(f"Pre-master: {t} — tinny (high-mid spike)")
+    for s in silent_tracks:
+        ctx.warnings.append(
+            f"Pre-master: {s} — silent/unmeasurable (no valid LUFS); "
+            f"will be skipped during mastering"
+        )
 
     ctx.stages["analysis"] = {
         "status": "pass",
-        "avg_lufs": round(avg_lufs, 1),
-        "lufs_range": round(lufs_range, 1),
+        "avg_lufs": round(avg_lufs, 1) if avg_lufs is not None else None,
+        "lufs_range": round(lufs_range, 1) if lufs_range is not None else None,
         "tinny_tracks": tinny_tracks,
+        "silent_tracks": silent_tracks,
     }
     ctx.analysis_results = analysis_results
 

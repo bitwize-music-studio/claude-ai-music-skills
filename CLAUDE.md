@@ -94,10 +94,10 @@ At the beginning of a fresh session:
    - `get_pending_verifications(summary_only=True)` → check for pending source verifications (count only)
    - `get_session` → resume last session context
    - If MCP returns errors about missing/stale cache → `rebuild_state()` MCP tool
-4.5. **Check for plugin upgrades** — Compare `plugin_version` in state.json vs `.claude-plugin/plugin.json`:
-   - If `plugin_version` is null → first run, set to current version, skip migrations
-   - If stored < current → read `{plugin_root}/migrations/*.md` for applicable versions, process actions
-   - If versions match → no action
+4.5. **Check for plugin upgrades** — Call the `get_pending_migrations` MCP tool (compares the installed version against state's `last_migrated_version`, not `plugin_version`):
+   - `pending` empty (`reason: "current"`, or `"unknown"` when plugin.json is unreadable) → no action
+   - `pending` non-empty (`reason: "upgrade"` or `"untracked"`) → process each note's actions in order, then call `acknowledge_migrations` to record them as done
+   - Never clear migrations by rebuilding state — a rebuild preserves pending status; only `acknowledge_migrations` advances `last_migrated_version`
 5. _(Removed — skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene, so no action is needed on new releases.)_
 6. **Report from MCP state**:
    - Health warnings (from step 1.5 — omit if ok):
@@ -282,6 +282,8 @@ Currently supports **Suno** (default). Service-specific template sections marked
 **Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in both plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
 
 **Development workflow**: Feature branch off `develop` → Conventional Commits → `/bitwize-music:test all` → PR into `develop` → Release: merge `develop` → `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+**Release PRs use a merge commit — never squash or rebase.** When merging `develop` → `main`, use a **merge commit**. Squashing collapses develop's history into a single new commit on `main`, permanently diverging the two branches so every *subsequent* release PR conflicts. (Feature PRs *into* `develop` may squash freely.) If `develop` and `main` have already diverged from a past squash, reconcile on `develop` with `git merge -s ours origin/main` (keeps develop's tree, records `main` as an ancestor) before merging.
 
 **Pre-push gate**: **ALWAYS run `make check` before `git push`.** This runs the same `ruff` + `bandit` + `mypy` + `pytest` suite that CI runs in the Lint and Tests jobs (see `Makefile` + `.github/workflows/test.yml`). `make lint` alone is fine for a quick type-check. Running targeted `pytest tests/unit/…` and file-scoped `ruff check` is NOT equivalent — `make` spins up `.venv` from `requirements.txt + requirements-test.txt` so mypy sees real (not stubbed) third-party types, which is what CI sees. If `make check` fails, fix the root cause; do not push and hope CI catches a different picture.
 

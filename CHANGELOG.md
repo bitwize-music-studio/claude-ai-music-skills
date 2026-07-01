@@ -6,6 +6,58 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.93.0] - 2026-07-01
+
+### Fixed
+- **Album README title guarded against null/non-string frontmatter** (#417).
+  State indexing no longer errors when an album's `title` frontmatter is
+  missing or not a string.
+- **Batch of default and common-path fixes** (#416, closing #370/#373/#374/#376).
+- **Promo clip color validation** (#415). Auto-extracted sampler colors are
+  converted to `#`-prefixed hex so generated promo clips pass validation.
+- **Plugin migration notes now actually surface on upgrade** (#320). The
+  session-start migration check (Step 4.5) compared state's `plugin_version`
+  against the manifest, but `build_state`/`incremental_update` overwrote
+  `plugin_version` with the installed version on every rebuild — so "stored <
+  current" could never be true and migrations were silently skipped for every
+  upgrading user. Worse, no code actually parsed or surfaced migrations; Step
+  4.5 was prose with nothing behind it. Fixed by separating
+  `last_migrated_version` (only advanced on explicit acknowledgment, preserved
+  across rebuilds) from `plugin_version` (installed version, for display), and
+  adding two MCP tools: `get_pending_migrations` (computes the notes between
+  `last_migrated_version` and the installed version, already parsed and sorted)
+  and `acknowledge_migrations` (records them as processed). A pre-tracking
+  state (`last_migrated_version` null) now surfaces the full backlog once
+  instead of silently skipping it; a fresh install is seeded to the installed
+  version so it sees nothing. No schema-version bump — bumping would force the
+  live MCP path to auto-rebuild every existing state and erase the "behind"
+  status the fix depends on. `acknowledge_migrations` also refuses to record a
+  null version (e.g. when plugin.json is unreadable and no version is supplied),
+  which would otherwise reset `last_migrated_version` and resurface the entire
+  backlog on the next session.
+- **`analyze_audio` no longer emits invalid JSON for silent tracks** (#371). A
+  fully/near-silent WAV made `analyze_track` return `-inf` LUFS (and `nan`
+  dynamic range), which poisoned `avg_lufs`/`lufs_range` and serialized as the
+  invalid tokens `Infinity`/`-Infinity`/`NaN` — rejected by strict parsers (JS
+  `JSON.parse`, the MCP client), so the whole album response failed to parse.
+  Fixed at two layers: `_safe_json` now sanitizes non-finite floats to `null`
+  (protects every MCP tool, mirroring `JSON.stringify(Infinity) === "null"`),
+  and `analyze_audio` computes its summary over finite LUFS only, reporting
+  silent tracks in a new `summary.silent_tracks` field plus a recommendation
+  instead of a nonsensical "Average LUFS is -inf".
+
+### Changed
+- Dependency maintenance: held scipy/numpy at the Python 3.11 ceiling with
+  3.11-safe bumps, plus routine pip and GitHub Actions group bumps (#425,
+  #423, #420, #414, #413).
+
+### Docs
+- **Corrected the plugin install identifier across docs** (#426, #427). The
+  install command is `/plugin install bitwize-music@bitwize-music` — the
+  marketplace name comes from `marketplace.json`, not the repo name — fixed in
+  the README, the `test-definitions.md` consistency test, and the
+  `troubleshooting.md` skill-files path. Thanks @DaveMatNat.
+
 ## [0.92.0] - 2026-06-01
 
 ### Changed

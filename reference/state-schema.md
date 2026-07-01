@@ -10,7 +10,8 @@ The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from
 |-------|------|----------|-------------|
 | `version` | string | Yes | Schema version (currently `"1.2.0"`) |
 | `generated_at` | string | Yes | ISO 8601 UTC timestamp of last build/update |
-| `plugin_version` | string\|null | Yes | Plugin version from `.claude-plugin/plugin.json`, or `null` if unreadable |
+| `plugin_version` | string\|null | Yes | Installed plugin version from `.claude-plugin/plugin.json`, refreshed every build (display only), or `null` if unreadable |
+| `last_migrated_version` | string\|null | No | Version through which migration notes have been processed. Only advances via `acknowledge_migrations`; preserved across rebuilds. `null`/absent = pre-tracking (surfaces the backlog once). Drives `get_pending_migrations`. See issue #320. |
 | `config` | object | Yes | Resolved configuration snapshot |
 | `albums` | object | Yes | Map of album slug → album data |
 | `ideas` | object | Yes | Album ideas from IDEAS.md |
@@ -175,3 +176,5 @@ The migration chain is defined in `tools/state/indexer.py` as `MIGRATIONS` dict.
 |------|-----|---------|
 | 1.0.0 | 1.1.0 | Added `skills` top-level section with indexed skill metadata |
 | 1.1.0 | 1.2.0 | Added `plugin_version` top-level field for upgrade path tracking |
+
+`last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. Avoiding a version bump here is deliberate — bumping would force the live MCP path to auto-rebuild every existing state, erasing the very "behind" status migration detection depends on (issue #320).

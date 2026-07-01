@@ -96,7 +96,9 @@ from tools.state.indexer import (
     CONFIG_FILE,
     CURRENT_VERSION,
     STATE_FILE,
+    _read_plugin_version,
     build_state,
+    carry_migration_tracking,
     read_config,
     read_state,
     write_state,
@@ -155,6 +157,9 @@ class StateCache:
             existing = read_state()
             if existing and "session" in existing:
                 state["session"] = existing["session"]
+            # Don't let a rebuild silently acknowledge migrations — carry the
+            # prior last_migrated_version forward (issue #320).
+            carry_migration_tracking(state, existing)
             write_state(state)
             self._state = state
             self._update_mtimes()
@@ -217,6 +222,41 @@ class StateCache:
             self._update_mtimes()
             return session  # type: ignore[no-any-return]
 
+    def acknowledge_migrations(self, version: str | None = None) -> dict[str, Any]:
+        """Record that plugin migrations through ``version`` are processed.
+
+        Advances ``last_migrated_version`` in state and persists so already
+        seen migrations stop surfacing on subsequent session starts. When
+        ``version`` is falsy, the currently-installed plugin version is used
+        (acknowledge everything up to current). See issue #320.
+
+        Thread-safe: holds the lock for the read-modify-write cycle.
+        """
+        with self._lock:
+            if self._is_stale() or self._state is None:
+                self._load_from_disk()
+            state = self._state
+            if not state:
+                logger.warning("Cannot acknowledge migrations: no state available")
+                return {"error": "No state available"}
+            if "error" in state:
+                return {"error": f"State has error: {state['error']}"}
+
+            target = version or _read_plugin_version(PLUGIN_ROOT)
+            if not target:
+                # Never write a null target: it would un-acknowledge every
+                # migration and resurface the full backlog next session (#320).
+                logger.warning(
+                    "Cannot acknowledge migrations: installed plugin version "
+                    "unavailable and no version supplied"
+                )
+                return {"error": "Cannot determine version to acknowledge"}
+            state["last_migrated_version"] = target
+            write_state(state)
+            self._update_mtimes()
+            logger.info("Acknowledged migrations through %s", target)
+            return {"last_migrated_version": target}
+
     def _is_stale(self) -> bool:
         """Check if cached state is stale."""
         try:
@@ -257,8 +297,12 @@ class StateCache:
                 if config is not None:
                     try:
                         session = self._state.get("session", {})
+                        old_state = self._state
                         state = build_state(config, plugin_root=PLUGIN_ROOT)
                         state["session"] = session
+                        # Preserve migration tracking across the auto-rebuild
+                        # so an upgrade is not silently marked current (#320).
+                        carry_migration_tracking(state, old_state)
                         write_state(state)
                         self._state = state
                         self._update_mtimes()
@@ -451,8 +495,10 @@ from handlers.gates import (  # noqa: F401
 
 # Health tools
 from handlers.health import (  # noqa: F401
+    acknowledge_migrations,
     check_venv_health,
     diagnose,
+    get_pending_migrations,
     get_plugin_version,
     health_check,
 )

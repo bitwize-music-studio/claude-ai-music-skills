@@ -25,6 +25,7 @@ import contextlib
 import copy
 import errno
 import fcntl
+import functools
 import json
 import logging
 import os
@@ -155,8 +156,12 @@ def get_config_mtime() -> float:
 
 def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
-    paths = config.get('paths', {})
-    artist = config.get('artist', {})
+    # An empty YAML section header (e.g. `paths:` with nothing under it) parses
+    # to None, not {}. config.get('paths', {}) returns that None (the key
+    # exists), so `... or {}` is required to normalize None-valued sections —
+    # otherwise .get() on None aborts every cache rebuild/update. (#376)
+    paths = config.get('paths') or {}
+    artist = config.get('artist') or {}
 
     content_root_raw = paths.get('content_root', '.')
     content_root = str(resolve_path(content_root_raw))
@@ -166,7 +171,7 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
 
     # Database config (expose enabled flag, mask credentials)
-    db_config = config.get('database', {})
+    db_config = config.get('database') or {}
     database_section = {
         'enabled': bool(db_config.get('enabled', False)),
         'host': db_config.get('host', '') if db_config.get('enabled') else '',
@@ -174,7 +179,7 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     }
 
     # Generation config (service settings and gates)
-    gen_config = config.get('generation', {})
+    gen_config = config.get('generation') or {}
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
@@ -402,10 +407,19 @@ def build_state(config: dict[str, Any],
     content_root = Path(config_section['content_root'])
     artist_name = config_section['artist_name']
 
+    installed_version = _read_plugin_version(plugin_root)
     return {
         'version': CURRENT_VERSION,
         'generated_at': datetime.now(UTC).isoformat(),
-        'plugin_version': _read_plugin_version(plugin_root),
+        # plugin_version = currently-installed version, refreshed every build
+        # (used for display). last_migrated_version = the version through
+        # which migrations have been processed; only advances on explicit
+        # acknowledgment. Seeding it to the installed version here is correct
+        # for a brand-new install (no historical migrations to surface); a
+        # rebuild over an existing state carries the prior value forward via
+        # carry_migration_tracking(). See issue #320.
+        'plugin_version': installed_version,
+        'last_migrated_version': installed_version,
         'config': config_section,
         'albums': scan_albums(content_root, artist_name),
         'ideas': scan_ideas(config, content_root),
@@ -788,6 +802,151 @@ def _version_compare(a: str, b: str) -> int:
     return 0
 
 
+def carry_migration_tracking(
+    new_state: dict[str, Any],
+    existing_state: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Preserve ``last_migrated_version`` across a full rebuild.
+
+    ``build_state`` seeds ``last_migrated_version`` to the installed version,
+    which is correct for a brand-new install (there are no historical
+    migrations to surface). But when rebuilding over an EXISTING state we must
+    not let a rebuild silently mark migrations as processed — carry the prior
+    value forward. For a state written before this field existed the prior
+    value is absent, so we record ``None``, keeping any pending migrations
+    visible until they are explicitly acknowledged. See issue #320.
+
+    Args:
+        new_state: Freshly built state (mutated in place).
+        existing_state: The prior on-disk state, or ``None`` for a first build.
+
+    Returns:
+        ``new_state`` (for convenient chaining).
+    """
+    if existing_state is None:
+        return new_state
+    new_state['last_migrated_version'] = existing_state.get('last_migrated_version')
+    return new_state
+
+
+def parse_migration_file(path: Path) -> dict[str, Any] | None:
+    """Parse a migration markdown file's YAML frontmatter.
+
+    Args:
+        path: Path to a ``migrations/<version>.md`` file.
+
+    Returns:
+        Dict with ``version`` (frontmatter value, falling back to the file
+        stem), ``summary``, ``categories``, ``actions``, ``body`` and
+        ``file``; or ``None`` if the file is unreadable, has no frontmatter,
+        or the frontmatter is not a valid YAML mapping.
+    """
+    try:
+        text = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not text.startswith('---'):
+        return None
+    parts = text.split('---', 2)
+    if len(parts) < 3:
+        return None
+    try:
+        meta = yaml.safe_load(parts[1])
+    except yaml.YAMLError:
+        return None
+    if not isinstance(meta, dict):
+        return None
+    version = meta.get('version')
+    if not isinstance(version, str) or not version.strip():
+        version = path.stem
+    return {
+        'version': version,
+        'summary': meta.get('summary', ''),
+        'categories': meta.get('categories', []),
+        'actions': meta.get('actions', []),
+        'body': parts[2].strip(),
+        'file': str(path),
+    }
+
+
+def get_pending_migrations(
+    state: dict[str, Any],
+    plugin_root: Path | None = None,
+) -> dict[str, Any]:
+    """Compute migration notes the user has not yet processed.
+
+    Compares the installed plugin version (``.claude-plugin/plugin.json``)
+    against the state's ``last_migrated_version`` and returns the migration
+    notes that fall in between, sorted ascending by version.
+
+    Null semantics: when ``last_migrated_version`` is absent/``None`` (a state
+    written before tracking existed — never a fresh install, which
+    ``build_state`` seeds to the installed version) the full backlog up to the
+    installed version is surfaced once, so a pre-tracking upgrader is no longer
+    silently skipped. See issue #320.
+
+    Args:
+        state: Current state dict.
+        plugin_root: Plugin root directory. Defaults to ``_PROJECT_ROOT``.
+
+    Returns:
+        Dict with ``installed_version``, ``last_migrated_version``,
+        ``pending`` (list of parsed migrations) and ``reason`` (one of
+        ``"untracked"``, ``"upgrade"``, ``"current"``, or ``"unknown"`` when
+        the installed version can't be read).
+    """
+    if plugin_root is None:
+        plugin_root = _PROJECT_ROOT
+    installed = _read_plugin_version(plugin_root)
+    last = state.get('last_migrated_version')
+
+    parsed: list[dict[str, Any]] = []
+    migrations_dir = plugin_root / 'migrations'
+    if migrations_dir.is_dir():
+        for mf in migrations_dir.glob('*.md'):
+            if mf.name == 'README.md':
+                continue
+            migration = parse_migration_file(mf)
+            if migration is not None:
+                parsed.append(migration)
+
+    # Cannot compare without an installed version — surface nothing (no crash).
+    # Distinct from "current" so callers/telemetry can tell "up to date" apart
+    # from "couldn't read plugin.json".
+    if installed is None:
+        return {
+            'installed_version': None,
+            'last_migrated_version': last,
+            'pending': [],
+            'reason': 'unknown',
+        }
+
+    # Only consider migrations at or below the installed version.
+    candidates = [
+        m for m in parsed if _version_compare(m['version'], installed) <= 0
+    ]
+
+    if last is None:
+        pending = candidates
+        reason = 'untracked'
+    else:
+        pending = [
+            m for m in candidates if _version_compare(m['version'], last) > 0
+        ]
+        reason = 'upgrade' if pending else 'current'
+
+    pending.sort(key=functools.cmp_to_key(
+        lambda a, b: _version_compare(a['version'], b['version'])
+    ))
+
+    return {
+        'installed_version': installed,
+        'last_migrated_version': last,
+        'pending': pending,
+        'reason': reason,
+    }
+
+
 def validate_state(state: dict[str, Any]) -> list[str]:
     """Validate state against expected schema.
 
@@ -817,6 +976,14 @@ def validate_state(state: dict[str, Any]) -> list[str]:
         pv = state['plugin_version']
         if pv is not None and not isinstance(pv, str):
             errors.append(f"plugin_version should be string or null, got {type(pv).__name__}")
+
+    # Last-migrated version check (string or null; optional for legacy states)
+    if 'last_migrated_version' in state:
+        lmv = state['last_migrated_version']
+        if lmv is not None and not isinstance(lmv, str):
+            errors.append(
+                f"last_migrated_version should be string or null, got {type(lmv).__name__}"
+            )
 
     # Config section
     config = state.get('config', {})
@@ -907,6 +1074,9 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     existing = read_state()
     if existing and 'session' in existing:
         state['session'] = existing['session']
+    # Carry migration tracking so a rebuild never silently acknowledges
+    # pending migrations (issue #320).
+    carry_migration_tracking(state, existing)
 
     write_state(state)
 

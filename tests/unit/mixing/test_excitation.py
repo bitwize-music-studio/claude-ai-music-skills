@@ -118,6 +118,27 @@ class TestHarmonicExcitation:
         assert post_small > pre
         assert post_large > post_small
 
+    @pytest.mark.parametrize("n_samples", [1, 5, 10, 15])
+    def test_short_stem_does_not_crash(self, n_samples):
+        """Stems shorter than sosfiltfilt's padlen (15) must not raise.
+
+        Regression for #374: sosfiltfilt requires len > padlen, so a 1-15
+        sample stem (e.g. a truncated export) raised ValueError and aborted
+        the whole mix when excitation was enabled. Such fragments have no
+        meaningful harmonic content, so the signal is returned unchanged.
+        """
+        data = np.ones((n_samples, 2), dtype=np.float64) * 0.1
+        out = apply_harmonic_excitation(data, 48000, amount_db=3.0)
+        assert out.shape == data.shape
+        assert np.array_equal(out, data)
+
+    def test_mono_short_stem_does_not_crash(self):
+        """1-D (mono) short stems must also be handled gracefully (#374)."""
+        data = np.ones(8, dtype=np.float64) * 0.1
+        out = apply_harmonic_excitation(data, 48000, amount_db=3.0)
+        assert out.shape == data.shape
+        assert np.array_equal(out, data)
+
     def test_no_nans_or_infs(self):
         data = _pink_stereo()
         out = apply_harmonic_excitation(data, 48000, amount_db=4.0)

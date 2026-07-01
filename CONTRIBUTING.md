@@ -178,7 +178,7 @@ When `develop` is ready to release:
    - `.claude-plugin/plugin.json`
    - `.claude-plugin/marketplace.json`
 3. Move CHANGELOG.md entries from "Unreleased" to a versioned heading
-4. Merge PR to `main`
+4. Merge PR to `main` **with a merge commit — never squash or rebase** (squashing diverges `develop` from `main`, conflicting the next release)
 5. After merge, bump `develop` to the next `-dev` version (e.g., `0.63.0-dev`)
 
 **Version bumping:**

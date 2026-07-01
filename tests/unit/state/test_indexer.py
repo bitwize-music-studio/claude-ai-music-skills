@@ -600,6 +600,29 @@ class TestBuildConfigSection:
         assert section['artist_name'] == ''
         assert section['config_mtime'] == 0.0
 
+    def test_none_valued_sections_do_not_crash(self, monkeypatch):
+        """Empty YAML section headers parse to None, not {}.
+
+        Regression for #376: `paths:` with nothing indented under it yields
+        {'paths': None}, and config.get('paths', {}) returns None (the key
+        exists), so paths.get(...) raised AttributeError and aborted every
+        cache rebuild/update. None-valued sections must be treated as empty.
+        """
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        config = {
+            'paths': None,
+            'artist': None,
+            'database': None,
+            'generation': None,
+        }
+        section = build_config_section(config)
+        assert section['artist_name'] == ''
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['database']['enabled'] is False
+        assert section['generation']['service'] == 'suno'
+
 
 @pytest.mark.unit
 class TestReadConfig:

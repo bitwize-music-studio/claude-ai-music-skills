@@ -272,7 +272,11 @@ def generate_album_sampler(
         logger.info("Extracting colors from artwork...")
         dominant = extract_dominant_color(artwork_path)
         complementary = get_complementary_color(dominant)
-        color_hex = rgb_to_hex(complementary)
+        # rgb_to_hex returns ffmpeg-style "0x..."; convert to "#..." so the value
+        # passes generate_waveform_video's color_hex validation. ffmpeg's showwaves
+        # accepts both formats, but the validator (^#?[0-9a-fA-F]{3,8}$) rejects the
+        # "0x" prefix, which would otherwise fail every clip. (#369)
+        color_hex = "#" + rgb_to_hex(complementary)[2:]
         logger.debug("Auto-extracted color: %s", color_hex)
 
     # Create temp directory for clips

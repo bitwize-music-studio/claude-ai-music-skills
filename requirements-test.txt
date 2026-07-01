@@ -3,13 +3,13 @@
 # Install:
 #   pip install -r requirements-test.txt
 
-pytest>=9.0.3
+pytest>=9.1.1
 pytest-cov>=7.1.0
 pytest-xdist>=3.8.0
 pyyaml>=6.0
 
 # Linting
-ruff>=0.15.14
+ruff>=0.15.19
 mypy>=2.1.0
 types-PyYAML>=6.0.12.20260518
 

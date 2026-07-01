@@ -10,7 +10,7 @@
 # =============================================================================
 # MCP SERVER (required for plugin core functionality)
 # =============================================================================
-mcp[cli]==1.27.1
+mcp[cli]==1.28.0
 pyyaml==6.0.3
 
 # =============================================================================
@@ -18,10 +18,12 @@ pyyaml==6.0.3
 # =============================================================================
 matchering==2.0.6
 pyloudnorm==0.2.0
+# Python 3.11 ceiling: scipy 1.18+ and numpy 2.5+ require Python >=3.12.
+# Do NOT bump past these lines while the plugin supports 3.11 (see dependabot.yml ignores).
 scipy==1.17.1
 numpy==2.4.6
-soundfile==0.13.1
-mutagen==1.47.0
+soundfile==0.14.0
+mutagen==1.48.0
 
 # =============================================================================
 # AUDIO MIXING / POLISH (required for /bitwize-music:mix-engineer)
@@ -38,13 +40,13 @@ librosa==0.11.0
 # =============================================================================
 # SHEET MUSIC (required for /bitwize-music:sheet-music-publisher)
 # =============================================================================
-pypdf==6.12.2
+pypdf==6.14.2
 reportlab==4.5.1
 
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.43.16
+boto3==1.43.36
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
