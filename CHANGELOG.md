@@ -6,7 +6,15 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.93.0] - 2026-07-01
+
 ### Fixed
+- **Album README title guarded against null/non-string frontmatter** (#417).
+  State indexing no longer errors when an album's `title` frontmatter is
+  missing or not a string.
+- **Batch of default and common-path fixes** (#416, closing #370/#373/#374/#376).
+- **Promo clip color validation** (#415). Auto-extracted sampler colors are
+  converted to `#`-prefixed hex so generated promo clips pass validation.
 - **Plugin migration notes now actually surface on upgrade** (#320). The
   session-start migration check (Step 4.5) compared state's `plugin_version`
   against the manifest, but `build_state`/`incremental_update` overwrote
@@ -37,6 +45,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   and `analyze_audio` computes its summary over finite LUFS only, reporting
   silent tracks in a new `summary.silent_tracks` field plus a recommendation
   instead of a nonsensical "Average LUFS is -inf".
+
+### Changed
+- Dependency maintenance: held scipy/numpy at the Python 3.11 ceiling with
+  3.11-safe bumps, plus routine pip and GitHub Actions group bumps (#425,
+  #423, #420, #414, #413).
+
+### Docs
+- **Corrected the plugin install identifier across docs** (#426, #427). The
+  install command is `/plugin install bitwize-music@bitwize-music` — the
+  marketplace name comes from `marketplace.json`, not the repo name — fixed in
+  the README, the `test-definitions.md` consistency test, and the
+  `troubleshooting.md` skill-files path. Thanks @DaveMatNat.
 
 ## [0.92.0] - 2026-06-01
 
