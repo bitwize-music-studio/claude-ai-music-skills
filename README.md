@@ -41,7 +41,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 ```bash
 /plugin marketplace add bitwize-music-studio/claude-ai-music-skills
-/plugin install bitwize-music@claude-ai-music-skills
+/plugin install bitwize-music@bitwize-music
 ```
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
