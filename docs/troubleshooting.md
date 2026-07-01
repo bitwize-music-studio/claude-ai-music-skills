@@ -68,7 +68,7 @@ playwright install chromium
 
 **Check:**
 1. Plugin installed correctly: `/plugin list`
-2. Skill files exist: `ls ~/.claude/plugins/bitwize-music@claude-ai-music-skills/skills/`
+2. Skill files exist: `ls ~/.claude/plugins/cache/bitwize-music/bitwize-music/*/skills/`
 3. Try restarting Claude Code
 
 ## Still Stuck?

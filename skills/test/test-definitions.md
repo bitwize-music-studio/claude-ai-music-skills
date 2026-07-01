@@ -1005,8 +1005,8 @@ All references should use `suno` (lowercase) not `Suno` when referring to the co
 
 ### TEST: Consistent plugin name
 Plugin should be referred to as:
-- `claude-ai-music-skills` (in plugin.json name)
-- `bitwize-music@claude-ai-music-skills` (install command)
+- `bitwize-music` (in plugin.json name)
+- `bitwize-music@bitwize-music` (install command)
 
 ### TEST: Consistent brand casing
 Search for "Bitwize Music" (title case) - should not exist.
