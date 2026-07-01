@@ -1,69 +1,8 @@
 ```markdown
-# Documentation and temporary files
-*.tmp
-*.temp
-*.log
-
-# Environment files
-.env
-.env.local
-*.env.*
-
-# Editor/IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS specific files
-.DS_Store
-Thumbs.db
-
-# Dependencies and build artifacts
-node_modules/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.class
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.a
-*.out
-dist/
-build/
-target/
-.venv/
-venv/
-.env/
-.coverage
-coverage/
-htmlcov/
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+# Documentation
+config/dragon/README.md
 ```
+
+Wait, I need to reconsider this. README.md files are typically source documentation that should NOT be ignored. Let me correct this:
+
+(nothing - empty output)
