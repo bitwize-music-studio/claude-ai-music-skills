@@ -13,6 +13,7 @@ from handlers._atomic import atomic_write_text
 from handlers._shared import (
     _derive_title_from_slug,
     _find_album_or_error,
+    _find_slug_dirs,
     _find_track_or_error,
     _is_path_confined,
     _normalize_slug,
@@ -96,6 +97,22 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     if not _is_path_confined(albums_content_base, normalized_new):
         return _safe_json({"error": "Invalid new slug: would escape album directory"})
 
+    # Album slugs are globally unique across genres (#392) — sweep the
+    # filesystem for the new slug under every genre; the cache-key check
+    # above misses twins that are stale or shadowed out of the cache.
+    albums_root = Path(content_root) / "artists" / artist / "albums"
+    collisions = _find_slug_dirs(albums_root, normalized_new)
+    if collisions:
+        existing = collisions[0]
+        return _safe_json({
+            "error": (
+                f"Album slug '{normalized_new}' already exists under genre "
+                f"'{existing.parent.name}': {existing}. Album slugs are unique "
+                f"across all genres — choose a different name, or rename the "
+                f"existing album with /bitwize-music:rename."
+            ),
+        })
+
     # Content directory MUST exist
     if not content_dir_old.is_dir():
         return _safe_json({
@@ -171,9 +188,35 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     except Exception as e:
         logger.warning("Directories moved but cache update failed: %s", e)
 
+    # Rename is the documented fix path for a slug collision (#392). If the
+    # freed slug has a collision record, the surgical cache patch above is
+    # not enough: the formerly-shadowed twin is still missing from the cache
+    # and album_collisions is stale. Rebuild from disk (same pattern as
+    # create_album_structure) so the twin is indexed and collisions are
+    # recomputed. Normal renames skip this and keep the cheap surgical path.
+    collision_resolved = False
+    rebuild_warning = ""
+    if any(
+        record.get("slug") == normalized_old
+        for record in state.get("album_collisions", [])
+    ):
+        try:
+            rebuilt = _shared.cache.rebuild()
+        except Exception as e:  # rename already succeeded — don't fail it
+            logger.warning("Album renamed but collision rebuild failed: %s", e)
+            rebuilt = {"error": str(e)}
+        if "error" in rebuilt:
+            rebuild_warning = (
+                f"Rename succeeded, but the state rebuild needed to surface "
+                f"the formerly-shadowed '{normalized_old}' album failed: "
+                f"{rebuilt['error']}. Run rebuild_state to index it."
+            )
+        else:
+            collision_resolved = True
+
     logger.info("Renamed album '%s' to '%s'", normalized_old, normalized_new)
 
-    return _safe_json({
+    result: dict[str, Any] = {
         "success": True,
         "old_slug": normalized_old,
         "new_slug": normalized_new,
@@ -182,7 +225,17 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         "audio_moved": audio_moved,
         "documents_moved": documents_moved,
         "tracks_updated": tracks_updated,
-    })
+    }
+    if collision_resolved:
+        result["collision_resolved"] = True
+        result["note"] = (
+            f"Slug '{normalized_old}' had a cross-genre collision — state "
+            f"was rebuilt from disk, so the formerly-shadowed album is now "
+            f"visible and album_collisions is up to date."
+        )
+    elif rebuild_warning:
+        result["warning"] = rebuild_warning
+    return _safe_json(result)
 
 
 async def rename_track(

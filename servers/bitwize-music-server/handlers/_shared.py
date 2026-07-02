@@ -358,6 +358,21 @@ def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, s
     return normalized, album, None
 
 
+def _find_slug_dirs(albums_root: Path, slug: str) -> list[Path]:
+    """Find existing album dirs named exactly `slug` under every genre (#392).
+
+    Literal comparison via iterdir — glob() would treat metacharacters in
+    the slug (e.g. '*') as patterns and could match unrelated albums.
+    """
+    if not albums_root.is_dir():
+        return []
+    return sorted(
+        genre_dir / slug
+        for genre_dir in albums_root.iterdir()
+        if genre_dir.is_dir() and (genre_dir / slug).is_dir()
+    )
+
+
 def _find_track_or_error(tracks: dict[str, Any], track_slug: str, album_slug: str = "") -> tuple[str, dict[str, Any] | None, str | None]:
     """Find track in tracks dict by exact match or prefix match.
 

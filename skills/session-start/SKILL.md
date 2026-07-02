@@ -39,7 +39,7 @@ Quick dependency check:
 
 ## Step 1.5: Health Check
 
-Use the `health_check` MCP tool (checks venv packages + skill registration in one call):
+Use the `health_check` MCP tool (checks venv packages + skill registration + album slug collisions in one call):
 
 **Venv results** (from `result.venv`):
 - `status: "ok"` → continue silently
@@ -51,6 +51,10 @@ Use the `health_check` MCP tool (checks venv packages + skill registration in on
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn: list missing and ghost skill names, show fix message
 - `status: "no_cache"` → warn that plugin cache not found, continue
+
+**Album slug collision results** (from `result.collisions`):
+- `status: "ok"` → continue silently
+- `status: "collision"` → warn: list each slug with its kept and shadowed genres, show the fix (rename one album with `/bitwize-music:rename` or move its directory, then run `rebuild_state`), continue session
 
 ## Step 2: Load Config
 
@@ -165,7 +169,7 @@ SESSION START
 =============
 
 Setup: MCP ready, config loaded
-Health: [venv ok, skills ok | warnings listed]
+Health: [venv ok, skills ok, no collisions | warnings listed]
 Overrides: [loaded from {path} | not found (optional)]
 State: [loaded | rebuilt | error]
 

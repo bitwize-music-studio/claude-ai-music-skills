@@ -6,6 +6,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **Album slug collisions across genres no longer silently erase an album from
+  the state cache** (#392). The indexer keyed the cache's `albums` map by bare
+  directory name, ignoring the genre path segment — two albums with the same
+  slug under different genres overwrote each other, so one album (and all its
+  tracks) vanished from every MCP tool, and `create_album_structure` only
+  checked the genre-scoped path, so it happily created the twin. Album slugs
+  are now globally unique across genres: `create_album_structure` (and
+  `promote_idea`, which inherits the guard) and `rename_album` reject a slug
+  that already exists under any other genre, naming the existing genre/path
+  and suggesting a different name or `/bitwize-music:rename`. Pre-existing
+  on-disk collisions are detected at index time instead of silently
+  overwriting — the lexicographically-first genre wins deterministically, and
+  the shadowed album(s) are recorded in a new `album_collisions` state field
+  (schema 1.2.0 → 1.3.0; migration seeds `[]`) and surfaced by `health_check`,
+  `find_album`, `list_albums`, `rebuild_state`, and the indexer CLI with the
+  fix guidance (rename or move the directory, then rebuild).
+
 ## [0.93.0] - 2026-07-01
 
 ### Fixed

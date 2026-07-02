@@ -91,11 +91,16 @@ class MockStateCache:
     def __init__(self, state: dict) -> None:
         self._state = state
         self.write_calls = 0
+        self.rebuild_calls = 0
 
     def get_state(self) -> dict:
         return self._state
 
     def get_state_ref(self) -> dict:
+        return self._state
+
+    def rebuild(self) -> dict:
+        self.rebuild_calls += 1
         return self._state
 
 
@@ -357,6 +362,28 @@ class TestRenameAlbumErrors:
         assert "error" in result
         assert "already exists" in result["error"].lower()
 
+    def test_cross_genre_disk_collision_returns_error(self, cache_with_album):
+        """New slug existing on disk under ANOTHER genre — and absent from the
+        cache — must block the rename (#392: cache can be stale or shadowed)."""
+        state, content_root, _audio, _docs = cache_with_album
+        twin = (content_root / "artists" / "test-artist" / "albums"
+                / "rock" / "shadow-album")
+        twin.mkdir(parents=True)
+
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "shadow-album")
+        ))
+
+        assert "error" in result
+        assert "already exists" in result["error"].lower()
+        assert "rock" in result["error"]
+        assert "rename" in result["error"].lower()
+        # Source album untouched on disk and in cache
+        orig = (content_root / "artists" / "test-artist" / "albums"
+                / "electronic" / "original-album")
+        assert orig.is_dir()
+        assert "original-album" in state["albums"]
+
     def test_same_slug_after_normalization_returns_error(self, cache_with_album):
         # "Original-Album" normalizes to "original-album" which equals the source
         result = json.loads(_run(
@@ -457,6 +484,128 @@ class TestRenameAlbumMissingAuxDirs:
 
         assert result["success"] is True
         assert result["documents_moved"] is False
+
+
+class TestRenameAlbumCollisionRebuild:
+    """Rename is the documented fix path for a slug collision (#392).
+
+    Renaming the kept/winner album must trigger a full cache rebuild so the
+    formerly-shadowed twin is indexed and album_collisions is recomputed from
+    disk — the surgical cache patch alone leaves a stale collision record and
+    an invisible twin. Normal renames keep the cheap surgical path.
+    """
+
+    def _seed_collision(self, state, content_root, audio_root, documents_root):
+        """Add jazz/midnight (kept, in cache) + rock/midnight (shadowed,
+        disk-only) and the matching album_collisions record."""
+        kept = _make_album_on_disk(
+            content_root, audio_root, documents_root,
+            artist="test-artist", genre="jazz", slug="midnight",
+            title="Midnight",
+            tracks=[("01-blue-hour", "Blue Hour")],
+        )
+        state["albums"]["midnight"] = kept
+        # Shadowed twin exists on disk only — NOT in the cache (the indexer
+        # kept jazz and shadowed rock).
+        shadow_dir = (content_root / "artists" / "test-artist" / "albums"
+                      / "rock" / "midnight")
+        (shadow_dir / "tracks").mkdir(parents=True)
+        (shadow_dir / "README.md").write_text("# Midnight\n", encoding="utf-8")
+        state["album_collisions"] = [{
+            "slug": "midnight",
+            "kept": {"genre": "jazz", "path": kept["path"]},
+            "shadowed": [{"genre": "rock", "path": str(shadow_dir)}],
+        }]
+        return shadow_dir
+
+    def test_renaming_collided_album_triggers_rebuild(self, cache_with_album):
+        state, content_root, audio_root, documents_root = cache_with_album
+        shadow_dir = self._seed_collision(
+            state, content_root, audio_root, documents_root
+        )
+
+        result = json.loads(_run(
+            _rename_mod.rename_album("midnight", "midnight-jazz")
+        ))
+
+        assert result["success"] is True
+        assert result["content_moved"] is True
+        # Full rebuild triggered so the formerly-shadowed twin gets indexed
+        # and album_collisions is recomputed from disk.
+        assert _shared_mod.cache.rebuild_calls == 1
+        assert result["collision_resolved"] is True
+        assert "note" in result
+        # Directories: kept album moved, shadowed twin untouched
+        new_dir = (content_root / "artists" / "test-artist" / "albums"
+                   / "jazz" / "midnight-jazz")
+        assert new_dir.is_dir()
+        assert shadow_dir.is_dir()
+
+    def test_normal_rename_skips_rebuild(self, cache_with_album):
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "new-album")
+        ))
+
+        assert result["success"] is True
+        assert _shared_mod.cache.rebuild_calls == 0
+        assert "collision_resolved" not in result
+        assert "warning" not in result
+
+    def test_collision_record_for_other_slug_skips_rebuild(self, cache_with_album):
+        state, *_ = cache_with_album
+        state["album_collisions"] = [{
+            "slug": "some-other-slug",
+            "kept": {"genre": "jazz", "path": "/nowhere/jazz/some-other-slug"},
+            "shadowed": [{"genre": "rock", "path": "/nowhere/rock/some-other-slug"}],
+        }]
+
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "new-album")
+        ))
+
+        assert result["success"] is True
+        assert _shared_mod.cache.rebuild_calls == 0
+        assert "collision_resolved" not in result
+
+    def test_rebuild_error_result_degrades_to_warning(self, cache_with_album):
+        state, content_root, audio_root, documents_root = cache_with_album
+        self._seed_collision(state, content_root, audio_root, documents_root)
+
+        class FailingRebuildCache(MockStateCache):
+            def rebuild(self) -> dict:
+                self.rebuild_calls += 1
+                return {"error": "rebuild exploded"}
+
+        _shared_mod.cache = FailingRebuildCache(state)
+
+        result = json.loads(_run(
+            _rename_mod.rename_album("midnight", "midnight-jazz")
+        ))
+
+        # Directories DID move — the rename itself must stay a success.
+        assert result["success"] is True
+        assert result["content_moved"] is True
+        assert "collision_resolved" not in result
+        assert "rebuild exploded" in result["warning"]
+
+    def test_rebuild_exception_degrades_to_warning(self, cache_with_album):
+        state, content_root, audio_root, documents_root = cache_with_album
+        self._seed_collision(state, content_root, audio_root, documents_root)
+
+        class RaisingRebuildCache(MockStateCache):
+            def rebuild(self) -> dict:
+                self.rebuild_calls += 1
+                raise RuntimeError("disk on fire")
+
+        _shared_mod.cache = RaisingRebuildCache(state)
+
+        result = json.loads(_run(
+            _rename_mod.rename_album("midnight", "midnight-jazz")
+        ))
+
+        assert result["success"] is True
+        assert "collision_resolved" not in result
+        assert "disk on fire" in result["warning"]
 
 
 # ===========================================================================

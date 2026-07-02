@@ -18,6 +18,7 @@ from handlers._shared import (
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
+    _find_slug_dirs,
     _find_wav_source_dir,
     _is_path_confined,
     _normalize_slug,
@@ -383,7 +384,24 @@ async def create_album_structure(
     assert _shared.PLUGIN_ROOT is not None
     templates_path = _shared.PLUGIN_ROOT / "templates"
 
-    # Check if already exists
+    # Album slugs are globally unique across genres (#392) — sweep the
+    # filesystem (cache may be stale) for the slug under every genre.
+    albums_root = Path(content_root) / "artists" / artist / "albums"
+    collisions = _find_slug_dirs(albums_root, normalized)
+    if collisions:
+        existing = collisions[0]
+        return _safe_json({
+            "created": False,
+            "error": (
+                f"Album slug '{normalized}' already exists under genre "
+                f"'{existing.parent.name}': {existing}. Album slugs are unique "
+                f"across all genres — choose a different name, or rename the "
+                f"existing album with /bitwize-music:rename."
+            ),
+            "path": str(existing),
+        })
+
+    # Check if already exists (belt-and-braces behind the cross-genre sweep)
     if album_path.exists():
         return _safe_json({
             "created": False,
