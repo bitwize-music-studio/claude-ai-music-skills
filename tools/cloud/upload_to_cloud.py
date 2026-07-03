@@ -309,6 +309,9 @@ def retry_upload(
     Retries on transient errors (network issues, server errors).
     Does not retry on auth errors (403, 404, missing credentials).
     """
+    # max_retries <= 0 would make the loop body never run — no upload
+    # attempted, silently reported as failure (#385). Always try once.
+    max_retries = max(1, max_retries)
     for attempt in range(1, max_retries + 1):
         result = upload_file(s3_client, bucket, file_path, s3_key, public_read, dry_run)
         if result or dry_run:
@@ -324,6 +327,14 @@ def retry_upload(
         time.sleep(delay)
 
     return False
+
+
+def _positive_int(value: str) -> int:
+    """argparse type: reject values < 1 loudly instead of silently no-op'ing (#385)."""
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(f"must be >= 1, got {parsed}")
+    return parsed
 
 
 def main() -> None:
@@ -372,9 +383,9 @@ Examples:
     )
     parser.add_argument(
         "--retries",
-        type=int,
+        type=_positive_int,
         default=3,
-        help="Max retry attempts per file on failure (default: 3)",
+        help="Max retry attempts per file on failure (default: 3, minimum: 1)",
     )
 
     args = parser.parse_args()

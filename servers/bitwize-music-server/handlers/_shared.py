@@ -363,6 +363,31 @@ def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, s
     return normalized, album, None
 
 
+def _parse_pronunciation_table(section_text: str) -> list[dict[str, str]]:
+    """Parse ``| Word/Phrase | Pronunciation | Reason |`` table rows.
+
+    The header row is matched by its FIRST CELL only, and separator rows by
+    cell content — substring filters on the whole line drop legitimate data
+    rows like "Wordsworth" and false-pass the pronunciation checks (#384).
+    """
+    entries: list[dict[str, str]] = []
+    for line in section_text.split("\n"):
+        if not line.startswith("|"):
+            continue
+        # Separator row: cells made only of dashes/colons (|-----|:---:|)
+        if set(line) <= {"|", "-", ":", " "}:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 4:
+            word = parts[1].strip()
+            phonetic = parts[2].strip()
+            if word.lower() in ("word/phrase", "word"):
+                continue
+            if word and word != "—" and phonetic and phonetic != "—":
+                entries.append({"word": word, "phonetic": phonetic})
+    return entries
+
+
 def _find_slug_dirs(albums_root: Path, slug: str) -> list[Path]:
     """Find existing album dirs named exactly `slug` under every genre (#392).
 

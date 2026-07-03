@@ -214,9 +214,11 @@ Examples:
 
     if not args.sampler_only:
         promo_dir = album_dir / "promo_videos"
-        promo_count = sum(1 for f in promo_dir.glob("*.mp4")) if promo_dir.exists() else 0
+        # Count only track promos (not the sampler), and say what the number
+        # is — files present in the dir, which may include earlier runs (#382).
+        promo_count = sum(1 for f in promo_dir.glob("*_promo.mp4")) if promo_dir.exists() else 0
         print(f"Track promos: {promo_dir}")
-        print(f"  {promo_count} videos generated")
+        print(f"  {promo_count} promo videos in directory")
 
     if not args.tracks_only:
         sampler = album_dir / "promo_videos" / "album_sampler.mp4"

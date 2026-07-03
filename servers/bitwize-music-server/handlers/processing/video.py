@@ -170,7 +170,7 @@ async def generate_promo_videos(
             if content_dir_path.is_dir():
                 content_dir = content_dir_path
 
-        await loop.run_in_executor(
+        batch_results = await loop.run_in_executor(
             None,
             lambda: batch_process_album(
                 album_dir=audio_dir,
@@ -187,14 +187,25 @@ async def generate_promo_videos(
             ),
         )
 
-        # Collect results from output dir
-        output_files = sorted(output_dir.glob("*_promo.mp4"))
-        results = [{"filename": f.name, "output": str(f), "success": True} for f in output_files]
+        # Report the per-track outcomes from THIS run — globbing the output
+        # dir counted stale files from previous runs as fresh successes and
+        # hid failures entirely (#382).
+        results = [
+            {
+                "filename": audio_name,
+                "output": str(output_dir / out_name),
+                "success": success,
+            }
+            for audio_name, out_name, success in batch_results
+        ]
+        failed = [r["filename"] for r in results if not r["success"]]
 
         return _safe_json({
             "tracks": results,
             "summary": {
-                "success": len(results),
+                "success": len(results) - len(failed),
+                "failed": len(failed),
+                "failed_tracks": failed,
                 "output_dir": str(output_dir),
             },
         })

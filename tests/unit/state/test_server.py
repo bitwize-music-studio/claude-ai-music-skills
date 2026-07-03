@@ -3530,6 +3530,23 @@ F-B-I came knocking at his door
 | Linux | Lin-ucks | Tech term |
 """
 
+_TRACK_WITH_WORD_SUBSTRING = """\
+# Test Track
+
+## Suno Inputs
+
+### Lyrics Box
+```
+plain lyrics without any phonetic respelling
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| Wordsworth | WURDZ-wurth | poet name |
+"""
+
 _TRACK_WITH_UNAPPLIED = """\
 # Test Track
 
@@ -3594,6 +3611,24 @@ class TestCheckPronunciationEnforcement:
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-unapplied")))
         assert result["all_applied"] is False
         assert result["unapplied_count"] == 2  # Both Rah-mohs and F-B-I not in lyrics
+
+    def test_word_substring_rows_are_not_dropped(self, tmp_path):
+        """Rows whose Word cell contains 'Word' must not be skipped (#384)."""
+        track_file = tmp_path / "05-wordsworth.md"
+        track_file.write_text(_TRACK_WITH_WORD_SUBSTRING)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-wordsworth"] = {
+            "path": str(track_file),
+            "title": "Wordsworth Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-wordsworth")))
+        # The phonetic is NOT in the lyrics — a dropped row would false-PASS.
+        assert result["all_applied"] is False
+        assert result["unapplied_count"] == 1
+        assert result["entries"][0]["word"] == "Wordsworth"
 
     def test_empty_pronunciation_table(self, tmp_path):
         track_file = tmp_path / "05-empty-pron.md"
@@ -9325,12 +9360,9 @@ class TestExtractCodeBlockEdgeCases:
 class TestCheckPronunciationEdgeCases:
     """Edge case tests for check_pronunciation_enforcement."""
 
-    def test_word_in_data_row_skipped(self, tmp_path):
-        """Table row containing 'Word' in data is skipped by the header filter.
-
-        Documents that the filter 'if "Word" in line' skips ANY row
-        containing 'Word', including legitimate data rows.
-        """
+    def test_word_in_data_row_parsed(self, tmp_path):
+        """Data rows containing 'Word' are parsed — only the header row is
+        skipped, matched by its first cell (#384)."""
         track_file = tmp_path / "01-test.md"
         track_file.write_text(
             "# Test\n\n"
@@ -9352,10 +9384,11 @@ class TestCheckPronunciationEdgeCases:
                 server.check_pronunciation_enforcement("test-album", "01-test")
             ))
 
-        # The entry with "Word" in the word column is skipped by the header filter
         assert result["found"] is True
-        # "Wordplay" entry is skipped because the line contains "Word"
-        assert len(result["entries"]) == 0
+        assert len(result["entries"]) == 1
+        assert result["entries"][0]["word"] == "Wordplay"
+        # The phonetic IS in the lyrics, so the check passes honestly
+        assert result["all_applied"] is True
 
     def test_no_pronunciation_section(self, tmp_path):
         """Track with no Pronunciation Notes section reports all applied."""
@@ -12556,6 +12589,41 @@ class TestGeneratePromoVideos:
         assert "error" in result
         assert "artwork" in result["error"].lower()
 
+    def test_batch_reports_failures_and_ignores_stale_files(self, tmp_path):
+        """Batch mode must report per-track failures, not glob stale files (#382)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+        (audio_dir / "02-track.wav").write_bytes(b"")
+        output_dir = audio_dir / "promo_videos"
+        output_dir.mkdir()
+        (output_dir / "99-stale_promo.mp4").write_bytes(b"old run leftover")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        def fake_batch(**kwargs):
+            return [
+                ("01-track.wav", "01-track_promo.mp4", True),
+                ("02-track.wav", "02-track_promo.mp4", False),
+            ]
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.batch_process_album",
+                   side_effect=fake_batch):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+
+        assert result["summary"]["success"] == 1
+        assert result["summary"]["failed"] == 1
+        by_file = {t["filename"]: t["success"] for t in result["tracks"]}
+        assert by_file == {"01-track.wav": True, "02-track.wav": False}
+        # Stale leftovers from previous runs are not reported as new successes
+        assert "99-stale_promo.mp4" not in json.dumps(result)
+
     def test_single_track_not_found(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
@@ -13766,6 +13834,10 @@ class TestGeneratePromoVideosComprehensive:
             output_dir.mkdir(exist_ok=True)
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+            return [
+                ("01-track-1.wav", "01-track-1_promo.mp4", True),
+                ("02-track-2.wav", "02-track-2_promo.mp4", True),
+            ]
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
@@ -13931,6 +14003,7 @@ class TestGeneratePromoVideosComprehensive:
 
         def mock_batch(**kwargs):
             captured_kwargs.append(kwargs)
+            return []
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
@@ -14265,6 +14338,10 @@ class TestPromoVideoNewParams:
             output_dir.mkdir(exist_ok=True)
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+            return [
+                ("01-track-1.wav", "01-track-1_promo.mp4", True),
+                ("02-track-2.wav", "02-track-2_promo.mp4", True),
+            ]
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
