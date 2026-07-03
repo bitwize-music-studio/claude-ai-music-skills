@@ -7,6 +7,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **`argument-hint` YAML frontmatter now parses as a string across all runtimes**.
+  Three skill files (`configure`, `next-step`, `test`) declared
+  `argument-hint: [ ... ]` with an unquoted `[`, which YAML parses as a
+  flow sequence (array). Claude Code tolerates this, but Copilot CLI
+  1.0.65+ requires `argument-hint` to be a string and fails skill load
+  otherwise. Values are now wrapped in double quotes so both runtimes
+  receive a string. See [anthropics/claude-code#22161] for the upstream
+  spec clarification.
 - **Pronunciation gate no longer false-passes on words containing "Word"**
   (#384). The table parser skipped ANY row whose line contained the
   substring "Word", silently dropping data rows like "Wordsworth" — if
