@@ -7,6 +7,27 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **`load_config` no longer returns non-mapping YAML that crashes every caller**
+  (#389). A config file whose top level is a list or scalar (e.g. `- foo` or
+  `42`) was passed through as-is, so the first `.get()` in `resolve_path`,
+  `resolve_overrides_dir`, or any other consumer died with `AttributeError`.
+  Non-mapping configs now log a clear error naming the file and the actual
+  type, exit cleanly when `required=True`, and return the fallback otherwise.
+- **State rebuilds no longer crash on malformed config value types** (#391).
+  `build_config_section` called bare `int()` on `generation.max_lyric_words`
+  (ValueError/TypeError on `lots` or `[800]`) and concatenated
+  `paths.content_root` as a string (TypeError on numeric values, first
+  surfacing inside `resolve_path`). New `_cfg_int`/`_cfg_str`/`_cfg_section`
+  guards — following the `_cfg_bool` pattern from #388 — warn and fall back
+  to defaults for wrong-typed ints, path strings, section mappings
+  (`paths`/`artist`/`database`/`generation`), `artist.name`, and the ideas
+  file path, so CLI rebuilds and incremental updates degrade gracefully
+  instead of aborting with a traceback.
+- **`migrate_state` no longer crashes when `state.json` has a non-string
+  version** (#393). A JSON-valid state file with `"version": 1.2` (float,
+  int, null, or list) raised `AttributeError` inside version comparison.
+  Non-string versions now log a warning and return `None`, triggering the
+  documented full-rebuild path.
 - **`argument-hint` YAML frontmatter now parses as a string across all runtimes**
   (#439). Three skill files (`configure`, `next-step`, `test`) declared
   `argument-hint: [ ... ]` with an unquoted `[`, which YAML parses as a

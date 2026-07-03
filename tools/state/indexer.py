@@ -186,21 +186,32 @@ def get_config_mtime() -> float:
         return 0.0
 
 
+def _cfg_section(config: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return a config section as a dict, treating anything else as empty.
+
+    An empty YAML section header (e.g. `paths:` with nothing under it) parses
+    to None, not {}. config.get('paths', {}) returns that None (the key
+    exists), so None must be normalized to {} here — otherwise .get() on None
+    aborts every cache rebuild/update. (#376)
+    A non-mapping value (e.g. `paths: [a, b]`) crashes the same way; the
+    isinstance check runs before normalization so falsy non-mappings
+    (`paths: []`) warn like truthy ones. (#391)
+    """
+    value = config.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        logger.warning(
+            "Config section %s=%r is not a mapping — using defaults", key, value
+        )
+        return {}
+    return value
+
+
 def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
-    # An empty YAML section header (e.g. `paths:` with nothing under it) parses
-    # to None, not {}. config.get('paths', {}) returns that None (the key
-    # exists), so `... or {}` is required to normalize None-valued sections —
-    # otherwise .get() on None aborts every cache rebuild/update. (#376)
-    paths = config.get('paths') or {}
-    artist = config.get('artist') or {}
-
-    content_root_raw = paths.get('content_root', '.')
-    content_root = str(resolve_path(content_root_raw))
-
-    # Resolve overrides directory (custom path or default to {content_root}/overrides)
-    overrides_raw = paths.get('overrides', '')
-    overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
+    paths = _cfg_section(config, 'paths')
+    artist = _cfg_section(config, 'artist')
 
     def _cfg_bool(section: dict[str, Any], key: str, default: bool) -> bool:
         # bool() would turn quoted strings like "false" into True (#388);
@@ -214,8 +225,43 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             )
             return default
 
+    def _cfg_int(section: dict[str, Any], key: str, default: int) -> int:
+        # int(True) == 1 would silently mangle the setting, and int() raises
+        # on non-numeric strings and non-scalars (#391).
+        value = section.get(key, default)
+        if isinstance(value, bool):
+            logger.warning(
+                "Config %s=%r is not an integer — using %s", key, value, default
+            )
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Config %s=%r is not an integer — using %s", key, value, default
+            )
+            return default
+
+    def _cfg_str(section: dict[str, Any], key: str, default: str) -> str:
+        # Non-string path values (e.g. `content_root: 42`) crash resolve_path
+        # and string concatenation (#391).
+        value = section.get(key, default)
+        if not isinstance(value, str):
+            logger.warning(
+                "Config %s=%r is not a string — using %r", key, value, default
+            )
+            return default
+        return value
+
+    content_root_raw = _cfg_str(paths, 'content_root', '.')
+    content_root = str(resolve_path(content_root_raw))
+
+    # Resolve overrides directory (custom path or default to {content_root}/overrides)
+    overrides_raw = _cfg_str(paths, 'overrides', '')
+    overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
+
     # Database config (expose enabled flag, mask credentials)
-    db_config = config.get('database') or {}
+    db_config = _cfg_section(config, 'database')
     db_enabled = _cfg_bool(db_config, 'enabled', False)
     database_section = {
         'enabled': db_enabled,
@@ -224,12 +270,12 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     }
 
     # Generation config (service settings and gates)
-    gen_config = config.get('generation') or {}
+    gen_config = _cfg_section(config, 'generation')
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
         'require_suno_link_for_final': _cfg_bool(gen_config, 'require_suno_link_for_final', True),
-        'max_lyric_words': int(gen_config.get('max_lyric_words', 800)),
+        'max_lyric_words': _cfg_int(gen_config, 'max_lyric_words', 800),
         'require_source_path_for_documentary': _cfg_bool(
             gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
@@ -238,10 +284,10 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
 
     return {
         'content_root': content_root,
-        'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
-        'documents_root': str(resolve_path(paths.get('documents_root', content_root_raw + '/documents'))),
+        'audio_root': str(resolve_path(_cfg_str(paths, 'audio_root', content_root_raw + '/audio'))),
+        'documents_root': str(resolve_path(_cfg_str(paths, 'documents_root', content_root_raw + '/documents'))),
         'overrides_dir': overrides_dir,
-        'artist_name': artist.get('name', ''),
+        'artist_name': _cfg_str(artist, 'name', ''),
         'config_mtime': get_config_mtime(),
         'database': database_section,
         'generation': generation_section,
@@ -386,6 +432,20 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     return tracks
 
 
+def _ideas_path(config: dict[str, Any], content_root: Path) -> Path:
+    """Resolve the ideas file path (custom paths.ideas_file or default)."""
+    ideas_file_raw = _cfg_section(config, 'paths').get('ideas_file', '')
+    if not isinstance(ideas_file_raw, str):
+        # Non-string values crash resolve_path (#391)
+        logger.warning(
+            "Config ideas_file=%r is not a string — using default", ideas_file_raw
+        )
+        ideas_file_raw = ''
+    if ideas_file_raw:
+        return resolve_path(ideas_file_raw)
+    return content_root / "IDEAS.md"
+
+
 def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     """Scan IDEAS.md file.
 
@@ -396,11 +456,7 @@ def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     Returns:
         Dict with ideas data, or empty structure.
     """
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     if not ideas_path.exists():
         return {
@@ -559,7 +615,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         )
         ideas_path_changed = (
             path_fields_changed or
-            config.get('paths', {}).get('ideas_file') !=
+            _cfg_section(config, 'paths').get('ideas_file') !=
             existing_state.get('_ideas_file_raw')
         )
 
@@ -575,7 +631,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         # else: ideas path unchanged — keep ideas
 
         # Store ideas_file_raw for future comparison
-        state['_ideas_file_raw'] = config.get('paths', {}).get('ideas_file', '')
+        state['_ideas_file_raw'] = _cfg_section(config, 'paths').get('ideas_file', '')
         return state
 
     # Incremental album update
@@ -705,11 +761,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
     state['albums'] = existing_albums
 
     # Incremental ideas update
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     old_ideas_mtime = state.get('ideas', {}).get('file_mtime', 0)
     if ideas_path.exists():
@@ -908,6 +960,14 @@ def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
         unrecognized, returns None to trigger full rebuild.
     """
     version = state.get('version', '0.0.0')
+
+    # Non-string version (e.g. JSON "version": 1.2) would crash
+    # _version_compare — treat as unrecognized and rebuild (#393)
+    if not isinstance(version, str):
+        logger.warning(
+            "Non-string state version %r — triggering full rebuild", version
+        )
+        return None
 
     # If version is newer than what we know, rebuild
     if _version_compare(version, CURRENT_VERSION) > 0:

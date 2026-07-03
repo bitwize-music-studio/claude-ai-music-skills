@@ -12,6 +12,7 @@ Usage:
 import copy
 import errno
 import json
+import logging
 import os
 import shutil
 import sys
@@ -711,6 +712,118 @@ class TestBuildConfigSection:
         assert section['content_root'] == str(Path('.').resolve())
         assert section['database']['enabled'] is False
         assert section['generation']['service'] == 'suno'
+
+
+@pytest.mark.unit
+class TestBuildConfigSectionTypeGuards:
+    """Mistyped config values must fall back to defaults, not crash (#391)."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_mtime(self, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+    def test_max_lyric_words_garbage_string_uses_default(self, caplog):
+        config = {'generation': {'max_lyric_words': 'lots'}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
+    def test_max_lyric_words_list_uses_default(self):
+        config = {'generation': {'max_lyric_words': [800]}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+
+    def test_max_lyric_words_numeric_string_parses(self):
+        config = {'generation': {'max_lyric_words': '750'}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 750
+
+    def test_max_lyric_words_bool_uses_default(self):
+        # int(True) == 1 would silently mangle the limit
+        config = {'generation': {'max_lyric_words': True}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+
+    def test_numeric_content_root_uses_default(self):
+        config = {'paths': {'content_root': 42}}
+        section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['audio_root'] == str(Path('./audio').resolve())
+        assert section['documents_root'] == str(Path('./documents').resolve())
+
+    def test_non_dict_paths_section_uses_defaults(self, caplog):
+        config = {'paths': ['a', 'b']}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['audio_root'] == str(Path('./audio').resolve())
+        assert section['documents_root'] == str(Path('./documents').resolve())
+        assert 'paths' in caplog.text
+
+    def test_non_string_audio_root_falls_back(self):
+        config = {'paths': {'content_root': '/tmp/c', 'audio_root': {'oops': 1}}}
+        section = build_config_section(config)
+        assert section['audio_root'] == str(Path('/tmp/c/audio').resolve())
+
+    def test_non_string_overrides_falls_back(self):
+        config = {'paths': {'content_root': '/tmp/c', 'overrides': 123}}
+        section = build_config_section(config)
+        assert section['overrides_dir'] == str(Path('/tmp/c').resolve() / 'overrides')
+
+    def test_non_dict_generation_section_uses_defaults(self):
+        config = {'generation': 'text'}
+        section = build_config_section(config)
+        assert section['generation']['service'] == 'suno'
+        assert section['generation']['max_lyric_words'] == 800
+        assert section['generation']['require_suno_link_for_final'] is True
+        assert section['generation']['additional_genres'] == []
+
+    def test_non_dict_artist_and_database_sections_use_defaults(self):
+        config = {'artist': ['band'], 'database': 'yes'}
+        section = build_config_section(config)
+        assert section['artist_name'] == ''
+        assert section['database']['enabled'] is False
+
+    def test_falsy_non_dict_section_warns(self, caplog):
+        # Falsy non-mappings (`paths: []`, `paths: false`) must warn like
+        # truthy ones do, not slip through normalization silently
+        config = {'paths': []}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert 'paths' in caplog.text
+
+    def test_non_string_artist_name_uses_default(self, caplog):
+        config = {'artist': {'name': 42}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['artist_name'] == ''
+        assert 'name' in caplog.text
+
+    def test_build_state_non_string_artist_name_does_not_crash(self, tmp_path):
+        # content_root / "artists" / 42 raises TypeError without the guard
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 42},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        assert state['config']['artist_name'] == ''
+        assert state['albums'] == {}
+
+    def test_non_string_ideas_file_falls_back(self, tmp_path):
+        # scan_ideas resolves paths.ideas_file too — same guard applies
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        shutil.copy(FIXTURES_DIR / "ideas.md", content_root / "IDEAS.md")
+
+        config = {'paths': {'ideas_file': 42}}
+        result = scan_ideas(config, content_root)
+        assert len(result['items']) == 4
 
 
 @pytest.mark.unit
@@ -2191,6 +2304,28 @@ class TestMigrateStateEdgeCases:
         result = migrate_state(state)
         assert result is not None
         assert result['keep'] == 'me'
+
+    def test_float_version_triggers_rebuild(self):
+        # JSON "version": 1.2 parses as a float — non-string => rebuild (#393)
+        state = {'version': 1.2}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_int_version_triggers_rebuild(self):
+        state = {'version': 1}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_null_version_triggers_rebuild(self):
+        # Explicit JSON null — key exists, so .get() default doesn't apply
+        state = {'version': None}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_list_version_triggers_rebuild(self):
+        state = {'version': ['1', '0', '0']}
+        result = migrate_state(state)
+        assert result is None
 
 
 @pytest.mark.unit

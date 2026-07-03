@@ -90,6 +90,50 @@ class TestLoadConfig:
         assert config_module.CONFIG_PATH == expected
 
 
+class TestLoadConfigNonMapping:
+    """load_config() rejects valid YAML whose top level is not a mapping (#389)."""
+
+    def test_top_level_list_returns_fallback_with_error(self, tmp_path, caplog):
+        """Top-level YAML list returns fallback and logs an error naming path and type."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n- bar\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            with caplog.at_level("ERROR", logger="tools.shared.config"):
+                result = load_config(fallback={'default': True})
+        assert result == {'default': True}
+        assert any(
+            str(config_path) in r.message and "list" in r.message
+            for r in caplog.records
+        )
+
+    def test_top_level_scalar_returns_fallback(self, tmp_path):
+        """Top-level YAML scalar returns fallback."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("42\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            result = load_config(fallback={'default': True})
+            assert result == {'default': True}
+
+    def test_non_mapping_returns_none_without_fallback(self, tmp_path):
+        """Non-mapping YAML returns None when no fallback is given."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("just a string\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            assert load_config() is None
+
+    def test_non_mapping_required_exits(self, tmp_path):
+        """Non-mapping YAML exits when required=True."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            with pytest.raises(SystemExit):
+                load_config(required=True)
+
+
 class TestLoadConfigYamlMissing:
     """Tests for config loading when PyYAML is not available."""
 

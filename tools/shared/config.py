@@ -89,7 +89,8 @@ def load_config(
         fallback: Default dict to return when config is missing and not required.
 
     Returns:
-        Parsed config dict, fallback dict, or None if missing/invalid.
+        Parsed config dict ({} for an empty file), or fallback/None when the
+        config is missing, unreadable, unparseable, or not a YAML mapping.
     """
     if not CONFIG_PATH.exists():
         if required:
@@ -105,13 +106,30 @@ def load_config(
 
     try:
         with open(CONFIG_PATH) as f:
-            return yaml.safe_load(f) or {}
+            data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Error reading config: %s", e)
         if required:
             import sys
             sys.exit(1)
         return fallback
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        # Valid YAML but wrong shape (e.g. top-level list or scalar) — callers
+        # expect a mapping and would crash on .get() (#389)
+        logger.error(
+            "Config at %s parsed as %s, not a mapping — the file must contain "
+            "top-level `key: value` pairs",
+            CONFIG_PATH,
+            type(data).__name__,
+        )
+        if required:
+            import sys
+            sys.exit(1)
+        return fallback
+    return data
 
 
 def validate_overrides(overrides_dir: Path) -> list[dict[str, str]]:
