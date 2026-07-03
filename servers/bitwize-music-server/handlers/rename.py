@@ -24,6 +24,32 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _rebuild_after_cache_failure(cause: Exception) -> tuple[bool, str]:
+    """Recover from a failed surgical cache update by rebuilding from disk.
+
+    The rename already happened on disk, so a rebuild restores a consistent
+    cache. Returns (rebuilt, warning): rebuilt=True on success; otherwise a
+    user-facing warning telling them to run rebuild_state (#383).
+    """
+    try:
+        rebuilt = _shared.cache.rebuild()
+    except Exception as exc:
+        rebuilt = {"error": str(exc)}
+    if "error" in rebuilt:
+        return False, (
+            f"Files were renamed, but updating the state cache failed "
+            f"({cause}) and the recovery rebuild also failed: "
+            f"{rebuilt['error']}. Run rebuild_state before trusting "
+            f"album lookups."
+        )
+    return True, ""
+
+
+# ---------------------------------------------------------------------------
 # Tool functions
 # ---------------------------------------------------------------------------
 
@@ -169,6 +195,8 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
 
     # Update state cache
     tracks_updated = 0
+    cache_rebuilt = False
+    cache_warning = ""
     try:
         album_data = albums.pop(normalized_old)
         album_data["path"] = str(content_dir_new)
@@ -187,6 +215,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         write_state(state)
     except Exception as e:
         logger.warning("Directories moved but cache update failed: %s", e)
+        # The in-memory cache may now diverge from disk (#383). The rename
+        # itself succeeded (directories moved), so recover by rebuilding
+        # from disk instead of returning a silently-clean success.
+        cache_rebuilt, cache_warning = _rebuild_after_cache_failure(e)
 
     # Rename is the documented fix path for a slug collision (#392). If the
     # freed slug has a collision record, the surgical cache patch above is
@@ -194,9 +226,12 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     # and album_collisions is stale. Rebuild from disk (same pattern as
     # create_album_structure) so the twin is indexed and collisions are
     # recomputed. Normal renames skip this and keep the cheap surgical path.
+    # A recovery rebuild above already re-indexed everything from disk, so
+    # skip the second rebuild in that case (and don't retry after a failed
+    # recovery — it would fail the same way).
     collision_resolved = False
     rebuild_warning = ""
-    if any(
+    if not (cache_rebuilt or cache_warning) and any(
         record.get("slug") == normalized_old
         for record in state.get("album_collisions", [])
     ):
@@ -235,6 +270,10 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         )
     elif rebuild_warning:
         result["warning"] = rebuild_warning
+    if cache_rebuilt:
+        result["cache_rebuilt"] = True
+    elif cache_warning:
+        result["warning"] = cache_warning
     return _safe_json(result)
 
 
@@ -334,6 +373,8 @@ async def rename_track(
     # Update state cache — use the same state object that _find_album_or_error
     # returned references into; do NOT re-fetch via cache.get_state() which
     # could return a different object if the cache was invalidated.
+    cache_rebuilt = False
+    cache_warning = ""
     try:
         old_track_data = tracks.pop(matched_slug)
         old_track_data["path"] = str(new_path)
@@ -356,10 +397,13 @@ async def rename_track(
             write_state(state)
     except Exception as e:
         logger.warning("File renamed but cache update failed: %s", e)
+        # Same recovery as rename_album (#383): the file DID move, so
+        # rebuild the cache from disk rather than report a clean success.
+        cache_rebuilt, cache_warning = _rebuild_after_cache_failure(e)
 
     logger.info("Renamed track '%s' to '%s' in album '%s'", matched_slug, normalized_new, normalized_album)
 
-    return _safe_json({
+    result: dict[str, Any] = {
         "success": True,
         "album_slug": normalized_album,
         "old_slug": matched_slug,
@@ -367,7 +411,12 @@ async def rename_track(
         "title": title,
         "old_path": str(old_path),
         "new_path": str(new_path),
-    })
+    }
+    if cache_rebuilt:
+        result["cache_rebuilt"] = True
+    elif cache_warning:
+        result["warning"] = cache_warning
+    return _safe_json(result)
 
 
 # ---------------------------------------------------------------------------

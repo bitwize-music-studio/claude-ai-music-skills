@@ -771,3 +771,86 @@ class TestRenameTrackPathTraversal:
             "original-album", "01-first-track", "01\\evil"
         )))
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Cache-write failure honesty (#383)
+# ---------------------------------------------------------------------------
+
+
+class _RebuildFailsCache(MockStateCache):
+    def rebuild(self) -> dict:
+        self.rebuild_calls += 1
+        return {"error": "rebuild boom"}
+
+
+class TestCacheWriteFailureHonesty:
+    """write_state failure must not produce a silently-clean success (#383)."""
+
+    def _fail_write_state(self, monkeypatch):
+        import tools.state.indexer as indexer_mod
+
+        def boom(_state):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(indexer_mod, "write_state", boom)
+
+    def test_album_rename_recovers_via_rebuild(self, cache_with_album, monkeypatch):
+        self._fail_write_state(monkeypatch)
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "renamed-album")
+        ))
+        assert result["success"] is True
+        # Recovery rebuild from disk (directories DID move) instead of a
+        # silently divergent in-memory cache.
+        assert _shared_mod.cache.rebuild_calls == 1
+        assert result.get("cache_rebuilt") is True
+
+    def test_album_rename_warns_when_rebuild_also_fails(self, cache_with_album, monkeypatch):
+        state, *_ = cache_with_album
+        _shared_mod.cache = _RebuildFailsCache(state)
+        self._fail_write_state(monkeypatch)
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "renamed-album")
+        ))
+        assert result["success"] is True
+        assert _shared_mod.cache.rebuild_calls == 1
+        assert "rebuild_state" in result.get("warning", "")
+
+    def test_cache_failure_with_collision_rebuilds_only_once(self, cache_with_album, monkeypatch):
+        """Recovery rebuild covers the collision path — no double rebuild."""
+        state, content_root, audio_root, documents_root = cache_with_album
+        state["album_collisions"] = [{
+            "slug": "original-album",
+            "kept": {"genre": "electronic", "path": state["albums"]["original-album"]["path"]},
+            "shadowed": [{"genre": "rock", "path": "/nowhere/rock/original-album"}],
+        }]
+        self._fail_write_state(monkeypatch)
+        result = json.loads(_run(
+            _rename_mod.rename_album("original-album", "renamed-album")
+        ))
+        assert result["success"] is True
+        assert _shared_mod.cache.rebuild_calls == 1
+
+    def test_track_rename_recovers_via_rebuild(self, cache_with_album, monkeypatch):
+        self._fail_write_state(monkeypatch)
+        result = json.loads(_run(
+            _rename_mod.rename_track(
+                "original-album", "01-first-track", "01-renamed-track"
+            )
+        ))
+        assert result["success"] is True
+        assert _shared_mod.cache.rebuild_calls == 1
+        assert result.get("cache_rebuilt") is True
+
+    def test_track_rename_warns_when_rebuild_also_fails(self, cache_with_album, monkeypatch):
+        state, *_ = cache_with_album
+        _shared_mod.cache = _RebuildFailsCache(state)
+        self._fail_write_state(monkeypatch)
+        result = json.loads(_run(
+            _rename_mod.rename_track(
+                "original-album", "01-first-track", "01-renamed-track"
+            )
+        ))
+        assert result["success"] is True
+        assert "rebuild_state" in result.get("warning", "")

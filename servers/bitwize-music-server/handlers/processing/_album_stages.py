@@ -2097,7 +2097,7 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
                     updated_text = (
                         text[:match.start()] + new_row + text[match.end():]
                     )
-                    track_path.write_text(updated_text, encoding="utf-8")
+                    atomic_write_text(track_path, updated_text)
                     parsed = parse_track_file(track_path)
                     track_info.update({
                         "status": parsed.get("status", TRACK_FINAL),
@@ -2144,7 +2144,7 @@ async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
                             updated_text = (
                                 text[:match.start()] + new_row + text[match.end():]
                             )
-                            readme_path.write_text(updated_text, encoding="utf-8")
+                            atomic_write_text(readme_path, updated_text)
                             album_data["status"] = ALBUM_COMPLETE
                             album_status = ALBUM_COMPLETE
                     except Exception as e:
