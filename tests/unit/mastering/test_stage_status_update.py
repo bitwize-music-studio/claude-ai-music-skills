@@ -454,3 +454,35 @@ class TestAlbumStatusTransition:
         assert state["albums"]["test-album"]["status"] == "In Progress"
         # Warning / error recorded
         assert ctx.stages["status_update"].get("errors")
+
+
+# ===========================================================================
+# Status writes are atomic (#398)
+# ===========================================================================
+
+
+class TestStatusWritesAreAtomic:
+    """Track and README status rewrites go through atomic_write_text (#398)."""
+
+    def test_track_and_readme_written_atomically(self, filesystem, _install_cache):
+        from unittest.mock import patch
+
+        import handlers.processing._album_stages as stages_mod
+
+        state, ctx, _audio_dir = _setup(
+            filesystem, _install_cache, album_status="In Progress",
+            tracks=[("01-track-one", "Track One", "Generated")],
+        )
+
+        with patch.object(
+            stages_mod, "atomic_write_text", wraps=stages_mod.atomic_write_text
+        ) as spy:
+            _run(_stage_status_update(ctx))
+
+        written = {str(call.args[0]) for call in spy.call_args_list}
+        track_path = state["albums"]["test-album"]["tracks"]["01-track-one"]["path"]
+        album_readme = str(Path(state["albums"]["test-album"]["path"]) / "README.md")
+        assert track_path in written, f"track file not atomically written: {written}"
+        assert album_readme in written, f"README not atomically written: {written}"
+        # And the writes actually landed
+        assert "**Status** | Final |" in Path(track_path).read_text(encoding="utf-8")

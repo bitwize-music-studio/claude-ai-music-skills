@@ -7,6 +7,18 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **IDEAS.md and status writes are crash-safe; rename failures are honest**
+  (#381, #398, #383). Every mutating write in `ideas.py` (idea backlog,
+  promoted-idea README injection) and the track/README status rewrites at
+  the end of `master_album` used truncate-then-write `write_text` — a crash
+  mid-write could leave the entire idea backlog or a source-of-truth
+  markdown file empty. All now go through the existing `atomic_write_text`
+  helper (temp file + fsync + atomic rename). And when `rename_album` /
+  `rename_track` move files successfully but the state-cache write fails,
+  they no longer report a silently-clean success with a divergent in-memory
+  cache: they rebuild the cache from disk (ground truth — the files did
+  move) and report `cache_rebuilt`, or degrade to an explicit `warning`
+  telling you to run `rebuild_state` if the rebuild also fails.
 - **`transcribe.py` album-name resolution works again** (#375). The
   documented `python3 transcribe.py <album-name>` invocation built
   `{audio_root}/{artist}/{album}` — omitting the `artists/` and

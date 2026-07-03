@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
+from handlers._atomic import atomic_write_text
 from handlers._shared import _safe_json
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ def _inject_concept_into_readme(
         new_text = text.rstrip() + block
 
     try:
-        readme_path.write_text(new_text, encoding="utf-8")
+        atomic_write_text(readme_path, new_text)
     except OSError:
         return False
     return True
@@ -137,7 +138,7 @@ def _set_promoted_to_field(title: str, slug: str) -> bool:
 
     new_text = text[:section_start] + new_section + text[section_end:]
     try:
-        ideas_path.write_text(new_text, encoding="utf-8")
+        atomic_write_text(ideas_path, new_text)
     except OSError:
         return False
     return True
@@ -206,8 +207,7 @@ async def create_idea(
     updated = text.rstrip() + "\n" + new_block
 
     try:
-        ideas_path.parent.mkdir(parents=True, exist_ok=True)
-        ideas_path.write_text(updated, encoding="utf-8")
+        atomic_write_text(ideas_path, updated)
     except OSError as e:
         return _safe_json({"error": f"Cannot write IDEAS.md: {e}"})
 
@@ -301,7 +301,7 @@ async def update_idea(title: str, field: str, value: str) -> str:
     updated_text = text[:abs_start] + new_line + text[abs_end:]
 
     try:
-        ideas_path.write_text(updated_text, encoding="utf-8")
+        atomic_write_text(ideas_path, updated_text)
     except OSError as e:
         return _safe_json({"error": f"Cannot write IDEAS.md: {e}"})
 

@@ -8011,8 +8011,10 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
+        from handlers import ideas as ideas_mod
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(Path, "write_text", side_effect=OSError("permission denied")):
+             patch.object(ideas_mod, "atomic_write_text",
+                          side_effect=OSError("permission denied")):
             result = json.loads(_run(server.create_idea("New Idea")))
         assert "error" in result
 
@@ -8237,15 +8239,13 @@ class TestUpdateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
         # Make file read-only after first read
         with patch.object(_shared_mod, "cache", mock_cache):
-            # Use patch on Path.write_text to simulate write failure
-            original_write = Path.write_text
+            from handlers import ideas as ideas_mod
 
-            def fail_write(self, *args, **kwargs):
-                if str(self).endswith("IDEAS.md"):
+            def fail_write(path, *args, **kwargs):
+                if str(path).endswith("IDEAS.md"):
                     raise OSError("disk full")
-                return original_write(self, *args, **kwargs)
 
-            with patch.object(Path, "write_text", fail_write):
+            with patch.object(ideas_mod, "atomic_write_text", fail_write):
                 result = json.loads(_run(server.update_idea(
                     "Cyberpunk Dreams", "status", "Complete"
                 )))
@@ -15515,3 +15515,41 @@ class TestDiagnose:
         assert result["status"] == "fail"
         assert result["ok"] + result["warn"] + result["fail"] == result["total"]
 
+
+
+class TestIdeasAtomicWrites:
+    """All IDEAS.md / README.md mutations go through atomic_write_text (#381)."""
+
+    IDEAS = TestUpdateIdea.IDEAS_WITH_ENTRIES
+
+    def _make_cache_with_ideas(self, tmp_path):
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        (content_root / "IDEAS.md").write_text(self.IDEAS)
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content_root)
+        return MockStateCache(state), content_root
+
+    def _spy(self):
+        from handlers import ideas as ideas_mod
+        return patch.object(
+            ideas_mod, "atomic_write_text", wraps=ideas_mod.atomic_write_text
+        )
+
+    def test_create_idea_writes_atomically(self, tmp_path):
+        mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), self._spy() as spy:
+            result = json.loads(_run(server.create_idea("Fresh Idea")))
+        assert result["created"] is True
+        assert spy.called
+        assert "### Fresh Idea" in (content_root / "IDEAS.md").read_text()
+
+    def test_update_idea_writes_atomically(self, tmp_path):
+        mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), self._spy() as spy:
+            result = json.loads(_run(server.update_idea(
+                "Cyberpunk Dreams", field="status", value="Planned"
+            )))
+        assert result["success"] is True
+        assert spy.called
+        assert "**Status**: Planned" in (content_root / "IDEAS.md").read_text()
