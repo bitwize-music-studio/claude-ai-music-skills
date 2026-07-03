@@ -315,12 +315,19 @@ async def check_pronunciation_enforcement(
     # Parse the pronunciation table: | Word/Phrase | Pronunciation | Reason |
     entries = []
     for line in pron_section.split("\n"):
-        if not line.startswith("|") or "---" in line or "Word" in line:
+        if not line.startswith("|"):
+            continue
+        # Separator row: cells made only of dashes/colons (|-----|:---:|)
+        if set(line) <= {"|", "-", ":", " "}:
             continue
         parts = [p.strip() for p in line.split("|")]
         if len(parts) >= 4:
             word = parts[1].strip()
             phonetic = parts[2].strip()
+            # Skip the header row by its FIRST CELL only — a substring match
+            # on the whole line drops data rows like "Wordsworth" (#384)
+            if word.lower() in ("word/phrase", "word"):
+                continue
             if word and word != "—" and phonetic and phonetic != "—":
                 entries.append({"word": word, "phonetic": phonetic})
 

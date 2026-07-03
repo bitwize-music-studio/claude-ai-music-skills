@@ -7,6 +7,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Pronunciation gate no longer false-passes on words containing "Word"**
+  (#384). The table parser skipped ANY row whose line contained the
+  substring "Word", silently dropping data rows like "Wordsworth" — if
+  those were the only entries, `check_pronunciation_enforcement` reported
+  `all_applied: true` with the phonetic missing from the lyrics, defeating
+  the pronunciation hard rule. The header row is now matched by its first
+  cell only, and separator rows by cell content rather than substring.
+- **Batch promo-video generation reports real per-track results** (#382).
+  The handler globbed `*_promo.mp4` after the run and marked every file
+  `success: true` — stale files from previous runs counted as fresh
+  successes and per-track ffmpeg failures were invisible.
+  `batch_process_album` now returns its per-track outcomes and the
+  response includes `failed` / `failed_tracks`.
+- **`--retries` can no longer silently skip every upload** (#385).
+  `retry_upload` with a non-positive retry count never entered its
+  attempt loop and reported every file as failed (even in `--dry-run`).
+  It now always attempts at least once, and the CLI rejects
+  `--retries < 1` with a clear argparse error.
 - **IDEAS.md and status writes are crash-safe; rename failures are honest**
   (#381, #398, #383). Every mutating write in `ideas.py` (idea backlog,
   promoted-idea README injection) and the track/README status rewrites at
