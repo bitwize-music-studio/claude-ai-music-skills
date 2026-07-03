@@ -479,6 +479,28 @@ class TestGate3PronunciationResolved:
         assert pron_gate["status"] == "FAIL"
         assert "lever" in pron_gate["detail"]
 
+    def test_word_substring_row_still_blocks(self):
+        """A 'Wordsworth' row must not be dropped by the header filter (#384).
+
+        The old substring filter skipped any line containing 'Word', so the
+        BLOCKING gate false-passed with 'No pronunciation entries to check'.
+        """
+        track = (
+            "---\ntitle: Wordsworth Track\nstatus: In Progress\n---\n\n"
+            "## Lyrics Box\n\n```\nplain lyrics without the phonetic\n```\n\n"
+            "## Pronunciation Notes\n\n"
+            "| Word/Phrase | Pronunciation | Reason |\n"
+            "|-------------|---------------|--------|\n"
+            "| Wordsworth | WURDZ-wurth | poet name |\n"
+        )
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, track, blocklist=[],
+        )
+        pron_gate = next(g for g in gates if g["gate"] == "Pronunciation Resolved")
+        assert pron_gate["status"] == "FAIL"
+        assert "Wordsworth" in pron_gate["detail"]
+
     def test_no_pronunciation_entries_passes(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
         blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(

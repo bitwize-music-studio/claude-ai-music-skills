@@ -636,7 +636,7 @@ Examples:
 
         output_dir = args.output or args.batch / 'promo_videos'
 
-        batch_process_album(
+        batch_results = batch_process_album(
             album_dir=args.batch,
             artwork_path=artwork,
             output_dir=output_dir,
@@ -650,6 +650,17 @@ Examples:
             glow=args.glow,
             text_color=args.text_color,
         )
+
+        # Per-track failures must surface as a non-zero exit, matching
+        # single-file mode — callers (generate_all_promos.py) key off the
+        # return code (#382).
+        failed = [name for name, _out, ok in batch_results if not ok]
+        if failed:
+            logger.error(
+                "%d of %d tracks failed: %s",
+                len(failed), len(batch_results), ", ".join(failed),
+            )
+            sys.exit(1)
 
     else:
         # Single file mode

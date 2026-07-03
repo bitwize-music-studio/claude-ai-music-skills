@@ -16,6 +16,7 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _parse_pronunciation_table,
     _safe_json,
 )
 
@@ -105,15 +106,7 @@ def _check_pre_gen_gates_for_track(
         pron_section = _extract_markdown_section(file_text, "Pronunciation Notes")
         pron_entries = []
         if pron_section:
-            for line in pron_section.split("\n"):
-                if not line.startswith("|") or "---" in line or "Word" in line:
-                    continue
-                parts = [p.strip() for p in line.split("|")]
-                if len(parts) >= 4:
-                    word = parts[1].strip()
-                    phonetic = parts[2].strip()
-                    if word and word != "—" and phonetic and phonetic != "—":
-                        pron_entries.append({"word": word, "phonetic": phonetic})
+            pron_entries = _parse_pronunciation_table(pron_section)
 
         if pron_entries and lyrics_content:
             unapplied = []

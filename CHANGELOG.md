@@ -12,8 +12,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   substring "Word", silently dropping data rows like "Wordsworth" — if
   those were the only entries, `check_pronunciation_enforcement` reported
   `all_applied: true` with the phonetic missing from the lyrics, defeating
-  the pronunciation hard rule. The header row is now matched by its first
-  cell only, and separator rows by cell content rather than substring.
+  the pronunciation hard rule. The same parser bug lived in the BLOCKING
+  Gate 3 of `run_pre_generation_gates` — both sites now share one parser
+  (`_parse_pronunciation_table`) that matches the header row by its first
+  cell only and separator rows by cell content rather than substring. The
+  batch promo CLI also exits non-zero on per-track failures now, so
+  `generate_all_promos.py`'s error detection actually fires.
 - **Batch promo-video generation reports real per-track results** (#382).
   The handler globbed `*_promo.mp4` after the run and marked every file
   `success: true` — stale files from previous runs counted as fresh
