@@ -7,6 +7,28 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **`transcribe.py` album-name resolution works again** (#375). The
+  documented `python3 transcribe.py <album-name>` invocation built
+  `{audio_root}/{artist}/{album}` — omitting the `artists/` and
+  `albums/{genre}/` segments of the mirrored layout — so it never found a
+  real album and always fell through to "Source not found". It now sweeps
+  genre directories under `{audio_root}/artists/{artist}/albums/` (literal
+  comparison, no glob), warns if legacy same-name twins exist under
+  multiple genres, and the "Tried:" error hint prints the correct path
+  shape.
+- **Genre-list cache no longer poisons on a degenerate scan**. The
+  `_get_valid_genres()` cache stored whatever the first call computed —
+  including an empty set from a broken or mocked plugin root — and served
+  it for the life of the process, making `create_album_structure` reject
+  every genre from then on (the source of an intermittent xdist test
+  failure). The cache is now keyed by `PLUGIN_ROOT` and only stores
+  non-empty results.
+- **Codec-preview ffmpeg can no longer hang `master_album` forever** (#387).
+  `render_aac_preview` ran ffmpeg with no timeout, so a wedged subprocess
+  blocked the samples stage (and the whole `master_album` call)
+  indefinitely. The invocation is now bounded at 120s (mirroring
+  `adm_validation.py`); a timeout raises `CodecPreviewError`, which the
+  samples stage already degrades to a per-track warning.
 - **Quoted YAML booleans no longer invert to True** (#388). `bool("false")`
   is `True` in Python, so quoting a falsy boolean anywhere in user YAML
   silently enabled the feature the user disabled: `mastering.

@@ -67,3 +67,49 @@ def test_is_album_released_false_when_cache_raises():
             raise OSError("simulated disk failure")
     _shared.cache = _RaisingCache()
     assert _shared.is_album_released("my-album") is False
+
+
+class TestGetValidGenresCachePoisoning:
+    """A degenerate genre scan must not poison the process-wide cache.
+
+    Regression for the xdist flake where a test patching PLUGIN_ROOT (or
+    blanket-mocking Path.exists) primed _VALID_GENRES with an empty set,
+    making every later create_album_structure reject valid genres.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_genre_cache(self):
+        original = _shared._VALID_GENRES
+        _shared._VALID_GENRES = None
+        yield
+        _shared._VALID_GENRES = original
+
+    def _real_plugin_root(self):
+        return PROJECT_ROOT
+
+    def test_fake_plugin_root_does_not_poison_cache(self, tmp_path, monkeypatch):
+        fake_root = tmp_path / "fake-plugin"
+        fake_root.mkdir()
+        monkeypatch.setattr(_shared, "PLUGIN_ROOT", fake_root)
+        assert _shared._get_valid_genres() == frozenset()
+
+        monkeypatch.setattr(_shared, "PLUGIN_ROOT", self._real_plugin_root())
+        assert "rock" in _shared._get_valid_genres()
+
+    def test_cache_rekeys_when_plugin_root_changes(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_shared, "PLUGIN_ROOT", self._real_plugin_root())
+        real_genres = _shared._get_valid_genres()
+        assert real_genres  # non-empty and now cached
+
+        other_root = tmp_path / "other-plugin"
+        (other_root / "genres" / "onlygenre").mkdir(parents=True)
+        (other_root / "genres" / "onlygenre" / "README.md").write_text("# g")
+        monkeypatch.setattr(_shared, "PLUGIN_ROOT", other_root)
+        assert _shared._get_valid_genres() == frozenset({"onlygenre"})
+
+    def test_empty_scan_is_not_cached(self, tmp_path, monkeypatch):
+        fake_root = tmp_path / "fake-plugin"
+        fake_root.mkdir()
+        monkeypatch.setattr(_shared, "PLUGIN_ROOT", fake_root)
+        _shared._get_valid_genres()
+        assert _shared._VALID_GENRES is None  # degenerate result not stored
