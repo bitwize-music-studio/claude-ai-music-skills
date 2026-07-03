@@ -79,6 +79,68 @@ class TestLoadMasteringConfig:
             result = load_mastering_config()
         assert result == DEFAULT_MASTERING_CONFIG
 
+    def test_quoted_false_strings_do_not_invert(self):
+        """Quoted falsy booleans must resolve False, not bool("false")==True (#388)."""
+        user_config = {
+            "mastering": {
+                "adm_validation_enabled": "false",
+                "archival_enabled": "no",
+            }
+        }
+        with patch(
+            "tools.mastering.config.load_config", return_value=user_config
+        ):
+            result = load_mastering_config()
+        assert result["adm_validation_enabled"] is False
+        assert result["archival_enabled"] is False
+
+    def test_quoted_true_strings_enable(self):
+        user_config = {
+            "mastering": {
+                "adm_validation_enabled": "true",
+                "archival_enabled": "yes",
+            }
+        }
+        with patch(
+            "tools.mastering.config.load_config", return_value=user_config
+        ):
+            result = load_mastering_config()
+        assert result["adm_validation_enabled"] is True
+        assert result["archival_enabled"] is True
+
+    def test_unparseable_boolean_string_uses_default(self, caplog):
+        """A boolean key set to garbage falls back to the default with a warning."""
+        user_config = {"mastering": {"archival_enabled": "maybe"}}
+        with patch(
+            "tools.mastering.config.load_config", return_value=user_config
+        ), caplog.at_level("WARNING", logger="tools.mastering.config"):
+            result = load_mastering_config()
+        assert result["archival_enabled"] is False  # default
+        assert any("archival_enabled" in r.message for r in caplog.records)
+
+
+class TestResolveAdmEnabled:
+    """Per-album frontmatter ADM flag honors quoted boolean strings (#388)."""
+
+    def test_quoted_false_does_not_enable(self):
+        from tools.mastering.config import _resolve_adm_enabled
+        assert _resolve_adm_enabled({"adm_validation_enabled": "false"}) is False
+
+    def test_quoted_true_enables(self):
+        from tools.mastering.config import _resolve_adm_enabled
+        assert _resolve_adm_enabled({"adm_validation_enabled": "true"}) is True
+
+    def test_garbage_string_stays_off(self):
+        from tools.mastering.config import _resolve_adm_enabled
+        assert _resolve_adm_enabled({"adm_validation_enabled": "maybe"}) is False
+
+    def test_real_bools_unchanged(self):
+        from tools.mastering.config import _resolve_adm_enabled
+        assert _resolve_adm_enabled({"adm_validation_enabled": True}) is True
+        assert _resolve_adm_enabled({"adm_validation_enabled": False}) is False
+        assert _resolve_adm_enabled(None) is False
+        assert _resolve_adm_enabled({}) is False
+
 
 class TestResolveMasteringTargets:
     def _base_cfg(self) -> dict:

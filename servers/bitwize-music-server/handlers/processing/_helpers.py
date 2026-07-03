@@ -139,7 +139,7 @@ def _import_cloud_module(module_name: str) -> Any:
 def _check_cloud_enabled() -> str | None:
     """Return error message if cloud uploads not enabled, else None."""
     try:
-        from tools.shared.config import load_config
+        from tools.shared.config import coerce_yaml_bool, load_config
         config = load_config()
     except (ImportError, OSError, KeyError) as exc:
         logger.warning("Config load failed: %s", exc)
@@ -149,7 +149,9 @@ def _check_cloud_enabled() -> str | None:
     if not config:
         return "Config not found. Run /bitwize-music:configure first."
     cloud_config = config.get("cloud", {})
-    if not cloud_config.get("enabled", False):
+    if not coerce_yaml_bool(
+        cloud_config.get("enabled", False), default=False, context="cloud.enabled"
+    ):
         return (
             "Cloud uploads not enabled. "
             "Set cloud.enabled: true in ~/.bitwize-music/config.yaml. "

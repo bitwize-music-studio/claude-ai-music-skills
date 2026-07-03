@@ -12,6 +12,7 @@ Usage:
 import copy
 import errno
 import json
+import logging
 import os
 import shutil
 import sys
@@ -71,6 +72,7 @@ def _make_minimal_state(**overrides):
             'config_mtime': 1000.0,
         },
         'albums': {},
+        'album_collisions': [],
         'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
         'skills': {
             'skills_root': '/tmp/skills',
@@ -442,6 +444,43 @@ class TestValidateState:
         errors = validate_state(state)
         assert errors == []
 
+    def test_album_collisions_valid_entries(self):
+        state = _make_minimal_state(album_collisions=[
+            {
+                'slug': 'midnight',
+                'kept': {'genre': 'jazz', 'path': '/tmp/albums/jazz/midnight'},
+                'shadowed': [
+                    {'genre': 'rock', 'path': '/tmp/albums/rock/midnight'},
+                ],
+            }
+        ])
+        errors = validate_state(state)
+        assert errors == [], f"Unexpected errors: {errors}"
+
+    def test_album_collisions_missing_field_ok(self):
+        """Old states lack album_collisions — not an error (migration adds it)."""
+        state = _make_minimal_state()
+        del state['album_collisions']
+        errors = validate_state(state)
+        assert not any('album_collisions' in e for e in errors)
+
+    def test_album_collisions_not_a_list(self):
+        state = _make_minimal_state(album_collisions="bad")
+        errors = validate_state(state)
+        assert any('album_collisions should be a list' in e for e in errors)
+
+    def test_album_collisions_entry_not_dict(self):
+        state = _make_minimal_state(album_collisions=["bad"])
+        errors = validate_state(state)
+        assert any('album_collisions' in e and 'should be a dict' in e
+                   for e in errors)
+
+    def test_album_collisions_entry_missing_keys(self):
+        state = _make_minimal_state(album_collisions=[{'slug': 'midnight'}])
+        errors = validate_state(state)
+        assert any("missing 'kept'" in e for e in errors)
+        assert any("missing 'shadowed'" in e for e in errors)
+
 
 @pytest.mark.unit
 class TestMigrateState:
@@ -477,7 +516,7 @@ class TestMigrateState:
         assert result is None
 
     def test_same_major_minor_difference_no_rebuild(self):
-        # Same major, migration chain applies 1.0.0 → 1.1.0 → 1.2.0
+        # Same major, migration chain applies 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0
         state = {'version': '1.0.0'}
         result = migrate_state(state)
         assert result is not None
@@ -556,6 +595,57 @@ class TestBuildConfigSection:
         section = build_config_section(config)
         assert section['artist_name'] == ''
 
+    def test_quoted_boolean_strings_do_not_invert(self, monkeypatch):
+        """Quoted "false"/"no" config booleans must not become True (#388)."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'false', 'host': 'db.example', 'name': 'tweets'},
+            'generation': {
+                'require_suno_link_for_final': 'false',
+                'require_source_path_for_documentary': 'no',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        # Credentials stay masked when the flag resolves False
+        assert section['database']['host'] == ''
+        assert section['database']['name'] == ''
+        assert section['generation']['require_suno_link_for_final'] is False
+        assert section['generation']['require_source_path_for_documentary'] is False
+
+    def test_quoted_true_boolean_strings_enable(self, monkeypatch):
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'true', 'host': 'db.example', 'name': 'tweets'},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is True
+        assert section['database']['host'] == 'db.example'
+        assert section['database']['name'] == 'tweets'
+
+    def test_garbage_boolean_string_uses_default(self, monkeypatch):
+        """Unparseable boolean strings fall back to the key's default."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'maybe'},
+            'generation': {'require_suno_link_for_final': 'sometimes'},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is False  # default False
+        assert section['generation']['require_suno_link_for_final'] is True  # default True
+
     def test_documents_root_derives_from_content_root(self, monkeypatch):
         config = {
             'artist': {'name': 'test'},
@@ -625,6 +715,175 @@ class TestBuildConfigSection:
 
 
 @pytest.mark.unit
+class TestBuildConfigSectionTypeGuards:
+    """Mistyped config values must fall back to defaults, not crash (#391)."""
+
+    @pytest.fixture(autouse=True)
+    def _mock_mtime(self, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+    def test_max_lyric_words_garbage_string_uses_default(self, caplog):
+        config = {'generation': {'max_lyric_words': 'lots'}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
+    def test_max_lyric_words_list_uses_default(self):
+        config = {'generation': {'max_lyric_words': [800]}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+
+    def test_max_lyric_words_numeric_string_parses(self):
+        config = {'generation': {'max_lyric_words': '750'}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 750
+
+    def test_max_lyric_words_bool_uses_default(self):
+        # int(True) == 1 would silently mangle the limit
+        config = {'generation': {'max_lyric_words': True}}
+        section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+
+    def test_max_lyric_words_inf_uses_default(self, caplog):
+        # YAML `.inf` parses to float('inf'); int() raises OverflowError
+        config = {'generation': {'max_lyric_words': yaml.safe_load('.inf')}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
+    def test_max_lyric_words_negative_inf_uses_default(self, caplog):
+        config = {'generation': {'max_lyric_words': yaml.safe_load('-.inf')}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
+    def test_numeric_content_root_uses_default(self):
+        config = {'paths': {'content_root': 42}}
+        section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['audio_root'] == str(Path('./audio').resolve())
+        assert section['documents_root'] == str(Path('./documents').resolve())
+
+    def test_non_dict_paths_section_uses_defaults(self, caplog):
+        config = {'paths': ['a', 'b']}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['audio_root'] == str(Path('./audio').resolve())
+        assert section['documents_root'] == str(Path('./documents').resolve())
+        assert 'paths' in caplog.text
+
+    def test_non_string_audio_root_falls_back(self):
+        config = {'paths': {'content_root': '/tmp/c', 'audio_root': {'oops': 1}}}
+        section = build_config_section(config)
+        assert section['audio_root'] == str(Path('/tmp/c/audio').resolve())
+
+    def test_non_string_overrides_falls_back(self):
+        config = {'paths': {'content_root': '/tmp/c', 'overrides': 123}}
+        section = build_config_section(config)
+        assert section['overrides_dir'] == str(Path('/tmp/c').resolve() / 'overrides')
+
+    def test_non_dict_generation_section_uses_defaults(self):
+        config = {'generation': 'text'}
+        section = build_config_section(config)
+        assert section['generation']['service'] == 'suno'
+        assert section['generation']['max_lyric_words'] == 800
+        assert section['generation']['require_suno_link_for_final'] is True
+        assert section['generation']['additional_genres'] == []
+
+    def test_non_dict_artist_and_database_sections_use_defaults(self):
+        config = {'artist': ['band'], 'database': 'yes'}
+        section = build_config_section(config)
+        assert section['artist_name'] == ''
+        assert section['database']['enabled'] is False
+
+    def test_falsy_non_dict_section_warns(self, caplog):
+        # Falsy non-mappings (`paths: []`, `paths: false`) must warn like
+        # truthy ones do, not slip through normalization silently
+        config = {'paths': []}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert 'paths' in caplog.text
+
+    def test_non_string_artist_name_uses_default(self, caplog):
+        config = {'artist': {'name': 42}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['artist_name'] == ''
+        assert 'name' in caplog.text
+
+    def test_build_state_non_string_artist_name_does_not_crash(self, tmp_path):
+        # content_root / "artists" / 42 raises TypeError without the guard
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+
+        config = {
+            'artist': {'name': 42},
+            'paths': {'content_root': str(content_root)},
+        }
+        state = build_state(config)
+        assert state['config']['artist_name'] == ''
+        assert state['albums'] == {}
+
+    def test_non_string_ideas_file_falls_back(self, tmp_path):
+        # scan_ideas resolves paths.ideas_file too — same guard applies
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        shutil.copy(FIXTURES_DIR / "ideas.md", content_root / "IDEAS.md")
+
+        config = {'paths': {'ideas_file': 42}}
+        result = scan_ideas(config, content_root)
+        assert len(result['items']) == 4
+
+    def test_non_mapping_database_section_does_not_leak_values(self, caplog):
+        # A dash-list database section carries credentials — the warning
+        # must name the key and type only, never the raw value
+        config = {'database': ['host: db.example.com', 'password: hunter2secret']}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        assert 'database' in caplog.text
+        assert 'hunter2secret' not in caplog.text
+
+    def test_database_enabled_warning_does_not_leak_value(self, caplog):
+        # Same no-leak rule for scalar values inside the database section
+        config = {'database': {'enabled': 'hunter2secret'}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        assert 'hunter2secret' not in caplog.text
+
+    def test_blank_path_keys_silently_default(self, caplog):
+        # `overrides:` / `content_root:` with no value parse to None — that
+        # means "unset" (#376 semantics), so default silently, no warning
+        config = {'paths': {'content_root': None, 'overrides': None}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['overrides_dir'] == str(Path('.').resolve() / 'overrides')
+        assert not any(
+            r.levelno >= logging.WARNING for r in caplog.records
+        )
+
+    def test_blank_ideas_file_silently_defaults(self, tmp_path, caplog):
+        # `ideas_file:` with no value parses to None — unset, not a warning
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        shutil.copy(FIXTURES_DIR / "ideas.md", content_root / "IDEAS.md")
+
+        config = {'paths': {'ideas_file': None}}
+        with caplog.at_level(logging.WARNING):
+            result = scan_ideas(config, content_root)
+        assert len(result['items']) == 4
+        assert 'ideas_file' not in caplog.text
+
+
+@pytest.mark.unit
 class TestReadConfig:
     """Tests for read_config()."""
 
@@ -677,6 +936,35 @@ class TestReadConfig:
         result = read_config()
         assert result == {}
 
+    def test_top_level_list_returns_none_with_error(self, tmp_path, monkeypatch, caplog):
+        # Valid YAML, wrong shape — must not leak a non-dict that crashes
+        # _cfg_section's config.get() during rebuild/update (#389)
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n- bar\n")
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'CONFIG_FILE', config_path)
+
+        with caplog.at_level(logging.ERROR):
+            result = read_config()
+        assert result is None
+        assert any(
+            str(config_path) in r.message and "list" in r.message
+            for r in caplog.records
+        )
+
+    def test_top_level_scalar_returns_none(self, tmp_path, monkeypatch, caplog):
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("just a string\n")
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'CONFIG_FILE', config_path)
+
+        with caplog.at_level(logging.ERROR):
+            result = read_config()
+        assert result is None
+        assert "str" in caplog.text
+
 
 @pytest.mark.unit
 class TestReadWriteState:
@@ -724,6 +1012,41 @@ class TestReadWriteState:
 
         result = read_state()
         assert result == {}
+
+    def test_read_json_array_backed_up_returns_empty(self, tmp_path, monkeypatch, caplog):
+        # JSON-valid but not an object — same recovery as corrupted JSON:
+        # warn, back up the file, return empty state
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('["valid", "json", "wrong shape"]')
+
+        with caplog.at_level(logging.ERROR):
+            result = read_state()
+        assert result == {}
+        backups = list(tmp_path.glob("state.*.corrupt"))
+        assert len(backups) == 1
+        assert 'list' in caplog.text
+
+    def test_read_json_string_returns_empty(self, tmp_path, monkeypatch):
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('"just a string"')
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
+
+    def test_read_json_number_returns_empty(self, tmp_path, monkeypatch):
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('42')
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
 
     def test_write_creates_cache_dir(self, tmp_path, monkeypatch):
         new_cache = tmp_path / "new_cache_dir"
@@ -1031,6 +1354,109 @@ mastering:
         assert "no-mastering-album" in result
         assert result["no-mastering-album"]["mastering"] == {}
 
+    def test_slug_collision_lexicographic_genre_wins(self, tmp_path):
+        """#392: same slug under two genres — lexicographically-first genre
+        wins, the other is recorded as shadowed, never overwritten."""
+        content_root = tmp_path / "content"
+        rock_dir = _make_album_tree(
+            content_root, "testartist", "rock", "midnight",
+            tracks={"01-rock.md": _make_track_content("Rock Track")})
+        jazz_dir = _make_album_tree(
+            content_root, "testartist", "jazz", "midnight",
+            tracks={"01-jazz.md": _make_track_content("Jazz Track")})
+
+        collisions = []
+        result = scan_albums(content_root, "testartist", collisions)
+
+        assert list(result.keys()) == ["midnight"]
+        album = result["midnight"]
+        assert album["genre"] == "jazz"
+        assert album["path"] == str(jazz_dir)
+        assert "01-jazz" in album["tracks"]
+        assert "01-rock" not in album["tracks"]
+
+        assert collisions == [{
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': str(jazz_dir)},
+            'shadowed': [{'genre': 'rock', 'path': str(rock_dir)}],
+        }]
+
+    def test_slug_collision_without_out_param_no_overwrite(self, tmp_path):
+        """#392: even without the collisions out-param, the winner is
+        never overwritten by a later genre."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "midnight")
+        jazz_dir = _make_album_tree(content_root, "testartist", "jazz", "midnight")
+
+        result = scan_albums(content_root, "testartist")
+        assert result["midnight"]["genre"] == "jazz"
+        assert result["midnight"]["path"] == str(jazz_dir)
+
+    def test_three_way_collision_accumulates_shadowed(self, tmp_path):
+        """#392: 3-way collision yields one record with two shadowed
+        entries sorted by genre."""
+        content_root = tmp_path / "content"
+        rock_dir = _make_album_tree(content_root, "testartist", "rock", "midnight")
+        jazz_dir = _make_album_tree(content_root, "testartist", "jazz", "midnight")
+        ambient_dir = _make_album_tree(
+            content_root, "testartist", "ambient", "midnight")
+
+        collisions = []
+        result = scan_albums(content_root, "testartist", collisions)
+
+        assert result["midnight"]["genre"] == "ambient"
+        assert len(collisions) == 1
+        record = collisions[0]
+        assert record['kept'] == {'genre': 'ambient', 'path': str(ambient_dir)}
+        assert record['shadowed'] == [
+            {'genre': 'jazz', 'path': str(jazz_dir)},
+            {'genre': 'rock', 'path': str(rock_dir)},
+        ]
+
+    def test_slug_collision_unreadable_first_twin_records_actual_winner(
+            self, tmp_path):
+        """#392: when the lexicographically-first twin's README is
+        unreadable, the next parseable twin wins AND the collision is
+        still recorded with kept = the twin actually indexed."""
+        content_root = tmp_path / "content"
+        a_dir = _make_album_tree(content_root, "testartist", "a-genre", "midnight")
+        # Invalid UTF-8 makes parse_album_readme fail even when running
+        # as root (unlike chmod-based unreadability).
+        (a_dir / "README.md").write_bytes(b'\xff\xfe\x00garbage')
+        b_dir = _make_album_tree(
+            content_root, "testartist", "b-genre", "midnight",
+            tracks={"01-b.md": _make_track_content("B Track")})
+
+        collisions = []
+        result = scan_albums(content_root, "testartist", collisions)
+
+        album = result["midnight"]
+        assert album["genre"] == "b-genre"
+        assert album["path"] == str(b_dir)
+        assert "01-b" in album["tracks"]
+        assert collisions == [{
+            'slug': 'midnight',
+            'kept': {'genre': 'b-genre', 'path': str(b_dir)},
+            'shadowed': [{'genre': 'a-genre', 'path': str(a_dir)}],
+        }]
+        # Invariant: the record's kept entry is the entry in the map.
+        assert collisions[0]['kept']['path'] == album['path']
+
+    def test_slug_collision_no_parseable_twin_no_entry_no_record(self, tmp_path):
+        """#392: when NO same-slug candidate parses, there is no album
+        entry and no collision record (parse warnings already fire)."""
+        content_root = tmp_path / "content"
+        a_dir = _make_album_tree(content_root, "testartist", "a-genre", "midnight")
+        (a_dir / "README.md").write_bytes(b'\xff\xfe\x00garbage')
+        b_dir = _make_album_tree(content_root, "testartist", "b-genre", "midnight")
+        (b_dir / "README.md").write_bytes(b'\xff\xfe\x00garbage')
+
+        collisions = []
+        result = scan_albums(content_root, "testartist", collisions)
+
+        assert result == {}
+        assert collisions == []
+
 
 @pytest.mark.unit
 class TestScanTracks:
@@ -1255,6 +1681,49 @@ class TestBuildState:
         assert state['config']['artist_name'] == 'myartist'
         assert state['config']['content_root'] == str(content_root)
         assert state['config']['config_mtime'] == 42.0
+
+    def test_build_state_album_collisions_empty_when_clean(self, tmp_path, monkeypatch):
+        """#392: album_collisions is always present, [] with no collisions."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "solo-album")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config)
+        assert state['album_collisions'] == []
+
+    def test_build_state_album_collisions_populated(self, tmp_path, monkeypatch):
+        """#392: on-disk collision surfaces in album_collisions and the
+        winner's tracks stay intact."""
+        content_root = tmp_path / "content"
+        rock_dir = _make_album_tree(
+            content_root, "testartist", "rock", "midnight",
+            tracks={"01-rock.md": _make_track_content("Rock Track")})
+        jazz_dir = _make_album_tree(
+            content_root, "testartist", "jazz", "midnight",
+            tracks={"01-jazz.md": _make_track_content("Jazz Track")})
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        state = build_state(config)
+        assert state['album_collisions'] == [{
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': str(jazz_dir)},
+            'shadowed': [{'genre': 'rock', 'path': str(rock_dir)}],
+        }]
+        album = state['albums']['midnight']
+        assert album['genre'] == 'jazz'
+        assert '01-jazz' in album['tracks']
 
 
 @pytest.mark.unit
@@ -1537,6 +2006,234 @@ anchor_track: 3
         updated = incremental_update(existing, config)
         assert updated['albums']['my-album']['anchor_track'] == 3
 
+    def test_collision_detected_on_incremental_update(self, tmp_path, monkeypatch):
+        """#392: a cross-genre twin appearing after the initial build is
+        detected and the winner (with its tracks) survives the removal loop."""
+        content_root = tmp_path / "content"
+        jazz_dir = _make_album_tree(
+            content_root, "testartist", "jazz", "midnight",
+            tracks={"01-jazz.md": _make_track_content("Jazz Track")})
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['album_collisions'] == []
+
+        rock_dir = _make_album_tree(content_root, "testartist", "rock", "midnight")
+
+        updated = incremental_update(existing, config)
+        assert updated['album_collisions'] == [{
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': str(jazz_dir)},
+            'shadowed': [{'genre': 'rock', 'path': str(rock_dir)}],
+        }]
+        album = updated['albums']['midnight']
+        assert album['genre'] == 'jazz'
+        assert '01-jazz' in album['tracks']
+
+    def test_collision_winner_deterministic_on_update(self, tmp_path, monkeypatch):
+        """#392: the lexicographically-first genre wins even when the
+        cached entry points at the other genre (deterministic regardless
+        of dict/filesystem order)."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['albums']['midnight']['genre'] == 'rock'
+
+        jazz_dir = _make_album_tree(content_root, "testartist", "jazz", "midnight")
+
+        updated = incremental_update(existing, config)
+        assert 'midnight' in updated['albums']
+        assert updated['albums']['midnight']['genre'] == 'jazz'
+        assert updated['albums']['midnight']['path'] == str(jazz_dir)
+        assert updated['album_collisions'][0]['kept']['genre'] == 'jazz'
+        assert updated['album_collisions'][0]['shadowed'][0]['genre'] == 'rock'
+
+    def test_collision_cleared_when_resolved_on_disk(self, tmp_path, monkeypatch):
+        """#392: removing the shadowed twin clears album_collisions on
+        the next incremental update."""
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "jazz", "midnight")
+        rock_dir = _make_album_tree(content_root, "testartist", "rock", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert len(existing['album_collisions']) == 1
+
+        shutil.rmtree(rock_dir)
+
+        updated = incremental_update(existing, config)
+        assert updated['album_collisions'] == []
+        assert updated['albums']['midnight']['genre'] == 'jazz'
+
+    def test_collision_path_mismatch_triggers_reparse(self, tmp_path, monkeypatch):
+        """#392: a cached entry whose path points at the shadowed twin
+        must be fully re-parsed even when README mtimes match — otherwise
+        the twin's data is wrongly reused for the winner."""
+        content_root = tmp_path / "content"
+        rock_dir = _make_album_tree(content_root, "testartist", "rock", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['albums']['midnight']['path'] == str(rock_dir)
+
+        jazz_readme = """---
+title: "Jazz Midnight"
+genres: ["jazz"]
+explicit: false
+---
+
+# Jazz Midnight
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Concept |
+| **Tracks** | 0 |
+"""
+        jazz_dir = _make_album_tree(
+            content_root, "testartist", "jazz", "midnight",
+            readme_text=jazz_readme,
+            tracks={"01-jazz.md": _make_track_content("Jazz Track")})
+        # Force the winner's README mtime to equal the cached (rock)
+        # mtime so only the path check can trigger the re-parse.
+        cached_mtime = existing['albums']['midnight']['readme_mtime']
+        os.utime(jazz_dir / "README.md", (cached_mtime, cached_mtime))
+
+        updated = incremental_update(existing, config)
+        album = updated['albums']['midnight']
+        assert album['path'] == str(jazz_dir)
+        assert album['genre'] == 'jazz'
+        assert album['title'] == 'Jazz Midnight'
+        assert '01-jazz' in album['tracks']
+
+    def test_collision_unreadable_new_twin_keeps_cached_winner(
+            self, tmp_path, monkeypatch):
+        """#392: cached winner is b-genre; an unreadable a-genre twin
+        appears. The record must report kept = the entry actually in the
+        albums map (b-genre), not claim the unreadable a-genre won."""
+        content_root = tmp_path / "content"
+        b_dir = _make_album_tree(content_root, "testartist", "b-genre", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        assert existing['albums']['midnight']['path'] == str(b_dir)
+
+        a_dir = _make_album_tree(content_root, "testartist", "a-genre", "midnight")
+        (a_dir / "README.md").write_bytes(b'\xff\xfe\x00garbage')
+
+        updated = incremental_update(existing, config)
+        album = updated['albums']['midnight']
+        assert album['path'] == str(b_dir)
+        assert album['genre'] == 'b-genre'
+        assert updated['album_collisions'] == [{
+            'slug': 'midnight',
+            'kept': {'genre': 'b-genre', 'path': str(b_dir)},
+            'shadowed': [{'genre': 'a-genre', 'path': str(a_dir)}],
+        }]
+        assert updated['album_collisions'][0]['kept']['path'] == album['path']
+
+    def test_collision_unreadable_first_twin_incremental_agrees_with_rebuild(
+            self, tmp_path, monkeypatch):
+        """#392: with the first twin's README unreadable, incremental
+        update picks the SAME winner and emits the SAME collision record
+        as a full rebuild, and kept.path matches the albums map."""
+        content_root = tmp_path / "content"
+        a_dir = _make_album_tree(content_root, "testartist", "a-genre", "midnight")
+        (a_dir / "README.md").write_bytes(b'\xff\xfe\x00garbage')
+        b_dir = _make_album_tree(content_root, "testartist", "b-genre", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        expected_record = {
+            'slug': 'midnight',
+            'kept': {'genre': 'b-genre', 'path': str(b_dir)},
+            'shadowed': [{'genre': 'a-genre', 'path': str(a_dir)}],
+        }
+        assert existing['albums']['midnight']['path'] == str(b_dir)
+        assert existing['album_collisions'] == [expected_record]
+
+        updated = incremental_update(existing, config)
+        album = updated['albums']['midnight']
+        assert album['path'] == str(b_dir)
+        assert album['genre'] == 'b-genre'
+        assert updated['album_collisions'] == [expected_record]
+        assert updated['album_collisions'][0]['kept']['path'] == album['path']
+
+    def test_collision_both_parseable_first_genre_wins_both_paths(
+            self, tmp_path, monkeypatch):
+        """#392: with both READMEs parseable the lexicographically-first
+        genre still wins on both the rebuild and incremental paths."""
+        content_root = tmp_path / "content"
+        jazz_dir = _make_album_tree(content_root, "testartist", "jazz", "midnight")
+        rock_dir = _make_album_tree(content_root, "testartist", "rock", "midnight")
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+        expected_record = {
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': str(jazz_dir)},
+            'shadowed': [{'genre': 'rock', 'path': str(rock_dir)}],
+        }
+        assert existing['albums']['midnight']['path'] == str(jazz_dir)
+        assert existing['album_collisions'] == [expected_record]
+
+        updated = incremental_update(existing, config)
+        assert updated['albums']['midnight']['path'] == str(jazz_dir)
+        assert updated['albums']['midnight']['genre'] == 'jazz'
+        assert updated['album_collisions'] == [expected_record]
+
 
 @pytest.mark.unit
 class TestUpdateTracksIncremental:
@@ -1728,6 +2425,87 @@ class TestMigrateStateEdgeCases:
         result = migrate_state(state)
         assert result is not None
         assert result['keep'] == 'me'
+
+    def test_float_version_triggers_rebuild(self):
+        # JSON "version": 1.2 parses as a float — non-string => rebuild (#393)
+        state = {'version': 1.2}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_int_version_triggers_rebuild(self):
+        state = {'version': 1}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_null_version_triggers_rebuild(self):
+        # Explicit JSON null — key exists, so .get() default doesn't apply
+        state = {'version': None}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_list_version_triggers_rebuild(self):
+        state = {'version': ['1', '0', '0']}
+        result = migrate_state(state)
+        assert result is None
+
+    def test_list_state_triggers_rebuild(self, caplog):
+        # state.json can be JSON-valid but not an object — .get() would
+        # crash one line above the version guard
+        with caplog.at_level(logging.WARNING):
+            assert migrate_state(['not', 'a', 'dict']) is None
+        assert 'rebuild' in caplog.text.lower()
+
+    def test_string_state_triggers_rebuild(self):
+        assert migrate_state('garbage') is None
+
+    def test_int_state_triggers_rebuild(self):
+        assert migrate_state(42) is None
+
+
+@pytest.mark.unit
+class TestIncrementalUpdateWrongTypedSections:
+    """Wrong-typed state sections trigger a full rebuild, not a crash (#393 family)."""
+
+    def _config_for(self, tmp_path):
+        return {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(tmp_path / "content")},
+        }
+
+    def test_config_section_list_returns_none(self, tmp_path, monkeypatch, caplog):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(config=['not', 'a', 'mapping'])
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'config' in caplog.text
+
+    def test_config_section_none_returns_none(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(config=None)
+        assert incremental_update(state, self._config_for(tmp_path)) is None
+
+    def test_albums_section_string_returns_none(self, tmp_path, monkeypatch, caplog):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        # Albums dir must exist and config_mtime must match so the
+        # incremental path actually reads the albums map
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "an-album")
+
+        state = _make_minimal_state(albums='x')
+        state['config']['content_root'] = str(content_root)
+        state['config']['config_mtime'] = 1000.0
+
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'albums' in caplog.text
 
 
 @pytest.mark.unit
@@ -1997,8 +2775,8 @@ class TestMigrate1_0To1_1:
         }
         result = migrate_state(state)
         assert result is not None
-        # Full chain: 1.0.0 → 1.1.0 → 1.2.0
-        assert result['version'] == '1.2.0'
+        # Full chain: 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0
+        assert result['version'] == '1.4.0'
         assert 'skills' in result
         assert result['skills']['count'] == 0
         assert result['skills']['items'] == {}
@@ -2275,7 +3053,7 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.2.0'
+        assert result['version'] == '1.4.0'
         assert 'plugin_version' in result
         assert result['plugin_version'] is None
 
@@ -2311,8 +3089,145 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.2.0'
+        assert result['version'] == '1.4.0'
         assert result['plugin_version'] == '0.43.0'
+
+
+@pytest.mark.unit
+class TestMigrate1_2To1_3:
+    """Tests for the 1.2.0 → 1.3.0 migration (#392)."""
+
+    def _state_1_2(self, **overrides):
+        state = {
+            'version': '1.2.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'plugin_version': None,
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': {},
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'skills': {
+                'skills_root': '/tmp/skills',
+                'skills_root_mtime': 0.0,
+                'count': 0,
+                'model_counts': {},
+                'items': {},
+            },
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        state.update(overrides)
+        return state
+
+    def test_migration_adds_album_collisions(self):
+        """State from v1.2.0 gets album_collisions field via migration."""
+        result = migrate_state(self._state_1_2())
+        assert result is not None
+        assert result['version'] == '1.4.0'
+        assert result['album_collisions'] == []
+
+    def test_migration_preserves_existing_album_collisions(self):
+        """If album_collisions already exists, migration preserves it."""
+        collision = {
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': '/tmp/jazz/midnight'},
+            'shadowed': [{'genre': 'rock', 'path': '/tmp/rock/midnight'}],
+        }
+        result = migrate_state(self._state_1_2(album_collisions=[collision]))
+        assert result is not None
+        assert result['version'] == '1.4.0'
+        assert result['album_collisions'] == [collision]
+
+    def test_full_chain_1_0_to_1_3(self):
+        """Existing 1.0 → 1.2 chain still works and now ends at 1.3.0."""
+        state = self._state_1_2()
+        state['version'] = '1.0.0'
+        del state['plugin_version']
+        del state['skills']
+        result = migrate_state(state)
+        assert result is not None
+        assert result['version'] == CURRENT_VERSION == '1.4.0'
+        assert 'skills' in result
+        assert 'plugin_version' in result
+        assert result['album_collisions'] == []
+
+
+@pytest.mark.unit
+class TestMigrate13To14:
+    """Tests for the 1.3.0 → 1.4.0 migration (#388): re-coerce cached
+    explicit values that were stored as truthy strings by the old parsers."""
+
+    def _state_1_3(self, albums):
+        state = {
+            'version': '1.3.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'plugin_version': None,
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': albums,
+            'album_collisions': [],
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'skills': {
+                'skills_root': '/tmp/skills',
+                'skills_root_mtime': 0.0,
+                'count': 0,
+                'model_counts': {},
+                'items': {},
+            },
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        return state
+
+    def test_recoerces_cached_string_explicit_values(self):
+        albums = {
+            'my-album': {
+                'explicit': 'false',
+                'tracks': {
+                    '01-track': {'explicit': 'false'},
+                    '02-track': {'explicit': 'true'},
+                },
+            },
+        }
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['version'] == '1.4.0'
+        assert result['albums']['my-album']['explicit'] is False
+        assert result['albums']['my-album']['tracks']['01-track']['explicit'] is False
+        assert result['albums']['my-album']['tracks']['02-track']['explicit'] is True
+
+    def test_garbage_explicit_defaults_false(self):
+        albums = {'a': {'explicit': 'maybe', 'tracks': {}}}
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['albums']['a']['explicit'] is False
+
+    def test_real_bools_untouched(self):
+        albums = {'a': {'explicit': True, 'tracks': {'t': {'explicit': False}}}}
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['albums']['a']['explicit'] is True
+        assert result['albums']['a']['tracks']['t']['explicit'] is False
 
 
 @pytest.mark.unit
@@ -2359,7 +3274,7 @@ class TestValidateStatePluginVersion:
 
 @pytest.mark.unit
 class TestFullMigrationChain:
-    """Tests for the complete migration chain 1.0.0 → 1.2.0."""
+    """Tests for the complete migration chain 1.0.0 → 1.3.0."""
 
     def test_1_0_to_1_2_adds_both_skills_and_plugin_version(self):
         """Full chain from 1.0.0 adds skills AND plugin_version."""
@@ -2385,7 +3300,7 @@ class TestFullMigrationChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.2.0'
+        assert result['version'] == '1.4.0'
         # From 1.0→1.1 migration
         assert 'skills' in result
         assert result['skills']['count'] == 0
@@ -2609,7 +3524,7 @@ class TestMigrateStateChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.2.0'
+        assert result['version'] == '1.4.0'
         assert result['plugin_version'] is None
 
     def test_migration_does_not_overwrite_existing_skills(self):
@@ -3057,6 +3972,45 @@ class TestIncrementalUpdateAlbumsDirMissing:
         # Stale album should still be in state since albums_dir doesn't exist
         # (the code only cleans up when albums_dir.exists() is True)
         assert 'albums' in updated
+
+    def test_albums_dir_missing_preserves_collisions(self, tmp_path, monkeypatch):
+        """#392: when albums dir doesn't exist the albums map is
+        deliberately preserved — album_collisions must be preserved with
+        it, not wiped to []."""
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        # Don't create artists/testartist/albums/
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        collision = {
+            'slug': 'midnight',
+            'kept': {'genre': 'jazz', 'path': '/tmp/gone/jazz/midnight'},
+            'shadowed': [{'genre': 'rock', 'path': '/tmp/gone/rock/midnight'}],
+        }
+        existing = _make_minimal_state(album_collisions=[collision])
+        existing['config']['config_mtime'] = 100.0
+        existing['config']['content_root'] = str(content_root)
+        existing['config']['artist_name'] = 'testartist'
+        existing['albums'] = {
+            'midnight': {
+                'path': '/tmp/gone/jazz/midnight',
+                'genre': 'jazz',
+                'title': 'Midnight',
+                'status': 'Concept',
+                'tracks': {},
+                'readme_mtime': 100.0,
+            }
+        }
+
+        updated = incremental_update(existing, config)
+        assert 'midnight' in updated['albums']
+        assert updated['album_collisions'] == [collision]
 
 
 @pytest.mark.unit

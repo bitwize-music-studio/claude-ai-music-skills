@@ -21,6 +21,7 @@ from handlers._shared import (
     _find_track_or_error,
     _is_path_confined,
     _normalize_slug,
+    _parse_pronunciation_table,
     _safe_json,
 )
 
@@ -313,16 +314,7 @@ async def check_pronunciation_enforcement(
         })
 
     # Parse the pronunciation table: | Word/Phrase | Pronunciation | Reason |
-    entries = []
-    for line in pron_section.split("\n"):
-        if not line.startswith("|") or "---" in line or "Word" in line:
-            continue
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) >= 4:
-            word = parts[1].strip()
-            phonetic = parts[2].strip()
-            if word and word != "—" and phonetic and phonetic != "—":
-                entries.append({"word": word, "phonetic": phonetic})
+    entries = _parse_pronunciation_table(pron_section)
 
     if not entries:
         return _safe_json({

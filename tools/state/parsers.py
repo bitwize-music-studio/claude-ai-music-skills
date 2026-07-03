@@ -32,6 +32,18 @@ _RE_IDEAS_SECTION = re.compile(r'^##\s+Ideas\b', re.MULTILINE)
 _RE_IDEAS_SPLIT = re.compile(r'^###\s+', re.MULTILINE)
 
 
+def _frontmatter_bool(value: Any, default: bool = False, context: str = "explicit") -> bool:
+    """Coerce a frontmatter boolean, honoring quoted strings.
+
+    bool() turns quoted YAML booleans like "false" into True (#388);
+    unrecognized values fall back to `default` with a warning rather than
+    aborting the parse — frontmatter is hand-edited and a bad flag
+    shouldn't drop the whole file from the cache.
+    """
+    from tools.shared.config import coerce_yaml_bool
+    return coerce_yaml_bool(value, default=default, context=context)
+
+
 def parse_frontmatter(text: str) -> dict[str, Any]:
     """Parse YAML frontmatter from markdown content.
 
@@ -170,7 +182,7 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         result['title'] = _extract_heading(text)
     result['release_date'] = fm.get('release_date') or None
-    result['explicit'] = fm.get('explicit', False)
+    result['explicit'] = _frontmatter_bool(fm.get('explicit', False))
 
     # Optional anchor-track override for album mastering (issue #290 phase 2).
     # Frontmatter uses 1-based track numbers. Non-int / null / missing → None,
@@ -384,7 +396,7 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     if explicit_raw:
         result['explicit'] = explicit_raw.lower().strip() in ('yes', 'true')
     elif 'explicit' in fm:
-        result['explicit'] = bool(fm['explicit'])
+        result['explicit'] = _frontmatter_bool(fm['explicit'])
     else:
         result['explicit'] = False
 

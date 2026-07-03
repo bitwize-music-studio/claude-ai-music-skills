@@ -6,6 +6,167 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.94.0] - 2026-07-03
+
+### Fixed
+- **`load_config` no longer returns non-mapping YAML that crashes every caller**
+  (#389). A config file whose top level is a list or scalar (e.g. `- foo` or
+  `42`) was passed through as-is, so the first `.get()` in `resolve_path`,
+  `resolve_overrides_dir`, or any other consumer died with `AttributeError`.
+  Non-mapping configs now log a clear error naming the file and the actual
+  type, exit cleanly when `required=True`, and return the fallback otherwise.
+  The indexer's own `read_config` had the same defect (feeding the CLI
+  `rebuild`/`update` commands and the MCP server's state cache) and is
+  hardened identically.
+- **State rebuilds no longer crash on malformed config value types** (#391).
+  `build_config_section` called bare `int()` on `generation.max_lyric_words`
+  (ValueError/TypeError on `lots` or `[800]`, OverflowError on `.inf`) and
+  concatenated `paths.content_root` as a string (TypeError on numeric values,
+  first surfacing inside `resolve_path`). New `_cfg_int`/`_cfg_str`/
+  `_cfg_section` guards — following the `_cfg_bool` pattern from #388 — warn
+  and fall back to defaults for wrong-typed ints, path strings, section
+  mappings (`paths`/`artist`/`database`/`generation`), `artist.name`, and the
+  ideas file path, so CLI rebuilds and incremental updates degrade gracefully
+  instead of aborting with a traceback. Blank keys (`overrides:` with no
+  value) default silently as before; warnings log only the key and type,
+  never raw values, so misshapen `database` sections cannot leak credentials
+  into logs. A wrong-typed `logging:` section (or non-numeric
+  `logging.max_size_mb`) now disables file logging with a warning instead of
+  crashing MCP server startup.
+- **`migrate_state` no longer crashes when `state.json` has a non-string
+  version** (#393). A JSON-valid state file with `"version": 1.2` (float,
+  int, null, or list) raised `AttributeError` inside version comparison.
+  Non-string versions now log a warning and return `None`, triggering the
+  documented full-rebuild path. Same treatment for the surrounding state
+  shape: a JSON-valid non-object `state.json` is quarantined like corrupt
+  JSON (backed up, rebuilt), wrong-typed `config`/`albums` sections trigger a
+  full rebuild instead of crashing `incremental_update`, and a non-string
+  `last_migrated_version` is dropped on rebuild and treated as untracked by
+  `get_pending_migrations` instead of crashing every subsequent
+  `health_check`.
+- **`argument-hint` YAML frontmatter now parses as a string across all runtimes**
+  (#439). Three skill files (`configure`, `next-step`, `test`) declared
+  `argument-hint: [ ... ]` with an unquoted `[`, which YAML parses as a
+  flow sequence (array). Claude Code tolerates this, but GitHub Copilot CLI
+  silently skips such skills — they never appear in `copilot skill list`,
+  with no error even at debug log level (reproduced on 1.0.64 and 1.0.68;
+  the field was added in 1.0.64 and has required a string ever since).
+  Bracket forms containing a colon can also crash Claude Code's TUI
+  ([anthropics/claude-code#22161](https://github.com/anthropics/claude-code/issues/22161)).
+  Values are now wrapped in double quotes so every runtime receives a string.
+- **Pronunciation gate no longer false-passes on words containing "Word"**
+  (#384). The table parser skipped ANY row whose line contained the
+  substring "Word", silently dropping data rows like "Wordsworth" — if
+  those were the only entries, `check_pronunciation_enforcement` reported
+  `all_applied: true` with the phonetic missing from the lyrics, defeating
+  the pronunciation hard rule. The same parser bug lived in the BLOCKING
+  Gate 3 of `run_pre_generation_gates` — both sites now share one parser
+  (`_parse_pronunciation_table`) that matches the header row by its first
+  cell only and separator rows by cell content rather than substring. The
+  batch promo CLI also exits non-zero on per-track failures now, so
+  `generate_all_promos.py`'s error detection actually fires.
+- **Batch promo-video generation reports real per-track results** (#382).
+  The handler globbed `*_promo.mp4` after the run and marked every file
+  `success: true` — stale files from previous runs counted as fresh
+  successes and per-track ffmpeg failures were invisible.
+  `batch_process_album` now returns its per-track outcomes and the
+  response includes `failed` / `failed_tracks`.
+- **`--retries` can no longer silently skip every upload** (#385).
+  `retry_upload` with a non-positive retry count never entered its
+  attempt loop and reported every file as failed (even in `--dry-run`).
+  It now always attempts at least once, and the CLI rejects
+  `--retries < 1` with a clear argparse error.
+- **IDEAS.md and status writes are crash-safe; rename failures are honest**
+  (#381, #398, #383). Every mutating write in `ideas.py` (idea backlog,
+  promoted-idea README injection) and the track/README status rewrites at
+  the end of `master_album` used truncate-then-write `write_text` — a crash
+  mid-write could leave the entire idea backlog or a source-of-truth
+  markdown file empty. All now go through the existing `atomic_write_text`
+  helper (temp file + fsync + atomic rename). And when `rename_album` /
+  `rename_track` move files successfully but the state-cache write fails,
+  they no longer report a silently-clean success with a divergent in-memory
+  cache: they rebuild the cache from disk (ground truth — the files did
+  move) and report `cache_rebuilt`, or degrade to an explicit `warning`
+  telling you to run `rebuild_state` if the rebuild also fails.
+- **`transcribe.py` album-name resolution works again** (#375). The
+  documented `python3 transcribe.py <album-name>` invocation built
+  `{audio_root}/{artist}/{album}` — omitting the `artists/` and
+  `albums/{genre}/` segments of the mirrored layout — so it never found a
+  real album and always fell through to "Source not found". It now sweeps
+  genre directories under `{audio_root}/artists/{artist}/albums/` (literal
+  comparison, no glob), warns if legacy same-name twins exist under
+  multiple genres, and the "Tried:" error hint prints the correct path
+  shape.
+- **Genre-list cache no longer poisons on a degenerate scan**. The
+  `_get_valid_genres()` cache stored whatever the first call computed —
+  including an empty set from a broken or mocked plugin root — and served
+  it for the life of the process, making `create_album_structure` reject
+  every genre from then on (the source of an intermittent xdist test
+  failure). The cache is now keyed by `PLUGIN_ROOT` and only stores
+  non-empty results.
+- **Codec-preview ffmpeg can no longer hang `master_album` forever** (#387).
+  `render_aac_preview` ran ffmpeg with no timeout, so a wedged subprocess
+  blocked the samples stage (and the whole `master_album` call)
+  indefinitely. The invocation is now bounded at 120s (mirroring
+  `adm_validation.py`); a timeout raises `CodecPreviewError`, which the
+  samples stage already degrades to a per-track warning.
+- **Quoted YAML booleans no longer invert to True** (#388). `bool("false")`
+  is `True` in Python, so quoting a falsy boolean anywhere in user YAML
+  silently enabled the feature the user disabled: `mastering.
+  adm_validation_enabled: "false"` in config.yaml (or album frontmatter — the
+  only path that enables ADM since #353) turned Apple Digital Masters
+  validation ON, `archival_enabled: "no"` enabled archival output,
+  `database.enabled: "false"` still opened Postgres connections,
+  `cloud.public_read: "false"` uploaded files with a **public-read ACL**,
+  quoted `cloud.enabled`/`logging.enabled`/`sheet_music.section_headers`/
+  `require_suno_link_for_final`/`require_source_path_for_documentary`
+  flipped their gates, and a track or album `explicit: "false"` frontmatter
+  flag marked the content explicit. Shared `parse_yaml_bool()` /
+  `coerce_yaml_bool()` helpers (tools/shared/config.py) now parse YAML 1.1
+  boolean literals (`true/false/yes/no/on/off/1/0`, case-insensitive) at
+  every user-YAML boolean site; unrecognized values fall back to the key's
+  documented default with a warning instead of silently meaning True. State
+  schema bumps 1.3.0 → 1.4.0 with a migration that re-coerces cached
+  `explicit` flags stored as strings by the old parsers.
+- **Album slug collisions across genres no longer silently erase an album from
+  the state cache** (#392). The indexer keyed the cache's `albums` map by bare
+  directory name, ignoring the genre path segment — two albums with the same
+  slug under different genres overwrote each other, so one album (and all its
+  tracks) vanished from every MCP tool, and `create_album_structure` only
+  checked the genre-scoped path, so it happily created the twin. Album slugs
+  are now globally unique across genres: `create_album_structure` (and
+  `promote_idea`, which inherits the guard) and `rename_album` reject a slug
+  that already exists under any other genre, naming the existing genre/path
+  and suggesting a different name or `/bitwize-music:rename`. Pre-existing
+  on-disk collisions are detected at index time instead of silently
+  overwriting — the lexicographically-first genre wins deterministically, and
+  the shadowed album(s) are recorded in a new `album_collisions` state field
+  (schema 1.2.0 → 1.3.0; migration seeds `[]`) and surfaced by `health_check`,
+  `find_album`, `list_albums`, `rebuild_state`, and the indexer CLI with the
+  fix guidance (rename or move the directory, then rebuild).
+
+### Docs
+- **Suno vocal-age control troubleshooting** (`reference/suno/tips-and-tricks.md`).
+  Vague age adjectives ("mature and deep") in the Style Box are weak signals
+  that get outcompeted by breathy/soft-coded words ("intimate", "whispered")
+  sitting nearby, so Suno keeps generating a young-sounding vocal even when
+  age is explicitly requested. Documents the escalation path found in
+  production: concrete vocal-range/texture tags (`alto`, `contralto`,
+  `smoky`, `weathered`) first, then — if a fresh generation still skews
+  young — inline lyrical metatags per section (`[Verse 1: Raspy older female
+  vocal, husky contralto]`) plus dropping youth-coded genre words like "pop"
+  in favor of inherently mature-vocal-coded genres ("torch song", "vintage
+  soul", "cabaret"), with Persona/Voice cloning (Pro/Premier) as the final
+  fallback.
+- **Suno generic-vocal troubleshooting** (`reference/suno/tips-and-tricks.md`).
+  A related but distinct failure mode: Style Box text using emotion/character
+  words ("powerful and defiant", "sultry") instead of concrete vocal
+  range/texture tags produces a technically correct but generic, characterless
+  voice, since Suno has no reliable mapping from mood words to timbre. Fix
+  mirrors the vocal-age entry — swap or supplement emotion words with range
+  (`mezzo-soprano`, `contralto`) and texture (`gritty`, `raspy`, `commanding`)
+  tags, plus an explicit `no generic or polished studio pop vocal` exclude.
+
 ## [0.93.0] - 2026-07-01
 
 ### Fixed

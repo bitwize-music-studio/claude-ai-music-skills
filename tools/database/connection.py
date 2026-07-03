@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
+from tools.shared.config import coerce_yaml_bool
+
 logger = logging.getLogger(__name__)
 
 CONFIG_PATH = Path.home() / ".bitwize-music" / "config.yaml"
@@ -47,7 +49,9 @@ def get_db_config() -> dict[str, Any] | None:
         return None
 
     db_config = cast(dict[str, Any], config.get("database", {}))
-    if not db_config or not db_config.get("enabled", False):
+    if not db_config or not coerce_yaml_bool(
+        db_config.get("enabled", False), default=False, context="database.enabled"
+    ):
         return None
 
     return db_config

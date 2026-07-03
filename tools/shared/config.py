@@ -31,6 +31,53 @@ OVERRIDE_FILES: dict[str, dict[str, Any]] = {
 }
 
 
+# YAML 1.1 boolean literals. PyYAML converts these to bool when unquoted, so
+# a string here means the user quoted the value in config.yaml/frontmatter.
+_YAML_BOOL_LITERALS: dict[str, bool] = {
+    "true": True, "yes": True, "on": True, "1": True,
+    "false": False, "no": False, "off": False, "0": False,
+}
+
+
+def parse_yaml_bool(value: Any) -> bool:
+    """Coerce a YAML-sourced value to bool, honoring quoted boolean strings.
+
+    ``bool(value)`` treats any non-empty string as True, silently inverting
+    quoted YAML booleans like ``"false"`` or ``"no"`` (#388). Accepts real
+    bools, 0/1 numbers, and YAML 1.1 boolean literals (case-insensitive);
+    raises ValueError for anything else so callers can fall back to their
+    key's default with a warning.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        parsed = _YAML_BOOL_LITERALS.get(value.strip().lower())
+        if parsed is not None:
+            return parsed
+    raise ValueError(f"not a boolean: {value!r}")
+
+
+def coerce_yaml_bool(value: Any, *, default: bool = False, context: str = "") -> bool:
+    """parse_yaml_bool with a warn-and-default fallback for gate sites.
+
+    For boolean config gates where an unparseable value should fall back to
+    the key's documented default rather than raise. ``context`` names the
+    key in the warning (e.g. ``"cloud.enabled"``).
+    """
+    try:
+        return parse_yaml_bool(value)
+    except ValueError:
+        logger.warning(
+            "Cannot interpret %s=%r as a boolean — using default %s",
+            context or "value",
+            value,
+            default,
+        )
+        return default
+
+
 def load_config(
     required: bool = False,
     fallback: dict[str, Any] | None = None
@@ -42,7 +89,8 @@ def load_config(
         fallback: Default dict to return when config is missing and not required.
 
     Returns:
-        Parsed config dict, fallback dict, or None if missing/invalid.
+        Parsed config dict ({} for an empty file), or fallback/None when the
+        config is missing, unreadable, unparseable, or not a YAML mapping.
     """
     if not CONFIG_PATH.exists():
         if required:
@@ -58,13 +106,30 @@ def load_config(
 
     try:
         with open(CONFIG_PATH) as f:
-            return yaml.safe_load(f) or {}
+            data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Error reading config: %s", e)
         if required:
             import sys
             sys.exit(1)
         return fallback
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        # Valid YAML but wrong shape (e.g. top-level list or scalar) — callers
+        # expect a mapping and would crash on .get() (#389)
+        logger.error(
+            "Config at %s parsed as %s, not a mapping — the file must contain "
+            "top-level `key: value` pairs",
+            CONFIG_PATH,
+            type(data).__name__,
+        )
+        if required:
+            import sys
+            sys.exit(1)
+        return fallback
+    return data
 
 
 def validate_overrides(overrides_dir: Path) -> list[dict[str, str]]:

@@ -407,8 +407,12 @@ def batch_process_album(
     color_hex: str = "",
     glow: float = 0.6,
     text_color: str = "",
-) -> None:
-    """Process all audio files in an album directory."""
+) -> list[tuple[str, str, bool]]:
+    """Process all audio files in an album directory.
+
+    Returns one (audio_filename, output_filename, success) tuple per track
+    so callers can report real per-track outcomes (#382).
+    """
     audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -420,7 +424,7 @@ def batch_process_album(
 
     if not audio_files:
         logger.warning("No audio files found in %s", album_dir)
-        return
+        return []
 
     logger.info("Found %d tracks", len(audio_files))
     if content_dir:
@@ -470,10 +474,12 @@ def batch_process_album(
     workers = jobs if jobs > 0 else (os.cpu_count() or 1)
     progress = ProgressBar(len(sorted_audio), prefix="Generating")
 
+    results: list[tuple[str, str, bool]] = []
     if workers == 1:
         for audio_file in sorted_audio:
             progress.update(audio_file.name)
-            _, out_name, success = _process_one(audio_file)
+            name, out_name, success = _process_one(audio_file)
+            results.append((name, out_name, success))
             if success:
                 logger.info("  [OK] %s", out_name)
             else:
@@ -485,11 +491,13 @@ def batch_process_album(
             for future in as_completed(futures):
                 af = futures[future]
                 progress.update(af.name)
-                _, out_name, success = future.result()
+                name, out_name, success = future.result()
+                results.append((name, out_name, success))
                 if success:
                     logger.info("  [OK] %s", out_name)
                 else:
                     logger.error("  [FAIL] %s", af.name)
+    return sorted(results)
 
 
 def main() -> None:
@@ -628,7 +636,7 @@ Examples:
 
         output_dir = args.output or args.batch / 'promo_videos'
 
-        batch_process_album(
+        batch_results = batch_process_album(
             album_dir=args.batch,
             artwork_path=artwork,
             output_dir=output_dir,
@@ -642,6 +650,17 @@ Examples:
             glow=args.glow,
             text_color=args.text_color,
         )
+
+        # Per-track failures must surface as a non-zero exit, matching
+        # single-file mode — callers (generate_all_promos.py) key off the
+        # return code (#382).
+        failed = [name for name, _out, ok in batch_results if not ok]
+        if failed:
+            logger.error(
+                "%d of %d tracks failed: %s",
+                len(failed), len(batch_results), ", ".join(failed),
+            )
+            sys.exit(1)
 
     else:
         # Single file mode

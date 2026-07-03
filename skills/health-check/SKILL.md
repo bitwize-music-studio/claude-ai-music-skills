@@ -1,6 +1,6 @@
 ---
 name: health-check
-description: Runs plugin health checks (venv packages and skill registration). Use when the user asks to check plugin health, verify setup, or troubleshoot missing skills.
+description: Runs plugin health checks (venv packages, skill registration, and album slug collisions). Use when the user asks to check plugin health, verify setup, or troubleshoot missing skills.
 model: haiku
 allowed-tools:
   - ToolSearch
@@ -29,6 +29,7 @@ Run the `health_check` MCP tool and report results to the user.
 HEALTH CHECK: OK
   Venv: N packages verified
   Skills: N skills registered
+  Collisions: no album slug collisions
 ```
 
 ### Warnings
@@ -45,6 +46,11 @@ SKILLS [warn]
   N missing from Claude Code: skill-a, skill-b
   N ghost (deleted but cached): skill-c
   Fix: claude plugin update bitwize-music
+
+COLLISIONS [warn]
+  N album slug collision(s):
+  slug-name: kept [genre-a], shadowed by [genre-b]
+  Fix: Rename one album with /bitwize-music:rename or move its directory, then run rebuild_state
 
 For comprehensive diagnostics, run the `diagnose` MCP tool.
 ```

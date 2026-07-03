@@ -99,6 +99,34 @@ def _detect_phase(album: dict[str, Any]) -> str:
     return "In Progress"
 
 
+def _collision_warning(state: dict[str, Any], slug: str) -> dict[str, Any] | None:
+    """Build a collision warning for a resolved album slug, if any (#392).
+
+    Uses ``state.get`` throughout — pre-1.3.0 states lack album_collisions.
+    """
+    for record in state.get("album_collisions", []):
+        if record.get("slug") != slug:
+            continue
+        kept = record.get("kept", {})
+        shadowed = record.get("shadowed", [])
+        shadowed_desc = ", ".join(
+            f"{s.get('genre', '?')} ({s.get('path', '?')})" for s in shadowed
+        )
+        return {
+            "slug": slug,
+            "visible": kept,
+            "shadowed": shadowed,
+            "message": (
+                f"Album slug '{slug}' exists under multiple genres — showing "
+                f"the '{kept.get('genre', '?')}' album; shadowed: "
+                f"{shadowed_desc}. Rename one album with "
+                f"/bitwize-music:rename or move its directory, then run "
+                f"rebuild_state."
+            ),
+        }
+    return None
+
+
 # =============================================================================
 # Tool functions
 # =============================================================================
@@ -136,11 +164,15 @@ async def find_album(name: str) -> str:
 
     # Exact match first
     if normalized in albums:
-        return _safe_json({
+        response = {
             "found": True,
             "slug": normalized,
             "album": albums[normalized],
-        })
+        }
+        warning = _collision_warning(state, normalized)
+        if warning:
+            response["collision_warning"] = warning
+        return _safe_json(response)
 
     # Fuzzy match: check if input is substring of slug or vice versa
     matches = {
@@ -151,11 +183,15 @@ async def find_album(name: str) -> str:
 
     if len(matches) == 1:
         slug = next(iter(matches))
-        return _safe_json({
+        response = {
             "found": True,
             "slug": slug,
             "album": matches[slug],
-        })
+        }
+        warning = _collision_warning(state, slug)
+        if warning:
+            response["collision_warning"] = warning
+        return _safe_json(response)
     elif len(matches) > 1:
         return _safe_json({
             "found": False,
@@ -199,7 +235,21 @@ async def list_albums(status_filter: str = "") -> str:
             "tracks_completed": album.get("tracks_completed", 0),
         })
 
-    return _safe_json({"albums": result, "count": len(result)})
+    response: dict[str, Any] = {"albums": result, "count": len(result)}
+
+    # Shadowed albums are invisible above — make collisions unmissable (#392)
+    collisions = state.get("album_collisions", [])
+    if collisions:
+        slugs = ", ".join(c.get("slug", "?") for c in collisions)
+        response["collisions"] = collisions
+        response["warning"] = (
+            f"{len(collisions)} album slug collision(s) detected ({slugs}) — "
+            f"shadowed albums are hidden from this list. Rename one album "
+            f"with /bitwize-music:rename or move its directory, then run "
+            f"rebuild_state."
+        )
+
+    return _safe_json(response)
 
 
 async def get_track(album_slug: str, track_slug: str) -> str:
@@ -345,14 +395,25 @@ async def rebuild_state() -> str:
     )
     ideas_count = len(state.get("ideas", {}).get("items", []))
     skills_count = state.get("skills", {}).get("count", 0)
+    collisions = state.get("album_collisions", [])
 
-    return _safe_json({
+    result: dict[str, Any] = {
         "success": True,
         "albums": album_count,
         "tracks": track_count,
         "ideas": ideas_count,
         "skills": skills_count,
-    })
+        "collision_count": len(collisions),
+    }
+    if collisions:
+        slugs = ", ".join(c.get("slug", "?") for c in collisions)
+        result["collisions"] = collisions
+        result["warning"] = (
+            f"{len(collisions)} album slug collision(s) detected ({slugs}). "
+            f"Rename one album with /bitwize-music:rename or move its "
+            f"directory, then run rebuild_state."
+        )
+    return _safe_json(result)
 
 
 async def get_config() -> str:

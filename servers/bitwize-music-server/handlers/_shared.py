@@ -55,30 +55,35 @@ STATUS_UNKNOWN = "Unknown"
 # Markdown link pattern — used for source verification gates
 _MARKDOWN_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
-# Valid genres for album creation — derived from genres/ directory at runtime
-_VALID_GENRES: frozenset[str] | None = None
+# Valid genres for album creation — derived from genres/ directory at runtime.
+# Cached per PLUGIN_ROOT value, and only when non-empty: an empty scan means
+# a broken (or test-mocked) plugin root, and caching it would poison every
+# later genre check in the process.
+_VALID_GENRES: tuple[Path | None, frozenset[str]] | None = None
 
 
 def _get_valid_genres() -> frozenset[str]:
     """Return valid genre slugs by scanning the genres/ directory.
 
-    Results are cached after the first call.
+    Non-empty results are cached per PLUGIN_ROOT.
     """
     global _VALID_GENRES
-    if _VALID_GENRES is not None:
-        return _VALID_GENRES
+    if _VALID_GENRES is not None and _VALID_GENRES[0] == PLUGIN_ROOT:
+        return _VALID_GENRES[1]
     if PLUGIN_ROOT is None:
         # Fallback if called before init (shouldn't happen)
         return frozenset()
     genres_dir = PLUGIN_ROOT / "genres"
     if genres_dir.is_dir():
-        _VALID_GENRES = frozenset(
+        genres = frozenset(
             d.name for d in genres_dir.iterdir()
             if d.is_dir() and (d / "README.md").exists()
         )
     else:
-        _VALID_GENRES = frozenset()
-    return _VALID_GENRES
+        genres = frozenset()
+    if genres:
+        _VALID_GENRES = (PLUGIN_ROOT, genres)
+    return genres
 
 _GENRE_ALIASES = {
     "r&b": "rnb", "rb": "rnb", "r-and-b": "rnb",
@@ -356,6 +361,46 @@ def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, s
         })
 
     return normalized, album, None
+
+
+def _parse_pronunciation_table(section_text: str) -> list[dict[str, str]]:
+    """Parse ``| Word/Phrase | Pronunciation | Reason |`` table rows.
+
+    The header row is matched by its FIRST CELL only, and separator rows by
+    cell content — substring filters on the whole line drop legitimate data
+    rows like "Wordsworth" and false-pass the pronunciation checks (#384).
+    """
+    entries: list[dict[str, str]] = []
+    for line in section_text.split("\n"):
+        if not line.startswith("|"):
+            continue
+        # Separator row: cells made only of dashes/colons (|-----|:---:|)
+        if set(line) <= {"|", "-", ":", " "}:
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) >= 4:
+            word = parts[1].strip()
+            phonetic = parts[2].strip()
+            if word.lower() in ("word/phrase", "word"):
+                continue
+            if word and word != "—" and phonetic and phonetic != "—":
+                entries.append({"word": word, "phonetic": phonetic})
+    return entries
+
+
+def _find_slug_dirs(albums_root: Path, slug: str) -> list[Path]:
+    """Find existing album dirs named exactly `slug` under every genre (#392).
+
+    Literal comparison via iterdir — glob() would treat metacharacters in
+    the slug (e.g. '*') as patterns and could match unrelated albums.
+    """
+    if not albums_root.is_dir():
+        return []
+    return sorted(
+        genre_dir / slug
+        for genre_dir in albums_root.iterdir()
+        if genre_dir.is_dir() and (genre_dir / slug).is_dir()
+    )
 
 
 def _find_track_or_error(tracks: dict[str, Any], track_slug: str, album_slug: str = "") -> tuple[str, dict[str, Any] | None, str | None]:

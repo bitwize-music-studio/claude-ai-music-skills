@@ -68,7 +68,7 @@ Call `create_album_structure(album_slug, genre, documentary)` — creates the co
 - Creates `tracks/` and `promo/` directories with templates
 - For documentary albums (`documentary: true`): also creates RESEARCH.md and SOURCES.md
 - Returns `{created: bool, path: str, files: [...]}`
-- If album already exists, returns an error
+- If the album slug already exists under ANY genre (slugs are globally unique), returns an error naming the existing genre and path
 
 **Note**: Audio and documents directories are NOT created (those are created when needed by import-audio/import-art).
 
@@ -116,9 +116,12 @@ No genre directory found at genres/{genre}/. Use a valid genre slug (e.g. hip-ho
 Check genres/INDEX.md for the full list.
 ```
 
-**Album already exists:**
+**Album already exists (any genre — slugs are globally unique):**
 ```
-Error: Album already exists at {album_path}
+Error: Album slug '{album-name}' already exists under genre '{existing-genre}': {existing_path}
+
+Album slugs are unique across all genres — choose a different name, or
+rename the existing album with /bitwize-music:rename.
 ```
 
 **Templates not found:**

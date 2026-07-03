@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from tools.shared.config import load_config
+from tools.shared.config import load_config, parse_yaml_bool
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,9 @@ def load_mastering_config() -> dict[str, Any]:
         expected_type = _KEY_TYPES[key]
         try:
             if expected_type is bool:
-                # YAML already gives us bools; don't coerce arbitrary strings
-                result[key] = bool(value)
+                # bool(value) would turn quoted strings like "false" into
+                # True (#388); parse YAML boolean literals instead.
+                result[key] = parse_yaml_bool(value)
             else:
                 result[key] = expected_type(value)
         except (TypeError, ValueError) as exc:
@@ -98,6 +99,19 @@ def load_mastering_config() -> dict[str, Any]:
     return result
 
 
+def _config_bool(config: dict[str, Any], key: str, default: bool) -> bool:
+    """Bool read tolerant of raw (un-coerced) config dicts passed to the
+    public build_delivery_targets API."""
+    value = config.get(key, default)
+    try:
+        return parse_yaml_bool(value)
+    except ValueError:
+        logger.warning(
+            "Config %s=%r is not a boolean — using %s", key, value, default
+        )
+        return default
+
+
 def _resolve_adm_enabled(album_mastering: dict[str, Any] | None) -> bool:
     """Per-album ADM resolution: frontmatter-required, default OFF.
 
@@ -109,7 +123,18 @@ def _resolve_adm_enabled(album_mastering: dict[str, Any] | None) -> bool:
         return False
     if "adm_validation_enabled" not in album_mastering:
         return False
-    return bool(album_mastering["adm_validation_enabled"])
+    value = album_mastering["adm_validation_enabled"]
+    try:
+        return parse_yaml_bool(value)
+    except ValueError:
+        # Frontmatter is hand-edited; a quoted "false" must not enable ADM
+        # (#388), and garbage stays at the documented default (OFF).
+        logger.warning(
+            "Album frontmatter mastering.adm_validation_enabled=%r is not a "
+            "boolean — ADM validation stays off",
+            value,
+        )
+        return False
 
 
 def build_delivery_targets(
@@ -178,7 +203,7 @@ def build_delivery_targets(
         "ceiling_db": ceiling_db,
         "output_bits": output_bits,
         "output_sample_rate": output_sample_rate,
-        "archival_enabled": bool(config.get("archival_enabled", False)),
+        "archival_enabled": _config_bool(config, "archival_enabled", False),
         "adm_aac_encoder": str(config.get("adm_aac_encoder", "aac")),
         # Per-album opt-in for ADM validation (issue #353). The album's
         # README frontmatter `mastering.adm_validation_enabled: true` is

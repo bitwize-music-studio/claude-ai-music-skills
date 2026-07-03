@@ -34,7 +34,7 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 # Lock timeout in seconds (prevents indefinite blocking)
 LOCK_TIMEOUT_SECONDS = 10
@@ -54,7 +54,7 @@ except ImportError:
     sys.exit(1)
 
 from tools.shared.colors import Colors
-from tools.shared.config import CONFIG_PATH
+from tools.shared.config import CONFIG_PATH, parse_yaml_bool
 from tools.shared.logging_config import setup_logging
 from tools.state.parsers import (
     parse_album_readme,
@@ -66,7 +66,7 @@ from tools.state.parsers import (
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.2.0"
+CURRENT_VERSION = "1.4.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
@@ -117,11 +117,43 @@ def _migrate_1_1_to_1_2(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _migrate_1_2_to_1_3(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.2.0 to 1.3.0: add album_collisions field."""
+    if 'album_collisions' not in state:
+        state['album_collisions'] = []
+    return state
+
+
+def _migrate_1_3_to_1_4(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.3.0 to 1.4.0: re-coerce cached explicit flags.
+
+    The pre-#388 parsers stored quoted frontmatter booleans (e.g.
+    explicit: "false") as raw truthy strings; re-coerce cached values so
+    they don't linger until the source file's mtime changes.
+    """
+    def _fix(entry: dict[str, Any]) -> None:
+        if 'explicit' in entry:
+            try:
+                entry['explicit'] = parse_yaml_bool(entry['explicit'])
+            except ValueError:
+                entry['explicit'] = False
+
+    for album in (state.get('albums') or {}).values():
+        if isinstance(album, dict):
+            _fix(album)
+            for track in (album.get('tracks') or {}).values():
+                if isinstance(track, dict):
+                    _fix(track)
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.0.0": (_migrate_1_0_to_1_1, "1.1.0"),
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
+    "1.2.0": (_migrate_1_2_to_1_3, "1.3.0"),
+    "1.3.0": (_migrate_1_3_to_1_4, "1.4.0"),
 }
 
 
@@ -129,16 +161,30 @@ def read_config() -> dict[str, Any] | None:
     """Read ~/.bitwize-music/config.yaml.
 
     Returns:
-        Parsed config dict, or None if missing/invalid.
+        Parsed config dict ({} for an empty file), or None if missing,
+        unreadable, unparseable, or not a YAML mapping.
     """
     if not CONFIG_FILE.exists():
         return None
     try:
         with open(CONFIG_FILE) as f:
-            return yaml.safe_load(f) or {}
+            data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Cannot read config: %s", e)
         return None
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        # Valid YAML but wrong shape (e.g. top-level list or scalar) — callers
+        # expect a mapping and would crash on .get() (#389)
+        logger.error(
+            "Config at %s parsed as %s, not a mapping — the file must contain "
+            "top-level `key: value` pairs",
+            CONFIG_FILE,
+            type(data).__name__,
+        )
+        return None
+    return data
 
 
 def resolve_path(raw: str) -> Path:
@@ -154,61 +200,141 @@ def get_config_mtime() -> float:
         return 0.0
 
 
+def _cfg_section(config: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return a config section as a dict, treating anything else as empty.
+
+    An empty YAML section header (e.g. `paths:` with nothing under it) parses
+    to None, not {}. config.get('paths', {}) returns that None (the key
+    exists), so None must be normalized to {} here — otherwise .get() on None
+    aborts every cache rebuild/update. (#376)
+    A non-mapping value (e.g. `paths: [a, b]`) crashes the same way; the
+    isinstance check runs before normalization so falsy non-mappings
+    (`paths: []`) warn like truthy ones. (#391)
+    """
+    value = config.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        # Log only the key and type, never the value — sections like
+        # `database` may carry credentials that must not leak into logs.
+        logger.warning(
+            "Config section %s is not a mapping (got %s) — using defaults",
+            key, type(value).__name__,
+        )
+        return {}
+    return value
+
+
 def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
-    # An empty YAML section header (e.g. `paths:` with nothing under it) parses
-    # to None, not {}. config.get('paths', {}) returns that None (the key
-    # exists), so `... or {}` is required to normalize None-valued sections —
-    # otherwise .get() on None aborts every cache rebuild/update. (#376)
-    paths = config.get('paths') or {}
-    artist = config.get('artist') or {}
+    paths = _cfg_section(config, 'paths')
+    artist = _cfg_section(config, 'artist')
 
-    content_root_raw = paths.get('content_root', '.')
+    # NOTE: these warnings log only the key and type, never the raw value —
+    # some sections (`database`) carry credentials that must not leak
+    # into logs.
+    def _cfg_bool(section: dict[str, Any], key: str, default: bool) -> bool:
+        # bool() would turn quoted strings like "false" into True (#388);
+        # parse YAML boolean literals, falling back to the key's default.
+        value = section.get(key, default)
+        try:
+            return parse_yaml_bool(value)
+        except ValueError:
+            logger.warning(
+                "Config %s is not a boolean (got %s) — using %s",
+                key, type(value).__name__, default,
+            )
+            return default
+
+    def _cfg_int(section: dict[str, Any], key: str, default: int) -> int:
+        # int(True) == 1 would silently mangle the setting; int() raises
+        # ValueError/TypeError on non-numeric strings and non-scalars (#391)
+        # and OverflowError on YAML `.inf` floats.
+        value = section.get(key, default)
+        if isinstance(value, bool):
+            logger.warning(
+                "Config %s is not an integer (got %s) — using %s",
+                key, type(value).__name__, default,
+            )
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "Config %s is not an integer (got %s) — using %s",
+                key, type(value).__name__, default,
+            )
+            return default
+
+    def _cfg_str(section: dict[str, Any], key: str, default: str) -> str:
+        # Non-string path values (e.g. `content_root: 42`) crash resolve_path
+        # and string concatenation (#391). A blank key (`overrides:` with no
+        # value) parses to None and means "unset" — default silently,
+        # mirroring the #376 empty-section semantics.
+        value = section.get(key, default)
+        if value is None:
+            return default
+        if not isinstance(value, str):
+            logger.warning(
+                "Config %s is not a string (got %s) — using %r",
+                key, type(value).__name__, default,
+            )
+            return default
+        return value
+
+    content_root_raw = _cfg_str(paths, 'content_root', '.')
     content_root = str(resolve_path(content_root_raw))
 
     # Resolve overrides directory (custom path or default to {content_root}/overrides)
-    overrides_raw = paths.get('overrides', '')
+    overrides_raw = _cfg_str(paths, 'overrides', '')
     overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
 
     # Database config (expose enabled flag, mask credentials)
-    db_config = config.get('database') or {}
+    db_config = _cfg_section(config, 'database')
+    db_enabled = _cfg_bool(db_config, 'enabled', False)
     database_section = {
-        'enabled': bool(db_config.get('enabled', False)),
-        'host': db_config.get('host', '') if db_config.get('enabled') else '',
-        'name': db_config.get('name', '') if db_config.get('enabled') else '',
+        'enabled': db_enabled,
+        'host': db_config.get('host', '') if db_enabled else '',
+        'name': db_config.get('name', '') if db_enabled else '',
     }
 
     # Generation config (service settings and gates)
-    gen_config = config.get('generation') or {}
+    gen_config = _cfg_section(config, 'generation')
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
-        'require_suno_link_for_final': bool(gen_config.get('require_suno_link_for_final', True)),
-        'max_lyric_words': int(gen_config.get('max_lyric_words', 800)),
-        'require_source_path_for_documentary': bool(
-            gen_config.get('require_source_path_for_documentary', True)),
+        'require_suno_link_for_final': _cfg_bool(gen_config, 'require_suno_link_for_final', True),
+        'max_lyric_words': _cfg_int(gen_config, 'max_lyric_words', 800),
+        'require_source_path_for_documentary': _cfg_bool(
+            gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
     }
 
     return {
         'content_root': content_root,
-        'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
-        'documents_root': str(resolve_path(paths.get('documents_root', content_root_raw + '/documents'))),
+        'audio_root': str(resolve_path(_cfg_str(paths, 'audio_root', content_root_raw + '/audio'))),
+        'documents_root': str(resolve_path(_cfg_str(paths, 'documents_root', content_root_raw + '/documents'))),
         'overrides_dir': overrides_dir,
-        'artist_name': artist.get('name', ''),
+        'artist_name': _cfg_str(artist, 'name', ''),
         'config_mtime': get_config_mtime(),
         'database': database_section,
         'generation': generation_section,
     }
 
 
-def scan_albums(content_root: Path, artist_name: str) -> dict[str, dict[str, Any]]:
+def scan_albums(
+    content_root: Path,
+    artist_name: str,
+    collisions: list[dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Scan all album READMEs and their tracks.
 
     Args:
         content_root: Root content directory.
         artist_name: Artist name from config.
+        collisions: Optional out-param; collision records are appended
+            when the same album slug exists under multiple genres (#392).
 
     Returns:
         Dict mapping album slug to album data.
@@ -219,41 +345,77 @@ def scan_albums(content_root: Path, artist_name: str) -> dict[str, dict[str, Any
     if not albums_dir.exists():
         return albums
 
-    # Glob for album READMEs: albums/{genre}/{album}/README.md
+    # Group same-slug dirs structurally first (the sorted glob keeps
+    # genre order deterministic): albums/{genre}/{album}/README.md.
+    # The winner of a collision is the FIRST candidate that actually
+    # indexes — i.e. whose README parses — not merely the first dir, so
+    # an unreadable first twin never silently hands the slug to a later
+    # twin without a collision record (#392).
+    readmes_by_slug: dict[str, list[Path]] = {}
     for readme_path in sorted(albums_dir.glob("*/*/README.md")):
-        album_dir = readme_path.parent
-        album_slug = album_dir.name
-        genre = album_dir.parent.name
+        readmes_by_slug.setdefault(
+            readme_path.parent.name, []).append(readme_path)
 
-        album_data = parse_album_readme(readme_path)
-        if '_error' in album_data:
-            logger.warning("Skipping %s: %s", readme_path, album_data['_error'])
-            continue
+    for album_slug, readme_paths in readmes_by_slug.items():
+        winner_dir: Path | None = None
+        for readme_path in readme_paths:
+            album_dir = readme_path.parent
 
-        # Scan tracks
-        tracks = scan_tracks(album_dir)
+            album_data = parse_album_readme(readme_path)
+            if '_error' in album_data:
+                logger.warning("Skipping %s: %s", readme_path, album_data['_error'])
+                continue  # try the next same-slug candidate, if any
 
-        try:
-            readme_mtime = readme_path.stat().st_mtime
-        except OSError:
-            continue  # File removed between glob and stat
+            # Scan tracks
+            tracks = scan_tracks(album_dir)
 
-        albums[album_slug] = {
-            'path': str(album_dir),
-            'genre': genre,
-            'title': album_data.get('title', album_slug),
-            'status': album_data.get('status', 'Unknown'),
-            'explicit': album_data.get('explicit', False),
-            'anchor_track': album_data.get('anchor_track'),
-            'layout': album_data.get('layout'),
-            'mastering': album_data.get('mastering') or {},
-            'release_date': album_data.get('release_date'),
-            'track_count': album_data.get('track_count', len(tracks)),
-            'tracks_completed': album_data.get('tracks_completed', 0),
-            'streaming_urls': album_data.get('streaming_urls', {}),
-            'readme_mtime': readme_mtime,
-            'tracks': tracks,
-        }
+            try:
+                readme_mtime = readme_path.stat().st_mtime
+            except OSError:
+                continue  # File removed between glob and stat
+
+            albums[album_slug] = {
+                'path': str(album_dir),
+                'genre': album_dir.parent.name,
+                'title': album_data.get('title', album_slug),
+                'status': album_data.get('status', 'Unknown'),
+                'explicit': album_data.get('explicit', False),
+                'anchor_track': album_data.get('anchor_track'),
+                'layout': album_data.get('layout'),
+                'mastering': album_data.get('mastering') or {},
+                'release_date': album_data.get('release_date'),
+                'track_count': album_data.get('track_count', len(tracks)),
+                'tracks_completed': album_data.get('tracks_completed', 0),
+                'streaming_urls': album_data.get('streaming_urls', {}),
+                'readme_mtime': readme_mtime,
+                'tracks': tracks,
+            }
+            winner_dir = album_dir
+            break  # remaining same-slug dirs are shadowed, never parsed
+
+        if len(readme_paths) > 1 and winner_dir is not None:
+            # Emit the record only with kept = the entry actually present
+            # in the albums map. If no candidate indexed, there is no
+            # entry and no record (the parse warnings above already fired).
+            kept = albums[album_slug]
+            shadowed = sorted(
+                ({'genre': p.parent.parent.name, 'path': str(p.parent)}
+                 for p in readme_paths if p.parent != winner_dir),
+                key=lambda s: s['genre'],
+            )
+            logger.warning(
+                "Album slug collision: '%s' — keeping %s, shadowing %s. "
+                "Rename one album (/bitwize-music:rename) or move the "
+                "directory, then rebuild the state cache.",
+                album_slug, kept['path'],
+                ', '.join(s['path'] for s in shadowed),
+            )
+            if collisions is not None:
+                collisions.append({
+                    'slug': album_slug,
+                    'kept': {'genre': kept['genre'], 'path': kept['path']},
+                    'shadowed': shadowed,
+                })
 
     return albums
 
@@ -299,6 +461,25 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     return tracks
 
 
+def _ideas_path(config: dict[str, Any], content_root: Path) -> Path:
+    """Resolve the ideas file path (custom paths.ideas_file or default)."""
+    ideas_file_raw = _cfg_section(config, 'paths').get('ideas_file', '')
+    if ideas_file_raw is None:
+        # A blank `ideas_file:` key parses to None and means "unset" —
+        # default silently (#376 semantics)
+        ideas_file_raw = ''
+    elif not isinstance(ideas_file_raw, str):
+        # Non-string values crash resolve_path (#391)
+        logger.warning(
+            "Config ideas_file is not a string (got %s) — using default",
+            type(ideas_file_raw).__name__,
+        )
+        ideas_file_raw = ''
+    if ideas_file_raw:
+        return resolve_path(ideas_file_raw)
+    return content_root / "IDEAS.md"
+
+
 def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     """Scan IDEAS.md file.
 
@@ -309,11 +490,7 @@ def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     Returns:
         Dict with ideas data, or empty structure.
     """
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     if not ideas_path.exists():
         return {
@@ -408,6 +585,8 @@ def build_state(config: dict[str, Any],
     artist_name = config_section['artist_name']
 
     installed_version = _read_plugin_version(plugin_root)
+    album_collisions: list[dict[str, Any]] = []
+    albums = scan_albums(content_root, artist_name, album_collisions)
     return {
         'version': CURRENT_VERSION,
         'generated_at': datetime.now(UTC).isoformat(),
@@ -421,7 +600,8 @@ def build_state(config: dict[str, Any],
         'plugin_version': installed_version,
         'last_migrated_version': installed_version,
         'config': config_section,
-        'albums': scan_albums(content_root, artist_name),
+        'albums': albums,
+        'album_collisions': album_collisions,
         'ideas': scan_ideas(config, content_root),
         'skills': scan_skills(plugin_root),
         'session': {
@@ -434,7 +614,9 @@ def build_state(config: dict[str, Any],
     }
 
 
-def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+def incremental_update(
+    existing_state: dict[str, Any], config: dict[str, Any]
+) -> dict[str, Any] | None:
     """Incrementally update state, only re-parsing changed files.
 
     Compares mtime of each file against stored mtime. Only re-parses
@@ -445,8 +627,23 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         config: Parsed config dict.
 
     Returns:
-        Updated state dict.
+        Updated state dict, or None when a top-level state section is
+        wrong-typed and a full rebuild is required.
     """
+    # Wrong-typed top-level sections (e.g. "config": [] or "albums": "x")
+    # would crash the .get() lookups below — hand back None so the caller
+    # falls back to a full rebuild, the same contract as migrate_state
+    # (#393 family).
+    for section_key in ('config', 'albums'):
+        section_value = existing_state.get(section_key, {})
+        if not isinstance(section_value, dict):
+            logger.warning(
+                "State section %s is not a mapping (got %s) — "
+                "full rebuild required",
+                section_key, type(section_value).__name__,
+            )
+            return None
+
     config_section = build_config_section(config)
     content_root = Path(config_section['content_root'])
     artist_name = config_section['artist_name']
@@ -469,13 +666,15 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         )
         ideas_path_changed = (
             path_fields_changed or
-            config.get('paths', {}).get('ideas_file') !=
+            _cfg_section(config, 'paths').get('ideas_file') !=
             existing_state.get('_ideas_file_raw')
         )
 
         if path_fields_changed:
             # Content root or artist name changed — full album rescan required
-            state['albums'] = scan_albums(content_root, artist_name)
+            rescan_collisions: list[dict[str, Any]] = []
+            state['albums'] = scan_albums(content_root, artist_name, rescan_collisions)
+            state['album_collisions'] = rescan_collisions
         # else: only non-path config changed (urls, generation, etc.) — keep albums
 
         if ideas_path_changed:
@@ -483,7 +682,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         # else: ideas path unchanged — keep ideas
 
         # Store ideas_file_raw for future comparison
-        state['_ideas_file_raw'] = config.get('paths', {}).get('ideas_file', '')
+        state['_ideas_file_raw'] = _cfg_section(config, 'paths').get('ideas_file', '')
         return state
 
     # Incremental album update
@@ -491,69 +690,129 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
     existing_albums = state.get('albums', {})
 
     if albums_dir.exists():
-        # Find current albums on disk
-        current_album_slugs = set()
-        for readme_path in albums_dir.glob("*/*/README.md"):
-            album_dir = readme_path.parent
-            slug = album_dir.name
-            current_album_slugs.add(slug)
+        collisions: list[dict[str, Any]] = []
+        # Group same-slug dirs structurally first (the sorted glob keeps
+        # genre order deterministic). The winner of a collision is the
+        # FIRST candidate that actually indexes — a cache-valid entry
+        # (path+mtime match) or a successful re-parse — mirroring
+        # scan_albums, so record['kept'] always matches the albums
+        # map (#392).
+        readmes_by_slug: dict[str, list[Path]] = {}
+        for readme_path in sorted(albums_dir.glob("*/*/README.md")):
+            readmes_by_slug.setdefault(
+                readme_path.parent.name, []).append(readme_path)
 
+        current_album_slugs = set()
+        for slug, readme_paths in readmes_by_slug.items():
+            current_album_slugs.add(slug)
             existing_album = existing_albums.get(slug)
 
-            # Check if README changed
-            try:
-                readme_mtime = readme_path.stat().st_mtime
-            except OSError:
-                continue  # File removed between glob and stat
-            if existing_album and existing_album.get('readme_mtime') == readme_mtime:
-                # README unchanged, check individual tracks only
-                _update_tracks_incremental(existing_album, album_dir)
-            else:
-                # README changed or new album — re-parse album-level data
+            winner_dir: Path | None = None
+            for readme_path in readme_paths:
+                album_dir = readme_path.parent
+
+                # Check if README changed
+                try:
+                    readme_mtime = readme_path.stat().st_mtime
+                except OSError:
+                    continue  # File removed between glob and stat
+                # The path must match too — a cross-genre twin's cached
+                # entry must never be reused for the winner (#392).
+                if (existing_album
+                        and existing_album.get('path') == str(album_dir)
+                        and existing_album.get('readme_mtime') == readme_mtime):
+                    # README unchanged — the cache-valid entry counts as
+                    # successfully indexed without re-parsing; check
+                    # individual tracks only. Documented corner: a README
+                    # that becomes unreadable WITHOUT an mtime change keeps
+                    # its cached entry here, while a full rebuild would
+                    # skip it.
+                    _update_tracks_incremental(existing_album, album_dir)
+                    winner_dir = album_dir
+                    break  # remaining same-slug dirs are shadowed
+
+                # README changed, new album, or cached entry points at a
+                # different path — re-parse album-level data
                 album_data = parse_album_readme(readme_path)
-                if '_error' not in album_data:
-                    genre = album_dir.parent.name
+                if '_error' in album_data:
+                    logger.warning(
+                        "Skipping %s: %s", readme_path, album_data['_error'])
+                    continue  # try the next same-slug candidate, if any
 
-                    # Preserve existing tracks and update incrementally
-                    # (README change doesn't mean track files changed)
-                    if existing_album and existing_album.get('tracks'):
-                        tracks = existing_album['tracks']
-                        _update_tracks_incremental(
-                            {'tracks': tracks}, album_dir
-                        )
-                    else:
-                        tracks = scan_tracks(album_dir)
+                genre = album_dir.parent.name
 
-                    existing_albums[slug] = {
-                        'path': str(album_dir),
-                        'genre': genre,
-                        'title': album_data.get('title', slug),
-                        'status': album_data.get('status', 'Unknown'),
-                        'explicit': album_data.get('explicit', False),
-                        'anchor_track': album_data.get('anchor_track'),
-                        'layout': album_data.get('layout'),
-                        'mastering': album_data.get('mastering') or {},
-                        'release_date': album_data.get('release_date'),
-                        'track_count': album_data.get('track_count', len(tracks)),
-                        'tracks_completed': album_data.get('tracks_completed', 0),
-                        'streaming_urls': album_data.get('streaming_urls', {}),
-                        'readme_mtime': readme_mtime,
-                        'tracks': tracks,
-                    }
+                # Preserve existing tracks and update incrementally
+                # (README change doesn't mean track files changed) —
+                # but only when the cached entry is for this same
+                # directory, not a cross-genre twin.
+                if (existing_album
+                        and existing_album.get('path') == str(album_dir)
+                        and existing_album.get('tracks')):
+                    tracks = existing_album['tracks']
+                    _update_tracks_incremental(
+                        {'tracks': tracks}, album_dir
+                    )
+                else:
+                    tracks = scan_tracks(album_dir)
+
+                existing_albums[slug] = {
+                    'path': str(album_dir),
+                    'genre': genre,
+                    'title': album_data.get('title', slug),
+                    'status': album_data.get('status', 'Unknown'),
+                    'explicit': album_data.get('explicit', False),
+                    'anchor_track': album_data.get('anchor_track'),
+                    'layout': album_data.get('layout'),
+                    'mastering': album_data.get('mastering') or {},
+                    'release_date': album_data.get('release_date'),
+                    'track_count': album_data.get('track_count', len(tracks)),
+                    'tracks_completed': album_data.get('tracks_completed', 0),
+                    'streaming_urls': album_data.get('streaming_urls', {}),
+                    'readme_mtime': readme_mtime,
+                    'tracks': tracks,
+                }
+                winner_dir = album_dir
+                break  # remaining same-slug dirs are shadowed
+
+            if len(readme_paths) > 1 and winner_dir is not None:
+                # Emit the record only with kept = the entry actually
+                # present in the albums map. If no candidate indexed,
+                # there is no record (the parse warnings above already
+                # fired).
+                kept = existing_albums[slug]
+                shadowed = sorted(
+                    ({'genre': p.parent.parent.name, 'path': str(p.parent)}
+                     for p in readme_paths if p.parent != winner_dir),
+                    key=lambda s: s['genre'],
+                )
+                collisions.append({
+                    'slug': slug,
+                    'kept': {'genre': kept['genre'], 'path': kept['path']},
+                    'shadowed': shadowed,
+                })
+                logger.warning(
+                    "Album slug collision: '%s' — keeping %s, shadowing %s. "
+                    "Rename one album (/bitwize-music:rename) or move the "
+                    "directory, then rebuild the state cache.",
+                    slug, kept['path'],
+                    ', '.join(s['path'] for s in shadowed),
+                )
 
         # Remove albums that no longer exist on disk
         for slug in list(existing_albums.keys()):
             if slug not in current_album_slugs:
                 del existing_albums[slug]
 
+        # Collisions are recomputed only when the albums dir was actually
+        # scanned — when it's missing, the albums map is deliberately
+        # preserved above, so preserve the matching collision records
+        # too (#392).
+        state['album_collisions'] = collisions
+
     state['albums'] = existing_albums
 
     # Incremental ideas update
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     old_ideas_mtime = state.get('ideas', {}).get('file_mtime', 0)
     if ideas_path.exists():
@@ -713,32 +972,42 @@ def write_state(state: dict[str, Any]) -> None:
             lock_fd.close()
 
 
+def _quarantine_corrupt_state(reason: str) -> dict[str, Any]:
+    """Back up an unusable state file and return an empty state."""
+    logger.error("%s — backing up and returning empty state", reason)
+    try:
+        import shutil
+
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+        backup_path = CACHE_DIR / f"state.{timestamp}.corrupt"
+        shutil.copy2(STATE_FILE, backup_path)
+        logger.error("Corrupted state backed up to %s", backup_path)
+    except OSError as backup_err:
+        logger.error("Could not backup corrupted state: %s", backup_err)
+    return {}
+
+
 def read_state() -> dict[str, Any] | None:
     """Read state from cache file.
 
     Returns:
-        Parsed state dict, empty dict if corrupted (after backup), or None if missing.
+        Parsed state dict, empty dict if corrupted or not a JSON object
+        (after backup), or None if missing.
     """
     if not STATE_FILE.exists():
         return None
     try:
         with open(STATE_FILE) as f:
-            return cast(dict[str, Any], json.load(f))
+            data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
-        # Corrupted — backup the file and return empty state
-        logger.error(
-            "Corrupted state file: %s — backing up and returning empty state", e
+        return _quarantine_corrupt_state(f"Corrupted state file: {e}")
+    if not isinstance(data, dict):
+        # JSON-valid but wrong shape (list/str/number) — same recovery as
+        # corrupted JSON: back it up and start fresh (#393 family)
+        return _quarantine_corrupt_state(
+            f"State file is {type(data).__name__}, not a JSON object"
         )
-        try:
-            import shutil
-
-            timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-            backup_path = CACHE_DIR / f"state.{timestamp}.corrupt"
-            shutil.copy2(STATE_FILE, backup_path)
-            logger.error("Corrupted state backed up to %s", backup_path)
-        except OSError as backup_err:
-            logger.error("Could not backup corrupted state: %s", backup_err)
-        return {}
+    return data
 
 
 def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -748,10 +1017,28 @@ def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
         state: Current state dict.
 
     Returns:
-        Migrated state dict. If migration fails or version is
-        unrecognized, returns None to trigger full rebuild.
+        Migrated state dict. If the state is not a dict, migration fails,
+        or the version is unrecognized, returns None to trigger full rebuild.
     """
+    # Defensive: JSON-valid non-object states (list/str/number) reach here
+    # from callers that bypass read_state()'s shape check — .get() below
+    # would crash (#393 family)
+    if not isinstance(state, dict):
+        logger.warning(  # type: ignore[unreachable]
+            "State is %s, not a dict — triggering full rebuild",
+            type(state).__name__,
+        )
+        return None
+
     version = state.get('version', '0.0.0')
+
+    # Non-string version (e.g. JSON "version": 1.2) would crash
+    # _version_compare — treat as unrecognized and rebuild (#393)
+    if not isinstance(version, str):
+        logger.warning(
+            "Non-string state version %r — triggering full rebuild", version
+        )
+        return None
 
     # If version is newer than what we know, rebuild
     if _version_compare(version, CURRENT_VERSION) > 0:
@@ -825,7 +1112,17 @@ def carry_migration_tracking(
     """
     if existing_state is None:
         return new_state
-    new_state['last_migrated_version'] = existing_state.get('last_migrated_version')
+    prior = existing_state.get('last_migrated_version')
+    if prior is not None and not isinstance(prior, str):
+        # A wrong-typed value must not survive rebuilds only to crash
+        # get_pending_migrations' version comparison later — drop it to
+        # None, which keeps pending migrations visible (#393 family).
+        logger.warning(
+            "Non-string last_migrated_version (got %s) — treating as untracked",
+            type(prior).__name__,
+        )
+        prior = None
+    new_state['last_migrated_version'] = prior
     return new_state
 
 
@@ -899,6 +1196,15 @@ def get_pending_migrations(
         plugin_root = _PROJECT_ROOT
     installed = _read_plugin_version(plugin_root)
     last = state.get('last_migrated_version')
+    if last is not None and not isinstance(last, str):
+        # A wrong-typed value would crash _version_compare's .split() —
+        # treat it as untracked, the same branch as a missing value
+        # (#393 family).
+        logger.warning(
+            "Non-string last_migrated_version (got %s) — treating as untracked",
+            type(last).__name__,
+        )
+        last = None
 
     parsed: list[dict[str, Any]] = []
     migrations_dir = plugin_root / 'migrations'
@@ -1018,6 +1324,21 @@ def validate_state(state: dict[str, Any]) -> list[str]:
     else:
         errors.append("albums should be a dict")
 
+    # Album collisions section (added in 1.3.0; absent on older states is
+    # fine — the migration adds it)
+    if 'album_collisions' in state:
+        album_collisions = state['album_collisions']
+        if isinstance(album_collisions, list):
+            for i, entry in enumerate(album_collisions):
+                if not isinstance(entry, dict):
+                    errors.append(f"album_collisions[{i}] should be a dict")
+                    continue
+                for key in ('slug', 'kept', 'shadowed'):
+                    if key not in entry:
+                        errors.append(f"album_collisions[{i}] missing '{key}'")
+        else:
+            errors.append("album_collisions should be a list")
+
     # Ideas section
     ideas = state.get('ideas', {})
     if isinstance(ideas, dict):
@@ -1094,6 +1415,14 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     print(f"  Tracks: {track_count}")
     print(f"  Ideas: {ideas_count}")
     print(f"  Skills: {skills_count}")
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        print(f"  Collisions: {len(collisions)}")
+        logger.warning(
+            "%d album slug collision(s) detected — run 'show' for details; "
+            "rename with /bitwize-music:rename or move the directory",
+            len(collisions),
+        )
     print(f"  Saved to: {STATE_FILE}")
     return 0
 
@@ -1117,8 +1446,18 @@ def cmd_update(args: argparse.Namespace) -> int:
         return cmd_rebuild(args)
 
     state = incremental_update(migrated, config)
+    if state is None:
+        logger.info("State sections invalid, performing full rebuild...")
+        return cmd_rebuild(args)
     write_state(state)
 
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        logger.warning(
+            "%d album slug collision(s) detected — run 'show' for details; "
+            "rename with /bitwize-music:rename or move the directory",
+            len(collisions),
+        )
     logger.info("State cache updated")
     return 0
 
@@ -1292,6 +1631,18 @@ def cmd_show(args: argparse.Namespace) -> int:
                 suno = ' [suno]' if track.get('has_suno_link') else ''
                 print(f"    {track_slug}: {t_status}{suno}")
     print()
+
+    # Album slug collisions (#392)
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        print(f"{Colors.BOLD}{Colors.YELLOW}Album slug collisions ({len(collisions)}):{Colors.NC}")
+        for collision in collisions:
+            kept = collision.get('kept', {})
+            print(f"  {collision.get('slug', '?')}: keeping {kept.get('genre', '?')} ({kept.get('path', '?')})")
+            for s in collision.get('shadowed', []):
+                print(f"    shadowed: {s.get('genre', '?')} ({s.get('path', '?')})")
+        print("  Fix: rename one album (/bitwize-music:rename) or move the directory, then rebuild.")
+        print()
 
     # Ideas
     ideas = state.get('ideas', {})

@@ -415,6 +415,37 @@ class TestPromoteIdeaErrors:
         assert "error" in result
         assert "exists" in result["error"].lower()
 
+    def test_cross_genre_duplicate_slug_returns_error(self, content_root: Path, setup_handler):
+        """Slug already used under a DIFFERENT genre blocks promotion (#392)."""
+        setup_handler([{
+            "title": "Kleine Welt",
+            "genre": "electronic",
+            "concept": "Inner journey.",
+            "status": "Pending",
+        }])
+        ideas_path = _write_ideas_md(
+            content_root,
+            _standard_ideas_md("Kleine Welt", "electronic", "Inner journey."),
+        )
+        # Same slug exists under another genre
+        existing = (content_root / "artists" / "test-artist" / "albums"
+                    / "rock" / "kleine-welt")
+        existing.mkdir(parents=True)
+
+        result = json.loads(_run(_ideas_mod.promote_idea("Kleine Welt")))
+
+        assert "error" in result
+        assert "exists" in result["error"].lower()
+        assert "rock" in result["error"]
+        # No twin created under the idea's genre
+        twin = (content_root / "artists" / "test-artist" / "albums"
+                / "electronic" / "kleine-welt")
+        assert not twin.exists()
+        # Idea must not be marked promoted
+        text = ideas_path.read_text(encoding="utf-8")
+        assert "**Status**: Pending" in text
+        assert "**Promoted To**" not in text
+
 
 # ---------------------------------------------------------------------------
 # Documentary flag

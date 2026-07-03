@@ -399,3 +399,47 @@ class TestFindAlbumPath:
     def test_path_traversal_in_name_exits(self, tmp_path):
         with pytest.raises(SystemExit):
             mod.find_album_path(self._make_config(tmp_path), "../../../etc")
+
+
+class TestCloudEnabledGate:
+    """cloud.enabled honors quoted boolean strings (#388)."""
+
+    def test_quoted_false_exits(self, monkeypatch):
+        monkeypatch.setattr(mod, "load_config", lambda *a, **k: {"cloud": {"enabled": "false"}})
+        monkeypatch.setattr("sys.argv", ["upload_to_cloud.py", "some-album"])
+        with pytest.raises(SystemExit):
+            mod.main()
+
+    def test_quoted_no_exits(self, monkeypatch):
+        monkeypatch.setattr(mod, "load_config", lambda *a, **k: {"cloud": {"enabled": "no"}})
+        monkeypatch.setattr("sys.argv", ["upload_to_cloud.py", "some-album"])
+        with pytest.raises(SystemExit):
+            mod.main()
+
+
+class TestRetriesValidation:
+    """--retries <= 0 must not silently skip every upload attempt (#385)."""
+
+    @pytest.fixture()
+    def fake_video(self, tmp_path):
+        f = tmp_path / "promo.mp4"
+        f.write_bytes(b"fake video content")
+        return f
+
+    def test_zero_retries_still_attempts_once(self, fake_video):
+        client = MagicMock()
+        result = mod.retry_upload(client, "bucket", fake_video, "key/f.mp4", max_retries=0)
+        assert result is True
+        assert client.upload_file.call_count == 1
+
+    def test_negative_retries_still_attempts_once(self, fake_video):
+        client = MagicMock()
+        result = mod.retry_upload(client, "bucket", fake_video, "key/f.mp4", max_retries=-3)
+        assert result is True
+        assert client.upload_file.call_count == 1
+
+    def test_cli_rejects_non_positive_retries(self, monkeypatch):
+        monkeypatch.setattr("sys.argv", ["upload_to_cloud.py", "some-album", "--retries", "0"])
+        with pytest.raises(SystemExit) as exc_info:
+            mod.main()
+        assert exc_info.value.code == 2  # argparse usage error, not silent failure

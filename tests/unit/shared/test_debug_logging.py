@@ -58,6 +58,64 @@ class TestConfigureFileLoggingDisabled:
         assert after == before
 
 
+class TestWrongTypedLoggingConfig:
+    """Wrong-typed logging config disables/defaults instead of crashing."""
+
+    def test_string_logging_section_disabled_with_warning(self, caplog):
+        # `logging: yes-please` (a scalar) is truthy — without a type guard
+        # it crashes .get() on server startup and every CLI
+        with caplog.at_level(logging.WARNING):
+            assert configure_file_logging({"logging": "yes-please"}) is None
+        assert "logging" in caplog.text
+        assert "str" in caplog.text
+
+    def test_list_logging_section_disabled(self):
+        assert configure_file_logging({"logging": ["enabled"]}) is None
+
+    def test_no_root_handlers_added_for_wrong_typed_section(self):
+        root = logging.getLogger()
+        before = len([h for h in root.handlers if isinstance(h, RotatingFileHandler)])
+        configure_file_logging({"logging": "yes-please"})
+        after = len([h for h in root.handlers if isinstance(h, RotatingFileHandler)])
+        assert after == before
+
+    def test_max_size_mb_string_uses_default(self, tmp_path, caplog):
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": True, "file": log_file,
+                              "max_size_mb": "big"}}
+        with caplog.at_level(logging.WARNING):
+            handler = configure_file_logging(config)
+        assert handler is not None
+        assert handler.maxBytes == 5 * 1024 * 1024
+        assert "max_size_mb" in caplog.text
+
+    def test_max_size_mb_bool_uses_default(self, tmp_path):
+        # True * 1024 * 1024 == 1048576 would silently shrink the log cap
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": True, "file": log_file,
+                              "max_size_mb": True}}
+        handler = configure_file_logging(config)
+        assert handler is not None
+        assert handler.maxBytes == 5 * 1024 * 1024
+
+    def test_max_size_mb_inf_uses_default(self, tmp_path):
+        # YAML `.inf` parses to float('inf'); int() raises OverflowError
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": True, "file": log_file,
+                              "max_size_mb": float("inf")}}
+        handler = configure_file_logging(config)
+        assert handler is not None
+        assert handler.maxBytes == 5 * 1024 * 1024
+
+    def test_max_size_mb_float_accepted(self, tmp_path):
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": True, "file": log_file,
+                              "max_size_mb": 2.5}}
+        handler = configure_file_logging(config)
+        assert handler is not None
+        assert handler.maxBytes == int(2.5 * 1024 * 1024)
+
+
 class TestConfigureFileLoggingEnabled:
     """Tests that logging works correctly when enabled."""
 
@@ -236,3 +294,17 @@ class TestSetupLoggingWithConfig:
             assert len(file_handlers) == 0
         finally:
             logging.getLogger(name).handlers.clear()
+
+
+class TestQuotedBooleanStrings:
+    """logging.enabled honors quoted boolean strings (#388)."""
+
+    def test_enabled_quoted_false_stays_off(self):
+        config = {"logging": {"enabled": "false"}}
+        assert configure_file_logging(config) is None
+
+    def test_enabled_quoted_true_turns_on(self, tmp_path):
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": "true", "file": log_file}}
+        handler = configure_file_logging(config)
+        assert isinstance(handler, RotatingFileHandler)

@@ -216,6 +216,23 @@ def _fresh_state():
     return copy.deepcopy(SAMPLE_STATE)
 
 
+def _state_with_collision(slug="test-album"):
+    """Sample state with an album_collisions record for the given slug (#392)."""
+    state = _fresh_state()
+    state["album_collisions"] = [{
+        "slug": slug,
+        "kept": {
+            "genre": "electronic",
+            "path": f"/tmp/test/artists/test-artist/albums/electronic/{slug}",
+        },
+        "shadowed": [{
+            "genre": "rock",
+            "path": f"/tmp/test/artists/test-artist/albums/rock/{slug}",
+        }],
+    }]
+    return state
+
+
 # ---------------------------------------------------------------------------
 # Re-export completeness — ensure server.py re-exports all registered tools
 # ---------------------------------------------------------------------------
@@ -926,6 +943,46 @@ class TestFindAlbum:
         assert "No albums found" in result["error"]
         assert result.get("rebuilt") is True
 
+    def test_collision_warning_on_collided_slug(self):
+        """Exact match on a collided slug includes a collision_warning."""
+        mock_cache = MockStateCache(_state_with_collision("test-album"))
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("test-album")))
+        assert result["found"] is True
+        warning = result["collision_warning"]
+        assert warning["visible"]["genre"] == "electronic"
+        assert warning["shadowed"][0]["genre"] == "rock"
+        assert "rock" in warning["shadowed"][0]["path"]
+        assert "/bitwize-music:rename" in warning["message"]
+        assert "rebuild_state" in warning["message"]
+
+    def test_collision_warning_on_fuzzy_match(self):
+        """Fuzzy-resolved slug also gets the collision warning."""
+        mock_cache = MockStateCache(_state_with_collision("test-album"))
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("test")))
+        assert result["found"] is True
+        assert result["slug"] == "test-album"
+        assert "collision_warning" in result
+
+    def test_no_collision_warning_on_clean_slug(self):
+        """A slug absent from album_collisions gets no warning."""
+        mock_cache = MockStateCache(_state_with_collision("test-album"))
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("another-album")))
+        assert result["found"] is True
+        assert "collision_warning" not in result
+
+    def test_missing_collisions_field_does_not_crash(self):
+        """Pre-1.3.0 states without album_collisions work unchanged."""
+        state = _fresh_state()
+        assert "album_collisions" not in state
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.find_album("test-album")))
+        assert result["found"] is True
+        assert "collision_warning" not in result
+
 
 # =============================================================================
 # Tests for MCP tool: list_albums
@@ -983,6 +1040,36 @@ class TestListAlbums:
         assert album["status"] == "In Progress"
         assert album["track_count"] == 2
         assert album["tracks_completed"] == 1
+
+    def test_collisions_surfaced_when_present(self):
+        """Non-empty album_collisions is echoed with a warning string."""
+        mock_cache = MockStateCache(_state_with_collision("test-album"))
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums()))
+        assert result["collisions"][0]["slug"] == "test-album"
+        assert "test-album" in result["warning"]
+        assert "/bitwize-music:rename" in result["warning"]
+
+    def test_no_collisions_keys_when_clean(self):
+        """Empty album_collisions adds neither collisions nor warning."""
+        state = _fresh_state()
+        state["album_collisions"] = []
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums()))
+        assert "collisions" not in result
+        assert "warning" not in result
+
+    def test_missing_collisions_field_does_not_crash(self):
+        """Pre-1.3.0 states without album_collisions work unchanged."""
+        state = _fresh_state()
+        assert "album_collisions" not in state
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.list_albums()))
+        assert result["count"] == 2
+        assert "collisions" not in result
+        assert "warning" not in result
 
 
 # =============================================================================
@@ -1163,6 +1250,38 @@ class TestRebuildStateTool:
             result = json.loads(_run(server.rebuild_state()))
         assert "error" in result
         assert "Config not found" in result["error"]
+
+    def test_collision_count_reported(self):
+        """A rebuild that detects collisions says so immediately."""
+        mock_cache = MockStateCache(_state_with_collision("test-album"))
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert result["collision_count"] == 1
+        assert result["collisions"][0]["slug"] == "test-album"
+        assert "/bitwize-music:rename" in result["warning"]
+
+    def test_collision_count_zero_when_clean(self):
+        """Empty album_collisions reports zero without a details list."""
+        state = _fresh_state()
+        state["album_collisions"] = []
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["collision_count"] == 0
+        assert "collisions" not in result
+        assert "warning" not in result
+
+    def test_missing_collisions_field_reports_zero(self):
+        """Rebuild result without album_collisions still reports a count."""
+        state = _fresh_state()
+        assert "album_collisions" not in state
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.rebuild_state()))
+        assert result["success"] is True
+        assert result["collision_count"] == 0
+        assert "collisions" not in result
 
 
 # =============================================================================
@@ -3411,6 +3530,23 @@ F-B-I came knocking at his door
 | Linux | Lin-ucks | Tech term |
 """
 
+_TRACK_WITH_WORD_SUBSTRING = """\
+# Test Track
+
+## Suno Inputs
+
+### Lyrics Box
+```
+plain lyrics without any phonetic respelling
+```
+
+## Pronunciation Notes
+
+| Word/Phrase | Pronunciation | Reason |
+|-------------|---------------|--------|
+| Wordsworth | WURDZ-wurth | poet name |
+"""
+
 _TRACK_WITH_UNAPPLIED = """\
 # Test Track
 
@@ -3475,6 +3611,24 @@ class TestCheckPronunciationEnforcement:
             result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-unapplied")))
         assert result["all_applied"] is False
         assert result["unapplied_count"] == 2  # Both Rah-mohs and F-B-I not in lyrics
+
+    def test_word_substring_rows_are_not_dropped(self, tmp_path):
+        """Rows whose Word cell contains 'Word' must not be skipped (#384)."""
+        track_file = tmp_path / "05-wordsworth.md"
+        track_file.write_text(_TRACK_WITH_WORD_SUBSTRING)
+        state = _fresh_state()
+        state["albums"]["test-album"]["tracks"]["05-wordsworth"] = {
+            "path": str(track_file),
+            "title": "Wordsworth Track",
+            "status": "In Progress",
+        }
+        mock_cache = MockStateCache(state)
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.check_pronunciation_enforcement("test-album", "05-wordsworth")))
+        # The phonetic is NOT in the lyrics — a dropped row would false-PASS.
+        assert result["all_applied"] is False
+        assert result["unapplied_count"] == 1
+        assert result["entries"][0]["word"] == "Wordsworth"
 
     def test_empty_pronunciation_table(self, tmp_path):
         track_file = tmp_path / "05-empty-pron.md"
@@ -4092,6 +4246,47 @@ class TestCreateAlbumStructure:
         assert result["created"] is False
         assert "already exists" in result["error"]
 
+    def test_cross_genre_collision_rejected(self, tmp_path):
+        """Same slug under a DIFFERENT genre blocks creation (#392)."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        existing = content / "artists" / "test-artist" / "albums" / "rock" / "existing"
+        existing.mkdir(parents=True)
+
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.create_album_structure("existing", "electronic")))
+        assert result["created"] is False
+        assert "already exists" in result["error"]
+        assert "rock" in result["error"]
+        assert str(existing) in result["error"]
+        assert "rename" in result["error"].lower()
+        # The colliding twin must NOT be created
+        twin = content / "artists" / "test-artist" / "albums" / "electronic" / "existing"
+        assert not twin.exists()
+
+    def test_glob_metachars_in_slug_do_not_false_collide(self, tmp_path):
+        """The collision sweep is literal — 'alb*m' must not match 'album' (#392)."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        existing = content / "artists" / "test-artist" / "albums" / "rock" / "album"
+        existing.mkdir(parents=True)
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("alb*m", "electronic")))
+        # Under fnmatch semantics 'alb*m' matches 'album'; a literal sweep must not.
+        assert "already exists" not in result.get("error", "")
+
+    def test_new_slug_unaffected_by_other_albums(self, tmp_path):
+        """A genuinely new slug still succeeds when other albums exist (regression)."""
+        mock_cache, content = self._make_state_with_tmp(tmp_path)
+        other = content / "artists" / "test-artist" / "albums" / "rock" / "other-album"
+        other.mkdir(parents=True)
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", Path(__file__).resolve().parent.parent.parent.parent):
+            result = json.loads(_run(server.create_album_structure("fresh-album", "electronic")))
+        assert result["created"] is True
+        assert Path(result["path"]).is_dir()
+
     def test_no_config(self):
         state = {"albums": {}, "ideas": {}, "session": {}}
         mock_cache = MockStateCache(state)
@@ -4121,7 +4316,10 @@ class TestCreateAlbumStructure:
         """Album is still created even when templates directory doesn't exist."""
         mock_cache, content = self._make_state_with_tmp(tmp_path)
         fake_plugin = tmp_path / "fake-plugin"
-        fake_plugin.mkdir()
+        # Genre validation scans {PLUGIN_ROOT}/genres — the fake root needs a
+        # valid genre so this test exercises only the missing-templates path.
+        (fake_plugin / "genres" / "rock").mkdir(parents=True)
+        (fake_plugin / "genres" / "rock" / "README.md").write_text("# Rock")
         # No templates/ dir under fake_plugin
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", fake_plugin):
@@ -7510,15 +7708,18 @@ class TestHealthCheck:
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"), \
+             patch.object(_shared_mod, "cache", MockStateCache()):
             result = json.loads(_run(_health_mod.health_check()))
 
         assert result["status"] == "ok"
-        assert len(result["checks"]) == 2
+        assert len(result["checks"]) == 3
         assert result["checks"][0]["name"] == "venv"
         assert result["checks"][0]["status"] == "ok"
         assert result["checks"][1]["name"] == "skills"
         assert result["checks"][1]["status"] == "ok"
+        assert result["checks"][2]["name"] == "collisions"
+        assert result["checks"][2]["status"] == "ok"
 
     def test_stale_skills_returns_warn(self, tmp_path):
         """Stale skills with ok venv returns overall warn."""
@@ -7548,7 +7749,8 @@ class TestHealthCheck:
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"), \
+             patch.object(_shared_mod, "cache", MockStateCache()):
             result = json.loads(_run(_health_mod.health_check()))
 
         assert result["status"] == "warn"
@@ -7567,7 +7769,8 @@ class TestHealthCheck:
         # No venv
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
-             patch.object(Path, "home", return_value=fakehome):
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache()):
             result = json.loads(_run(_health_mod.health_check()))
 
         assert result["status"] == "fail"
@@ -7584,13 +7787,107 @@ class TestHealthCheck:
         (fakehome / ".bitwize-music").mkdir(parents=True)
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
-             patch.object(Path, "home", return_value=fakehome):
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache()):
             result = json.loads(_run(_health_mod.health_check()))
 
         assert "venv" in result
         assert "skills" in result
         assert "status" in result["venv"]
         assert "status" in result["skills"]
+
+    def test_collisions_ok_shape(self, tmp_path):
+        """Empty album_collisions yields the {"status": "ok"} section."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        state = _fresh_state()
+        state["album_collisions"] = []
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["collisions"] == {"status": "ok"}
+        collisions_check = next(
+            c for c in result["checks"] if c["name"] == "collisions")
+        assert collisions_check["status"] == "ok"
+
+    def test_collisions_missing_field_is_ok(self, tmp_path):
+        """Pre-1.3.0 states without album_collisions don't crash health_check."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        state = _fresh_state()
+        assert "album_collisions" not in state
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["collisions"] == {"status": "ok"}
+
+    def test_collisions_detected_shape(self, tmp_path):
+        """Collisions yield status "collision" with details and a fix."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache",
+                          MockStateCache(_state_with_collision("test-album"))):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["collisions"]["status"] == "collision"
+        assert result["collisions"]["collisions"][0]["slug"] == "test-album"
+        assert "/bitwize-music:rename" in result["collisions"]["fix"]
+        collisions_check = next(
+            c for c in result["checks"] if c["name"] == "collisions")
+        assert collisions_check["status"] == "warn"
+        assert "test-album" in collisions_check["detail"]
+
+    def test_collisions_alone_warn_overall(self, tmp_path):
+        """Venv and skills ok + collisions present → overall warn."""
+        # Set up matching skills (same scaffolding as test_all_ok)
+        plugin_root = tmp_path / "plugin"
+        skill_dir = plugin_root / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+
+        cache_dir = (tmp_path / "fakehome" / ".claude" / "plugins" / "cache"
+                     / "bitwize-music" / "bitwize-music" / "1.0.0")
+        cache_skills_dir = cache_dir / "skills" / "test-skill"
+        cache_skills_dir.mkdir(parents=True)
+        (cache_skills_dir / "SKILL.md").write_text("---\nname: test-skill\n---\n")
+        pj = cache_dir / ".claude-plugin"
+        pj.mkdir(parents=True)
+        (pj / "plugin.json").write_text('{"version": "1.0.0"}')
+
+        # Set up venv
+        req = plugin_root / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
+        venv_dir.mkdir(parents=True)
+        (venv_dir / "python3").touch()
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch("importlib.metadata.version", return_value="2.31.0"), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"), \
+             patch.object(_shared_mod, "cache",
+                          MockStateCache(_state_with_collision("test-album"))):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["status"] == "warn"
+        assert result["checks"][0]["status"] == "ok"
+        assert result["checks"][1]["status"] == "ok"
+        assert result["checks"][2]["name"] == "collisions"
+        assert result["checks"][2]["status"] == "warn"
 
 
 # =============================================================================
@@ -7749,8 +8046,10 @@ class TestCreateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(
             tmp_path, "# Album Ideas\n\n## Ideas\n"
         )
+        from handlers import ideas as ideas_mod
         with patch.object(_shared_mod, "cache", mock_cache), \
-             patch.object(Path, "write_text", side_effect=OSError("permission denied")):
+             patch.object(ideas_mod, "atomic_write_text",
+                          side_effect=OSError("permission denied")):
             result = json.loads(_run(server.create_idea("New Idea")))
         assert "error" in result
 
@@ -7975,15 +8274,13 @@ class TestUpdateIdea:
         mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
         # Make file read-only after first read
         with patch.object(_shared_mod, "cache", mock_cache):
-            # Use patch on Path.write_text to simulate write failure
-            original_write = Path.write_text
+            from handlers import ideas as ideas_mod
 
-            def fail_write(self, *args, **kwargs):
-                if str(self).endswith("IDEAS.md"):
+            def fail_write(path, *args, **kwargs):
+                if str(path).endswith("IDEAS.md"):
                     raise OSError("disk full")
-                return original_write(self, *args, **kwargs)
 
-            with patch.object(Path, "write_text", fail_write):
+            with patch.object(ideas_mod, "atomic_write_text", fail_write):
                 result = json.loads(_run(server.update_idea(
                     "Cyberpunk Dreams", "status", "Complete"
                 )))
@@ -9063,12 +9360,9 @@ class TestExtractCodeBlockEdgeCases:
 class TestCheckPronunciationEdgeCases:
     """Edge case tests for check_pronunciation_enforcement."""
 
-    def test_word_in_data_row_skipped(self, tmp_path):
-        """Table row containing 'Word' in data is skipped by the header filter.
-
-        Documents that the filter 'if "Word" in line' skips ANY row
-        containing 'Word', including legitimate data rows.
-        """
+    def test_word_in_data_row_parsed(self, tmp_path):
+        """Data rows containing 'Word' are parsed — only the header row is
+        skipped, matched by its first cell (#384)."""
         track_file = tmp_path / "01-test.md"
         track_file.write_text(
             "# Test\n\n"
@@ -9090,10 +9384,11 @@ class TestCheckPronunciationEdgeCases:
                 server.check_pronunciation_enforcement("test-album", "01-test")
             ))
 
-        # The entry with "Word" in the word column is skipped by the header filter
         assert result["found"] is True
-        # "Wordplay" entry is skipped because the line contains "Word"
-        assert len(result["entries"]) == 0
+        assert len(result["entries"]) == 1
+        assert result["entries"][0]["word"] == "Wordplay"
+        # The phonetic IS in the lyrics, so the check passes honestly
+        assert result["all_applied"] is True
 
     def test_no_pronunciation_section(self, tmp_path):
         """Track with no Pronunciation Notes section reports all applied."""
@@ -12294,6 +12589,41 @@ class TestGeneratePromoVideos:
         assert "error" in result
         assert "artwork" in result["error"].lower()
 
+    def test_batch_reports_failures_and_ignores_stale_files(self, tmp_path):
+        """Batch mode must report per-track failures, not glob stale files (#382)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-track.wav").write_bytes(b"")
+        (audio_dir / "02-track.wav").write_bytes(b"")
+        output_dir = audio_dir / "promo_videos"
+        output_dir.mkdir()
+        (output_dir / "99-stale_promo.mp4").write_bytes(b"old run leftover")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        def fake_batch(**kwargs):
+            return [
+                ("01-track.wav", "01-track_promo.mp4", True),
+                ("02-track.wav", "02-track_promo.mp4", False),
+            ]
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.batch_process_album",
+                   side_effect=fake_batch):
+            result = json.loads(_run(server.generate_promo_videos("test-album")))
+
+        assert result["summary"]["success"] == 1
+        assert result["summary"]["failed"] == 1
+        by_file = {t["filename"]: t["success"] for t in result["tracks"]}
+        assert by_file == {"01-track.wav": True, "02-track.wav": False}
+        # Stale leftovers from previous runs are not reported as new successes
+        assert "99-stale_promo.mp4" not in json.dumps(result)
+
     def test_single_track_not_found(self, tmp_path):
         audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
         audio_dir.mkdir(parents=True)
@@ -13504,6 +13834,10 @@ class TestGeneratePromoVideosComprehensive:
             output_dir.mkdir(exist_ok=True)
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+            return [
+                ("01-track-1.wav", "01-track-1_promo.mp4", True),
+                ("02-track-2.wav", "02-track-2_promo.mp4", True),
+            ]
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
@@ -13669,6 +14003,7 @@ class TestGeneratePromoVideosComprehensive:
 
         def mock_batch(**kwargs):
             captured_kwargs.append(kwargs)
+            return []
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
@@ -14003,6 +14338,10 @@ class TestPromoVideoNewParams:
             output_dir.mkdir(exist_ok=True)
             (output_dir / "01-track-1_promo.mp4").write_bytes(b"")
             (output_dir / "02-track-2_promo.mp4").write_bytes(b"")
+            return [
+                ("01-track-1.wav", "01-track-1_promo.mp4", True),
+                ("02-track-2.wav", "02-track-2_promo.mp4", True),
+            ]
 
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
@@ -14806,6 +15145,37 @@ class TestPublishSheetMusic:
         # Verify retry_upload called for each file
         assert mock_cloud_mod.retry_upload.call_count == 3
 
+    def test_quoted_public_read_false_stays_private(self, tmp_path):
+        """cloud.public_read: "false" (quoted) must not set a public ACL (#388)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        singles_dir.mkdir(parents=True)
+        (singles_dir / "01 - Track.pdf").write_bytes(b"pdf1")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_cloud_mod = MagicMock()
+        mock_cloud_mod.retry_upload.return_value = True
+        mock_cloud_mod.get_s3_client.return_value = MagicMock()
+        mock_cloud_mod.get_bucket_name.return_value = "test-bucket"
+
+        mock_config = {
+            "cloud": {"enabled": True, "provider": "r2", "public_read": "false"},
+        }
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["summary"]["success"] == 1
+        _, kwargs = mock_cloud_mod.retry_upload.call_args
+        assert kwargs["public_read"] is False
+
     # ------------------------------------------------------------------
     # Frontmatter persistence tests
     # ------------------------------------------------------------------
@@ -15222,3 +15592,41 @@ class TestDiagnose:
         assert result["status"] == "fail"
         assert result["ok"] + result["warn"] + result["fail"] == result["total"]
 
+
+
+class TestIdeasAtomicWrites:
+    """All IDEAS.md / README.md mutations go through atomic_write_text (#381)."""
+
+    IDEAS = TestUpdateIdea.IDEAS_WITH_ENTRIES
+
+    def _make_cache_with_ideas(self, tmp_path):
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        (content_root / "IDEAS.md").write_text(self.IDEAS)
+        state = _fresh_state()
+        state["config"]["content_root"] = str(content_root)
+        return MockStateCache(state), content_root
+
+    def _spy(self):
+        from handlers import ideas as ideas_mod
+        return patch.object(
+            ideas_mod, "atomic_write_text", wraps=ideas_mod.atomic_write_text
+        )
+
+    def test_create_idea_writes_atomically(self, tmp_path):
+        mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), self._spy() as spy:
+            result = json.loads(_run(server.create_idea("Fresh Idea")))
+        assert result["created"] is True
+        assert spy.called
+        assert "### Fresh Idea" in (content_root / "IDEAS.md").read_text()
+
+    def test_update_idea_writes_atomically(self, tmp_path):
+        mock_cache, content_root = self._make_cache_with_ideas(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), self._spy() as spy:
+            result = json.loads(_run(server.update_idea(
+                "Cyberpunk Dreams", field="status", value="Planned"
+            )))
+        assert result["success"] is True
+        assert spy.called
+        assert "**Status**: Planned" in (content_root / "IDEAS.md").read_text()

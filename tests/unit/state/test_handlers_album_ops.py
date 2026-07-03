@@ -385,6 +385,10 @@ class TestCreateAlbumStructure:
         self._orig_plugin_root = _shared_mod.PLUGIN_ROOT
         _shared_mod.cache = MockStateCache()
         _shared_mod.PLUGIN_ROOT = PROJECT_ROOT
+        # Prime the genre cache with the real genres/ scan BEFORE tests apply
+        # blanket Path.exists/Path.is_dir mocks — a cold-cache scan under
+        # those mocks comes back empty and every genre would be rejected.
+        _shared_mod._get_valid_genres()
 
     def teardown_method(self):
         _shared_mod.cache = self._orig_cache

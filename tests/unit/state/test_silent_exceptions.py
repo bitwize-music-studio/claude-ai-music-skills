@@ -291,6 +291,30 @@ class TestHelpersCloudConfigWarning:
             "Config load failed" in r.message for r in caplog.records
         ), f"Expected config load warning. Records: {[r.message for r in caplog.records]}"
 
+    def test_quoted_false_reports_not_enabled(self):
+        """cloud.enabled: "false" (quoted) must not pass the gate (#388)."""
+        from handlers.processing import _helpers as helpers_mod
+
+        with patch(
+            "tools.shared.config.load_config",
+            return_value={"cloud": {"enabled": "false"}},
+        ):
+            result = helpers_mod._check_cloud_enabled()
+
+        assert result is not None
+        assert "not enabled" in result
+
+    def test_quoted_true_passes_gate(self):
+        from handlers.processing import _helpers as helpers_mod
+
+        with patch(
+            "tools.shared.config.load_config",
+            return_value={"cloud": {"enabled": "true"}},
+        ):
+            result = helpers_mod._check_cloud_enabled()
+
+        assert result is None
+
 
 # ---------------------------------------------------------------------------
 # Test 5: _helpers.py — AnthemScore check

@@ -90,6 +90,50 @@ class TestLoadConfig:
         assert config_module.CONFIG_PATH == expected
 
 
+class TestLoadConfigNonMapping:
+    """load_config() rejects valid YAML whose top level is not a mapping (#389)."""
+
+    def test_top_level_list_returns_fallback_with_error(self, tmp_path, caplog):
+        """Top-level YAML list returns fallback and logs an error naming path and type."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n- bar\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            with caplog.at_level("ERROR", logger="tools.shared.config"):
+                result = load_config(fallback={'default': True})
+        assert result == {'default': True}
+        assert any(
+            str(config_path) in r.message and "list" in r.message
+            for r in caplog.records
+        )
+
+    def test_top_level_scalar_returns_fallback(self, tmp_path):
+        """Top-level YAML scalar returns fallback."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("42\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            result = load_config(fallback={'default': True})
+            assert result == {'default': True}
+
+    def test_non_mapping_returns_none_without_fallback(self, tmp_path):
+        """Non-mapping YAML returns None when no fallback is given."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("just a string\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            assert load_config() is None
+
+    def test_non_mapping_required_exits(self, tmp_path):
+        """Non-mapping YAML exits when required=True."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n")
+
+        with mock.patch.object(config_module, 'CONFIG_PATH', config_path):
+            with pytest.raises(SystemExit):
+                load_config(required=True)
+
+
 class TestLoadConfigYamlMissing:
     """Tests for config loading when PyYAML is not available."""
 
@@ -102,3 +146,54 @@ class TestLoadConfigYamlMissing:
             with mock.patch.object(config_module, 'yaml', None):
                 result = load_config(fallback={'default': True})
                 assert result == {'default': True}
+
+
+class TestParseYamlBool:
+    """parse_yaml_bool() honors quoted YAML boolean strings (#388)."""
+
+    def test_passes_through_bools(self):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(True) is True
+        assert parse_yaml_bool(False) is False
+
+    @pytest.mark.parametrize("value", ["true", "True", "TRUE", "yes", "Yes", "on", "1", " true "])
+    def test_truthy_strings(self, value):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(value) is True
+
+    @pytest.mark.parametrize("value", ["false", "False", "FALSE", "no", "No", "off", "0", " false "])
+    def test_falsy_strings(self, value):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(value) is False
+
+    def test_zero_one_ints(self):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(0) is False
+        assert parse_yaml_bool(1) is True
+
+    @pytest.mark.parametrize("value", ["maybe", "", "2", "truthy", 2, 2.5, [], {}, None, ["true"]])
+    def test_unparseable_values_raise(self, value):
+        from tools.shared.config import parse_yaml_bool
+        with pytest.raises(ValueError):
+            parse_yaml_bool(value)
+
+
+class TestCoerceYamlBool:
+    """coerce_yaml_bool() = parse_yaml_bool with warn-and-default fallback."""
+
+    def test_parses_quoted_strings(self):
+        from tools.shared.config import coerce_yaml_bool
+        assert coerce_yaml_bool("false", default=True) is False
+        assert coerce_yaml_bool("yes", default=False) is True
+
+    def test_bool_passthrough(self):
+        from tools.shared.config import coerce_yaml_bool
+        assert coerce_yaml_bool(True, default=False) is True
+        assert coerce_yaml_bool(False, default=True) is False
+
+    def test_garbage_returns_default_with_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_bool
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            assert coerce_yaml_bool("maybe", default=True, context="cloud.enabled") is True
+            assert coerce_yaml_bool([], default=False, context="x") is False
+        assert any("cloud.enabled" in r.message for r in caplog.records)

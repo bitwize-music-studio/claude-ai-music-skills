@@ -124,6 +124,38 @@ class TestNoDisableModelInvocation:
         assert not flagged or True  # soft check preserved
 
 
+class TestHealthCheckCollisionDocs:
+    """Skills documenting health_check must surface the collisions section (#392)."""
+
+    def test_session_start_documents_collisions(self, skills_dir):
+        skill_path = skills_dir / "session-start" / "SKILL.md"
+        content = skill_path.read_text()
+
+        step_15 = re.search(r'## Step 1\.5.*?(?=\n## Step 2)', content, re.DOTALL)
+        assert step_15, "session-start SKILL.md missing Step 1.5 section"
+        assert "collision" in step_15.group().lower(), (
+            "session-start Step 1.5 does not handle the health_check "
+            "collisions section — agents following it would drop the warning"
+        )
+
+        report = re.search(r'## Report Format.*?```.*?```', content, re.DOTALL)
+        assert report, "session-start SKILL.md missing Report Format template"
+        assert "collision" in report.group().lower(), (
+            "session-start Report Format Health line omits collisions"
+        )
+
+    def test_health_check_documents_collisions(self, skills_dir):
+        skill_path = skills_dir / "health-check" / "SKILL.md"
+        content = skill_path.read_text()
+
+        report = re.search(r'## Report Format.*?(?=\n## Remember|$)', content, re.DOTALL)
+        assert report, "health-check SKILL.md missing Report Format section"
+        assert "COLLISIONS" in report.group(), (
+            "health-check Report Format has no COLLISIONS section slot "
+            "alongside VENV/SKILLS"
+        )
+
+
 class TestGitignore:
     """Required .gitignore entries must be present."""
 

@@ -219,3 +219,38 @@ class TestBatchProcessAlbum:
             output_dir=output_dir,
         )
         mock_gen.assert_not_called()
+
+
+class TestBatchCliExitCode:
+    """CLI --batch mode exits non-zero when any track fails (#382)."""
+
+    def _run_main(self, tmp_path, monkeypatch, results):
+        import tools.promotion.generate_promo_video as gpv
+        album = tmp_path / "album"
+        album.mkdir()
+        (album / "01-track.wav").write_bytes(b"")
+        art = tmp_path / "album.png"
+        art.write_bytes(b"")
+        monkeypatch.setattr(
+            "sys.argv",
+            ["generate_promo_video.py", "--batch", str(album),
+             "--batch-artwork", str(art)],
+        )
+        monkeypatch.setattr(gpv, "batch_process_album", lambda **kw: results)
+        gpv.main()
+
+    def test_failure_exits_nonzero(self, tmp_path, monkeypatch):
+        with pytest.raises(SystemExit) as exc_info:
+            self._run_main(
+                tmp_path, monkeypatch,
+                [("01-track.wav", "01-track_promo.mp4", True),
+                 ("02-track.wav", "02-track_promo.mp4", False)],
+            )
+        assert exc_info.value.code == 1
+
+    def test_all_success_exits_zero(self, tmp_path, monkeypatch):
+        # main() returns normally (no SystemExit) when every track succeeds
+        self._run_main(
+            tmp_path, monkeypatch,
+            [("01-track.wav", "01-track_promo.mp4", True)],
+        )

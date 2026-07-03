@@ -311,7 +311,8 @@ async def health_check() -> str:
 
     Returns:
         JSON with overall status ("ok", "warn", "fail"), per-check
-        summaries, and raw results for venv and skills.
+        summaries, raw results for venv and skills, and an album slug
+        collision section ("ok" or "collision" with details and fix).
     """
     checks: list[dict[str, Any]] = []
 
@@ -357,6 +358,28 @@ async def health_check() -> str:
                         "detail": "No plugin cache found",
                         "fix": skills_raw.get("fix_message")})
 
+    # --- Album slug collision check (#392) ---
+    # .get: pre-1.3.0 states (and an unloadable cache) lack album_collisions.
+    state = _shared.cache.get_state() if _shared.cache is not None else {}
+    album_collisions = state.get("album_collisions", [])
+    if album_collisions:
+        slugs = ", ".join(c.get("slug", "?") for c in album_collisions)
+        fix = ("Rename one album with /bitwize-music:rename or move its "
+               "directory, then run rebuild_state.")
+        collisions_raw: dict[str, Any] = {
+            "status": "collision",
+            "collisions": album_collisions,
+            "fix": fix,
+        }
+        checks.append({"name": "collisions", "status": "warn",
+                        "detail": (f"{len(album_collisions)} album slug "
+                                   f"collision(s): {slugs}"),
+                        "fix": fix})
+    else:
+        collisions_raw = {"status": "ok"}
+        checks.append({"name": "collisions", "status": "ok",
+                        "detail": "No album slug collisions"})
+
     # --- Overall status ---
     statuses = [c["status"] for c in checks]
     if "fail" in statuses:
@@ -371,6 +394,7 @@ async def health_check() -> str:
         "checks": checks,
         "venv": venv_raw,
         "skills": skills_raw,
+        "collisions": collisions_raw,
     })
 
 
