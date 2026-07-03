@@ -55,30 +55,35 @@ STATUS_UNKNOWN = "Unknown"
 # Markdown link pattern — used for source verification gates
 _MARKDOWN_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
-# Valid genres for album creation — derived from genres/ directory at runtime
-_VALID_GENRES: frozenset[str] | None = None
+# Valid genres for album creation — derived from genres/ directory at runtime.
+# Cached per PLUGIN_ROOT value, and only when non-empty: an empty scan means
+# a broken (or test-mocked) plugin root, and caching it would poison every
+# later genre check in the process.
+_VALID_GENRES: tuple[Path | None, frozenset[str]] | None = None
 
 
 def _get_valid_genres() -> frozenset[str]:
     """Return valid genre slugs by scanning the genres/ directory.
 
-    Results are cached after the first call.
+    Non-empty results are cached per PLUGIN_ROOT.
     """
     global _VALID_GENRES
-    if _VALID_GENRES is not None:
-        return _VALID_GENRES
+    if _VALID_GENRES is not None and _VALID_GENRES[0] == PLUGIN_ROOT:
+        return _VALID_GENRES[1]
     if PLUGIN_ROOT is None:
         # Fallback if called before init (shouldn't happen)
         return frozenset()
     genres_dir = PLUGIN_ROOT / "genres"
     if genres_dir.is_dir():
-        _VALID_GENRES = frozenset(
+        genres = frozenset(
             d.name for d in genres_dir.iterdir()
             if d.is_dir() and (d / "README.md").exists()
         )
     else:
-        _VALID_GENRES = frozenset()
-    return _VALID_GENRES
+        genres = frozenset()
+    if genres:
+        _VALID_GENRES = (PLUGIN_ROOT, genres)
+    return genres
 
 _GENRE_ALIASES = {
     "r&b": "rnb", "rb": "rnb", "r-and-b": "rnb",

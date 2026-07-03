@@ -4281,7 +4281,10 @@ class TestCreateAlbumStructure:
         """Album is still created even when templates directory doesn't exist."""
         mock_cache, content = self._make_state_with_tmp(tmp_path)
         fake_plugin = tmp_path / "fake-plugin"
-        fake_plugin.mkdir()
+        # Genre validation scans {PLUGIN_ROOT}/genres — the fake root needs a
+        # valid genre so this test exercises only the missing-templates path.
+        (fake_plugin / "genres" / "rock").mkdir(parents=True)
+        (fake_plugin / "genres" / "rock" / "README.md").write_text("# Rock")
         # No templates/ dir under fake_plugin
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", fake_plugin):
