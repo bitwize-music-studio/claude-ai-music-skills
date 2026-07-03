@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import sys
 from logging.handlers import RotatingFileHandler
@@ -10,6 +11,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from tools.shared.colors import Colors
+
+logger = logging.getLogger(__name__)
 
 # Sentinel to track whether file logging has already been configured
 _file_logging_configured = False
@@ -85,6 +88,15 @@ def configure_file_logging(config: dict[str, Any] | None) -> RotatingFileHandler
         return None
 
     log_config = config.get("logging")
+    if log_config is not None and not isinstance(log_config, dict):
+        # A wrong-typed `logging:` section (scalar/list) would crash .get()
+        # on server startup and every CLI — treat it as empty (disabled).
+        logger.warning(
+            "Config section logging is not a mapping (got %s) — "
+            "file logging disabled",
+            type(log_config).__name__,
+        )
+        return None
     if not log_config:
         return None
     # Local import: tools.shared.config logs via this module's setup, so a
@@ -105,7 +117,18 @@ def configure_file_logging(config: dict[str, Any] | None) -> RotatingFileHandler
     log_file = os.path.expanduser(
         log_config.get("file", "~/.bitwize-music/logs/debug.log")
     )
-    max_bytes = log_config.get("max_size_mb", 5) * 1024 * 1024
+    max_size_mb = log_config.get("max_size_mb", 5)
+    if (isinstance(max_size_mb, bool)
+            or not isinstance(max_size_mb, (int, float))
+            or not math.isfinite(max_size_mb)):
+        # bool would silently shrink the cap (True == 1MB); non-numeric
+        # crashes the multiplication; YAML `.inf` overflows int()
+        logger.warning(
+            "Config logging.max_size_mb is not a number (got %s) — using 5",
+            type(max_size_mb).__name__,
+        )
+        max_size_mb = 5
+    max_bytes = int(max_size_mb * 1024 * 1024)
     backup_count = log_config.get("backup_count", 3)
 
     # Auto-create log directory

@@ -13,21 +13,35 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   `resolve_overrides_dir`, or any other consumer died with `AttributeError`.
   Non-mapping configs now log a clear error naming the file and the actual
   type, exit cleanly when `required=True`, and return the fallback otherwise.
+  The indexer's own `read_config` had the same defect (feeding the CLI
+  `rebuild`/`update` commands and the MCP server's state cache) and is
+  hardened identically.
 - **State rebuilds no longer crash on malformed config value types** (#391).
   `build_config_section` called bare `int()` on `generation.max_lyric_words`
-  (ValueError/TypeError on `lots` or `[800]`) and concatenated
-  `paths.content_root` as a string (TypeError on numeric values, first
-  surfacing inside `resolve_path`). New `_cfg_int`/`_cfg_str`/`_cfg_section`
-  guards — following the `_cfg_bool` pattern from #388 — warn and fall back
-  to defaults for wrong-typed ints, path strings, section mappings
-  (`paths`/`artist`/`database`/`generation`), `artist.name`, and the ideas
-  file path, so CLI rebuilds and incremental updates degrade gracefully
-  instead of aborting with a traceback.
+  (ValueError/TypeError on `lots` or `[800]`, OverflowError on `.inf`) and
+  concatenated `paths.content_root` as a string (TypeError on numeric values,
+  first surfacing inside `resolve_path`). New `_cfg_int`/`_cfg_str`/
+  `_cfg_section` guards — following the `_cfg_bool` pattern from #388 — warn
+  and fall back to defaults for wrong-typed ints, path strings, section
+  mappings (`paths`/`artist`/`database`/`generation`), `artist.name`, and the
+  ideas file path, so CLI rebuilds and incremental updates degrade gracefully
+  instead of aborting with a traceback. Blank keys (`overrides:` with no
+  value) default silently as before; warnings log only the key and type,
+  never raw values, so misshapen `database` sections cannot leak credentials
+  into logs. A wrong-typed `logging:` section (or non-numeric
+  `logging.max_size_mb`) now disables file logging with a warning instead of
+  crashing MCP server startup.
 - **`migrate_state` no longer crashes when `state.json` has a non-string
   version** (#393). A JSON-valid state file with `"version": 1.2` (float,
   int, null, or list) raised `AttributeError` inside version comparison.
   Non-string versions now log a warning and return `None`, triggering the
-  documented full-rebuild path.
+  documented full-rebuild path. Same treatment for the surrounding state
+  shape: a JSON-valid non-object `state.json` is quarantined like corrupt
+  JSON (backed up, rebuilt), wrong-typed `config`/`albums` sections trigger a
+  full rebuild instead of crashing `incremental_update`, and a non-string
+  `last_migrated_version` is dropped on rebuild and treated as untracked by
+  `get_pending_migrations` instead of crashing every subsequent
+  `health_check`.
 - **`argument-hint` YAML frontmatter now parses as a string across all runtimes**
   (#439). Three skill files (`configure`, `next-step`, `test`) declared
   `argument-hint: [ ... ]` with an unquoted `[`, which YAML parses as a

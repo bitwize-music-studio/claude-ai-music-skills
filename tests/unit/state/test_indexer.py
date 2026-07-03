@@ -746,6 +746,21 @@ class TestBuildConfigSectionTypeGuards:
         section = build_config_section(config)
         assert section['generation']['max_lyric_words'] == 800
 
+    def test_max_lyric_words_inf_uses_default(self, caplog):
+        # YAML `.inf` parses to float('inf'); int() raises OverflowError
+        config = {'generation': {'max_lyric_words': yaml.safe_load('.inf')}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
+    def test_max_lyric_words_negative_inf_uses_default(self, caplog):
+        config = {'generation': {'max_lyric_words': yaml.safe_load('-.inf')}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['generation']['max_lyric_words'] == 800
+        assert 'max_lyric_words' in caplog.text
+
     def test_numeric_content_root_uses_default(self):
         config = {'paths': {'content_root': 42}}
         section = build_config_section(config)
@@ -825,6 +840,48 @@ class TestBuildConfigSectionTypeGuards:
         result = scan_ideas(config, content_root)
         assert len(result['items']) == 4
 
+    def test_non_mapping_database_section_does_not_leak_values(self, caplog):
+        # A dash-list database section carries credentials — the warning
+        # must name the key and type only, never the raw value
+        config = {'database': ['host: db.example.com', 'password: hunter2secret']}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        assert 'database' in caplog.text
+        assert 'hunter2secret' not in caplog.text
+
+    def test_database_enabled_warning_does_not_leak_value(self, caplog):
+        # Same no-leak rule for scalar values inside the database section
+        config = {'database': {'enabled': 'hunter2secret'}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        assert 'hunter2secret' not in caplog.text
+
+    def test_blank_path_keys_silently_default(self, caplog):
+        # `overrides:` / `content_root:` with no value parse to None — that
+        # means "unset" (#376 semantics), so default silently, no warning
+        config = {'paths': {'content_root': None, 'overrides': None}}
+        with caplog.at_level(logging.WARNING):
+            section = build_config_section(config)
+        assert section['content_root'] == str(Path('.').resolve())
+        assert section['overrides_dir'] == str(Path('.').resolve() / 'overrides')
+        assert not any(
+            r.levelno >= logging.WARNING for r in caplog.records
+        )
+
+    def test_blank_ideas_file_silently_defaults(self, tmp_path, caplog):
+        # `ideas_file:` with no value parses to None — unset, not a warning
+        content_root = tmp_path / "content"
+        content_root.mkdir()
+        shutil.copy(FIXTURES_DIR / "ideas.md", content_root / "IDEAS.md")
+
+        config = {'paths': {'ideas_file': None}}
+        with caplog.at_level(logging.WARNING):
+            result = scan_ideas(config, content_root)
+        assert len(result['items']) == 4
+        assert 'ideas_file' not in caplog.text
+
 
 @pytest.mark.unit
 class TestReadConfig:
@@ -879,6 +936,35 @@ class TestReadConfig:
         result = read_config()
         assert result == {}
 
+    def test_top_level_list_returns_none_with_error(self, tmp_path, monkeypatch, caplog):
+        # Valid YAML, wrong shape — must not leak a non-dict that crashes
+        # _cfg_section's config.get() during rebuild/update (#389)
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("- foo\n- bar\n")
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'CONFIG_FILE', config_path)
+
+        with caplog.at_level(logging.ERROR):
+            result = read_config()
+        assert result is None
+        assert any(
+            str(config_path) in r.message and "list" in r.message
+            for r in caplog.records
+        )
+
+    def test_top_level_scalar_returns_none(self, tmp_path, monkeypatch, caplog):
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text("just a string\n")
+
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'CONFIG_FILE', config_path)
+
+        with caplog.at_level(logging.ERROR):
+            result = read_config()
+        assert result is None
+        assert "str" in caplog.text
+
 
 @pytest.mark.unit
 class TestReadWriteState:
@@ -926,6 +1012,41 @@ class TestReadWriteState:
 
         result = read_state()
         assert result == {}
+
+    def test_read_json_array_backed_up_returns_empty(self, tmp_path, monkeypatch, caplog):
+        # JSON-valid but not an object — same recovery as corrupted JSON:
+        # warn, back up the file, return empty state
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('["valid", "json", "wrong shape"]')
+
+        with caplog.at_level(logging.ERROR):
+            result = read_state()
+        assert result == {}
+        backups = list(tmp_path.glob("state.*.corrupt"))
+        assert len(backups) == 1
+        assert 'list' in caplog.text
+
+    def test_read_json_string_returns_empty(self, tmp_path, monkeypatch):
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('"just a string"')
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
+
+    def test_read_json_number_returns_empty(self, tmp_path, monkeypatch):
+        _override_indexer_paths(monkeypatch, tmp_path)
+
+        state_file = tmp_path / "state.json"
+        state_file.write_text('42')
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
 
     def test_write_creates_cache_dir(self, tmp_path, monkeypatch):
         new_cache = tmp_path / "new_cache_dir"
@@ -2326,6 +2447,65 @@ class TestMigrateStateEdgeCases:
         state = {'version': ['1', '0', '0']}
         result = migrate_state(state)
         assert result is None
+
+    def test_list_state_triggers_rebuild(self, caplog):
+        # state.json can be JSON-valid but not an object — .get() would
+        # crash one line above the version guard
+        with caplog.at_level(logging.WARNING):
+            assert migrate_state(['not', 'a', 'dict']) is None
+        assert 'rebuild' in caplog.text.lower()
+
+    def test_string_state_triggers_rebuild(self):
+        assert migrate_state('garbage') is None
+
+    def test_int_state_triggers_rebuild(self):
+        assert migrate_state(42) is None
+
+
+@pytest.mark.unit
+class TestIncrementalUpdateWrongTypedSections:
+    """Wrong-typed state sections trigger a full rebuild, not a crash (#393 family)."""
+
+    def _config_for(self, tmp_path):
+        return {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(tmp_path / "content")},
+        }
+
+    def test_config_section_list_returns_none(self, tmp_path, monkeypatch, caplog):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(config=['not', 'a', 'mapping'])
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'config' in caplog.text
+
+    def test_config_section_none_returns_none(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(config=None)
+        assert incremental_update(state, self._config_for(tmp_path)) is None
+
+    def test_albums_section_string_returns_none(self, tmp_path, monkeypatch, caplog):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        # Albums dir must exist and config_mtime must match so the
+        # incremental path actually reads the albums map
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "an-album")
+
+        state = _make_minimal_state(albums='x')
+        state['config']['content_root'] = str(content_root)
+        state['config']['config_mtime'] = 1000.0
+
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'albums' in caplog.text
 
 
 @pytest.mark.unit
