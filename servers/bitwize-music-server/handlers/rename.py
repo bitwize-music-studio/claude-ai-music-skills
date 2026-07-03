@@ -189,7 +189,7 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
             match = heading_pattern.search(text)
             if match:
                 updated_text = text[:match.start()] + f"# {title}" + text[match.end():]
-                readme_path.write_text(updated_text, encoding="utf-8")
+                atomic_write_text(readme_path, updated_text)
         except OSError as e:
             logger.warning("Directories moved but README title update failed: %s", e)
 
