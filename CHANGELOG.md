@@ -89,6 +89,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   in favor of inherently mature-vocal-coded genres ("torch song", "vintage
   soul", "cabaret"), with Persona/Voice cloning (Pro/Premier) as the final
   fallback.
+- **Suno generic-vocal troubleshooting** (`reference/suno/tips-and-tricks.md`).
+  A related but distinct failure mode: Style Box text using emotion/character
+  words ("powerful and defiant", "sultry") instead of concrete vocal
+  range/texture tags produces a technically correct but generic, characterless
+  voice, since Suno has no reliable mapping from mood words to timbre. Fix
+  mirrors the vocal-age entry — swap or supplement emotion words with range
+  (`mezzo-soprano`, `contralto`) and texture (`gritty`, `raspy`, `commanding`)
+  tags, plus an explicit `no generic or polished studio pop vocal` exclude.
 
 ## [0.93.0] - 2026-07-01
 
