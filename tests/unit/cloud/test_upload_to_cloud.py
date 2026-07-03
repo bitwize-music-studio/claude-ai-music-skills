@@ -399,3 +399,19 @@ class TestFindAlbumPath:
     def test_path_traversal_in_name_exits(self, tmp_path):
         with pytest.raises(SystemExit):
             mod.find_album_path(self._make_config(tmp_path), "../../../etc")
+
+
+class TestCloudEnabledGate:
+    """cloud.enabled honors quoted boolean strings (#388)."""
+
+    def test_quoted_false_exits(self, monkeypatch):
+        monkeypatch.setattr(mod, "load_config", lambda *a, **k: {"cloud": {"enabled": "false"}})
+        monkeypatch.setattr("sys.argv", ["upload_to_cloud.py", "some-album"])
+        with pytest.raises(SystemExit):
+            mod.main()
+
+    def test_quoted_no_exits(self, monkeypatch):
+        monkeypatch.setattr(mod, "load_config", lambda *a, **k: {"cloud": {"enabled": "no"}})
+        monkeypatch.setattr("sys.argv", ["upload_to_cloud.py", "some-album"])
+        with pytest.raises(SystemExit):
+            mod.main()

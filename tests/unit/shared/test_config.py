@@ -102,3 +102,54 @@ class TestLoadConfigYamlMissing:
             with mock.patch.object(config_module, 'yaml', None):
                 result = load_config(fallback={'default': True})
                 assert result == {'default': True}
+
+
+class TestParseYamlBool:
+    """parse_yaml_bool() honors quoted YAML boolean strings (#388)."""
+
+    def test_passes_through_bools(self):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(True) is True
+        assert parse_yaml_bool(False) is False
+
+    @pytest.mark.parametrize("value", ["true", "True", "TRUE", "yes", "Yes", "on", "1", " true "])
+    def test_truthy_strings(self, value):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(value) is True
+
+    @pytest.mark.parametrize("value", ["false", "False", "FALSE", "no", "No", "off", "0", " false "])
+    def test_falsy_strings(self, value):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(value) is False
+
+    def test_zero_one_ints(self):
+        from tools.shared.config import parse_yaml_bool
+        assert parse_yaml_bool(0) is False
+        assert parse_yaml_bool(1) is True
+
+    @pytest.mark.parametrize("value", ["maybe", "", "2", "truthy", 2, 2.5, [], {}, None, ["true"]])
+    def test_unparseable_values_raise(self, value):
+        from tools.shared.config import parse_yaml_bool
+        with pytest.raises(ValueError):
+            parse_yaml_bool(value)
+
+
+class TestCoerceYamlBool:
+    """coerce_yaml_bool() = parse_yaml_bool with warn-and-default fallback."""
+
+    def test_parses_quoted_strings(self):
+        from tools.shared.config import coerce_yaml_bool
+        assert coerce_yaml_bool("false", default=True) is False
+        assert coerce_yaml_bool("yes", default=False) is True
+
+    def test_bool_passthrough(self):
+        from tools.shared.config import coerce_yaml_bool
+        assert coerce_yaml_bool(True, default=False) is True
+        assert coerce_yaml_bool(False, default=True) is False
+
+    def test_garbage_returns_default_with_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_bool
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            assert coerce_yaml_bool("maybe", default=True, context="cloud.enabled") is True
+            assert coerce_yaml_bool([], default=False, context="x") is False
+        assert any("cloud.enabled" in r.message for r in caplog.records)

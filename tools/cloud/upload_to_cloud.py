@@ -69,6 +69,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import logging
 
+from tools.shared.config import coerce_yaml_bool
 from tools.shared.config import load_config as _load_config
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
@@ -385,7 +386,9 @@ Examples:
 
     # Check if cloud is enabled
     cloud_config = config.get("cloud", {})
-    if not cloud_config.get("enabled", False):
+    if not coerce_yaml_bool(
+        cloud_config.get("enabled", False), default=False, context="cloud.enabled"
+    ):
         logger.error("Cloud uploads not enabled in config.")
         logger.error("Add 'cloud.enabled: true' to ~/.bitwize-music/config.yaml")
         logger.error("See /reference/cloud/setup-guide.md for setup instructions.")
@@ -393,7 +396,11 @@ Examples:
 
     # Get cloud settings
     provider = cloud_config.get("provider", "r2")
-    public_read = args.public or cloud_config.get("public_read", False)
+    public_read = args.public or coerce_yaml_bool(
+        cloud_config.get("public_read", False),
+        default=False,
+        context="cloud.public_read",
+    )
 
     # Find album
     album_path = find_album_path(config, args.album, args.audio_root)

@@ -85,7 +85,14 @@ def configure_file_logging(config: dict[str, Any] | None) -> RotatingFileHandler
         return None
 
     log_config = config.get("logging")
-    if not log_config or not log_config.get("enabled", False):
+    if not log_config:
+        return None
+    # Local import: tools.shared.config logs via this module's setup, so a
+    # top-level import would be circular in spirit even though not in fact.
+    from tools.shared.config import coerce_yaml_bool
+    if not coerce_yaml_bool(
+        log_config.get("enabled", False), default=False, context="logging.enabled"
+    ):
         return None
 
     # Idempotent — don't add duplicate file handlers

@@ -15065,6 +15065,37 @@ class TestPublishSheetMusic:
         # Verify retry_upload called for each file
         assert mock_cloud_mod.retry_upload.call_count == 3
 
+    def test_quoted_public_read_false_stays_private(self, tmp_path):
+        """cloud.public_read: "false" (quoted) must not set a public ACL (#388)."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        singles_dir = audio_dir / "sheet-music" / "singles"
+        singles_dir.mkdir(parents=True)
+        (singles_dir / "01 - Track.pdf").write_bytes(b"pdf1")
+
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        mock_cache = MockStateCache(state)
+
+        mock_cloud_mod = MagicMock()
+        mock_cloud_mod.retry_upload.return_value = True
+        mock_cloud_mod.get_s3_client.return_value = MagicMock()
+        mock_cloud_mod.get_bucket_name.return_value = "test-bucket"
+
+        mock_config = {
+            "cloud": {"enabled": True, "provider": "r2", "public_read": "false"},
+        }
+
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_processing_helpers, "_check_cloud_enabled", return_value=None), \
+             patch.object(_processing_helpers, "_import_cloud_module", return_value=mock_cloud_mod), \
+             patch("tools.shared.config.load_config", return_value=mock_config):
+            result = json.loads(_run(server.publish_sheet_music("test-album")))
+
+        assert result["summary"]["success"] == 1
+        _, kwargs = mock_cloud_mod.retry_upload.call_args
+        assert kwargs["public_read"] is False
+
     # ------------------------------------------------------------------
     # Frontmatter persistence tests
     # ------------------------------------------------------------------

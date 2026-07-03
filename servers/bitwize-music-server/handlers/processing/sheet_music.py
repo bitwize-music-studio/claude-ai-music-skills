@@ -539,7 +539,7 @@ async def publish_sheet_music(
             "suggestion": "Ensure boto3 is installed: pip install boto3",
         })
 
-    from tools.shared.config import load_config
+    from tools.shared.config import coerce_yaml_bool, load_config
     config = load_config()
     assert config is not None
 
@@ -559,7 +559,11 @@ async def publish_sheet_music(
             "suggestion": "Set cloud.r2.bucket or cloud.s3.bucket in ~/.bitwize-music/config.yaml",
         })
 
-    public_read = config.get("cloud", {}).get("public_read", False)
+    public_read = coerce_yaml_bool(
+        config.get("cloud", {}).get("public_read", False),
+        default=False,
+        context="cloud.public_read",
+    )
 
     uploaded: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []

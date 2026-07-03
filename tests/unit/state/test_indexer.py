@@ -594,6 +594,57 @@ class TestBuildConfigSection:
         section = build_config_section(config)
         assert section['artist_name'] == ''
 
+    def test_quoted_boolean_strings_do_not_invert(self, monkeypatch):
+        """Quoted "false"/"no" config booleans must not become True (#388)."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'false', 'host': 'db.example', 'name': 'tweets'},
+            'generation': {
+                'require_suno_link_for_final': 'false',
+                'require_source_path_for_documentary': 'no',
+            },
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is False
+        # Credentials stay masked when the flag resolves False
+        assert section['database']['host'] == ''
+        assert section['database']['name'] == ''
+        assert section['generation']['require_suno_link_for_final'] is False
+        assert section['generation']['require_source_path_for_documentary'] is False
+
+    def test_quoted_true_boolean_strings_enable(self, monkeypatch):
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'true', 'host': 'db.example', 'name': 'tweets'},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is True
+        assert section['database']['host'] == 'db.example'
+        assert section['database']['name'] == 'tweets'
+
+    def test_garbage_boolean_string_uses_default(self, monkeypatch):
+        """Unparseable boolean strings fall back to the key's default."""
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'database': {'enabled': 'maybe'},
+            'generation': {'require_suno_link_for_final': 'sometimes'},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+
+        section = build_config_section(config)
+        assert section['database']['enabled'] is False  # default False
+        assert section['generation']['require_suno_link_for_final'] is True  # default True
+
     def test_documents_root_derives_from_content_root(self, monkeypatch):
         config = {
             'artist': {'name': 'test'},
@@ -2409,8 +2460,8 @@ class TestMigrate1_0To1_1:
         }
         result = migrate_state(state)
         assert result is not None
-        # Full chain: 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0
-        assert result['version'] == '1.3.0'
+        # Full chain: 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0
+        assert result['version'] == '1.4.0'
         assert 'skills' in result
         assert result['skills']['count'] == 0
         assert result['skills']['items'] == {}
@@ -2687,7 +2738,7 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         assert 'plugin_version' in result
         assert result['plugin_version'] is None
 
@@ -2723,7 +2774,7 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         assert result['plugin_version'] == '0.43.0'
 
 
@@ -2767,7 +2818,7 @@ class TestMigrate1_2To1_3:
         """State from v1.2.0 gets album_collisions field via migration."""
         result = migrate_state(self._state_1_2())
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         assert result['album_collisions'] == []
 
     def test_migration_preserves_existing_album_collisions(self):
@@ -2779,7 +2830,7 @@ class TestMigrate1_2To1_3:
         }
         result = migrate_state(self._state_1_2(album_collisions=[collision]))
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         assert result['album_collisions'] == [collision]
 
     def test_full_chain_1_0_to_1_3(self):
@@ -2790,10 +2841,78 @@ class TestMigrate1_2To1_3:
         del state['skills']
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == CURRENT_VERSION == '1.3.0'
+        assert result['version'] == CURRENT_VERSION == '1.4.0'
         assert 'skills' in result
         assert 'plugin_version' in result
         assert result['album_collisions'] == []
+
+
+@pytest.mark.unit
+class TestMigrate13To14:
+    """Tests for the 1.3.0 → 1.4.0 migration (#388): re-coerce cached
+    explicit values that were stored as truthy strings by the old parsers."""
+
+    def _state_1_3(self, albums):
+        state = {
+            'version': '1.3.0',
+            'generated_at': '2026-01-01T00:00:00+00:00',
+            'plugin_version': None,
+            'config': {
+                'content_root': '/tmp/c',
+                'audio_root': '/tmp/a',
+                'documents_root': '/tmp/d',
+                'artist_name': 'test',
+                'config_mtime': 100.0,
+            },
+            'albums': albums,
+            'album_collisions': [],
+            'ideas': {'counts': {}, 'items': [], 'file_mtime': 0.0},
+            'skills': {
+                'skills_root': '/tmp/skills',
+                'skills_root_mtime': 0.0,
+                'count': 0,
+                'model_counts': {},
+                'items': {},
+            },
+            'session': {
+                'last_album': None,
+                'last_track': None,
+                'last_phase': None,
+                'pending_actions': [],
+                'updated_at': None,
+            },
+        }
+        return state
+
+    def test_recoerces_cached_string_explicit_values(self):
+        albums = {
+            'my-album': {
+                'explicit': 'false',
+                'tracks': {
+                    '01-track': {'explicit': 'false'},
+                    '02-track': {'explicit': 'true'},
+                },
+            },
+        }
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['version'] == '1.4.0'
+        assert result['albums']['my-album']['explicit'] is False
+        assert result['albums']['my-album']['tracks']['01-track']['explicit'] is False
+        assert result['albums']['my-album']['tracks']['02-track']['explicit'] is True
+
+    def test_garbage_explicit_defaults_false(self):
+        albums = {'a': {'explicit': 'maybe', 'tracks': {}}}
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['albums']['a']['explicit'] is False
+
+    def test_real_bools_untouched(self):
+        albums = {'a': {'explicit': True, 'tracks': {'t': {'explicit': False}}}}
+        result = migrate_state(self._state_1_3(albums))
+        assert result is not None
+        assert result['albums']['a']['explicit'] is True
+        assert result['albums']['a']['tracks']['t']['explicit'] is False
 
 
 @pytest.mark.unit
@@ -2866,7 +2985,7 @@ class TestFullMigrationChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         # From 1.0→1.1 migration
         assert 'skills' in result
         assert result['skills']['count'] == 0
@@ -3090,7 +3209,7 @@ class TestMigrateStateChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.3.0'
+        assert result['version'] == '1.4.0'
         assert result['plugin_version'] is None
 
     def test_migration_does_not_overwrite_existing_skills(self):
