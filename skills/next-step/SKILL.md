@@ -1,7 +1,7 @@
 ---
 name: next-step
 description: Analyzes album state and recommends the optimal next action. Use when the user asks "what should I do next?" or "what's left to do?"
-argument-hint: [album-name]
+argument-hint: "[album-name]"
 model: haiku
 prerequisites:
   - resume
