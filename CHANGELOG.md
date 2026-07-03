@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.94.0] - 2026-07-03
+
 ### Fixed
 - **`load_config` no longer returns non-mapping YAML that crashes every caller**
   (#389). A config file whose top level is a list or scalar (e.g. `- foo` or
