@@ -72,10 +72,14 @@ def render_aac_preview(
             cmd, capture_output=True, text=True, timeout=_FFMPEG_TIMEOUT_SEC
         )
     except subprocess.TimeoutExpired as exc:
+        # A killed ffmpeg leaves a truncated file that would sit in the
+        # operator-audition folder indistinguishable from a good preview.
+        out_path.unlink(missing_ok=True)
         raise CodecPreviewError(
             f"ffmpeg timed out after {_FFMPEG_TIMEOUT_SEC}s encoding {in_path.name}"
         ) from exc
     if result.returncode != 0 or not out_path.exists():
+        out_path.unlink(missing_ok=True)
         raise CodecPreviewError(
             f"ffmpeg failed encoding {in_path.name}: {result.stderr.strip()}"
         )

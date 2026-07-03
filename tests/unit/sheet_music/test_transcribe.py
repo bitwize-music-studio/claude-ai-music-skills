@@ -187,12 +187,7 @@ class TestTranscribeTrack:
 
 @pytest.mark.unit
 class TestResolveAlbumPath:
-    """Tests for album name to path resolution."""
-
-    @patch.object(mod, "read_config", return_value=None)
-    def test_no_config_returns_none(self, _mock_config):
-        result = mod.resolve_album_path("my-album")
-        assert result is None
+    """resolve_album_path builds the canonical mirrored audio path (#375)."""
 
     @patch.object(mod, "read_config")
     def test_missing_key_returns_none(self, mock_config):
@@ -201,54 +196,22 @@ class TestResolveAlbumPath:
         assert result is None
 
     @patch.object(mod, "read_config")
-    def test_nonexistent_path_returns_none(self, mock_config, tmp_path):
-        mock_config.return_value = {
-            "paths": {"audio_root": str(tmp_path / "audio")},
-            "artist": {"name": "TestArtist"},
-        }
-        result = mod.resolve_album_path("no-such-album")
-        assert result is None
-
-    @patch.object(mod, "read_config")
-    def test_valid_album_returns_path(self, mock_config, tmp_path):
-        album = tmp_path / "audio" / "TestArtist" / "my-album"
-        album.mkdir(parents=True)
-        mock_config.return_value = {
-            "paths": {"audio_root": str(tmp_path / "audio")},
-            "artist": {"name": "TestArtist"},
-        }
-        result = mod.resolve_album_path("my-album")
-        assert result == album
-
-    @patch.object(mod, "read_config")
     def test_path_traversal_rejected(self, mock_config, tmp_path):
-        """Symlink or .. that escapes audio_root should be rejected."""
+        """Symlink under a genre dir that escapes audio_root is rejected."""
         audio_root = tmp_path / "audio"
-        audio_root.mkdir()
-        # Create a path that resolves outside audio_root
         outside = tmp_path / "outside"
         outside.mkdir()
-        artist_dir = audio_root / "TestArtist"
-        artist_dir.mkdir()
-        # Symlink: audio/TestArtist/evil -> ../../outside
-        evil = artist_dir / "evil"
-        evil.symlink_to(outside)
+        genre_dir = audio_root / "artists" / "test-artist" / "albums" / "rock"
+        genre_dir.mkdir(parents=True)
+        # Symlink: .../albums/rock/evil -> {tmp}/outside
+        (genre_dir / "evil").symlink_to(outside)
 
         mock_config.return_value = {
             "paths": {"audio_root": str(audio_root)},
-            "artist": {"name": "TestArtist"},
+            "artist": {"name": "test-artist"},
         }
         result = mod.resolve_album_path("evil")
         assert result is None
-
-
-# ---------------------------------------------------------------------------
-# resolve_album_path (#375)
-# ---------------------------------------------------------------------------
-
-
-class TestResolveAlbumPath:
-    """resolve_album_path builds the canonical mirrored audio path (#375)."""
 
     def _config(self, tmp_path):
         return {

@@ -142,3 +142,38 @@ class TestFfmpegTimeout:
         monkeypatch.setattr(cp.subprocess, "run", fake_run)
         with pytest.raises(cp.CodecPreviewError, match="timed out"):
             cp.render_aac_preview(wav, out)
+
+    def test_timeout_removes_partial_output(self, tmp_path, monkeypatch):
+        """A SIGKILLed ffmpeg leaves a truncated m4a — it must be removed."""
+        import tools.mastering.codec_preview as cp
+        wav = self._wav(tmp_path)
+        out = tmp_path / "out.aac.m4a"
+
+        def fake_run(cmd, **kwargs):
+            out.write_bytes(b"partial")
+            raise subprocess.TimeoutExpired(cmd="ffmpeg", timeout=120)
+
+        monkeypatch.setattr(cp.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+        monkeypatch.setattr(cp.subprocess, "run", fake_run)
+        with pytest.raises(cp.CodecPreviewError):
+            cp.render_aac_preview(wav, out)
+        assert not out.exists()
+
+    def test_failed_encode_removes_partial_output(self, tmp_path, monkeypatch):
+        import tools.mastering.codec_preview as cp
+        wav = self._wav(tmp_path)
+        out = tmp_path / "out.aac.m4a"
+
+        def fake_run(cmd, **kwargs):
+            out.write_bytes(b"partial")
+
+            class R:
+                returncode = 1
+                stderr = "boom"
+            return R()
+
+        monkeypatch.setattr(cp.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+        monkeypatch.setattr(cp.subprocess, "run", fake_run)
+        with pytest.raises(cp.CodecPreviewError):
+            cp.render_aac_preview(wav, out)
+        assert not out.exists()
