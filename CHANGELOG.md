@@ -98,6 +98,28 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   `find_album`, `list_albums`, `rebuild_state`, and the indexer CLI with the
   fix guidance (rename or move the directory, then rebuild).
 
+### Docs
+- **Suno vocal-age control troubleshooting** (`reference/suno/tips-and-tricks.md`).
+  Vague age adjectives ("mature and deep") in the Style Box are weak signals
+  that get outcompeted by breathy/soft-coded words ("intimate", "whispered")
+  sitting nearby, so Suno keeps generating a young-sounding vocal even when
+  age is explicitly requested. Documents the escalation path found in
+  production: concrete vocal-range/texture tags (`alto`, `contralto`,
+  `smoky`, `weathered`) first, then — if a fresh generation still skews
+  young — inline lyrical metatags per section (`[Verse 1: Raspy older female
+  vocal, husky contralto]`) plus dropping youth-coded genre words like "pop"
+  in favor of inherently mature-vocal-coded genres ("torch song", "vintage
+  soul", "cabaret"), with Persona/Voice cloning (Pro/Premier) as the final
+  fallback.
+- **Suno generic-vocal troubleshooting** (`reference/suno/tips-and-tricks.md`).
+  A related but distinct failure mode: Style Box text using emotion/character
+  words ("powerful and defiant", "sultry") instead of concrete vocal
+  range/texture tags produces a technically correct but generic, characterless
+  voice, since Suno has no reliable mapping from mood words to timbre. Fix
+  mirrors the vocal-age entry — swap or supplement emotion words with range
+  (`mezzo-soprano`, `contralto`) and texture (`gritty`, `raspy`, `commanding`)
+  tags, plus an explicit `no generic or polished studio pop vocal` exclude.
+
 ## [0.93.0] - 2026-07-01
 
 ### Fixed
