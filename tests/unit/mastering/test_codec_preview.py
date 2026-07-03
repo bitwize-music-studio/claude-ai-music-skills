@@ -100,3 +100,45 @@ class TestRenderAacPreview:
             render_aac_preview(in_wav, out, bitrate_kbps=0)
         with pytest.raises(CodecPreviewError, match="bitrate"):
             render_aac_preview(in_wav, out, bitrate_kbps=-64)
+
+
+class TestFfmpegTimeout:
+    """render_aac_preview bounds the ffmpeg subprocess (#387)."""
+
+    def _wav(self, tmp_path):
+        wav = tmp_path / "in.wav"
+        wav.write_bytes(b"RIFF")
+        return wav
+
+    def test_timeout_passed_to_subprocess(self, tmp_path, monkeypatch):
+        import tools.mastering.codec_preview as cp
+        wav = self._wav(tmp_path)
+        out = tmp_path / "out.aac.m4a"
+
+        def fake_run(cmd, **kwargs):
+            assert kwargs.get("timeout") == cp._FFMPEG_TIMEOUT_SEC
+            assert cp._FFMPEG_TIMEOUT_SEC > 0
+            out.write_bytes(b"m4a")
+
+            class R:
+                returncode = 0
+                stderr = ""
+            return R()
+
+        monkeypatch.setattr(cp.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+        monkeypatch.setattr(cp.subprocess, "run", fake_run)
+        result = cp.render_aac_preview(wav, out)
+        assert result["output_path"] == str(out)
+
+    def test_timeout_expired_raises_codec_preview_error(self, tmp_path, monkeypatch):
+        import tools.mastering.codec_preview as cp
+        wav = self._wav(tmp_path)
+        out = tmp_path / "out.aac.m4a"
+
+        def fake_run(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd="ffmpeg", timeout=kwargs.get("timeout", 0))
+
+        monkeypatch.setattr(cp.shutil, "which", lambda _: "/usr/bin/ffmpeg")
+        monkeypatch.setattr(cp.subprocess, "run", fake_run)
+        with pytest.raises(cp.CodecPreviewError, match="timed out"):
+            cp.render_aac_preview(wav, out)

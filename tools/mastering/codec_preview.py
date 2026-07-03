@@ -14,6 +14,10 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Bound every ffmpeg invocation — a wedged subprocess would otherwise hang
+# master_album's samples stage forever (#387). Mirrors adm_validation.py.
+_FFMPEG_TIMEOUT_SEC = 120
+
 
 class CodecPreviewError(RuntimeError):
     """Raised when the codec preview cannot be produced."""
@@ -63,7 +67,14 @@ def render_aac_preview(
         str(out_path),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=_FFMPEG_TIMEOUT_SEC
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CodecPreviewError(
+            f"ffmpeg timed out after {_FFMPEG_TIMEOUT_SEC}s encoding {in_path.name}"
+        ) from exc
     if result.returncode != 0 or not out_path.exists():
         raise CodecPreviewError(
             f"ffmpeg failed encoding {in_path.name}: {result.stderr.strip()}"
