@@ -66,7 +66,7 @@ from tools.state.parsers import (
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.2.0"
+CURRENT_VERSION = "1.3.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
@@ -117,11 +117,19 @@ def _migrate_1_1_to_1_2(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _migrate_1_2_to_1_3(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.2.0 to 1.3.0: add album_collisions field."""
+    if 'album_collisions' not in state:
+        state['album_collisions'] = []
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.0.0": (_migrate_1_0_to_1_1, "1.1.0"),
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
+    "1.2.0": (_migrate_1_2_to_1_3, "1.3.0"),
 }
 
 
@@ -203,12 +211,18 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def scan_albums(content_root: Path, artist_name: str) -> dict[str, dict[str, Any]]:
+def scan_albums(
+    content_root: Path,
+    artist_name: str,
+    collisions: list[dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Scan all album READMEs and their tracks.
 
     Args:
         content_root: Root content directory.
         artist_name: Artist name from config.
+        collisions: Optional out-param; collision records are appended
+            when the same album slug exists under multiple genres (#392).
 
     Returns:
         Dict mapping album slug to album data.
@@ -219,41 +233,77 @@ def scan_albums(content_root: Path, artist_name: str) -> dict[str, dict[str, Any
     if not albums_dir.exists():
         return albums
 
-    # Glob for album READMEs: albums/{genre}/{album}/README.md
+    # Group same-slug dirs structurally first (the sorted glob keeps
+    # genre order deterministic): albums/{genre}/{album}/README.md.
+    # The winner of a collision is the FIRST candidate that actually
+    # indexes — i.e. whose README parses — not merely the first dir, so
+    # an unreadable first twin never silently hands the slug to a later
+    # twin without a collision record (#392).
+    readmes_by_slug: dict[str, list[Path]] = {}
     for readme_path in sorted(albums_dir.glob("*/*/README.md")):
-        album_dir = readme_path.parent
-        album_slug = album_dir.name
-        genre = album_dir.parent.name
+        readmes_by_slug.setdefault(
+            readme_path.parent.name, []).append(readme_path)
 
-        album_data = parse_album_readme(readme_path)
-        if '_error' in album_data:
-            logger.warning("Skipping %s: %s", readme_path, album_data['_error'])
-            continue
+    for album_slug, readme_paths in readmes_by_slug.items():
+        winner_dir: Path | None = None
+        for readme_path in readme_paths:
+            album_dir = readme_path.parent
 
-        # Scan tracks
-        tracks = scan_tracks(album_dir)
+            album_data = parse_album_readme(readme_path)
+            if '_error' in album_data:
+                logger.warning("Skipping %s: %s", readme_path, album_data['_error'])
+                continue  # try the next same-slug candidate, if any
 
-        try:
-            readme_mtime = readme_path.stat().st_mtime
-        except OSError:
-            continue  # File removed between glob and stat
+            # Scan tracks
+            tracks = scan_tracks(album_dir)
 
-        albums[album_slug] = {
-            'path': str(album_dir),
-            'genre': genre,
-            'title': album_data.get('title', album_slug),
-            'status': album_data.get('status', 'Unknown'),
-            'explicit': album_data.get('explicit', False),
-            'anchor_track': album_data.get('anchor_track'),
-            'layout': album_data.get('layout'),
-            'mastering': album_data.get('mastering') or {},
-            'release_date': album_data.get('release_date'),
-            'track_count': album_data.get('track_count', len(tracks)),
-            'tracks_completed': album_data.get('tracks_completed', 0),
-            'streaming_urls': album_data.get('streaming_urls', {}),
-            'readme_mtime': readme_mtime,
-            'tracks': tracks,
-        }
+            try:
+                readme_mtime = readme_path.stat().st_mtime
+            except OSError:
+                continue  # File removed between glob and stat
+
+            albums[album_slug] = {
+                'path': str(album_dir),
+                'genre': album_dir.parent.name,
+                'title': album_data.get('title', album_slug),
+                'status': album_data.get('status', 'Unknown'),
+                'explicit': album_data.get('explicit', False),
+                'anchor_track': album_data.get('anchor_track'),
+                'layout': album_data.get('layout'),
+                'mastering': album_data.get('mastering') or {},
+                'release_date': album_data.get('release_date'),
+                'track_count': album_data.get('track_count', len(tracks)),
+                'tracks_completed': album_data.get('tracks_completed', 0),
+                'streaming_urls': album_data.get('streaming_urls', {}),
+                'readme_mtime': readme_mtime,
+                'tracks': tracks,
+            }
+            winner_dir = album_dir
+            break  # remaining same-slug dirs are shadowed, never parsed
+
+        if len(readme_paths) > 1 and winner_dir is not None:
+            # Emit the record only with kept = the entry actually present
+            # in the albums map. If no candidate indexed, there is no
+            # entry and no record (the parse warnings above already fired).
+            kept = albums[album_slug]
+            shadowed = sorted(
+                ({'genre': p.parent.parent.name, 'path': str(p.parent)}
+                 for p in readme_paths if p.parent != winner_dir),
+                key=lambda s: s['genre'],
+            )
+            logger.warning(
+                "Album slug collision: '%s' — keeping %s, shadowing %s. "
+                "Rename one album (/bitwize-music:rename) or move the "
+                "directory, then rebuild the state cache.",
+                album_slug, kept['path'],
+                ', '.join(s['path'] for s in shadowed),
+            )
+            if collisions is not None:
+                collisions.append({
+                    'slug': album_slug,
+                    'kept': {'genre': kept['genre'], 'path': kept['path']},
+                    'shadowed': shadowed,
+                })
 
     return albums
 
@@ -408,6 +458,8 @@ def build_state(config: dict[str, Any],
     artist_name = config_section['artist_name']
 
     installed_version = _read_plugin_version(plugin_root)
+    album_collisions: list[dict[str, Any]] = []
+    albums = scan_albums(content_root, artist_name, album_collisions)
     return {
         'version': CURRENT_VERSION,
         'generated_at': datetime.now(UTC).isoformat(),
@@ -421,7 +473,8 @@ def build_state(config: dict[str, Any],
         'plugin_version': installed_version,
         'last_migrated_version': installed_version,
         'config': config_section,
-        'albums': scan_albums(content_root, artist_name),
+        'albums': albums,
+        'album_collisions': album_collisions,
         'ideas': scan_ideas(config, content_root),
         'skills': scan_skills(plugin_root),
         'session': {
@@ -475,7 +528,9 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
 
         if path_fields_changed:
             # Content root or artist name changed — full album rescan required
-            state['albums'] = scan_albums(content_root, artist_name)
+            rescan_collisions: list[dict[str, Any]] = []
+            state['albums'] = scan_albums(content_root, artist_name, rescan_collisions)
+            state['album_collisions'] = rescan_collisions
         # else: only non-path config changed (urls, generation, etc.) — keep albums
 
         if ideas_path_changed:
@@ -491,60 +546,124 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
     existing_albums = state.get('albums', {})
 
     if albums_dir.exists():
-        # Find current albums on disk
-        current_album_slugs = set()
-        for readme_path in albums_dir.glob("*/*/README.md"):
-            album_dir = readme_path.parent
-            slug = album_dir.name
-            current_album_slugs.add(slug)
+        collisions: list[dict[str, Any]] = []
+        # Group same-slug dirs structurally first (the sorted glob keeps
+        # genre order deterministic). The winner of a collision is the
+        # FIRST candidate that actually indexes — a cache-valid entry
+        # (path+mtime match) or a successful re-parse — mirroring
+        # scan_albums, so record['kept'] always matches the albums
+        # map (#392).
+        readmes_by_slug: dict[str, list[Path]] = {}
+        for readme_path in sorted(albums_dir.glob("*/*/README.md")):
+            readmes_by_slug.setdefault(
+                readme_path.parent.name, []).append(readme_path)
 
+        current_album_slugs = set()
+        for slug, readme_paths in readmes_by_slug.items():
+            current_album_slugs.add(slug)
             existing_album = existing_albums.get(slug)
 
-            # Check if README changed
-            try:
-                readme_mtime = readme_path.stat().st_mtime
-            except OSError:
-                continue  # File removed between glob and stat
-            if existing_album and existing_album.get('readme_mtime') == readme_mtime:
-                # README unchanged, check individual tracks only
-                _update_tracks_incremental(existing_album, album_dir)
-            else:
-                # README changed or new album — re-parse album-level data
+            winner_dir: Path | None = None
+            for readme_path in readme_paths:
+                album_dir = readme_path.parent
+
+                # Check if README changed
+                try:
+                    readme_mtime = readme_path.stat().st_mtime
+                except OSError:
+                    continue  # File removed between glob and stat
+                # The path must match too — a cross-genre twin's cached
+                # entry must never be reused for the winner (#392).
+                if (existing_album
+                        and existing_album.get('path') == str(album_dir)
+                        and existing_album.get('readme_mtime') == readme_mtime):
+                    # README unchanged — the cache-valid entry counts as
+                    # successfully indexed without re-parsing; check
+                    # individual tracks only. Documented corner: a README
+                    # that becomes unreadable WITHOUT an mtime change keeps
+                    # its cached entry here, while a full rebuild would
+                    # skip it.
+                    _update_tracks_incremental(existing_album, album_dir)
+                    winner_dir = album_dir
+                    break  # remaining same-slug dirs are shadowed
+
+                # README changed, new album, or cached entry points at a
+                # different path — re-parse album-level data
                 album_data = parse_album_readme(readme_path)
-                if '_error' not in album_data:
-                    genre = album_dir.parent.name
+                if '_error' in album_data:
+                    logger.warning(
+                        "Skipping %s: %s", readme_path, album_data['_error'])
+                    continue  # try the next same-slug candidate, if any
 
-                    # Preserve existing tracks and update incrementally
-                    # (README change doesn't mean track files changed)
-                    if existing_album and existing_album.get('tracks'):
-                        tracks = existing_album['tracks']
-                        _update_tracks_incremental(
-                            {'tracks': tracks}, album_dir
-                        )
-                    else:
-                        tracks = scan_tracks(album_dir)
+                genre = album_dir.parent.name
 
-                    existing_albums[slug] = {
-                        'path': str(album_dir),
-                        'genre': genre,
-                        'title': album_data.get('title', slug),
-                        'status': album_data.get('status', 'Unknown'),
-                        'explicit': album_data.get('explicit', False),
-                        'anchor_track': album_data.get('anchor_track'),
-                        'layout': album_data.get('layout'),
-                        'mastering': album_data.get('mastering') or {},
-                        'release_date': album_data.get('release_date'),
-                        'track_count': album_data.get('track_count', len(tracks)),
-                        'tracks_completed': album_data.get('tracks_completed', 0),
-                        'streaming_urls': album_data.get('streaming_urls', {}),
-                        'readme_mtime': readme_mtime,
-                        'tracks': tracks,
-                    }
+                # Preserve existing tracks and update incrementally
+                # (README change doesn't mean track files changed) —
+                # but only when the cached entry is for this same
+                # directory, not a cross-genre twin.
+                if (existing_album
+                        and existing_album.get('path') == str(album_dir)
+                        and existing_album.get('tracks')):
+                    tracks = existing_album['tracks']
+                    _update_tracks_incremental(
+                        {'tracks': tracks}, album_dir
+                    )
+                else:
+                    tracks = scan_tracks(album_dir)
+
+                existing_albums[slug] = {
+                    'path': str(album_dir),
+                    'genre': genre,
+                    'title': album_data.get('title', slug),
+                    'status': album_data.get('status', 'Unknown'),
+                    'explicit': album_data.get('explicit', False),
+                    'anchor_track': album_data.get('anchor_track'),
+                    'layout': album_data.get('layout'),
+                    'mastering': album_data.get('mastering') or {},
+                    'release_date': album_data.get('release_date'),
+                    'track_count': album_data.get('track_count', len(tracks)),
+                    'tracks_completed': album_data.get('tracks_completed', 0),
+                    'streaming_urls': album_data.get('streaming_urls', {}),
+                    'readme_mtime': readme_mtime,
+                    'tracks': tracks,
+                }
+                winner_dir = album_dir
+                break  # remaining same-slug dirs are shadowed
+
+            if len(readme_paths) > 1 and winner_dir is not None:
+                # Emit the record only with kept = the entry actually
+                # present in the albums map. If no candidate indexed,
+                # there is no record (the parse warnings above already
+                # fired).
+                kept = existing_albums[slug]
+                shadowed = sorted(
+                    ({'genre': p.parent.parent.name, 'path': str(p.parent)}
+                     for p in readme_paths if p.parent != winner_dir),
+                    key=lambda s: s['genre'],
+                )
+                collisions.append({
+                    'slug': slug,
+                    'kept': {'genre': kept['genre'], 'path': kept['path']},
+                    'shadowed': shadowed,
+                })
+                logger.warning(
+                    "Album slug collision: '%s' — keeping %s, shadowing %s. "
+                    "Rename one album (/bitwize-music:rename) or move the "
+                    "directory, then rebuild the state cache.",
+                    slug, kept['path'],
+                    ', '.join(s['path'] for s in shadowed),
+                )
 
         # Remove albums that no longer exist on disk
         for slug in list(existing_albums.keys()):
             if slug not in current_album_slugs:
                 del existing_albums[slug]
+
+        # Collisions are recomputed only when the albums dir was actually
+        # scanned — when it's missing, the albums map is deliberately
+        # preserved above, so preserve the matching collision records
+        # too (#392).
+        state['album_collisions'] = collisions
 
     state['albums'] = existing_albums
 
@@ -1018,6 +1137,21 @@ def validate_state(state: dict[str, Any]) -> list[str]:
     else:
         errors.append("albums should be a dict")
 
+    # Album collisions section (added in 1.3.0; absent on older states is
+    # fine — the migration adds it)
+    if 'album_collisions' in state:
+        album_collisions = state['album_collisions']
+        if isinstance(album_collisions, list):
+            for i, entry in enumerate(album_collisions):
+                if not isinstance(entry, dict):
+                    errors.append(f"album_collisions[{i}] should be a dict")
+                    continue
+                for key in ('slug', 'kept', 'shadowed'):
+                    if key not in entry:
+                        errors.append(f"album_collisions[{i}] missing '{key}'")
+        else:
+            errors.append("album_collisions should be a list")
+
     # Ideas section
     ideas = state.get('ideas', {})
     if isinstance(ideas, dict):
@@ -1094,6 +1228,14 @@ def cmd_rebuild(args: argparse.Namespace) -> int:
     print(f"  Tracks: {track_count}")
     print(f"  Ideas: {ideas_count}")
     print(f"  Skills: {skills_count}")
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        print(f"  Collisions: {len(collisions)}")
+        logger.warning(
+            "%d album slug collision(s) detected — run 'show' for details; "
+            "rename with /bitwize-music:rename or move the directory",
+            len(collisions),
+        )
     print(f"  Saved to: {STATE_FILE}")
     return 0
 
@@ -1119,6 +1261,13 @@ def cmd_update(args: argparse.Namespace) -> int:
     state = incremental_update(migrated, config)
     write_state(state)
 
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        logger.warning(
+            "%d album slug collision(s) detected — run 'show' for details; "
+            "rename with /bitwize-music:rename or move the directory",
+            len(collisions),
+        )
     logger.info("State cache updated")
     return 0
 
@@ -1292,6 +1441,18 @@ def cmd_show(args: argparse.Namespace) -> int:
                 suno = ' [suno]' if track.get('has_suno_link') else ''
                 print(f"    {track_slug}: {t_status}{suno}")
     print()
+
+    # Album slug collisions (#392)
+    collisions = state.get('album_collisions', [])
+    if collisions:
+        print(f"{Colors.BOLD}{Colors.YELLOW}Album slug collisions ({len(collisions)}):{Colors.NC}")
+        for collision in collisions:
+            kept = collision.get('kept', {})
+            print(f"  {collision.get('slug', '?')}: keeping {kept.get('genre', '?')} ({kept.get('path', '?')})")
+            for s in collision.get('shadowed', []):
+                print(f"    shadowed: {s.get('genre', '?')} ({s.get('path', '?')})")
+        print("  Fix: rename one album (/bitwize-music:rename) or move the directory, then rebuild.")
+        print()
 
     # Ideas
     ideas = state.get('ideas', {})

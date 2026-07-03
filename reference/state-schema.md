@@ -1,4 +1,4 @@
-# State Cache Schema (v1.2.0)
+# State Cache Schema (v1.3.0)
 
 The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from markdown source files. It is a **disposable cache** — markdown files remain the source of truth and state can always be rebuilt with `python3 tools/state/indexer.py rebuild`.
 
@@ -8,12 +8,13 @@ The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `version` | string | Yes | Schema version (currently `"1.2.0"`) |
+| `version` | string | Yes | Schema version (currently `"1.3.0"`) |
 | `generated_at` | string | Yes | ISO 8601 UTC timestamp of last build/update |
 | `plugin_version` | string\|null | Yes | Installed plugin version from `.claude-plugin/plugin.json`, refreshed every build (display only), or `null` if unreadable |
 | `last_migrated_version` | string\|null | No | Version through which migration notes have been processed. Only advances via `acknowledge_migrations`; preserved across rebuilds. `null`/absent = pre-tracking (surfaces the backlog once). Drives `get_pending_migrations`. See issue #320. |
 | `config` | object | Yes | Resolved configuration snapshot |
 | `albums` | object | Yes | Map of album slug → album data |
+| `album_collisions` | array | Yes | Album slug collisions detected on disk (empty when none); see below |
 | `ideas` | object | Yes | Album ideas from IDEAS.md |
 | `skills` | object | Yes | Indexed skill metadata from SKILL.md files |
 | `session` | object | Yes | Session context for resume/continuity |
@@ -38,6 +39,8 @@ Snapshot of resolved paths and artist info from `~/.bitwize-music/config.yaml`.
 ## `albums` Object
 
 Map of album slug (string) → album data object.
+
+**Global uniqueness invariant**: album slugs are unique across genres — the map is keyed by bare slug, so the same slug under two genres cannot coexist. This is enforced at creation (`create_album_structure`) and rename (`rename_album`), both of which reject a slug that already exists under any other genre. Pre-existing on-disk collisions are detected at index time — the first genre (lexicographic order) whose README parses wins deterministically, and the shadowed album(s) are listed in `album_collisions`.
 
 ### Album Data
 
@@ -84,6 +87,32 @@ Map of album slug (string) → album data object.
 - `In Progress` — Lyrics being written
 - `Generated` — Track generated on Suno, audio exists
 - `Final` — Approved, ready for mastering
+
+---
+
+## `album_collisions` Array
+
+Added in 1.3.0 (issue #392). Always present; a list of collision records, empty when no collisions exist. Populated by the indexer when the same album slug is found under multiple genres on disk. The winner (`kept`) is the first genre (lexicographic order) whose README parses — deterministic, and always the entry actually indexed into `albums`; all others are `shadowed` (sorted by genre, parseable or not; supports 2+ way collisions) and are **not** indexed into `albums`. If no candidate's README parses, no album entry and no collision record are emitted.
+
+```json
+"album_collisions": [
+  {
+    "slug": "midnight",
+    "kept":     {"genre": "jazz", "path": "/abs/path/albums/jazz/midnight"},
+    "shadowed": [{"genre": "rock", "path": "/abs/path/albums/rock/midnight"}]
+  }
+]
+```
+
+### Collision Record
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `slug` | string | The colliding album slug (bare directory name) |
+| `kept` | object | The winning album: `{genre, path}` — this is the entry visible in `albums` |
+| `shadowed` | array | The hidden album(s): `[{genre, path}, ...]`, sorted by genre |
+
+**Fix**: rename one album with `/bitwize-music:rename`, or move the directory, then rebuild the state cache. Collisions are surfaced by `health_check`, `find_album`, `list_albums`, `rebuild_state`, and the indexer CLI (`rebuild`/`update`/`show`).
 
 ---
 
@@ -176,5 +205,6 @@ The migration chain is defined in `tools/state/indexer.py` as `MIGRATIONS` dict.
 |------|-----|---------|
 | 1.0.0 | 1.1.0 | Added `skills` top-level section with indexed skill metadata |
 | 1.1.0 | 1.2.0 | Added `plugin_version` top-level field for upgrade path tracking |
+| 1.2.0 | 1.3.0 | Added `album_collisions` top-level field (seeded to `[]`) for cross-genre slug collision detection (issue #392) |
 
 `last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. Avoiding a version bump here is deliberate — bumping would force the live MCP path to auto-rebuild every existing state, erasing the very "behind" status migration detection depends on (issue #320).

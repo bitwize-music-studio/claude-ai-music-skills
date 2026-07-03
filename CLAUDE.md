@@ -17,6 +17,8 @@ This is an AI music generation workflow using Suno. Skills contain domain expert
 
 **DO NOT**: search from cwd, use complex globs, assume paths, or use `ls`/`find`.
 
+Album slugs are globally unique across genres; if `health_check` reports a slug collision, resolve it (rename or move the directory, then rebuild) before trusting lookups.
+
 ---
 
 ## Configuration & Path Resolution
@@ -82,6 +84,7 @@ At the beginning of a fresh session:
    - Skills `status: "ok"` → continue silently
    - Skills `status: "stale"` → warn with missing/ghost skill names and fix message, continue session
    - Skills `status: "no_cache"` → warn (plugin may not be installed via marketplace), continue
+   - Collisions `status: "collision"` → warn listing each slug + genres and the fix (rename one album with `/bitwize-music:rename` or move the directory, then `rebuild_state`), continue session
 2. **Load config** — Read `~/.bitwize-music/config.yaml`. If missing, tell user to run `/bitwize-music:configure`.
 3. **Load overrides** — Check `paths.overrides` (default: `{content_root}/overrides`):
    - `{overrides}/CLAUDE.md` → incorporate instructions

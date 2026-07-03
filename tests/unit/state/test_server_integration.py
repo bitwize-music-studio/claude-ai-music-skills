@@ -533,7 +533,7 @@ class TestStateRebuildPipeline:
     def test_state_json_has_correct_structure(self, integration_env):
         """state.json built from real files has all expected fields."""
         state = json.loads(integration_env["state_file"].read_text())
-        assert state["version"] == "1.2.0"
+        assert state["version"] == "1.3.0"
         assert "config" in state
         assert "albums" in state
         assert "session" in state
