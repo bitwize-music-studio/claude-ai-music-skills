@@ -34,7 +34,7 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 # Lock timeout in seconds (prevents indefinite blocking)
 LOCK_TIMEOUT_SECONDS = 10
@@ -161,16 +161,30 @@ def read_config() -> dict[str, Any] | None:
     """Read ~/.bitwize-music/config.yaml.
 
     Returns:
-        Parsed config dict, or None if missing/invalid.
+        Parsed config dict ({} for an empty file), or None if missing,
+        unreadable, unparseable, or not a YAML mapping.
     """
     if not CONFIG_FILE.exists():
         return None
     try:
         with open(CONFIG_FILE) as f:
-            return yaml.safe_load(f) or {}
+            data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Cannot read config: %s", e)
         return None
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        # Valid YAML but wrong shape (e.g. top-level list or scalar) — callers
+        # expect a mapping and would crash on .get() (#389)
+        logger.error(
+            "Config at %s parsed as %s, not a mapping — the file must contain "
+            "top-level `key: value` pairs",
+            CONFIG_FILE,
+            type(data).__name__,
+        )
+        return None
+    return data
 
 
 def resolve_path(raw: str) -> Path:
@@ -186,22 +200,39 @@ def get_config_mtime() -> float:
         return 0.0
 
 
+def _cfg_section(config: dict[str, Any], key: str) -> dict[str, Any]:
+    """Return a config section as a dict, treating anything else as empty.
+
+    An empty YAML section header (e.g. `paths:` with nothing under it) parses
+    to None, not {}. config.get('paths', {}) returns that None (the key
+    exists), so None must be normalized to {} here — otherwise .get() on None
+    aborts every cache rebuild/update. (#376)
+    A non-mapping value (e.g. `paths: [a, b]`) crashes the same way; the
+    isinstance check runs before normalization so falsy non-mappings
+    (`paths: []`) warn like truthy ones. (#391)
+    """
+    value = config.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        # Log only the key and type, never the value — sections like
+        # `database` may carry credentials that must not leak into logs.
+        logger.warning(
+            "Config section %s is not a mapping (got %s) — using defaults",
+            key, type(value).__name__,
+        )
+        return {}
+    return value
+
+
 def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     """Build the config section of state.json."""
-    # An empty YAML section header (e.g. `paths:` with nothing under it) parses
-    # to None, not {}. config.get('paths', {}) returns that None (the key
-    # exists), so `... or {}` is required to normalize None-valued sections —
-    # otherwise .get() on None aborts every cache rebuild/update. (#376)
-    paths = config.get('paths') or {}
-    artist = config.get('artist') or {}
+    paths = _cfg_section(config, 'paths')
+    artist = _cfg_section(config, 'artist')
 
-    content_root_raw = paths.get('content_root', '.')
-    content_root = str(resolve_path(content_root_raw))
-
-    # Resolve overrides directory (custom path or default to {content_root}/overrides)
-    overrides_raw = paths.get('overrides', '')
-    overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
-
+    # NOTE: these warnings log only the key and type, never the raw value —
+    # some sections (`database`) carry credentials that must not leak
+    # into logs.
     def _cfg_bool(section: dict[str, Any], key: str, default: bool) -> bool:
         # bool() would turn quoted strings like "false" into True (#388);
         # parse YAML boolean literals, falling back to the key's default.
@@ -210,12 +241,56 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             return parse_yaml_bool(value)
         except ValueError:
             logger.warning(
-                "Config %s=%r is not a boolean — using %s", key, value, default
+                "Config %s is not a boolean (got %s) — using %s",
+                key, type(value).__name__, default,
             )
             return default
 
+    def _cfg_int(section: dict[str, Any], key: str, default: int) -> int:
+        # int(True) == 1 would silently mangle the setting; int() raises
+        # ValueError/TypeError on non-numeric strings and non-scalars (#391)
+        # and OverflowError on YAML `.inf` floats.
+        value = section.get(key, default)
+        if isinstance(value, bool):
+            logger.warning(
+                "Config %s is not an integer (got %s) — using %s",
+                key, type(value).__name__, default,
+            )
+            return default
+        try:
+            return int(value)
+        except (TypeError, ValueError, OverflowError):
+            logger.warning(
+                "Config %s is not an integer (got %s) — using %s",
+                key, type(value).__name__, default,
+            )
+            return default
+
+    def _cfg_str(section: dict[str, Any], key: str, default: str) -> str:
+        # Non-string path values (e.g. `content_root: 42`) crash resolve_path
+        # and string concatenation (#391). A blank key (`overrides:` with no
+        # value) parses to None and means "unset" — default silently,
+        # mirroring the #376 empty-section semantics.
+        value = section.get(key, default)
+        if value is None:
+            return default
+        if not isinstance(value, str):
+            logger.warning(
+                "Config %s is not a string (got %s) — using %r",
+                key, type(value).__name__, default,
+            )
+            return default
+        return value
+
+    content_root_raw = _cfg_str(paths, 'content_root', '.')
+    content_root = str(resolve_path(content_root_raw))
+
+    # Resolve overrides directory (custom path or default to {content_root}/overrides)
+    overrides_raw = _cfg_str(paths, 'overrides', '')
+    overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
+
     # Database config (expose enabled flag, mask credentials)
-    db_config = config.get('database') or {}
+    db_config = _cfg_section(config, 'database')
     db_enabled = _cfg_bool(db_config, 'enabled', False)
     database_section = {
         'enabled': db_enabled,
@@ -224,12 +299,12 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     }
 
     # Generation config (service settings and gates)
-    gen_config = config.get('generation') or {}
+    gen_config = _cfg_section(config, 'generation')
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
         'require_suno_link_for_final': _cfg_bool(gen_config, 'require_suno_link_for_final', True),
-        'max_lyric_words': int(gen_config.get('max_lyric_words', 800)),
+        'max_lyric_words': _cfg_int(gen_config, 'max_lyric_words', 800),
         'require_source_path_for_documentary': _cfg_bool(
             gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
@@ -238,10 +313,10 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
 
     return {
         'content_root': content_root,
-        'audio_root': str(resolve_path(paths.get('audio_root', content_root_raw + '/audio'))),
-        'documents_root': str(resolve_path(paths.get('documents_root', content_root_raw + '/documents'))),
+        'audio_root': str(resolve_path(_cfg_str(paths, 'audio_root', content_root_raw + '/audio'))),
+        'documents_root': str(resolve_path(_cfg_str(paths, 'documents_root', content_root_raw + '/documents'))),
         'overrides_dir': overrides_dir,
-        'artist_name': artist.get('name', ''),
+        'artist_name': _cfg_str(artist, 'name', ''),
         'config_mtime': get_config_mtime(),
         'database': database_section,
         'generation': generation_section,
@@ -386,6 +461,25 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     return tracks
 
 
+def _ideas_path(config: dict[str, Any], content_root: Path) -> Path:
+    """Resolve the ideas file path (custom paths.ideas_file or default)."""
+    ideas_file_raw = _cfg_section(config, 'paths').get('ideas_file', '')
+    if ideas_file_raw is None:
+        # A blank `ideas_file:` key parses to None and means "unset" —
+        # default silently (#376 semantics)
+        ideas_file_raw = ''
+    elif not isinstance(ideas_file_raw, str):
+        # Non-string values crash resolve_path (#391)
+        logger.warning(
+            "Config ideas_file is not a string (got %s) — using default",
+            type(ideas_file_raw).__name__,
+        )
+        ideas_file_raw = ''
+    if ideas_file_raw:
+        return resolve_path(ideas_file_raw)
+    return content_root / "IDEAS.md"
+
+
 def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     """Scan IDEAS.md file.
 
@@ -396,11 +490,7 @@ def scan_ideas(config: dict[str, Any], content_root: Path) -> dict[str, Any]:
     Returns:
         Dict with ideas data, or empty structure.
     """
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     if not ideas_path.exists():
         return {
@@ -524,7 +614,9 @@ def build_state(config: dict[str, Any],
     }
 
 
-def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -> dict[str, Any]:
+def incremental_update(
+    existing_state: dict[str, Any], config: dict[str, Any]
+) -> dict[str, Any] | None:
     """Incrementally update state, only re-parsing changed files.
 
     Compares mtime of each file against stored mtime. Only re-parses
@@ -535,8 +627,23 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         config: Parsed config dict.
 
     Returns:
-        Updated state dict.
+        Updated state dict, or None when a top-level state section is
+        wrong-typed and a full rebuild is required.
     """
+    # Wrong-typed top-level sections (e.g. "config": [] or "albums": "x")
+    # would crash the .get() lookups below — hand back None so the caller
+    # falls back to a full rebuild, the same contract as migrate_state
+    # (#393 family).
+    for section_key in ('config', 'albums'):
+        section_value = existing_state.get(section_key, {})
+        if not isinstance(section_value, dict):
+            logger.warning(
+                "State section %s is not a mapping (got %s) — "
+                "full rebuild required",
+                section_key, type(section_value).__name__,
+            )
+            return None
+
     config_section = build_config_section(config)
     content_root = Path(config_section['content_root'])
     artist_name = config_section['artist_name']
@@ -559,7 +666,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         )
         ideas_path_changed = (
             path_fields_changed or
-            config.get('paths', {}).get('ideas_file') !=
+            _cfg_section(config, 'paths').get('ideas_file') !=
             existing_state.get('_ideas_file_raw')
         )
 
@@ -575,7 +682,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
         # else: ideas path unchanged — keep ideas
 
         # Store ideas_file_raw for future comparison
-        state['_ideas_file_raw'] = config.get('paths', {}).get('ideas_file', '')
+        state['_ideas_file_raw'] = _cfg_section(config, 'paths').get('ideas_file', '')
         return state
 
     # Incremental album update
@@ -705,11 +812,7 @@ def incremental_update(existing_state: dict[str, Any], config: dict[str, Any]) -
     state['albums'] = existing_albums
 
     # Incremental ideas update
-    ideas_file_raw = config.get('paths', {}).get('ideas_file', '')
-    if ideas_file_raw:
-        ideas_path = resolve_path(ideas_file_raw)
-    else:
-        ideas_path = content_root / "IDEAS.md"
+    ideas_path = _ideas_path(config, content_root)
 
     old_ideas_mtime = state.get('ideas', {}).get('file_mtime', 0)
     if ideas_path.exists():
@@ -869,32 +972,42 @@ def write_state(state: dict[str, Any]) -> None:
             lock_fd.close()
 
 
+def _quarantine_corrupt_state(reason: str) -> dict[str, Any]:
+    """Back up an unusable state file and return an empty state."""
+    logger.error("%s — backing up and returning empty state", reason)
+    try:
+        import shutil
+
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+        backup_path = CACHE_DIR / f"state.{timestamp}.corrupt"
+        shutil.copy2(STATE_FILE, backup_path)
+        logger.error("Corrupted state backed up to %s", backup_path)
+    except OSError as backup_err:
+        logger.error("Could not backup corrupted state: %s", backup_err)
+    return {}
+
+
 def read_state() -> dict[str, Any] | None:
     """Read state from cache file.
 
     Returns:
-        Parsed state dict, empty dict if corrupted (after backup), or None if missing.
+        Parsed state dict, empty dict if corrupted or not a JSON object
+        (after backup), or None if missing.
     """
     if not STATE_FILE.exists():
         return None
     try:
         with open(STATE_FILE) as f:
-            return cast(dict[str, Any], json.load(f))
+            data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
-        # Corrupted — backup the file and return empty state
-        logger.error(
-            "Corrupted state file: %s — backing up and returning empty state", e
+        return _quarantine_corrupt_state(f"Corrupted state file: {e}")
+    if not isinstance(data, dict):
+        # JSON-valid but wrong shape (list/str/number) — same recovery as
+        # corrupted JSON: back it up and start fresh (#393 family)
+        return _quarantine_corrupt_state(
+            f"State file is {type(data).__name__}, not a JSON object"
         )
-        try:
-            import shutil
-
-            timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
-            backup_path = CACHE_DIR / f"state.{timestamp}.corrupt"
-            shutil.copy2(STATE_FILE, backup_path)
-            logger.error("Corrupted state backed up to %s", backup_path)
-        except OSError as backup_err:
-            logger.error("Could not backup corrupted state: %s", backup_err)
-        return {}
+    return data
 
 
 def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -904,10 +1017,28 @@ def migrate_state(state: dict[str, Any]) -> dict[str, Any] | None:
         state: Current state dict.
 
     Returns:
-        Migrated state dict. If migration fails or version is
-        unrecognized, returns None to trigger full rebuild.
+        Migrated state dict. If the state is not a dict, migration fails,
+        or the version is unrecognized, returns None to trigger full rebuild.
     """
+    # Defensive: JSON-valid non-object states (list/str/number) reach here
+    # from callers that bypass read_state()'s shape check — .get() below
+    # would crash (#393 family)
+    if not isinstance(state, dict):
+        logger.warning(  # type: ignore[unreachable]
+            "State is %s, not a dict — triggering full rebuild",
+            type(state).__name__,
+        )
+        return None
+
     version = state.get('version', '0.0.0')
+
+    # Non-string version (e.g. JSON "version": 1.2) would crash
+    # _version_compare — treat as unrecognized and rebuild (#393)
+    if not isinstance(version, str):
+        logger.warning(
+            "Non-string state version %r — triggering full rebuild", version
+        )
+        return None
 
     # If version is newer than what we know, rebuild
     if _version_compare(version, CURRENT_VERSION) > 0:
@@ -981,7 +1112,17 @@ def carry_migration_tracking(
     """
     if existing_state is None:
         return new_state
-    new_state['last_migrated_version'] = existing_state.get('last_migrated_version')
+    prior = existing_state.get('last_migrated_version')
+    if prior is not None and not isinstance(prior, str):
+        # A wrong-typed value must not survive rebuilds only to crash
+        # get_pending_migrations' version comparison later — drop it to
+        # None, which keeps pending migrations visible (#393 family).
+        logger.warning(
+            "Non-string last_migrated_version (got %s) — treating as untracked",
+            type(prior).__name__,
+        )
+        prior = None
+    new_state['last_migrated_version'] = prior
     return new_state
 
 
@@ -1055,6 +1196,15 @@ def get_pending_migrations(
         plugin_root = _PROJECT_ROOT
     installed = _read_plugin_version(plugin_root)
     last = state.get('last_migrated_version')
+    if last is not None and not isinstance(last, str):
+        # A wrong-typed value would crash _version_compare's .split() —
+        # treat it as untracked, the same branch as a missing value
+        # (#393 family).
+        logger.warning(
+            "Non-string last_migrated_version (got %s) — treating as untracked",
+            type(last).__name__,
+        )
+        last = None
 
     parsed: list[dict[str, Any]] = []
     migrations_dir = plugin_root / 'migrations'
@@ -1296,6 +1446,9 @@ def cmd_update(args: argparse.Namespace) -> int:
         return cmd_rebuild(args)
 
     state = incremental_update(migrated, config)
+    if state is None:
+        logger.info("State sections invalid, performing full rebuild...")
+        return cmd_rebuild(args)
     write_state(state)
 
     collisions = state.get('album_collisions', [])

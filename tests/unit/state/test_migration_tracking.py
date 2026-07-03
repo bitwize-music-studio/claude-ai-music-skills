@@ -8,6 +8,7 @@ the pure helpers that compute and surface pending migrations.
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 
@@ -179,6 +180,22 @@ class TestCarryMigrationTracking:
         result = carry_migration_tracking(new, existing)
         assert result['last_migrated_version'] is None
 
+    def test_non_string_value_dropped_to_none_with_warning(self, caplog):
+        # A wrong-typed value must not survive rebuilds only to crash
+        # get_pending_migrations' _version_compare later (#393 family).
+        new = {'last_migrated_version': "0.91.0"}
+        existing = {'last_migrated_version': 0.59}
+        with caplog.at_level(logging.WARNING):
+            result = carry_migration_tracking(new, existing)
+        assert result['last_migrated_version'] is None
+        assert 'last_migrated_version' in caplog.text
+
+    def test_list_value_dropped_to_none(self):
+        new = {'last_migrated_version': "0.91.0"}
+        existing = {'last_migrated_version': ['0', '59', '0']}
+        result = carry_migration_tracking(new, existing)
+        assert result['last_migrated_version'] is None
+
 
 # ---------------------------------------------------------------------------
 # parse_migration_file
@@ -263,6 +280,25 @@ class TestGetPendingMigrations:
         assert result['pending'] == []
         assert result['installed_version'] is None
         assert result['reason'] == 'unknown'
+
+    def test_non_string_last_migrated_treated_as_untracked(self, tmp_path, caplog):
+        # A wrong-typed value would crash _version_compare's .split —
+        # treat it like a missing value (same branch as untracked).
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.44.0", "0.91.0"])
+        with caplog.at_level(logging.WARNING):
+            result = get_pending_migrations({'last_migrated_version': 0.44}, root)
+        assert result['reason'] == 'untracked'
+        assert [m['version'] for m in result['pending']] == ["0.44.0", "0.91.0"]
+        assert result['last_migrated_version'] is None
+        assert 'last_migrated_version' in caplog.text
+
+    def test_list_last_migrated_treated_as_untracked(self, tmp_path):
+        root = _make_plugin_root(tmp_path, "0.91.0", ["0.91.0"])
+        result = get_pending_migrations(
+            {'last_migrated_version': ['0', '44', '0']}, root
+        )
+        assert result['reason'] == 'untracked'
+        assert [m['version'] for m in result['pending']] == ["0.91.0"]
 
 
 # ---------------------------------------------------------------------------
