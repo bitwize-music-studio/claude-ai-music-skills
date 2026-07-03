@@ -147,13 +147,28 @@ def resolve_album_path(album_name: str) -> Path | None:
         # Expand ~ to home directory
         audio_root = Path(audio_root_str).expanduser()
 
-        # Construct: {audio_root}/artists/{artist}/albums/{genre}/{album}/
-        album_path = audio_root / artist / album_name
+        # Mirrored audio layout: {audio_root}/artists/{artist}/albums/{genre}/{album}/
+        # The genre segment isn't part of the album name, so sweep genre dirs.
+        # iterdir, not glob — album names may contain glob metacharacters.
+        albums_root = audio_root / "artists" / artist / "albums"
+        matches = sorted(
+            genre_dir / album_name
+            for genre_dir in albums_root.iterdir()
+            if genre_dir.is_dir() and (genre_dir / album_name).is_dir()
+        ) if albums_root.is_dir() else []
 
-        if not album_path.exists():
-            logger.warning("Album path not found: %s", album_path)
+        if not matches:
+            logger.warning("Album not found under %s: %s", albums_root, album_name)
             logger.warning("Treating as direct path instead.")
             return None
+        if len(matches) > 1:
+            logger.warning(
+                "Album '%s' exists under multiple genres (%s) — using %s",
+                album_name,
+                ", ".join(m.parent.name for m in matches),
+                matches[0],
+            )
+        album_path = matches[0]
 
         # Validate resolved path stays within audio_root (prevent path traversal)
         try:
@@ -353,7 +368,10 @@ Examples:
                 try:
                     audio_root = Path(config['paths']['audio_root']).expanduser()
                     artist = config['artist']['name']
-                    logger.error("  2. Album path: %s/%s/%s", audio_root, artist, args.source)
+                    logger.error(
+                        "  2. Album path: %s/artists/%s/albums/<genre>/%s",
+                        audio_root, artist, args.source,
+                    )
                 except (KeyError, TypeError):
                     pass
             sys.exit(1)

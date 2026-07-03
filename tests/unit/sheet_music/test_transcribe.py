@@ -240,3 +240,44 @@ class TestResolveAlbumPath:
         }
         result = mod.resolve_album_path("evil")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# resolve_album_path (#375)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveAlbumPath:
+    """resolve_album_path builds the canonical mirrored audio path (#375)."""
+
+    def _config(self, tmp_path):
+        return {
+            "paths": {"audio_root": str(tmp_path)},
+            "artist": {"name": "test-artist"},
+        }
+
+    def test_resolves_album_by_name(self, tmp_path):
+        album_dir = tmp_path / "artists" / "test-artist" / "albums" / "rock" / "my-album"
+        album_dir.mkdir(parents=True)
+        with patch.object(mod, "read_config", return_value=self._config(tmp_path)):
+            assert mod.resolve_album_path("my-album") == album_dir
+
+    def test_returns_none_when_album_missing(self, tmp_path):
+        (tmp_path / "artists" / "test-artist" / "albums" / "rock").mkdir(parents=True)
+        with patch.object(mod, "read_config", return_value=self._config(tmp_path)):
+            assert mod.resolve_album_path("nope") is None
+
+    def test_missing_albums_root_returns_none(self, tmp_path):
+        with patch.object(mod, "read_config", return_value=self._config(tmp_path)):
+            assert mod.resolve_album_path("anything") is None
+
+    def test_multiple_genre_twins_picks_first_sorted(self, tmp_path):
+        for genre in ("rock", "jazz"):
+            (tmp_path / "artists" / "test-artist" / "albums" / genre / "twin").mkdir(parents=True)
+        with patch.object(mod, "read_config", return_value=self._config(tmp_path)):
+            result = mod.resolve_album_path("twin")
+        assert result == tmp_path / "artists" / "test-artist" / "albums" / "jazz" / "twin"
+
+    def test_no_config_returns_none(self):
+        with patch.object(mod, "read_config", return_value=None):
+            assert mod.resolve_album_path("x") is None
