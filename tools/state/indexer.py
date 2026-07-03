@@ -54,7 +54,7 @@ except ImportError:
     sys.exit(1)
 
 from tools.shared.colors import Colors
-from tools.shared.config import CONFIG_PATH
+from tools.shared.config import CONFIG_PATH, parse_yaml_bool
 from tools.shared.logging_config import setup_logging
 from tools.state.parsers import (
     parse_album_readme,
@@ -66,7 +66,7 @@ from tools.state.parsers import (
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.3.0"
+CURRENT_VERSION = "1.4.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
@@ -124,12 +124,36 @@ def _migrate_1_2_to_1_3(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _migrate_1_3_to_1_4(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.3.0 to 1.4.0: re-coerce cached explicit flags.
+
+    The pre-#388 parsers stored quoted frontmatter booleans (e.g.
+    explicit: "false") as raw truthy strings; re-coerce cached values so
+    they don't linger until the source file's mtime changes.
+    """
+    def _fix(entry: dict[str, Any]) -> None:
+        if 'explicit' in entry:
+            try:
+                entry['explicit'] = parse_yaml_bool(entry['explicit'])
+            except ValueError:
+                entry['explicit'] = False
+
+    for album in (state.get('albums') or {}).values():
+        if isinstance(album, dict):
+            _fix(album)
+            for track in (album.get('tracks') or {}).values():
+                if isinstance(track, dict):
+                    _fix(track)
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.0.0": (_migrate_1_0_to_1_1, "1.1.0"),
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
     "1.2.0": (_migrate_1_2_to_1_3, "1.3.0"),
+    "1.3.0": (_migrate_1_3_to_1_4, "1.4.0"),
 }
 
 
@@ -178,12 +202,25 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     overrides_raw = paths.get('overrides', '')
     overrides_dir = str(resolve_path(overrides_raw)) if overrides_raw else str(Path(content_root) / 'overrides')
 
+    def _cfg_bool(section: dict[str, Any], key: str, default: bool) -> bool:
+        # bool() would turn quoted strings like "false" into True (#388);
+        # parse YAML boolean literals, falling back to the key's default.
+        value = section.get(key, default)
+        try:
+            return parse_yaml_bool(value)
+        except ValueError:
+            logger.warning(
+                "Config %s=%r is not a boolean — using %s", key, value, default
+            )
+            return default
+
     # Database config (expose enabled flag, mask credentials)
     db_config = config.get('database') or {}
+    db_enabled = _cfg_bool(db_config, 'enabled', False)
     database_section = {
-        'enabled': bool(db_config.get('enabled', False)),
-        'host': db_config.get('host', '') if db_config.get('enabled') else '',
-        'name': db_config.get('name', '') if db_config.get('enabled') else '',
+        'enabled': db_enabled,
+        'host': db_config.get('host', '') if db_enabled else '',
+        'name': db_config.get('name', '') if db_enabled else '',
     }
 
     # Generation config (service settings and gates)
@@ -191,10 +228,10 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
     additional_genres_raw = gen_config.get('additional_genres', [])
     generation_section = {
         'service': gen_config.get('service', 'suno'),
-        'require_suno_link_for_final': bool(gen_config.get('require_suno_link_for_final', True)),
+        'require_suno_link_for_final': _cfg_bool(gen_config, 'require_suno_link_for_final', True),
         'max_lyric_words': int(gen_config.get('max_lyric_words', 800)),
-        'require_source_path_for_documentary': bool(
-            gen_config.get('require_source_path_for_documentary', True)),
+        'require_source_path_for_documentary': _cfg_bool(
+            gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
     }

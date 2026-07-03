@@ -85,6 +85,27 @@ class TestParseAlbumReadme:
         assert result['track_count'] == 8
         assert result['release_date'] is None or result['release_date'] == ''
 
+    def test_quoted_explicit_false_frontmatter(self, tmp_path):
+        """Frontmatter explicit: "false" (quoted string) must parse to False, not the truthy string (#388)."""
+        path = tmp_path / "README.md"
+        path.write_text(
+            '---\ntitle: "Quoted Album"\nexplicit: "false"\n---\n\n# Quoted Album\n',
+            encoding='utf-8',
+        )
+        result = parse_album_readme(path)
+        assert '_error' not in result
+        assert result['explicit'] is False
+
+    def test_quoted_explicit_true_frontmatter(self, tmp_path):
+        path = tmp_path / "README.md"
+        path.write_text(
+            '---\ntitle: "Quoted Album"\nexplicit: "true"\n---\n\n# Quoted Album\n',
+            encoding='utf-8',
+        )
+        result = parse_album_readme(path)
+        assert '_error' not in result
+        assert result['explicit'] is True
+
     def test_tracklist_parsing(self):
         path = FIXTURES_DIR / "album-readme.md"
         result = parse_album_readme(path)
@@ -251,6 +272,27 @@ class TestParseTrackFile:
         path = FIXTURES_DIR / "does-not-exist.md"
         result = parse_track_file(path)
         assert '_error' in result
+
+    def test_quoted_explicit_false_frontmatter_fallback(self, tmp_path):
+        """Frontmatter explicit: "false" (quoted string) must not mark explicit (#388)."""
+        path = tmp_path / "01-track.md"
+        path.write_text(
+            '---\ntitle: "Quoted Track"\nexplicit: "false"\n---\n\n# Quoted Track\n',
+            encoding='utf-8',
+        )
+        result = parse_track_file(path)
+        assert '_error' not in result
+        assert result['explicit'] is False
+
+    def test_quoted_explicit_true_frontmatter_fallback(self, tmp_path):
+        path = tmp_path / "01-track.md"
+        path.write_text(
+            '---\ntitle: "Quoted Track"\nexplicit: "true"\n---\n\n# Quoted Track\n',
+            encoding='utf-8',
+        )
+        result = parse_track_file(path)
+        assert '_error' not in result
+        assert result['explicit'] is True
 
 
 class TestParseIdeasFile:

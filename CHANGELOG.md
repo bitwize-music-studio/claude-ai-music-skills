@@ -7,6 +7,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Quoted YAML booleans no longer invert to True** (#388). `bool("false")`
+  is `True` in Python, so quoting a falsy boolean anywhere in user YAML
+  silently enabled the feature the user disabled: `mastering.
+  adm_validation_enabled: "false"` in config.yaml (or album frontmatter — the
+  only path that enables ADM since #353) turned Apple Digital Masters
+  validation ON, `archival_enabled: "no"` enabled archival output,
+  `database.enabled: "false"` still opened Postgres connections,
+  `cloud.public_read: "false"` uploaded files with a **public-read ACL**,
+  quoted `cloud.enabled`/`logging.enabled`/`sheet_music.section_headers`/
+  `require_suno_link_for_final`/`require_source_path_for_documentary`
+  flipped their gates, and a track or album `explicit: "false"` frontmatter
+  flag marked the content explicit. Shared `parse_yaml_bool()` /
+  `coerce_yaml_bool()` helpers (tools/shared/config.py) now parse YAML 1.1
+  boolean literals (`true/false/yes/no/on/off/1/0`, case-insensitive) at
+  every user-YAML boolean site; unrecognized values fall back to the key's
+  documented default with a warning instead of silently meaning True. State
+  schema bumps 1.3.0 → 1.4.0 with a migration that re-coerces cached
+  `explicit` flags stored as strings by the old parsers.
 - **Album slug collisions across genres no longer silently erase an album from
   the state cache** (#392). The indexer keyed the cache's `albums` map by bare
   directory name, ignoring the genre path segment — two albums with the same

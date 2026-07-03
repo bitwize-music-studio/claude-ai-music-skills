@@ -236,3 +236,17 @@ class TestSetupLoggingWithConfig:
             assert len(file_handlers) == 0
         finally:
             logging.getLogger(name).handlers.clear()
+
+
+class TestQuotedBooleanStrings:
+    """logging.enabled honors quoted boolean strings (#388)."""
+
+    def test_enabled_quoted_false_stays_off(self):
+        config = {"logging": {"enabled": "false"}}
+        assert configure_file_logging(config) is None
+
+    def test_enabled_quoted_true_turns_on(self, tmp_path):
+        log_file = str(tmp_path / "test.log")
+        config = {"logging": {"enabled": "true", "file": log_file}}
+        handler = configure_file_logging(config)
+        assert isinstance(handler, RotatingFileHandler)

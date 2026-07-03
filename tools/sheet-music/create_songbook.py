@@ -677,7 +677,12 @@ def main() -> None:
     section_headers = args.section_headers
     if not section_headers and config:
         try:
-            section_headers = config.get('sheet_music', {}).get('section_headers', False)
+            from tools.shared.config import coerce_yaml_bool
+            section_headers = coerce_yaml_bool(
+                config.get('sheet_music', {}).get('section_headers', False),
+                default=False,
+                context='sheet_music.section_headers',
+            )
             if section_headers:
                 logger.info("Using section headers from config: %s", section_headers)
         except (TypeError, AttributeError):
