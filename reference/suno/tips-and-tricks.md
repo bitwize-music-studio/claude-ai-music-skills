@@ -20,6 +20,31 @@ Operational techniques and troubleshooting for Suno. For prompting guidance, see
 
 ---
 
+## Vocal Sounds Too Young Despite "Mature"/"Deep" Descriptors
+
+**Symptom:** Style box includes an age adjective like "mature and deep" but Suno still generates a young/light-sounding vocal.
+
+**Likely cause:** Vague age adjectives are weak signals and get outcompeted by other descriptors in the same prompt — especially breathy/soft-coded words like "intimate," "whispered," or "delicate" sitting nearby. Suno responds more reliably to concrete vocal-range and texture tags than to age adjectives alone.
+
+**Fix:**
+1. Replace the age adjective with a specific vocal range: `alto`, `contralto`, `low register` (female) or `baritone`, `bass-baritone` (male) — see [voice-tags.md](voice-tags.md)
+2. Add texture tags that connote maturity/experience rather than youth: `smoky`, `weathered`, `resonant`, `gravelly` — avoid `breathy`, `whispered`, `delicate`, `intimate` if you want an older-sounding voice, since those skew young in Suno's training data
+3. Add an explicit exclude: `no youthful or breathy vocals` appended to the Style Box (see [Negative Prompting](v5-best-practices.md#negative-prompting) — Suno excludes via "no X" phrasing in the prompt text, not a separate bare-terms field)
+4. Still expect 2–3 regenerations — vocal-age control is inconsistent even with well-chosen tags, this narrows the odds rather than guaranteeing the result
+
+**Example fix:**
+- ❌ Weak: `Female character vocal, mature and deep, aching and intimate`
+- ✅ Stronger: `Female alto vocal, low register, smoky and weathered, resonant and world-weary — not breathy, not youthful`
+
+**If concrete range/texture tags in the Style Box still aren't enough** (confirmed on a fresh generation, ruling out session/caching carryover), escalate with two more levers:
+
+1. **Inline lyrical metatags** — place a vocal descriptor directly in the Lyrics Box before each section, not just in the Style Box: `[Verse 1: Raspy older female vocal, husky contralto]`, `[Chorus: Raspy older female vocal, husky contralto]`, etc. This is a different mechanism from the Style Box and Suno may weight it independently — repeat the tag on every section, not just the first.
+2. **Check whether the genre tag itself is fighting you.** "Pop" as a genre descriptor can carry a bright/youthful bias that no amount of vocal adjectives fully cancels. Swap genre-of-record words that skew young/bright (`pop`, `bright`, `modern electronic`) for genre words that are inherently mature-vocal-coded: `torch song`, `vintage soul`, `cabaret`, `1940s jazz`, `vintage country`. Keep other identity-defining tags (mode, instrumentation) unchanged.
+
+If all of the above still fails, the underlying genre/instrumentation combo may carry a strong young-vocalist bias in Suno's training data that text prompting can't fully overcome. At that point, [Personas](#personas-for-vocal-consistency) (Pro/Premier, for a consistent vocal identity) or [Voices/voice cloning](#voices--custom-models-v55) (Pro/Premier, referencing a real vocal sample) are more reliable than any further style-box iteration.
+
+---
+
 ## Extending Songs
 
 ### Basic Workflow
