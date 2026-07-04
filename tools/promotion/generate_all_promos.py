@@ -39,7 +39,7 @@ def find_mastered_dir(album_dir: Path) -> Path:
     ]
 
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.is_dir():
             # Check if it has audio files
             audio_extensions = {'.wav', '.mp3', '.flac', '.m4a'}
             has_audio = any(f.suffix.lower() in audio_extensions

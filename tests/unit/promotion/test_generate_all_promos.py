@@ -67,6 +67,13 @@ class TestFindMasteredDir:
         result = mod.find_mastered_dir(tmp_path)
         assert result == tmp_path
 
+    def test_candidate_that_is_a_file_does_not_crash(self, tmp_path):
+        """#411: a candidate path that exists as a *file* must be skipped,
+        not handed to iterdir() (which raises NotADirectoryError)."""
+        (tmp_path / "wavs").write_bytes(b"not a directory")
+        result = mod.find_mastered_dir(tmp_path)
+        assert result == tmp_path
+
 
 # ---------------------------------------------------------------------------
 # find_artwork

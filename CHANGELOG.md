@@ -62,6 +62,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   the final valid start index (`len(rms) - window_samples`); the
   highest-energy segment near the end of a track (common for
   choruses/outros) could be silently passed over in favor of a weaker one.
+- **`find_mastered_dir` no longer crashes when a candidate path is a file**
+  (#411). Each candidate was checked with `.exists()` (true for regular
+  files too) then immediately handed to `.iterdir()`, raising
+  `NotADirectoryError` if e.g. a stray `wavs` file sat next to the expected
+  `wavs/` directory. Now checked with `.is_dir()`.
 
 ## [0.94.0] - 2026-07-03
 
