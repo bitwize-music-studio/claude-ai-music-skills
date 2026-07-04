@@ -2,6 +2,14 @@
 
 Complete reference for song structure tags in Suno lyrics.
 
+> **Suno tag/metatag terminology**: "metatag" gets used loosely — here's the actual taxonomy across this plugin's reference docs:
+> - **Structure tags** (this file) — `[Verse]`, `[Chorus]`, etc. Define song sections. Go in the Lyrics Box.
+> - **Delivery/mood bracket tags** (this file, "Custom Mood/Style Tags" below) — `[Whispered]`, `[Shout]`, etc. Short, standalone Lyrics Box tags that color delivery without defining a section.
+> - **Style Box descriptors** ([voice-tags.md](voice-tags.md), [instrumental-tags.md](instrumental-tags.md)) — comma-separated prose in the Style Box (`gravelly, belting, Southern rock vocal`), not bracket tags. This is how Suno V5 actually wants mood/energy/instrumentation — see the "Keep It Simple" guidance in [v5-best-practices.md](v5-best-practices.md).
+> - **Inline lyrical metatags** ([tips-and-tricks.md](tips-and-tricks.md#vocal-sounds-too-young-despite-maturedeep-descriptors)) — a per-section descriptor prefixed inside the section tag itself, e.g. `[Verse 1: Raspy older female vocal, husky contralto]`. An escalation technique for stubborn vocal-identity issues, not a default pattern.
+>
+> Rule of thumb: structure tags are mandatory every section; delivery bracket tags and inline metatags are optional accents (1-3 max per section — see "Performance Cues" below); mood/energy/instrumentation belongs in Style Box prose, not bracket tags.
+
 ## Basic Structure Tags
 
 ### Intro
@@ -26,12 +34,14 @@ Complete reference for song structure tags in Suno lyrics.
 ```
 [Chorus]
 [Catchy Hook]
+[Hook]
 ```
 
 ### Bridge
 ```
 [Bridge]
 [Pre-Chorus]
+[Post-Chorus]
 ```
 
 ### Instrumental Sections
@@ -47,6 +57,7 @@ Complete reference for song structure tags in Suno lyrics.
 ```
 [Outro]
 [End]
+[Fade In]
 [Fade Out]
 [Fade to End]
 [Big Finish]
@@ -55,7 +66,7 @@ Complete reference for song structure tags in Suno lyrics.
 
 ## Custom Mood/Style Tags
 
-These descriptive tags influence delivery:
+These descriptive tags influence delivery. Use 1-3 per section, same discipline as Performance Cues below — stacking many at once causes the "prompt fatigue" described in [v5-best-practices.md](v5-best-practices.md):
 
 ```
 [Shout]          - Aggressive, shouted delivery
@@ -64,6 +75,12 @@ These descriptive tags influence delivery:
 [Spoken]         - Spoken word, not sung
 [Whispered]      - Quiet, intimate
 [Energetic]      - High energy delivery
+[Aggressive]     - Intense, confrontational delivery
+[Intimate]       - Personal, close, hushed tone
+[Playful]        - Lighthearted, fun energy
+[Triumphant]     - Victorious, anthemic delivery
+[Vulnerable]     - Raw, exposed emotion
+[Haunting]       - Eerie, unsettled mood
 ```
 
 ## Example Song Structure
@@ -195,6 +212,7 @@ V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsist
 
 ### Less Reliable
 - `[Intro]` - Use descriptive alternatives
+- `[Post-Chorus]`, `[Fade In]` - Less field-tested than their established counterparts (`[Pre-Chorus]`, `[Fade Out]`) — test before relying on them
 - Custom tags - Results vary
 
 ## Tips
@@ -226,7 +244,8 @@ V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsist
 
 ## See Also
 
-- **`/reference/suno/v5-best-practices.md`** - Complete Suno V5 prompting guide, style box construction
+- **`/reference/suno/v5-best-practices.md`** - Complete Suno V5 prompting guide, style box construction, Sound Effects/Atmospheric tags
 - **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling and pronunciation fixes for lyrics
-- **`/reference/suno/voice-tags.md`** - Vocal style descriptors and manipulation tags
+- **`/reference/suno/voice-tags.md`** - Vocal style descriptors, Duet pattern, Production/Vocal FX descriptors
+- **`/reference/suno/tips-and-tricks.md`** - Inline lyrical metatags for stubborn vocal-identity issues
 - **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and standards
