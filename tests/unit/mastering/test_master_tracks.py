@@ -792,6 +792,18 @@ class TestApplyFadeOut:
         apply_fade_out(data, rate, duration=1.0)
         assert np.array_equal(data, original)
 
+    def test_tiny_positive_duration_passthrough(self):
+        """#406: 0 < duration < 1/rate rounds fade_samples to 0.
+
+        np.linspace(0, 1, 0) previously fed an empty envelope into
+        result[-0:] *= envelope, which raised a ValueError from the
+        broadcast shape mismatch (result[-0:] is the *whole* array,
+        not an empty slice).
+        """
+        data, rate = _generate_sine(duration=1.0)
+        result = apply_fade_out(data, rate, duration=1e-6)
+        assert np.array_equal(result, data)
+
 
 # ─── Tests: Process One Track ─────────────────────────────────────────
 

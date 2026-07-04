@@ -582,6 +582,10 @@ def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'ex
     total_samples = data.shape[0]
     fade_samples = int(rate * duration)
 
+    # Duration too small to produce even one sample of fade — passthrough.
+    if fade_samples <= 0:
+        return data
+
     # If fade is longer than audio, fade the entire track
     if fade_samples > total_samples:
         fade_samples = total_samples

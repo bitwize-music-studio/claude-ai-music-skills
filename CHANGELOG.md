@@ -67,6 +67,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   files too) then immediately handed to `.iterdir()`, raising
   `NotADirectoryError` if e.g. a stray `wavs` file sat next to the expected
   `wavs/` directory. Now checked with `.is_dir()`.
+- **`apply_fade_out` raises on a tiny positive duration** (#406). When
+  `0 < duration < 1/rate`, `fade_samples = int(rate * duration)` rounds to
+  `0`; the early return only guarded `duration <= 0`, so `result[-0:]`
+  (the *whole* array, not an empty slice) was multiplied against an
+  empty envelope, raising a broadcast `ValueError`. Now guarded on
+  `fade_samples <= 0` as well.
 
 ## [0.94.0] - 2026-07-03
 
