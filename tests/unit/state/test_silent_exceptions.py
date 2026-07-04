@@ -245,7 +245,7 @@ class TestSheetMusicConfigWarning:
                 "sys.modules",
                 {"tools.shared.config": types.ModuleType("tools.shared.config")},
             ),
-            caplog.at_level("WARNING", logger="handlers.processing._helpers"),
+            caplog.at_level("WARNING", logger="handlers.processing.sheet_music"),
         ):
             stub = sys.modules["tools.shared.config"]
             stub.load_config = MagicMock(side_effect=ImportError("no module"))

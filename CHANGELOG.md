@@ -7,6 +7,10 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **`test_config_load_failure_logs_warning` scopes `caplog` to the wrong
+  logger** (#344). The warning under test is logged by
+  `handlers.processing.sheet_music`, not `handlers.processing._helpers`;
+  the test now scopes `caplog.at_level(...)` to the correct logger name.
 - **Malformed slugs return clean JSON across every MCP tool** (#443). The
   shared `_find_album_or_error` / `_resolve_audio_dir` / `_find_track_or_error`
   helpers called `_normalize_slug` raw, and ~13 tool handlers called it
