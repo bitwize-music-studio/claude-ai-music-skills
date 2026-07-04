@@ -2006,9 +2006,14 @@ async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
     prior_transitions: list[dict[str, Any]] | None = None
     layout_path = ctx.audio_dir / "LAYOUT.md"
     if layout_path.is_file():
-        prior_transitions = _parse_layout_yaml(
-            layout_path.read_text(encoding="utf-8")
-        )
+        try:
+            prior_transitions = _parse_layout_yaml(
+                layout_path.read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeDecodeError) as _layout_read_exc:
+            ctx.warnings.append(
+                f"Layout: could not read prior {layout_path} — {_layout_read_exc}."
+            )
 
     layout_stage: dict[str, Any] = {
         "status": "pass",

@@ -165,3 +165,26 @@ def test_layout_never_halts_pipeline_on_write_failure(
     assert result.get("failed_stage") is None
     assert result["stages"]["layout"]["status"] == "warn"
     assert any("layout" in str(w).lower() for w in result["warnings"])
+
+
+def test_layout_never_halts_pipeline_on_unreadable_prior_file(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """#399: a pre-existing LAYOUT.md with non-UTF-8 bytes must not crash
+    the pipeline. The read happened outside any try/except, so
+    UnicodeDecodeError propagated straight out of _stage_layout."""
+    _write_sine_wav(tmp_path / "01-a.wav")
+    _write_sine_wav(tmp_path / "02-b.wav", freq=330.0)
+    _install_album(monkeypatch, tmp_path, "layout-album")
+
+    # 0xff is not valid UTF-8 anywhere in a byte stream.
+    (tmp_path / "LAYOUT.md").write_bytes(b"transitions:\n  - mode: \xff\n")
+
+    result = _run(tmp_path, "layout-album")
+    assert result.get("failed_stage") is None, result.get("failure_detail")
+    assert any("layout" in str(w).lower() for w in result["warnings"])
+    # Prior (unreadable) transitions are discarded; a fresh LAYOUT.md is
+    # still written using the default transition mode.
+    assert result["stages"]["layout"]["status"] == "pass"
+    parsed = _extract_yaml((tmp_path / "LAYOUT.md").read_text(encoding="utf-8"))
+    assert len(parsed["transitions"]) == 1

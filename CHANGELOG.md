@@ -80,6 +80,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   `UnicodeDecodeError` that raises on invalid bytes. Both files are now
   opened with `encoding="utf-8"` and the except clause also catches
   `UnicodeDecodeError`.
+- **`_stage_layout` crashes on a non-UTF-8 prior `LAYOUT.md`** (#399). The
+  stage's docstring guarantees "write errors go to warnings, never halt",
+  but the read of an existing `LAYOUT.md` sat outside the `try`/`except`
+  block; a file with invalid UTF-8 bytes raised `UnicodeDecodeError`
+  straight through the stage, halting the whole `master_album` pipeline.
+  The read is now guarded — an unreadable prior file is discarded (with a
+  warning) and a fresh `LAYOUT.md` is still written.
 
 ## [0.94.0] - 2026-07-03
 
