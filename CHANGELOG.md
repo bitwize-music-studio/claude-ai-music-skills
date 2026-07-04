@@ -57,6 +57,11 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   `_normalize_slug`'s `ValueError` escape as an opaque tool error on inputs
   like `../other`; all three now catch it and return their module's
   structured error shape.
+- **`find_best_segment` no longer skips its last analysis window** (#412).
+  The energy-window loop ran `range(len(rms) - window_samples)`, excluding
+  the final valid start index (`len(rms) - window_samples`); the
+  highest-energy segment near the end of a track (common for
+  choruses/outros) could be silently passed over in favor of a weaker one.
 
 ## [0.94.0] - 2026-07-03
 

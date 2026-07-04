@@ -134,7 +134,7 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
         best_start: float = 0.0
         best_energy: float = 0.0
 
-        for i in range(len(rms) - window_samples):
+        for i in range(len(rms) - window_samples + 1):
             window_energy = np.mean(rms[i:i + window_samples])
             if window_energy > best_energy:
                 best_energy = window_energy

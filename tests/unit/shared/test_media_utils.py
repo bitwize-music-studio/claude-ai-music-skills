@@ -149,3 +149,25 @@ class TestFindBestSegment:
             result = mod.find_best_segment(Path("/fake.wav"), duration=15)
             # Fallback: min(120 * 0.2, 120 - 15) = min(24, 105) = 24
             assert result == pytest.approx(24.0)
+
+    @patch.object(mod, "get_audio_duration", return_value=20.0)
+    def test_last_window_is_considered(self, _mock_dur):
+        """#412: the highest-energy window at the very end must not be skipped.
+
+        window_samples=2 over a 5-sample rms track: valid start indices are
+        0..3 inclusive (range(5 - 2 + 1)). The off-by-one bug stopped at
+        range(5 - 2) = range(3), silently excluding the last (highest-energy)
+        window and returning a worse start time.
+        """
+        import numpy as np
+
+        fake_librosa = MagicMock()
+        fake_librosa.load.return_value = (np.zeros(10), 512)  # y, sr=512
+        fake_librosa.feature.rms.return_value = np.array([[0, 0, 0, 10, 10]])
+        fake_librosa.times_like.return_value = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+
+        with patch.dict(sys.modules, {"librosa": fake_librosa}):
+            # duration=2, hop_length=512 (hardcoded) -> window_samples = int(2*512/512) = 2
+            result = mod.find_best_segment(Path("/fake.wav"), duration=2)
+
+        assert result == pytest.approx(3.0)
