@@ -212,6 +212,12 @@ def _update_frontmatter_block(
     except yaml.YAMLError as exc:
         return False, f"Cannot parse frontmatter YAML in {file_path}: {exc}"
 
+    if not isinstance(fm, dict):
+        return False, (
+            f"Frontmatter in {file_path} is not a mapping "
+            f"(got {type(fm).__name__})"
+        )
+
     fm[key] = values
 
     new_fm_text = yaml.dump(

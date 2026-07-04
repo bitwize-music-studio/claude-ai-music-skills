@@ -6,6 +6,37 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`create_track` validates `track_number`** (#372). Non-numeric values
+  (`abc`, `1a`, empty), `None`, booleans, and zero/negative numbers now
+  return a structured error naming the invalid value instead of crashing
+  with an unhandled `ValueError` — and `00` no longer silently creates a
+  malformed `00-title.md` track. Integers and numeric strings (`7`, `"03"`)
+  keep working.
+- **`_update_frontmatter_block` honors its error contract** (#378). A track
+  file whose frontmatter parses to a list or scalar now returns
+  `(False, "Frontmatter in <path> is not a mapping (got <type>)")` per the
+  documented contract instead of raising `TypeError` out of the sheet-music
+  publish loop.
+- **`db_sync_album` returns a JSON error on malformed slugs** (#379). Slugs
+  containing path separators, null bytes, or `..` raised an uncaught
+  `ValueError` to the FastMCP layer; the slug lookup is now guarded with the
+  same try/except pattern every sibling `db_*` handler uses.
+- **`db_create_tweet` no longer silently drops the track link** (#380). When
+  `track_number > 0` but no matching track row exists, the tool inserted the
+  tweet with a NULL `track_id` while echoing the requested track number as
+  if it had linked. It now returns an error naming the missing track and
+  album (suggesting `db_sync_album` or `track_number=0`) before any insert.
+- **`analyze_tracks.py` handles WAV-less directories** (#386). Pointing the
+  CLI at a directory with no WAV files crashed with a `ValueError` from an
+  empty-array reduction; it now logs a clear "No tracks to analyze" error
+  and exits nonzero.
+- **Slug validation errors are clean JSON in three more handlers** (#397).
+  `reset_mastering`, `migrate_audio_layout`, and `get_skill` let
+  `_normalize_slug`'s `ValueError` escape as an opaque tool error on inputs
+  like `../other`; all three now catch it and return their module's
+  structured error shape.
+
 ## [0.94.0] - 2026-07-03
 
 ### Fixed

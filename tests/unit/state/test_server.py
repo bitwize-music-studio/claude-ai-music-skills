@@ -6532,7 +6532,7 @@ class TestCreateTrack:
         assert "No path" in result["error"]
 
     def test_track_number_all_zeros(self, tmp_path):
-        """Track number '00' produces '00-slug.md'."""
+        """Track number '00' is rejected — track numbers are 1-based (#372)."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
         template_dir = tmp_path / "templates"
         template_dir.mkdir()
@@ -6540,9 +6540,10 @@ class TestCreateTrack:
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path):
             result = json.loads(_run(server.create_track("test-album", "00", "Intro")))
-        assert result["created"] is True
-        assert result["track_slug"] == "00-intro"
-        assert result["filename"] == "00-intro.md"
+        assert "error" in result
+        assert "track_number" in result["error"]
+        # No spurious 00-intro.md file is created
+        assert list(tracks_dir.iterdir()) == []
 
     def test_special_chars_in_title(self, tmp_path):
         """Special characters in title are handled by slug normalization."""
