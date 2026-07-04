@@ -7,6 +7,7 @@ Reference guides for Suno AI music generation.
 | Guide | Description |
 |-------|-------------|
 | [V5 Best Practices](v5-best-practices.md) | Comprehensive prompting guide for V5 |
+| [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
 | [Structure Tags](structure-tags.md) | Song section tags reference |

@@ -392,6 +392,8 @@ V5 includes sliders in the generation interface that affect output:
 - High Weirdness + specific genre tag = interesting results within a genre
 - Low Style Influence is useful when you want the AI to surprise you
 
+> **Deep dive**: [creative-sliders.md](creative-sliders.md) — per-slider behavior, genre starting ranges, interaction effects, and when to move a slider vs. rewrite the prompt.
+
 ---
 
 ## Voices & Custom Models
@@ -658,6 +660,7 @@ crisp, warm, bright, deep, spacious
 
 ## See Also
 
+- **`/reference/suno/creative-sliders.md`** - Weirdness / Style Influence / Audio Influence deep dive: genre starting ranges, interaction effects, slider-vs-prompt
 - **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling, homographs, pronunciation fixes
 - **`/reference/suno/structure-tags.md`** - Complete list of section tags ([Verse], [Chorus], etc.)
 - **`/reference/suno/genre-list.md`** - 500+ genre tags for style prompts
