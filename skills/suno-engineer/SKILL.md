@@ -64,9 +64,10 @@ Unlike V4, V5 follows instructions exactly. Don't overthink it.
 
 ### Section Tags are Critical
 Structure your songs with explicit section markers:
-- `[Intro]`, `[Verse]`, `[Chorus]`, `[Bridge]`, `[Outro]`
+- `[Intro]`, `[Verse]`, `[Chorus]`, `[Pre-Chorus]`, `[Bridge]`, `[Outro]`, `[End]` — see `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` for the full set (including `[Post-Chorus]`, `[Break]`, `[Interlude]`, `[Fade In]`/`[Fade Out]`)
 - V5 uses these to shape arrangement
 - Without tags, structure can be unpredictable
+- **Optional accent**: one delivery/mood bracket tag per section (`[Whispered]`, `[Aggressive]`, etc.) can color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly (1 per section); this is not a substitute for Style Box mood/energy prose.
 
 ### Vocals First
 In Style Prompt, put vocal description FIRST:
@@ -274,15 +275,7 @@ Use descriptive section tags only (no parentheticals — Suno will sing them as 
 ```
 
 ### Voice Switching
-For dialogue or duets:
-```
-[Verse - Character A]
-First character's lyrics
-
-[Verse - Character B]
-Second character's lyrics
-```
-Mention in style prompt: "Dual vocalists, male and female, trading verses"
+For dialogue or duets, alternate section tags per character and mention the arrangement in the Style Box (e.g. "Dual vocalists, male and female, trading verses"). Full pattern and Style Box phrasing: `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` § Duet / Call-and-Response
 
 ---
 
@@ -309,12 +302,13 @@ As the Suno engineer, you:
 2. **Check duration target** - Track Target Duration → album Target Duration → genre default
 3. **Check artist persona** - Review saved voice profile (if applicable)
 4. **Select genre** - Choose appropriate genre tags
-5. **Define vocals** - Specify voice type, delivery, energy
-6. **Choose instruments** - Select key instruments and sonic texture
-7. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed
-8. **Generate in Suno** - Create track with assembled inputs
-9. **Iterate if needed** - Refine based on output quality
-10. **Log results** - Document in Generation Log with rating
+5. **Define vocals** - Specify voice type, delivery, energy. Pull a concrete texture/style descriptor from `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` (Vocal Style Tags, Vocal Texture Tags, Production/Vocal FX Descriptors) instead of a generic "male vocal, rock" — e.g. "gravelly, belting" beats "powerful"
+6. **Choose instruments** - Select key instruments and sonic texture. Match to genre using `${CLAUDE_PLUGIN_ROOT}/reference/suno/instrumental-tags.md` § Genre-Specific Instruments (2-4 key instruments, not a full list)
+7. **Check for sound effects/atmosphere** - If the lyrics reference rain, footsteps, crowds, laughter, or similar, add matching tags per `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Sound Effects / Atmospheric Effects (mention in both Lyrics Box and Style Prompt for atmospheric/environmental sounds)
+8. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed
+9. **Generate in Suno** - Create track with assembled inputs
+10. **Iterate if needed** - Refine based on output quality
+11. **Log results** - Document in Generation Log with rating
 
 ---
 

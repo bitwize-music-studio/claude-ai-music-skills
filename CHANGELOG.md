@@ -6,6 +6,24 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Expanded Suno metatag reference coverage and suno-engineer prompt-building workflow**.
+  Metatags were mentioned in the plugin but scattered and thin — `structure-tags.md` had
+  only 6 delivery/mood bracket tags and was missing `[Post-Chorus]`/`[Fade In]`/`[Hook]`,
+  `v5-best-practices.md`'s Sound Effects list had only 6 examples, and the Duet pattern
+  existed only inside `suno-engineer/SKILL.md` with no canonical reference. More
+  importantly, `suno-engineer`'s own workflow never instructed pulling mood/voice/SFX
+  vocabulary from the reference docs it already links, so real generations only ever
+  got bare structure tags. Added a terminology explainer (structure tags vs.
+  delivery/mood bracket tags vs. Style Box descriptors vs. inline lyrical metatags) to
+  `reference/suno/README.md` and `structure-tags.md`; expanded mood tags, sound effects,
+  and added a Duet/Call-and-Response + Production/Vocal FX section to `voice-tags.md`;
+  and updated `suno-engineer/SKILL.md`'s workflow to explicitly pull concrete
+  descriptors from these references when building vocals, instruments, and Style Box
+  prompts. Deliberately did not adopt invented `[Mood: X]`/`[Energy: X]` bracket syntax
+  or bracket-style instrument tags from third-party guides — those contradict this
+  plugin's field-tested anti-"tag soup" guidance.
+
 ### Performance
 - **ADM validation runs per-track checks in parallel** (#345). The mastering
   pipeline's inter-sample clip check encodes+decodes each track via two ffmpeg

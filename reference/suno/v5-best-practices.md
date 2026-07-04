@@ -287,12 +287,25 @@ Then suddenly [laughter] breaks the silence
 ```
 
 **Common Effects**:
+
+**Human:**
 - `[laughter]` - Natural laughing
 - `[screaming]` - Vocal scream
 - `[whisper]` - Whispered delivery
-- `[echo]` - Echo/reverb effect
+- `[sigh]` - Breathing out, reflective
+- `[gasp]` - Sharp intake of breath
+- `[cough]` - Clearing throat, realistic aside
+
+**Crowd:**
 - `[crowd]` - Crowd noise
 - `[applause]` - Clapping/applause
+- `[cheering]` - Crowd excitement
+
+**Mechanical/transition:**
+- `[echo]` - Echo/reverb effect
+- `[phone ringing]` - Telephone sound, narrative device
+- `[static]` - Radio noise, transition
+- `[record scratch]` - DJ/hip-hop transition marker
 
 **Note**: Effects work best when placed mid-line, not as standalone lines
 
