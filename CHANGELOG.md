@@ -73,6 +73,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   (the *whole* array, not an empty slice) was multiplied against an
   empty envelope, raising a broadcast `ValueError`. Now guarded on
   `fade_samples <= 0` as well.
+- **`check_version_sync` hook crashes on non-UTF-8 manifest files** (#394).
+  `plugin.json`/`marketplace.json` were opened without an explicit
+  encoding, decoding with the platform default; the surrounding
+  `except (json.JSONDecodeError, OSError)` didn't cover the
+  `UnicodeDecodeError` that raises on invalid bytes. Both files are now
+  opened with `encoding="utf-8"` and the except clause also catches
+  `UnicodeDecodeError`.
 
 ## [0.94.0] - 2026-07-03
 
