@@ -298,6 +298,11 @@ def main() -> None:
     print()
 
     filterable = [f for f in wav_files if 'venv' not in str(f)]
+
+    if not filterable:
+        logger.error("No tracks to analyze (no WAV files found in %s).", wav_dir)
+        sys.exit(1)
+
     workers = args.jobs if args.jobs > 0 else os.cpu_count()
     progress = ProgressBar(len(filterable), prefix="Analyzing")
 

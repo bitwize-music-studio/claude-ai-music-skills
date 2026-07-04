@@ -8,8 +8,10 @@ Usage:
     python -m pytest tools/mastering/tests/test_analyze_tracks.py -v
 """
 
+import logging
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -20,7 +22,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tools.mastering.analyze_tracks import analyze_track
+from tools.mastering.analyze_tracks import analyze_track, main
 
 
 def _generate_sine(freq=440.0, duration=3.0, rate=44100, amplitude=0.5, stereo=True):
@@ -196,3 +198,74 @@ class TestAnalyzeTrackEdgeCases:
     def test_nonexistent_file_raises(self, tmp_path):
         with pytest.raises(Exception):
             analyze_track(str(tmp_path / "nonexistent.wav"))
+
+
+# ─── Tests: main() empty-directory guard ──────────────────────────────
+
+
+def _fake_analysis(path):
+    """Lightweight stand-in for analyze_track — avoids heavy DSP in main() tests."""
+    return {
+        'filename': Path(path).name,
+        'duration': 3.0,
+        'sample_rate': 44100,
+        'lufs': -14.2,
+        'peak_db': -1.0,
+        'rms_db': -18.0,
+        'dynamic_range': 12.0,
+        'band_energy': {
+            'sub_bass': 5.0, 'bass': 20.0, 'low_mid': 20.0, 'mid': 25.0,
+            'high_mid': 15.0, 'high': 10.0, 'air': 5.0,
+        },
+        'is_dark': False,
+        'tinniness_ratio': 0.3,
+        'max_short_term_lufs': -12.0,
+        'max_momentary_lufs': -10.5,
+        'short_term_range': 4.0,
+        'stl_95': -13.0,
+        'low_rms': -20.0,
+        'vocal_rms': None,
+        'signature_meta': {},
+    }
+
+
+class TestMainNoWavFiles:
+    """main() should exit cleanly (no traceback) when no WAV files are found.
+
+    The error must be reported via the module logger (same convention as the
+    sibling directory-not-found path in main()), not via print to stdout.
+    """
+
+    def test_empty_directory_exits_nonzero_with_message(
+            self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setattr(sys, 'argv', ['analyze_tracks.py', str(tmp_path)])
+        with caplog.at_level(logging.ERROR, logger='tools.mastering.analyze_tracks'):
+            with pytest.raises(SystemExit) as excinfo:
+                main()
+        assert excinfo.value.code == 1
+        assert "No tracks to analyze" in caplog.text
+        assert "no WAV files found" in caplog.text
+
+    def test_directory_with_only_non_wav_files_exits_nonzero(
+            self, tmp_path, monkeypatch, caplog):
+        (tmp_path / "notes.txt").write_text("not audio")
+        (tmp_path / "cover.png").write_bytes(b"\x89PNG")
+        (tmp_path / "song.mp3").write_bytes(b"ID3")
+        monkeypatch.setattr(sys, 'argv', ['analyze_tracks.py', str(tmp_path)])
+        with caplog.at_level(logging.ERROR, logger='tools.mastering.analyze_tracks'):
+            with pytest.raises(SystemExit) as excinfo:
+                main()
+        assert excinfo.value.code == 1
+        assert "No tracks to analyze" in caplog.text
+
+    def test_normal_directory_still_analyzes(self, tmp_path, monkeypatch, capsys):
+        """Directories with WAV files must run to completion, unaffected by the guard."""
+        (tmp_path / "track.wav").touch()
+        monkeypatch.setattr(sys, 'argv', ['analyze_tracks.py', str(tmp_path)])
+        with patch('tools.mastering.analyze_tracks.analyze_track',
+                   side_effect=_fake_analysis):
+            main()  # must not raise SystemExit
+        out = capsys.readouterr().out
+        assert "track.wav" in out
+        assert "LUFS range across album" in out
+        assert "No tracks to analyze" not in out

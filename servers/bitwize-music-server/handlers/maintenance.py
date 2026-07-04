@@ -57,7 +57,10 @@ async def reset_mastering(
                     "originals/ and stems/ are protected.",
         })
 
-    err, audio_dir = _resolve_audio_dir(album_slug)
+    try:
+        err, audio_dir = _resolve_audio_dir(album_slug)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
     if err:
         return err
     assert audio_dir is not None
@@ -190,7 +193,10 @@ async def migrate_audio_layout(
 
     albums = state.get("albums", {})
     if album_slug:
-        normalized = _normalize_slug(album_slug)
+        try:
+            normalized = _normalize_slug(album_slug)
+        except ValueError as exc:
+            return _safe_json({"error": str(exc)})
         if normalized not in albums:
             return _safe_json({"error": f"Album '{album_slug}' not found in state"})
         album_items = [(normalized, albums[normalized])]
