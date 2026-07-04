@@ -201,6 +201,45 @@ def _build_notices(ctx: MasterAlbumCtx) -> None:
             )
 
 
+# ---------------------------------------------------------------------------
+# LUFS aggregation helpers (finite-only)
+# ---------------------------------------------------------------------------
+
+def _finite_lufs_aggregates(
+    results: list[dict[str, Any]],
+) -> tuple[float | None, float | None]:
+    """Return (mean, range) of LUFS across ``results``, over finite values only.
+
+    analyze_track returns -inf LUFS for a silent / corrupt track; feeding that
+    into ``np.mean`` / ``max-min`` poisons the aggregate with non-finite values
+    (avg becomes -inf, range becomes inf). That is the same class of bug as
+    #371 in analyze_audio (and #400 here). Aggregate over the finite LUFS
+    readings only, and return ``(None, None)`` when no track has a finite
+    reading, so no inf/-inf reaches ctx.stages or the result payload.
+    """
+    import math
+
+    import numpy as np
+
+    finite = [
+        r["lufs"] for r in results
+        if isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"])
+    ]
+    if not finite:
+        return None, None
+    return float(np.mean(finite)), float(max(finite) - min(finite))
+
+
+def _round_or_none(value: float | None, ndigits: int) -> float | None:
+    """``round()`` that passes ``None`` through instead of raising TypeError.
+
+    _finite_lufs_aggregates returns None when every track is silent/corrupt;
+    the verification and ceiling-guard stages round those aggregates for
+    reporting, so the None must survive rounding as None.
+    """
+    return round(value, ndigits) if value is not None else None
+
+
 # Injectable for test monkeypatching (tests patch this module-level name).
 _adm_check_fn = _adm_check_fn_default
 _embed_wav_metadata_fn = _embed_wav_metadata_fn_default
@@ -367,7 +406,6 @@ async def _stage_analysis(ctx: MasterAlbumCtx) -> str | None:
     """
     import math
 
-    import numpy as np
     from tools.mastering.analyze_tracks import analyze_track
 
     analysis_results = []
@@ -376,21 +414,17 @@ async def _stage_analysis(ctx: MasterAlbumCtx) -> str | None:
         analysis_results.append(result)
 
     # A silent / near-silent track makes analyze_track return -inf LUFS, which
-    # poisons the np.mean / max-min aggregates with non-finite values (the same
-    # class of bug as #371 in analyze_audio). Aggregate over finite LUFS only,
-    # and surface silent tracks so the operator isn't left with null aggregates
+    # poisons the mean / max-min aggregates with non-finite values (the same
+    # class of bug as #371 in analyze_audio, and #400 below). Aggregate over
+    # finite LUFS only via the shared _finite_lufs_aggregates helper, and
+    # surface silent tracks so the operator isn't left with null aggregates
     # under a "pass" status. (Silent tracks are skipped later in
     # _stage_mastering, so no mastering-side action is needed here.)
-    finite_lufs = [
-        r["lufs"] for r in analysis_results
-        if isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"])
-    ]
     silent_tracks = [
         r["filename"] for r in analysis_results
         if not (isinstance(r["lufs"], (int, float)) and math.isfinite(r["lufs"]))
     ]
-    avg_lufs = float(np.mean(finite_lufs)) if finite_lufs else None
-    lufs_range = float(max(finite_lufs) - min(finite_lufs)) if finite_lufs else None
+    avg_lufs, lufs_range = _finite_lufs_aggregates(analysis_results)
     tinny_tracks = [r["filename"] for r in analysis_results if r["tinniness_ratio"] > 0.6]
 
     for t in tinny_tracks:
@@ -830,8 +864,8 @@ def _emit_verification_warn_fallback(
     unrecoverable_map: dict[str, dict[str, Any]],
     auto_recovered: list[dict[str, Any]],
     verify_results: list[dict[str, Any]],
-    verify_avg: float,
-    verify_range: float,
+    verify_avg: float | None,
+    verify_range: float | None,
     effective_lufs: float,
 ) -> None:
     """Write VERIFICATION_WARNINGS.md, update stage status to warn,
@@ -876,8 +910,8 @@ def _emit_verification_warn_fallback(
     )
     ctx.stages["verification"] = {
         "status":               "warn",
-        "avg_lufs":             round(verify_avg, 1),
-        "lufs_range":           round(verify_range, 2),
+        "avg_lufs":             _round_or_none(verify_avg, 1),
+        "lufs_range":           _round_or_none(verify_range, 2),
         "all_within_spec":      False,
         "auto_recovered":       auto_recovered,
         "unrecoverable_tracks": sorted(unrecoverable_map.keys()),
@@ -895,7 +929,6 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
     Sets ctx:  verify_results
     Returns: None on pass (all within spec), failure JSON otherwise.
     """
-    import numpy as np
     from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.fix_dynamic_track import fix_dynamic
 
@@ -906,9 +939,9 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
         result = await ctx.loop.run_in_executor(None, analyze_track, str(wav))
         verify_results.append(result)
 
-    verify_lufs = [r["lufs"] for r in verify_results]
-    verify_avg = float(np.mean(verify_lufs))
-    verify_range = float(max(verify_lufs) - min(verify_lufs))
+    # Aggregate over finite LUFS only — a silent/corrupt mastered WAV reads
+    # -inf and would otherwise poison avg (→ -inf) and range (→ inf); see #400.
+    verify_avg, verify_range = _finite_lufs_aggregates(verify_results)
     effective_lufs = ctx.effective_lufs
     effective_ceiling = ctx.effective_ceiling
 
@@ -926,7 +959,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
         if issues:
             out_of_spec.append({"filename": r["filename"], "issues": issues})
 
-    album_range_fail = verify_range >= 1.0
+    album_range_fail = verify_range is not None and verify_range >= 1.0
     auto_recovered: list[dict[str, Any]] = []
 
     if out_of_spec or album_range_fail:
@@ -1025,9 +1058,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                         None, analyze_track, str(wav),
                     )
                     verify_results.append(result)
-                verify_lufs = [r["lufs"] for r in verify_results]
-                verify_avg = float(np.mean(verify_lufs))
-                verify_range = float(max(verify_lufs) - min(verify_lufs))
+                verify_avg, verify_range = _finite_lufs_aggregates(verify_results)
                 out_of_spec = []
                 for r in verify_results:
                     issues = []
@@ -1045,7 +1076,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                         out_of_spec.append(
                             {"filename": r["filename"], "issues": issues}
                         )
-                album_range_fail = verify_range >= 1.0
+                album_range_fail = verify_range is not None and verify_range >= 1.0
 
         if out_of_spec or album_range_fail:
             # Pure range failure with no individual out-of-spec tracks —
@@ -1053,13 +1084,13 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
             # detail as before.
             if album_range_fail and not out_of_spec:
                 fail_detail: dict[str, Any] = {
-                    "album_lufs_range":  round(verify_range, 2),
+                    "album_lufs_range":  _round_or_none(verify_range, 2),
                     "album_range_limit": 1.0,
                 }
                 ctx.stages["verification"] = {
                     "status":          "fail",
-                    "avg_lufs":        round(verify_avg, 1),
-                    "lufs_range":      round(verify_range, 2),
+                    "avg_lufs":        _round_or_none(verify_avg, 1),
+                    "lufs_range":      _round_or_none(verify_range, 2),
                     "all_within_spec": False,
                 }
                 return _safe_json({
@@ -1097,7 +1128,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                 if halt_eligible_tracks:
                     fail_detail["tracks_out_of_spec"] = halt_eligible_tracks
                 if halt_on_range:
-                    fail_detail["album_lufs_range"] = round(verify_range, 2)
+                    fail_detail["album_lufs_range"] = _round_or_none(verify_range, 2)
                     fail_detail["album_range_limit"] = 1.0
                 if unrecoverable_map:
                     fail_detail["unrecoverable_tracks"] = sorted(
@@ -1105,8 +1136,8 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     )
                 ctx.stages["verification"] = {
                     "status":          "fail",
-                    "avg_lufs":        round(verify_avg, 1),
-                    "lufs_range":      round(verify_range, 2),
+                    "avg_lufs":        _round_or_none(verify_avg, 1),
+                    "lufs_range":      _round_or_none(verify_range, 2),
                     "all_within_spec": False,
                 }
                 return _safe_json({
@@ -1135,8 +1166,8 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
 
     verification_stage: dict[str, Any] = {
         "status": "pass",
-        "avg_lufs": round(verify_avg, 1),
-        "lufs_range": round(verify_range, 2),
+        "avg_lufs": _round_or_none(verify_avg, 1),
+        "lufs_range": _round_or_none(verify_range, 2),
         "all_within_spec": True,
     }
     if auto_recovered:
@@ -1509,7 +1540,6 @@ async def _stage_ceiling_guard(
         _ceiling_guard_compute_overshoots). Callers that need monkeypatching
         should pass their patched version explicitly.
     """
-    import numpy as np
     from tools.mastering.analyze_tracks import analyze_track
 
     compute_fn = _compute_overshoots if _compute_overshoots is not None else _ceiling_guard_compute_overshoots
@@ -1615,11 +1645,11 @@ async def _stage_ceiling_guard(
             if idx is not None:
                 ctx.verify_results[idx] = fresh
 
-        verify_lufs = [r["lufs"] for r in ctx.verify_results]
-        ctx.stages["verification"]["avg_lufs"] = round(float(np.mean(verify_lufs)), 1)
-        ctx.stages["verification"]["lufs_range"] = round(
-            float(max(verify_lufs) - min(verify_lufs)), 2
-        )
+        # Finite-only recompute — a pulled-down track that reads -inf (silent
+        # or clipped to zero) must not poison the album aggregates (#400).
+        verify_avg, verify_range = _finite_lufs_aggregates(ctx.verify_results)
+        ctx.stages["verification"]["avg_lufs"] = _round_or_none(verify_avg, 1)
+        ctx.stages["verification"]["lufs_range"] = _round_or_none(verify_range, 2)
 
     ctx.stages["ceiling_guard"] = ceiling_stage
     return None

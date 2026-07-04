@@ -7,6 +7,29 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Audio/DSP edge-case crashes hardened** across the mastering and mixing
+  pipelines:
+  - **Silent/corrupt tracks no longer poison album LUFS aggregates** (#400).
+    A `-inf` LUFS reading fed `avg_lufs`/`lufs_range` in the verification and
+    ceiling-guard stages, producing `-inf`/`inf` and spurious range failures.
+    A shared `_finite_lufs_aggregates` helper now aggregates finite readings
+    only (returning `None` when all tracks are silent), and downstream
+    rounding/comparisons handle `None`.
+  - **Mix analyzer survives degenerate WAVs** (#401, #402). A zero-length WAV
+    crashed with an empty-array reduction; a sub-10-sample buffer produced a
+    `NaN` noise floor. Both now return a clean per-file result instead.
+  - **`apply_fade_out` no longer raises on sub-sample fades** (#406). A tiny
+    positive duration rounded `fade_samples` to 0 and raised; it is now a
+    no-op fade.
+  - **`original_lufs` reports the source loudness** (#407), measured before
+    processing rather than after.
+  - **Envelope followers no longer divide by zero** (#410). A 0 ms attack or
+    release in `gentle_compress`/`apply_transient_shaper` raised
+    `ZeroDivisionError`; time constants are clamped to a small positive floor.
+  - **`find_mastered_dir` skips non-directory candidates** (#411) instead of
+    crashing with `NotADirectoryError` when a candidate path is a file.
+  - **`find_best_segment` no longer skips the last analysis window** (#412),
+    an off-by-one in the window loop bound.
 - **Malformed slugs return clean JSON across every MCP tool** (#443). The
   shared `_find_album_or_error` / `_resolve_audio_dir` / `_find_track_or_error`
   helpers called `_normalize_slug` raw, and ~13 tool handlers called it
