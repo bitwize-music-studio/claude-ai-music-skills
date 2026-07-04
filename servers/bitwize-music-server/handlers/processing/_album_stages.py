@@ -2378,18 +2378,38 @@ async def _stage_adm_validation(ctx: MasterAlbumCtx) -> str | None:
     results: list[dict[str, Any]] = []
     encoder_errors: list[str] = []
 
-    for wav in ctx.mastered_files:
-        try:
-            r = await ctx.loop.run_in_executor(
-                None,
-                functools.partial(
-                    _adm_check_fn, wav,
-                    encoder=encoder, ceiling_db=ceiling_db, bitrate_kbps=256,
-                ),
-            )
-            results.append(r)
-        except ADMValidationError as exc:
-            encoder_errors.append(f"{wav.name}: {exc}")
+    # Each track's ADM check spawns two ffmpeg subprocesses (AAC encode + decode)
+    # with a tempdir round-trip; running them serially dominates mastering
+    # wall-clock time, and worsens on retry (#345). Run the per-track checks
+    # concurrently, bounded to CPU count so the CPU-bound ffmpeg encodes don't
+    # oversubscribe the machine. Order is preserved so `results` still lines up
+    # with ctx.mastered_files (encoder_used / markdown depend on it). Only
+    # ADMValidationError is handled here — as in the serial version, any other
+    # exception propagates out of the stage.
+    adm_semaphore = asyncio.Semaphore(max(1, os.cpu_count() or 1))
+
+    async def _check_one(wav: Path) -> tuple[dict[str, Any] | None, str | None]:
+        async with adm_semaphore:
+            try:
+                r = await ctx.loop.run_in_executor(
+                    None,
+                    functools.partial(
+                        _adm_check_fn, wav,
+                        encoder=encoder, ceiling_db=ceiling_db, bitrate_kbps=256,
+                    ),
+                )
+                return r, None
+            except ADMValidationError as exc:
+                return None, f"{wav.name}: {exc}"
+
+    outcomes = await asyncio.gather(
+        *(_check_one(wav) for wav in ctx.mastered_files)
+    )
+    for result, error in outcomes:
+        if error is not None:
+            encoder_errors.append(error)
+        elif result is not None:
+            results.append(result)
 
     ctx.adm_validation_results = results
 

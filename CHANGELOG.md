@@ -6,6 +6,13 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Performance
+- **ADM validation runs per-track checks in parallel** (#345). The mastering
+  pipeline's inter-sample clip check encodes+decodes each track via two ffmpeg
+  subprocesses; running them serially dominated wall-clock time (and tripled on
+  retry). The checks now run concurrently, bounded to CPU count, with identical
+  results, ordering, error handling, and clip-halt behavior.
+
 ### Docs
 - **Suno Song Editor workflow guide** (#237) — `reference/workflows/song-editor.md`:
   when to use section-level edits vs. regeneration vs. mix-engineer polish, each
