@@ -6,6 +6,26 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Docs
+- **Suno Song Editor workflow guide** (#237) — `reference/workflows/song-editor.md`:
+  when to use section-level edits vs. regeneration vs. mix-engineer polish, each
+  operation with use cases, and mastering-pipeline interaction.
+- **Creative Sliders reference** (#238) — `reference/suno/creative-sliders.md`:
+  per-slider behavior, genre starting ranges, interaction effects, and
+  slider-vs-prompt guidance; linked from the Suno reference index.
+- **Covers & Personas workflow guide** (#239) — `reference/workflows/covers-and-personas.md`
+  plus optional cover-track sections in `templates/track.md`.
+- **Expanded error-recovery guide** (#240) — added recovery procedures for state
+  cache corruption, mastering mid-failure cleanup, malformed markdown, batch
+  partial failures, config path resolution, and plugin/MCP corruption.
+
+### Tests
+- **Dedicated handler test coverage** (#236) — new `test_handlers_content.py`,
+  `test_handlers_promo.py`, and `test_handlers_maintenance.py` (the last closing
+  the `migrate_audio_layout` coverage gap).
+- **Corrected logger scoping** (#344) in `test_config_load_failure_logs_warning`
+  so it pins the actual emitting module.
+
 ### Fixed
 - **Handler & CLI correctness fixes**:
   - **`check_version_sync` no longer crashes on non-UTF-8 manifests** (#394).
