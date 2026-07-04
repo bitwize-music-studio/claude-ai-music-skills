@@ -7,6 +7,36 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Handler & CLI correctness fixes**:
+  - **`check_version_sync` no longer crashes on non-UTF-8 manifests** (#394).
+    Manifests are read as UTF-8 and `UnicodeDecodeError` is handled, so the
+    hook degrades cleanly instead of tracebacking on a non-UTF-8 locale.
+  - **Idea duplicate detection is case-insensitive** (#395), matching the
+    case-insensitive readers — `"cyberpunk dreams"` is now rejected as a
+    duplicate of `"Cyberpunk Dreams"` instead of creating a second entry.
+  - **Rhyme-scheme analyzer groups clear rhymes correctly** (#396). The
+    spelling-based tail extraction split rhyming pairs (`eyes`/`cries`,
+    `times`/`rhymes`); the nucleus is now capped and vowel `y`/`i` folded so
+    they share a rhyme group, without merging genuinely distinct words.
+  - **`_stage_layout` survives a corrupt `LAYOUT.md`** (#399). A non-UTF-8
+    layout file raised `UnicodeDecodeError` outside the stage's guard,
+    aborting the master pipeline; the read is now guarded and the stage
+    regenerates from defaults per its non-halting contract.
+  - **`create_track` writes valid YAML for quoted titles** (#403). A title
+    containing a double-quote produced malformed frontmatter (silently
+    dropping fields); the frontmatter scalar is now YAML-escaped.
+  - **`update_streaming_url` escapes URLs in frontmatter** (#404). A URL with
+    a double-quote or backslash produced malformed YAML on the in-place edit
+    path, silently dropping the URL from the state cache; it is now escaped.
+  - **`find_album_path` validates before globbing** (#405). An `album_name`
+    with glob metacharacters was expanded as a pattern before the guard ran;
+    validation now precedes all glob use.
+  - **`qc_tracks` no longer aborts the batch on one bad file** (#408). A
+    corrupt WAV now yields a per-track FAIL row and the batch continues,
+    instead of tearing down the run.
+  - **`reference_master` batch mode excludes the reference reliably** (#409).
+    The reference WAV is matched by resolved path, so an absolute `--reference`
+    is no longer re-mastered as its own target.
 - **Audio/DSP edge-case crashes hardened** across the mastering and mixing
   pipelines:
   - **Silent/corrupt tracks no longer poison album LUFS aggregates** (#400).

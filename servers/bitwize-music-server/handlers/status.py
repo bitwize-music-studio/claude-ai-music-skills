@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -506,7 +507,17 @@ async def create_track(
 
     # Fill in placeholders
     album_title = album.get("title", normalized)
-    content = template.replace("[Track Title]", title)
+    # The frontmatter title is a quoted YAML scalar (title: "[Track Title]"),
+    # so it must receive a properly escaped value — a raw replace of a title
+    # containing a double quote would break the YAML and silently drop every
+    # frontmatter field on parse (#403). json.dumps() emits a valid YAML
+    # double-quoted scalar (escapes quotes/backslashes); ensure_ascii=False
+    # keeps non-ASCII readable so the scalar matches the human-readable body
+    # (H1, details table), which still take the raw title.
+    content = template.replace(
+        'title: "[Track Title]"', f"title: {json.dumps(title, ensure_ascii=False)}"
+    )
+    content = content.replace("[Track Title]", title)
     content = content.replace("| **Track #** | XX |", f"| **Track #** | {padded} |")
     content = content.replace("[Album Name](../README.md)", f"[{album_title}](../README.md)")
     content = content.replace("[Character/Perspective]", "—")

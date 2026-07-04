@@ -110,9 +110,14 @@ Examples:
         master_with_reference(target_path, reference_path, output_path)
     else:
         # Batch mode - process all WAVs in current directory
+        # Compare resolved paths so the reference is excluded regardless of
+        # how --reference was supplied (absolute, './'-prefixed, or relative);
+        # glob output is always relative to '.', so a lexical compare misses
+        # an absolute --reference and re-masters it as its own target (#409).
+        reference_resolved = reference_path.resolve()
         wav_files = sorted([f for f in Path('.').glob('*.wav')
                            if 'venv' not in str(f)
-                           and f != reference_path])
+                           and f.resolve() != reference_resolved])
 
         if not wav_files:
             logger.error("No WAV files found in current directory")

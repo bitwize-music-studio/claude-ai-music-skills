@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -157,12 +158,15 @@ async def update_streaming_url(album_slug: str, platform: str, url: str) -> str:
         # Match lines like "  soundcloud: ..." or "  apple_music: ..."
         stripped = fm_line.lstrip()
         if stripped.startswith(f"{canonical_platform}:"):
-            # Replace the value, preserving indent
+            # Replace the value, preserving indent. json.dumps emits a valid
+            # YAML double-quoted scalar (quotes included) with any embedded
+            # quotes/backslashes escaped, so a URL containing " or \ can't
+            # corrupt the frontmatter. ensure_ascii=False preserves any raw
+            # non-ASCII char (matching the yaml.dump fallback's allow_unicode)
+            # so it round-trips exactly instead of via a lossy surrogate pair.
+            # json.dumps("") -> '""' handles clearing.
             indent = fm_line[:len(fm_line) - len(stripped)]
-            if url:
-                fm_lines[idx] = f'{indent}{canonical_platform}: "{url}"'
-            else:
-                fm_lines[idx] = f"{indent}{canonical_platform}: \"\""
+            fm_lines[idx] = f"{indent}{canonical_platform}: {json.dumps(url, ensure_ascii=False)}"
             updated = True
             break
 
