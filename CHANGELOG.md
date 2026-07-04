@@ -7,6 +7,16 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Songbook no longer drops the first music page of every track** (#390).
+  `create_songbook` inferred `singles_have_title_pages = (manifest is not
+  None)` and unconditionally skipped page 0 of each single. But
+  `prepare_singles` writes `.manifest.json` even when it silently skips the
+  title page (pypdf/reportlab missing, or the step raised) — so singles with
+  no title page but a manifest lost their real first page (the whole track
+  for a 1-page transcription) and the TOC miscounted. `prepare_singles` now
+  records the actual per-track `title_page` fact in the manifest, and
+  `create_songbook` trusts that flag (falling back to the prior filename
+  heuristic for legacy manifests), so only genuine title pages are skipped.
 - **`create_track` validates `track_number`** (#372). Non-numeric values
   (`abc`, `1a`, empty), `None`, booleans, and zero/negative numbers now
   return a structured error naming the invalid value instead of crashing

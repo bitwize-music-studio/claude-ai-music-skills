@@ -194,11 +194,16 @@ def prepare_xml(source_xml: Path, singles_dir: Path, title: str, dry_run: bool =
     return out_path
 
 
-def _add_title_page_and_footer(pdf_path: Path, title: str, artist: str | None, cover_image: str | None, footer_url: str | None, page_size_name: str) -> None:
+def _add_title_page_and_footer(pdf_path: Path, title: str, artist: str | None, cover_image: str | None, footer_url: str | None, page_size_name: str) -> bool:
     """Prepend a title page and add footer URL to every page of a single PDF.
 
     Uses shared helpers from create_songbook module. Gracefully skips
     if pypdf/reportlab are not available (they're optional deps).
+
+    Returns:
+        True if a title page was actually prepended, False if the step was
+        skipped (missing deps) or failed. Callers record this in the manifest
+        so create_songbook knows whether page 0 is a title page (#390).
     """
     try:
         # Late import — songbook module needs pypdf/reportlab
@@ -237,10 +242,13 @@ def _add_title_page_and_footer(pdf_path: Path, title: str, artist: str | None, c
             writer.write(f)
 
         logger.info("  Added title page + footer to %s", pdf_path.name)
+        return True
     except ImportError:
         logger.warning("  pypdf/reportlab not installed — skipping title page and footer for %s", pdf_path.name)
+        return False
     except Exception as e:
         logger.warning("  Could not add title page to %s: %s", pdf_path.name, e)
+        return False
 
 
 def resolve_source_dir(given_path: str | Path) -> tuple[Path, Path]:
@@ -405,12 +413,18 @@ def prepare_singles(source_dir: str | Path, singles_dir: str | Path, musescore: 
 
         print(f"\n  [{lookup_key}] -> \"{singles_name}\"")
 
-        manifest_tracks.append({
+        # `title_page` records whether a title page was actually prepended to
+        # this single (updated after _add_title_page_and_footer runs). It
+        # stays False when no PDF is produced or the title-page step is
+        # skipped, so create_songbook never skips a page that isn't there (#390).
+        manifest_entry: dict[str, Any] = {
             "number": track_num,
             "source_slug": source_slug,
             "title": title,
             "filename": singles_name,
-        })
+            "title_page": False,
+        }
+        manifest_tracks.append(manifest_entry)
 
         track_result: dict[str, Any] = {"source": source_slug, "title": title, "filename": singles_name, "files": []}
 
@@ -453,7 +467,7 @@ def prepare_singles(source_dir: str | Path, singles_dir: str | Path, musescore: 
 
             # Add title page and footer to the PDF
             if pdf_written and not dry_run:
-                _add_title_page_and_footer(
+                manifest_entry["title_page"] = _add_title_page_and_footer(
                     pdf_dst, title, artist, cover_image, footer_url, page_size_name
                 )
                 track_result["files"].append(pdf_dst.name)

@@ -220,6 +220,7 @@ class TestPrepareSinglesLegacy:
 
     @patch.object(mod, "_add_title_page_and_footer")
     def test_processes_xml_and_pdf(self, mock_title_page, tmp_path):
+        mock_title_page.return_value = True  # -> bool contract (#390)
         source = self._make_source(tmp_path, [
             "01-first-pour.xml",
             "01-first-pour.pdf",
@@ -234,6 +235,7 @@ class TestPrepareSinglesLegacy:
 
     @patch.object(mod, "_add_title_page_and_footer")
     def test_processes_multiple_tracks(self, mock_title_page, tmp_path):
+        mock_title_page.return_value = True  # -> bool contract (#390)
         source = self._make_source(tmp_path, [
             "01-first.xml", "01-first.pdf",
             "02-second.xml", "02-second.pdf",
@@ -312,6 +314,7 @@ class TestPrepareSinglesManifest:
 
     @patch.object(mod, "_add_title_page_and_footer")
     def test_manifest_flow_uses_titles(self, mock_title_page, tmp_path):
+        mock_title_page.return_value = True  # -> bool contract (#390)
         source = tmp_path / "source"
         source.mkdir()
 
