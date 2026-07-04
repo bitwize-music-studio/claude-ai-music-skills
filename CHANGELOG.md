@@ -7,6 +7,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
+- **Malformed slugs return clean JSON across every MCP tool** (#443). The
+  shared `_find_album_or_error` / `_resolve_audio_dir` / `_find_track_or_error`
+  helpers called `_normalize_slug` raw, and ~13 tool handlers called it
+  directly, so a slug with a path separator, null byte, or `..` traversal
+  raised an uncaught `ValueError` to the MCP layer — the same class #397/#442
+  fixed in a handful of handlers. The three helpers now convert that
+  `ValueError` into their structured error, and a single error boundary
+  installed at tool registration wraps every handler so any leaked
+  `ValueError` becomes a `{"error": ...}` response. Only `ValueError` is
+  caught, so genuine bugs still surface; the boundary preserves each tool's
+  FastMCP schema (it wraps via `functools.wraps`).
 - **Songbook no longer drops the first music page of every track** (#390).
   `create_songbook` inferred `singles_have_title_pages = (manifest is not
   None)` and unconditionally skipped page 0 of each single. But
