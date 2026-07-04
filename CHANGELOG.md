@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.95.0] - 2026-07-04
+
 ### Added
 - **Expanded Suno metatag reference coverage and suno-engineer prompt-building workflow**.
   Metatags were mentioned in the plugin but scattered and thin — `structure-tags.md` had
