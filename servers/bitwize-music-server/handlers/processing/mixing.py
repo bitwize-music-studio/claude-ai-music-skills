@@ -342,18 +342,32 @@ def _build_analyzer(
     ) -> dict[str, Any]:
         result: dict[str, Any] = {"filename": filename, "issues": [], "recommendations": {}}
 
+        # #401: zero-length audio has no samples to reduce — np.max / np.mean
+        # over an empty array raises ValueError, which would abort the whole
+        # analyze/polish run with a raw traceback. Return a structured
+        # per-file error so a single malformed WAV is skipped, not fatal.
+        if len(data) == 0:
+            result["issues"].append("empty_audio")
+            result["error"] = "empty audio: WAV has 0 samples"
+            return result
+
         # Overall metrics
         peak = float(np.max(np.abs(data)))
         rms = float(np.sqrt(np.mean(data ** 2)))
         result["peak"] = peak
         result["rms"] = rms
 
-        # Noise floor estimate (quietest 10% of signal)
+        # Noise floor estimate (quietest 10% of signal). #402: buffers
+        # shorter than 10 samples make the //10 slice empty, and np.mean of
+        # an empty slice is NaN (with a RuntimeWarning). Emit None as a
+        # sentinel instead so the value computes cleanly and serializes to
+        # JSON null rather than the invalid token NaN.
         abs_signal = np.abs(data[:, 0])
         sorted_abs = np.sort(abs_signal)
-        noise_floor = float(np.mean(sorted_abs[:len(sorted_abs) // 10]))
+        quietest = sorted_abs[:len(sorted_abs) // 10]
+        noise_floor = float(np.mean(quietest)) if quietest.size else None
         result["noise_floor"] = noise_floor
-        if noise_floor > 0.005:
+        if noise_floor is not None and noise_floor > 0.005:
             result["issues"].append("elevated_noise_floor")
             result["recommendations"]["noise_reduction"] = min(0.8, noise_floor * 100)
 

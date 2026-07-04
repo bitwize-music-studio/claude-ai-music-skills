@@ -426,6 +426,25 @@ else:
     _envelope_follower = _envelope_follower_python
 
 
+# Floor for attack/release times (ms) in envelope-follower time constants.
+# A 0 ms (or negative) time — reachable via user-override mix presets — would
+# make `rate * ms / 1000.0` collapse to 0.0 and raise ZeroDivisionError. This
+# tiny positive floor yields a coefficient of ~0.0 (instantaneous response),
+# which is the correct limit for a "zero" time, without dividing by zero.
+_MIN_TIME_CONSTANT_MS = 1e-3
+
+
+def _time_constant_coeff(rate: int, time_ms: float) -> float:
+    """Smoothing coefficient for an envelope-follower attack/release time.
+
+    Clamps ``time_ms`` to a small positive floor (``_MIN_TIME_CONSTANT_MS``)
+    so a 0 ms or negative time cannot raise ZeroDivisionError; the clamped
+    value produces a coefficient near 0.0 (near-instant tracking).
+    """
+    time_ms = max(float(time_ms), _MIN_TIME_CONSTANT_MS)
+    return float(np.exp(-1.0 / (rate * time_ms / 1000.0)))
+
+
 def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: float = 2.5,
                     attack_ms: float = 10.0, release_ms: float = 100.0) -> Any:
     """Apply gentle dynamic compression using envelope following.
@@ -446,9 +465,9 @@ def gentle_compress(data: Any, rate: int, threshold_db: float = -15.0, ratio: fl
 
     threshold_linear = 10 ** (threshold_db / 20)
 
-    # Time constants
-    attack_coeff = np.exp(-1.0 / (rate * attack_ms / 1000.0))
-    release_coeff = np.exp(-1.0 / (rate * release_ms / 1000.0))
+    # Time constants (times clamped to a positive floor to avoid div-by-zero)
+    attack_coeff = _time_constant_coeff(rate, attack_ms)
+    release_coeff = _time_constant_coeff(rate, release_ms)
 
     def _compress_channel(channel: Any) -> Any:
         abs_signal = np.abs(channel)
@@ -852,11 +871,11 @@ def apply_transient_shaper(data: Any, rate: int, attack_gain: float = 0.0,
     if attack_gain == 0 and sustain_gain == 0:
         return data
 
-    # Time constants
-    fast_attack = np.exp(-1.0 / (rate * fast_attack_ms / 1000.0))
-    fast_release = np.exp(-1.0 / (rate * 5.0 / 1000.0))  # 5ms release
-    slow_attack = np.exp(-1.0 / (rate * slow_attack_ms / 1000.0))
-    slow_release = np.exp(-1.0 / (rate * 50.0 / 1000.0))  # 50ms release
+    # Time constants (times clamped to a positive floor to avoid div-by-zero)
+    fast_attack = _time_constant_coeff(rate, fast_attack_ms)
+    fast_release = _time_constant_coeff(rate, 5.0)  # 5ms release
+    slow_attack = _time_constant_coeff(rate, slow_attack_ms)
+    slow_release = _time_constant_coeff(rate, 50.0)  # 50ms release
 
     attack_linear = 10 ** (attack_gain / 20)
     sustain_linear = 10 ** (sustain_gain / 20)

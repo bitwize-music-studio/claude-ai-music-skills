@@ -569,7 +569,8 @@ def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'ex
         data: Audio data (samples,) for mono or (samples, channels) for stereo
         rate: Sample rate
         duration: Fade duration in seconds (default: 5.0).
-            If <= 0, returns data unchanged (passthrough).
+            If <= 0, or so small it rounds to zero samples, returns data
+            unchanged (passthrough).
             If > audio length, fades the entire track.
         curve: 'exponential' for (1-t)**3, 'linear' for 1-t
 
@@ -581,6 +582,12 @@ def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'ex
 
     total_samples = data.shape[0]
     fade_samples = int(rate * duration)
+
+    # A sub-sample fade (0 < duration < 1/rate) rounds to zero samples.
+    # Return unchanged rather than letting result[-0:] select the whole
+    # array and broadcast against an empty envelope (ValueError).
+    if fade_samples < 1:
+        return data
 
     # If fade is longer than audio, fade the entire track
     if fade_samples > total_samples:
@@ -1058,6 +1065,12 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if was_mono:
         data = np.column_stack([data, data])
 
+    # Measure the SOURCE loudness up-front, before any processing stage
+    # touches the signal, so the reported 'original_lufs' reflects the true
+    # input rather than the post-EQ/compression/fade loudness. Measured on
+    # the (stereo) processing layout to stay comparable with final_lufs.
+    original_lufs = pyln.Meter(rate).integrated_loudness(data)
+
     # DC offset removal (first processing stage)
     dc_freq = p.get('dc_filter_freq', 5.0)
     if dc_freq > 0:
@@ -1191,7 +1204,7 @@ def master_track(input_path: Path | str, output_path: Path | str,
     if not np.isfinite(current_lufs):
         logger.warning("Audio is silent or near-silent, skipping: %s", input_path)
         return {
-            'original_lufs': float('-inf'),
+            'original_lufs': original_lufs,
             'final_lufs': float('-inf'),
             'gain_applied': 0.0,
             'final_peak': float('-inf'),
@@ -1269,7 +1282,7 @@ def master_track(input_path: Path | str, output_path: Path | str,
             if not np.isfinite(current_lufs):
                 logger.warning("Audio became silent after LRA targeting, skipping: %s", input_path)
                 return {
-                    'original_lufs': float('-inf'),
+                    'original_lufs': original_lufs,
                     'final_lufs': float('-inf'),
                     'gain_applied': 0.0,
                     'final_peak': float('-inf'),
@@ -1356,7 +1369,7 @@ def master_track(input_path: Path | str, output_path: Path | str,
     sf.write(output_path, data, rate, subtype=subtype)
 
     result = {
-        'original_lufs': current_lufs,
+        'original_lufs': original_lufs,
         'final_lufs': final_lufs,
         'gain_applied': gain_db,
         'final_peak': final_peak,
