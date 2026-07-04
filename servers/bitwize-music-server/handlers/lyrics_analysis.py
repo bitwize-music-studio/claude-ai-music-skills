@@ -322,10 +322,23 @@ def _count_syllables_word(word: str) -> int:
 
 
 def _get_rhyme_tail(word: str) -> str:
-    """Extract rhyme tail from last vowel cluster to end of word.
+    """Derive a spelling-based rhyme key: last vowel nucleus plus coda.
 
-    Strips trailing 's' for plural tolerance before extracting.
-    Examples: "night" -> "ight", "away" -> "ay", "desire" -> "ire"
+    Pure spelling can't recover pronunciation, but the key normalizes the
+    common orthographic variants of a single rhyme sound so that clearly
+    rhyming end words land in the same group (#396):
+
+    - A trailing plural / 3rd-person 's' is dropped ("eye"/"eyes",
+      "cry"/"cries") so inflection doesn't split a rhyme.
+    - The vowel nucleus is capped at two letters (a vowel plus an optional
+      glide). Without this an irregular three-vowel spelling like "eye"
+      keeps its whole "eye" cluster while "cries" yields only "ie"; capping
+      reduces both to the same "ie".
+    - Vowel 'y' is folded to 'i' in the returned tail, so "rhyme"/"rhymes"
+      ("yme") matches "time"/"times" ("ime").
+
+    Examples: "night" -> "ight", "away" -> "ai", "desire" -> "ire",
+    "eyes" -> "ie", "cries" -> "ie", "times" -> "ime", "rhymes" -> "ime".
     """
     if not word:
         return ""
@@ -345,22 +358,23 @@ def _get_rhyme_tail(word: str) -> str:
     if len(word) > 2 and word.endswith("e") and word[-2] not in vowels:
         scan_word = word[:-1]
 
-    # Find last vowel cluster start in scan_word
+    # Find the last vowel cluster, capping the nucleus at two letters (a
+    # vowel plus an optional glide) so irregular multi-vowel spellings such
+    # as "eye" normalize to the same nucleus as a regular "-ie".
     last_vowel_pos = -1
     for i in range(len(scan_word) - 1, -1, -1):
         if scan_word[i] in vowels:
             last_vowel_pos = i
-            # Walk back through consecutive vowels
-            while i > 0 and scan_word[i - 1] in vowels:
-                i -= 1
-                last_vowel_pos = i
+            if i > 0 and scan_word[i - 1] in vowels:
+                last_vowel_pos = i - 1
             break
 
     if last_vowel_pos < 0:
         return word  # No vowels — return whole word
 
-    # Return from vowel position to end of ORIGINAL word
-    return word[last_vowel_pos:]
+    # Return from the nucleus to the end of the (plural-stripped) word,
+    # folding vowel 'y' to 'i' so equivalent spellings share a key.
+    return word[last_vowel_pos:].replace("y", "i")
 
 
 async def count_syllables(text: str) -> str:

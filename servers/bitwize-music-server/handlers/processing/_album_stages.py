@@ -2036,9 +2036,20 @@ async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
     prior_transitions: list[dict[str, Any]] | None = None
     layout_path = ctx.audio_dir / "LAYOUT.md"
     if layout_path.is_file():
-        prior_transitions = _parse_layout_yaml(
-            layout_path.read_text(encoding="utf-8")
-        )
+        # A corrupt/binary LAYOUT.md (e.g. invalid UTF-8) must not halt the
+        # pipeline: read_text raises UnicodeDecodeError (a ValueError, NOT an
+        # OSError) which would escape the emitter try/except below. Guard the
+        # read separately so a bad prior layout degrades to "no prior
+        # transitions" and is surfaced via warnings, per the stage contract.
+        try:
+            prior_transitions = _parse_layout_yaml(
+                layout_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValueError) as exc:
+            ctx.warnings.append(
+                f"Layout emitter: could not read prior LAYOUT.md ({exc}); "
+                "regenerating from defaults."
+            )
 
     layout_stage: dict[str, Any] = {
         "status": "pass",

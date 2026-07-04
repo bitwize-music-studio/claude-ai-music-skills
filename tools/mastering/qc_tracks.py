@@ -556,6 +556,28 @@ def qc_track(
     }
 
 
+def _error_result(filepath: Path | str, exc: Exception) -> dict[str, Any]:
+    """Build a QC result row for a file that could not be read or processed.
+
+    Mirrors the shape returned by :func:`qc_track` (``filename`` / ``checks`` /
+    ``verdict``) so a corrupt or unreadable file renders as an ordinary
+    per-track FAIL row in the table, summary count, and ISSUES section instead
+    of tearing down the whole batch with a traceback (#408). The read failure
+    is surfaced through a single synthetic ``read`` check.
+    """
+    return {
+        "filename": os.path.basename(str(filepath)),
+        "checks": {
+            "read": {
+                "status": "FAIL",
+                "value": "unreadable",
+                "detail": f"Could not read/QC file: {exc}",
+            }
+        },
+        "verdict": "FAIL",
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Technical audio QC checks.")
     parser.add_argument(
@@ -622,11 +644,20 @@ def main() -> None:
     workers = args.jobs if args.jobs > 0 else os.cpu_count()
     progress = ProgressBar(len(filterable), prefix="QC scanning")
 
+    # A single corrupt/unreadable file must not abort the batch — catch its
+    # failure, emit a per-track FAIL row, and keep scanning the rest (#408).
+    had_read_error = False
+
     if workers == 1:
         results = []
         for wav_file in filterable:
             progress.update(wav_file.name)
-            result = qc_track(str(wav_file), checks=active_checks, genre=genre)
+            try:
+                result = qc_track(str(wav_file), checks=active_checks, genre=genre)
+            except Exception as exc:
+                logger.warning("QC failed for %s: %s", wav_file.name, exc)
+                result = _error_result(wav_file, exc)
+                had_read_error = True
             results.append(result)
     else:
         logger.info("Using %d parallel workers", workers)
@@ -639,7 +670,12 @@ def main() -> None:
             for future in as_completed(futures):
                 idx = futures[future]
                 progress.update(filterable[idx].name)
-                ordered[idx] = future.result()
+                try:
+                    ordered[idx] = future.result()
+                except Exception as exc:
+                    logger.warning("QC failed for %s: %s", filterable[idx].name, exc)
+                    ordered[idx] = _error_result(filterable[idx], exc)
+                    had_read_error = True
         results = [ordered[i] for i in sorted(ordered)]
 
     # Determine which checks were run
@@ -697,6 +733,11 @@ def main() -> None:
                 print(f"    [{info['status']}] {check}: {info['detail']}")
 
     print()
+
+    # Signal partial failure to callers/CI when any file could not be QC'd —
+    # every other track's result has already been printed above (#408).
+    if had_read_error:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
