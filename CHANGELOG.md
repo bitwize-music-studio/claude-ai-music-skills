@@ -7,8 +7,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
-- **`suno-engineer` now enforces the Style Box descriptor ceiling and defaults to per-section
-  Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
+- **`suno-engineer` now requires checking the Style Box descriptor ceiling and defaults to
+  per-section Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
   descriptors and mentioned `v5-best-practices.md`'s "4-7 descriptor sweet spot" and
   `structure-tags.md`'s Performance Cues technique, but never wired either into the
   `suno-engineer` workflow or its Quality Standards checklist as something to actually check
