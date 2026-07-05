@@ -329,7 +329,7 @@ Only mark track as "Generated" when output meets:
 
 Before generating, also verify the prompt itself is built for reliable output, not just the resulting audio:
 - [ ] Style Box stays within the 4-7 descriptor sweet spot (no synonym-stacking)
-- [ ] Structure tags carry Performance Cues where the song's emotional arc shifts (not left as bare `[Verse]`/`[Chorus]` throughout)
+- [ ] Structure tags carry Performance Cues on every section by default (not left as bare `[Verse]`/`[Chorus]`), with the sharpest variation where the emotional arc shifts
 
 ---
 
