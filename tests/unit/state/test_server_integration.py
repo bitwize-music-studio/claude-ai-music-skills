@@ -1581,14 +1581,15 @@ class TestRunPreGenerationGatesExtended:
         result = json.loads(_run(server.run_pre_generation_gates("nonexistent")))
         assert result["found"] is False
 
-    def test_eight_gates_per_track(self, integration_env):
-        """Each track should be checked against all 8 gates."""
+    def test_gates_per_track(self, integration_env):
+        """Each track should be checked against all core + advisory gates."""
         with patch.object(_text_analysis_mod, "_artist_blocklist_cache", None):
             result = json.loads(_run(server.run_pre_generation_gates(
                 "integration-test-album", "01"
             )))
         track = result["tracks"][0]
-        assert len(track["gates"]) == 8
+        # 8 core gates + 2 advisory (Style Box Descriptor Count, Performance Cues)
+        assert len(track["gates"]) == 10
 
 
 @pytest.mark.integration

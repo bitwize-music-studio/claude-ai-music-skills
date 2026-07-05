@@ -71,6 +71,7 @@ def _check_pre_gen_gates_for_track(
     gates: list[dict[str, Any]] = []
     blocking = 0
     warning_count = 0
+    is_instrumental = bool(file_text and re.search(r"(?mi)^instrumental:\s*true\b", file_text))
 
     # Gate 1: Sources Verified
     sources = t_data.get("sources_verified", "N/A")
@@ -156,6 +157,23 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Style Prompt Complete", "status": "PASS",
                       "detail": f"Style prompt: {len(style_content)} chars"})
 
+    # Gate 5b: Style Box descriptor budget (advisory) — V5 sweet spot is 4-7
+    if style_content and style_content.strip():
+        descriptors = [d for d in re.split(r"[,.\n]", style_content) if d.strip()]
+        n_desc = len(descriptors)
+        if n_desc > 7:
+            gates.append({"gate": "Style Box Descriptor Count", "status": "WARN",
+                          "severity": "WARNING",
+                          "detail": f"{n_desc} descriptors — V5 sweet spot is 4-7; "
+                                    "trim synonym-piles to avoid prompt fatigue"})
+            warning_count += 1
+        else:
+            gates.append({"gate": "Style Box Descriptor Count", "status": "PASS",
+                          "detail": f"{n_desc} descriptors (within 4-7 sweet spot)"})
+    else:
+        gates.append({"gate": "Style Box Descriptor Count", "status": "SKIP",
+                      "detail": "No style prompt to check"})
+
     # Gate 6: Artist Names Cleared (uses pre-compiled patterns)
     if style_content:
         found_artists = []
@@ -216,6 +234,29 @@ def _check_pre_gen_gates_for_track(
                           "detail": f"{wc} words (limit {max_lyric_words})"})
     else:
         gates.append({"gate": "Lyric Length", "status": "SKIP",
+                      "detail": "No lyrics to check"})
+
+    # Performance Cues on structure tags (advisory) — bare tags cause flat output.
+    # Instrumental tracks legitimately use bare structural tags, so skip the check.
+    if is_instrumental:
+        gates.append({"gate": "Performance Cues", "status": "SKIP",
+                      "detail": "Instrumental track — per-section cues optional"})
+    elif lyrics_content and lyrics_content.strip():
+        struct_tags = [line.strip() for line in lyrics_content.split("\n")
+                       if _SECTION_TAG_RE.match(line.strip())]
+        cue_bearing = [t for t in struct_tags if re.search(r"\[[^\]]* - [^\]]*\]", t)]
+        if len(struct_tags) >= 2 and not cue_bearing:
+            gates.append({"gate": "Performance Cues", "status": "WARN", "severity": "WARNING",
+                          "detail": f"{len(struct_tags)} structure tags carry no Performance Cues "
+                                    "(e.g. [Verse 1 - cold, regal]); bare tags are a common cause "
+                                    "of flat, generic output"})
+            warning_count += 1
+        else:
+            gates.append({"gate": "Performance Cues", "status": "PASS",
+                          "detail": (f"{len(cue_bearing)}/{len(struct_tags)} structure tags carry cues"
+                                     if struct_tags else "No structure tags to check")})
+    else:
+        gates.append({"gate": "Performance Cues", "status": "SKIP",
                       "detail": "No lyrics to check"})
 
     return blocking, warning_count, gates
