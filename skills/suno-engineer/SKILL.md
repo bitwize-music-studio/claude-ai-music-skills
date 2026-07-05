@@ -68,7 +68,7 @@ Structure your songs with explicit section markers:
 - V5 uses these to shape arrangement
 - Without tags, structure can be unpredictable
 - **Default, not optional — Performance Cues**: append 1-3 delivery cues directly to each structure tag (`[Verse 1 - cold, regal, controlled]`, `[Bridge - raw, breaking, desperate]`) — see the same reference's "Performance Cues" section. This is how an emotional arc is carried across a song. Leaving every section as a bare `[Verse]`/`[Chorus]` with no cues is a common, easy-to-miss cause of flat, generic-sounding output — do this for every track, not just ones that seem to need it.
-- **Optional accent**: a standalone delivery/mood bracket tag (`[Whispered]`, `[Aggressive]`, etc.) can additionally color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly (1 per section); this is not a substitute for Style Box mood/energy prose.
+- **Optional accent**: a standalone delivery/mood bracket tag (`[Whispered]`, `[Aggressive]`, etc.) can additionally color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly, and count it against the **same ≤3-per-section budget** as the Performance Cues above (cues + accent ≤ 3 bracketed descriptors per section — more than 3 causes noise). This is not a substitute for Style Box mood/energy prose.
 
 ### Vocals First
 In Style Prompt, put vocal description FIRST:
@@ -169,11 +169,11 @@ Chorus lyrics here
 
 **Example**:
 ```
-Male baritone, passionate delivery, storytelling vocal. Alternative rock,
-clean electric guitar, driving bassline, tight drums. Modern production, dynamic range.
+Male baritone, storytelling delivery. Alternative rock, clean electric guitar,
+driving bass, tight drums. Modern production.
 ```
 
-**Before finalizing, count every descriptor across all three blocks** — the box is delimited by periods *and* commas (`[Vocal]. [Genre]. [Production]`), so counting commas alone undercounts. V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-3 instruments, 1 production note) to keep the total within 4-7. Move section-by-section emotional variation into Performance Cues in the Lyrics Box instead of adding more adjectives here — that is the correct place for an arc, not the Style Box.
+**Before finalizing, count every descriptor across all three blocks** — the box is delimited by periods *and* commas (`[Vocal]. [Genre]. [Production]`), so counting commas alone undercounts. V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-3 instruments, 1 production note) to keep the total within 4-7. Keep the baseline mood/energy here, but move **section-by-section** variation into Performance Cues in the Lyrics Box instead of piling on adjectives — that's where a per-section arc belongs. (An alternative arc technique — mapping sections in Style-Box "Performance:" prose — lives in `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` § Emotion Arc Mapping; use one approach per track, not both.)
 
 ### Exclude Styles (Negative Prompting)
 
