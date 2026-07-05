@@ -67,7 +67,8 @@ Structure your songs with explicit section markers:
 - `[Intro]`, `[Verse]`, `[Chorus]`, `[Pre-Chorus]`, `[Bridge]`, `[Outro]`, `[End]` — see `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` for the full set (including `[Post-Chorus]`, `[Break]`, `[Interlude]`, `[Fade In]`/`[Fade Out]`)
 - V5 uses these to shape arrangement
 - Without tags, structure can be unpredictable
-- **Optional accent**: one delivery/mood bracket tag per section (`[Whispered]`, `[Aggressive]`, etc.) can color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly (1 per section); this is not a substitute for Style Box mood/energy prose.
+- **Default, not optional — Performance Cues**: append 1-3 delivery cues directly to each structure tag (`[Verse 1 - cold, regal, controlled]`, `[Bridge - raw, breaking, desperate]`) — see the same reference's "Performance Cues" section. This is how an emotional arc is carried across a song. Leaving every section as a bare `[Verse]`/`[Chorus]` with no cues is a common, easy-to-miss cause of flat, generic-sounding output — do this for every track, not just ones that seem to need it.
+- **Optional accent**: a standalone delivery/mood bracket tag (`[Whispered]`, `[Aggressive]`, etc.) can additionally color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly (1 per section); this is not a substitute for Style Box mood/energy prose.
 
 ### Vocals First
 In Style Prompt, put vocal description FIRST:
@@ -171,6 +172,8 @@ Chorus lyrics here
 Male baritone, passionate delivery, storytelling vocal. Alternative rock,
 clean electric guitar, driving bassline, tight drums. Modern production, dynamic range.
 ```
+
+**Before finalizing, count comma-separated descriptors.** V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-4 instruments, 1 production note). Move section-by-section emotional variation into Performance Cues in the Lyrics Box instead of adding more adjectives here — that is the correct place for an arc, not the Style Box.
 
 ### Exclude Styles (Negative Prompting)
 
@@ -305,10 +308,11 @@ As the Suno engineer, you:
 5. **Define vocals** - Specify voice type, delivery, energy. Pull a concrete texture/style descriptor from `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` (Vocal Style Tags, Vocal Texture Tags, Production/Vocal FX Descriptors) instead of a generic "male vocal, rock" — e.g. "gravelly, belting" beats "powerful"
 6. **Choose instruments** - Select key instruments and sonic texture. Match to genre using `${CLAUDE_PLUGIN_ROOT}/reference/suno/instrumental-tags.md` § Genre-Specific Instruments (2-4 key instruments, not a full list)
 7. **Check for sound effects/atmosphere** - If the lyrics reference rain, footsteps, crowds, laughter, or similar, add matching tags per `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Sound Effects / Atmospheric Effects (mention in both Lyrics Box and Style Prompt for atmospheric/environmental sounds)
-8. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed
-9. **Generate in Suno** - Create track with assembled inputs
-10. **Iterate if needed** - Refine based on output quality
-11. **Log results** - Document in Generation Log with rating
+8. **Add Performance Cues** - Append 1-3 delivery cues to each structure tag in the Lyrics Box (`[Verse 1 - cold, regal]`, `[Bridge - raw, breaking]`) so the emotional arc plays out section-by-section, per `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` § Performance Cues — do this by default, not only when a track "seems to need it"
+9. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed, then count comma-separated descriptors and trim to the 4-7 sweet spot (collapse synonym-piles; see § Style Prompt above)
+10. **Generate in Suno** - Create track with assembled inputs
+11. **Iterate if needed** - Refine based on output quality
+12. **Log results** - Document in Generation Log with rating
 
 ---
 
@@ -322,6 +326,10 @@ Only mark track as "Generated" when output meets:
 - [ ] Structure follows tags
 - [ ] No awkward cuts or loops
 - [ ] No unwanted instruments/elements present (verify exclusions were effective)
+
+Before generating, also verify the prompt itself is built for reliable output, not just the resulting audio:
+- [ ] Style Box stays within the 4-7 descriptor sweet spot (no synonym-stacking)
+- [ ] Structure tags carry Performance Cues where the song's emotional arc shifts (not left as bare `[Verse]`/`[Chorus]` throughout)
 
 ---
 
@@ -357,5 +365,6 @@ When you discover new Suno behavior or techniques, **update the reference docume
 4. **Respect avoidance rules** - Never use genres/words user specified to avoid
 5. **Use exclusions sparingly** — Exclude Styles for 2–4 items max; leave empty when not needed
 6. **Backfill older tracks** — If an existing track file is missing the `### Exclude Styles` section, add it between Style Box and Lyrics Box (per template)
+7. **Fight prompt fatigue by default** — Style Box: 4-7 descriptors, not 20 synonym-stacked ones. Put the song's emotional arc in per-section Performance Cues, not in a longer adjective list.
 
 Simple prompts + good lyrics + section tags + user preferences + targeted exclusions = best results.
