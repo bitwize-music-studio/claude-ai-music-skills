@@ -6,33 +6,6 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
-### Fixed
-- **`suno-engineer` now requires checking the Style Box descriptor ceiling and defaults to
-  per-section Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
-  descriptors and mentioned `v5-best-practices.md`'s "4-7 descriptor sweet spot" and
-  `structure-tags.md`'s Performance Cues technique, but never wired either into the
-  `suno-engineer` workflow or its Quality Standards checklist as something to actually check
-  before finalizing a prompt. In real album production this produced Style Boxes with 20+
-  comma-separated descriptors (mostly synonym-piles like "imperious, commanding, regal, grand,
-  theatrical, explosive") and Lyrics Boxes with bare `[Verse]`/`[Chorus]` tags carrying no
-  delivery variation — output that repeatedly came back sounding flat and generic across
-  multiple tracks on an album. Added an explicit workflow step + Quality Standards checks
-  requiring: (1) Style Box trimmed to the 4-7 descriptor sweet spot before generating, and
-  (2) 1-3 Performance Cues appended to every structure tag (`[Verse 1 - cold, regal]`) by
-  default, moving the song's emotional arc out of the Style Box prose and into the Lyrics Box
-  where it belongs. Rewriting one in-progress track's Style Box (20+ descriptors → 6) and
-  adding Performance Cues to all 12 of its section tags produced a subjectively much more
-  dynamic, less generic-sounding generation — the before/after difference is what prompted
-  this fix.
-- **`suno-engineer` guidance-consistency follow-ups** (#454, follow-up to #453). Trimmed the
-  Style Prompt example to the 4-7 sweet spot (it modeled 9 descriptors); reconciled the
-  emotional-arc location between `suno-engineer/SKILL.md` and `voice-tags.md` § Emotion Arc
-  Mapping (baseline mood in Style Box prose, per-section variation in Performance Cues,
-  cross-referenced both ways); updated `templates/track.md` to model per-section Performance
-  Cues instead of bare section tags and to stop redirecting delivery notes to the Style Box;
-  and clarified that Performance Cues plus the optional standalone accent share one
-  ≤3-per-section budget.
-
 ## [0.95.0] - 2026-07-04
 
 ### Added
@@ -184,6 +157,32 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   `_normalize_slug`'s `ValueError` escape as an opaque tool error on inputs
   like `../other`; all three now catch it and return their module's
   structured error shape.
+
+- **`suno-engineer` now requires checking the Style Box descriptor ceiling and defaults to
+  per-section Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
+  descriptors and mentioned `v5-best-practices.md`'s "4-7 descriptor sweet spot" and
+  `structure-tags.md`'s Performance Cues technique, but never wired either into the
+  `suno-engineer` workflow or its Quality Standards checklist as something to actually check
+  before finalizing a prompt. In real album production this produced Style Boxes with 20+
+  comma-separated descriptors (mostly synonym-piles like "imperious, commanding, regal, grand,
+  theatrical, explosive") and Lyrics Boxes with bare `[Verse]`/`[Chorus]` tags carrying no
+  delivery variation — output that repeatedly came back sounding flat and generic across
+  multiple tracks on an album. Added an explicit workflow step + Quality Standards checks
+  requiring: (1) Style Box trimmed to the 4-7 descriptor sweet spot before generating, and
+  (2) 1-3 Performance Cues appended to every structure tag (`[Verse 1 - cold, regal]`) by
+  default, moving the song's emotional arc out of the Style Box prose and into the Lyrics Box
+  where it belongs. Rewriting one in-progress track's Style Box (20+ descriptors → 6) and
+  adding Performance Cues to all 12 of its section tags produced a subjectively much more
+  dynamic, less generic-sounding generation — the before/after difference is what prompted
+  this fix.
+- **`suno-engineer` guidance-consistency follow-ups** (#454, follow-up to #453). Trimmed the
+  Style Prompt example to the 4-7 sweet spot (it modeled 9 descriptors); reconciled the
+  emotional-arc location between `suno-engineer/SKILL.md` and `voice-tags.md` § Emotion Arc
+  Mapping (baseline mood in Style Box prose, per-section variation in Performance Cues,
+  cross-referenced both ways); updated `templates/track.md` to model per-section Performance
+  Cues instead of bare section tags and to stop redirecting delivery notes to the Style Box;
+  and clarified that Performance Cues plus the optional standalone accent share one
+  ≤3-per-section budget.
 
 ## [0.94.0] - 2026-07-03
 
