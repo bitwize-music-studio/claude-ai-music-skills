@@ -163,7 +163,7 @@ chorus slightly wider and warmer with gentle vibrato on sustained notes;
 bridge raw and exposed, single-take feel.
 ```
 
-This lets you create an **emotional arc** across the song rather than a flat vocal performance throughout.
+This lets you create an **emotional arc** across the song rather than a flat vocal performance throughout. This Style-Box "Performance:" method and per-section **Performance Cues** in the Lyrics Box ([structure-tags.md](structure-tags.md) § Performance Cues, e.g. `[Verse 1 - quiet, intimate]`) are two routes to the same arc — pick one per track rather than splitting it across both.
 
 ## Advanced Vocal Workflow
 

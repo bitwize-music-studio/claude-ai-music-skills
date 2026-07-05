@@ -24,6 +24,14 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
   adding Performance Cues to all 12 of its section tags produced a subjectively much more
   dynamic, less generic-sounding generation — the before/after difference is what prompted
   this fix.
+- **`suno-engineer` guidance-consistency follow-ups** (#454, follow-up to #453). Trimmed the
+  Style Prompt example to the 4-7 sweet spot (it modeled 9 descriptors); reconciled the
+  emotional-arc location between `suno-engineer/SKILL.md` and `voice-tags.md` § Emotion Arc
+  Mapping (baseline mood in Style Box prose, per-section variation in Performance Cues,
+  cross-referenced both ways); updated `templates/track.md` to model per-section Performance
+  Cues instead of bare section tags and to stop redirecting delivery notes to the Style Box;
+  and clarified that Performance Cues plus the optional standalone accent share one
+  ≤3-per-section budget.
 
 ## [0.95.0] - 2026-07-04
 

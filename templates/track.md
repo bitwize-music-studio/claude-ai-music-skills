@@ -216,22 +216,23 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
 
 <!-- VOCAL TRACKS: WARNING: Suno sings EVERYTHING literally including parenthetical directions.
      NEVER use (whispered), (softly), (screaming), (spoken), (laughing), etc.
-     Use metatags like [Whispered] or put delivery notes in the Style Box instead. -->
+     Use standalone metatags like [Whispered], or append per-section Performance Cues to the
+     section tag (e.g. [Verse 1 - cold, regal]) — never parentheticals. -->
 
 ```
-[Verse 1]
+[Verse 1 - calm, reflective]
 [Lyrics here...]
 
-[Chorus]
+[Chorus - big, anthemic]
 [Lyrics here...]
 
-[Verse 2]
+[Verse 2 - restless, driving]
 [Lyrics here...]
 
-[Bridge]
+[Bridge - stripped, intimate]
 [Lyrics here...]
 
-[Outro]
+[Outro - resolved, fading]
 [Lyrics here...]
 ```
 <!-- /SERVICE: suno -->
