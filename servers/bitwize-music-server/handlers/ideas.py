@@ -185,8 +185,17 @@ async def create_idea(
     else:
         text = "# Album Ideas\n\n---\n\n## Ideas\n"
 
-    # Check for duplicate title
-    if f"### {title.strip()}\n" in text:
+    # Check for duplicate title (case-insensitive, matching the readers in
+    # _find_idea_in_state / get_ideas / promote_idea which compare on
+    # ``title.strip().lower()``). Scan every "### <title>" header rather than
+    # doing an exact-case substring match, so "cyberpunk dreams" is rejected
+    # when "Cyberpunk Dreams" already exists (#395).
+    needle = title.strip().lower()
+    existing_titles = {
+        header.strip().lower()
+        for header in re.findall(r'^###\s+(.+?)\s*$', text, re.MULTILINE)
+    }
+    if needle in existing_titles:
         return _safe_json({
             "created": False,
             "error": f"Idea '{title.strip()}' already exists in IDEAS.md",

@@ -144,6 +144,53 @@ Space is not a constraint. Thoroughness is the priority.]
 - **Instrumentation**: [Key instruments/sounds]
 
 <!-- SERVICE: suno -->
+<!-- COVER TRACKS: Include this block ONLY if this track is a Suno Cover (reimagines an existing
+     song or uploaded audio in a new style) and/or is built on a saved Persona (Pro/Premier).
+     Delete the entire block for standard original-generation tracks — it is optional and does
+     not affect the normal writing flow. Full workflow and decision guidance:
+     reference/workflows/covers-and-personas.md -->
+
+## Cover / Persona Setup
+
+### Original Song Reference
+
+*What this cover reworks. Delete this subsection if the track is not a Cover.*
+
+| Attribute | Detail |
+|-----------|--------|
+| **Cover of** | [Original song, or the prior generation this reworks] |
+| **Source audio** | [Uploaded sample e.g. Splice / earlier Suno generation / — ] |
+| **Keeps** | [What carries over: topline melody, structure] |
+| **Reimagines** | [The new target genre/style the Cover shifts it into] |
+| **Audio Influence** | [Slider setting — higher hews closer to the source; shown only when audio is uploaded] |
+
+### Persona Selection
+
+*The saved vocal identity applied to this track. Delete this subsection if no Persona is used.*
+
+| Attribute | Detail |
+|-----------|--------|
+| **Persona** | [Saved Persona name, or —] |
+| **Vocal identity** | [What it locks in, e.g. male baritone, gravelly, folk storyteller] |
+| **Saved from** | [The generation this Persona was captured from] |
+
+When a Persona is applied, keep the Style Box below simple (one or two genres) and drop detailed
+vocal descriptors — the Persona carries the voice. Personas run dominant in the mix; if the result
+sounds overprocessed, simplify the Style Box or lower Style Influence.
+
+### Cover-Specific Style Guidance
+
+The Style Box for a Cover describes the NEW target style, not the original. Fill the Style Box under
+Suno Inputs below with the destination genre/mood, then note here what to preserve versus transform:
+
+- **Preserve**: [elements of the original to keep — e.g. topline melody, song structure]
+- **Transform**: [what the Cover changes — genre, instrumentation, tempo feel, production era]
+- **Layering**: [if stacking multiple Covers for genre-bending, note the order — see workflow guide]
+
+<!-- END COVER SECTIONS -->
+<!-- /SERVICE: suno -->
+
+<!-- SERVICE: suno -->
 ## Suno Inputs
 
 ### Style Box
@@ -169,22 +216,23 @@ Space is not a constraint. Thoroughness is the priority.]
 
 <!-- VOCAL TRACKS: WARNING: Suno sings EVERYTHING literally including parenthetical directions.
      NEVER use (whispered), (softly), (screaming), (spoken), (laughing), etc.
-     Use metatags like [Whispered] or put delivery notes in the Style Box instead. -->
+     Use standalone metatags like [Whispered], or append per-section Performance Cues to the
+     section tag (e.g. [Verse 1 - cold, regal]) — never parentheticals. -->
 
 ```
-[Verse 1]
+[Verse 1 - calm, reflective]
 [Lyrics here...]
 
-[Chorus]
+[Chorus - big, anthemic]
 [Lyrics here...]
 
-[Verse 2]
+[Verse 2 - restless, driving]
 [Lyrics here...]
 
-[Bridge]
+[Bridge - stripped, intimate]
 [Lyrics here...]
 
-[Outro]
+[Outro - resolved, fading]
 [Lyrics here...]
 ```
 <!-- /SERVICE: suno -->

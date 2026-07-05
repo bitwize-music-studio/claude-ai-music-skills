@@ -6,6 +6,184 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.95.0] - 2026-07-04
+
+### Added
+- **Expanded Suno metatag reference coverage and suno-engineer prompt-building workflow**.
+  Metatags were mentioned in the plugin but scattered and thin — `structure-tags.md` had
+  only 6 delivery/mood bracket tags and was missing `[Post-Chorus]`/`[Fade In]`/`[Hook]`,
+  `v5-best-practices.md`'s Sound Effects list had only 6 examples, and the Duet pattern
+  existed only inside `suno-engineer/SKILL.md` with no canonical reference. More
+  importantly, `suno-engineer`'s own workflow never instructed pulling mood/voice/SFX
+  vocabulary from the reference docs it already links, so real generations only ever
+  got bare structure tags. Added a terminology explainer (structure tags vs.
+  delivery/mood bracket tags vs. Style Box descriptors vs. inline lyrical metatags) to
+  `reference/suno/README.md` and `structure-tags.md`; expanded mood tags, sound effects,
+  and added a Duet/Call-and-Response + Production/Vocal FX section to `voice-tags.md`;
+  and updated `suno-engineer/SKILL.md`'s workflow to explicitly pull concrete
+  descriptors from these references when building vocals, instruments, and Style Box
+  prompts. Deliberately did not adopt invented `[Mood: X]`/`[Energy: X]` bracket syntax
+  or bracket-style instrument tags from third-party guides — those contradict this
+  plugin's field-tested anti-"tag soup" guidance.
+
+### Performance
+- **ADM validation runs per-track checks in parallel** (#345). The mastering
+  pipeline's inter-sample clip check encodes+decodes each track via two ffmpeg
+  subprocesses; running them serially dominated wall-clock time (and tripled on
+  retry). The checks now run concurrently, bounded to CPU count, with identical
+  results, ordering, error handling, and clip-halt behavior.
+
+### Docs
+- **Suno Song Editor workflow guide** (#237) — `reference/workflows/song-editor.md`:
+  when to use section-level edits vs. regeneration vs. mix-engineer polish, each
+  operation with use cases, and mastering-pipeline interaction.
+- **Creative Sliders reference** (#238) — `reference/suno/creative-sliders.md`:
+  per-slider behavior, genre starting ranges, interaction effects, and
+  slider-vs-prompt guidance; linked from the Suno reference index.
+- **Covers & Personas workflow guide** (#239) — `reference/workflows/covers-and-personas.md`
+  plus optional cover-track sections in `templates/track.md`.
+- **Expanded error-recovery guide** (#240) — added recovery procedures for state
+  cache corruption, mastering mid-failure cleanup, malformed markdown, batch
+  partial failures, config path resolution, and plugin/MCP corruption.
+
+### Tests
+- **Dedicated handler test coverage** (#236) — new `test_handlers_content.py`,
+  `test_handlers_promo.py`, and `test_handlers_maintenance.py` (the last closing
+  the `migrate_audio_layout` coverage gap).
+- **Corrected logger scoping** (#344) in `test_config_load_failure_logs_warning`
+  so it pins the actual emitting module.
+
+### Fixed
+- **Handler & CLI correctness fixes**:
+  - **`check_version_sync` no longer crashes on non-UTF-8 manifests** (#394).
+    Manifests are read as UTF-8 and `UnicodeDecodeError` is handled, so the
+    hook degrades cleanly instead of tracebacking on a non-UTF-8 locale.
+  - **Idea duplicate detection is case-insensitive** (#395), matching the
+    case-insensitive readers — `"cyberpunk dreams"` is now rejected as a
+    duplicate of `"Cyberpunk Dreams"` instead of creating a second entry.
+  - **Rhyme-scheme analyzer groups clear rhymes correctly** (#396). The
+    spelling-based tail extraction split rhyming pairs (`eyes`/`cries`,
+    `times`/`rhymes`); the nucleus is now capped and vowel `y`/`i` folded so
+    they share a rhyme group, without merging genuinely distinct words.
+  - **`_stage_layout` survives a corrupt `LAYOUT.md`** (#399). A non-UTF-8
+    layout file raised `UnicodeDecodeError` outside the stage's guard,
+    aborting the master pipeline; the read is now guarded and the stage
+    regenerates from defaults per its non-halting contract.
+  - **`create_track` writes valid YAML for quoted titles** (#403). A title
+    containing a double-quote produced malformed frontmatter (silently
+    dropping fields); the frontmatter scalar is now YAML-escaped.
+  - **`update_streaming_url` escapes URLs in frontmatter** (#404). A URL with
+    a double-quote or backslash produced malformed YAML on the in-place edit
+    path, silently dropping the URL from the state cache; it is now escaped.
+  - **`find_album_path` validates before globbing** (#405). An `album_name`
+    with glob metacharacters was expanded as a pattern before the guard ran;
+    validation now precedes all glob use.
+  - **`qc_tracks` no longer aborts the batch on one bad file** (#408). A
+    corrupt WAV now yields a per-track FAIL row and the batch continues,
+    instead of tearing down the run.
+  - **`reference_master` batch mode excludes the reference reliably** (#409).
+    The reference WAV is matched by resolved path, so an absolute `--reference`
+    is no longer re-mastered as its own target.
+- **Audio/DSP edge-case crashes hardened** across the mastering and mixing
+  pipelines:
+  - **Silent/corrupt tracks no longer poison album LUFS aggregates** (#400).
+    A `-inf` LUFS reading fed `avg_lufs`/`lufs_range` in the verification and
+    ceiling-guard stages, producing `-inf`/`inf` and spurious range failures.
+    A shared `_finite_lufs_aggregates` helper now aggregates finite readings
+    only (returning `None` when all tracks are silent), and downstream
+    rounding/comparisons handle `None`.
+  - **Mix analyzer survives degenerate WAVs** (#401, #402). A zero-length WAV
+    crashed with an empty-array reduction; a sub-10-sample buffer produced a
+    `NaN` noise floor. Both now return a clean per-file result instead.
+  - **`apply_fade_out` no longer raises on sub-sample fades** (#406). A tiny
+    positive duration rounded `fade_samples` to 0 and raised; it is now a
+    no-op fade.
+  - **`original_lufs` reports the source loudness** (#407), measured before
+    processing rather than after.
+  - **Envelope followers no longer divide by zero** (#410). A 0 ms attack or
+    release in `gentle_compress`/`apply_transient_shaper` raised
+    `ZeroDivisionError`; time constants are clamped to a small positive floor.
+  - **`find_mastered_dir` skips non-directory candidates** (#411) instead of
+    crashing with `NotADirectoryError` when a candidate path is a file.
+  - **`find_best_segment` no longer skips the last analysis window** (#412),
+    an off-by-one in the window loop bound.
+- **Malformed slugs return clean JSON across every MCP tool** (#443). The
+  shared `_find_album_or_error` / `_resolve_audio_dir` / `_find_track_or_error`
+  helpers called `_normalize_slug` raw, and ~13 tool handlers called it
+  directly, so a slug with a path separator, null byte, or `..` traversal
+  raised an uncaught `ValueError` to the MCP layer — the same class #397/#442
+  fixed in a handful of handlers. The three helpers now convert that
+  `ValueError` into their structured error, and a single error boundary
+  installed at tool registration wraps every handler so any leaked
+  `ValueError` becomes a `{"error": ...}` response. Only `ValueError` is
+  caught, so genuine bugs still surface; the boundary preserves each tool's
+  FastMCP schema (it wraps via `functools.wraps`).
+- **Songbook no longer drops the first music page of every track** (#390).
+  `create_songbook` inferred `singles_have_title_pages = (manifest is not
+  None)` and unconditionally skipped page 0 of each single. But
+  `prepare_singles` writes `.manifest.json` even when it silently skips the
+  title page (pypdf/reportlab missing, or the step raised) — so singles with
+  no title page but a manifest lost their real first page (the whole track
+  for a 1-page transcription) and the TOC miscounted. `prepare_singles` now
+  records the actual per-track `title_page` fact in the manifest, and
+  `create_songbook` trusts that flag (falling back to the prior filename
+  heuristic for legacy manifests), so only genuine title pages are skipped.
+- **`create_track` validates `track_number`** (#372). Non-numeric values
+  (`abc`, `1a`, empty), `None`, booleans, and zero/negative numbers now
+  return a structured error naming the invalid value instead of crashing
+  with an unhandled `ValueError` — and `00` no longer silently creates a
+  malformed `00-title.md` track. Integers and numeric strings (`7`, `"03"`)
+  keep working.
+- **`_update_frontmatter_block` honors its error contract** (#378). A track
+  file whose frontmatter parses to a list or scalar now returns
+  `(False, "Frontmatter in <path> is not a mapping (got <type>)")` per the
+  documented contract instead of raising `TypeError` out of the sheet-music
+  publish loop.
+- **`db_sync_album` returns a JSON error on malformed slugs** (#379). Slugs
+  containing path separators, null bytes, or `..` raised an uncaught
+  `ValueError` to the FastMCP layer; the slug lookup is now guarded with the
+  same try/except pattern every sibling `db_*` handler uses.
+- **`db_create_tweet` no longer silently drops the track link** (#380). When
+  `track_number > 0` but no matching track row exists, the tool inserted the
+  tweet with a NULL `track_id` while echoing the requested track number as
+  if it had linked. It now returns an error naming the missing track and
+  album (suggesting `db_sync_album` or `track_number=0`) before any insert.
+- **`analyze_tracks.py` handles WAV-less directories** (#386). Pointing the
+  CLI at a directory with no WAV files crashed with a `ValueError` from an
+  empty-array reduction; it now logs a clear "No tracks to analyze" error
+  and exits nonzero.
+- **Slug validation errors are clean JSON in three more handlers** (#397).
+  `reset_mastering`, `migrate_audio_layout`, and `get_skill` let
+  `_normalize_slug`'s `ValueError` escape as an opaque tool error on inputs
+  like `../other`; all three now catch it and return their module's
+  structured error shape.
+
+- **`suno-engineer` now requires checking the Style Box descriptor ceiling and defaults to
+  per-section Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
+  descriptors and mentioned `v5-best-practices.md`'s "4-7 descriptor sweet spot" and
+  `structure-tags.md`'s Performance Cues technique, but never wired either into the
+  `suno-engineer` workflow or its Quality Standards checklist as something to actually check
+  before finalizing a prompt. In real album production this produced Style Boxes with 20+
+  comma-separated descriptors (mostly synonym-piles like "imperious, commanding, regal, grand,
+  theatrical, explosive") and Lyrics Boxes with bare `[Verse]`/`[Chorus]` tags carrying no
+  delivery variation — output that repeatedly came back sounding flat and generic across
+  multiple tracks on an album. Added an explicit workflow step + Quality Standards checks
+  requiring: (1) Style Box trimmed to the 4-7 descriptor sweet spot before generating, and
+  (2) 1-3 Performance Cues appended to every structure tag (`[Verse 1 - cold, regal]`) by
+  default, moving the song's emotional arc out of the Style Box prose and into the Lyrics Box
+  where it belongs. Rewriting one in-progress track's Style Box (20+ descriptors → 6) and
+  adding Performance Cues to all 12 of its section tags produced a subjectively much more
+  dynamic, less generic-sounding generation — the before/after difference is what prompted
+  this fix.
+- **`suno-engineer` guidance-consistency follow-ups** (#454, follow-up to #453). Trimmed the
+  Style Prompt example to the 4-7 sweet spot (it modeled 9 descriptors); reconciled the
+  emotional-arc location between `suno-engineer/SKILL.md` and `voice-tags.md` § Emotion Arc
+  Mapping (baseline mood in Style Box prose, per-section variation in Performance Cues,
+  cross-referenced both ways); updated `templates/track.md` to model per-section Performance
+  Cues instead of bare section tags and to stop redirecting delivery notes to the Style Box;
+  and clarified that Performance Cues plus the optional standalone accent share one
+  ≤3-per-section budget.
+
 ## [0.94.0] - 2026-07-03
 
 ### Fixed

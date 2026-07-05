@@ -6,6 +6,8 @@ module's ``register()`` function is called.
 
 from __future__ import annotations
 
+import functools
+import inspect
 import json
 import math
 import re
@@ -169,6 +171,59 @@ def _safe_json(data: Any) -> str:
         return json.dumps({"error": f"JSON serialization failed: {e}"})
 
 
+def _json_error_boundary(fn: Any) -> Any:
+    """Wrap an MCP tool handler so a ValueError becomes a structured JSON error.
+
+    Many handlers normalize a user-supplied slug via _normalize_slug, which
+    raises ValueError on path separators / null bytes / traversal. Handlers
+    that call it directly (rather than through the guarded _find_album_or_error
+    / _resolve_audio_dir / _find_track_or_error helpers) would otherwise let
+    that ValueError escape to the MCP layer as an opaque tool error. This
+    boundary, installed once at registration, guarantees every tool — current
+    and future — returns clean JSON instead (#443).
+
+    Only ValueError is caught: it is the documented slug-validation signal.
+    Unexpected exceptions still propagate so real bugs are not masked.
+    """
+    if inspect.iscoroutinefunction(fn):
+        @functools.wraps(fn)
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return await fn(*args, **kwargs)
+            except ValueError as exc:
+                return _safe_json({"error": str(exc)})
+        return async_wrapper
+
+    @functools.wraps(fn)
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return fn(*args, **kwargs)
+        except ValueError as exc:
+            return _safe_json({"error": str(exc)})
+    return sync_wrapper
+
+
+def install_error_boundary(mcp: Any) -> None:
+    """Wrap ``mcp.tool`` so every registered handler gets _json_error_boundary.
+
+    Call once BEFORE the per-module ``register(mcp)`` calls. FastMCP builds
+    each tool's input schema from the handler signature via
+    ``inspect.signature``, which follows ``functools.wraps``' ``__wrapped__``,
+    so the boundary leaves the generated tool schema unchanged (#443).
+    """
+    original_tool = mcp.tool
+
+    def tool(*args: Any, **kwargs: Any) -> Any:
+        decorator = original_tool(*args, **kwargs)
+
+        def wrapping_decorator(fn: Any) -> Any:
+            return decorator(_json_error_boundary(fn))
+
+        return wrapping_decorator
+
+    mcp.tool = tool
+
+
 def _update_frontmatter_block(
     file_path: Path, key: str, values: dict[str, Any]
 ) -> tuple[bool, str | None]:
@@ -211,6 +266,12 @@ def _update_frontmatter_block(
         fm = yaml.safe_load(frontmatter_text) or {}
     except yaml.YAMLError as exc:
         return False, f"Cannot parse frontmatter YAML in {file_path}: {exc}"
+
+    if not isinstance(fm, dict):
+        return False, (
+            f"Frontmatter in {file_path} is not a mapping "
+            f"(got {type(fm).__name__})"
+        )
 
     fm[key] = values
 
@@ -347,10 +408,17 @@ def _find_album_or_error(album_slug: str) -> tuple[str, dict[str, Any] | None, s
 
     If album found: (slug, data, None)
     If not found: (slug, None, error_json_string)
+    If the slug is malformed: (raw_slug, None, error_json_string) — the
+    ValueError _normalize_slug raises on path separators / null bytes /
+    traversal is converted to a structured error so callers never leak it to
+    the MCP layer (#443).
     """
     state = cache.get_state()
     albums = state.get("albums", {})
-    normalized = _normalize_slug(album_slug)
+    try:
+        normalized = _normalize_slug(album_slug)
+    except ValueError as exc:
+        return album_slug, None, _safe_json({"found": False, "error": str(exc)})
     album = albums.get(normalized)
 
     if not album:
@@ -408,8 +476,13 @@ def _find_track_or_error(tracks: dict[str, Any], track_slug: str, album_slug: st
 
     If track found: (matched_slug, track_data, None)
     If not found: (slug, None, error_json_string)
+    If the slug is malformed: (raw_slug, None, error_json_string) — the
+    _normalize_slug ValueError is converted to a structured error (#443).
     """
-    normalized = _normalize_slug(track_slug)
+    try:
+        normalized = _normalize_slug(track_slug)
+    except ValueError as exc:
+        return track_slug, None, _safe_json({"found": False, "error": str(exc)})
     track_data = tracks.get(normalized)
     if track_data:
         return normalized, track_data, None
@@ -444,7 +517,10 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple[str | None
     artist = config.get("artist_name", "")
     if not audio_root or not artist:
         return _safe_json({"error": "audio_root or artist_name not configured"}), None
-    normalized = _normalize_slug(album_slug)
+    try:
+        normalized = _normalize_slug(album_slug)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)}), None
     albums = state.get("albums", {})
     album_data = albums.get(normalized, {})
     genre = album_data.get("genre", "")

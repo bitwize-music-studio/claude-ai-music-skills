@@ -283,7 +283,9 @@ async def db_create_tweet(
     Args:
         album_slug: Album slug (e.g., "my-album")
         tweet_text: The post text content
-        track_number: Track number to link (0 = album-level post, no track link)
+        track_number: Track number to link (0 = album-level post, no track
+                      link). Returns an error if the track is not found in
+                      the database — no tweet is created.
         platform: Target platform ("twitter", "instagram", "tiktok",
                   "facebook", "youtube"). Default: "twitter"
         content_type: Post type ("promo", "announcement", "engagement",
@@ -327,8 +329,14 @@ async def db_create_tweet(
                 (album_id, track_number),
             )
             track_row = cur.fetchone()
-            if track_row:
-                track_id = track_row["id"]
+            if not track_row:
+                return _safe_json({
+                    "error": f"Track {track_number} not found for album "
+                             f"'{album_slug}' in database. "
+                             "Use db_sync_album to sync tracks first, or pass "
+                             "track_number=0 for an album-level post.",
+                })
+            track_id = track_row["id"]
 
         cur.execute(
             """INSERT INTO tweets
@@ -643,8 +651,14 @@ async def db_sync_album(album_slug: str) -> str:
     if dep_err:
         return _safe_json({"error": dep_err})
 
-    # Get album from plugin state cache
-    slug, album_data, err = _find_album_or_error(album_slug)
+    # Get album from plugin state cache. _find_album_or_error normalizes the
+    # slug, which raises ValueError on path separators, null bytes, or
+    # traversal sequences — convert that into the structured JSON error all
+    # db_* handlers return instead of letting it escape to the MCP layer (#379).
+    try:
+        slug, album_data, err = _find_album_or_error(album_slug)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
     if err:
         return err
     assert album_data is not None

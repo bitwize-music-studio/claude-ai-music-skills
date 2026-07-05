@@ -70,7 +70,10 @@ async def get_skill(name: str) -> str:
             "error": "No skills in state cache. Run rebuild_state first.",
         })
 
-    normalized = _normalize_slug(name)
+    try:
+        normalized = _normalize_slug(name)
+    except ValueError as exc:
+        return _safe_json({"found": False, "error": str(exc)})
 
     # Exact match first
     if normalized in items:

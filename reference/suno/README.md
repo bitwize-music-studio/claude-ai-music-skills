@@ -7,6 +7,7 @@ Reference guides for Suno AI music generation.
 | Guide | Description |
 |-------|-------------|
 | [V5 Best Practices](v5-best-practices.md) | Comprehensive prompting guide for V5 |
+| [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
 | [Structure Tags](structure-tags.md) | Song section tags reference |
@@ -30,6 +31,19 @@ Reference guides for Suno AI music generation.
 | Debugging a failed generation | [Tips & Tricks](tips-and-tricks.md) |
 
 > **Related skill**: `/bitwize-music:suno-engineer` provides interactive guidance using these references.
+
+## Suno Tag/Metatag Terminology
+
+"Metatag" is often used loosely for all bracketed Suno keywords. This plugin distinguishes four categories, each with its own home doc:
+
+| Category | Example | Lives in |
+|----------|---------|----------|
+| Structure tags | `[Verse]`, `[Chorus]`, `[Post-Chorus]` | [structure-tags.md](structure-tags.md) |
+| Delivery/mood bracket tags | `[Whispered]`, `[Aggressive]` | [structure-tags.md](structure-tags.md) — "Custom Mood/Style Tags" |
+| Style Box descriptors (prose, not brackets) | `gravelly, belting, Southern rock vocal` | [voice-tags.md](voice-tags.md), [instrumental-tags.md](instrumental-tags.md) |
+| Inline lyrical metatags | `[Verse 1: Raspy older female vocal, husky contralto]` | [tips-and-tricks.md](tips-and-tricks.md#vocal-sounds-too-young-despite-maturedeep-descriptors) — escalation technique, not default |
+
+Structure tags are mandatory in every section; the other three are optional accents — see each doc's usage guidance to avoid "tag soup"/prompt fatigue.
 
 ## Quick Links
 

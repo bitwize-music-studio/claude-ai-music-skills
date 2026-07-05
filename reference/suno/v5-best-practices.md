@@ -287,12 +287,25 @@ Then suddenly [laughter] breaks the silence
 ```
 
 **Common Effects**:
+
+**Human:**
 - `[laughter]` - Natural laughing
 - `[screaming]` - Vocal scream
 - `[whisper]` - Whispered delivery
-- `[echo]` - Echo/reverb effect
+- `[sigh]` - Breathing out, reflective
+- `[gasp]` - Sharp intake of breath
+- `[cough]` - Clearing throat, realistic aside
+
+**Crowd:**
 - `[crowd]` - Crowd noise
 - `[applause]` - Clapping/applause
+- `[cheering]` - Crowd excitement
+
+**Mechanical/transition:**
+- `[echo]` - Echo/reverb effect
+- `[phone ringing]` - Telephone sound, narrative device
+- `[static]` - Radio noise, transition
+- `[record scratch]` - DJ/hip-hop transition marker
 
 **Note**: Effects work best when placed mid-line, not as standalone lines
 
@@ -391,6 +404,8 @@ V5 includes sliders in the generation interface that affect output:
 - Start with default values and adjust after hearing the first generation
 - High Weirdness + specific genre tag = interesting results within a genre
 - Low Style Influence is useful when you want the AI to surprise you
+
+> **Deep dive**: [creative-sliders.md](creative-sliders.md) — per-slider behavior, genre starting ranges, interaction effects, and when to move a slider vs. rewrite the prompt.
 
 ---
 
@@ -658,6 +673,7 @@ crisp, warm, bright, deep, spacious
 
 ## See Also
 
+- **`/reference/suno/creative-sliders.md`** - Weirdness / Style Influence / Audio Influence deep dive: genre starting ranges, interaction effects, slider-vs-prompt
 - **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling, homographs, pronunciation fixes
 - **`/reference/suno/structure-tags.md`** - Complete list of section tags ([Verse], [Chorus], etc.)
 - **`/reference/suno/genre-list.md`** - 500+ genre tags for style prompts

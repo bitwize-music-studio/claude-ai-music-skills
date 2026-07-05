@@ -379,6 +379,11 @@ from handlers import (
     text_analysis,
 )
 
+# Wrap mcp.tool so every handler returns a structured JSON error instead of
+# leaking a slug-validation ValueError to the MCP layer (#443). Must run before
+# the per-module register() calls below.
+_shared.install_error_boundary(mcp)
+
 core.register(mcp)
 content.register(mcp)
 text_analysis.register(mcp)

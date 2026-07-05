@@ -245,7 +245,7 @@ class TestSheetMusicConfigWarning:
                 "sys.modules",
                 {"tools.shared.config": types.ModuleType("tools.shared.config")},
             ),
-            caplog.at_level("WARNING", logger="handlers.processing._helpers"),
+            caplog.at_level("WARNING", logger="handlers.processing.sheet_music"),
         ):
             stub = sys.modules["tools.shared.config"]
             stub.load_config = MagicMock(side_effect=ImportError("no module"))
@@ -256,9 +256,19 @@ class TestSheetMusicConfigWarning:
             except Exception:
                 pass  # We only care about the logged warning
 
+        # Pin the emitter: the warning must originate from the sheet_music
+        # module's logger (handlers.processing.sheet_music), not _helpers or
+        # any other module. Asserting on r.name makes this test fail if the
+        # warning is ever emitted from the wrong logger (#344).
         assert any(
-            "Could not load sheet music config" in r.message for r in caplog.records
-        ), f"Expected sheet music config warning. Records: {[r.message for r in caplog.records]}"
+            r.name == "handlers.processing.sheet_music"
+            and "Could not load sheet music config" in r.message
+            for r in caplog.records
+        ), (
+            "Expected 'Could not load sheet music config' warning from the "
+            "handlers.processing.sheet_music logger. "
+            f"Records: {[(r.name, r.message) for r in caplog.records]}"
+        )
 
 
 # ---------------------------------------------------------------------------

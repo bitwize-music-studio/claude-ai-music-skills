@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -425,7 +426,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
 
 async def create_track(
     album_slug: str,
-    track_number: str,
+    track_number: str | int,
     title: str,
     documentary: bool = False,
 ) -> str:
@@ -436,7 +437,8 @@ async def create_track(
 
     Args:
         album_slug: Album slug (e.g., "my-album")
-        track_number: Two-digit track number (e.g., "01", "02")
+        track_number: Positive track number as a numeric string or int
+            (e.g., "01", "2", 7). Anything else returns a structured error.
         title: Track title (e.g., "My New Track")
         documentary: Keep source/quote sections (default: strip them)
 
@@ -456,9 +458,29 @@ async def create_track(
     if not tracks_dir.is_dir():
         return _safe_json({"error": f"tracks/ directory not found in {album_path}"})
 
+    # Validate track_number: must be a positive integer, as an int or a
+    # numeric string (#372). Check bool explicitly — it is an int subclass,
+    # so True would otherwise silently become track 01.
+    invalid_track_number = _safe_json({
+        "error": (
+            f"Invalid track_number {track_number!r}: "
+            'must be a positive integer (e.g., "01", "2")'
+        )
+    })
+    if isinstance(track_number, bool) or not isinstance(track_number, (int, str)):
+        return invalid_track_number
+    if isinstance(track_number, str):
+        try:
+            number = int(track_number.strip())
+        except ValueError:
+            return invalid_track_number
+    else:
+        number = track_number
+    if number < 1:
+        return invalid_track_number
+
     # Normalize track number to zero-padded two digits
-    num = track_number.strip().lstrip("0") or "0"
-    padded = num.zfill(2)
+    padded = str(number).zfill(2)
 
     # Build slug from number and title
     title_slug = _normalize_slug(title)
@@ -485,14 +507,24 @@ async def create_track(
 
     # Fill in placeholders
     album_title = album.get("title", normalized)
-    content = template.replace("[Track Title]", title)
+    # The frontmatter title is a quoted YAML scalar (title: "[Track Title]"),
+    # so it must receive a properly escaped value — a raw replace of a title
+    # containing a double quote would break the YAML and silently drop every
+    # frontmatter field on parse (#403). json.dumps() emits a valid YAML
+    # double-quoted scalar (escapes quotes/backslashes); ensure_ascii=False
+    # keeps non-ASCII readable so the scalar matches the human-readable body
+    # (H1, details table), which still take the raw title.
+    content = template.replace(
+        'title: "[Track Title]"', f"title: {json.dumps(title, ensure_ascii=False)}"
+    )
+    content = content.replace("[Track Title]", title)
     content = content.replace("| **Track #** | XX |", f"| **Track #** | {padded} |")
     content = content.replace("[Album Name](../README.md)", f"[{album_title}](../README.md)")
     content = content.replace("[Character/Perspective]", "—")
     content = content.replace("[Track's role in the album narrative]", "—")
 
     # Fill frontmatter placeholders
-    content = content.replace("track_number: 0", f"track_number: {int(padded)}")
+    content = content.replace("track_number: 0", f"track_number: {number}")
     content = content.replace(
         "explicit: false",
         f"explicit: {'true' if album.get('explicit', False) else 'false'}",

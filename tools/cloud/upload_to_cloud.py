@@ -174,6 +174,13 @@ def find_album_path(config: dict[str, Any], album_name: str, audio_root_override
     artist: str = config["artist"]["name"]
     checked: list[str] = []
 
+    # Validate album_name before ANY glob use (prevent path traversal and glob
+    # injection). Must run before the mirrored-structure branch below, which
+    # interpolates album_name into a glob pattern (#405).
+    if os.sep in album_name or '/' in album_name or any(c in album_name for c in '*?[]'):
+        logger.error("Album name '%s' contains invalid characters (path separators or glob patterns)", album_name)
+        sys.exit(1)
+
     # Try mirrored structure: {audio_root}/artists/{artist}/albums/{genre}/{album}
     genre_glob = audio_root / "artists" / artist / "albums" / "*" / album_name
     genre_matches = sorted(genre_glob.parent.parent.glob(f"*/{album_name}"))
@@ -187,11 +194,6 @@ def find_album_path(config: dict[str, Any], album_name: str, audio_root_override
     checked.append(str(album_path_direct))
     if album_path_direct.exists() and _is_within(album_path_direct, audio_root):
         return album_path_direct
-
-    # Validate album_name before glob search (prevent path traversal and glob injection)
-    if os.sep in album_name or '/' in album_name or any(c in album_name for c in '*?[]'):
-        logger.error("Album name '%s' contains invalid characters (path separators or glob patterns)", album_name)
-        sys.exit(1)
 
     # Glob search as fallback (handles genre folders, mirrored structures)
     matches = sorted(audio_root.rglob(album_name))

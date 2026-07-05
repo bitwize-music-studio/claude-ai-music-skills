@@ -60,6 +60,36 @@ Control how the voice interacts with the mix:
 | `Liquid-like` | Flowing, fluid |
 | `Breathy exhale` | Airy, exhaled quality |
 
+## Production/Vocal FX Descriptors
+
+Style Box prose describing how the vocal is processed (not bracket tags — comma-separate with other descriptors, same as Vocal Style/Texture tags above):
+
+| Descriptor | Effect |
+|-----------|--------|
+| `Reverb` / `spacious reverb` | Echoing, roomy sound — ballads, ambient |
+| `Delay` / `slapback delay` | Repeated echoes — dub, experimental |
+| `Auto-tuned` | Pitch-corrected, modern pop/trap effect |
+| `No autotune` / `natural pitch` | Organic, unprocessed vocal — see [Negative Prompting](v5-best-practices.md#negative-prompting) |
+| `Vocoded` / `vocoder` | Robotic, electronic processing |
+| `Distorted vocals` | Gritty, overdriven — rock, industrial |
+| `Filtered` / `telephone effect` | Narrow-band, lo-fi/vintage transition sound |
+
+**Note**: To exclude one of these instead, use the Style Box's negative-prompting pattern (`no autotune`, `no heavy reverb`) rather than a separate field — see [v5-best-practices.md § Negative Prompting](v5-best-practices.md#negative-prompting).
+
+## Duet / Call-and-Response
+
+For two-character dialogue, duets, or call-and-response sections, alternate section tags per character in the Lyrics Box:
+
+```
+[Verse - Character A]
+First character's lyrics
+
+[Verse - Character B]
+Second character's lyrics
+```
+
+Mention the arrangement explicitly in the Style Box so Suno knows to generate two distinct voices: `Dual vocalists, male and female, trading verses`. For a chorus where both characters sing together, describe it directly in the Style Box rather than inventing a bracket tag: `duet chorus, blended male/female harmony`.
+
 ## Regional Vocal Styles
 
 Add geographic/cultural flavor:
@@ -133,7 +163,7 @@ chorus slightly wider and warmer with gentle vibrato on sustained notes;
 bridge raw and exposed, single-take feel.
 ```
 
-This lets you create an **emotional arc** across the song rather than a flat vocal performance throughout.
+This lets you create an **emotional arc** across the song rather than a flat vocal performance throughout. This Style-Box "Performance:" method and per-section **Performance Cues** in the Lyrics Box ([structure-tags.md](structure-tags.md) § Performance Cues, e.g. `[Verse 1 - quiet, intimate]`) are two routes to the same arc — pick one per track rather than splitting it across both.
 
 ## Advanced Vocal Workflow
 

@@ -31,11 +31,11 @@ def check_sync(data: dict) -> list[str]:
         return []
 
     try:
-        with open(plugin_path) as f:
+        with open(plugin_path, encoding="utf-8") as f:
             plugin_data = json.load(f)
-        with open(marketplace_path) as f:
+        with open(marketplace_path, encoding="utf-8") as f:
             marketplace_data = json.load(f)
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
         return []
 
     plugin_version = plugin_data.get("version", "")

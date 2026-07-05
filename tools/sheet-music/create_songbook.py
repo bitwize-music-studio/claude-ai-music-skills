@@ -497,9 +497,26 @@ def create_songbook(
             if entry_title:
                 manifest_title_lookup[entry_title] = entry_title
 
-    # When manifest is present, all singles from prepare_singles have title pages.
-    # Without manifest, only non-numbered files (clean-titled) have title pages.
-    singles_have_title_pages = manifest is not None
+    # Whether each single actually has a prepended title page. prepare_singles
+    # records this per track in the manifest ("title_page"), because it silently
+    # skips the title page when pypdf/reportlab are unavailable — so a manifest
+    # merely existing does NOT imply a title page is present (#390). Trust the
+    # recorded flag when it is there; fall back (legacy manifests, or no
+    # manifest) to the filename heuristic: numbered files have no title page.
+    manifest_title_page_lookup = {}
+    if manifest:
+        for entry in manifest.get("tracks", []):
+            filename = entry.get("filename", "")
+            if filename and "title_page" in entry:
+                manifest_title_page_lookup[filename] = bool(entry["title_page"])
+
+    def _has_title_page(pdf_file: Path) -> bool:
+        if pdf_file.stem in manifest_title_page_lookup:
+            return manifest_title_page_lookup[pdf_file.stem]
+        if manifest is not None:
+            # Legacy manifest without the per-track flag: preserve prior behavior.
+            return True
+        return not re.match(r'^\d+', pdf_file.stem)
 
     # Get page counts for TOC
     tracks = []
@@ -512,12 +529,8 @@ def create_songbook(
         else:
             track_name = pdf_file.stem
         page_count = get_pdf_page_count(pdf_file)
-        # Singles have a prepended title page — don't count it for the songbook
-        if singles_have_title_pages:
-            has_title_page = True
-        else:
-            has_title_page = not re.match(r'^\d+', pdf_file.stem)
-        if has_title_page:
+        # A prepended title page is not counted in the songbook TOC (#390).
+        if _has_title_page(pdf_file):
             page_count -= 1
         if include_section_headers:
             page_count += 1  # Add section header page
@@ -551,11 +564,7 @@ def create_songbook(
         # Singles have a prepended title page — skip it in the songbook
         # (the songbook has its own front matter and optional section headers)
         reader = PdfReader(pdf_file)
-        if singles_have_title_pages:
-            has_title_page = True
-        else:
-            has_title_page = not re.match(r'^\d+', pdf_file.stem)
-        start_page = 1 if has_title_page else 0
+        start_page = 1 if _has_title_page(pdf_file) else 0
         for page in reader.pages[start_page:]:
             writer.add_page(page)
 
