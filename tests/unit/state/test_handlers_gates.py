@@ -750,12 +750,98 @@ class TestBlockingAggregation:
         )
         assert blocking >= 2
 
-    def test_returns_eight_gates(self):
+    def test_returns_ten_gates(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
         blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
             t_data, TRACK_FILE_COMPLETE, blocklist=[],
         )
-        assert len(gates) == 8
+        # 8 core gates + 2 advisory (Style Box Descriptor Count, Performance Cues)
+        assert len(gates) == 10
+
+
+def _track_with(style, lyrics):
+    """Minimal gate-complete track file with a custom Style Box and Lyrics Box."""
+    return (
+        "---\ntitle: T\nstatus: In Progress\nexplicit: false\n---\n\n"
+        f"## Lyrics Box\n\n```\n{lyrics}\n```\n\n"
+        f"## Style Box\n\n```\n{style}\n```\n\n"
+        "## Pronunciation Notes\n\n| Word | Phonetic | Note |\n| --- | --- | --- |\n| — | — | — |\n"
+    )
+
+
+class TestStyleBoxDescriptorCount:
+    """Gate 5b: advisory Style Box descriptor budget (4-7 sweet spot)."""
+
+    def test_over_seven_descriptors_warns(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        style = "imperious, commanding, regal, grand, theatrical, explosive, cinematic, bombastic"
+        _, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
+        assert g["status"] == "WARN"
+        assert g["severity"] == "WARNING"
+        assert warnings >= 1
+
+    def test_within_budget_passes(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        style = "male baritone. alt rock, clean guitar, driving bass. modern production"
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
+        assert g["status"] == "PASS"
+
+    def test_counts_across_periods_and_commas(self):
+        # 8 descriptors split by BOTH periods and commas must be counted (not commas only)
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        style = ("male baritone, passionate delivery, storytelling vocal. "
+                 "alt rock, clean guitar, driving bass, tight drums. modern production")
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
+        assert g["status"] == "WARN"
+
+
+class TestPerformanceCuesGate:
+    """Advisory Performance Cues check on structure tags."""
+
+    def test_all_bare_tags_warn(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        lyrics = "[Verse 1]\nla la\n\n[Chorus]\nna na\n\n[Verse 2]\nla la"
+        _, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Performance Cues")
+        assert g["status"] == "WARN"
+        assert warnings >= 1
+
+    def test_tags_with_cues_pass(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        lyrics = "[Verse 1 - cold, regal]\nla la\n\n[Chorus - big, anthemic]\nna na"
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Performance Cues")
+        assert g["status"] == "PASS"
+
+    def test_single_bare_tag_does_not_warn(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with("pop, synth, 120 BPM", "[Verse 1]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Performance Cues")
+        assert g["status"] == "PASS"  # only 1 structure tag -> not flagged
+
+    def test_instrumental_track_skipped(self):
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        f = ("---\ntitle: T\nstatus: In Progress\nexplicit: false\ninstrumental: true\n---\n\n"
+             "## Lyrics Box\n\n```\n[Intro]\n\n[Main Theme]\n\n[Bridge]\n\n[Outro]\n```\n\n"
+             "## Style Box\n\n```\ncinematic orchestral, strings, brass\n```\n")
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, f, blocklist=[])
+        g = next(x for x in gates if x["gate"] == "Performance Cues")
+        assert g["status"] == "SKIP"  # instrumental -> cues optional, not warned
 
 
 # =============================================================================

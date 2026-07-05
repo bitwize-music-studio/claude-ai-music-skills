@@ -4599,7 +4599,9 @@ class TestRunPreGenerationGates:
         assert "Artist Names Cleared" in gate_names
         assert "Homograph Check" in gate_names
         assert "Lyric Length" in gate_names
-        assert len(gates) == 8
+        assert "Style Box Descriptor Count" in gate_names
+        assert "Performance Cues" in gate_names
+        assert len(gates) == 10
 
     def test_track_no_file_path(self):
         """Track with no file path gets SKIP for file-dependent gates."""
@@ -4731,7 +4733,7 @@ class TestRunPreGenerationGates:
         assert result["found"] is True
         track = result["tracks"][0]
         # Should still produce gates (file-dependent ones SKIP or FAIL)
-        assert len(track["gates"]) == 8
+        assert len(track["gates"]) == 10
 
     def test_permission_error_track_file(self, tmp_path):
         """Track with permission-denied file still produces gate results."""
@@ -4752,7 +4754,7 @@ class TestRunPreGenerationGates:
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
-            assert len(track["gates"]) == 8
+            assert len(track["gates"]) == 10
         finally:
             track_file.chmod(0o644)
 

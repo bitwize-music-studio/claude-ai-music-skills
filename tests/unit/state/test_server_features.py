@@ -479,8 +479,8 @@ class TestInstrumentalGateSkipping:
         track = result["tracks"][0]
         gates = track["gates"]
         gate_names = [g["gate"] for g in gates]
-        # All 8 gates should be present
-        assert len(gates) == 8
+        # 8 core gates + 2 advisory
+        assert len(gates) == 10
         assert "Sources Verified" in gate_names
         assert "Lyrics Reviewed" in gate_names
         assert "Pronunciation Resolved" in gate_names
@@ -489,6 +489,8 @@ class TestInstrumentalGateSkipping:
         assert "Artist Names Cleared" in gate_names
         assert "Homograph Check" in gate_names
         assert "Lyric Length" in gate_names
+        assert "Style Box Descriptor Count" in gate_names
+        assert "Performance Cues" in gate_names
 
     def test_gates_run_for_instrumental_track(self, tmp_path):
         """Gates still run for instrumental tracks (current behavior).
@@ -507,8 +509,8 @@ class TestInstrumentalGateSkipping:
         assert result["found"] is True
         track = result["tracks"][0]
         gates = track["gates"]
-        # All gates still run (no skip logic for instrumental yet)
-        assert len(gates) == 8
+        # All gates still run; Performance Cues SKIPs for instrumental tracks
+        assert len(gates) == 10
 
     def test_instrumental_track_style_gate_still_runs(self, tmp_path):
         """Gate 5 (Style Prompt) still runs for instrumental tracks."""
