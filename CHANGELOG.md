@@ -6,6 +6,8 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-07-05
+
 ### Added
 - **Pre-generation gates now check the Style Box descriptor and Performance Cues standards** (#456).
   `run_pre_generation_gates` previously only verified the Style Box was non-empty, so it would pass a
