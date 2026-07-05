@@ -6,6 +6,25 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`suno-engineer` now requires checking the Style Box descriptor ceiling and defaults to
+  per-section Performance Cues** (follow-up to #449). #449 documented concrete vocal/instrument/SFX
+  descriptors and mentioned `v5-best-practices.md`'s "4-7 descriptor sweet spot" and
+  `structure-tags.md`'s Performance Cues technique, but never wired either into the
+  `suno-engineer` workflow or its Quality Standards checklist as something to actually check
+  before finalizing a prompt. In real album production this produced Style Boxes with 20+
+  comma-separated descriptors (mostly synonym-piles like "imperious, commanding, regal, grand,
+  theatrical, explosive") and Lyrics Boxes with bare `[Verse]`/`[Chorus]` tags carrying no
+  delivery variation — output that repeatedly came back sounding flat and generic across
+  multiple tracks on an album. Added an explicit workflow step + Quality Standards checks
+  requiring: (1) Style Box trimmed to the 4-7 descriptor sweet spot before generating, and
+  (2) 1-3 Performance Cues appended to every structure tag (`[Verse 1 - cold, regal]`) by
+  default, moving the song's emotional arc out of the Style Box prose and into the Lyrics Box
+  where it belongs. Rewriting one in-progress track's Style Box (20+ descriptors → 6) and
+  adding Performance Cues to all 12 of its section tags produced a subjectively much more
+  dynamic, less generic-sounding generation — the before/after difference is what prompted
+  this fix.
+
 ## [0.95.0] - 2026-07-04
 
 ### Added
