@@ -173,7 +173,7 @@ Male baritone, passionate delivery, storytelling vocal. Alternative rock,
 clean electric guitar, driving bassline, tight drums. Modern production, dynamic range.
 ```
 
-**Before finalizing, count comma-separated descriptors.** V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-3 instruments, 1 production note) to keep the total within 4-7. Move section-by-section emotional variation into Performance Cues in the Lyrics Box instead of adding more adjectives here — that is the correct place for an arc, not the Style Box.
+**Before finalizing, count every descriptor across all three blocks** — the box is delimited by periods *and* commas (`[Vocal]. [Genre]. [Production]`), so counting commas alone undercounts. V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-3 instruments, 1 production note) to keep the total within 4-7. Move section-by-section emotional variation into Performance Cues in the Lyrics Box instead of adding more adjectives here — that is the correct place for an arc, not the Style Box.
 
 ### Exclude Styles (Negative Prompting)
 
