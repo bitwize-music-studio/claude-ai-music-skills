@@ -6,6 +6,17 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-07-05
+
+### Added
+- **Pre-generation gates now check the Style Box descriptor and Performance Cues standards** (#456).
+  `run_pre_generation_gates` previously only verified the Style Box was non-empty, so it would pass a
+  20-descriptor synonym-pile or all-bare `[Verse]`/`[Chorus]` tags — the exact defects the
+  `suno-engineer` Quality Standards (0.95.0) tell you to fix first. Added two advisory (non-blocking
+  `WARN`) gates: **Style Box Descriptor Count** (flags >7 descriptors, counted across the period- and
+  comma-delimited blocks) and **Performance Cues** (flags ≥2 structure tags with no per-section cues
+  like `[Verse 1 - cold, regal]`). Closes #456.
+
 ## [0.95.0] - 2026-07-04
 
 ### Added
