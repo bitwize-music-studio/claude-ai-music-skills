@@ -770,11 +770,12 @@ def _track_with(style, lyrics):
 
 
 class TestStyleBoxDescriptorCount:
-    """Gate 5b: advisory Style Box descriptor budget (4-7 sweet spot)."""
+    """Gate 5b: advisory Style Box descriptor budget — flags synonym-pile bloat (>12)."""
 
-    def test_over_seven_descriptors_warns(self):
+    def test_over_twelve_descriptors_warns(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
-        style = "imperious, commanding, regal, grand, theatrical, explosive, cinematic, bombastic"
+        style = ("imperious, commanding, regal, grand, theatrical, explosive, "
+                 "cinematic, bombastic, sweeping, ominous, brooding, relentless, thunderous")
         _, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
             t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
         )
@@ -792,11 +793,38 @@ class TestStyleBoxDescriptorCount:
         g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
         assert g["status"] == "PASS"
 
-    def test_counts_across_periods_and_commas(self):
-        # 8 descriptors split by BOTH periods and commas must be counted (not commas only)
+    def test_rich_box_within_budget_passes(self):
+        # ~10 focused descriptors is a normal, effective style box — must PASS,
+        # not the false positive the old >7 gate produced on most real style boxes
         t_data = {"sources_verified": "N/A", "explicit": False}
-        style = ("male baritone, passionate delivery, storytelling vocal. "
-                 "alt rock, clean guitar, driving bass, tight drums. modern production")
+        style = ("gritty male baritone, weary delivery. doom metal, sludge, "
+                 "downtuned guitar, thick bass, pounding drums. cavernous production, "
+                 "analog warmth, lead vocal upfront")
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
+        assert g["status"] == "PASS"
+
+    def test_sparse_box_passes_without_sweet_spot_label(self):
+        # <3 descriptors passes with an informational note, never the old "sweet spot" mislabel
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        style = "dark synthwave, analog"
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
+        )
+        g = next(x for x in gates if x["gate"] == "Style Box Descriptor Count")
+        assert g["status"] == "PASS"
+        assert "sweet spot" not in g["detail"]
+        assert "sparse" in g["detail"]
+
+    def test_counts_across_periods_and_commas(self):
+        # >12 descriptors split by BOTH periods and commas must be counted:
+        # commas-only would total 11 and wrongly PASS; period-splitting pushes it to WARN
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        style = ("male baritone, passionate delivery, storytelling vocal, gritty tone. "
+                 "alt rock, clean guitar, driving bass, tight drums, warm keys. "
+                 "modern production, analog warmth, tape saturation, upfront vocals")
         _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
             t_data, _track_with(style, "[Verse 1 - cold]\nla la"), blocklist=[],
         )
@@ -819,7 +847,7 @@ class TestPerformanceCuesGate:
 
     def test_tags_with_cues_pass(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
-        lyrics = "[Verse 1 - cold, regal]\nla la\n\n[Chorus - big, anthemic]\nna na"
+        lyrics = "[Verse 1 - cold regal]\nla la\n\n[Chorus - big anthemic]\nna na"
         _, _, gates = _gates_mod._check_pre_gen_gates_for_track(
             t_data, _track_with("pop, synth, 120 BPM", lyrics), blocklist=[],
         )
