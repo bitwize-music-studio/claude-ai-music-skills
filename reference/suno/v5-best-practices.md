@@ -15,7 +15,7 @@ What changed is engine responsiveness and personalization:
 
 | Change | Impact on prompting |
 |--------|---------------------|
-| Nuanced phrasing, stronger dynamic range | Subtle descriptors land more reliably (e.g., "slightly detuned vintage keys" actually delivers) |
+| Nuanced phrasing, stronger dynamic range | Worth trying finer descriptors (e.g., "slightly detuned vintage keys") — improved nuance is engine-reported, not independently verified |
 | Better instrument separation | Busy arrangements stay readable — less mud on dense prompts |
 | More expressive vocals | Emotion tags (breathy, yearning, resigned) track closer to intent |
 | Voices (Pro/Premier) | Voice cloning replaces vocal persona descriptors — see below |
@@ -48,7 +48,7 @@ nostalgic, melancholic, 85 BPM, male vocals, gravelly voice, introspective
 | Studio-Grade Audio | 44.1 kHz output with fuller, more balanced mixes |
 | Vocal Engine | Human-like vocals with breath, emotion, vibrato control |
 | 10x Faster | Seconds instead of minutes for generation |
-| 12 Stem Extraction | Vocals, drums, bass, guitar, keyboard, strings, brass, etc. |
+| Stem Separation (3 modes) | Auto Split (12 stems), Split from Mix (target + the rest), Advanced Split (~100 instruments) — generative regeneration |
 | Extended Length | Up to 8 minutes per generation |
 | Persistent Memory | Vocal characters and instruments remain stable across project generations |
 | Granular Controls | Tempo, key, dynamics, arrangement with optional automation |
@@ -65,10 +65,12 @@ V5 listens differently and needs less instruction. Write new prompts and experim
 
 ### Keep It Simple — Avoid Prompt Fatigue
 
-V5 is literal. Complex descriptions confuse it. The **sweet spot is 4–7 descriptors** — fewer than 4 lacks direction, more than 7 causes "prompt fatigue" where V5 dilutes or ignores tags.
+V5 is literal, and it dilutes attention when descriptors repeat the same idea. **Every descriptor should earn its place** — genre, instrument, vocal identity, production texture, mood, tempo. A focused style box of ~10 descriptors works well; what hurts is a *synonym-pile* (five mood words that all mean "soft") that gives V5 nothing new to act on.
+
+> **On the "4–7 descriptors" rule of thumb**: 4–7 is a useful starting point, **not a Suno-official rule**. Rich ~10-descriptor style boxes are common and effective when every term does distinct work. Trim *synonyms*, not *detail*. (The hard "cut everything past 7" version of this rule traces to a single third-party guide and isn't borne out in practice — real style boxes routinely run richer.)
 
 ```
-❌ Bad (prompt fatigue — too many tags):
+❌ Bad (synonym-pile — overlapping mood words that add nothing new):
 "Ethereal indie folk with vintage analog warmth and melancholic
 undertones, finger-picked acoustic, tape hiss, lo-fi, intimate,
 breathy, whispery, nostalgic, contemplative, minimalist production"
@@ -76,11 +78,11 @@ breathy, whispery, nostalgic, contemplative, minimalist production"
 ❌ Bad (too vague):
 "Nice upbeat music"
 
-✅ Good (4-7 descriptors):
+✅ Good (every descriptor pulls its weight):
 "Sad indie folk, acoustic, gentle, breathy female vocal, intimate"
 ```
 
-**Rule of thumb**: If your prompt has 8+ comma-separated descriptors, cut it. V5 understands context and fills in gaps intelligently.
+**Rule of thumb**: if descriptors start restating the same idea (intimate / breathy / whispery / soft), collapse them into one. Don't pad — but don't strip out genuinely distinct instrument, vocal, or production detail just to hit a number.
 
 ### The Four-Part Anatomy
 
@@ -354,12 +356,19 @@ Do not change any words. Sing exactly as written.
 
 ## Negative Prompting
 
-V5 handles exclusions reliably.
+Exclusions **shift the odds** against an element — they're probabilistic, not a hard filter, and won't override a prompt that strongly implies the thing you're excluding.
+
+**Two ways to exclude:**
+- **Dedicated Exclude Styles field** (Custom Mode → Advanced Options, **Pro/Premier**) — the reliable path. Put exclusions here, not buried in the main style prompt.
+- **Inline `no [element]`** appended to the style box — the fallback when you don't have the field (free tier). Weaker; the engine may still slip the element in.
+
+Keep it to **2–4 items** — over-specifying dilutes the effect.
 
 ### What You Can Exclude
 - Instruments: "no drums", "no electric guitar"
 - Vocal effects: "no autotune", "no heavy reverb"
 - Stylistic elements: "no EDM drops", "no screaming"
+- **Unwanted group vocals** (a common Suno over-add): "no choir", "no crowd vocals", "no backing vocals", "no gang vocals", "no call-and-response", "no vocal harmonies", "no layered vocals"
 
 ### Best Practices
 
@@ -370,6 +379,8 @@ V5 handles exclusions reliably.
 ❌ Bad (over-specified):
 "No drums, no bass, no synths, no reverb, no distortion, no..."
 ```
+
+> **Group vocals** are probabilistic to suppress: excluding "choir / crowd / backing vocals" improves your odds, but a big anthemic prompt can still pull them back in. Pair the exclusion with a leaner, more intimate style prompt for the strongest effect.
 
 ---
 
@@ -538,8 +549,17 @@ These are typical loudness levels Suno generates — **not** final mastering tar
 
 ## Stem Extraction
 
-### Available Stems (12 total)
+Suno's stem separation was overhauled (June 2026) into **three selectable modes**, and it now *generatively regenerates* each stem rather than frequency-carving the mix — extracted parts sound cleaner and more natural than the old model.
 
+### Split Modes
+
+| Mode | What it does | Output |
+|------|--------------|--------|
+| **Auto Split** | The classic model — splits a song into 12 stem categories at once | 12 stems |
+| **Split from Mix** | Pulls one chosen instrument or voice out of the mix | 2 stems: the target, and everything-else-without-it |
+| **Advanced Split** | Extracts one specific instrument chosen from a list of ~100 (drum kit to didgeridoo) | 1 targeted stem *(Premier; per-extraction credit cost)* |
+
+**Auto Split — the 12 stems:**
 ```
 Vocals, Backing Vocals, Drums, Bass, Guitar,
 Keyboard, Strings, Brass, Woodwinds,
@@ -550,14 +570,14 @@ Percussion, Synth, FX/Other
 
 1. Click **More Actions (...)** on any clip
 2. Hover over **Get Stems**
-3. Choose **Original** or **12 Track**
+3. Choose your split mode — **Auto Split** (all 12), **Split from Mix** (one target + the rest), or **Advanced Split** (one instrument from ~100)
 4. Import into DAW
 
-### Double-Processing for Cleaner Vocals
+### Cleaner Single-Stem Pulls
 
-If vocals still contain background:
-1. Run Get Stems on original
-2. Run Get Stems again on extracted vocal
+For an isolated vocal or instrument, **Split from Mix** targeting that part is usually cleaner in one pass than the old carve-and-repeat trick (a benefit of the generative model). If a stem still bleeds, run extraction again on the extracted stem.
+
+> **Tier note:** Advanced Split is Premier-tier with a per-extraction credit cost (exact costs vary — check Suno's current pricing). Auto Split / Split from Mix availability follows your plan.
 
 ---
 

@@ -53,7 +53,7 @@ Controls how tightly the output adheres to your style prompt — genre hallmarks
 
 ## Audio Influence
 
-Controls how much a piece of **uploaded reference audio** shapes the output. This slider **appears only when audio is uploaded** — via Cover, Upload Audio, or Sample to Song. With no reference audio, it isn't shown.
+Controls how much a piece of **uploaded reference audio** shapes the output. This slider **appears only when audio is uploaded** — via Cover, Upload Audio, Sample to Song, or **Voices**. With no reference audio, it isn't shown.
 
 | Position | Behavior |
 |----------|----------|
@@ -62,6 +62,8 @@ Controls how much a piece of **uploaded reference audio** shapes the output. Thi
 | **High** (`0.65–1.00`) | The output hews closely to the uploaded audio's melody, feel, and arrangement. Safest for faithful covers and cross-track consistency. |
 
 **Raise it** when a cover or reworked upload isn't resembling the source enough. **Lower it** when you want more transformation and less of the original bleeding through.
+
+**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](v5-best-practices.md#voices--custom-models).
 
 ---
 
@@ -114,7 +116,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 - The **style prompt** decides *what* the track is — genre, instruments, mood, tempo, vocal identity. A slider can't add a banjo, fix a mispronunciation, or change the tempo.
 - The **sliders** decide *how strictly* Suno commits to that prompt and *how far* it may wander. They're fine-tuning, not a rescue for a vague or wrong prompt.
 
-**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt to 4–7 descriptors — a bloated prompt won't be rescued by sliders either; see [Keep It Simple](v5-best-practices.md#prompt-construction).)
+**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt focused — every descriptor doing distinct work; a bloated synonym-pile won't be rescued by sliders either; see [Keep It Simple](v5-best-practices.md#prompt-construction).)
 
 **Adjust a slider when** the prompt is already right but the *interpretation* is off:
 
@@ -135,7 +137,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 
 ## Quick Workflow
 
-1. **Write a clear prompt first** — 4–7 descriptors, genre + instruments + mood + vocal.
+1. **Write a clear, focused prompt first** — genre + instruments + mood + vocal, every descriptor doing distinct work.
 2. **Generate at the default slider positions.** Don't pre-adjust blind.
 3. **Listen, then diagnose** — is this a prompt problem or a slider problem? (Use the table above.)
 4. **If it's a slider problem, move ONE slider a small step** and regenerate.

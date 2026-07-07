@@ -67,7 +67,7 @@ Structure your songs with explicit section markers:
 - `[Intro]`, `[Verse]`, `[Chorus]`, `[Pre-Chorus]`, `[Bridge]`, `[Outro]`, `[End]` — see `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` for the full set (including `[Post-Chorus]`, `[Break]`, `[Interlude]`, `[Fade In]`/`[Fade Out]`)
 - V5 uses these to shape arrangement
 - Without tags, structure can be unpredictable
-- **Default, not optional — Performance Cues**: append 1-3 delivery cues directly to each structure tag (`[Verse 1 - cold, regal, controlled]`, `[Bridge - raw, breaking, desperate]`) — see the same reference's "Performance Cues" section. This is how an emotional arc is carried across a song. Leaving every section as a bare `[Verse]`/`[Chorus]` with no cues is a common, easy-to-miss cause of flat, generic-sounding output — do this for every track, not just ones that seem to need it.
+- **Default, not optional — Performance Cues**: append a brief delivery-cue phrase (a word or two) directly to each structure tag (`[Verse 1 - cold regal]`, `[Bridge - raw breaking]`) — see the same reference's "Performance Cues" section. This is how an emotional arc is carried across a song. Leaving every section as a bare `[Verse]`/`[Chorus]` with no cues is a common, easy-to-miss cause of flat, generic-sounding output — do this for every track, not just ones that seem to need it.
 - **Optional accent**: a standalone delivery/mood bracket tag (`[Whispered]`, `[Aggressive]`, etc.) can additionally color performance — see the same reference's "Custom Mood/Style Tags". Use sparingly, and count it against the **same ≤3-per-section budget** as the Performance Cues above (cues + accent ≤ 3 bracketed descriptors per section — more than 3 causes noise). This is not a substitute for Style Box mood/energy prose.
 
 ### Vocals First
@@ -173,17 +173,21 @@ Male baritone, storytelling delivery. Alternative rock, clean electric guitar,
 driving bass, tight drums. Modern production.
 ```
 
-**Before finalizing, count every descriptor across all three blocks** — the box is delimited by periods *and* commas (`[Vocal]. [Genre]. [Production]`), so counting commas alone undercounts. V5's sweet spot is 4-7 total; 8+ causes "prompt fatigue" where V5 dilutes or ignores tags (see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Watch for synonym-piles — stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse to 1-2 words per concept (vocal identity, genre, tempo, 2-3 instruments, 1 production note) to keep the total within 4-7. Keep the baseline mood/energy here, but move **section-by-section** variation into Performance Cues in the Lyrics Box instead of piling on adjectives — that's where a per-section arc belongs. (An alternative arc technique — mapping sections in Style-Box "Performance:" prose — lives in `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` § Emotion Arc Mapping; use one approach per track, not both.)
+**Before finalizing, review the descriptor mix across all three blocks** — the box is delimited by periods *and* commas (`[Vocal]. [Genre]. [Production]`). The target isn't a magic number: **every descriptor should add distinct information** (vocal identity, genre, tempo, 2-3 instruments, a production note). A focused ~10-descriptor box is fine — what dilutes V5 is a *synonym-pile*: stacking "imperious, commanding, regal, grand, theatrical, explosive" is one mood said six ways, not six descriptors. Collapse synonyms to 1-2 words per concept, but don't strip genuinely distinct detail just to hit a count (4-7 is a starting heuristic, not a Suno rule; the advisory gate only flags real bloat above ~12 — see `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Keep It Simple). Keep the baseline mood/energy here, but move **section-by-section** variation into Performance Cues in the Lyrics Box instead of piling on adjectives — that's where a per-section arc belongs. (An alternative arc technique — mapping sections in Style-Box "Performance:" prose — lives in `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` § Emotion Arc Mapping; use one approach per track, not both.)
 
 ### Exclude Styles (Negative Prompting)
 
-Suno V5 handles exclusions reliably. Use the **Exclude Styles** section in the track file to record items that should NOT appear.
+Exclusions **shift the odds** against an element — probabilistic, not a hard filter, and can't override a prompt that strongly implies the thing you're excluding.
+
+**Where they go:**
+- **Pro/Premier** → Suno's dedicated **Exclude Styles** field (Custom Mode → Advanced Options). The reliable path.
+- **Free tier / no field** → append inline `no [element]` to the Style Box. Weaker, but still nudges the result.
 
 **Rules:**
 - **Max 2–4 items** — over-specification dilutes the effect
 - **Simple "no [element]" format**: `no drums`, `no electric guitar`, `no autotune`
-- **Append to Style Box when pasting** — combine Style Box + Exclude Styles into one Suno field
-- **Always emit the section, even when no exclusions apply** — write `### Exclude Styles` followed by `(none)` so downstream tools can confirm the field was considered, not silently skipped. Most tracks land here.
+- **Suppressing unwanted group vocals** (a common Suno over-add): `no choir`, `no crowd vocals`, `no backing vocals`, `no gang vocals`, `no call-and-response`, `no vocal harmonies`, `no layered vocals` — still probabilistic; pair with a leaner style prompt
+- **Always record them in the track file's Exclude Styles section, even when none apply** — write `### Exclude Styles` followed by `(none)` so downstream tools can confirm the field was considered, not silently skipped. Most tracks land here.
 
 **Auto-populate guidance:** Consider whether genre/instrumentation context implies exclusions:
 - Acoustic folk → `no electric instruments, no drums`
@@ -306,10 +310,10 @@ As the Suno engineer, you:
 3. **Check artist persona** - Review saved voice profile (if applicable)
 4. **Select genre** - Choose appropriate genre tags
 5. **Define vocals** - Specify voice type, delivery, energy. Pull a concrete texture/style descriptor from `${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md` (Vocal Style Tags, Vocal Texture Tags, Production/Vocal FX Descriptors) instead of a generic "male vocal, rock" — e.g. "gravelly, belting" beats "powerful"
-6. **Choose instruments** - Select key instruments and sonic texture. Match to genre using `${CLAUDE_PLUGIN_ROOT}/reference/suno/instrumental-tags.md` § Genre-Specific Instruments (2-3 key instruments, not a full list — keeps the Style Box total within 4-7)
+6. **Choose instruments** - Select key instruments and sonic texture. Match to genre using `${CLAUDE_PLUGIN_ROOT}/reference/suno/instrumental-tags.md` § Genre-Specific Instruments (2-3 key instruments, not a full list — every instrument should earn its place)
 7. **Check for sound effects/atmosphere** - If the lyrics reference rain, footsteps, crowds, laughter, or similar, add matching tags per `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Sound Effects / Atmospheric Effects (mention in both Lyrics Box and Style Prompt for atmospheric/environmental sounds)
-8. **Add Performance Cues** - Append 1-3 delivery cues to each structure tag in the Lyrics Box (`[Verse 1 - cold, regal]`, `[Bridge - raw, breaking]`) so the emotional arc plays out section-by-section, per `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` § Performance Cues — do this by default, not only when a track "seems to need it"
-9. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed, then count comma-separated descriptors and trim to the 4-7 sweet spot (collapse synonym-piles; see § Style Prompt above)
+8. **Add Performance Cues** - Append a brief cue phrase (a word or two) to each structure tag in the Lyrics Box (`[Verse 1 - cold regal]`, `[Bridge - raw breaking]`) so the emotional arc plays out section-by-section, per `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` § Performance Cues — do this by default, not only when a track "seems to need it"
+9. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed, then review the descriptor mix — collapse synonym-piles so every term adds distinct info (a focused ~10 is fine; trim only real bloat; see § Style Prompt above)
 10. **Generate in Suno** - Create track with assembled inputs
 11. **Iterate if needed** - Refine based on output quality
 12. **Log results** - Document in Generation Log with rating
@@ -328,7 +332,7 @@ Only mark track as "Generated" when output meets:
 - [ ] No unwanted instruments/elements present (verify exclusions were effective)
 
 Before generating, also verify the prompt itself is built for reliable output, not just the resulting audio:
-- [ ] Style Box stays within the 4-7 descriptor sweet spot (no synonym-stacking)
+- [ ] Style Box: every descriptor adds distinct information (no synonym-stacking; a focused ~10 is fine — only real bloat above ~12 is flagged)
 - [ ] Structure tags carry Performance Cues on every section by default (not left as bare `[Verse]`/`[Chorus]`), with the sharpest variation where the emotional arc shifts
 
 ---
@@ -365,6 +369,6 @@ When you discover new Suno behavior or techniques, **update the reference docume
 4. **Respect avoidance rules** - Never use genres/words user specified to avoid
 5. **Use exclusions sparingly** — Exclude Styles for 2–4 items max; leave empty when not needed
 6. **Backfill older tracks** — If an existing track file is missing the `### Exclude Styles` section, add it between Style Box and Lyrics Box (per template)
-7. **Fight prompt fatigue by default** — Style Box: 4-7 descriptors, not 20 synonym-stacked ones. Put the song's emotional arc in per-section Performance Cues, not in a longer adjective list.
+7. **Fight synonym-pile bloat by default** — Style Box: every descriptor adds distinct info, not 20 synonym-stacked ones. Put the song's emotional arc in per-section Performance Cues, not in a longer adjective list.
 
 Simple prompts + good lyrics + section tags + user preferences + targeted exclusions = best results.

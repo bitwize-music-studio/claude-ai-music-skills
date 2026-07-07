@@ -86,8 +86,8 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 - **Check**: Style Box includes vocal description
 - **Check**: Section tags present in Lyrics Box (`[Verse]`, `[Chorus]`, etc.)
 - **Fail if**: Empty Style Box or missing section tags
-- **Advisory (WARN, non-blocking)**: Style Box descriptor count — flags >7 descriptors (V5 sweet spot is 4-7; trim synonym-piles to avoid prompt fatigue)
-- **Advisory (WARN, non-blocking)**: Performance Cues — flags ≥2 structure tags with no per-section cues (`[Verse 1 - cold, regal]`); bare tags are a common cause of flat, generic output
+- **Advisory (WARN, non-blocking)**: Style Box descriptor count — flags genuine bloat (>12 descriptors; trim duplicative synonym-piles). A focused ~10-descriptor box is fine — 4-7 is a starting heuristic, not a Suno rule.
+- **Advisory (WARN, non-blocking)**: Performance Cues — flags ≥2 structure tags with no per-section cues (`[Verse 1 - cold regal]`); bare tags are a common cause of flat, generic output
 - **Fix**: Style Box is created by suno-engineer, which is normally auto-invoked by lyric-writer. Run `/bitwize-music:suno-engineer [track]` to create the missing Style Box.
 - **Severity**: BLOCKING
 
