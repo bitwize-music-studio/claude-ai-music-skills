@@ -1,6 +1,6 @@
 # Suno V4 → V5 Migration Guide
 
-**V5 Release Date**: October 2024
+**V5 Release Date**: September 2025
 **Availability**: All plans
 **Status**: Stable
 

@@ -157,19 +157,27 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Style Prompt Complete", "status": "PASS",
                       "detail": f"Style prompt: {len(style_content)} chars"})
 
-    # Gate 5b: Style Box descriptor budget (advisory) — V5 sweet spot is 4-7
+    # Gate 5b: Style Box descriptor budget (advisory). The old "4-7 sweet spot"
+    # cutoff traced to a single commercial guide, not Suno-official guidance, and
+    # flagged the majority of real (deliberately rich, ~10-descriptor) style boxes.
+    # Only flag genuine synonym-pile bloat (>12); note very sparse boxes without
+    # warning. The principle — every descriptor should add distinct info — stands.
     if style_content and style_content.strip():
         descriptors = [d for d in re.split(r"[,.\n]", style_content) if d.strip()]
         n_desc = len(descriptors)
-        if n_desc > 7:
+        if n_desc > 12:
             gates.append({"gate": "Style Box Descriptor Count", "status": "WARN",
                           "severity": "WARNING",
-                          "detail": f"{n_desc} descriptors — V5 sweet spot is 4-7; "
-                                    "trim synonym-piles to avoid prompt fatigue"})
+                          "detail": f"{n_desc} descriptors — likely synonym-pile bloat; "
+                                    "trim duplicative descriptors (each should add distinct info)"})
             warning_count += 1
+        elif n_desc < 3:
+            gates.append({"gate": "Style Box Descriptor Count", "status": "PASS",
+                          "detail": f"{n_desc} descriptors (sparse — consider one more "
+                                    "distinguishing descriptor)"})
         else:
             gates.append({"gate": "Style Box Descriptor Count", "status": "PASS",
-                          "detail": f"{n_desc} descriptors (within 4-7 sweet spot)"})
+                          "detail": f"{n_desc} descriptors"})
     else:
         gates.append({"gate": "Style Box Descriptor Count", "status": "SKIP",
                       "detail": "No style prompt to check"})
@@ -248,7 +256,7 @@ def _check_pre_gen_gates_for_track(
         if len(struct_tags) >= 2 and not cue_bearing:
             gates.append({"gate": "Performance Cues", "status": "WARN", "severity": "WARNING",
                           "detail": f"{len(struct_tags)} structure tags carry no Performance Cues "
-                                    "(e.g. [Verse 1 - cold, regal]); bare tags are a common cause "
+                                    "(e.g. [Verse 1 - cold regal]); bare tags are a common cause "
                                     "of flat, generic output"})
             warning_count += 1
         else:

@@ -4,6 +4,52 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-07-07 - V5.5 Mid-Year Research Sweep
+
+Deep multi-source research pass (Suno primary docs + community guides, adversarially fact-checked). Headline: the genuinely new/vetted material since the April V5.5 update is **feature-driven**, not a new prompt grammar. Most third-party "V5.5 prompt-grammar" tips failed verification and were **not adopted** (see Refuted below).
+
+### Features
+- **Stem separation overhauled** (June 11, 2026) into three selectable modes: **Auto Split** (the classic 12-category model), **Split from Mix** (pull one instrument/voice out → 2 stems: the target + everything-else), and **Advanced Split** (extract one instrument chosen from ~100; Premier, per-extraction credit cost). The system now *generatively regenerates* each stem rather than frequency-carving the mix, so pulls are cleaner.
+
+### Changes
+- **Descriptor-count guidance reframed.** The "4-7 descriptor sweet spot" is a starting heuristic, **not a Suno-official rule** — real style boxes routinely run ~10 focused descriptors. The advisory pre-generation gate now flags only genuine synonym-pile bloat (**>12**, was >7) and no longer mislabels sparse boxes. The failure mode is *duplication*, not count.
+- **Negative prompting clarified.** Suno's dedicated **Exclude Styles** field (Custom Mode → Advanced Options, Pro/Premier) is the reliable path; inline `no X` in the main style prompt is a weaker free-tier fallback. Added group-vocal suppression vocabulary (choir, crowd vocals, backing vocals, gang vocals, call-and-response, vocal harmonies, layered vocals). Exclusion is probabilistic — it shifts odds, not a hard filter.
+- **Audio Influence × Voices.** When using Voices (voice cloning), keep Audio Influence high (~0.70–0.85) for voice resemblance.
+- **Subtle-descriptor claim softened.** "V5.5 honors subtle descriptors more reliably" is engine-reported, not independently verified — reworded from a factual claim to a hedged one.
+- **Performance-Cue formatting.** Cues are now written as a short comma-free phrase: `[Outro - chant fading]`, not `[Outro - chant, fading]`. Convention change only — the gate detects cues by the ` - ` separator, so behavior is unchanged.
+- **Corrected V5 release date** in the V4→V5 migration guide (was "October 2024"; now "September 2025" to match the repo's own Suno Studio / v5-generation dating).
+
+### Refuted / Not Adopted
+Adversarial verification (majority-refute to kill) rejected these widely-circulated claims; do **not** re-add them:
+- **"4-7 descriptors is the optimal/required count"** — traces to a single commercial guide; no evidence-based number exists (reframed as a heuristic).
+- **Four-layer style template** ending in 2-3 `no` negatives — unsupported.
+- **Per-section parameterized tags** like `[Verse: whispered vocals, acoustic only]` — unsupported (this plugin already rejected them as tag soup).
+- **Inline `no autotune`/`no reverb` in the style field** as a reliable mechanism — the dedicated Exclude Styles field is the real one.
+- **"V5.5 honors subtle production descriptors better than v4.5"** — refuted for lack of evidence (softened, not removed).
+- **"V5.5 follows structural metatags more reliably"** — unsupported.
+
+### Documentation
+- v5-best-practices.md: Stem Extraction (3 modes), Keep It Simple (descriptor reframe), V5.5 table (subtle-descriptor hedge), Negative Prompting (dedicated field + group vocals), V5 Key Improvements table (stem row).
+- suno-engineer/SKILL.md: descriptor-mix guidance, Exclude Styles, workflow steps, quality checklist.
+- creative-sliders.md: Audio Influence × Voices; softened 4-7 cross-refs.
+- structure-tags.md, voice-tags.md, templates/track.md: comma-free Performance Cue convention.
+- pre-generation-check/SKILL.md + handlers/gates.py: descriptor gate >12 threshold; comma-free cue example.
+- mix-engineer/SKILL.md: split-mode cross-reference.
+- version-history/v5-changes.md: corrected V5 date.
+
+**Sources**:
+- https://suno.com/release-notes (official - stem-separation overhaul, Creative Sliders)
+- https://suno.com/blog/stem-separation-updates (official - Advanced Split / Split from Mix / Auto Split)
+- https://help.suno.com/en/articles/12702337 (official - stem separation)
+- https://help.suno.com/en/articles/6141377 (official - Creative Sliders behavior)
+- https://help.suno.com/en/articles/11362369 (official - Voices; "Audio Influence slider up fairly high")
+- https://suno.com/release-notes/introducing-v5-5-voices-custom-models-and-my-taste (official - V5.5 launch)
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/stop-suno-adding-crowd-vocals-choirs-backing-voices (community - group-vocal exclusion)
+- https://jackrighteous.com/en-us/blogs/guides-using-suno-ai-music-creation/how-to-use-suno-s-advanced-sliders-weirdness-style-audio-influence (community - sliders)
+- Refuted-claim sources (recorded for traceability): blakecrosley.com/guides/suno, songaifarm.com/blog/suno-prompts-v5-5, hookgenius.app/learn/suno-v5-5-guide, learnstemlab.com/suno-ai-song-control-metatags-guide
+
+---
+
 ## 2026-04-12 - V5.5 Research Update
 
 ### Features

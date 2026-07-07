@@ -177,20 +177,20 @@ Numbers represent target bar counts. Results are approximate — Suno treats the
 
 ## Performance Cues
 
-Add **1–3 performance cues per section** to influence delivery without overloading:
+Add a **brief performance-cue phrase per section** (a word or two after the dash) to influence delivery without overloading:
 
 ```
-[Verse 1 - quiet, intimate]
+[Verse 1 - quiet intimate]
 Lyrics here...
 
-[Chorus - building, anthemic]
+[Chorus - building anthemic]
 Lyrics here...
 
-[Bridge - raw, exposed]
+[Bridge - raw exposed]
 Lyrics here...
 ```
 
-**Rule**: More than 3 cues per section causes noise. Keep it focused.
+**Rule**: Keep the cue short — a word or two. Long cue lists cause noise.
 
 ---
 
