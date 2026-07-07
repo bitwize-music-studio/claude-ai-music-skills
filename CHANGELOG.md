@@ -6,6 +6,37 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.97.0] - 2026-07-07
+
+### Added
+- **Suno V5.5 mid-year knowledge refresh** (#460, #461). Documented the June 2026
+  stem-separation overhaul (Auto Split / Split from Mix / Advanced Split — ~100
+  instruments, generative regeneration); clarified Exclude Styles as a dedicated
+  Pro/Premier field vs. an inline fallback and added group-vocal suppression
+  vocabulary; noted Audio Influence ~0.70–0.85 when using Voices. A new Suno
+  reference CHANGELOG entry records the research sources and a "Refuted / Not
+  Adopted" list of widely-circulated V5.5 prompt-grammar claims that failed
+  verification (4-7-as-a-rule, four-layer templates, per-section parameterized
+  tags, inline style-field negatives).
+
+### Changed
+- **Style Box descriptor gate reframed** (#460, #461). The advisory pre-generation
+  gate now flags genuine synonym-pile bloat (>12 descriptors) instead of >7, and no
+  longer mislabels sparse boxes as "within the 4-7 sweet spot." The old 4-7 cutoff
+  was an unvetted single-source rule that fired on the majority of real
+  (~10-descriptor) style boxes; guidance across `suno-engineer`, `v5-best-practices`,
+  and `pre-generation-check` is reframed so 4-7 reads as a starting heuristic, not a
+  Suno rule.
+- **Performance Cues standardized** to a short comma-free phrase (`[Outro - chant
+  fading]`); the gate detects cues by the ` - ` separator, so gate behavior is
+  unchanged.
+
+### Fixed
+- **Corrected the V5 release date** in the V4→V5 migration guide (October 2024 →
+  September 2025) to match the repo's own Suno Studio / v5-generation dating, and
+  hedged the unverified "V5.5 honors subtle descriptors better" claim that had been
+  stated as fact.
+
 ## [0.96.0] - 2026-07-05
 
 ### Added
