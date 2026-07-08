@@ -10,7 +10,7 @@ pyyaml>=6.0
 
 # Linting
 ruff>=0.15.20
-mypy>=2.1.0
+mypy>=2.2.0
 types-PyYAML>=6.0.12.20260518
 
 # Security
