@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/bitwize-music-studio-claude-ai-music-skills-badge.png)](https://mseep.ai/app/bitwize-music-studio-claude-ai-music-skills)
+
 # Claude AI Music Skills
 
 I love music but never learned an instrument. AI became the creative outlet that was always out of reach. This project started as a way to go deep on Claude Code plugin architecture, agentic workflows, multi-model orchestration, and MCP tooling. Music was the domain because it was personal.
