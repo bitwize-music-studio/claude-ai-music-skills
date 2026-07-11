@@ -48,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: Linux or macOS (Windows users: use WSL). Python 3.10+ for the MCP server and audio tools.
+**Platform**: Linux or macOS (Windows users: use WSL). Python 3.11+ for the MCP server and audio tools.
 
 ---
 

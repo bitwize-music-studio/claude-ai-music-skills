@@ -45,7 +45,7 @@ scaffolds one for you.
 ### What do I need to run this?
 
 - **Claude Code** on Linux or macOS (Windows works via WSL).
-- **Python 3.10+** for the MCP server and audio tools.
+- **Python 3.11+** for the MCP server and audio tools.
 - **A Claude plan that can take the load.** This project pushes Claude Code
   hard — multi-agent research, sub-agent orchestration across model tiers.
   It works best on the Max plan; Pro will hit rate limits during multi-track
