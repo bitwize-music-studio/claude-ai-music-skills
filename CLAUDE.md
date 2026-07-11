@@ -278,7 +278,7 @@ Currently supports **Suno** (default). Service-specific template sections marked
 | `feat!:` | MAJOR |
 | `docs:`, `chore:` | None |
 
-**Co-author line**: `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
+**Co-author line**: use the model actually running the session, e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`
 
 **Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
 

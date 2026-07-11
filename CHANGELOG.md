@@ -4,7 +4,13 @@ All notable changes to claude-ai-music-skills.
 
 This project uses [Conventional Commits](https://conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.98.0] - 2026-07-11
+
+### Added
+- **Root `FAQ.md`** (#466) — integration stance, commercial rights, and project basics, linked from README
+
+### Fixed
+- **Corrected the documented Python floor to 3.11+** (#467) — the MCP server imports `datetime.UTC`, a 3.11+ name, so the old "3.10+" claim was never true
 
 ## [0.97.0] - 2026-07-07
 

@@ -4,6 +4,8 @@ I love music but never learned an instrument. AI became the creative outlet that
 
 What it actually does: a Claude Code plugin that turns a conversation into a full album production pipeline. You describe what you want to make, and it handles concept development, lyrics, [Suno](https://suno.com) prompts (an AI music generation platform), audio mastering, and release prep — with quality gates and source verification at every stage.
 
+Questions? See the [FAQ](FAQ.md).
+
 ![Version](https://img.shields.io/github/v/release/bitwize-music-studio/claude-ai-music-skills?label=version&color=blue)
 
 > [!NOTE]
@@ -46,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: Linux or macOS (Windows users: use WSL). Python 3.10+ for the MCP server and audio tools.
+**Platform**: Linux or macOS (Windows users: use WSL). Python 3.11+ for the MCP server and audio tools.
 
 ---
 
@@ -72,7 +74,7 @@ Skills declare which Claude model they need. Creative work that directly impacts
 | Reasoning | Sonnet 4.6 | 30 | Research coordination, pronunciation analysis, most workflows |
 | Mechanical | Haiku 4.5 | 16 | Imports, validation, clipboard, help — speed over creativity |
 
-This project pushes Claude Code hard — multi-agent research, real-time audio analysis, sub-agent orchestration across model tiers. It works best on the Max plan. The standard Pro plan will hit rate limits during multi-track sessions.
+This project pushes Claude Code hard — multi-agent research, real-time audio analysis, sub-agent orchestration across model tiers. It works best on the Max subscription. The standard Pro subscription will hit rate limits during multi-track sessions.
 
 See [reference/model-strategy.md](reference/model-strategy.md) for per-skill rationale.
 
