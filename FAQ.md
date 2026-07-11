@@ -24,7 +24,7 @@ the full tour and an example workflow.
 
 Install from the marketplace, then run setup and configure:
 
-```
+```bash
 /plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 /plugin install bitwize-music@bitwize-music
 /bitwize-music:setup

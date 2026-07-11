@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Root `FAQ.md`** (#466) — integration stance, commercial rights, and project basics, linked from README
+
 ## [0.97.0] - 2026-07-07
 
 ### Added
