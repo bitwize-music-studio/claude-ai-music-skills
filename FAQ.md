@@ -46,19 +46,20 @@ scaffolds one for you.
 
 - **Claude Code** on Linux or macOS (Windows works via WSL).
 - **Python 3.11+** for the MCP server and audio tools.
-- **A Claude plan that can take the load.** This project pushes Claude Code
-  hard — multi-agent research, sub-agent orchestration across model tiers.
-  It works best on the Max plan; Pro will hit rate limits during multi-track
-  sessions.
+- **A Claude subscription that can take the load.** This project pushes
+  Claude Code hard — multi-agent research, sub-agent orchestration across
+  model tiers. It works best on the Max subscription; Pro will hit rate
+  limits during multi-track sessions.
 - **A Suno account** for generation (see the next question).
 
 ### Do I need a paid Suno subscription?
 
 For anything you plan to release, yes. Beyond generation limits, the
 important part is rights: Suno ties commercial use of generated audio to its
-paid plans. If you intend to put tracks on streaming platforms, make sure the
-plan you generate under actually grants commercial use — that grant is the
-foundation of your chain of rights (more on why that matters
+paid subscriptions. If you intend to put tracks on streaming platforms, make
+sure the subscription you generate under actually grants commercial use —
+that grant is the foundation of your chain of rights (more on why that
+matters
 [below](#what-about-commercial-rights-this-is-the-part-that-worries-me)).
 
 ## Workflow philosophy
@@ -123,8 +124,9 @@ and a claim or takedown comes, that risk lands entirely on the person who
 released it. People use this plugin to put real albums on real streaming
 platforms. I'm not handing them that gap.
 
-(Even generating on Suno directly: confirm your plan grants commercial use
-before you release. This isn't legal advice — read the terms yourself.)
+(Even generating on Suno directly: confirm your subscription grants
+commercial use before you release. This isn't legal advice — read the terms
+yourself.)
 
 ### Can you support other music generation services?
 
