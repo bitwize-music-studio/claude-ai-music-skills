@@ -65,15 +65,17 @@ foundation of your chain of rights (more on why that matters
 
 ### Why do I generate on Suno manually instead of in-terminal?
 
-Two reasons, in order:
+Two different things are going on here, and it's worth separating them:
 
-1. **Suno has no official public API.** The day one exists, in-terminal
-   generation goes on the roadmap — see
-   [the integrations section](#integrations--third-party-services) for why I
-   won't bridge the gap with third-party wrappers in the meantime.
-2. **The listen-and-approve hop is a feature.** You hear every generation and
-   decide what survives. The pipeline automates everything around your
-   judgment, not instead of it.
+1. **The mechanical hop is temporary.** Clicking over to Suno's site, pasting
+   the prompt, downloading stems, importing them — that's friction, not
+   philosophy. Suno has no official public API today; the day one exists,
+   I'll automate all of it (see
+   [the integrations section](#integrations--third-party-services)).
+2. **The listening is permanent.** Automating generation will never mean
+   automating approval. No track advances until a human has actually listened
+   and signed off — that gate stays even in a fully API-driven future. The
+   pipeline automates everything around your judgment, not instead of it.
 
 ### Why does the pipeline require human source verification?
 
@@ -87,10 +89,11 @@ without a human signing off.
 
 ### Will you integrate with Suno's API or MCP server?
 
-The moment an official one exists, yes — enthusiastically. Generate, review,
-regenerate, as much of the loop as I can pull into the terminal. This is the
-integration I want most, and it's blocked only by there being no official
-API to build on.
+The moment an official one exists, yes — enthusiastically. Generate,
+regenerate, pull stems into the workspace, all without leaving the terminal.
+What won't change: you still listen to every track before it's approved. An
+API removes the busywork of the generation hop, not the listening gate —
+that gate is load-bearing.
 
 ### Why won't you integrate third-party Suno-wrapper APIs?
 
