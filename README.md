@@ -74,7 +74,7 @@ Skills declare which Claude model they need. Creative work that directly impacts
 | Reasoning | Sonnet 4.6 | 30 | Research coordination, pronunciation analysis, most workflows |
 | Mechanical | Haiku 4.5 | 16 | Imports, validation, clipboard, help — speed over creativity |
 
-This project pushes Claude Code hard — multi-agent research, real-time audio analysis, sub-agent orchestration across model tiers. It works best on the Max plan. The standard Pro plan will hit rate limits during multi-track sessions.
+This project pushes Claude Code hard — multi-agent research, real-time audio analysis, sub-agent orchestration across model tiers. It works best on the Max subscription. The standard Pro subscription will hit rate limits during multi-track sessions.
 
 See [reference/model-strategy.md](reference/model-strategy.md) for per-skill rationale.
 
