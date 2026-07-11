@@ -4,6 +4,8 @@ I love music but never learned an instrument. AI became the creative outlet that
 
 What it actually does: a Claude Code plugin that turns a conversation into a full album production pipeline. You describe what you want to make, and it handles concept development, lyrics, [Suno](https://suno.com) prompts (an AI music generation platform), audio mastering, and release prep — with quality gates and source verification at every stage.
 
+Questions? See the [FAQ](FAQ.md).
+
 ![Version](https://img.shields.io/github/v/release/bitwize-music-studio/claude-ai-music-skills?label=version&color=blue)
 
 > [!NOTE]
