@@ -7,7 +7,7 @@ with short clips, designed to fit Twitter's 2:20 (140 second) limit.
 
 Requirements:
     - ffmpeg with drawtext filter (brew install ffmpeg)
-    - Python 3.8+
+    - Python 3.11+
 
 Usage:
     python generate_album_sampler.py /path/to/mastered --artwork album.png -o sampler.mp4

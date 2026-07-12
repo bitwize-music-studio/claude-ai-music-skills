@@ -2,6 +2,8 @@
 name: about
 description: Provides information about the bitwize-music plugin, its version, and its creator. Use when the user asks about the plugin, its purpose, version, or capabilities.
 model: haiku
+allowed-tools:
+  - Read
 ---
 
 Read the version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (the `version` field), then display:
