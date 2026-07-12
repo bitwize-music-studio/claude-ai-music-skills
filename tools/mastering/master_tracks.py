@@ -307,7 +307,7 @@ def apply_low_shelf(data: Any, rate: int, freq: float, gain_db: float,
         return data
     nyquist = rate / 2
     if not (20 <= freq < nyquist):
-        logger.warning("Low shelf freq %.1f Hz out of valid range (20–%.0f Hz), skipping", freq, nyquist)
+        logger.warning("Low shelf freq %.1f Hz out of valid range (20-%.0f Hz), skipping", freq, nyquist)
         return data
 
     A = 10 ** (gain_db / 40)
@@ -391,7 +391,7 @@ def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
     """
     nyquist = rate / 2
     if not (20 <= freq < nyquist):
-        logger.warning("Linear-phase EQ freq %.1f Hz out of range (20–%.0f Hz), skipping",
+        logger.warning("Linear-phase EQ freq %.1f Hz out of range (20-%.0f Hz), skipping",
                        freq, nyquist)
         return None
 
@@ -438,7 +438,7 @@ def _design_linear_phase_eq(rate: int, freq: float, gain_db: float,
 
     # Sample the IIR magnitude response at num_taps/2+1 frequency points
     n_freqs = num_taps // 2 + 1
-    w, h = signal.freqz(b_iir, a_iir, worN=n_freqs)
+    _w, h = signal.freqz(b_iir, a_iir, worN=n_freqs)
     desired_mag = np.abs(h)
 
     # Build a zero-phase FIR via frequency sampling (real-valued, symmetric)
@@ -999,7 +999,7 @@ def apply_tpdf_dither(data: Any, target_bits: int = 16, seed: int | None = None)
     which is perceptually far less objectionable on quiet passages and fades.
 
     Args:
-        data: Audio data as float (−1.0 to 1.0).
+        data: Audio data as float (-1.0 to 1.0).
         target_bits: Output bit depth (default 16).
         seed: Optional RNG seed for reproducible output (testing).
 

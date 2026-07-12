@@ -13,6 +13,7 @@ frontmatter field). Energy / tempo-based auto-detection is future work.
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import Any
 
 import yaml
@@ -102,7 +103,7 @@ def compute_transitions(
 
     defaults = _MODE_TO_DEFAULTS[default_transition]
     transitions: list[dict[str, Any]] = []
-    for from_name, to_name in zip(track_filenames[:-1], track_filenames[1:]):
+    for from_name, to_name in pairwise(track_filenames):
         transitions.append({
             "from":          from_name,
             "to":            to_name,

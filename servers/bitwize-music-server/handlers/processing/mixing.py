@@ -422,7 +422,7 @@ def _build_analyzer(
         #
         # Count 10 ms windows whose peak-to-RMS ratio exceeds `peak_ratio`
         # — genuine digital clicks are single-sample discontinuities that
-        # spike a short window's crest factor well above 10×, while
+        # spike a short window's crest factor well above 10x, while
         # musical transients distribute energy across the window and stay
         # below. The previous sample-wise detector was replaced in #323.
         mono_col = data[:, 0]

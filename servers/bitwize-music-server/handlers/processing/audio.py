@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import time
@@ -1003,7 +1004,7 @@ async def master_album(
                         current = ctx.track_ceilings.get(
                             fname, ctx.effective_ceiling,
                         )
-                        new_ceiling, hit_floor, diverging = (
+                        new_ceiling, _hit_floor, diverging = (
                             _adm_adaptive_ceiling_per_track(
                                 entry, current, history,
                             )
@@ -2109,14 +2110,10 @@ async def album_coherence_correct(
                 staged.replace(final)
     finally:
         for f in staging_dir.iterdir():
-            try:
+            with contextlib.suppress(OSError):
                 f.unlink()
-            except OSError:
-                pass
-        try:
+        with contextlib.suppress(OSError):
             staging_dir.rmdir()
-        except OSError:
-            pass
 
     post_json = await album_coherence_check(
         album_slug=album_slug,
