@@ -12,11 +12,16 @@ from __future__ import annotations
 
 from typing import Any
 
+# Submodules with register functions
+from handlers.processing import audio as _audio
+from handlers.processing import mixing as _mixing
+from handlers.processing import sheet_music as _sheet_music
+from handlers.processing import video as _video
+
 # ---------------------------------------------------------------------------
 # Submodule imports — tools re-exported for backward compatibility.
 # Tests and server.py import from `handlers.processing` directly.
 # ---------------------------------------------------------------------------
-
 # Audio mastering tools
 from handlers.processing.audio import (  # noqa: F401
     album_coherence_check,
@@ -33,6 +38,14 @@ from handlers.processing.audio import (  # noqa: F401
     render_codec_preview,
 )
 
+# Mix polish tools
+from handlers.processing.mixing import (  # noqa: F401
+    analyze_mix_issues,
+    polish_album,
+    polish_and_master_album,
+    polish_audio,
+)
+
 # Sheet music tools
 from handlers.processing.sheet_music import (  # noqa: F401
     create_songbook,
@@ -46,20 +59,6 @@ from handlers.processing.video import (  # noqa: F401
     generate_album_sampler,
     generate_promo_videos,
 )
-
-# Mix polish tools
-from handlers.processing.mixing import (  # noqa: F401
-    analyze_mix_issues,
-    polish_album,
-    polish_and_master_album,
-    polish_audio,
-)
-
-# Submodules with register functions
-from handlers.processing import audio as _audio
-from handlers.processing import mixing as _mixing
-from handlers.processing import sheet_music as _sheet_music
-from handlers.processing import video as _video
 
 
 def register(mcp: Any) -> None:

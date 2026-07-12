@@ -175,7 +175,7 @@ def analyze_track(filepath: Path | str, *,
     if len(st_values) >= 20:
         stl_array = np.asarray(st_values, dtype=np.float64)
         stl_95 = float(np.percentile(stl_array, 95))
-        top_k = max(1, int(round(0.05 * len(st_values))))
+        top_k = max(1, round(0.05 * len(st_values)))
         order = np.argsort(-stl_array, kind='stable')
         stl_top_5pct_indices = order[:top_k]
     else:
@@ -246,7 +246,7 @@ def analyze_track(filepath: Path | str, *,
     # selector in phase 2a, coherence check in phase 2b).
     signature_meta = {
         'stl_window_count': len(st_values),
-        'stl_top_5pct_count': int(len(stl_top_5pct_indices)),
+        'stl_top_5pct_count': len(stl_top_5pct_indices),
         'vocal_rms_source': vocal_rms_source,
     }
 

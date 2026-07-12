@@ -36,7 +36,7 @@ _FIX_DYNAMIC_ITER_SCHEDULE: list[tuple[float, float]] = [
 def fix_dynamic(data: Any, rate: int, target_lufs: float = -14.0,
                 eq_settings: list[tuple[float, float, float]] | None = None,
                 ceiling_db: float = -1.0) -> tuple[Any, dict[str, Any]]:
-    """Core dynamic range fix: EQ → (compress → normalize → limit)×N.
+    """Core dynamic range fix: EQ → (compress → normalize → limit)xN.
 
     Runs up to 3 iterations of compress→normalize→limit with progressively
     heavier compression, stopping as soon as integrated LUFS is within

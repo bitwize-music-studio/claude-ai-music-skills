@@ -79,7 +79,7 @@ def classify_outliers(
         )
 
     out: list[dict[str, Any]] = []
-    for delta, track in zip(deltas, analysis_results):
+    for delta, track in zip(deltas, analysis_results, strict=True):
         idx = delta["index"]
         is_anchor = (idx == anchor_index_1based)
         row: dict[str, Any] = {

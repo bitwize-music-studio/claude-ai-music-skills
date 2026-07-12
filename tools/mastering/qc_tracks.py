@@ -319,15 +319,14 @@ def _check_silence(
     trailing_sec = 0.0
     internal_gap_count = 0
 
-    for rs, re in zip(region_starts, region_ends):
+    for rs, re in zip(region_starts, region_ends, strict=False):
         length_samples = int(re - rs)
         length_sec = length_samples / rate
         is_leading = False
         is_trailing = False
 
-        if rs < tol_samples:
-            if non_silent_before(rs) < min_boundary_content_samples:
-                is_leading = True
+        if rs < tol_samples and non_silent_before(rs) < min_boundary_content_samples:
+            is_leading = True
 
         if not is_leading and re > total_samples - tol_samples:
             ns_after = total_non_silent - non_silent_before(re)

@@ -2,7 +2,7 @@
 """Render a MONO_FOLD.md markdown report from mono_fold_metrics() output."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 _BAND_ORDER = ("sub_bass", "bass", "low_mid", "mid", "high_mid", "high", "air")
@@ -64,13 +64,13 @@ def render_mono_fold_markdown(
     lines: list[str] = []
     lines.append(f"# Mono Fold-Down Report — {track_name}")
     lines.append("")
-    lines.append(f"**Generated**: {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
+    lines.append(f"**Generated**: {datetime.now(UTC).isoformat(timespec='seconds')}")
     lines.append(f"**Source**: `mastered/{track_name}.wav`")
     lines.append(f"**Verdict**: {badge} ({verdict})")
     lines.append("")
 
     # Summary deltas
-    lines.append("## Deltas (mono − stereo)")
+    lines.append("## Deltas (mono - stereo)")
     lines.append("")
     lines.append("| Metric | Stereo | Mono | Delta | Threshold | Status |")
     lines.append("|---|---|---|---|---|---|")
@@ -90,7 +90,7 @@ def render_mono_fold_markdown(
         "PASS" if vocal_delta is None or abs(vocal_delta) <= vocal_warn else "WARN"
     )
     lines.append(
-        f"| Vocal RMS (1–4 kHz) | {_fmt_db(vocal.get('stereo_db'))} dB | "
+        f"| Vocal RMS (1-4 kHz) | {_fmt_db(vocal.get('stereo_db'))} dB | "
         f"{_fmt_db(vocal.get('mono_db'))} dB | {_fmt_db(vocal_delta)} dB | "
         f"warn ±{vocal_warn:.1f} dB | {vocal_status} |"
     )
@@ -123,7 +123,7 @@ def render_mono_fold_markdown(
         hz_low = entry.get("hz_low", 0.0)
         hz_high = entry.get("hz_high", 0.0)
         lines.append(
-            f"| `{band}` | {hz_low:.0f}–{hz_high:.0f} | "
+            f"| `{band}` | {hz_low:.0f}-{hz_high:.0f} | "
             f"{_fmt_db(entry.get('stereo_db'))} | {_fmt_db(entry.get('mono_db'))} | "
             f"{_fmt_db(delta)} | {status} |"
         )
@@ -139,7 +139,7 @@ def render_mono_fold_markdown(
         lines.append("## Phase cancellation detected")
         lines.append("")
         lines.append(
-            f"Band `{worst_name}` ({hz_low:.0f}–{hz_high:.0f} Hz) dropped "
+            f"Band `{worst_name}` ({hz_low:.0f}-{hz_high:.0f} Hz) dropped "
             f"{_fmt_db(worst_delta)} dB when folded to mono — above the "
             f"{band_fail_db:.1f} dB hard-fail threshold. Listen to the "
             f".mono sample on a phone speaker or Echo to confirm which "

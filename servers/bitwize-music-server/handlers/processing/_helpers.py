@@ -10,7 +10,7 @@ from typing import Any
 
 from handlers import _shared
 from handlers._shared import _normalize_slug
-from handlers._shared import _resolve_audio_dir as _resolve_audio_dir  # noqa: F401
+from handlers._shared import _resolve_audio_dir as _resolve_audio_dir
 
 logger = logging.getLogger(__name__)
 

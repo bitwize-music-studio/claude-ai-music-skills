@@ -14,9 +14,10 @@ import argparse
 import logging
 import os
 import sys
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import numpy as np
 import soundfile as sf
@@ -645,7 +646,7 @@ def remove_clicks(
             repaired = _repair_cubic(channel, indices)
         else:
             repaired = _repair_linear(channel, indices)
-        return repaired, int(len(indices))
+        return repaired, len(indices)
 
     if len(data.shape) == 1:
         repaired, n_clicks = _process_channel(data)
