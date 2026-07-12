@@ -185,7 +185,7 @@ done
 3. Must match
 
 ### TEST: All skills documented in CLAUDE.md
-DROPPED — CLAUDE.md has no comprehensive skill table anymore; it lists only a curated subset of skills in "### Key Routing Rules" by design (as of this sweep, 24 of 53 skills — including 10 researcher sub-skills — aren't named in CLAUDE.md at all, and that's expected). The authoritative version of this claim is "All skills documented in help system" below, which runs `tools/validate_help_completeness.py` and checks each skill's `/bitwize-music:{name}` reference against CLAUDE.md and skills/help/SKILL.md programmatically. Keeping both risks a manual-read verdict contradicting the script's verdict for the same repo state.
+DROPPED — CLAUDE.md has no comprehensive skill table anymore; it lists only a curated subset of skills in "### Key Routing Rules" by design (as of this sweep, 24 of 53 skills — including 10 researcher sub-skills — aren't named there today — whether each needs a reference is exactly what the script-based test below adjudicates). The authoritative version of this claim is "All skills documented in help system" below, which runs `tools/validate_help_completeness.py` and checks each skill's `/bitwize-music:{name}` reference against CLAUDE.md and skills/help/SKILL.md programmatically. Keeping both risks a manual-read verdict contradicting the script's verdict for the same repo state.
 
 ### TEST: All skills documented in README.md
 README.md no longer has skill tables — they moved to `docs/skills.md`. Extract skill names from skills/ directory and verify each appears (as `` `skill-name` ``) in one of `docs/skills.md`'s tables (Core Production, Research System, Quality Control, Release & Distribution, Album Management, Setup & Maintenance).
@@ -416,7 +416,7 @@ CLAUDE.md no longer names checkpoints directly. Verify instead:
    - Album Generation Complete Checkpoint
    - Ready to Master Checkpoint
    - Ready to Release Checkpoint
-2. At least one skill (e.g. `skills/resume/SKILL.md` or `skills/explicit-checker/SKILL.md`) references the "Ready to Generate Checkpoint" by name.
+2. At least one skill (e.g. `skills/explicit-checker/SKILL.md`) references the "Ready to Generate Checkpoint" by name.
 
 ---
 
