@@ -7,7 +7,7 @@ Uses ffmpeg to combine audio, album artwork, and waveform visualization.
 
 Requirements:
     - ffmpeg with drawtext filter (brew install ffmpeg)
-    - Python 3.8+
+    - Python 3.11+
 
 Usage:
     # Single track

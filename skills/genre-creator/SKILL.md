@@ -4,6 +4,12 @@ description: Create new genre documentation files for the bitwize-music genre li
 model: sonnet
 effort: medium
 argument-hint: <genre-name e.g. "Math Rock" or "Nu-Metal">
+allowed-tools:
+  - Read
+  - Edit
+  - Write
+  - Glob
+  - WebSearch
 ---
 
 # Genre Creator
