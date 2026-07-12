@@ -6,9 +6,9 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, timezone
-from pathlib import Path
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 # Progress log filename written at the album's audio_dir. Operators
@@ -26,8 +26,7 @@ from handlers._shared import (
     # _resolve_audio_dir accessed via _helpers for patch compatibility
     _safe_json,
 )
-from handlers.processing import _helpers
-from handlers.processing import _album_stages
+from handlers.processing import _album_stages, _helpers
 from tools.mastering.ceiling_guard import (
     compute_overshoots as _ceiling_guard_compute_overshoots,
 )
@@ -159,7 +158,11 @@ async def qc_audio(
         return err
     assert audio_dir is not None
 
-    from tools.mastering.qc_tracks import ALL_CHECKS, _resolve_click_thresholds, qc_track
+    from tools.mastering.qc_tracks import (
+        ALL_CHECKS,
+        _resolve_click_thresholds,
+        qc_track,
+    )
 
     source_dir = _find_wav_source_dir(audio_dir) if not subfolder else audio_dir
     wav_files = sorted(source_dir.glob("*.wav"))
@@ -775,7 +778,7 @@ async def master_album(
         elapsed_ms: float | None = None,
         *, extra: str | None = None,
     ) -> None:
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         parts = [ts, event, stage_label]
         if elapsed_ms is not None:
             parts.append(f"{elapsed_ms:.0f}ms")
@@ -1331,6 +1334,7 @@ async def mono_fold_check(
         return _safe_json({"error": f"No WAV files in {source_dir}"})
 
     import soundfile as sf
+
     from tools.mastering.mono_fold import mono_fold_metrics
     from tools.mastering.mono_fold_report import render_mono_fold_markdown
 
@@ -1570,11 +1574,11 @@ async def measure_album_signature(
     anchor_requested = bool(genre) or override_index is not None
 
     # Run analyzer on every WAV. Block-executor keeps the event loop responsive.
-    from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.album_signature import (
         build_signature,
         compute_anchor_deltas,
     )
+    from tools.mastering.analyze_tracks import analyze_track
 
     loop = asyncio.get_running_loop()
     analysis_results: list[dict[str, Any]] = []
@@ -1736,11 +1740,11 @@ async def album_coherence_check(
         if isinstance(raw_override, int) and not isinstance(raw_override, bool):
             override_index = raw_override
 
-    from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.album_signature import (
         build_signature,
         compute_anchor_deltas,
     )
+    from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.anchor_selector import select_anchor
 
     loop = asyncio.get_running_loop()
@@ -2004,10 +2008,10 @@ async def album_coherence_correct(
         }
         return _safe_json(response)
 
+    import soundfile as _sf
+
     from tools.mastering.config import build_effective_preset
     from tools.mastering.master_tracks import master_track
-
-    import soundfile as _sf
     try:
         source_sample_rate = int(_sf.info(str(mastered_wavs[0])).samplerate)
     except Exception:

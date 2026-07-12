@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import subprocess
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -228,7 +228,7 @@ def render_adm_validation_markdown(
             cannot improve ADM compliance on dark-content material.
     """
     dark_set = dark_casualty_filenames or set()
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     clips_total = sum(r.get("clip_count", 0) for r in results)
     overall = "PASS" if clips_total == 0 else "FAIL"
 

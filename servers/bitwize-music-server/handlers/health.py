@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
-from handlers._shared import _safe_json, get_plugin_version as _read_plugin_version
+from handlers._shared import _safe_json
+from handlers._shared import get_plugin_version as _read_plugin_version
 from tools.state import indexer
 
 logger = logging.getLogger(__name__)

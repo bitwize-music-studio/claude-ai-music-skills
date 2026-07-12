@@ -60,7 +60,7 @@ def parse_layout_yaml(markdown: str) -> list[dict[str, Any]]:
         parsed = yaml.safe_load(match.group(1))
         transitions = parsed.get("transitions") if isinstance(parsed, dict) else None
         return transitions if isinstance(transitions, list) else []
-    except Exception:  # noqa: BLE001
+    except Exception:
         return []
 
 

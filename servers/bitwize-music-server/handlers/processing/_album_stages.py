@@ -21,13 +21,17 @@ import asyncio
 import functools
 import json
 import logging
-import re
 import os
+import re
 from dataclasses import dataclass, field
+from math import gcd
 from pathlib import Path
 from typing import Any
 
+from scipy import signal
+
 from handlers import _shared
+from handlers._atomic import atomic_write_text
 from handlers._shared import (
     ALBUM_COMPLETE,
     ALBUM_RELEASED,
@@ -38,27 +42,54 @@ from handlers._shared import (
     _is_path_confined,
     _normalize_slug,
     _safe_json,
+)
+from handlers._shared import (
     get_plugin_version as _read_plugin_version,
 )
-from handlers._atomic import atomic_write_text
 from handlers.processing import _helpers
-from tools.mastering.album_signature import build_signature, compute_anchor_deltas
-from tools.mastering.coherence import (
-    build_correction_plan as _coherence_build_plan,
-    classify_outliers as _coherence_classify,
-    load_tolerances as _coherence_load_tolerances,
+from tools.mastering.adm_validation import (
+    ADMValidationError,
+    render_adm_validation_markdown,
 )
+from tools.mastering.adm_validation import (
+    check_aac_intersample_clips as _adm_check_fn_default,
+)
+from tools.mastering.album_signature import build_signature, compute_anchor_deltas
 from tools.mastering.ceiling_guard import (
     CeilingGuardError,
     apply_pull_down_db,
+)
+from tools.mastering.ceiling_guard import (
     compute_overshoots as _ceiling_guard_compute_overshoots,
+)
+from tools.mastering.coherence import (
+    build_correction_plan as _coherence_build_plan,
+)
+from tools.mastering.coherence import (
+    classify_outliers as _coherence_classify,
+)
+from tools.mastering.coherence import (
+    load_tolerances as _coherence_load_tolerances,
 )
 from tools.mastering.config import build_effective_preset
 from tools.mastering.layout import (
     LayoutError,
+)
+from tools.mastering.layout import (
     compute_transitions as _layout_compute_transitions,
+)
+from tools.mastering.layout import (
     parse_layout_yaml as _parse_layout_yaml,
+)
+from tools.mastering.layout import (
     render_layout_markdown as _layout_render_markdown,
+)
+from tools.mastering.master_tracks import limit_peaks
+from tools.mastering.metadata import (
+    MetadataEmbedError,
+)
+from tools.mastering.metadata import (
+    embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
 from tools.mastering.signature_persistence import (
     SIGNATURE_FILENAME,
@@ -66,18 +97,6 @@ from tools.mastering.signature_persistence import (
     read_signature_file,
     write_signature_file,
 )
-from tools.mastering.adm_validation import (
-    ADMValidationError,
-    check_aac_intersample_clips as _adm_check_fn_default,
-    render_adm_validation_markdown,
-)
-from tools.mastering.metadata import (
-    MetadataEmbedError,
-    embed_wav_metadata as _embed_wav_metadata_fn_default,
-)
-from math import gcd
-from scipy import signal
-from tools.mastering.master_tracks import limit_peaks
 
 logger = logging.getLogger(__name__)
 
@@ -977,8 +996,8 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                 recoverable.append(spec["filename"])
 
         if recoverable:
-            import soundfile as sf
             import numpy as _np
+            import soundfile as sf
 
             eq_settings = []
             if ctx.effective_highmid != 0:
@@ -1662,7 +1681,7 @@ async def _stage_mastering_samples(ctx: MasterAlbumCtx) -> str | None:
     Sets ctx:  (appends to ctx.warnings; never sets new ctx fields)
     Returns: None on pass/warn, failure JSON on mono fold hard-fail.
     """
-    from tools.mastering.master_tracks import GENRE_PRESETS, _PRESET_DEFAULTS
+    from tools.mastering.master_tracks import _PRESET_DEFAULTS, GENRE_PRESETS
 
     assert ctx.audio_dir is not None
 
@@ -1718,6 +1737,7 @@ async def _stage_mastering_samples(ctx: MasterAlbumCtx) -> str | None:
 
     if monofold_enabled:
         import soundfile as sf
+
         from tools.mastering.mono_fold import mono_fold_metrics
         from tools.mastering.mono_fold_report import render_mono_fold_markdown
 
@@ -1978,6 +1998,7 @@ async def _stage_archival(ctx: MasterAlbumCtx) -> str | None:
         return None
 
     import soundfile as _sf_archival
+
     from tools.mastering.archival import prune_archival_orphans
 
     assert ctx.audio_dir is not None

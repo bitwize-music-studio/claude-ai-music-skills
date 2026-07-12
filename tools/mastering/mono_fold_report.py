@@ -2,7 +2,7 @@
 """Render a MONO_FOLD.md markdown report from mono_fold_metrics() output."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 _BAND_ORDER = ("sub_bass", "bass", "low_mid", "mid", "high_mid", "high", "air")
@@ -64,7 +64,7 @@ def render_mono_fold_markdown(
     lines: list[str] = []
     lines.append(f"# Mono Fold-Down Report — {track_name}")
     lines.append("")
-    lines.append(f"**Generated**: {datetime.now(timezone.utc).isoformat(timespec='seconds')}")
+    lines.append(f"**Generated**: {datetime.now(UTC).isoformat(timespec='seconds')}")
     lines.append(f"**Source**: `mastered/{track_name}.wav`")
     lines.append(f"**Verdict**: {badge} ({verdict})")
     lines.append("")

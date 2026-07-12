@@ -267,7 +267,8 @@ def _resolve_analyzer_peak_ratio(
     """
     try:
         from tools.mixing.mix_tracks import (
-            _get_full_mix_settings, _get_stem_settings,
+            _get_full_mix_settings,
+            _get_stem_settings,
         )
     except ImportError:
         return _ANALYZER_DEFAULT_PEAK_RATIO
