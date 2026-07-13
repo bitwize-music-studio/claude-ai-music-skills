@@ -9,6 +9,7 @@ Run this before committing changes that add new skills.
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -43,30 +44,19 @@ def get_all_skills(plugin_root: Path) -> list[str]:
 
     return skills
 
-def check_claude_md(plugin_root: Path, skills: list[str]) -> list[str]:
-    """Check which skills are missing from CLAUDE.md."""
-    claude_file = plugin_root / "CLAUDE.md"
+def check_claude_md_ghosts(plugin_root: Path, skills: list[str]) -> list[str]:
+    """Find CLAUDE.md references to skills that don't exist.
 
+    CLAUDE.md is a curated router by design: it need not reference every
+    skill, but every /bitwize-music:{name} it does reference must exist.
+    """
+    claude_file = plugin_root / "CLAUDE.md"
     if not claude_file.exists():
         logger.error("CLAUDE.md not found!")
-        return skills
-
-    claude_content = claude_file.read_text()
-    missing = []
-
-    # Skip system/internal skills
-    skip_skills = {'help', 'about', 'configure', 'test'}
-
-    for skill in skills:
-        if skill in skip_skills:
-            continue
-
-        # Check for skill reference
-        skill_pattern = f"/bitwize-music:{skill}"
-        if skill_pattern not in claude_content:
-            missing.append(skill)
-
-    return missing
+        return []
+    content = claude_file.read_text()
+    referenced = set(re.findall(r"/bitwize-music:([a-z0-9][a-z0-9-]*)", content))
+    return sorted(referenced - set(skills))
 
 def check_help_skill(plugin_root: Path, skills: list[str]) -> list[str]:
     """Check which skills are missing from skills/help/SKILL.md."""
@@ -114,16 +104,16 @@ def main() -> int:
     errors = 0
 
     # Check CLAUDE.md
-    logger.info("Checking CLAUDE.md skills table...")
-    missing_claude = check_claude_md(plugin_root, all_skills)
+    logger.info("Checking CLAUDE.md for ghost skill references...")
+    claude_ghosts = check_claude_md_ghosts(plugin_root, all_skills)
 
-    if not missing_claude:
-        print(f"{GREEN}[OK] All skills documented in CLAUDE.md{NC}")
+    if not claude_ghosts:
+        print(f"{GREEN}[OK] All CLAUDE.md skill references are valid{NC}")
     else:
-        print(f"{RED}[FAIL] Skills missing from CLAUDE.md:{NC}")
-        for skill in missing_claude:
+        print(f"{RED}[FAIL] CLAUDE.md references nonexistent skills:{NC}")
+        for skill in claude_ghosts:
             print(f"  - {skill}")
-        errors += len(missing_claude)
+        errors += len(claude_ghosts)
     print()
 
     # Check help system
@@ -145,15 +135,15 @@ def main() -> int:
         print(f"{GREEN}[OK] All skills properly documented!{NC}")
         print()
         print("All skills are listed in:")
-        print("  - CLAUDE.md (main skills table)")
-        print("  - skills/help/SKILL.md (help system)")
+        print("  - skills/help/SKILL.md (help system, every skill)")
+        print("  - CLAUDE.md (curated router, ghost-free)")
         return 0
     else:
         print(f"{RED}[FAIL] Found {errors} documentation issues{NC}")
         print()
         print("To fix:")
-        print("  1. Add missing skills to CLAUDE.md skills table")
-        print("  2. Add missing skills to skills/help/SKILL.md")
+        print("  1. Add missing skills to skills/help/SKILL.md (help must list every skill)")
+        print("  2. Fix or remove CLAUDE.md references to nonexistent skills")
         print("  3. Update CHANGELOG.md with the changes")
         print()
         print("See CONTRIBUTING.md for complete checklist")
