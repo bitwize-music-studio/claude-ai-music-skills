@@ -185,7 +185,7 @@ done
 3. Must match
 
 ### TEST: All skills documented in CLAUDE.md
-DROPPED — CLAUDE.md has no comprehensive skill table anymore; it lists only a curated subset of skills in "### Key Routing Rules" by design (as of this sweep, 24 of 53 skills — including 10 researcher sub-skills — aren't named there today — whether each needs a reference is exactly what the script-based test below adjudicates). The authoritative version of this claim is "All skills documented in help system" below, which runs `tools/validate_help_completeness.py` and checks each skill's `/bitwize-music:{name}` reference against CLAUDE.md and skills/help/SKILL.md programmatically. Keeping both risks a manual-read verdict contradicting the script's verdict for the same repo state.
+DROPPED — CLAUDE.md has no comprehensive skill table anymore; it lists only a curated subset of skills in "### Key Routing Rules" by design (as of this sweep, 24 of 53 skills — including 10 researcher sub-skills — aren't named there today, and that's expected: CLAUDE.md is a curated router, not a completeness list). The authoritative version of this claim is "All skills documented in help system" below, which runs `tools/validate_help_completeness.py`: it requires every skill to be referenced in skills/help/SKILL.md, and separately checks CLAUDE.md only for ghost references (a `/bitwize-music:{name}` mention pointing at a skill that no longer exists) — it does not require CLAUDE.md to reference every skill. Keeping both risks a manual-read verdict contradicting the script's verdict for the same repo state.
 
 ### TEST: All skills documented in README.md
 README.md no longer has skill tables — they moved to `docs/skills.md`. Extract skill names from skills/ directory and verify each appears (as `` `skill-name` ``) in one of `docs/skills.md`'s tables (Core Production, Research System, Quality Control, Release & Distribution, Album Management, Setup & Maintenance).
@@ -889,13 +889,13 @@ $PYTHON "$PLUGIN_DIR/tools/validate_help_completeness.py"
 ```
 
 This checks:
-1. All skills have SKILL.md file
-2. All skills are listed in CLAUDE.md skills table
-3. All skills are listed in skills/help/SKILL.md
+1. All skills have a SKILL.md file
+2. Every skill is referenced (`/bitwize-music:{name}`) in skills/help/SKILL.md — help must document every skill
+3. CLAUDE.md is a curated router, not a completeness list — the script only fails if CLAUDE.md references a `/bitwize-music:{name}` skill that doesn't exist (a ghost reference); it does not require every skill to appear there
 
 If this test fails:
-- Add missing skill to CLAUDE.md skills table (alphabetically)
 - Add missing skill to skills/help/SKILL.md (in appropriate category)
+- Fix or remove any CLAUDE.md reference to a nonexistent skill
 - Update CHANGELOG.md
 
 **Note:** This is critical - if a skill isn't in the help system, users can't discover it!
