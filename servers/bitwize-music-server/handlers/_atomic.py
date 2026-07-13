@@ -29,27 +29,22 @@ def atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp_fd = None
     tmp_path: Path | None = None
     try:
-        tmp_fd = tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
             mode="w",
             dir=path.parent,
             suffix=".tmp",
             prefix=f".{path.stem}_",
             delete=False,
             encoding=encoding,
-        )
-        tmp_path = Path(tmp_fd.name)
-        tmp_fd.write(content)
-        tmp_fd.flush()
-        os.fsync(tmp_fd.fileno())
-        tmp_fd.close()
-        tmp_fd = None
+        ) as tmp_fd:
+            tmp_path = Path(tmp_fd.name)
+            tmp_fd.write(content)
+            tmp_fd.flush()
+            os.fsync(tmp_fd.fileno())
         os.replace(str(tmp_path), str(path))
         tmp_path = None  # Rename succeeded, nothing to clean up
     finally:
-        if tmp_fd is not None:
-            tmp_fd.close()
         if tmp_path is not None and tmp_path.exists():
             tmp_path.unlink(missing_ok=True)

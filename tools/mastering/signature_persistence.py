@@ -63,7 +63,7 @@ _SERVER_DIR = Path(__file__).resolve().parent.parent.parent / "servers" / "bitwi
 if str(_SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVER_DIR))
 
-from handlers._atomic import atomic_write_text  # noqa: E402
+from handlers._atomic import atomic_write_text
 
 SIGNATURE_FILENAME = "ALBUM_SIGNATURE.yaml"
 SIGNATURE_SCHEMA_VERSION = 1
@@ -112,7 +112,7 @@ def write_signature_file(
     """
     envelope = {
         "schema_version": SIGNATURE_SCHEMA_VERSION,
-        "written_at":     _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "written_at":     _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "plugin_version": plugin_version,
     }
     # Envelope keys (schema_version, written_at, plugin_version) are

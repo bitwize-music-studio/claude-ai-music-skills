@@ -59,7 +59,7 @@ def apply_harmonic_excitation(
             material stems that lack high-mid content.
         drive: tanh saturation drive. Higher drive → more aggressive harmonic
             generation. Default 20.0 is tuned so that dark-material stems at
-            typical Suno output levels (−18 to −20 dBFS RMS) receive a
+            typical Suno output levels (-18 to -20 dBFS RMS) receive a
             measurable presence boost at low ``amount_db`` settings.
 
     Returns:

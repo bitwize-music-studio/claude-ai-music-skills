@@ -4,6 +4,14 @@ All notable changes to claude-ai-music-skills.
 
 This project uses [Conventional Commits](https://conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
 
+## [0.99.0] - 2026-07-13
+
+### Fixed
+- **Help index completed, validator policy re-encoded** (#473) — `skills/help/SKILL.md` now lists all 53 skills (9 were missing); `tools/validate_help_completeness.py` enforces the help-comprehensive / CLAUDE.md-curated contract (CLAUDE.md references are ghost-checked, not completeness-checked), with new unit tests; contributor checklist updated to match
+- **Ruff config consolidated in pyproject** (#468, #470) — deleted `ruff.toml`, which had silently shadowed the extended `[tool.ruff]` ruleset (E,F,I,UP,B,SIM,RUF at py311) since March; fixed all 52 findings the active config surfaced with zero new suppressions
+- **Plugin-suite findings resolved** (#471, #472) — `allowed-tools:` frontmatter added to the last two skills missing it; `qc_tracks.py` zip encodes its equal-length invariant with `strict=True`; promotion docstrings corrected to Python 3.11+; all 141 test definitions audited against the current repo (34 retargeted, 4 dropped with audit trail)
+- **Audio-path regression checks retargeted** (#474) — the two remaining pre-refactor checks now verify the guards where they actually live (CLAUDE.md pattern block; `skills/import-audio` with the `resolve_path` requirement)
+
 ## [0.98.0] - 2026-07-11
 
 ### Added

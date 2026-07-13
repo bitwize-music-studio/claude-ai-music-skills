@@ -9,7 +9,7 @@ Selection strategy (in order):
 1. ``override_index`` supplied by caller (from album README
    frontmatter ``anchor_track``). Validated against the track list.
 2. Composite scoring: ``0.4 * mix_quality + 0.4 * representativeness
-   − 1.0 * ceiling_penalty`` (formula from issue #290).
+   - 1.0 * ceiling_penalty`` (formula from issue #290).
 3. Deterministic tie-breaker when top two scores differ by < 0.05:
    lowest 1-based index wins.
 
@@ -61,7 +61,7 @@ def _album_medians(tracks: list[dict[str, Any]]) -> dict[str, float | None]:
 def _mix_quality_score(track: dict[str, Any],
                        spectral_reference: dict[str, float],
                        genre_ideal_lra: float) -> float:
-    """Combined LRA-match × spectral-match score, ∈ (0, 1]."""
+    """Combined LRA-match x spectral-match score, ∈ (0, 1]."""
     lra = track.get("short_term_range")
     if lra is None:
         return 0.0

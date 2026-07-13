@@ -31,7 +31,9 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:new-album` - Create new album with directory structure
 - `/bitwize-music:album-conceptualizer` - Album concepts and tracklist architecture
 - `/bitwize-music:lyric-writer` - Write/review lyrics, fix prosody
+- `/bitwize-music:lyric-refiner` - Multi-pass lyric refinement and album cohesion
 - `/bitwize-music:suno-engineer` - Technical Suno prompting and genre selection
+- `/bitwize-music:genre-creator` - Add new genre documentation to the library
 
 **Research & Sources**
 - `/bitwize-music:researcher` - Main research coordinator, fact-checking
@@ -46,6 +48,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:researchers-biographical` - Personal backgrounds
 - `/bitwize-music:researchers-primary-source` - Tweets, blogs, forums
 - `/bitwize-music:researchers-verifier` - Quality control, citation validation
+- `/bitwize-music:verify-sources` - Human source verification gate (required before generation)
 
 **Quality Control**
 - `/bitwize-music:lyric-reviewer` - Pre-generation QC gate (14-point checklist)
@@ -58,8 +61,11 @@ Display this help information to the user in a clear, organized format.
 
 **Production & Release**
 - `/bitwize-music:album-art-director` - Visual concepts and AI art prompts
+- `/bitwize-music:mix-engineer` - Per-stem audio polish before mastering
 - `/bitwize-music:mastering-engineer` - Audio mastering guidance
 - `/bitwize-music:promo-director` - Generate promo videos for social media
+- `/bitwize-music:promo-writer` - Generate platform-specific social media copy
+- `/bitwize-music:promo-reviewer` - Review and polish promo copy before release
 - `/bitwize-music:cloud-uploader` - Upload promo videos to Cloudflare R2 or AWS S3
 - `/bitwize-music:sheet-music-publisher` - Convert audio to sheet music
 - `/bitwize-music:release-director` - Release coordination and distribution
@@ -68,6 +74,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:import-track` - Move track .md files to album location
 - `/bitwize-music:import-audio` - Move audio files to album location
 - `/bitwize-music:import-art` - Place album art in correct locations
+- `/bitwize-music:rename` - Rename an album or track (updates slugs and all paths)
 - `/bitwize-music:clipboard` - Copy track lyrics/prompts to clipboard
 
 **Workflow & Status**
@@ -77,6 +84,8 @@ Display this help information to the user in a clear, organized format.
 
 **System & Maintenance**
 - `/bitwize-music:configure` - Edit plugin configuration
+- `/bitwize-music:setup` - Detect environment and install plugin dependencies
+- `/bitwize-music:health-check` - Check venv and skill registration health
 - `/bitwize-music:test` - Run automated tests
 - `/bitwize-music:help` - Show this help (you are here!)
 - `/bitwize-music:about` - About bitwize and the plugin
@@ -91,7 +100,7 @@ Display this help information to the user in a clear, organized format.
 3. Write lyrics for each track
 4. Run `/bitwize-music:lyric-reviewer` before generation
 5. Generate in Suno, log results
-6. Master audio with `/bitwize-music:mastering-engineer`
+6. Polish stems with `/bitwize-music:mix-engineer`, then master with `/bitwize-music:mastering-engineer`
 7. [Optional] Generate promo videos with `/bitwize-music:promo-director`
 8. [Optional] Upload to cloud with `/bitwize-music:cloud-uploader`
 9. Release with `/bitwize-music:release-director`

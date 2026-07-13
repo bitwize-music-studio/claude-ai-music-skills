@@ -59,7 +59,7 @@ def embed_wav_metadata(
     Raises:
         MetadataEmbedError: File not found or mutagen write fails.
     """
-    from mutagen.id3 import TALB, TCON, TCOP, TDRC, TIT2, TPUB, TPE1, TRCK, TSRC, TXXX
+    from mutagen.id3 import TALB, TCON, TCOP, TDRC, TIT2, TPE1, TPUB, TRCK, TSRC, TXXX
     from mutagen.wave import WAVE
 
     path = Path(path)
