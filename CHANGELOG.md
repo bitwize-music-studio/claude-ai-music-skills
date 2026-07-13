@@ -4,6 +4,11 @@ All notable changes to claude-ai-music-skills.
 
 This project uses [Conventional Commits](https://conventionalcommits.org/) and [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Help index completed, validator policy re-encoded** — `skills/help/SKILL.md` now lists all 53 skills (9 were missing); `tools/validate_help_completeness.py` enforces the help-comprehensive / CLAUDE.md-curated contract (CLAUDE.md references are ghost-checked, not completeness-checked), with new unit tests; contributor checklist updated to match
+
 ## [0.98.0] - 2026-07-11
 
 ### Added

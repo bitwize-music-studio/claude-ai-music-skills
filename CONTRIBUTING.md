@@ -64,7 +64,7 @@ When adding a new skill, you MUST update all of these files:
 
 **Required (skill won't work without these):**
 - [ ] Create `/skills/your-skill/SKILL.md` with skill documentation
-- [ ] Add entry to `CLAUDE.md` skills table (alphabetically in correct category)
+- [ ] Add a routing rule to `CLAUDE.md` Key Routing Rules ONLY if users reach the skill through workflow triggers (CLAUDE.md is a curated router — most skills belong in the help index, not CLAUDE.md)
 - [ ] Add entry to `skills/help/SKILL.md` in appropriate category
 - [ ] Add entry to `skills/help/SKILL.md` Common Workflows section (if applicable)
 - [ ] Update `CHANGELOG.md` under "Unreleased" → "Added"
@@ -82,7 +82,7 @@ When adding a new skill, you MUST update all of these files:
 - [ ] Run `/bitwize-music:test all` to ensure no regressions
 - [ ] Test skill invocation: `/bitwize-music:your-skill`
 - [ ] Verify skill appears in `/bitwize-music:help` output
-- [ ] Check skill in skills table works as expected
+- [ ] Run `tools/validate_help_completeness.py` — must exit 0 (help index complete, no CLAUDE.md ghost references)
 
 **Common mistakes to avoid:**
 - ❌ Forgetting to add skill to help system
