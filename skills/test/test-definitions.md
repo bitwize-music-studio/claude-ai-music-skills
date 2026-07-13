@@ -349,24 +349,25 @@ Verify CLAUDE.md documents the directory structure:
 - `{audio_root}/artists/[artist]/albums/[genre]/[album]/`
 - `{documents_root}/artists/[artist]/albums/[genre]/[album]/`
 
-### TEST: Audio path structure has concrete example (regression)
-Read CLAUDE.md "Mirrored structure" section.
+### TEST: Audio path structure warns about the artist folder (regression)
+Read CLAUDE.md "Mirrored path structure" block.
 Verify it includes:
-1. A concrete example with actual paths (e.g., `~/bitwize-music/audio/artists/bitwize/albums/electronic/sample-album/`)
-2. The phrase "includes artist!" to emphasize artist folder is required
-3. A "Common mistake" warning about missing artist folder
+1. The three mirrored path patterns, each containing `artists/[artist]/albums/[genre]/[album]/`
+2. An explicit warning that audio and document paths include the artist folder, plus a "Common mistake" note about omitting it
 
-This test was added after a bug where audio files were placed at `{audio_root}/[album]/` instead of the full mirrored path.
+This test was added after a bug where audio files were placed at `{audio_root}/[album]/` instead of the full mirrored path. The concrete-example requirement was dropped by maintainer ruling (2026-07-13): path construction now goes through the `resolve_path` MCP tool, which includes the artist folder automatically, so the pattern block plus warning carries the guard.
 
 ### TEST: Importing external audio files documented (regression)
-Read CLAUDE.md "Importing External Audio Files" section.
+Read skills/import-audio/SKILL.md.
 Verify it includes:
-1. Trigger for audio/WAV files in Downloads or external locations
-2. Explicit instruction that path "MUST use mirrored structure"
-3. Example showing correct path: `{audio_root}/artists/[artist]/albums/[genre]/[album]/`
-4. "CRITICAL" warning about using full mirrored path
+1. The mirrored-structure requirement: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`
+2. A concrete example path with real values (artist folder present)
+3. A "CRITICAL" instruction to use the `resolve_path` MCP tool rather than constructing paths manually
+4. A "Common Mistakes" section covering manual path construction
 
-This test was added after audio files were repeatedly moved to `{audio_root}/[album]/` without the artist folder.
+Also verify CLAUDE.md still routes imports (it references `/bitwize-music:import-audio`).
+
+This test was added after audio files were repeatedly moved to `{audio_root}/[album]/` without the artist folder. Retargeted from a CLAUDE.md section to the import-audio skill by maintainer ruling (2026-07-13): the guidance moved into the skill during doc modularization, and `resolve_path` now prevents the failure structurally.
 
 ### TEST: Session start procedure documented
 Read CLAUDE.md "Session Start" section (numbered steps 1, 1.5, 2, 3, 4, 4.5, 5, 6, 7, 8).
