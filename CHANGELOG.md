@@ -7,7 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Fixed
-- **MCP server now starts on Windows** (#476) — `tools/state/indexer.py` imported the Unix-only `fcntl` module unconditionally, crashing `server.py` on import so no MCP tools loaded on Windows. State-cache locking is now platform-gated: `fcntl.flock` on Unix, `msvcrt.locking` on Windows, behind shared `_flock_nb`/`_funlock` helpers. The lock file opens in append mode ('w' truncation fails on Windows while the byte-range lock is held), locking tests are platform-neutral, and a new windows-latest CI job guards the import and the locking tests. Reported by @Memshik42.
+- **MCP server now starts on Windows** (#476) — `tools/state/indexer.py` imported the Unix-only `fcntl` module unconditionally, crashing `server.py` on import so no MCP tools loaded on Windows. State-cache locking is now platform-gated: `fcntl.flock` on Unix, `msvcrt.locking` on Windows, behind shared `_flock_nb`/`_funlock` helpers. The lock file opens in append mode ('w' truncation fails on Windows while the byte-range lock is held), locking tests are platform-neutral, and new windows-latest and macos-latest CI jobs guard the module import, the locking tests, and (macOS) that the pinned requirements install on Apple Silicon. Reported by @Memshik42.
 
 ### Fixed
 - **Help index completed, validator policy re-encoded** (#473) — `skills/help/SKILL.md` now lists all 53 skills (9 were missing); `tools/validate_help_completeness.py` enforces the help-comprehensive / CLAUDE.md-curated contract (CLAUDE.md references are ghost-checked, not completeness-checked), with new unit tests; contributor checklist updated to match

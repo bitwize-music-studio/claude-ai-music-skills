@@ -251,6 +251,39 @@ jobs:
       run: |
         python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
 
+  test-macos:
+    name: Tests (macOS state cache)
+    runs-on: macos-latest
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Installing the pinned requirements is the main value of this job:
+    # it catches pins that lack Apple Silicon wheels before users hit
+    # them at setup time.
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    - name: Import smoke test
+      run: |
+        python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on macOS')"
+
+    - name: Run state lock tests
+      run: |
+        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
