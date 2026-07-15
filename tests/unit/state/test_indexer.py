@@ -1121,35 +1121,29 @@ class TestFileLocking:
 
     def test_lock_timeout(self, tmp_path, monkeypatch):
         """Simulate a lock that cannot be acquired within timeout."""
-        import fcntl
-
         lock_file = tmp_path / "test.lock"
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'LOCK_FILE', lock_file)
 
         call_count = [0]
-        original_flock = fcntl.flock
 
-        def mock_flock(fd, operation):
+        def mock_flock_nb(fd):
             call_count[0] += 1
-            if operation & fcntl.LOCK_NB:
-                err = OSError()
-                err.errno = errno.EAGAIN
-                raise err
-            return original_flock(fd, operation)
+            err = OSError()
+            err.errno = errno.EAGAIN
+            raise err
 
         # Use very short timeout
         with open(lock_file, 'w') as fd:
             lock_file.touch()  # Ensure mtime is fresh (not stale)
-            with patch('tools.state.indexer.fcntl.flock', side_effect=mock_flock):
+            with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with patch('tools.state.indexer.time.sleep'):
                     with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                         _acquire_lock_with_timeout(fd, timeout=0)
+        assert call_count[0] >= 1
 
     def test_stale_lock_not_bypassed(self, tmp_path, monkeypatch):
         """Old mtime-based stale lock detection was removed; old locks still timeout."""
-        import fcntl
-
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
         import tools.state.indexer as indexer
@@ -1159,14 +1153,14 @@ class TestFileLocking:
         old_mtime = time.time() - 300
         os.utime(lock_file, (old_mtime, old_mtime))
 
-        holder = open(lock_file)
-        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        holder = open(lock_file, 'r+')
+        indexer._flock_nb(holder)
         try:
-            with open(lock_file) as contender:
+            with open(lock_file, 'r+') as contender:
                 with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                     _acquire_lock_with_timeout(contender, timeout=0.3)
         finally:
-            fcntl.flock(holder, fcntl.LOCK_UN)
+            indexer._funlock(holder)
             holder.close()
 
     def test_unexpected_oserror_reraises(self, tmp_path, monkeypatch):
@@ -1175,13 +1169,13 @@ class TestFileLocking:
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'LOCK_FILE', lock_file)
 
-        def mock_flock(fd, operation):
+        def mock_flock_nb(fd):
             err = OSError()
             err.errno = errno.EIO  # I/O error, not a lock contention error
             raise err
 
         with open(lock_file, 'w') as fd:
-            with patch('tools.state.indexer.fcntl.flock', side_effect=mock_flock):
+            with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with pytest.raises(OSError):
                     _acquire_lock_with_timeout(fd, timeout=1)
 

@@ -24,7 +24,6 @@ import argparse
 import contextlib
 import copy
 import errno
-import fcntl
 import functools
 import json
 import logging
@@ -35,6 +34,39 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+# fcntl is Unix-only (CPython does not ship it on Windows), so the lock
+# primitives are platform-gated. Both variants expose the same contract:
+# _flock_nb raises OSError with errno EACCES/EAGAIN when the lock is held
+# elsewhere, which is what _acquire_lock_with_timeout's backoff loop expects.
+if sys.platform == "win32":
+    import msvcrt
+
+    def _flock_nb(lock_fd: Any) -> None:
+        """Try to take an exclusive non-blocking lock on the first byte."""
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+
+    def _funlock(lock_fd: Any) -> None:
+        """Release the byte lock (best-effort).
+
+        Windows raises when unlocking a region this handle does not hold,
+        and write_state() unlocks in ``finally`` even after a lock timeout.
+        The handle is closed immediately after, which releases any lock.
+        """
+        lock_fd.seek(0)
+        with contextlib.suppress(OSError):
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _flock_nb(lock_fd: Any) -> None:
+        """Try to take an exclusive non-blocking flock on the file."""
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _funlock(lock_fd: Any) -> None:
+        """Release the flock (no-op if not held)."""
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 # Lock timeout in seconds (prevents indefinite blocking)
 LOCK_TIMEOUT_SECONDS = 10
@@ -893,9 +925,10 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
 def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT_SECONDS) -> None:
     """Acquire an exclusive file lock with exponential backoff.
 
-    Uses only ``fcntl.flock`` for locking — no mtime-based stale detection,
-    which had a TOCTOU race.  ``flock`` locks auto-release when the holding
-    process dies, so stale locks self-heal.
+    Uses only OS-level advisory locking (``fcntl.flock`` on Unix,
+    ``msvcrt.locking`` on Windows via ``_flock_nb``) — no mtime-based stale
+    detection, which had a TOCTOU race.  These locks auto-release when the
+    holding process dies, so stale locks self-heal.
 
     Args:
         lock_fd: Open file descriptor for the lock file.
@@ -909,7 +942,7 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
 
     while True:
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _flock_nb(lock_fd)
             return  # Lock acquired
         except OSError as e:
             if e.errno not in (errno.EACCES, errno.EAGAIN):
@@ -939,7 +972,9 @@ def write_state(state: dict[str, Any]) -> None:
     tmp_fd = None
     tmp_path = None
     try:
-        lock_fd = open(LOCK_FILE, 'w')  # noqa: SIM115
+        # Append mode: 'w' would truncate, which fails on Windows while
+        # another process holds a byte-range lock on the file.
+        lock_fd = open(LOCK_FILE, 'a')  # noqa: SIM115
         _acquire_lock_with_timeout(lock_fd)
 
         # Use tempfile for unpredictable filename in the same directory
@@ -968,7 +1003,7 @@ def write_state(state: dict[str, Any]) -> None:
         raise
     finally:
         if lock_fd is not None:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            _funlock(lock_fd)
             lock_fd.close()
 
 

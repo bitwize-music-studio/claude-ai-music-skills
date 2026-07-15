@@ -218,6 +218,130 @@ jobs:
         path: coverage-html/
         retention-days: 14
 
+  test-windows:
+    name: Tests (Windows state cache)
+    runs-on: windows-latest
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    - name: Import smoke test (fcntl regression, issue 476)
+      run: |
+        python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
+
+    - name: Run state lock tests
+      # Scoped to the locking tests: the rest of test_indexer.py has
+      # POSIX-only assumptions (absolute paths, chmod permission bits)
+      # that fail on Windows independently of the code under test.
+      run: |
+        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
+
+  test-macos:
+    name: Tests (macOS state cache)
+    runs-on: macos-latest
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Installing the pinned requirements is the main value of this job:
+    # it catches pins that lack Apple Silicon wheels before users hit
+    # them at setup time.
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    - name: Import smoke test
+      run: |
+        python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on macOS')"
+
+    - name: Run state lock tests
+      run: |
+        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
+
+  mcp-boot:
+    name: MCP Server Boot (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Simulates the documented user install (requirements.txt header):
+    #   python3 -m venv ~/.bitwize-music/venv && pip install -r requirements.txt
+    # The venv path is computed with Path.home() so it agrees byte-for-byte
+    # with run.py's venv discovery (on Windows, Path.home() uses USERPROFILE
+    # and ignores HOME, so a shell $HOME would be ambiguous here).
+    - name: Create user-style venv and install pinned requirements
+      run: |
+        python -c "import pathlib, venv; venv.create(pathlib.Path.home() / '.bitwize-music' / 'venv', with_pip=True)"
+        VENV_PY="$(python -c "import pathlib, sys; d = pathlib.Path.home() / '.bitwize-music' / 'venv'; print((d / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python3')).as_posix())")"
+        "$VENV_PY" -m pip install --upgrade pip
+        "$VENV_PY" -m pip install -r requirements.txt
+
+    # Boot the server through the SAME launcher .mcp.json invokes, and drive a
+    # real stdio JSON-RPC handshake. Catches process-level startup failures
+    # (e.g. #476) that the in-process unit suite with its mocked FastMCP cannot
+    # see. .mcp.json's command is the extensionless mcp-launch, which Claude Code
+    # runs as the POSIX shebang script here and resolves to mcp-launch.cmd on
+    # Windows (validated against real Claude Code on a Windows VM).
+    - name: Boot check via mcp-launch (POSIX)
+      if: runner.os != 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 120 --call-tool health_check -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch"
+
+    - name: Boot check via mcp-launch.cmd (Windows)
+      if: runner.os == 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 180 --call-tool health_check -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch.cmd"
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
