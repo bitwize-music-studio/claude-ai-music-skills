@@ -244,9 +244,12 @@ jobs:
       run: |
         python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
 
-    - name: Run state cache tests
+    - name: Run state lock tests
+      # Scoped to the locking tests: the rest of test_indexer.py has
+      # POSIX-only assumptions (absolute paths, chmod permission bits)
+      # that fail on Windows independently of the code under test.
       run: |
-        python -m pytest tests/unit/state/test_indexer.py tests/unit/state/test_lock_backoff.py -v --tb=short
+        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
 
   lint:
     name: Lint
