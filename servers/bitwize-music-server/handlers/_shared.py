@@ -11,10 +11,18 @@ import inspect
 import json
 import math
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
 from handlers._atomic import atomic_write_text
+
+# Characters NTFS forbids in filenames, beyond the path separators and NUL
+# rejected for every platform in _normalize_slug(). Stripped from slugs on
+# Windows only, so titles like 'Say "Goodbye"' still produce creatable
+# track/album files; POSIX slugs are unchanged.
+_WINDOWS_INVALID_FILENAME_CHARS = '<>:"|?*'
+_IS_WINDOWS = sys.platform == "win32"
 
 # ---------------------------------------------------------------------------
 # Shared state — set by server.py at startup
@@ -115,6 +123,11 @@ def _is_path_confined(base: Path, user_component: str) -> bool:
 def _normalize_slug(name: str) -> str:
     """Normalize input to slug format.
 
+    On Windows, characters that NTFS forbids in filenames (``<>:"|?*``) are
+    stripped so slugs derived from titles (e.g. ``Say "Goodbye"``) always
+    yield creatable files. POSIX slugs are left unchanged — the same
+    characters remain legal there and existing content must keep its names.
+
     Raises:
         ValueError: If *name* contains path separators (``/``, ``\\``),
             null bytes, or traversal sequences (``..``).
@@ -124,6 +137,11 @@ def _normalize_slug(name: str) -> str:
             f"Invalid name: contains path separator or null byte: {name!r}"
         )
     slug = name.lower().replace(" ", "-").replace("_", "-")
+    if _IS_WINDOWS:
+        for ch in _WINDOWS_INVALID_FILENAME_CHARS:
+            slug = slug.replace(ch, "")
+    # Traversal check runs after the Windows strip: removing characters can
+    # itself assemble ".." (e.g. '."."'), which must still be rejected.
     if ".." in slug:
         raise ValueError(
             f"Invalid name: contains path traversal sequence: {name!r}"

@@ -370,6 +370,31 @@ class TestNormalizeSlug:
         assert server._normalize_slug("Album_01_Track") == "album-01-track"
 
 
+class TestNormalizeSlugWindowsFilenameChars:
+    """NTFS forbids <>:"|?* in filenames — _normalize_slug strips them on
+    Windows only, so quote-titled tracks still produce creatable files.
+    POSIX slugs must stay byte-identical (pinned below)."""
+
+    def test_windows_strips_double_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug('Say "Goodbye"') == "say-goodbye"
+
+    def test_windows_strips_all_invalid_chars(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug("a<b>c:d|e?f*g") == "abcdefg"
+
+    def test_posix_preserves_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug('Say "Goodbye"') == 'say-"goodbye"'
+
+    def test_windows_traversal_assembled_by_strip_rejected(self, monkeypatch):
+        # Stripping quotes from '."."' would assemble ".." — the traversal
+        # guard must run after the strip and still reject it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError):
+            server._normalize_slug('."."')
+
+
 # =============================================================================
 # Tests for _safe_json
 # =============================================================================
