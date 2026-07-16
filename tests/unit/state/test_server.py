@@ -394,6 +394,20 @@ class TestNormalizeSlugWindowsFilenameChars:
         with pytest.raises(ValueError):
             server._normalize_slug('."."')
 
+    def test_windows_all_forbidden_chars_title_raises(self, monkeypatch):
+        # A title made entirely of forbidden chars (e.g. '???') strips to an
+        # empty slug on Windows. Path(base) / "" collapses to base itself,
+        # so this must raise the same as the other invalid-slug inputs above.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError, match="empty slug"):
+            server._normalize_slug("???")
+
+    def test_posix_empty_raw_string_unchanged(self, monkeypatch):
+        # An empty raw string is a legitimate pass-through, not a
+        # strip-to-empty case — the new guard must not affect it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug("") == ""
+
 
 # =============================================================================
 # Tests for _safe_json

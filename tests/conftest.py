@@ -105,7 +105,7 @@ def claude_md_content(project_root) -> str:
     """Contents of CLAUDE.md."""
     claude_file = project_root / "CLAUDE.md"
     if claude_file.exists():
-        return claude_file.read_text()
+        return claude_file.read_text(encoding="utf-8")
     return ""
 
 

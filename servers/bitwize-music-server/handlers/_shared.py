@@ -130,7 +130,11 @@ def _normalize_slug(name: str) -> str:
 
     Raises:
         ValueError: If *name* contains path separators (``/``, ``\\``),
-            null bytes, or traversal sequences (``..``).
+            null bytes, or traversal sequences (``..``), or if a non-empty
+            *name* normalizes to an empty string (e.g. a Windows title made
+            up entirely of forbidden characters like ``???``) — an empty
+            slug would collapse ``Path(base) / slug`` to *base* itself.
+            An empty *name* is left as-is and returns ``""`` unchanged.
     """
     if "/" in name or "\\" in name or "\0" in name:
         raise ValueError(
@@ -146,6 +150,12 @@ def _normalize_slug(name: str) -> str:
         raise ValueError(
             f"Invalid name: contains path traversal sequence: {name!r}"
         )
+    # A non-empty name that strips down to nothing (e.g. '???' on Windows,
+    # once the NTFS-forbidden chars are removed) must not silently pass:
+    # Path(base) / "" resolves to base itself, not a new file. An
+    # already-empty name is a legitimate pass-through (pinned above).
+    if name and not slug:
+        raise ValueError(f"Invalid name: normalizes to an empty slug: {name!r}")
     return slug
 
 

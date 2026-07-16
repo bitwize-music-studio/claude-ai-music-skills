@@ -64,7 +64,7 @@ class TestInternalLinks:
         checked_count = 0
 
         for file_path in files_to_check:
-            content = file_path.read_text()
+            content = file_path.read_text(encoding="utf-8")
             links = link_pattern.findall(content)
 
             for link_text, link_target in links:
