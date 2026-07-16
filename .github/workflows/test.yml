@@ -186,9 +186,6 @@ jobs:
     # Skip for fork PRs — untrusted code could modify requirements/test files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     timeout-minutes: ${{ matrix.timeout }}
-    # TODO(burn-down): remove continue-on-error (and the matrix key below)
-    # once windows-latest/macos-latest are green on the full suite.
-    continue-on-error: ${{ matrix.continue-on-error || false }}
     strategy:
       fail-fast: false
       matrix:
@@ -197,10 +194,8 @@ jobs:
             timeout: 30
           - os: macos-latest
             timeout: 45
-            continue-on-error: true
           - os: windows-latest
             timeout: 60
-            continue-on-error: true
     env:
       # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
       PYTHONUTF8: "1"
