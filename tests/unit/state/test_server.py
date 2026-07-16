@@ -97,6 +97,7 @@ from handlers import _shared as _shared_mod
 # For lazy-imported functions that need patching at their source module
 import tools.state.parsers as _parsers_mod
 from handlers import core as _core_mod
+from tests.platform_utils import requires_chmod_denial
 from tools.shared.venv import venv_python
 
 
@@ -1350,7 +1351,8 @@ class TestGetPythonCommand:
 
         assert result["venv_exists"] is False
         assert "warning" in result
-        assert "python3 -m venv" in result["warning"]
+        expected_create_cmd = "py -3 -m venv" if sys.platform == "win32" else "python3 -m venv"
+        assert expected_create_cmd in result["warning"]
         assert f'"{venv_python(home=tmp_path)}" -m pip install' in result["warning"]
 
     def test_plugin_root_included(self):
@@ -4171,6 +4173,7 @@ class TestValidateAlbumStructure:
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("missing" in m.lower() for m in failed_msgs)
 
+    @requires_chmod_denial
     def test_permission_denied_tracks_dir(self, tmp_path):
         """Unreadable tracks/ directory still produces results."""
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
@@ -4755,6 +4758,7 @@ class TestRunPreGenerationGates:
         # Should still produce gates (file-dependent ones SKIP or FAIL)
         assert len(track["gates"]) == 10
 
+    @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
         """Track with permission-denied file still produces gate results."""
         track_file = tmp_path / "05-denied.md"
@@ -6354,6 +6358,7 @@ class TestUpdateAlbumStatus:
         assert result["new_status"] == "Complete"
         assert result["album_slug"] == "test-album"
 
+    @requires_chmod_denial
     def test_readme_read_oserror(self, tmp_path):
         """Returns error when README.md cannot be read (OSError)."""
         readme_path = tmp_path / "README.md"
@@ -6635,6 +6640,7 @@ class TestCreateTrack:
         assert "## Legal" not in content
         assert "## Concept" in content
 
+    @requires_chmod_denial
     def test_template_read_oserror(self, tmp_path):
         """Returns error when template file cannot be read."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6652,6 +6658,7 @@ class TestCreateTrack:
         finally:
             template_file.chmod(0o644)
 
+    @requires_chmod_denial
     def test_track_write_oserror(self, tmp_path):
         """Returns error when track file cannot be written."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6834,6 +6841,7 @@ class TestGetPromoStatus:
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_error_handled(self, tmp_path):
         """File that exists but can't be read is reported as unpopulated."""
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
@@ -6976,6 +6984,7 @@ class TestGetPromoContent:
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_oserror(self, tmp_path):
         """Returns error when promo file exists but cannot be read."""
         album_dir = tmp_path / "album"
@@ -7155,6 +7164,7 @@ class TestGetPluginVersion:
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] == ""
 
+    @requires_chmod_denial
     def test_plugin_json_read_oserror(self, tmp_path):
         """Handles OSError reading plugin.json gracefully."""
         state = _fresh_state()
@@ -8031,6 +8041,7 @@ class TestCreateIdea:
             result = json.loads(_run(server.create_idea("Test")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"
@@ -8306,6 +8317,7 @@ class TestUpdateIdea:
         text = (content_root / "IDEAS.md").read_text()
         assert "Neon & chrome [2026] {version}" in text
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"

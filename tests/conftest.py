@@ -85,7 +85,7 @@ def all_skill_frontmatter(all_skill_dirs) -> Dict[str, Dict[str, Any]]:
             skills[skill_dir.name] = {'_error': 'Missing SKILL.md'}
             continue
 
-        content = skill_md.read_text()
+        content = skill_md.read_text(encoding="utf-8")
         frontmatter = parse_frontmatter(content)
 
         if not frontmatter and not content.startswith('---'):
