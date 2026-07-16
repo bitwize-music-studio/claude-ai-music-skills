@@ -135,8 +135,11 @@ def apply_pull_down_db(
     tmp_path = Path(tmp_str)
     try:
         sf.write(str(tmp_path), data, rate, subtype=subtype)
-        # fsync for durability before replace
-        with open(tmp_path, "rb") as f:
+        # fsync for durability before replace. Must open "rb+" (writable),
+        # not "rb": on Windows os.fsync() calls _commit(), which requires a
+        # descriptor with write access — fsyncing a read-only handle raises
+        # OSError(EBADF). POSIX fsync works with either mode.
+        with open(tmp_path, "rb+") as f:
             os.fsync(f.fileno())
         os.replace(str(tmp_path), str(path))
     except Exception as exc:
