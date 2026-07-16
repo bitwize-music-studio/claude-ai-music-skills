@@ -186,14 +186,14 @@ def generate_waveform_video(
     # Write title and artist to temp files so ffmpeg reads them via textfile=
     # This avoids all escaping issues with drawtext's text= parameter,
     # preventing injection of ffmpeg filter directives through track titles.
-    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)  # noqa: SIM115
+    title_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')  # noqa: SIM115
     os.chmod(title_file.name, 0o600)
     title_file.write(title)
     title_file.close()
     title_file_path = title_file.name
     _temp_files_to_cleanup.append(title_file_path)
 
-    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)  # noqa: SIM115
+    artist_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8')  # noqa: SIM115
     os.chmod(artist_file.name, 0o600)
     artist_file.write(artist_name)
     artist_file.close()
@@ -375,7 +375,7 @@ def generate_waveform_video(
 def get_title_from_markdown(track_md_path: Path) -> str | None:
     """Extract title from track markdown frontmatter."""
     try:
-        content = track_md_path.read_text()
+        content = track_md_path.read_text(encoding='utf-8')
         if content.startswith('---'):
             # Parse YAML frontmatter
             parts = content.split('---', 2)

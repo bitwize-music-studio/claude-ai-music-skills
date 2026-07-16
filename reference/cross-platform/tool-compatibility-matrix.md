@@ -12,7 +12,7 @@ What works on each platform for the Claude AI Music Skills plugin.
 | **Linux** (native) | Full | Tested on Ubuntu 22.04+ |
 | **WSL2** | Full | See [WSL Setup Guide](wsl-setup-guide.md) |
 | **WSL1** | Partial | Works but slower, some limitations |
-| **Windows (native)** | Not Supported | Use WSL |
+| **Windows (native)** | Core (best-effort) | MCP server, state cache, and non-audio workflow (albums, tracks, ideas, research docs, status tracking) — CI-tested on windows-latest. Audio tooling (ffmpeg/AnthemScore/MuseScore) not supported natively; use WSL2 |
 
 ---
 
@@ -141,11 +141,11 @@ playwright install-deps chromium
 
 | Feature | Minimum Python | Recommended |
 |---------|----------------|-------------|
-| Core plugin | 3.8 | 3.10+ |
-| Audio mastering | 3.8 | 3.10+ |
-| Promo videos | 3.8 | 3.10+ |
-| Document hunter | 3.8 | 3.10+ |
-| Sheet music tools | 3.8 | 3.10+ |
+| Core plugin | 3.10+ (per requirements.txt) | 3.10+ |
+| Audio mastering | 3.10+ (per requirements.txt) | 3.10+ |
+| Promo videos | 3.10+ (per requirements.txt) | 3.10+ |
+| Document hunter | 3.10+ (per requirements.txt) | 3.10+ |
+| Sheet music tools | 3.10+ (per requirements.txt) | 3.10+ |
 
 ---
 

@@ -54,7 +54,7 @@ def check_claude_md_ghosts(plugin_root: Path, skills: list[str]) -> list[str]:
     if not claude_file.exists():
         logger.error("CLAUDE.md not found!")
         return []
-    content = claude_file.read_text()
+    content = claude_file.read_text(encoding='utf-8')
     referenced = set(re.findall(r"/bitwize-music:([a-z0-9][a-z0-9-]*)", content))
     return sorted(referenced - set(skills))
 
@@ -66,7 +66,7 @@ def check_help_skill(plugin_root: Path, skills: list[str]) -> list[str]:
         logger.error("skills/help/SKILL.md not found!")
         return skills
 
-    help_content = help_file.read_text()
+    help_content = help_file.read_text(encoding='utf-8')
     missing = []
 
     # Skip the help skill itself

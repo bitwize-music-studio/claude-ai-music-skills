@@ -97,6 +97,7 @@ from handlers import _shared as _shared_mod
 # For lazy-imported functions that need patching at their source module
 import tools.state.parsers as _parsers_mod
 from handlers import core as _core_mod
+from tools.shared.venv import venv_python
 
 
 # ---------------------------------------------------------------------------
@@ -1327,17 +1328,17 @@ class TestGetPythonCommand:
     """Tests for the get_python_command MCP tool."""
 
     def test_venv_exists(self, tmp_path):
-        """When venv python3 exists, returns path and venv_exists=True."""
-        venv_python = tmp_path / ".bitwize-music" / "venv" / "bin" / "python3"
-        venv_python.parent.mkdir(parents=True)
-        venv_python.touch()
-        venv_python.chmod(0o755)
+        """When the venv interpreter exists, returns path and venv_exists=True."""
+        fake_python = venv_python(home=tmp_path)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
+        fake_python.chmod(0o755)
 
         with patch.object(Path, "home", return_value=tmp_path):
             result = json.loads(_run(server.get_python_command()))
 
         assert result["venv_exists"] is True
-        assert str(venv_python) == result["python"]
+        assert result["python"] == str(fake_python)
         assert "plugin_root" in result
         assert "usage" in result
         assert "warning" not in result
@@ -1350,6 +1351,7 @@ class TestGetPythonCommand:
         assert result["venv_exists"] is False
         assert "warning" in result
         assert "python3 -m venv" in result["warning"]
+        assert f'"{venv_python(home=tmp_path)}" -m pip install' in result["warning"]
 
     def test_plugin_root_included(self):
         """Result always includes plugin_root."""
@@ -1358,11 +1360,29 @@ class TestGetPythonCommand:
         assert result["plugin_root"]  # non-empty
 
     def test_usage_template(self, tmp_path):
-        """Usage field contains a ready-to-paste command template."""
+        """Usage field contains a ready-to-paste, quoted command template."""
         with patch.object(Path, "home", return_value=tmp_path):
             result = json.loads(_run(server.get_python_command()))
         assert "PLUGIN_DIR" in result["usage"]
-        assert "python3" in result["python"]
+        assert result["python"] == str(venv_python(home=tmp_path))
+        assert f'"{venv_python(home=tmp_path)}"' in result["usage"]
+
+    def test_win32_python_path_and_quoted_usage(self, tmp_path, monkeypatch):
+        """On Windows, python path uses Scripts\\python.exe and usage quotes it.
+
+        This is the regression test for the original bug: get_python_command
+        hardcoded the POSIX bin/python3 layout, so on native Windows it
+        returned a path that could never exist.
+        """
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = json.loads(_run(server.get_python_command()))
+
+        assert "Scripts" in result["python"]
+        assert result["python"].endswith("python.exe")
+        assert result["python"] == str(venv_python(home=tmp_path))
+        assert f'"{result["python"]}"' in result["usage"]
 
 
 # =============================================================================
@@ -7414,13 +7434,14 @@ class TestCheckVenvHealth:
                 return versions[pkg]
             raise importlib.metadata.PackageNotFoundError(pkg)
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "ok"
         assert result["ok_count"] == 2
@@ -7432,13 +7453,14 @@ class TestCheckVenvHealth:
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", return_value="2.28.0"), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert len(result["mismatches"]) == 1
@@ -7451,16 +7473,17 @@ class TestCheckVenvHealth:
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert len(result["missing"]) == 1
@@ -7468,23 +7491,24 @@ class TestCheckVenvHealth:
 
     def test_no_venv_returns_no_venv(self, tmp_path):
         """Missing venv returns no_venv status."""
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music"
-        venv_dir.mkdir(parents=True)
-        # No venv/bin/python3
+        fake_home = tmp_path / "fakehome"
+        (fake_home / ".bitwize-music").mkdir(parents=True)
+        # No venv interpreter created under fake_home
 
-        with patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+        with patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "no_venv"
 
     def test_missing_requirements_returns_error(self, tmp_path):
         """Missing requirements.txt returns error status."""
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
         # No requirements.txt in PLUGIN_ROOT
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "error"
 
@@ -7500,13 +7524,14 @@ class TestCheckVenvHealth:
                 return "1.9.0"  # mismatch
             raise importlib.metadata.PackageNotFoundError(pkg)  # ccc missing
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert result["ok_count"] == 1
@@ -7514,24 +7539,52 @@ class TestCheckVenvHealth:
         assert len(result["missing"]) == 1
 
     def test_fix_command_includes_plugin_root(self, tmp_path):
-        """Fix command references the correct requirements.txt path."""
+        """Fix command references the correct requirements.txt path and interpreter."""
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
-        assert str(tmp_path / "requirements.txt") in result["fix_command"]
-        assert "~/.bitwize-music/venv/bin/pip" in result["fix_command"]
+        assert str(req) in result["fix_command"]
+        assert f'"{fake_python}" -m pip install' in result["fix_command"]
+
+    def test_win32_fix_command_uses_interpreter_and_pip(self, tmp_path, monkeypatch):
+        """On Windows, fix_command uses Scripts\\python.exe with -m pip install.
+
+        Regression test for the original bug: check_venv_health hardcoded
+        the POSIX venv/bin/pip layout, which never exists on native Windows.
+        """
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
+
+        def mock_version(pkg):
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=fake_home):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert "Scripts" in result["fix_command"]
+        assert result["fix_command"] == f'"{fake_python}" -m pip install -r "{req}"'
 
 
 # =============================================================================

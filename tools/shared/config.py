@@ -105,7 +105,7 @@ def load_config(
         return fallback
 
     try:
-        with open(CONFIG_PATH) as f:
+        with open(CONFIG_PATH, encoding='utf-8') as f:
             data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Error reading config: %s", e)
@@ -189,7 +189,7 @@ def validate_overrides(overrides_dir: Path) -> list[dict[str, str]]:
             # Check content pattern
             if spec['must_contain'] is not None:
                 try:
-                    content = entry.read_text()
+                    content = entry.read_text(encoding='utf-8')
                     if not spec['must_contain'].search(content):
                         issues.append({
                             'file': entry.name,

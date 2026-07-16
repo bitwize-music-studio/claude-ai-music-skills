@@ -53,7 +53,7 @@ def _load_yaml_file(path: Path) -> dict[str, Any]:
         logger.debug("PyYAML not installed, cannot load %s", path)  # type: ignore[unreachable]
         return {}
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except (yaml.YAMLError, OSError) as e:
         logger.warning("Cannot read %s: %s", path, e)
