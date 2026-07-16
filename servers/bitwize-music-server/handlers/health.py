@@ -12,6 +12,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _safe_json
 from handlers._shared import get_plugin_version as _read_plugin_version
+from tools.shared.venv import venv_python
 from tools.state import indexer
 
 logger = logging.getLogger(__name__)
@@ -247,8 +248,8 @@ async def check_venv_health() -> str:
         JSON with status ("ok", "stale", "no_venv", "error"),
         mismatches, missing packages, counts, and fix command.
     """
-    venv_python = Path.home() / ".bitwize-music" / "venv" / "bin" / "python3"
-    if not venv_python.exists():
+    venv_python_path = venv_python()
+    if not venv_python_path.exists():
         return _safe_json({
             "status": "no_venv",
             "message": "Venv not found at ~/.bitwize-music/venv",
@@ -297,7 +298,7 @@ async def check_venv_health() -> str:
 
     if status == "stale":
         result["fix_command"] = (
-            f"~/.bitwize-music/venv/bin/pip install -r {req_path}"
+            f'"{venv_python_path}" -m pip install -r {req_path}'
         )
 
     return _safe_json(result)
