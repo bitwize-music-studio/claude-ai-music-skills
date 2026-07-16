@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from tests.platform_utils import requires_chmod_denial
+from tests.platform_utils import requires_chmod_denial, requires_posix_permissions
 from tools.state.indexer import (
     CURRENT_VERSION,
     _acquire_lock_with_timeout,
@@ -656,7 +656,10 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/documents' in section['documents_root']
+        # Build the expectation through the same resolver the product uses —
+        # on Windows resolve_path() maps '/home/...' onto the current drive
+        assert section['documents_root'] == str(
+            resolve_path('/home/user/music-projects/documents'))
 
     def test_audio_root_derives_from_content_root(self, monkeypatch):
         config = {
@@ -667,7 +670,8 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/audio' in section['audio_root']
+        assert section['audio_root'] == str(
+            resolve_path('/home/user/music-projects/audio'))
 
     def test_explicit_documents_root_preserved(self, monkeypatch):
         config = {
@@ -681,7 +685,7 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['documents_root'] == '/mnt/docs'
+        assert section['documents_root'] == str(resolve_path('/mnt/docs'))
 
     def test_empty_config(self, monkeypatch):
         import tools.state.indexer as indexer
@@ -1076,6 +1080,7 @@ class TestReadWriteState:
         result = read_state()
         assert result['value'] == 'third'
 
+    @requires_posix_permissions
     def test_write_state_file_permissions(self, tmp_path, monkeypatch):
         _override_indexer_paths(monkeypatch, tmp_path)
 

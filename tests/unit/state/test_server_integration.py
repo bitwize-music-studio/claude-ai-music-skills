@@ -952,7 +952,7 @@ class TestRemainingToolsCoverage:
     def test_resolve_path_tracks(self, integration_env):
         """resolve_path tracks includes /tracks suffix."""
         result = json.loads(_run(server.resolve_path("tracks", "integration-test-album")))
-        assert result["path"].endswith("/tracks")
+        assert Path(result["path"]).as_posix().endswith("/tracks")
 
     def test_resolve_path_overrides(self, integration_env):
         """resolve_path overrides resolves from config."""
@@ -1830,7 +1830,8 @@ class TestResolvePathExtended:
     def test_documents_path(self, integration_env):
         """resolve_path documents resolves with full mirrored structure."""
         result = json.loads(_run(server.resolve_path("documents", "integration-test-album")))
-        assert "/artists/test-artist/albums/electronic/integration-test-album" in result["path"]
+        assert ("/artists/test-artist/albums/electronic/integration-test-album"
+                in Path(result["path"]).as_posix())
         assert result["genre"] == "electronic"
 
     def test_invalid_path_type(self, integration_env):

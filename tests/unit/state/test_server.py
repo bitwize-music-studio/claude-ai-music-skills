@@ -442,7 +442,8 @@ class TestSafeJson:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert result["path"] == "/tmp/test"
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
     def test_non_serializable_returns_error(self):
         """Non-serializable data that raises TypeError returns JSON error."""
@@ -1789,7 +1790,9 @@ class TestResolvePath:
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "path" in result
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/electronic/test-album"
+        # Compare Path objects — the tool returns platform-native separators
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/electronic/test-album")
         assert result["path_type"] == "audio"
         assert result["genre"] == "electronic"
 
@@ -1797,14 +1800,16 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album", genre="rock")))
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/rock/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/rock/test-album")
         assert result["genre"] == "rock"
 
     def test_documents_path(self):
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "test-album")))
-        assert result["path"] == "/tmp/test/docs/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/docs/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_audio_genre_required_not_found(self):
@@ -1827,7 +1832,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album", genre="electronic")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_from_state(self):
@@ -1835,7 +1841,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_required_not_found(self):
@@ -1850,7 +1857,7 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("tracks", "test-album")))
-        assert result["path"].endswith("/tracks")
+        assert Path(result["path"]).as_posix().endswith("/tracks")
         assert "electronic" in result["path"]
 
     def test_overrides_path(self):
@@ -4424,7 +4431,7 @@ class TestGenreValidation:
             result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
         _shared_mod._VALID_GENRES = None
         assert result["created"] is True
-        assert "/rnb/" in result["path"]
+        assert "/rnb/" in Path(result["path"]).as_posix()
 
     def test_genre_typo_rejected(self, tmp_path):
         """Genre typo 'elctronic' is rejected."""
@@ -7788,9 +7795,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         def mock_version(pkg):
             if pkg == "requests":
@@ -7834,9 +7843,11 @@ class TestHealthCheck:
         # Venv ok
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -7963,9 +7974,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -8886,8 +8899,7 @@ class TestResolveIdeasPath:
             result = _ideas_mod._resolve_ideas_path()
         assert result is not None
         assert isinstance(result, Path)
-        assert str(result).endswith("IDEAS.md")
-        assert str(result).startswith("/tmp/test")
+        assert result == Path("/tmp/test") / "IDEAS.md"
 
     def test_returns_none_when_no_content_root(self):
         """Returns None when content_root is empty."""
@@ -10685,7 +10697,8 @@ class TestSafeJsonEdgeCasesRound5:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert "/tmp/test" in result["path"]
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
 
 @pytest.mark.unit
@@ -15573,10 +15586,11 @@ class TestDiagnose:
             json.dumps({"schema_version": "1.2.0", "albums": {}})
         )
 
-        # Fake venv (at patched home)
-        venv_bin = tmp_path / ".bitwize-music" / "venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        (venv_bin / "python3").touch()
+        # Fake venv (at patched home) — platform-appropriate layout
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path)
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         # Plugin version
         plugin_dir = tmp_path / ".claude-plugin"

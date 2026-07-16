@@ -15,3 +15,12 @@ requires_chmod_denial = pytest.mark.skipif(
     not _chmod_denies,
     reason="chmod(0o000) does not deny access on Windows or when running as root",
 )
+
+# For tests that assert specific permission bits (e.g. 0o700) rather than
+# denial behavior: Windows never enforces POSIX modes (stat reports 0o777),
+# but root still *sets* them correctly — so this is a Windows-only skip,
+# distinct from requires_chmod_denial.
+requires_posix_permissions = pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="POSIX permission bits are not enforced on Windows",
+)

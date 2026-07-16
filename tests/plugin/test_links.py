@@ -42,8 +42,8 @@ def _is_skippable_link(link_target, file_path):
     if '[' in link_target:
         return True
 
-    # Template placeholder paths
-    if '/templates/' in str(file_path):
+    # Template placeholder paths (as_posix() so this matches on Windows too)
+    if '/templates/' in Path(file_path).as_posix():
         if link_target.startswith(('../', 'tracks/', '/genres/', 'albums/', 'artists/')):
             return True
         if any(p in link_target.lower() for p in

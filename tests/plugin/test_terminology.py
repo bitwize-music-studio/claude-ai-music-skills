@@ -44,7 +44,8 @@ class TestDeprecatedTerms:
         for file_path in files:
             if not file_path.exists():
                 continue
-            rel_path = str(file_path.relative_to(project_root))
+            # as_posix() so the exclusion match works on Windows too
+            rel_path = file_path.relative_to(project_root).as_posix()
             if rel_path in EXCLUDED_FILES:
                 continue
             content = file_path.read_text()
