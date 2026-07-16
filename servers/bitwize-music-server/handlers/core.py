@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +29,7 @@ from handlers._shared import (
     _normalize_slug,
     _safe_json,
 )
-from tools.shared.venv import venv_python
+from tools.shared.venv import venv_dir, venv_python
 from tools.state.indexer import write_state
 from tools.state.parsers import parse_track_file
 
@@ -459,9 +460,10 @@ async def get_python_command() -> str:
     }
 
     if not venv_exists:
+        create_cmd = "py -3" if sys.platform == "win32" else "python3"
         result["warning"] = (
-            "Venv not found at ~/.bitwize-music/venv. "
-            "Create it with: python3 -m venv ~/.bitwize-music/venv && "
+            f"Venv not found at {venv_dir()}. "
+            f'Create it with: {create_cmd} -m venv "{venv_dir()}" && '
             f'"{venv_python_path}" -m pip install pyloudnorm scipy numpy '
             "soundfile matchering pillow pyyaml boto3"
         )

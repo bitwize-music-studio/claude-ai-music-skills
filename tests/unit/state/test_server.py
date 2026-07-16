@@ -7584,7 +7584,7 @@ class TestCheckVenvHealth:
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert "Scripts" in result["fix_command"]
-        assert result["fix_command"] == f'"{fake_python}" -m pip install -r {req}'
+        assert result["fix_command"] == f'"{fake_python}" -m pip install -r "{req}"'
 
 
 # =============================================================================

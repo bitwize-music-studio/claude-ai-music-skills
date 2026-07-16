@@ -83,7 +83,12 @@ except ImportError:
     print("", file=sys.stderr)
     print("  3. Virtual environment:", file=sys.stderr)
     print("     python3 -m venv ~/.bitwize-music/venv", file=sys.stderr)
-    print("     ~/.bitwize-music/venv/bin/pip install 'mcp[cli]>=1.2.0' pyyaml", file=sys.stderr)
+    _venv_python_hint = (
+        r"%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe"
+        if sys.platform == "win32"
+        else "~/.bitwize-music/venv/bin/python3"
+    )
+    print(f"     \"{_venv_python_hint}\" -m pip install 'mcp[cli]>=1.2.0' pyyaml", file=sys.stderr)
     print("", file=sys.stderr)
     print("After installing, restart Claude Code to reload the plugin.", file=sys.stderr)
     print("=" * 70, file=sys.stderr)

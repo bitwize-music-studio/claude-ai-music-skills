@@ -298,7 +298,7 @@ async def check_venv_health() -> str:
 
     if status == "stale":
         result["fix_command"] = (
-            f'"{venv_python_path}" -m pip install -r {req_path}'
+            f'"{venv_python_path}" -m pip install -r "{req_path}"'
         )
 
     return _safe_json(result)
