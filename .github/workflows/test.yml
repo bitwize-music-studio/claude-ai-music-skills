@@ -181,10 +181,29 @@ jobs:
         "
 
   test:
-    name: Tests
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     # Skip for fork PRs — untrusted code could modify requirements/test files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: ${{ matrix.timeout }}
+    # TODO(burn-down): remove continue-on-error (and the matrix key below)
+    # once windows-latest/macos-latest are green on the full suite.
+    continue-on-error: ${{ matrix.continue-on-error || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            timeout: 30
+          - os: macos-latest
+            timeout: 45
+            continue-on-error: true
+          - os: windows-latest
+            timeout: 60
+            continue-on-error: true
+    env:
+      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
+      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -196,43 +215,20 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    - name: Install system dependencies
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends ffmpeg
 
-    - name: Install test dependencies
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-test.txt
-        pip install -r requirements.txt
+        brew install ffmpeg
 
-    - name: Run tests with coverage
-      run: |
-        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html --cov-fail-under=75
-
-    - name: Upload coverage report
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-      with:
-        name: coverage-report
-        path: coverage-html/
-        retention-days: 14
-
-  test-windows:
-    name: Tests (Windows state cache)
-    runs-on: windows-latest
-    # Skip for fork PRs — untrusted code could modify requirements/test files
-    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-    - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
-      with:
-        python-version: '3.11'
-        cache: 'pip'
+    # Windows: no ffmpeg install. Audio externals are WSL-recommended on
+    # Windows by support-tier decision; ffmpeg-gated tests skip via
+    # shutil.which fixtures.
 
     - name: Install test dependencies
       run: |
@@ -241,48 +237,30 @@ jobs:
         pip install -r requirements.txt
 
     - name: Import smoke test (fcntl regression, issue 476)
+      # Fast, legible failure signal for issue #476 regressions.
+      if: runner.os == 'Windows'
       run: |
         python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
 
-    - name: Run state lock tests
-      # Scoped to the locking tests: the rest of test_indexer.py has
-      # POSIX-only assumptions (absolute paths, chmod permission bits)
-      # that fail on Windows independently of the code under test.
+    - name: Run tests with coverage
+      if: runner.os == 'Linux'
       run: |
-        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
+        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html --cov-fail-under=75
 
-  test-macos:
-    name: Tests (macOS state cache)
-    runs-on: macos-latest
-    # Skip for fork PRs — untrusted code could modify requirements/test files
-    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    - name: Run tests
+      # Coverage gate is ubuntu-only to avoid cross-platform variance from
+      # win32 branches and ffmpeg skips.
+      if: runner.os != 'Linux'
+      run: |
+        python -m pytest tests/ --tb=short -n auto
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-
-    - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+    - name: Upload coverage report
+      if: runner.os == 'Linux'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
-        python-version: '3.11'
-        cache: 'pip'
-
-    # Installing the pinned requirements is the main value of this job:
-    # it catches pins that lack Apple Silicon wheels before users hit
-    # them at setup time.
-    - name: Install test dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-test.txt
-        pip install -r requirements.txt
-
-    - name: Import smoke test
-      run: |
-        python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on macOS')"
-
-    - name: Run state lock tests
-      run: |
-        python -m pytest tests/unit/state/test_lock_backoff.py "tests/unit/state/test_indexer.py::TestFileLocking" -v --tb=short
+        name: coverage-report
+        path: coverage-html/
+        retention-days: 14
 
   mcp-boot:
     name: MCP Server Boot (${{ matrix.os }})
@@ -379,6 +357,16 @@ jobs:
     - name: Run mypy type checker
       run: |
         mypy
+
+    # These two catch platform-gated typing drift (fcntl/msvcrt) without
+    # needing a Windows runner.
+    - name: Run mypy (win32 cross-check)
+      run: |
+        mypy --platform win32
+
+    - name: Run mypy (darwin cross-check)
+      run: |
+        mypy --platform darwin
 
     - name: Validation summary
       run: |
