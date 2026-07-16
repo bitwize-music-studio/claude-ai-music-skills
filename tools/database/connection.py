@@ -42,7 +42,7 @@ def get_db_config() -> dict[str, Any] | None:
         return None
 
     try:
-        with open(CONFIG_PATH) as f:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
     except Exception as e:
         logger.error("Cannot read config: %s", e)

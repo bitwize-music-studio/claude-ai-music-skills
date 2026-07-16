@@ -120,7 +120,7 @@ def _read_plugin_version(plugin_root: Path) -> str | None:
     if not plugin_json.exists():
         return None
     try:
-        with open(plugin_json) as f:
+        with open(plugin_json, encoding='utf-8') as f:
             data = json.load(f)
         version = data.get('version')
         return version if isinstance(version, str) else None
@@ -199,7 +199,7 @@ def read_config() -> dict[str, Any] | None:
     if not CONFIG_FILE.exists():
         return None
     try:
-        with open(CONFIG_FILE) as f:
+        with open(CONFIG_FILE, encoding='utf-8') as f:
             data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Cannot read config: %s", e)
@@ -974,13 +974,13 @@ def write_state(state: dict[str, Any]) -> None:
     try:
         # Append mode: 'w' would truncate, which fails on Windows while
         # another process holds a byte-range lock on the file.
-        lock_fd = open(LOCK_FILE, 'a')  # noqa: SIM115
+        lock_fd = open(LOCK_FILE, 'a', encoding='utf-8')  # noqa: SIM115
         _acquire_lock_with_timeout(lock_fd)
 
         # Use tempfile for unpredictable filename in the same directory
         tmp_fd = tempfile.NamedTemporaryFile(  # noqa: SIM115
             mode='w', dir=CACHE_DIR, suffix='.tmp',
-            prefix='.state_', delete=False
+            prefix='.state_', delete=False, encoding='utf-8'
         )
         tmp_path = Path(tmp_fd.name)
         # Restrict temp file to owner-only access
@@ -1032,7 +1032,7 @@ def read_state() -> dict[str, Any] | None:
     if not STATE_FILE.exists():
         return None
     try:
-        with open(STATE_FILE) as f:
+        with open(STATE_FILE, encoding='utf-8') as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         return _quarantine_corrupt_state(f"Corrupted state file: {e}")
