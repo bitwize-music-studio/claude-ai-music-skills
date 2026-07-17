@@ -150,6 +150,62 @@ jobs:
         python tests/e2e/mcp_boot_check.py --timeout 240 --call-tool health_check --scenario state-workflow -- \
           "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch.cmd"
 
+  # Exercises the documented Windows support path ("Windows users: use WSL",
+  # README) end-to-end: full pinned install + full suite inside a real WSL2
+  # distro on a hosted Windows runner. Distilled from the capability probes on
+  # PR #485, where this exact recipe ran green (4256 passed, 28 skipped,
+  # ~11.5 min suite; install ~48s). Native Windows legs can't cover this: the
+  # audio externals are WSL-recommended by support-tier decision.
+  #
+  # IMPORTANT: do NOT set WSL_UTF8=1 at job level. Probe-established caveat:
+  # setup-wsl v7.0.0 parses wsl.exe output as UTF-16LE, and a job-level
+  # WSL_UTF8=1 switches that output to UTF-8, breaking the action's WSL
+  # version detection — it then fails with
+  #   "This Windows environment only has WSLv1 available but WSLv2 was
+  #    requested, please verify your 'runs-on' and 'wsl-version' settings"
+  # on an image where WSL2 demonstrably works (and in the wsl-version: 1 path
+  # it silently skips version pinning instead of erroring).
+  wsl2-suite:
+    name: WSL2 Suite (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        ref: develop
+
+    - name: Set up WSL2 (Ubuntu-24.04)
+      uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
+      with:
+        # Ubuntu-24.04 ships Python 3.12, which the pinned requirements
+        # support; 22.04's Python 3.10 is below scipy==1.17.1's >=3.11 floor.
+        distribution: Ubuntu-24.04
+        wsl-version: '2'
+        use-cache: 'true'
+
+    # Runs inside the WSL distro via the wsl-bash wrapper the action generates
+    # (bash --noprofile --norc -euo pipefail — fail-fast by default). The
+    # Windows workspace is visible through automatic cwd translation
+    # (/mnt/d/...); job-level env does NOT cross the WSL boundary. No ffmpeg
+    # inside WSL — ffmpeg-gated tests skip via shutil.which fixtures, matching
+    # the probe benchmark (the native legs install ffmpeg since #484, but the
+    # Windows-side choco install is invisible inside the distro).
+    - name: Install pinned requirements and run full suite inside WSL2
+      shell: wsl-bash {0}
+      run: |
+        uname -a
+        apt-get update -qq
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv python3-pip
+        python3 -m venv /tmp/wsl-venv
+        /tmp/wsl-venv/bin/pip install --upgrade pip -q
+        /tmp/wsl-venv/bin/pip install -q -r requirements-test.txt -r requirements.txt
+        # Exported inside the distro only (Linux defaults to UTF-8 anyway —
+        # parity with the native legs' PYTHONUTF8 job env).
+        export PYTHONUTF8=1
+        /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -n auto
+
   floor-check:
     name: Python Floor Check (${{ inputs.check-python-floor }})
     runs-on: ubuntu-latest
@@ -176,7 +232,7 @@ jobs:
 
   notify-failure:
     name: Notify on Failure
-    needs: [deep-test, mcp-e2e]
+    needs: [deep-test, mcp-e2e, wsl2-suite]
     if: failure()
     runs-on: ubuntu-latest
     permissions:
