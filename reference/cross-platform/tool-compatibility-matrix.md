@@ -12,7 +12,7 @@ What works on each platform for the Claude AI Music Skills plugin.
 | **Linux** (native) | Full | Tested on Ubuntu 22.04+ |
 | **WSL2** | Full | See [WSL Setup Guide](wsl-setup-guide.md) |
 | **WSL1** | Partial | Works but slower, some limitations |
-| **Windows (native)** | Core (best-effort) | MCP server, state cache, and non-audio workflow (albums, tracks, ideas, research docs, status tracking) — CI-tested on windows-latest. Audio tooling (ffmpeg/AnthemScore/MuseScore) not supported natively; use WSL2 |
+| **Windows (native)** | Core (best-effort) | MCP server, state cache, non-audio workflow (albums, tracks, ideas, research docs, status tracking), and the ffmpeg-based audio pipeline (mixing/mastering/codec preview/promo video) — CI-tested on windows-latest (audio remains best-effort). AnthemScore/MuseScore (sheet music) not supported natively; use WSL2 |
 
 ---
 
@@ -80,6 +80,7 @@ pip install matchering pyloudnorm scipy numpy soundfile
 # System
 # macOS: brew install ffmpeg
 # Linux/WSL: sudo apt install ffmpeg
+# Windows (native): choco install ffmpeg
 
 # Python
 pip install pillow pyyaml
@@ -167,6 +168,9 @@ brew install ffmpeg
 
 # Linux/WSL
 sudo apt install ffmpeg
+
+# Windows (native) — same mechanism CI uses
+choco install ffmpeg
 ```
 
 ### AnthemScore
