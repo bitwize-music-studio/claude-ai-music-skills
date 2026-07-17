@@ -396,3 +396,58 @@ jobs:
         # Unfixed CVEs are ignored here and tracked for follow-up.
         pip-audit -r requirements.txt -r requirements-test.txt \
           --ignore-vuln CVE-2026-4539  # pygments 2.19.2 - no fix available yet
+
+  plugin-install-smoke:
+    name: Plugin Install Smoke
+    runs-on: ubuntu-latest
+    # Skip for fork PRs — untrusted code could modify the plugin content this
+    # job feeds to the claude CLI (guard consistent with the other jobs)
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Install Claude Code CLI
+      run: npm install -g @anthropic-ai/claude-code
+
+    # The plugin CLI needs no Claude auth — proven empirically by the
+    # capability probes on PR #485: every plugin subcommand (marketplace
+    # add/list, install, list) runs unauthenticated with exit 0, with no
+    # ANTHROPIC_API_KEY / OAuth token anywhere in the environment. No
+    # interactive session is ever started, so nothing here consumes tokens.
+    #
+    # `marketplace add ./` registers THIS CHECKOUT as the marketplace (the
+    # CLI accepts owner/repo, URLs, or a ./path — a bare `.` is rejected),
+    # so the install exercises the PR's own plugin content. The remote
+    # `marketplace add owner/repo` form would clone the default branch and
+    # test released content instead of this PR.
+    - name: Add this checkout as a marketplace and install the plugin
+      run: |
+        claude --version
+        claude plugin marketplace add ./
+        claude plugin install bitwize-music@bitwize-music
+
+    - name: Assert plugin is listed as enabled
+      run: |
+        claude plugin list | tee plugin-list.txt
+        grep -q "bitwize-music@bitwize-music" plugin-list.txt
+        grep -q "✔ enabled" plugin-list.txt
+        echo "[OK] plugin listed and enabled"
+
+    # Local-path marketplaces don't populate ~/.claude/plugins/marketplaces/
+    # (no clone needed) — the installed content lands in the versioned cache
+    # dir, which is what users' sessions actually load.
+    - name: Assert installed content matches this checkout
+      run: |
+        VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+        CACHE_DIR="$HOME/.claude/plugins/cache/bitwize-music/bitwize-music/$VERSION"
+        echo "Expecting installed cache at: $CACHE_DIR"
+        test -d "$CACHE_DIR"
+        test -f "$CACHE_DIR/.mcp.json"
+        REPO_SKILLS=$(find skills/ -mindepth 1 -maxdepth 1 | wc -l)
+        INSTALLED_SKILLS=$(find "$CACHE_DIR/skills/" -mindepth 1 -maxdepth 1 | wc -l)
+        echo "skills: repo=$REPO_SKILLS installed=$INSTALLED_SKILLS"
+        test "$REPO_SKILLS" -eq "$INSTALLED_SKILLS"
+        echo "[OK] version $VERSION installed with $INSTALLED_SKILLS skills and .mcp.json"
