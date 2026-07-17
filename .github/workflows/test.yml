@@ -409,8 +409,18 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
+    # Official install method from the install page — no node/npm dependency.
+    # install.sh accepts an optional target (stable|latest|X.Y.Z); we pass
+    # none and take its default (latest) deliberately: this job's purpose is
+    # "what users install today". The installer lands a symlink at
+    # ~/.local/bin/claude (verified from its own output: "Location:
+    # ~/.local/bin/claude") and that dir is not on the runner's PATH, so add
+    # it via GITHUB_PATH for the following steps.
     - name: Install Claude Code CLI
-      run: npm install -g @anthropic-ai/claude-code
+      run: |
+        curl -fsSL https://claude.ai/install.sh | bash
+        test -x "$HOME/.local/bin/claude"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     # The plugin CLI needs no Claude auth — proven empirically by the
     # capability probes on PR #485: every plugin subcommand (marketplace
