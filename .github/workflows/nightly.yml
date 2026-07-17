@@ -73,9 +73,11 @@ jobs:
       run: |
         brew install ffmpeg
 
-    # Windows: no ffmpeg install. Audio externals are WSL-recommended on
-    # Windows by support-tier decision; ffmpeg-gated tests skip via
-    # shutil.which fixtures.
+    # ffmpeg is installed on all three OSes so the ffmpeg-gated audio tests
+    # run everywhere; AnthemScore/MuseScore remain WSL-recommended externals.
+    - name: Install system dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: choco install ffmpeg -y --no-progress
 
     - name: Install test dependencies
       run: |
