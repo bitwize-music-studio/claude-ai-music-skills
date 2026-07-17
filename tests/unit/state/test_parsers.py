@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import pytest
+from tests.platform_utils import requires_chmod_denial
 from tools.state.parsers import (
     _derive_model_tier,
     _extract_bold_field,
@@ -1030,6 +1031,7 @@ allowed-tools: []
         assert '_error' in result
         assert 'No frontmatter' in result['_error']
 
+    @requires_chmod_denial
     def test_unreadable_file(self, tmp_path):
         """Unreadable file returns error."""
         skill = tmp_path / "SKILL.md"

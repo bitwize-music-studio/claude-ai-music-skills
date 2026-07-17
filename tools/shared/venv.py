@@ -14,4 +14,5 @@ def venv_python(home: Path | None = None) -> Path:
     d = venv_dir(home)
     if sys.platform == "win32":
         return d / "Scripts" / "python.exe"
-    return d / "bin" / "python3"
+    else:
+        return d / "bin" / "python3"

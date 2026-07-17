@@ -28,6 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests.platform_utils import requires_chmod_denial, requires_posix_permissions
 from tools.state.indexer import (
     CURRENT_VERSION,
     _acquire_lock_with_timeout,
@@ -537,8 +538,8 @@ class TestResolvePath:
         assert result.is_absolute()
 
     def test_absolute_path_unchanged(self):
-        result = resolve_path("/absolute/path")
-        assert str(result) == "/absolute/path"
+        native_abs = os.path.abspath(os.sep + "absolute" + os.sep + "path")
+        assert resolve_path(native_abs) == Path(native_abs)
 
     def test_dot_path(self):
         result = resolve_path(".")
@@ -655,7 +656,10 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/documents' in section['documents_root']
+        # Build the expectation through the same resolver the product uses —
+        # on Windows resolve_path() maps '/home/...' onto the current drive
+        assert section['documents_root'] == str(
+            resolve_path('/home/user/music-projects/documents'))
 
     def test_audio_root_derives_from_content_root(self, monkeypatch):
         config = {
@@ -666,7 +670,8 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/audio' in section['audio_root']
+        assert section['audio_root'] == str(
+            resolve_path('/home/user/music-projects/audio'))
 
     def test_explicit_documents_root_preserved(self, monkeypatch):
         config = {
@@ -680,7 +685,7 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['documents_root'] == '/mnt/docs'
+        assert section['documents_root'] == str(resolve_path('/mnt/docs'))
 
     def test_empty_config(self, monkeypatch):
         import tools.state.indexer as indexer
@@ -1075,6 +1080,7 @@ class TestReadWriteState:
         result = read_state()
         assert result['value'] == 'third'
 
+    @requires_posix_permissions
     def test_write_state_file_permissions(self, tmp_path, monkeypatch):
         _override_indexer_paths(monkeypatch, tmp_path)
 
@@ -2319,6 +2325,7 @@ class TestUpdateTracksIncremental:
 class TestReadConfigEdgeCases:
     """Additional edge cases for read_config()."""
 
+    @requires_chmod_denial
     def test_config_permission_error(self, tmp_path, monkeypatch):
         """OSError during read returns None."""
         config_path = tmp_path / "config.yaml"
@@ -2924,6 +2931,7 @@ class TestReadPluginVersion:
         result = _read_plugin_version(tmp_path)
         assert result is None
 
+    @requires_chmod_denial
     def test_permission_error(self, tmp_path):
         """Returns None when file is unreadable."""
         plugin_dir = tmp_path / ".claude-plugin"
@@ -3806,6 +3814,7 @@ class TestValidateStateDocumentsRoot:
 class TestScanTracksWithParseError:
     """Tests for scan_tracks when individual tracks have parse errors."""
 
+    @requires_chmod_denial
     def test_unreadable_track_skipped(self, tmp_path):
         """Track with parse error is skipped, others are included."""
         album_dir = tmp_path / "album"
@@ -3839,6 +3848,7 @@ class TestScanTracksWithParseError:
 class TestUpdateTracksIncrementalParseError:
     """Tests for _update_tracks_incremental when track parsing fails."""
 
+    @requires_chmod_denial
     def test_parse_error_track_not_updated(self, tmp_path):
         """If a new track fails to parse, it's silently skipped."""
         album_dir = tmp_path / "album"
@@ -4011,6 +4021,7 @@ class TestIncrementalUpdateAlbumsDirMissing:
 class TestScanAlbumsEdgeCases:
     """Additional edge cases for scan_albums()."""
 
+    @requires_chmod_denial
     def test_album_with_parse_error_skipped(self, tmp_path):
         """Album with unparseable README is silently skipped."""
         content_root = tmp_path / "content"

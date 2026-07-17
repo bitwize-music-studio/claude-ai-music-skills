@@ -237,6 +237,12 @@ class TestBatchCliExitCode:
              "--batch-artwork", str(art)],
         )
         monkeypatch.setattr(gpv, "batch_process_album", lambda **kw: results)
+        # main() probes the environment (real ffmpeg binary, system font)
+        # before batching; neutralize both so the exit-code contract is
+        # tested on runners without them (Windows CI) and their absence
+        # can't mask — or fake — the batch-result exit path.
+        monkeypatch.setattr(gpv, "check_ffmpeg", lambda: True)
+        monkeypatch.setattr(gpv, "find_font", lambda: str(tmp_path / "font.ttf"))
         gpv.main()
 
     def test_failure_exits_nonzero(self, tmp_path, monkeypatch):

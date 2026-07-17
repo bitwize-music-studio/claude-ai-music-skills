@@ -97,6 +97,7 @@ from handlers import _shared as _shared_mod
 # For lazy-imported functions that need patching at their source module
 import tools.state.parsers as _parsers_mod
 from handlers import core as _core_mod
+from tests.platform_utils import requires_chmod_denial
 from tools.shared.venv import venv_python
 
 
@@ -369,6 +370,45 @@ class TestNormalizeSlug:
         assert server._normalize_slug("Album_01_Track") == "album-01-track"
 
 
+class TestNormalizeSlugWindowsFilenameChars:
+    """NTFS forbids <>:"|?* in filenames — _normalize_slug strips them on
+    Windows only, so quote-titled tracks still produce creatable files.
+    POSIX slugs must stay byte-identical (pinned below)."""
+
+    def test_windows_strips_double_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug('Say "Goodbye"') == "say-goodbye"
+
+    def test_windows_strips_all_invalid_chars(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug("a<b>c:d|e?f*g") == "abcdefg"
+
+    def test_posix_preserves_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug('Say "Goodbye"') == 'say-"goodbye"'
+
+    def test_windows_traversal_assembled_by_strip_rejected(self, monkeypatch):
+        # Stripping quotes from '."."' would assemble ".." — the traversal
+        # guard must run after the strip and still reject it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError):
+            server._normalize_slug('."."')
+
+    def test_windows_all_forbidden_chars_title_raises(self, monkeypatch):
+        # A title made entirely of forbidden chars (e.g. '???') strips to an
+        # empty slug on Windows. Path(base) / "" collapses to base itself,
+        # so this must raise the same as the other invalid-slug inputs above.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError, match="empty slug"):
+            server._normalize_slug("???")
+
+    def test_posix_empty_raw_string_unchanged(self, monkeypatch):
+        # An empty raw string is a legitimate pass-through, not a
+        # strip-to-empty case — the new guard must not affect it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug("") == ""
+
+
 # =============================================================================
 # Tests for _safe_json
 # =============================================================================
@@ -416,7 +456,8 @@ class TestSafeJson:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert result["path"] == "/tmp/test"
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
     def test_non_serializable_returns_error(self):
         """Non-serializable data that raises TypeError returns JSON error."""
@@ -1350,7 +1391,8 @@ class TestGetPythonCommand:
 
         assert result["venv_exists"] is False
         assert "warning" in result
-        assert "python3 -m venv" in result["warning"]
+        expected_create_cmd = "py -3 -m venv" if sys.platform == "win32" else "python3 -m venv"
+        assert expected_create_cmd in result["warning"]
         assert f'"{venv_python(home=tmp_path)}" -m pip install' in result["warning"]
 
     def test_plugin_root_included(self):
@@ -1762,7 +1804,9 @@ class TestResolvePath:
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "path" in result
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/electronic/test-album"
+        # Compare Path objects — the tool returns platform-native separators
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/electronic/test-album")
         assert result["path_type"] == "audio"
         assert result["genre"] == "electronic"
 
@@ -1770,14 +1814,16 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album", genre="rock")))
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/rock/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/rock/test-album")
         assert result["genre"] == "rock"
 
     def test_documents_path(self):
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "test-album")))
-        assert result["path"] == "/tmp/test/docs/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/docs/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_audio_genre_required_not_found(self):
@@ -1800,7 +1846,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album", genre="electronic")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_from_state(self):
@@ -1808,7 +1855,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_required_not_found(self):
@@ -1823,7 +1871,7 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("tracks", "test-album")))
-        assert result["path"].endswith("/tracks")
+        assert Path(result["path"]).as_posix().endswith("/tracks")
         assert "electronic" in result["path"]
 
     def test_overrides_path(self):
@@ -4171,6 +4219,7 @@ class TestValidateAlbumStructure:
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("missing" in m.lower() for m in failed_msgs)
 
+    @requires_chmod_denial
     def test_permission_denied_tracks_dir(self, tmp_path):
         """Unreadable tracks/ directory still produces results."""
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
@@ -4396,7 +4445,7 @@ class TestGenreValidation:
             result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
         _shared_mod._VALID_GENRES = None
         assert result["created"] is True
-        assert "/rnb/" in result["path"]
+        assert "/rnb/" in Path(result["path"]).as_posix()
 
     def test_genre_typo_rejected(self, tmp_path):
         """Genre typo 'elctronic' is rejected."""
@@ -4755,6 +4804,7 @@ class TestRunPreGenerationGates:
         # Should still produce gates (file-dependent ones SKIP or FAIL)
         assert len(track["gates"]) == 10
 
+    @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
         """Track with permission-denied file still produces gate results."""
         track_file = tmp_path / "05-denied.md"
@@ -6354,6 +6404,7 @@ class TestUpdateAlbumStatus:
         assert result["new_status"] == "Complete"
         assert result["album_slug"] == "test-album"
 
+    @requires_chmod_denial
     def test_readme_read_oserror(self, tmp_path):
         """Returns error when README.md cannot be read (OSError)."""
         readme_path = tmp_path / "README.md"
@@ -6635,6 +6686,7 @@ class TestCreateTrack:
         assert "## Legal" not in content
         assert "## Concept" in content
 
+    @requires_chmod_denial
     def test_template_read_oserror(self, tmp_path):
         """Returns error when template file cannot be read."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6652,6 +6704,7 @@ class TestCreateTrack:
         finally:
             template_file.chmod(0o644)
 
+    @requires_chmod_denial
     def test_track_write_oserror(self, tmp_path):
         """Returns error when track file cannot be written."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6834,6 +6887,7 @@ class TestGetPromoStatus:
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_error_handled(self, tmp_path):
         """File that exists but can't be read is reported as unpopulated."""
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
@@ -6976,6 +7030,7 @@ class TestGetPromoContent:
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_oserror(self, tmp_path):
         """Returns error when promo file exists but cannot be read."""
         album_dir = tmp_path / "album"
@@ -7155,6 +7210,7 @@ class TestGetPluginVersion:
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] == ""
 
+    @requires_chmod_denial
     def test_plugin_json_read_oserror(self, tmp_path):
         """Handles OSError reading plugin.json gracefully."""
         state = _fresh_state()
@@ -7753,9 +7809,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         def mock_version(pkg):
             if pkg == "requests":
@@ -7799,9 +7857,11 @@ class TestHealthCheck:
         # Venv ok
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -7928,9 +7988,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -8031,6 +8093,7 @@ class TestCreateIdea:
             result = json.loads(_run(server.create_idea("Test")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"
@@ -8306,6 +8369,7 @@ class TestUpdateIdea:
         text = (content_root / "IDEAS.md").read_text()
         assert "Neon & chrome [2026] {version}" in text
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"
@@ -8849,8 +8913,7 @@ class TestResolveIdeasPath:
             result = _ideas_mod._resolve_ideas_path()
         assert result is not None
         assert isinstance(result, Path)
-        assert str(result).endswith("IDEAS.md")
-        assert str(result).startswith("/tmp/test")
+        assert result == Path("/tmp/test") / "IDEAS.md"
 
     def test_returns_none_when_no_content_root(self):
         """Returns None when content_root is empty."""
@@ -10648,7 +10711,8 @@ class TestSafeJsonEdgeCasesRound5:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert "/tmp/test" in result["path"]
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
 
 @pytest.mark.unit
@@ -15536,10 +15600,11 @@ class TestDiagnose:
             json.dumps({"schema_version": "1.2.0", "albums": {}})
         )
 
-        # Fake venv (at patched home)
-        venv_bin = tmp_path / ".bitwize-music" / "venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        (venv_bin / "python3").touch()
+        # Fake venv (at patched home) — platform-appropriate layout
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path)
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         # Plugin version
         plugin_dir = tmp_path / ".claude-plugin"
