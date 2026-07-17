@@ -1116,6 +1116,146 @@ class TestReadWriteState:
 
 
 @pytest.mark.unit
+class TestWriteStateWindowsReplaceRetry:
+    """write_state must retry os.replace on transient Windows sharing violations.
+
+    On Windows, os.replace over a state.json that another process holds open
+    (a lock-free read_state, another session, or an AV scan) raises
+    PermissionError WinError 5 / 32. POSIX rename-over-open never hits this.
+    These tests force the Windows path deterministically on Linux by
+    monkeypatching indexer.sys.platform and indexer.os.replace.
+    """
+
+    @staticmethod
+    def _sharing_violation(winerror=5):
+        err = PermissionError("Access is denied")
+        err.winerror = winerror
+        return err
+
+    def test_retries_then_succeeds_on_windows(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        real_replace = os.replace
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._sharing_violation(5)
+            real_replace(src, dst)
+
+        monkeypatch.setattr(indexer.os, "replace", flaky_replace)
+
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        assert calls["n"] == fail_times + 1
+        loaded = read_state()
+        assert loaded['value'] == 'ok'
+
+    def test_retries_sharing_violation_winerror_32(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise self._sharing_violation(32)  # ERROR_SHARING_VIOLATION
+            real_replace(src, dst)
+
+        monkeypatch.setattr(indexer.os, "replace", flaky_replace)
+
+        write_state({'version': '1.0.0'})
+        assert calls["n"] == 2
+
+    def test_gives_up_and_raises_after_budget_on_windows(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        sleeps = []
+        monkeypatch.setattr(indexer.time, "sleep", lambda s: sleeps.append(s))
+
+        calls = {"n": 0}
+
+        def always_fail(src, dst):
+            calls["n"] += 1
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer.os, "replace", always_fail)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(PermissionError):
+                write_state({'version': '1.0.0'})
+
+        # Bounded: retried (not a single attempt) but did not loop forever.
+        assert calls["n"] > 1, "expected bounded retries, not a single attempt"
+        assert calls["n"] == indexer._REPLACE_RETRY_ATTEMPTS
+        # Slept only between attempts; total retry window stays ~1s.
+        assert len(sleeps) == indexer._REPLACE_RETRY_ATTEMPTS - 1
+        assert sum(sleeps) <= 1.0
+        # Existing except path ran: temp file cleaned up + error logged.
+        assert list(tmp_path.glob(".state_*.tmp")) == []
+        assert "Cannot write state file" in caplog.text
+
+    def test_non_sharing_oserror_not_retried_on_windows(self, tmp_path, monkeypatch):
+        """A non-sharing OSError (e.g. ENOENT) propagates immediately, no retry."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+
+        calls = {"n": 0}
+
+        def fail_other(src, dst):
+            calls["n"] += 1
+            err = OSError("no such file")
+            err.winerror = 2  # ERROR_FILE_NOT_FOUND — not a sharing violation
+            raise err
+
+        monkeypatch.setattr(indexer.os, "replace", fail_other)
+
+        with pytest.raises(OSError):
+            write_state({'version': '1.0.0'})
+        assert calls["n"] == 1
+
+    def test_posix_does_not_retry_replace(self, tmp_path, monkeypatch):
+        """POSIX behavior is unchanged: a PermissionError from replace is not retried."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "linux")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry os.replace on POSIX"),
+        )
+
+        calls = {"n": 0}
+
+        def fail_once(src, dst):
+            calls["n"] += 1
+            # Even with a winerror set, POSIX must re-raise on the first failure.
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer.os, "replace", fail_once)
+
+        with pytest.raises(PermissionError):
+            write_state({'version': '1.0.0'})
+        assert calls["n"] == 1
+
+
+@pytest.mark.unit
 class TestFileLocking:
     """Tests for _acquire_lock_with_timeout()."""
 
