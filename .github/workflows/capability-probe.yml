@@ -139,12 +139,27 @@ jobs:
 
   # ---------------------------------------------------------------------
   # Job B1 — Q2: WSL2 on a windows-latest hosted runner
+  #
+  # Round-2 changes (driven by round-1 evidence, run 29595331158):
+  #   - WSL2 itself worked perfectly first try (WSL 2.7.10.0 preinstalled on
+  #     the windows-2025 image, Ubuntu-22.04 installed+running as VERSION 2,
+  #     checkout visible at /mnt/d/... via automatic cwd translation).
+  #   - The ONLY failure was Python: Ubuntu-22.04 ships 3.10 and the repo pins
+  #     scipy==1.17.1 (Requires-Python >=3.11) → full install failed in 2s.
+  #     Switch to Ubuntu-24.04 (Python 3.12; nightly's 3.12 experimental leg
+  #     proves these pins install on 3.12).
+  #   - core-only fallback then failed at collection: the root tests/conftest.py
+  #     imports tests/fixtures/audio which imports numpy + soundfile → add both
+  #     to the fallback package set.
+  #   - WSL_UTF8=1 so wsl.exe output is UTF-8 instead of UTF-16LE garble.
   # ---------------------------------------------------------------------
   wsl-probe-v2:
     name: "Probe B1: WSL2 on windows-latest"
     runs-on: windows-latest
     timeout-minutes: 60
     continue-on-error: true
+    env:
+      WSL_UTF8: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -170,7 +185,7 @@ jobs:
         continue-on-error: true
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
         with:
-          distribution: Ubuntu-22.04
+          distribution: Ubuntu-24.04
           wsl-version: '2'
           use-cache: 'true'
 
@@ -201,7 +216,7 @@ jobs:
           : > "$RESULT_FILE"
           log() { echo "$@" | tee -a "$RESULT_FILE"; }
 
-          log "== WSL probe (target wsl-version=2, Ubuntu-22.04) =="
+          log "== WSL probe (target wsl-version=2, Ubuntu-24.04) =="
           log "pwd: $(pwd)"
           log "uname -a: $(uname -a)"
           log "os-release:"; cat /etc/os-release 2>&1 | tee -a "$RESULT_FILE"
@@ -244,8 +259,12 @@ jobs:
 
           SCOPE="full"
           if [ "$FULL_INSTALL_EXIT" -ne 0 ]; then
+            # numpy + soundfile are required even for the reduced scope: the
+            # root tests/conftest.py imports tests/fixtures/audio at collection
+            # time (round-1 finding — core-only without them dies with
+            # ModuleNotFoundError: numpy, pytest exit 4).
             log "Full install failed/timed out — falling back to documented core-only scope"
-            /tmp/wsl-venv/bin/pip install -q mcp pyyaml pytest
+            /tmp/wsl-venv/bin/pip install -q mcp pyyaml pytest numpy soundfile
             log "core-only install exit=$?"
             SCOPE="core-only"
           fi
@@ -253,7 +272,9 @@ jobs:
 
           T4=$(date +%s)
           if [ "$SCOPE" = "full" ]; then
-            timeout 900 /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -q > pytest-output-v2.txt 2>&1
+            # -n auto mirrors the nightly deep-test invocation so wall time is
+            # comparable (pytest-xdist comes from requirements-test.txt).
+            timeout 900 /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -q -n auto > pytest-output-v2.txt 2>&1
           else
             timeout 600 /tmp/wsl-venv/bin/python -m pytest tests/plugin/ tests/unit/state/ --tb=short -q > pytest-output-v2.txt 2>&1
           fi
@@ -270,7 +291,7 @@ jobs:
         run: |
           set +e
           {
-            echo "PROBE RESULT: wsl-probe-v2 (target wsl-version=2, Ubuntu-22.04)"
+            echo "PROBE RESULT: wsl-probe-v2 (target wsl-version=2, Ubuntu-24.04)"
             echo "setup-wsl step outcome: ${{ steps.setup_wsl.outcome }}"
             echo "in-WSL run step outcome: ${{ steps.wsl_run.outcome }}"
             echo "--- WSL status before setup ---"
@@ -283,12 +304,28 @@ jobs:
 
   # ---------------------------------------------------------------------
   # Job B2 — Q2 fallback: WSL1 on a windows-latest hosted runner
+  #
+  # Round-2 changes (driven by round-1 evidence, run 29595331158):
+  #   - WSL1 mechanically worked: Debian-11 installed via the legacy
+  #     debian.exe launcher, listed as VERSION 1, Running, checkout visible.
+  #   - But Debian-11 ships Python 3.9, below every relevant floor
+  #     (pytest>=9.1.1 and mcp both need >=3.10) → nothing installable.
+  #     Its bullseye-backports apt repo is also archived (apt update exit=100).
+  #   - Round 2 requests Ubuntu-24.04 (Python 3.12) under wsl-version 1.
+  #     setup-wsl v7 installs Ubuntu 20.04+ via the modern wsl-file format
+  #     (`wsl --install --from-file`); whether such a distro can land as WSL1
+  #     is exactly the open question — if it refuses/converts to WSL2, that
+  #     IS the WSL1 answer (only legacy-launcher distros with pre-floor
+  #     Pythons are WSL1-installable, so WSL1 cannot run this suite).
+  #   - WSL_UTF8=1 for readable wsl.exe output.
   # ---------------------------------------------------------------------
   wsl-probe-v1-fallback:
     name: "Probe B2: WSL1 fallback on windows-latest"
     runs-on: windows-latest
     timeout-minutes: 60
     continue-on-error: true
+    env:
+      WSL_UTF8: "1"
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
@@ -306,12 +343,12 @@ jobs:
             echo "exit=$?"
           } | tee wsl-baseline-v1.txt
 
-      - name: Set up WSL (Vampire/setup-wsl, wsl-version 1, Debian-11)
+      - name: Set up WSL (Vampire/setup-wsl, wsl-version 1, Ubuntu-24.04)
         id: setup_wsl
         continue-on-error: true
         uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
         with:
-          distribution: Debian-11
+          distribution: Ubuntu-24.04
           wsl-version: '1'
           use-cache: 'true'
 
@@ -342,7 +379,9 @@ jobs:
           : > "$RESULT_FILE"
           log() { echo "$@" | tee -a "$RESULT_FILE"; }
 
-          log "== WSL probe (target wsl-version=1, Debian-11) =="
+          log "== WSL probe (target wsl-version=1, Ubuntu-24.04) =="
+          # uname distinguishes the WSL flavors from inside: WSL1 reports a
+          # 4.4.x-Microsoft kernel, WSL2 a *-microsoft-standard-WSL2 one.
           log "pwd: $(pwd)"
           log "uname -a: $(uname -a)"
           log "os-release:"; cat /etc/os-release 2>&1 | tee -a "$RESULT_FILE"
@@ -378,8 +417,10 @@ jobs:
           /tmp/wsl-venv/bin/pip --version | tee -a "$RESULT_FILE"
 
           # WSL1 is expected to be the slower/heavier-to-fail leg — a documented
-          # core-only fallback (mcp, pyyaml, pytest) is acceptable here per the
-          # probe brief if the full requirement set is too heavy/slow.
+          # core-only fallback is acceptable here per the probe brief if the
+          # full requirement set is too heavy/slow. numpy + soundfile included
+          # because the root tests/conftest.py imports them at collection time
+          # (round-1 finding).
           T2=$(date +%s)
           timeout 1200 /tmp/wsl-venv/bin/pip install -r requirements-test.txt -r requirements.txt -q
           FULL_INSTALL_EXIT=$?
@@ -389,7 +430,7 @@ jobs:
           SCOPE="full"
           if [ "$FULL_INSTALL_EXIT" -ne 0 ]; then
             log "Full install failed/timed out — falling back to documented core-only scope"
-            /tmp/wsl-venv/bin/pip install -q mcp pyyaml pytest
+            /tmp/wsl-venv/bin/pip install -q mcp pyyaml pytest numpy soundfile
             log "core-only install exit=$?"
             SCOPE="core-only"
           fi
@@ -397,7 +438,9 @@ jobs:
 
           T4=$(date +%s)
           if [ "$SCOPE" = "full" ]; then
-            timeout 900 /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -q > pytest-output-v1.txt 2>&1
+            # -n auto mirrors the nightly deep-test invocation so wall time is
+            # comparable (pytest-xdist comes from requirements-test.txt).
+            timeout 900 /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -q -n auto > pytest-output-v1.txt 2>&1
           else
             timeout 600 /tmp/wsl-venv/bin/python -m pytest tests/plugin/ tests/unit/state/ --tb=short -q > pytest-output-v1.txt 2>&1
           fi
@@ -414,7 +457,7 @@ jobs:
         run: |
           set +e
           {
-            echo "PROBE RESULT: wsl-probe-v1-fallback (target wsl-version=1, Debian-11)"
+            echo "PROBE RESULT: wsl-probe-v1-fallback (target wsl-version=1, Ubuntu-24.04)"
             echo "setup-wsl step outcome: ${{ steps.setup_wsl.outcome }}"
             echo "in-WSL run step outcome: ${{ steps.wsl_run.outcome }}"
             echo "--- WSL status before setup ---"
