@@ -958,6 +958,54 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
         wait = min(wait * 2, 1.0)  # Cap at 1 second
 
 
+# Bounded retry budget for os.replace on Windows sharing violations.
+# Windows enforces mandatory locking on open file handles, so os.replace over
+# STATE_FILE raises PermissionError with winerror 5 (ERROR_ACCESS_DENIED) or 32
+# (ERROR_SHARING_VIOLATION) whenever another process holds the target open: a
+# lock-free read_state, a second Claude session, or a transient antivirus scan.
+# POSIX rename-over-open-file is atomic and never hits this, so retrying is
+# Windows-only. Budget: 10 attempts with a 10ms backoff doubling to a 100ms
+# cap keeps the total retry window under ~1s (9 sleeps sum to 650ms) — long
+# enough to outlast a transient reader/AV handle, short enough to fail loudly
+# on a genuinely stuck file.
+_REPLACE_RETRY_ATTEMPTS = 10
+_REPLACE_RETRY_INITIAL_WAIT = 0.01  # 10ms
+_REPLACE_RETRY_MAX_WAIT = 0.1  # 100ms per-sleep cap
+_WINDOWS_SHARING_VIOLATION_ERRNOS = (5, 32)
+
+
+def _atomic_replace_with_retry(src: str, dst: str) -> None:
+    """Atomically replace ``dst`` with ``src``, retrying Windows sharing violations.
+
+    On POSIX this is a single ``os.replace`` (atomic rename never fails on an
+    open target). On Windows, a concurrent open handle on ``dst`` — a lock-free
+    ``read_state``, another session, or an AV scan — makes ``os.replace`` raise
+    ``PermissionError`` with ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
+    (ERROR_SHARING_VIOLATION) until that handle closes. Only those transient
+    errors are retried, with a bounded backoff; every other error (and the
+    final attempt) propagates immediately so a genuinely stuck file still
+    fails loudly. ``getattr(e, "winerror", ...)`` is platform-safe: the
+    attribute only exists on Windows OSErrors.
+    """
+    if sys.platform == "win32":
+        wait = _REPLACE_RETRY_INITIAL_WAIT
+        for attempt in range(_REPLACE_RETRY_ATTEMPTS):
+            try:
+                os.replace(src, dst)
+                return
+            except OSError as e:
+                transient = (
+                    getattr(e, "winerror", None) in _WINDOWS_SHARING_VIOLATION_ERRNOS
+                )
+                if not transient or attempt == _REPLACE_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(wait)
+                wait = min(wait * 2, _REPLACE_RETRY_MAX_WAIT)
+    else:
+        # POSIX: atomic rename never fails on an open target, so no retry.
+        os.replace(src, dst)
+
+
 def write_state(state: dict[str, Any]) -> None:
     """Write state to cache file atomically with file locking.
 
@@ -991,7 +1039,9 @@ def write_state(state: dict[str, Any]) -> None:
         os.fsync(tmp_fd.fileno())
         tmp_fd.close()
         tmp_fd = None
-        os.replace(str(tmp_path), str(STATE_FILE))
+        # Retries transient Windows sharing violations while the write lock is
+        # still held, so no other writer interleaves; POSIX is a plain replace.
+        _atomic_replace_with_retry(str(tmp_path), str(STATE_FILE))
     except (OSError, TimeoutError) as e:
         logger.error("Cannot write state file: %s", e)
         # Clean up temp file
