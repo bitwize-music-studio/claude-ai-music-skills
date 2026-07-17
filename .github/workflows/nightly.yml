@@ -1,0 +1,197 @@
+# IMPORTANT: `schedule` triggers only fire from the repository's DEFAULT
+# branch (main) — GitHub ignores schedule triggers defined on any other
+# branch. This workflow checks out `develop` explicitly in every job so the
+# nightly run tests the integration branch, not whatever HEAD of main
+# happens to be. In practice this means: (1) this file only starts firing
+# on its cron once it has been merged to main via the next release, and
+# (2) `workflow_dispatch` on main is the way to test it immediately after
+# that merge, before waiting for the next 05:00 UTC tick.
+name: Nightly Deep Tests
+
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      check-python-floor:
+        description: 'Run an install-only floor check on this Python version, e.g. 3.10'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  deep-test:
+    name: Deep Tests (${{ matrix.os }} / py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    # Experimental legs (3.12/3.13) prove wheel availability for the
+    # scipy/numpy pins ahead of adopting them as a supported floor/ceiling —
+    # promote to non-experimental once they've proven stable over time.
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.11']
+        include:
+          - os: ubuntu-latest
+            python: '3.12'
+            experimental: true
+          - os: ubuntu-latest
+            python: '3.13'
+            experimental: true
+    env:
+      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
+      PYTHONUTF8: "1"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        ref: develop
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: ${{ matrix.python }}
+        # No pip cache — a from-scratch install is part of what nightly proves.
+
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends ffmpeg
+
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install ffmpeg
+
+    # Windows: no ffmpeg install. Audio externals are WSL-recommended on
+    # Windows by support-tier decision; ffmpeg-gated tests skip via
+    # shutil.which fixtures.
+
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    - name: Run tests
+      # No coverage gate here — coverage is the PR job's (test.yml) gate.
+      # Nightly's job is proving from-scratch installs and extra Python
+      # versions across all three OSes, not re-litigating coverage.
+      run: |
+        python -m pytest tests/ --tb=short -n auto
+
+  mcp-e2e:
+    name: MCP e2e nightly (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        ref: develop
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Simulates the documented user install (requirements.txt header):
+    #   python3 -m venv ~/.bitwize-music/venv && pip install -r requirements.txt
+    # The venv path is computed with Path.home() so it agrees byte-for-byte
+    # with run.py's venv discovery (on Windows, Path.home() uses USERPROFILE
+    # and ignores HOME, so a shell $HOME would be ambiguous here).
+    - name: Create user-style venv and install pinned requirements
+      run: |
+        python -c "import pathlib, venv; venv.create(pathlib.Path.home() / '.bitwize-music' / 'venv', with_pip=True)"
+        VENV_PY="$(python -c "import pathlib, sys; d = pathlib.Path.home() / '.bitwize-music' / 'venv'; print((d / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python3')).as_posix())")"
+        "$VENV_PY" -m pip install --upgrade pip
+        "$VENV_PY" -m pip install -r requirements.txt
+
+    # Boot the server through the SAME launcher .mcp.json invokes, and drive a
+    # real stdio JSON-RPC handshake. Catches process-level startup failures
+    # (e.g. #476) that the in-process unit suite with its mocked FastMCP cannot
+    # see. .mcp.json's command is the extensionless mcp-launch, which Claude Code
+    # runs as the POSIX shebang script here and resolves to mcp-launch.cmd on
+    # Windows (validated against real Claude Code on a Windows VM).
+    - name: Boot check via mcp-launch (POSIX)
+      if: runner.os != 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 120 --call-tool health_check --scenario state-workflow -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch"
+
+    - name: Boot check via mcp-launch.cmd (Windows)
+      if: runner.os == 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 240 --call-tool health_check --scenario state-workflow -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch.cmd"
+
+  floor-check:
+    name: Python Floor Check (${{ inputs.check-python-floor }})
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.check-python-floor != '' }}
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        ref: develop
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: ${{ inputs.check-python-floor }}
+
+    # Install-only: settles whether the documented Python floor can still
+    # install the pins (e.g. dispatch with 3.10). No tests are run — this
+    # job exists purely to prove `pip install` succeeds on the floor version.
+    - name: Install pinned requirements
+      run: |
+        pip install -r requirements.txt -r requirements-test.txt
+
+  notify-failure:
+    name: Notify on Failure
+    needs: [deep-test, mcp-e2e]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+    - name: Open or update nightly-failure issue
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # `// empty` keeps $existing blank when no issue matches — a bare
+        # `.[0].number` would yield the literal string "null" and route the
+        # first-ever failure to `gh issue comment null`.
+        existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label nightly-failure --state open --json number -q '.[0].number // empty')
+        url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        if [ -n "$existing" ]; then
+          gh issue comment "$existing" -R "$GITHUB_REPOSITORY" -b "Nightly failed again: $url"
+        else
+          gh issue create -R "$GITHUB_REPOSITORY" -t "Nightly deep test failure" -b "Run: $url" -l nightly-failure
+        fi
