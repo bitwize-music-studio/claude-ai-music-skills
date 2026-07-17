@@ -28,6 +28,58 @@ from tests.fixtures.audio import (
 from tools.state.parsers import parse_frontmatter
 
 
+@pytest.fixture(autouse=True)
+def _isolate_state_cache(monkeypatch, tmp_path):
+    """Redirect the state-cache indexer away from the real ~/.bitwize-music cache.
+
+    Many flows funnel through ``tools.state.indexer.write_state``/``read_state``
+    (master_album's status_update stage, rename, streaming URL updates, album
+    status transitions, cache rebuilds, ...). Several call sites import
+    ``write_state`` lazily inside the calling function
+    (``from tools.state.indexer import write_state``), so patching a *different*
+    module's attribute (e.g. ``server.write_state``) does not intercept them —
+    only patching the globals ``write_state`` itself reads
+    (``tools.state.indexer.CACHE_DIR`` / ``STATE_FILE`` / ``LOCK_FILE``) works
+    regardless of how/where the function was imported. A test file that forgot
+    (or incorrectly targeted) this patch was silently clobbering a developer's
+    real state.json with fixture data on every full-suite run. This autouse
+    fixture makes every test safe by default; tests that need a specific cache
+    path (e.g. test_indexer.py) can still monkeypatch.setattr(indexer, ...)
+    themselves afterward — that simply overrides this for that test.
+
+    The MCP server module needs the same treatment separately: server.py does
+    ``from tools.state.indexer import STATE_FILE, CONFIG_FILE`` — a by-VALUE
+    copy — and StateCache._is_stale() / _update_mtimes() stat those module
+    globals, so patching the indexer alone still leaves server-module code
+    statting the developer's real ~/.bitwize-music files (read-only, but a
+    concurrent session touching them mid-test can spuriously flip _is_stale).
+    Test files load server.py under assorted sys.modules names via
+    importlib.util.spec_from_file_location ("state_server",
+    "state_server_features", "state_server_streaming", ...), so match loaded
+    modules by __file__ rather than by name and patch every copy.
+    """
+    import tools.state.indexer as indexer_mod
+
+    cache_dir = tmp_path / "_isolated_state_cache"
+    monkeypatch.setattr(indexer_mod, "CACHE_DIR", cache_dir)
+    monkeypatch.setattr(indexer_mod, "STATE_FILE", cache_dir / "state.json")
+    monkeypatch.setattr(indexer_mod, "LOCK_FILE", cache_dir / "state.lock")
+
+    server_py = str(
+        (PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py").resolve()
+    )
+    for module in list(sys.modules.values()):
+        module_file = getattr(module, "__file__", None)
+        # Cheap basename short-circuit before the resolve() so the scan stays
+        # a string comparison for the thousands of non-matching modules.
+        if not module_file or not module_file.endswith("server.py"):
+            continue
+        if str(Path(module_file).resolve()) != server_py:
+            continue
+        monkeypatch.setattr(module, "STATE_FILE", cache_dir / "state.json")
+        monkeypatch.setattr(module, "CONFIG_FILE", cache_dir / "config.yaml")
+
+
 @pytest.fixture(scope="session")
 def project_root() -> Path:
     """Path to the repository root."""
