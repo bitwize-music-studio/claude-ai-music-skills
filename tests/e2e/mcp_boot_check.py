@@ -9,9 +9,13 @@ and asserts the server shuts down cleanly on EOF.
 With ``--scenario state-workflow`` it additionally proves the core state
 workflow end-to-end: it seeds a temp content tree (1 album / 2 tracks, one
 track title carrying a non-ASCII em dash for UTF-8 regression coverage),
-points ``~/.bitwize-music/config.yaml`` at it, then drives ``rebuild_state``
--> ``list_albums`` -> ``find_album`` -> ``get_config`` -> ``list_tracks``
-and asserts the real payloads. Any pre-existing ``config.yaml`` and
+points ``~/.bitwize-music/config.yaml`` at it, then drives the READ path
+(``rebuild_state`` -> ``list_albums`` -> ``find_album`` -> ``get_config`` ->
+``list_tracks``) and the WRITE path (``create_track`` a 3rd track ->
+``rebuild_state`` -> ``update_track_field`` status -> ``get_track`` ->
+``rebuild_state``, then reads the new file off disk) — the write path is where
+the cross-platform atomic ``os.replace`` + fcntl/msvcrt locking actually run.
+It asserts the real payloads throughout. Any pre-existing ``config.yaml`` and
 ``cache/state.json`` are renamed aside first and restored in a ``finally``
 no matter how the run ends, so the scenario is safe on a developer machine.
 
@@ -98,6 +102,12 @@ SCENARIO_TRACK1_SLUG = "01-first-track"
 SCENARIO_TRACK1_TITLE = "First Track — Reprise"
 SCENARIO_TRACK2_SLUG = "02-second-track"
 SCENARIO_TRACK2_TITLE = "Second Track"
+# Created at runtime through the WRITE path (create_track). The em dash again
+# exercises UTF-8 on the way *out* (atomic_write_text body + the json.dumps'd
+# YAML title scalar), and — being NTFS-legal, unlike <>:"|?* — normalizes to an
+# identical slug/filename on all three OSes, so the assertions stay uniform.
+SCENARIO_TRACK3_NUMBER = 3
+SCENARIO_TRACK3_TITLE = "Third Track — Bonus"
 
 
 class BootError(Exception):
@@ -554,7 +564,15 @@ class StateWorkflowEnv:
 
 
 def run_state_workflow(server: ServerProc, deadline: float, env: StateWorkflowEnv) -> None:
-    """Drive config -> rebuild_state -> queries -> UTF-8 round-trip."""
+    """Drive config -> rebuild_state -> read queries -> write round-trip.
+
+    First proves the read path (rebuild/list/find/get_config/list_tracks with a
+    UTF-8 title), then the write path where the cross-platform atomic-replace +
+    file locking live: create_track -> re-index -> update_track_field ->
+    get_track -> re-index, and finally reads the new file straight off the temp
+    content tree. Every write lands in the scenario's temp tree, never in the
+    real ~/.bitwize-music.
+    """
     # 1. rebuild_state must index exactly the seeded tree: 1 album / 2 tracks.
     payload = call_tool_json(server, 4, "rebuild_state", {}, deadline, phase="scenario")
     if payload.get("success") is not True:
@@ -654,6 +672,171 @@ def run_state_workflow(server: ServerProc, deadline: float, env: StateWorkflowEn
         )
     # !a (ascii) keeps this line safe on non-UTF-8 Windows consoles.
     _ok("scenario", f"UTF-8 track title round-tripped intact ({got_title!a})")
+
+    # ---- WRITE PATH round-trip ---------------------------------------------
+    # Everything above proved the read path. The write path is where atomic
+    # os.replace + fcntl/msvcrt locking actually run cross-platform. Config
+    # points at the temp tree, so every write below lands there, never in
+    # ~/.bitwize-music.
+
+    # 6. create_track writes a new markdown file via atomic_write_text. Capture
+    #    the server-computed slug/filename instead of hardcoding it, so the
+    #    later steps assert identically on every OS (NTFS-forbidden-char slug
+    #    divergence is unit-tested; this title carries none).
+    payload = call_tool_json(
+        server,
+        9,
+        "create_track",
+        {
+            "album_slug": SCENARIO_ALBUM,
+            "track_number": SCENARIO_TRACK3_NUMBER,
+            "title": SCENARIO_TRACK3_TITLE,
+        },
+        deadline,
+        phase="scenario",
+    )
+    if payload.get("created") is not True:
+        raise BootError(
+            "scenario",
+            f"create_track did not report created=true: {payload!r}",
+            EXIT_PROTOCOL,
+        )
+    created_slug = payload.get("track_slug")
+    created_filename = payload.get("filename")
+    if not isinstance(created_slug, str) or not created_slug:
+        raise BootError(
+            "scenario", f"create_track returned no track_slug: {payload!r}", EXIT_PROTOCOL
+        )
+    if not isinstance(created_filename, str) or not created_filename:
+        raise BootError(
+            "scenario", f"create_track returned no filename: {payload!r}", EXIT_PROTOCOL
+        )
+    _ok("scenario", f"create_track wrote {created_filename!a} (slug {created_slug!a})")
+
+    # 7. Re-index so the on-disk file enters the server's state cache.
+    #    create_track writes markdown but does not refresh the cache, and
+    #    staleness is tracked off state.json's mtime (not the content tree), so
+    #    update_track_field/get_track only see the new track after a rebuild.
+    #    This also proves the created file indexes cleanly: 1 album / 3 tracks.
+    payload = call_tool_json(server, 10, "rebuild_state", {}, deadline, phase="scenario")
+    if (
+        payload.get("success") is not True
+        or payload.get("albums") != 1
+        or payload.get("tracks") != 3
+    ):
+        raise BootError(
+            "scenario",
+            f"rebuild_state after create_track expected 1 album / 3 tracks, "
+            f"got {payload!r}",
+            EXIT_PROTOCOL,
+        )
+    _ok("scenario", "rebuild_state re-indexed the created track (1 album / 3 tracks)")
+
+    # 8. update_track_field flips status Not Started -> In Progress (a valid
+    #    transition), writing via atomic_write_text then rebuilding under lock.
+    payload = call_tool_json(
+        server,
+        11,
+        "update_track_field",
+        {
+            "album_slug": SCENARIO_ALBUM,
+            "track_slug": created_slug,
+            "field": "status",
+            "value": "In Progress",
+        },
+        deadline,
+        phase="scenario",
+    )
+    if payload.get("success") is not True:
+        raise BootError(
+            "scenario",
+            f"update_track_field did not report success: {payload!r}",
+            EXIT_PROTOCOL,
+        )
+    _ok("scenario", "update_track_field set status -> In Progress")
+
+    # 9. get_track: the updated field round-trips AND the UTF-8 title is exact.
+    payload = call_tool_json(
+        server,
+        12,
+        "get_track",
+        {"album_slug": SCENARIO_ALBUM, "track_slug": created_slug},
+        deadline,
+        phase="scenario",
+    )
+    track = payload.get("track")
+    if payload.get("found") is not True or not isinstance(track, dict):
+        raise BootError(
+            "scenario", f"get_track did not find the created track: {payload!r}", EXIT_PROTOCOL
+        )
+    if track.get("status") != "In Progress":
+        raise BootError(
+            "scenario",
+            f"get_track status={track.get('status')!r}, expected 'In Progress'",
+            EXIT_PROTOCOL,
+        )
+    if track.get("title") != SCENARIO_TRACK3_TITLE:
+        raise BootError(
+            "scenario",
+            f"get_track title did not round-trip: got {track.get('title')!a}, "
+            f"expected {SCENARIO_TRACK3_TITLE!a}",
+            EXIT_PROTOCOL,
+        )
+    _ok("scenario", f"get_track round-trips status + UTF-8 title ({track.get('title')!a})")
+
+    # 10. Rebuild once more and re-read: proves both on-disk writes (the created
+    #     file and the status edit) survive a full re-index from scratch, not
+    #     just the in-memory cache update from step 8.
+    payload = call_tool_json(server, 13, "rebuild_state", {}, deadline, phase="scenario")
+    if payload.get("albums") != 1 or payload.get("tracks") != 3:
+        raise BootError(
+            "scenario",
+            f"final rebuild_state expected 1 album / 3 tracks, got {payload!r}",
+            EXIT_PROTOCOL,
+        )
+    payload = call_tool_json(
+        server,
+        14,
+        "get_track",
+        {"album_slug": SCENARIO_ALBUM, "track_slug": created_slug},
+        deadline,
+        phase="scenario",
+    )
+    track = payload.get("track")
+    track = track if isinstance(track, dict) else {}
+    if track.get("status") != "In Progress" or track.get("title") != SCENARIO_TRACK3_TITLE:
+        raise BootError(
+            "scenario",
+            f"created track did not survive a full re-index: {payload!r}",
+            EXIT_PROTOCOL,
+        )
+    _ok("scenario", "created track + status survived a full re-index")
+
+    # 11. Read the created file straight off the temp content tree: pins that
+    #     the atomic write actually landed on disk where expected (UTF-8 body).
+    assert env.content_root is not None  # set by setup()
+    track_file = (
+        env.content_root / "artists" / SCENARIO_ARTIST / "albums"
+        / SCENARIO_GENRE / SCENARIO_ALBUM / "tracks" / created_filename
+    )
+    if not track_file.is_file():
+        raise BootError(
+            "scenario", f"created track file not found on disk: {track_file}", EXIT_PROTOCOL
+        )
+    on_disk = track_file.read_text(encoding="utf-8")
+    if SCENARIO_TRACK3_TITLE not in on_disk:
+        raise BootError(
+            "scenario",
+            f"created track file on disk is missing the title: {track_file}",
+            EXIT_PROTOCOL,
+        )
+    if "In Progress" not in on_disk:
+        raise BootError(
+            "scenario",
+            f"created track file on disk is missing the updated status: {track_file}",
+            EXIT_PROTOCOL,
+        )
+    _ok("scenario", f"created file landed on disk with title + status ({created_filename!a})")
 
 
 def shutdown(server: ServerProc, grace: float) -> None:
