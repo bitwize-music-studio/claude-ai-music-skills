@@ -1,22 +1,35 @@
-"""Multi-process stress test for the state lock and atomic write path.
+"""Multi-process contention test for the state lock + atomic write path.
 
 The other lock tests (``test_lock_backoff.py``) are single-process: they take a
 lock in one file descriptor and contend from another in the *same* interpreter.
-That never exercises the real cross-platform failure mode — several independent
-OS processes (fcntl advisory locks on POSIX, ``msvcrt`` byte locks on Windows)
-racing on ``write_state``'s lock + atomic ``os.replace``, plus a reader watching
-for torn/interleaved content.
+This one spawns real ``sys.executable`` subprocesses (uniform under pytest-xdist
+and on all three OSes — no ``multiprocessing`` start-method quirks) that point
+``tools.state.indexer``'s cache constants at a SHARED tmp location and hammer it:
 
-So this test spawns real ``sys.executable`` subprocesses (works uniformly under
-pytest-xdist and on all three OSes — no ``multiprocessing`` start-method quirks)
-that point ``tools.state.indexer``'s cache constants at a SHARED tmp location and
-hammer it concurrently:
+* N writer processes each ``write_state`` a distinct ``{writer, seq}`` payload in
+  a loop.
+* One reader process ``read_state``s in a loop while the writers run.
 
-* N writer processes each ``write_state`` a distinct payload in a loop; every
-  payload embeds ``writer``-id + ``seq`` so the final file can be matched to one
-  writer's last write.
-* One reader process ``read_state``s in a loop while the writers run and asserts
-  it never observes a torn/empty read.
+What this test actually pins (be honest about scope):
+
+1. The real cross-process lock primitive runs — ``fcntl.flock`` on POSIX,
+   ``msvcrt.locking`` on Windows — under genuine multi-process contention (not
+   two fds in one interpreter). It proves that primitive does not deadlock,
+   livelock, or crash a worker when N processes fight for the lock: every worker
+   exits 0 within a hard cap.
+2. ``os.replace`` is atomic on the host OS — the reader never observes a partial
+   file, and the final ``state.json`` is exactly one writer's last write (no
+   interleaved bytes).
+3. No temp-file leaks: ``write_state``'s ``.state_*.tmp`` files are all consumed
+   by ``os.replace`` (or unlinked on error), so none survive.
+
+What this test does NOT prove: that the *lock* is what prevents torn writes. It
+is not — ``write_state`` publishes each state through a UNIQUE ``NamedTemporaryFile``
++ atomic ``os.replace``, so torn/interleaved reads are structurally impossible
+whether or not the lock is held (disabling the lock and re-running keeps this
+green). The lock serializes writers so they don't clobber each other's *temp
+files* or churn the same rename target, and it is exercised here for contention
+safety — but atomicity is owned by the unique-tempfile design, not the lock.
 
 The autouse ``_isolate_state_cache`` fixture in ``tests/conftest.py`` only
 redirects the constants for *this* pytest process; fresh subprocesses inherit
@@ -29,16 +42,18 @@ read_state() contract (pinned from tools/state/indexer.py, do not invent one):
       or a JSON non-object    -> copies the file to ``state.<ts>.corrupt`` and
                                  returns ``{}`` (it never raises)
     * a valid JSON object     -> returns it
-Because ``write_state`` publishes via an atomic ``os.replace``, a reader can only
-ever see the *previous* whole file or the *next* whole file — never a partial
-one. So after the seed, every read here must return a non-empty dict carrying our
-marker; a ``None``/``{}``/marker-less result means a torn read, and any
-``state.*.corrupt`` file left behind is on-disk proof that read_state had to
-quarantine one. Both are asserted as failures.
+The reader's ``None`` / ``{}`` / marker-less branches assert this contract as
+live documentation, but they are UNREACHABLE-BY-DESIGN while the atomic-replace
+guarantee holds: after the seed, no read can ever legitimately see a partial
+file. They exist to fail loudly if a future refactor breaks atomicity (e.g.
+switches ``write_state`` to an in-place truncating write) — not because the
+current code can hit them. The ``state.*.corrupt`` check is the same: on-disk
+proof read_state never had to quarantine a torn read.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -158,7 +173,15 @@ def _expected_final(writer_id: int) -> dict[str, object]:
 
 
 def test_multiprocess_lock_stress(tmp_path: Path) -> None:
-    """N writers + 1 reader race on the shared state file; no torn state."""
+    """N writers + 1 reader contend on the shared state file.
+
+    Asserts the cross-process lock primitive survives real contention (no
+    deadlock/hang/crash — every worker exits 0 within the hard cap), that
+    ``os.replace`` is atomic (final file is one writer's whole last write, reader
+    never sees a partial one), and that no ``.tmp`` files leak. See the module
+    docstring for why atomicity here is owned by the unique-tempfile design, not
+    the lock.
+    """
     cache_dir = tmp_path / "stress_cache"
     cache_dir.mkdir()
     state_file = cache_dir / "state.json"
@@ -193,8 +216,13 @@ def test_multiprocess_lock_stress(tmp_path: Path) -> None:
         try:
             _out, err = proc.communicate(timeout=max(remaining, 0.001))
         except subprocess.TimeoutExpired:
+            # Kill AND reap every worker before failing so no zombies survive the
+            # test (CI hygiene, especially under -n auto where the xdist worker
+            # keeps running further tests).
             for _n, p in procs:
                 p.kill()
+                with contextlib.suppress(Exception):
+                    p.wait(timeout=5)
             pytest.fail(
                 f"lock stress exceeded hard cap of {HARD_CAP_SECONDS}s "
                 f"(worker {name} still running) — a lock deadlock or lost wakeup?"
