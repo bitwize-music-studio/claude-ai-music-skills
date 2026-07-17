@@ -185,7 +185,10 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label nightly-failure --state open --json number -q '.[0].number')
+        # `// empty` keeps $existing blank when no issue matches — a bare
+        # `.[0].number` would yield the literal string "null" and route the
+        # first-ever failure to `gh issue comment null`.
+        existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label nightly-failure --state open --json number -q '.[0].number // empty')
         url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
         if [ -n "$existing" ]; then
           gh issue comment "$existing" -R "$GITHUB_REPOSITORY" -b "Nightly failed again: $url"
