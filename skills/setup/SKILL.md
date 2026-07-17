@@ -109,8 +109,8 @@ python3 -m venv ~/.bitwize-music/venv                                           
 py -3 -m venv ~/.bitwize-music/venv                                                       # Windows (native)
 
 # Install ALL plugin dependencies
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt           # macOS/Linux/WSL
-~/.bitwize-music/venv/Scripts/pip.exe install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt   # Windows (native)
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt                     # macOS/Linux/WSL
+~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt   # Windows (native)
 
 # Set up document hunter browser
 ~/.bitwize-music/venv/bin/playwright install chromium                                     # macOS/Linux/WSL
@@ -140,9 +140,9 @@ Present a clear, simple installation guide:
    ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt         # macOS/Linux/WSL
    ~/.bitwize-music/venv/bin/playwright install chromium                                   # macOS/Linux/WSL
 
-   py -3 -m venv ~/.bitwize-music/venv                                                     # Windows (native)
-   ~/.bitwize-music/venv/Scripts/pip.exe install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt # Windows (native)
-   ~/.bitwize-music/venv/Scripts/playwright.exe install chromium                           # Windows (native)
+   py -3 -m venv ~/.bitwize-music/venv                                                               # Windows (native)
+   ~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt # Windows (native)
+   ~/.bitwize-music/venv/Scripts/playwright.exe install chromium                                     # Windows (native)
    ```
 4. **After installation**:
    - Restart Claude Code to reload the plugin

@@ -46,8 +46,8 @@ Or use the interactive config tool:
 python3 -m venv ~/.bitwize-music/venv                              # macOS/Linux/WSL
 ~/.bitwize-music/venv/bin/pip install -r requirements.txt          # macOS/Linux/WSL
 
-py -3 -m venv ~/.bitwize-music/venv                                 # Windows
-~/.bitwize-music/venv/Scripts/pip.exe install -r requirements.txt   # Windows
+py -3 -m venv ~/.bitwize-music/venv                                          # Windows
+~/.bitwize-music/venv/Scripts/python.exe -m pip install -r requirements.txt  # Windows
 ```
 
 ## Playwright Setup (Document Hunter)

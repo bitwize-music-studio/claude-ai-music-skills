@@ -105,7 +105,7 @@ At the beginning of a fresh session:
 5. _(Removed — skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene, so no action is needed on new releases.)_
 6. **Report from MCP state**:
    - Health warnings (from step 1.5 — omit if ok):
-     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `<venv check's fix field from health_check>`" (already the correct pip path for the user's OS — `venv/bin/pip` on macOS/Linux/WSL, `venv\Scripts\pip.exe` on Windows)
+     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `<venv check's fix field from health_check>`" (already the correct command for the user's OS)
      - Skills stale: "⚠️ N skill(s) missing from Claude Code, N ghost — run: `claude plugin update bitwize-music`"
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
