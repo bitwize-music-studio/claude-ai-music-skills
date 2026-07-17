@@ -27,10 +27,10 @@ You are the plugin's automated test runner. Execute each test, track pass/fail, 
 
 ## Quick Automated Tests (`/test quick`)
 
-For fast automated validation, run the pytest suite:
+For fast automated validation, run the pytest suite. Call `get_python_command()` first to get `$PYTHON` (the venv interpreter path — correct on every OS, including native Windows):
 
 ```bash
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v
 ```
 
 This covers:
@@ -39,10 +39,10 @@ This covers:
 
 Run specific categories:
 ```bash
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_skills.py -v       # Skills only
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/ -v                      # All plugin tests
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/unit/ -v                        # All unit tests
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -m "not slow" -v               # Skip slow tests
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_skills.py -v       # Skills only
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/ -v                      # All plugin tests
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/unit/ -v                        # All unit tests
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -m "not slow" -v               # Skip slow tests
 ```
 
 Pytest catches common issues fast. For deep behavioral tests, use the full test suite below.
@@ -117,20 +117,20 @@ Read that file before running tests to understand what each test checks.
 
 ## Quick Tests via Pytest
 
-For rapid validation during development, use pytest directly:
+For rapid validation during development, use pytest directly. Call `get_python_command()` first to get `$PYTHON` (the venv interpreter path — correct on every OS):
 
 ```bash
 # Run all tests
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v
 
 # Run specific test modules
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_skills.py ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_templates.py -v
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_skills.py ${CLAUDE_PLUGIN_ROOT}/tests/plugin/test_templates.py -v
 
 # Verbose with short tracebacks
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v --tb=short
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -v --tb=short
 
 # Quiet mode (for CI/logs)
-~/.bitwize-music/venv/bin/python3 -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -q --tb=line
+$PYTHON -m pytest ${CLAUDE_PLUGIN_ROOT}/tests/ -q --tb=line
 ```
 
 Test modules in `tests/plugin/`:

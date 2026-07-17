@@ -10,8 +10,9 @@ Glob: config/config.example.yaml
 ```
 
 ### TEST: config.example.yaml is valid YAML
+Call `get_python_command()` first for `$PYTHON` (the venv interpreter — correct on every OS), then:
 ```bash
-~/.bitwize-music/venv/bin/python3 -c "import yaml; yaml.safe_load(open('${CLAUDE_PLUGIN_ROOT}/config/config.example.yaml'))"
+$PYTHON -c "import yaml; yaml.safe_load(open('${CLAUDE_PLUGIN_ROOT}/config/config.example.yaml'))"
 ```
 
 ### TEST: config.example.yaml has all required sections

@@ -51,8 +51,9 @@ uname -s
 **CRITICAL:** Always check the venv, not system Python!
 
 ```bash
-# Set venv path
+# Set venv path (macOS/Linux/WSL uses bin/python3; native Windows uses Scripts/python.exe)
 VENV_PYTHON=~/.bitwize-music/venv/bin/python3
+[ -f "$VENV_PYTHON" ] || VENV_PYTHON=~/.bitwize-music/venv/Scripts/python.exe
 
 # Check if venv exists
 if [ -f "$VENV_PYTHON" ]; then
@@ -89,7 +90,8 @@ else:
 " 2>&1
 else
     echo "❌ Venv not found at ~/.bitwize-music/venv"
-    echo "   Run: python3 -m venv ~/.bitwize-music/venv"
+    echo "   Run: python3 -m venv ~/.bitwize-music/venv   # macOS/Linux/WSL"
+    echo "   Or:  py -3 -m venv ~/.bitwize-music/venv      # Windows"
 fi
 ```
 
@@ -103,20 +105,24 @@ All components are installed together in the venv via requirements.txt.
 
 ```bash
 # Create unified venv (if it doesn't exist)
-python3 -m venv ~/.bitwize-music/venv
+python3 -m venv ~/.bitwize-music/venv                                                    # macOS/Linux/WSL
+py -3 -m venv ~/.bitwize-music/venv                                                       # Windows (native)
 
 # Install ALL plugin dependencies
-~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
+~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt                     # macOS/Linux/WSL
+~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt   # Windows (native)
 
 # Set up document hunter browser
-~/.bitwize-music/venv/bin/playwright install chromium
+~/.bitwize-music/venv/bin/playwright install chromium                                     # macOS/Linux/WSL
+~/.bitwize-music/venv/Scripts/playwright.exe install chromium                             # Windows (native)
 ```
 
-**That's it!** The plugin automatically detects and uses `~/.bitwize-music/venv`. No configuration needed.
+**That's it!** The plugin automatically detects and uses the platform venv (`~/.bitwize-music/venv` on macOS/Linux/WSL, `%USERPROFILE%\.bitwize-music\venv` on native Windows). No configuration needed.
 
 **Works on:**
 - ✅ Linux (externally-managed Python)
 - ✅ macOS
+- ✅ Windows (native — Core tier, best-effort; audio tooling needs WSL2)
 - ✅ Windows (WSL)
 - ✅ All other systems
 
@@ -130,9 +136,13 @@ Present a clear, simple installation guide:
 2. **Missing components**: [list what needs to be installed]
 3. **Installation commands**:
    ```bash
-   python3 -m venv ~/.bitwize-music/venv
-   ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt
-   ~/.bitwize-music/venv/bin/playwright install chromium
+   python3 -m venv ~/.bitwize-music/venv                                                  # macOS/Linux/WSL
+   ~/.bitwize-music/venv/bin/pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt         # macOS/Linux/WSL
+   ~/.bitwize-music/venv/bin/playwright install chromium                                   # macOS/Linux/WSL
+
+   py -3 -m venv ~/.bitwize-music/venv                                                               # Windows (native)
+   ~/.bitwize-music/venv/Scripts/python.exe -m pip install -r ${CLAUDE_PLUGIN_ROOT}/requirements.txt # Windows (native)
+   ~/.bitwize-music/venv/Scripts/playwright.exe install chromium                                     # Windows (native)
    ```
 4. **After installation**:
    - Restart Claude Code to reload the plugin
@@ -173,7 +183,7 @@ Use clear sections with checkboxes for status:
 
 ### Installation
 
-Run these commands to install all plugin dependencies:
+Run these commands to install all plugin dependencies (macOS/Linux/WSL shown; see Step 3 for the Windows native `py -3` / `Scripts\` equivalents):
 
 ```bash
 # Create unified venv
