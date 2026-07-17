@@ -745,7 +745,15 @@ def main(argv: list[str]) -> int:
         # not block, so reap briefly (no-op if it already exited cleanly).
         if server is not None:
             server.kill_tree()
-            server.wait(timeout=5.0)
+            if server.wait(timeout=5.0) is None:
+                # The one theoretically-unsafe path: an unreaped server could
+                # rewrite state.json after the restore. Make it diagnosable.
+                print(
+                    "[WARN] scenario: server still alive after kill; "
+                    "restoring anyway",
+                    file=sys.stderr,
+                    flush=True,
+                )
         if env is not None:
             env.teardown()
 
