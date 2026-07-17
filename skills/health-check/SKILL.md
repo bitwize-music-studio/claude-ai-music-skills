@@ -40,7 +40,7 @@ HEALTH CHECK: WARN
 VENV [warn]
   N outdated: pkg1 (1.0 -> 1.1), pkg2 (2.0 -> 2.1)
   N missing: pkg3, pkg4
-  Fix: ~/.bitwize-music/venv/bin/pip install -r .../requirements.txt
+  Fix: <the venv check's `fix` field from the health_check result> (already the correct pip path for the user's OS)
 
 SKILLS [warn]
   N missing from Claude Code: skill-a, skill-b

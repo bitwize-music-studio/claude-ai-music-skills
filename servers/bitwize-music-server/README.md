@@ -18,6 +18,7 @@ The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools
 
 **Recommended: Virtual environment (all systems)**
 
+macOS/Linux/WSL:
 ```bash
 # Create shared venv for all plugin tools
 python3 -m venv ~/.bitwize-music/venv
@@ -32,7 +33,20 @@ python3 -m venv ~/.bitwize-music/venv
 ~/.bitwize-music/venv/bin/playwright install chromium
 ```
 
-The MCP server automatically detects and uses `~/.bitwize-music/venv` if it exists. No manual configuration needed.
+Windows (native):
+```bat
+:: Create shared venv for all plugin tools
+py -3 -m venv "%USERPROFILE%\.bitwize-music\venv"
+
+:: Install MCP server (required)
+"%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe" -m pip install -r requirements.txt
+
+:: Optional: Install additional tools
+"%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe" -m pip install playwright
+"%USERPROFILE%\.bitwize-music\venv\Scripts\playwright.exe" install chromium
+```
+
+The MCP server automatically detects and uses the platform venv (`~/.bitwize-music/venv` on macOS/Linux/WSL, `%USERPROFILE%\.bitwize-music\venv` on native Windows) if it exists. No manual configuration needed.
 
 **Alternative: User install (externally-managed Python)**
 

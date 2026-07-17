@@ -30,7 +30,8 @@ You perform the 8-step session startup procedure that initializes a working sess
 Quick dependency check:
 
 ```bash
-~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing"
+~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing"        # macOS/Linux/WSL
+~/.bitwize-music/venv/Scripts/python.exe -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing" # Windows (Git Bash; cmd/PowerShell: %USERPROFILE%\.bitwize-music\venv\Scripts\python.exe)
 ```
 
 - If MCP missing: **Stop immediately** and suggest: `/bitwize-music:setup mcp`
