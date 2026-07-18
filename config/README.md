@@ -149,7 +149,7 @@ Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-
 | Setting | Required | Description |
 |---------|----------|-------------|
 | `cloud.enabled` | No | Master switch to enable uploads |
-| `cloud.provider` | No | `r2` (Cloudflare R2) or `s3` (AWS S3) |
+| `cloud.provider` | No | `r2` (Cloudflare R2) or `s3` (AWS S3 / S3-compatible) |
 | `cloud.public_read` | No | Make uploads publicly accessible |
 | `cloud.r2.account_id` | If R2 | Cloudflare account ID |
 | `cloud.r2.access_key_id` | If R2 | R2 API access key |
@@ -159,6 +159,7 @@ Settings for `/bitwize-music:cloud-uploader` skill. See `/reference/cloud/setup-
 | `cloud.s3.access_key_id` | If S3 | IAM access key |
 | `cloud.s3.secret_access_key` | If S3 | IAM secret key |
 | `cloud.s3.bucket` | If S3 | S3 bucket name |
+| `cloud.s3.endpoint_url` | No | S3-compatible endpoint (SeaweedFS, MinIO, Backblaze B2, Wasabi, self-hosted); omit for AWS S3 |
 
 ### Logging (`logging:`)
 

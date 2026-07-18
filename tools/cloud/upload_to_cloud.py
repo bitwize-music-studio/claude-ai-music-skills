@@ -120,6 +120,30 @@ def get_s3_client(config: dict[str, Any]) -> Any:
             logger.error("Required fields: cloud.s3.access_key_id, cloud.s3.secret_access_key")
             sys.exit(1)
 
+        # Generic S3-compatible endpoint (SeaweedFS, MinIO, Backblaze B2,
+        # Wasabi, self-hosted, ...). When cloud.s3.endpoint_url is set we target
+        # it directly instead of AWS's regional endpoints. Path-style
+        # addressing + checksums only "when_required" keep boto3 compatible with
+        # gateways that don't implement virtual-host buckets or the newer
+        # x-amz-checksum-* trailers (SeaweedFS rejects both). AWS-native S3
+        # (no endpoint_url) is left on boto3's defaults, unchanged.
+        endpoint_url = s3_config.get("endpoint_url")
+        if endpoint_url:
+            from botocore.config import Config
+
+            return boto3.client(
+                "s3",
+                endpoint_url=endpoint_url,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=Config(
+                    s3={"addressing_style": "path"},
+                    request_checksum_calculation="when_required",
+                    response_checksum_validation="when_required",
+                ),
+            )
+
         return boto3.client(
             "s3",
             region_name=region,
