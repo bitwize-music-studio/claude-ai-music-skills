@@ -4,6 +4,8 @@
 Only activates for files matching */tracks/*.md pattern.
 Checks required frontmatter fields and valid status values.
 """
+from __future__ import annotations
+
 import json
 import sys
 import re
