@@ -1256,6 +1256,181 @@ class TestWriteStateWindowsReplaceRetry:
 
 
 @pytest.mark.unit
+class TestReadStateWindowsOpenRetry:
+    """read_state must retry a transient Windows open, and must NOT quarantine
+    an OSError as corruption.
+
+    On Windows, while a concurrent write_state is mid-os.replace, a reader's
+    open(STATE_FILE) transiently raises PermissionError WinError 5 / 32. The
+    old code caught it under ``except (json.JSONDecodeError, OSError)`` and
+    treated it as CORRUPTION — backing up the good state.json to a .corrupt
+    copy and returning {}. That is the data-loss-adjacent bug these tests pin:
+    transient contention is retried; a surviving OSError re-raises (never
+    quarantines good state, never returns {}); only genuinely malformed bytes
+    or wrong-shape JSON reach the quarantine path. POSIX open never fails
+    mid-rename, so no retry there. Windows is forced deterministically on Linux
+    by monkeypatching indexer.sys.platform and indexer.open.
+    """
+
+    @staticmethod
+    def _sharing_violation(winerror=5):
+        err = PermissionError("Access is denied")
+        err.winerror = winerror
+        return err
+
+    @staticmethod
+    def _spy_quarantine(monkeypatch, indexer):
+        """Wrap _quarantine_corrupt_state to record calls, preserving behavior."""
+        calls = []
+        real = indexer._quarantine_corrupt_state
+
+        def spy(reason):
+            calls.append(reason)
+            return real(reason)
+
+        monkeypatch.setattr(indexer, "_quarantine_corrupt_state", spy)
+        return calls
+
+    def test_retries_transient_open_then_succeeds_on_windows(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        real_open = open
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_open(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._sharing_violation(5)
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr(indexer, "open", flaky_open, raising=False)
+
+        loaded = read_state()
+
+        assert loaded is not None
+        assert loaded['value'] == 'ok'
+        assert calls["n"] == fail_times + 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_transient_open_gives_up_reraises_without_quarantine_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """THE regression pin: a persistent sharing violation must re-raise —
+        never quarantine good state, never return {}."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'good'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        sleeps = []
+        monkeypatch.setattr(indexer.time, "sleep", lambda s: sleeps.append(s))
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def always_fail(*args, **kwargs):
+            calls["n"] += 1
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer, "open", always_fail, raising=False)
+
+        with pytest.raises(PermissionError):
+            read_state()
+
+        # Bounded retry, same budget as the writer.
+        assert calls["n"] == indexer._REPLACE_RETRY_ATTEMPTS
+        assert len(sleeps) == indexer._REPLACE_RETRY_ATTEMPTS - 1
+        assert sum(sleeps) <= 1.0
+        # Never misclassified as corruption.
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+        # Good state left intact on disk.
+        assert (tmp_path / "state.json").exists()
+
+    def test_non_transient_open_oserror_not_retried_or_quarantined_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """A non-sharing OSError (winerror 2) is not corruption: raise at once,
+        no retry, no quarantine."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_other(*args, **kwargs):
+            calls["n"] += 1
+            err = OSError("no such file")
+            err.winerror = 2  # ERROR_FILE_NOT_FOUND — not a sharing violation
+            raise err
+
+        monkeypatch.setattr(indexer, "open", fail_other, raising=False)
+
+        with pytest.raises(OSError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_posix_open_oserror_not_retried_or_quarantined(self, tmp_path, monkeypatch):
+        """POSIX: a genuine OSError from open is not retried and is not
+        quarantined — it re-raises (open never fails mid-rename on POSIX)."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "linux")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry open on POSIX"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_once(*args, **kwargs):
+            calls["n"] += 1
+            raise PermissionError("Permission denied")
+
+        monkeypatch.setattr(indexer, "open", fail_once, raising=False)
+
+        with pytest.raises(PermissionError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_genuine_corruption_still_quarantines_on_windows(self, tmp_path, monkeypatch):
+        """Malformed JSON is real corruption even on Windows: the retry loop
+        must not swallow a JSONDecodeError — quarantine and return {}."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        (tmp_path / "state.json").write_text("{invalid json content")
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
+
+
+@pytest.mark.unit
 class TestFileLocking:
     """Tests for _acquire_lock_with_timeout()."""
 
