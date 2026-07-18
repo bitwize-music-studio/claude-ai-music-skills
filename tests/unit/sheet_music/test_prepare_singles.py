@@ -371,6 +371,39 @@ class TestFindMusescore:
                 result = mod.find_musescore()
                 assert result == "/usr/local/bin/mscore"
 
+    @patch("platform.system", return_value="Linux")
+    def test_detects_apt_musescore3_binary(self, _mock_platform):
+        """The standard apt `musescore3` package installs /usr/bin/mscore3.
+
+        Regression guard: find_musescore must detect that version-suffixed
+        binary from its Linux path table (previously it returned None, since
+        the table only listed bare `mscore`/`musescore`).
+        """
+        with patch.object(
+            Path, "exists", autospec=True,
+            side_effect=lambda self: str(self) == "/usr/bin/mscore3",
+        ):
+            # subprocess should never be reached — the path table matches first.
+            with patch("subprocess.run", side_effect=AssertionError("PATH fallback should not run")):
+                assert mod.find_musescore() == "/usr/bin/mscore3"
+
+    @patch("platform.system", return_value="Linux")
+    def test_detects_musescore3_via_path_fallback(self, _mock_platform):
+        """When no known absolute path exists, `which musescore3` is tried.
+
+        Covers the broadened PATH-fallback name list (mscore3/musescore3/
+        mscore4/musescore4) for installs outside the known /usr/bin locations.
+        """
+        def which_side_effect(cmd, **kwargs):
+            name = cmd[1]
+            if name == "musescore3":
+                return MagicMock(returncode=0, stdout="/opt/musescore3/bin/musescore3\n")
+            return MagicMock(returncode=1, stdout="")
+
+        with patch.object(Path, "exists", return_value=False):
+            with patch("subprocess.run", side_effect=which_side_effect):
+                assert mod.find_musescore() == "/opt/musescore3/bin/musescore3"
+
 
 # ---------------------------------------------------------------------------
 # export_pdf

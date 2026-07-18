@@ -19,12 +19,11 @@ module is loaded inside a fixture, which only runs for a non-skipped test.
 MuseScore is a Qt GUI app; the CI job runs its CLI headless via
 ``QT_QPA_PLATFORM=offscreen`` (set in the workflow env, not the product).
 
-Binary resolution: ``MUSESCORE_BIN`` (set by the CI job to the apt-installed
-``/usr/bin/mscore3``) takes precedence, falling back to the product's
-``find_musescore()``. See the Task-E report: ``find_musescore()`` does NOT yet
-detect apt ``musescore3`` (it installs ``/usr/bin/mscore3`` +
-``/usr/bin/musescore3``, neither in the product's lookup table) — the
-``test_find_musescore_detects_installed_binary`` test documents that gap.
+Binary resolution: the product's ``find_musescore()`` is preferred (so the
+export test also covers real detection), with ``MUSESCORE_BIN`` as a robustness
+fallback. ``find_musescore()`` detects the apt-installed
+``/usr/bin/mscore3`` directly; ``test_find_musescore_detects_installed_binary``
+pins that.
 """
 
 from __future__ import annotations
@@ -68,13 +67,18 @@ def prepare_singles():
 
 @pytest.fixture
 def musescore_bin(prepare_singles):
-    """Resolve the MuseScore binary: MUSESCORE_BIN first, then find_musescore()."""
-    binary = os.getenv("MUSESCORE_BIN") or prepare_singles.find_musescore()
+    """Resolve the MuseScore binary: find_musescore() first, MUSESCORE_BIN fallback.
+
+    Preferring the product's own discovery means the export test also exercises
+    the real detection path; MUSESCORE_BIN stays as a robustness fallback (e.g.
+    a dev with a non-standard install location).
+    """
+    binary = prepare_singles.find_musescore() or os.getenv("MUSESCORE_BIN")
     if not binary or not Path(binary).exists():
         pytest.skip(
             "MuseScore binary not found "
-            f"(MUSESCORE_BIN={os.getenv('MUSESCORE_BIN')!r}, "
-            f"find_musescore()={prepare_singles.find_musescore()!r})"
+            f"(find_musescore()={prepare_singles.find_musescore()!r}, "
+            f"MUSESCORE_BIN={os.getenv('MUSESCORE_BIN')!r})"
         )
     return binary
 
@@ -107,18 +111,12 @@ def test_export_pdf_dry_run_writes_nothing(prepare_singles, tmp_path):
     assert not pdf.exists()
 
 
-@pytest.mark.xfail(
-    reason="find_musescore() does not yet detect apt musescore3 "
-    "(/usr/bin/mscore3, /usr/bin/musescore3) — pending approved product fix "
-    "(Task-E finding). Remove this marker when the fix lands.",
-    strict=False,
-)
 def test_find_musescore_detects_installed_binary(prepare_singles):
-    """Proves the product can auto-discover the installed MuseScore.
+    """Proves the product auto-discovers the installed MuseScore on its own.
 
-    XFAIL until ``find_musescore()`` learns the ``mscore3`` / ``musescore3``
-    names; when the approved product fix lands this passes and the marker should
-    be removed so it becomes a hard assertion pinning the fix.
+    This pins the Linux detection fix: apt `musescore3` installs
+    ``/usr/bin/mscore3`` (+ a ``musescore3`` symlink), which ``find_musescore()``
+    now recognises without any ``MUSESCORE_BIN`` hint.
     """
     found = prepare_singles.find_musescore()
     assert found is not None, "find_musescore() did not detect the installed MuseScore"
