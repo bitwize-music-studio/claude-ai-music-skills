@@ -381,7 +381,12 @@ class TestFindMusescore:
         """
         with patch.object(
             Path, "exists", autospec=True,
-            side_effect=lambda self: str(self) == "/usr/bin/mscore3",
+            # Compare Path-to-Path, not against a POSIX string literal: the
+            # production code checks Path("/usr/bin/mscore3").exists(), and on
+            # Windows str(WindowsPath("/usr/bin/mscore3")) is "\\usr\\bin\\mscore3",
+            # so a string compare would never match and the test would wrongly
+            # fall through to the PATH fallback. Path equality normalizes on both.
+            side_effect=lambda self: self == Path("/usr/bin/mscore3"),
         ):
             # subprocess should never be reached — the path table matches first.
             with patch("subprocess.run", side_effect=AssertionError("PATH fallback should not run")):
