@@ -31,9 +31,10 @@ import os
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 # fcntl is Unix-only (CPython does not ship it on Windows), so the lock
 # primitives are platform-gated. Both variants expose the same contract:
@@ -973,26 +974,31 @@ _REPLACE_RETRY_INITIAL_WAIT = 0.01  # 10ms
 _REPLACE_RETRY_MAX_WAIT = 0.1  # 100ms per-sleep cap
 _WINDOWS_SHARING_VIOLATION_ERRNOS = (5, 32)
 
+_T = TypeVar("_T")
 
-def _atomic_replace_with_retry(src: str, dst: str) -> None:
-    """Atomically replace ``dst`` with ``src``, retrying Windows sharing violations.
 
-    On POSIX this is a single ``os.replace`` (atomic rename never fails on an
-    open target). On Windows, a concurrent open handle on ``dst`` — a lock-free
-    ``read_state``, another session, or an AV scan — makes ``os.replace`` raise
+def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
+    """Run ``operation``, retrying transient Windows sharing violations.
+
+    Shared by the writer's ``os.replace`` and the reader's ``open`` — both hit
+    the same Windows failure mode. On POSIX ``operation`` runs exactly once:
+    an atomic rename never fails on an open target, and ``open`` never fails
+    mid-rename, so there is nothing transient to retry. On Windows, a
+    concurrent open handle on ``STATE_FILE`` — a lock-free ``read_state``,
+    another session, or an AV scan — makes the operation raise
     ``PermissionError`` with ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
     (ERROR_SHARING_VIOLATION) until that handle closes. Only those transient
     errors are retried, with a bounded backoff; every other error (and the
     final attempt) propagates immediately so a genuinely stuck file still
-    fails loudly. ``getattr(e, "winerror", ...)`` is platform-safe: the
-    attribute only exists on Windows OSErrors.
+    fails loudly rather than being silently swallowed or misclassified.
+    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only
+    exists on Windows OSErrors.
     """
     if sys.platform == "win32":
         wait = _REPLACE_RETRY_INITIAL_WAIT
         for attempt in range(_REPLACE_RETRY_ATTEMPTS):
             try:
-                os.replace(src, dst)
-                return
+                return operation()
             except OSError as e:
                 transient = (
                     getattr(e, "winerror", None) in _WINDOWS_SHARING_VIOLATION_ERRNOS
@@ -1001,9 +1007,21 @@ def _atomic_replace_with_retry(src: str, dst: str) -> None:
                     raise
                 time.sleep(wait)
                 wait = min(wait * 2, _REPLACE_RETRY_MAX_WAIT)
-    else:
-        # POSIX: atomic rename never fails on an open target, so no retry.
-        os.replace(src, dst)
+    # POSIX: nothing transient to retry — run once and let errors propagate.
+    # (Also the win32 fall-through, which the loop above never actually reaches
+    # since its final attempt returns or raises; kept so mypy sees a return on
+    # every path and matches how it skips the platform-guarded block on POSIX.)
+    return operation()
+
+
+def _atomic_replace_with_retry(src: str, dst: str) -> None:
+    """Atomically replace ``dst`` with ``src``, retrying Windows sharing violations.
+
+    On POSIX this is a single ``os.replace`` (atomic rename never fails on an
+    open target). On Windows, a concurrent open handle on ``dst`` is retried
+    via :func:`_retry_on_windows_sharing_violation`.
+    """
+    _retry_on_windows_sharing_violation(lambda: os.replace(src, dst))
 
 
 def write_state(state: dict[str, Any]) -> None:
@@ -1072,20 +1090,42 @@ def _quarantine_corrupt_state(reason: str) -> dict[str, Any]:
     return {}
 
 
+def _load_state_file() -> Any:
+    """Open and parse STATE_FILE, returning the decoded JSON value."""
+    with open(STATE_FILE, encoding='utf-8') as f:
+        return json.load(f)
+
+
 def read_state() -> dict[str, Any] | None:
     """Read state from cache file.
+
+    Quarantine (back up + return empty) is reserved for *genuine corruption* —
+    the bytes are present but are not valid state: malformed JSON, or JSON that
+    decodes to the wrong shape (list/str/number). An ``OSError`` from the open
+    is never corruption. On Windows a transient sharing violation (winerror
+    5/32) from a concurrent ``write_state`` mid-``os.replace`` is retried with
+    the same budget as the writer; any ``OSError`` that survives the retry
+    (persistent contention, a real permission/disk fault) re-raises so the
+    caller sees a genuinely-unreadable file rather than a wiped, quarantined
+    view of good state (#487). POSIX ``open`` never fails mid-rename, so an
+    ``OSError`` there re-raises immediately.
 
     Returns:
         Parsed state dict, empty dict if corrupted or not a JSON object
         (after backup), or None if missing.
+
+    Raises:
+        OSError: The file exists but could not be read (never quarantined).
     """
     if not STATE_FILE.exists():
         return None
     try:
-        with open(STATE_FILE, encoding='utf-8') as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        data = _retry_on_windows_sharing_violation(_load_state_file)
+    except json.JSONDecodeError as e:
+        # Bytes are there but are not valid JSON — genuine corruption (#393).
         return _quarantine_corrupt_state(f"Corrupted state file: {e}")
+    # OSError deliberately not caught: it is contention or a real read fault,
+    # not corruption, so it must never trigger quarantine — let it propagate.
     if not isinstance(data, dict):
         # JSON-valid but wrong shape (list/str/number) — same recovery as
         # corrupted JSON: back it up and start fresh (#393 family)
