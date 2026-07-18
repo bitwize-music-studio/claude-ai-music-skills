@@ -132,46 +132,49 @@ def album_slug(pg_direct):
 
 
 @pytest.fixture
-def s3_client():
-    """A boto3 S3 client pointed at the SeaweedFS S3 gateway.
+def cloud_config():
+    """A cloud config dict pointing the ``s3`` provider at SeaweedFS via the
+    generic ``cloud.s3.endpoint_url`` support.
 
-    This is the one piece ``upload_to_cloud.get_s3_client`` would otherwise
-    build — but that helper only knows AWS/R2 endpoints and can't target an
-    arbitrary S3-compatible host (see task-D-report.md). Injecting the client
-    lets the test drive the product's *real* upload code (``retry_upload`` /
-    ``upload_file``) against a real service without a product change.
-
-    The Config pre-empts two well-known SeaweedFS + boto3 quirks:
-      * path-style addressing (SeaweedFS has no virtual-host buckets); and
-      * ``request_checksum_calculation="when_required"`` — newer boto3 sends
-        ``x-amz-checksum-*`` trailers by default, which some SeaweedFS builds
-        reject on PUT.
+    This is the exact shape ``upload_to_cloud`` reads, so the test drives the
+    real config -> ``get_s3_client`` / ``get_bucket_name`` construction path.
     """
-    import boto3
-    from botocore.config import Config
-
-    cfg = Config(
-        signature_version="s3v4",
-        s3={"addressing_style": "path"},
-        request_checksum_calculation="when_required",
-        response_checksum_validation="when_required",
-    )
-    return boto3.client(
-        "s3",
-        endpoint_url=os.getenv("S3_ENDPOINT_URL", "http://localhost:8333"),
-        aws_access_key_id=os.getenv("S3_ACCESS_KEY_ID", "bitwizekey"),
-        aws_secret_access_key=os.getenv("S3_SECRET_ACCESS_KEY", "bitwizesecret"),
-        region_name=os.getenv("S3_REGION", "us-east-1"),
-        config=cfg,
-    )
+    return {
+        "artist": {"name": "integration-artist"},
+        "cloud": {
+            "enabled": True,
+            "provider": "s3",
+            "s3": {
+                "endpoint_url": os.getenv("S3_ENDPOINT_URL", "http://localhost:8333"),
+                "region": os.getenv("S3_REGION", "us-east-1"),
+                "access_key_id": os.getenv("S3_ACCESS_KEY_ID", "bitwizekey"),
+                "secret_access_key": os.getenv("S3_SECRET_ACCESS_KEY", "bitwizesecret"),
+                "bucket": os.getenv("S3_BUCKET", "bitwize-integration"),
+            },
+        },
+    }
 
 
 @pytest.fixture
-def s3_bucket(s3_client):
-    """Ensure the target bucket exists; empty + remove it on teardown."""
+def s3_client(cloud_config):
+    """The S3 client built by the PRODUCT's ``get_s3_client`` — this exercises
+    the new generic-endpoint construction path (path-style + checksums), not a
+    hand-built client.
+    """
+    from tools.cloud import upload_to_cloud
+
+    return upload_to_cloud.get_s3_client(cloud_config)
+
+
+@pytest.fixture
+def s3_bucket(s3_client, cloud_config):
+    """Bucket name via the product's ``get_bucket_name``; create it, then empty
+    + remove it on teardown."""
     from botocore.exceptions import ClientError
 
-    bucket = os.getenv("S3_BUCKET", "bitwize-integration")
+    from tools.cloud import upload_to_cloud
+
+    bucket = upload_to_cloud.get_bucket_name(cloud_config)
     with contextlib.suppress(ClientError):  # already exists — fine
         s3_client.create_bucket(Bucket=bucket)
     yield bucket

@@ -1,18 +1,16 @@
 """Real-S3 integration test for the cloud-upload path, backed by SeaweedFS.
 
-Exercises the product's actual upload code — ``upload_to_cloud.retry_upload``
--> ``upload_file`` -> boto3 ``upload_file`` (PutObject) — against a live
-SeaweedFS S3 gateway, then verifies the object via boto3.
+Exercises the FULL product path against a live SeaweedFS S3 gateway:
 
-Why the client is injected rather than built by ``get_s3_client``: that helper
-only supports AWS-native S3 (region-based) and Cloudflare R2 (a hardcoded
-``*.r2.cloudflarestorage.com`` endpoint). It has no way to target an arbitrary
-S3-compatible endpoint like SeaweedFS, so the config-driven path cannot reach
-SeaweedFS without a product change (see task-D-report.md — an optional,
-approval-gated ``cloud.s3.endpoint_url`` enhancement is proposed there). The
-meaningful product code — content-type detection, ExtraArgs/ACL handling, the
-PutObject call, error handling, and the retry wrapper — lives in
-``upload_file``/``retry_upload``, which the injected client drives faithfully.
+    config (cloud.s3.endpoint_url -> SeaweedFS)
+      -> upload_to_cloud.get_s3_client   (the new generic-endpoint branch)
+      -> upload_to_cloud.get_bucket_name
+      -> upload_to_cloud.retry_upload -> upload_file -> boto3 PutObject
+
+then verifies the object via boto3. No hand-built client — the client under
+test is the one the product constructs from config, so this covers the
+construction path (endpoint_url + path-style + checksum-when-required) as well
+as the upload path. See ``conftest.py`` (cloud_config / s3_client / s3_bucket).
 
 Gated behind the ``integration`` marker AND ``BITWIZE_INTEGRATION`` so the
 normal suite / 3-OS matrix collect-and-skip (no SeaweedFS present).
