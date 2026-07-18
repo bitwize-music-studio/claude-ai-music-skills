@@ -40,7 +40,13 @@ read_state() contract (pinned from tools/state/indexer.py, do not invent one):
     * missing file            -> returns ``None``
     * corrupt / partial JSON,
       or a JSON non-object    -> copies the file to ``state.<ts>.corrupt`` and
-                                 returns ``{}`` (it never raises)
+                                 returns ``{}``
+    * a transient Windows sharing violation (winerror 5/32) that outlives
+      read_state's bounded retry budget -> RE-RAISES the ``OSError`` (#489):
+      it is cross-process contention, not corruption, so it is deliberately
+      never quarantined. The reader worker catches and tolerates this rare
+      case (see MODE=="reader") — under this test's pathological write burst a
+      reader can, occasionally, exhaust the budget on one iteration.
     * a valid JSON object     -> returns it
 The reader's ``None`` / ``{}`` / marker-less branches assert this contract as
 live documentation, but they are UNREACHABLE-BY-DESIGN while the atomic-replace
@@ -127,8 +133,22 @@ if MODE == "writer":
     sys.exit(0)
 
 elif MODE == "reader":
+    os_errors = 0
     for _ in range(ITERS):
-        state = indexer.read_state()
+        try:
+            state = indexer.read_state()
+        except OSError as exc:
+            # Post-#489 contract: read_state RE-RAISES a transient Windows
+            # sharing violation (winerror 5/32) that outlived its bounded retry
+            # budget. Under this test's deliberately pathological multi-writer
+            # burst the reader can, rarely, exhaust that budget on one
+            # iteration -- that is contention, not a torn read or corruption, so
+            # tolerate it and move on. On POSIX read_state never raises here
+            # (open cannot fail mid-rename), so os_errors stays 0 and this
+            # branch is Windows-only in practice.
+            os_errors += 1
+            sys.stderr.write("READER_TRANSIENT_OSERROR: %r\\n" % (exc,))
+            continue
         if state is None:
             sys.stderr.write("READER_SAW_NONE (missing file mid-run)\\n")
             sys.exit(11)
@@ -141,6 +161,12 @@ elif MODE == "reader":
             sys.stderr.write("READER_SAW_TORN: %r\\n" % (state,))
             sys.exit(13)
         _sleep_jitter(0.002)
+    # A rare transient raise is expected; a PERVASIVE one means read_state's
+    # retry is broken (or every read is faulting) -- fail loudly rather than
+    # silently skipping the whole loop and exiting 0.
+    if os_errors > ITERS // 4:
+        sys.stderr.write("READER_TOO_MANY_OSERRORS: %d/%d\\n" % (os_errors, ITERS))
+        sys.exit(14)
     sys.exit(0)
 
 sys.stderr.write("UNKNOWN_MODE: %r\\n" % (MODE,))
