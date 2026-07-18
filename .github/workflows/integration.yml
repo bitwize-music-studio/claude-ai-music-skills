@@ -119,9 +119,10 @@ jobs:
       # MuseScore is a Qt GUI app; run its CLI headless with the offscreen
       # platform plugin (verified locally to export a real PDF this way).
       QT_QPA_PLATFORM: offscreen
-      # apt `musescore3` installs /usr/bin/mscore3 (+ a musescore3 symlink);
-      # find_musescore() does not yet detect that name (Task-E finding), so
-      # point the test at it explicitly.
+      # apt `musescore3` installs /usr/bin/mscore3 (+ a musescore3 symlink),
+      # which find_musescore() now detects on its own; the test prefers that
+      # and only falls back to MUSESCORE_BIN, kept here as a belt-and-braces
+      # pin against future PATH surprises on the runner.
       MUSESCORE_BIN: /usr/bin/mscore3
 
     steps:
