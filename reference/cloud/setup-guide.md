@@ -171,6 +171,27 @@ cloud:
   public_read: false
 ```
 
+#### S3-compatible endpoints (SeaweedFS, MinIO, Backblaze B2, Wasabi, self-hosted)
+
+The `s3` provider also targets any S3-compatible service. Add an
+`endpoint_url` under `cloud.s3` and keep `provider: "s3"`:
+
+```yaml
+cloud:
+  enabled: true
+  provider: "s3"
+  s3:
+    endpoint_url: "http://localhost:8333"   # e.g. a SeaweedFS S3 gateway
+    region: "us-east-1"                       # any value the endpoint accepts
+    access_key_id: "your-access-key"
+    secret_access_key: "your-secret-key"
+    bucket: "promo-videos"
+```
+
+When `endpoint_url` is set, the client uses **path-style addressing** (many
+S3-compatible gateways don't implement virtual-host buckets) and only sends
+request checksums when the API requires them. Omit `endpoint_url` for AWS S3.
+
 ### Step 6: Enable Public Access (Optional)
 
 If you need public URLs:

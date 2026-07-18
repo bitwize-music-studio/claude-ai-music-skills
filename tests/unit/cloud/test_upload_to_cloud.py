@@ -3,7 +3,7 @@
 import sys
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -340,12 +340,67 @@ class TestGetS3Client:
             }
         }
         mod.get_s3_client(config)
+        # AWS-native S3 (no endpoint_url) stays on boto3 defaults — no config,
+        # no endpoint override.
         mock_boto3.client.assert_called_once_with(
             "s3",
             region_name="eu-west-1",
             aws_access_key_id="key",
             aws_secret_access_key="secret",
         )
+
+    @patch.object(mod, "boto3")
+    def test_s3_provider_no_endpoint_url_omits_config(self, mock_boto3):
+        """Without endpoint_url the client is built with no botocore Config."""
+        config = {
+            "cloud": {
+                "provider": "s3",
+                "s3": {
+                    "region": "us-east-1",
+                    "access_key_id": "key",
+                    "secret_access_key": "secret",
+                },
+            }
+        }
+        mod.get_s3_client(config)
+        _, kwargs = mock_boto3.client.call_args
+        assert "config" not in kwargs
+        assert "endpoint_url" not in kwargs
+
+    @patch.object(mod, "boto3")
+    def test_s3_provider_with_generic_endpoint(self, mock_boto3):
+        """A configured cloud.s3.endpoint_url builds a client against that
+        endpoint with path-style addressing + checksum-when-required (the
+        SeaweedFS / S3-compatible path)."""
+        config = {
+            "cloud": {
+                "provider": "s3",
+                "s3": {
+                    "endpoint_url": "http://localhost:8333",
+                    "region": "us-east-1",
+                    "access_key_id": "key",
+                    "secret_access_key": "secret",
+                },
+            }
+        }
+        mod.get_s3_client(config)
+        args, kwargs = mock_boto3.client.call_args
+        assert args == ("s3",)
+        assert kwargs["endpoint_url"] == "http://localhost:8333"
+        assert kwargs["region_name"] == "us-east-1"
+        assert kwargs["aws_access_key_id"] == "key"
+        assert kwargs["aws_secret_access_key"] == "secret"
+        # The Config comes from the real botocore (lazily imported inside the
+        # branch), so we can assert on its resolved attributes.
+        cfg = kwargs["config"]
+        assert cfg.s3 == {"addressing_style": "path"}
+        assert cfg.request_checksum_calculation == "when_required"
+        assert cfg.response_checksum_validation == "when_required"
+
+    def test_missing_s3_credentials_exits(self):
+        config = {"cloud": {"provider": "s3", "s3": {"endpoint_url": "http://x:8333"}}}
+        with pytest.raises(SystemExit):
+            mod.get_s3_client(config)
 
     def test_missing_r2_credentials_exits(self):
         config = {"cloud": {"provider": "r2", "r2": {"account_id": "abc"}}}
