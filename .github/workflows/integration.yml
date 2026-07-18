@@ -97,8 +97,62 @@ jobs:
 
     - name: Run integration tests
       run: |
-        python -m pytest tests/integration -m integration -v --tb=short
+        python -m pytest tests/integration/test_postgres_db_tools.py tests/integration/test_s3_upload_seaweedfs.py -m integration -v --tb=short
 
     - name: SeaweedFS logs (on failure)
       if: failure()
       run: docker logs seaweedfs || true
+
+  musescore:
+    name: Integration (MuseScore PDF export)
+    runs-on: ubuntu-latest
+    # Same fork-PR guard as the other jobs — untrusted code could modify
+    # requirements/test files.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 20
+
+    env:
+      # The env gate: only with this set does the double-gated MuseScore test
+      # actually run (otherwise it collect-and-skips like the normal suite).
+      BITWIZE_INTEGRATION: "1"
+      PYTHONUTF8: "1"
+      # MuseScore is a Qt GUI app; run its CLI headless with the offscreen
+      # platform plugin (verified locally to export a real PDF this way).
+      QT_QPA_PLATFORM: offscreen
+      # apt `musescore3` installs /usr/bin/mscore3 (+ a musescore3 symlink);
+      # find_musescore() does not yet detect that name (Task-E finding), so
+      # point the test at it explicitly.
+      MUSESCORE_BIN: /usr/bin/mscore3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install MuseScore (musescore3) + xvfb
+      run: |
+        sudo apt-get update
+        # xvfb is a headless fallback if the offscreen plugin misbehaves on the
+        # runner; the primary path is QT_QPA_PLATFORM=offscreen.
+        sudo apt-get install -y musescore3 xvfb
+        echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
+        ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
+
+    - name: MuseScore diagnostics
+      run: |
+        "${MUSESCORE_BIN}" --version || true
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    - name: Run MuseScore integration test
+      run: |
+        python -m pytest tests/integration/test_musescore_export.py -m integration -v --tb=short
