@@ -85,11 +85,17 @@ def find_musescore() -> str | None:
     locator = 'where' if system == 'windows' else 'which'
     for name in ('mscore', 'musescore', 'mscore4', 'musescore4', 'mscore3', 'musescore3'):
         try:
-            result = subprocess.run([locator, name], capture_output=True, text=True)
+            result = subprocess.run(
+                [locator, name], capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+            )
             if result.returncode == 0:
-                found = result.stdout.strip().split('\n')[0]
-                if found:
-                    return found
+                # Windows `where` prints one line per match; take the first only.
+                # splitlines() (not split('\n')) so CRLF leaves no trailing '\r'.
+                for line in result.stdout.splitlines():
+                    found = line.strip()
+                    if found:
+                        return found
         except (FileNotFoundError, subprocess.SubprocessError):
             pass
 
@@ -133,6 +139,8 @@ def export_pdf(xml_path: Path, pdf_path: Path, musescore_path: str, dry_run: boo
             [musescore_path, '-o', str(pdf_path), str(xml_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60
         )
 

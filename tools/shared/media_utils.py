@@ -80,7 +80,7 @@ def check_ffmpeg(require_showwaves: bool = False) -> bool:
     try:
         result = subprocess.run(
             ['ffmpeg', '-filters'],
-            capture_output=True, text=True
+            capture_output=True, text=True, encoding="utf-8", errors="replace"
         )
         if require_showwaves and 'showwaves' not in result.stdout:
             logger.warning("ffmpeg showwaves filter not found. Visualization may not work.")
@@ -99,7 +99,7 @@ def get_audio_duration(audio_path: Path) -> float:
         '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1',
         str(audio_path)
-    ], capture_output=True, text=True)
+    ], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(f"ffprobe failed for {audio_path}: {result.stderr.strip()}")
     return float(result.stdout.strip())

@@ -92,10 +92,17 @@ def find_anthemscore() -> str | None:
         result = subprocess.run(
             ['which', 'anthemscore'] if system != 'windows' else ['where', 'anthemscore'],
             capture_output=True,
-            text=True
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if result.returncode == 0:
-            return result.stdout.strip()
+            # Windows `where` prints one line per match; take the first only.
+            # splitlines() (not split('\n')) so CRLF leaves no trailing '\r'.
+            for line in result.stdout.splitlines():
+                found = line.strip()
+                if found:
+                    return found
     except (FileNotFoundError, subprocess.SubprocessError):
         pass
 
@@ -239,6 +246,8 @@ def transcribe_track(anthemscore: str, wav_file: Path, output_dir: Path, args: a
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300  # 5 minute timeout
         )
 
