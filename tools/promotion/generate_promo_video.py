@@ -54,6 +54,7 @@ from tools.shared.media_utils import (
     check_ffmpeg as _check_ffmpeg,
 )
 from tools.shared.media_utils import (
+    escape_filter_path,
     extract_dominant_color,
     find_best_segment,
     get_analogous_colors,
@@ -299,6 +300,16 @@ def generate_waveform_video(
              scale=sqrt:draw=line:zoom=1.5:rc=255:gc=255:bc=255[wave_raw];
              [wave_raw]pad={WIDTH}:{viz_height}:(ow-iw)/2:(oh-ih)/2:black[wave]"""
 
+    # Paths interpolated into the filtergraph must be quoted and escaped: on
+    # Windows a bare `C:\...` truncates at the drive-letter colon (which the
+    # graph splits options on) and its backslashes are eaten as filtergraph
+    # escapes. Verified on a real windows-latest runner — see
+    # escape_filter_path. The ffmpeg argv entries (-i, output) are NOT escaped:
+    # subprocess passes those verbatim.
+    title_file_expr = escape_filter_path(title_file_path)
+    artist_file_expr = escape_filter_path(artist_file_path)
+    font_expr = escape_filter_path(font_path)
+
     # Build the complex filter
     filter_complex = f"""
     [1:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,
@@ -314,16 +325,16 @@ def generate_waveform_video(
 
     [base][wave]overlay=0:H-750[withwave];
 
-    [withwave]drawtext=textfile='{title_file_path}':
-         fontfile={font_path}:
+    [withwave]drawtext=textfile={title_file_expr}:
+         fontfile={font_expr}:
          fontsize={TITLE_FONT_SIZE}:
          fontcolor={effective_text_color}:
          x=(w-text_w)/2:
          y=h-130:
          shadowcolor=black:shadowx=2:shadowy=2[withtitle];
 
-    [withtitle]drawtext=textfile='{artist_file_path}':
-         fontfile={font_path}:
+    [withtitle]drawtext=textfile={artist_file_expr}:
+         fontfile={font_expr}:
          fontsize={ARTIST_FONT_SIZE}:
          fontcolor={effective_text_color}@0.8:
          x=(w-text_w)/2:

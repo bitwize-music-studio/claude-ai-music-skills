@@ -150,3 +150,49 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
     except Exception as e:
         logger.warning("Energy analysis failed: %s, using fallback", e)
         return min(total_duration * 0.2, max_start)
+
+
+def escape_filter_path(path: str | Path) -> str:
+    """Quote and escape a filesystem path for use *inside an ffmpeg filtergraph*.
+
+    Returns a single-quoted expression, e.g.::
+
+        'C\\:/Windows/Fonts/arialbd.ttf'
+
+    Only needed for paths interpolated into a ``-filter_complex`` / ``-vf``
+    string (``fontfile=``, ``textfile=``). Paths passed as ordinary argv
+    elements (``-i``, the output path) must NOT go through this — subprocess
+    passes those verbatim and quoting would become part of the filename.
+
+    Three transformations, each load-bearing on Windows:
+
+    1. Backslashes become forward slashes. ``\\`` is the filtergraph escape
+       character, so ``C:\\Windows`` would otherwise have ``\\W`` eaten as an
+       escape. ffmpeg accepts forward slashes on Windows.
+    2. ``:`` is escaped. It separates filter options, so an unescaped drive
+       letter truncates the option at ``C``.
+    3. The result is single-quoted, which covers spaces (``C:/Program Files``).
+
+    Steps 2 and 3 are both required — this was determined empirically on a real
+    windows-latest runner, not from the docs. A filtergraph is parsed in layers:
+    the option split on ``:`` happens *before* quote processing, so quoting
+    alone does not protect the colon. Measured there against ffmpeg (Chocolatey
+    build), rendering one real frame per variant:
+
+        fontfile=C:\\Windows\\...          -> "No option name near ..."   FAIL
+        fontfile=C:/Windows/...           -> "No option name near ..."   FAIL
+        fontfile=C\\:/Windows/...          -> "No option name near ..."   FAIL
+        fontfile='C:/Windows/...'         -> "No option name near ..."   FAIL
+        fontfile='C\\:/Windows/...'        -> renders                    PASS
+
+    On POSIX this is a near no-op: there are no backslashes and no colons in a
+    normal path, so it only adds the surrounding quotes.
+    """
+    text = str(path).replace("\\", "/")
+    # A literal ' cannot appear inside a single-quoted filtergraph token; the
+    # documented workaround is to close the quote, emit an escaped quote, and
+    # reopen. Applied before the colon pass so the inserted characters are not
+    # themselves rewritten.
+    text = text.replace("'", "'\\''")
+    text = text.replace(":", "\\:")
+    return f"'{text}'"
