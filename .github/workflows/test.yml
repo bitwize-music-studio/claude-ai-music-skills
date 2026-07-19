@@ -9,10 +9,23 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes to the same PR/branch stack full 3-OS matrices; keep only the
+# newest run per ref.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+# Test harness has encoding-less text I/O; product code is explicit UTF-8 — this
+# pins every job's env on Windows runners whose locale is cp1252. Workflow-level
+# so the stdio JSON-RPC jobs (mcp-boot) inherit it too.
+env:
+  PYTHONUTF8: "1"
+
 jobs:
   validate:
     name: Static Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -196,9 +209,6 @@ jobs:
             timeout: 45
           - os: windows-latest
             timeout: 60
-    env:
-      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
-      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -333,6 +343,7 @@ jobs:
     runs-on: ubuntu-latest
     # Skip for fork PRs — untrusted code could modify requirements files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
@@ -387,6 +398,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code

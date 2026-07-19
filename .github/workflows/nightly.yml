@@ -25,6 +25,13 @@ concurrency:
   group: nightly
   cancel-in-progress: true
 
+# Test harness has encoding-less text I/O; product code is explicit UTF-8 — this
+# pins every job's env on Windows runners whose locale is cp1252. Workflow-level
+# so the stdio JSON-RPC job (mcp-e2e) inherits it too. Note: job-level env does
+# NOT cross the WSL boundary — wsl2-suite exports PYTHONUTF8 inside the distro.
+env:
+  PYTHONUTF8: "1"
+
 jobs:
   deep-test:
     name: Deep Tests (${{ matrix.os }} / py${{ matrix.python }})
@@ -46,9 +53,6 @@ jobs:
           - os: ubuntu-latest
             python: '3.13'
             experimental: true
-    env:
-      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
-      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -97,11 +101,29 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run tests
+      id: tests
       # No coverage gate here — coverage is the PR job's (test.yml) gate.
       # Nightly's job is proving from-scratch installs and extra Python
       # versions across all three OSes, not re-litigating coverage.
       run: |
         python -m pytest tests/ --tb=short -n auto
+
+    # Experimental legs run under continue-on-error, which reports the JOB as
+    # successful — so notify-failure's `if: failure()` never fires for them and
+    # a broken 3.12/3.13 leg is invisible unless a human opens the run. Publish
+    # the real step outcome to the run's summary page so every leg is legible
+    # at a glance. `if: always()` is required: a failed step otherwise skips
+    # the rest of the job even under continue-on-error.
+    - name: Record leg outcome in job summary
+      if: always()
+      shell: bash
+      env:
+        LEG: "${{ matrix.os }} / py${{ matrix.python }}"
+        OUTCOME: "${{ steps.tests.outcome }}"
+        TIER: "${{ matrix.experimental && 'experimental' || 'supported' }}"
+      run: |
+        if [ "$OUTCOME" = "success" ]; then icon="✅"; else icon="❌"; fi
+        echo "$icon **$LEG** ($TIER) — tests: \`$OUTCOME\`" >> "$GITHUB_STEP_SUMMARY"
 
   mcp-e2e:
     name: MCP e2e nightly (${{ matrix.os }})
