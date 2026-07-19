@@ -79,6 +79,17 @@ jobs:
       if: runner.os == 'Windows'
       run: choco install ffmpeg -y --no-progress
 
+    # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
+    # so a half-succeeded install (or a PATH the shim never reached) would let
+    # ~10 audio tests silently skip while the leg still went green. Assert both
+    # binaries resolve here instead. shell: bash runs with -eo pipefail on all
+    # three OSes (Git Bash on Windows), so a missing binary fails the job.
+    - name: Verify ffmpeg and ffprobe are on PATH
+      shell: bash
+      run: |
+        ffmpeg -version
+        ffprobe -version
+
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
