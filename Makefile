@@ -42,10 +42,12 @@ test: $(VENV)/bin/activate
 		--cov-fail-under=75
 
 lint: $(VENV)/bin/activate
-	$(RUFF) check tools/ servers/
+	# hooks/ is in scope: it auto-executes on every Write/Edit in every user
+	# session, so it gets the same lint gate as tools/ and servers/
+	$(RUFF) check tools/ servers/ hooks/
 	# PLW1514 (unspecified-encoding) is preview-only, so it runs as a
 	# dedicated scoped invocation instead of enabling preview repo-wide
-	$(RUFF) check tools/ servers/ --select PLW1514 --preview
+	$(RUFF) check tools/ servers/ hooks/ --select PLW1514 --preview
 	# -s B108: tmpfile paths (reviewed manually)
 	# -s B608: SQL string construction (all callsites use %s params; nosec
 	#         markers remain as documentation but bandit noise at -ll level

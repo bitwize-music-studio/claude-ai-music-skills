@@ -348,15 +348,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
 
+    # hooks/ is in scope: it auto-executes on every Write/Edit in every user
+    # session, so it gets the same lint gate as tools/ and servers/.
     - name: Run ruff linter
       run: |
-        ruff check tools/ servers/
+        ruff check tools/ servers/ hooks/
 
     # PLW1514 (unspecified-encoding) is preview-only, so it runs as a
     # dedicated scoped invocation instead of enabling preview repo-wide
     - name: Run ruff encoding check (PLW1514)
       run: |
-        ruff check tools/ servers/ --select PLW1514 --preview
+        ruff check tools/ servers/ hooks/ --select PLW1514 --preview
 
     - name: Run bandit security linter
       run: |
