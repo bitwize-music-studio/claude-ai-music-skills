@@ -25,13 +25,6 @@ concurrency:
   group: nightly
   cancel-in-progress: true
 
-# Test harness has encoding-less text I/O; product code is explicit UTF-8 — this
-# pins every job's env on Windows runners whose locale is cp1252. Workflow-level
-# so the stdio JSON-RPC job (mcp-e2e) inherits it too. Note: job-level env does
-# NOT cross the WSL boundary — wsl2-suite exports PYTHONUTF8 inside the distro.
-env:
-  PYTHONUTF8: "1"
-
 jobs:
   deep-test:
     name: Deep Tests (${{ matrix.os }} / py${{ matrix.python }})
@@ -53,6 +46,11 @@ jobs:
           - os: ubuntu-latest
             python: '3.13'
             experimental: true
+    env:
+      # Scoped to this job ON PURPOSE — see the note on test.yml's `test` job.
+      # Do NOT hoist to workflow level: mcp-e2e must stay WITHOUT it.
+      # (Job-level env does not cross the WSL boundary; wsl2-suite exports its own.)
+      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -125,6 +123,10 @@ jobs:
         if [ "$OUTCOME" = "success" ]; then icon="✅"; else icon="❌"; fi
         echo "$icon **$LEG** ($TIER) — tests: \`$OUTCOME\`" >> "$GITHUB_STEP_SUMMARY"
 
+  # DELIBERATELY has no PYTHONUTF8 — same rationale as test.yml's mcp-boot job:
+  # this drives a real stdio JSON-RPC handshake, so it must run in the cp1252
+  # locale a real user's MCP server starts in. Adding the var here would mask
+  # encoding regressions in the boot/stdio path.
   mcp-e2e:
     name: MCP e2e nightly (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

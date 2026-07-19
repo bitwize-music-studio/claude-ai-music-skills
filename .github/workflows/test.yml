@@ -15,12 +15,6 @@ concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
-# Test harness has encoding-less text I/O; product code is explicit UTF-8 — this
-# pins every job's env on Windows runners whose locale is cp1252. Workflow-level
-# so the stdio JSON-RPC jobs (mcp-boot) inherit it too.
-env:
-  PYTHONUTF8: "1"
-
 jobs:
   validate:
     name: Static Validation
@@ -209,6 +203,11 @@ jobs:
             timeout: 45
           - os: windows-latest
             timeout: 60
+    env:
+      # Scoped to this job ON PURPOSE. The *test harness* still has encoding-less
+      # text I/O, so it needs UTF-8 mode on cp1252 Windows runners. Do NOT hoist
+      # to workflow level: mcp-boot must stay WITHOUT it (see that job's note).
+      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -280,6 +279,14 @@ jobs:
         path: coverage-html/
         retention-days: 14
 
+  # DELIBERATELY has no PYTHONUTF8. This job drives a real stdio JSON-RPC
+  # handshake through the same launcher `.mcp.json` invokes, so on windows-latest
+  # it runs in the cp1252 locale a real user's MCP server actually starts in —
+  # Claude Code sets no UTF-8 mode. That fidelity is the point: it is the only
+  # job that would catch an encoding regression in the boot/stdio path. Do not
+  # "fix the inconsistency" by adding PYTHONUTF8 here; that would mask exactly
+  # the class of bug this job exists to find. (The `test` job scopes the var to
+  # itself because the test *harness* still has encoding-less I/O.)
   mcp-boot:
     name: MCP Server Boot (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
