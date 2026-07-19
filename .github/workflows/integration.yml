@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes to the same PR/branch stack Docker + service-container jobs;
+# keep only the newest run per ref.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   integration:
     name: Integration (Postgres + SeaweedFS)

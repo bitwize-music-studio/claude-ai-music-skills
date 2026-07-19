@@ -7,9 +7,8 @@ Checks required frontmatter fields and valid status values.
 from __future__ import annotations
 
 import json
-import sys
 import re
-
+import sys
 
 REQUIRED_FIELDS = ["title", "track_number", "status"]
 VALID_STATUSES = [

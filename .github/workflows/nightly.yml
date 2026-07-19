@@ -47,7 +47,9 @@ jobs:
             python: '3.13'
             experimental: true
     env:
-      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
+      # Scoped to this job ON PURPOSE — see the note on test.yml's `test` job.
+      # Do NOT hoist to workflow level: mcp-e2e must stay WITHOUT it.
+      # (Job-level env does not cross the WSL boundary; wsl2-suite exports its own.)
       PYTHONUTF8: "1"
 
     steps:
@@ -79,6 +81,17 @@ jobs:
       if: runner.os == 'Windows'
       run: choco install ffmpeg -y --no-progress
 
+    # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
+    # so a half-succeeded install (or a PATH the shim never reached) would let
+    # ~10 audio tests silently skip while the leg still went green. Assert both
+    # binaries resolve here instead. shell: bash runs with -eo pipefail on all
+    # three OSes (Git Bash on Windows), so a missing binary fails the job.
+    - name: Verify ffmpeg and ffprobe are on PATH
+      shell: bash
+      run: |
+        ffmpeg -version
+        ffprobe -version
+
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
@@ -86,12 +99,34 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run tests
+      id: tests
       # No coverage gate here — coverage is the PR job's (test.yml) gate.
       # Nightly's job is proving from-scratch installs and extra Python
       # versions across all three OSes, not re-litigating coverage.
       run: |
         python -m pytest tests/ --tb=short -n auto
 
+    # Experimental legs run under continue-on-error, which reports the JOB as
+    # successful — so notify-failure's `if: failure()` never fires for them and
+    # a broken 3.12/3.13 leg is invisible unless a human opens the run. Publish
+    # the real step outcome to the run's summary page so every leg is legible
+    # at a glance. `if: always()` is required: a failed step otherwise skips
+    # the rest of the job even under continue-on-error.
+    - name: Record leg outcome in job summary
+      if: always()
+      shell: bash
+      env:
+        LEG: "${{ matrix.os }} / py${{ matrix.python }}"
+        OUTCOME: "${{ steps.tests.outcome }}"
+        TIER: "${{ matrix.experimental && 'experimental' || 'supported' }}"
+      run: |
+        if [ "$OUTCOME" = "success" ]; then icon="✅"; else icon="❌"; fi
+        echo "$icon **$LEG** ($TIER) — tests: \`$OUTCOME\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # DELIBERATELY has no PYTHONUTF8 — same rationale as test.yml's mcp-boot job:
+  # this drives a real stdio JSON-RPC handshake, so it must run in the cp1252
+  # locale a real user's MCP server starts in. Adding the var here would mask
+  # encoding regressions in the boot/stdio path.
   mcp-e2e:
     name: MCP e2e nightly (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

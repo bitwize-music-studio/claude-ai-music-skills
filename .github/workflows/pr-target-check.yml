@@ -18,6 +18,7 @@ jobs:
     name: PR Target Gate
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Verify PR source branch
         env:
@@ -39,6 +40,7 @@ jobs:
   check-no-dev-version:
     name: No Dev Version on Main
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 

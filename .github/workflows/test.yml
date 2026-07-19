@@ -9,10 +9,17 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes to the same PR/branch stack full 3-OS matrices; keep only the
+# newest run per ref.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Static Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -197,7 +204,9 @@ jobs:
           - os: windows-latest
             timeout: 60
     env:
-      # Test harness has encoding-less text I/O; product code is explicit UTF-8 — this pins the test env on Windows runners whose locale is cp1252.
+      # Scoped to this job ON PURPOSE. The *test harness* still has encoding-less
+      # text I/O, so it needs UTF-8 mode on cp1252 Windows runners. Do NOT hoist
+      # to workflow level: mcp-boot must stay WITHOUT it (see that job's note).
       PYTHONUTF8: "1"
 
     steps:
@@ -226,6 +235,17 @@ jobs:
     - name: Install system dependencies (Windows)
       if: runner.os == 'Windows'
       run: choco install ffmpeg -y --no-progress
+
+    # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
+    # so a half-succeeded install (or a PATH the shim never reached) would let
+    # ~10 audio tests silently skip while the leg still went green. Assert both
+    # binaries resolve here instead. shell: bash runs with -eo pipefail on all
+    # three OSes (Git Bash on Windows), so a missing binary fails the job.
+    - name: Verify ffmpeg and ffprobe are on PATH
+      shell: bash
+      run: |
+        ffmpeg -version
+        ffprobe -version
 
     - name: Install test dependencies
       run: |
@@ -259,6 +279,14 @@ jobs:
         path: coverage-html/
         retention-days: 14
 
+  # DELIBERATELY has no PYTHONUTF8. This job drives a real stdio JSON-RPC
+  # handshake through the same launcher `.mcp.json` invokes, so on windows-latest
+  # it runs in the cp1252 locale a real user's MCP server actually starts in —
+  # Claude Code sets no UTF-8 mode. That fidelity is the point: it is the only
+  # job that would catch an encoding regression in the boot/stdio path. Do not
+  # "fix the inconsistency" by adding PYTHONUTF8 here; that would mask exactly
+  # the class of bug this job exists to find. (The `test` job scopes the var to
+  # itself because the test *harness* still has encoding-less I/O.)
   mcp-boot:
     name: MCP Server Boot (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -322,6 +350,7 @@ jobs:
     runs-on: ubuntu-latest
     # Skip for fork PRs — untrusted code could modify requirements files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
@@ -337,15 +366,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
 
+    # hooks/ is in scope: it auto-executes on every Write/Edit in every user
+    # session, so it gets the same lint gate as tools/ and servers/.
     - name: Run ruff linter
       run: |
-        ruff check tools/ servers/
+        ruff check tools/ servers/ hooks/
 
     # PLW1514 (unspecified-encoding) is preview-only, so it runs as a
     # dedicated scoped invocation instead of enabling preview repo-wide
     - name: Run ruff encoding check (PLW1514)
       run: |
-        ruff check tools/ servers/ --select PLW1514 --preview
+        ruff check tools/ servers/ hooks/ --select PLW1514 --preview
 
     - name: Run bandit security linter
       run: |
@@ -374,6 +405,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
