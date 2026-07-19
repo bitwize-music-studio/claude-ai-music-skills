@@ -43,8 +43,7 @@ class TestGenreIndex:
 
     def test_all_genres_in_index(self, genres_dir):
         index_file = genres_dir / "INDEX.md"
-        if not index_file.exists():
-            pytest.skip("INDEX.md not found")
+        assert index_file.exists(), "Required file missing: genres/INDEX.md"
 
         index_content = index_file.read_text()
         index_refs = set(re.findall(r'\(([a-z0-9-]+)/README\.md\)', index_content))
@@ -55,8 +54,7 @@ class TestGenreIndex:
 
     def test_no_orphan_index_refs(self, genres_dir):
         index_file = genres_dir / "INDEX.md"
-        if not index_file.exists():
-            pytest.skip("INDEX.md not found")
+        assert index_file.exists(), "Required file missing: genres/INDEX.md"
 
         index_content = index_file.read_text()
         index_refs = set(re.findall(r'\(([a-z0-9-]+)/README\.md\)', index_content))
@@ -130,8 +128,7 @@ class TestGenrePresetsYaml:
     def test_presets_valid_yaml(self, project_root):
         import yaml
         presets_file = project_root / "tools" / "mastering" / "genre-presets.yaml"
-        if not presets_file.exists():
-            pytest.skip("genre-presets.yaml not found")
+        assert presets_file.exists(), "Required file missing: tools/mastering/genre-presets.yaml"
         data = yaml.safe_load(presets_file.read_text())
         assert isinstance(data, dict), "genre-presets.yaml must parse to a dict"
         assert 'genres' in data, "genre-presets.yaml missing 'genres' key"
@@ -140,8 +137,7 @@ class TestGenrePresetsYaml:
     def test_presets_have_required_fields(self, project_root):
         import yaml
         presets_file = project_root / "tools" / "mastering" / "genre-presets.yaml"
-        if not presets_file.exists():
-            pytest.skip("genre-presets.yaml not found")
+        assert presets_file.exists(), "Required file missing: tools/mastering/genre-presets.yaml"
         data = yaml.safe_load(presets_file.read_text())
         required_fields = {'target_lufs', 'cut_highmid', 'cut_highs'}
 
@@ -158,8 +154,7 @@ class TestGenrePresetsYaml:
     def test_defaults_have_required_fields(self, project_root):
         import yaml
         presets_file = project_root / "tools" / "mastering" / "genre-presets.yaml"
-        if not presets_file.exists():
-            pytest.skip("genre-presets.yaml not found")
+        assert presets_file.exists(), "Required file missing: tools/mastering/genre-presets.yaml"
         data = yaml.safe_load(presets_file.read_text())
         defaults = data.get('defaults', {})
         for field in ('target_lufs', 'cut_highmid', 'cut_highs'):
@@ -169,8 +164,7 @@ class TestGenrePresetsYaml:
         """Chanson, Middle Eastern Pop, and Schlager must have presets (PR #73)."""
         import yaml
         presets_file = project_root / "tools" / "mastering" / "genre-presets.yaml"
-        if not presets_file.exists():
-            pytest.skip("genre-presets.yaml not found")
+        assert presets_file.exists(), "Required file missing: tools/mastering/genre-presets.yaml"
         data = yaml.safe_load(presets_file.read_text())
         genres = data.get('genres', {})
         for expected in ('chanson', 'middle-eastern-pop', 'schlager'):

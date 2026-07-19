@@ -14,8 +14,7 @@ class TestConfigExample:
 
     def test_config_example_valid_yaml(self, config_dir):
         config_example = config_dir / "config.example.yaml"
-        if not config_example.exists():
-            pytest.skip("config.example.yaml not found")
+        assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
         with open(config_example) as f:
             data = yaml.safe_load(f)
@@ -24,8 +23,7 @@ class TestConfigExample:
     @pytest.mark.parametrize("section", ['artist', 'paths', 'generation'])
     def test_config_required_section(self, config_dir, section):
         config_example = config_dir / "config.example.yaml"
-        if not config_example.exists():
-            pytest.skip("config.example.yaml not found")
+        assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
         with open(config_example) as f:
             data = yaml.safe_load(f)
@@ -38,8 +36,7 @@ class TestConfigExample:
     ])
     def test_config_required_field(self, config_dir, section, field):
         config_example = config_dir / "config.example.yaml"
-        if not config_example.exists():
-            pytest.skip("config.example.yaml not found")
+        assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
         with open(config_example) as f:
             data = yaml.safe_load(f)
