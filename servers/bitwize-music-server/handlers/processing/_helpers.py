@@ -174,10 +174,15 @@ def _check_anthemscore() -> str | None:
         except (ImportError, OSError) as exc:
             logger.warning("AnthemScore check failed, falling back to path search: %s", exc)
     # Fall back to path search
+    # Keep in sync with find_anthemscore() in tools/sheet-music/transcribe.py.
+    # Listing every platform's paths is safe: the non-native ones simply never
+    # exist (a Windows drive path can't resolve on macOS/Linux, and vice versa).
     paths = [
         "/Applications/AnthemScore.app/Contents/MacOS/AnthemScore",
         "/usr/bin/anthemscore",
         "/usr/local/bin/anthemscore",
+        r"C:\Program Files\AnthemScore\AnthemScore.exe",
+        r"C:\Program Files (x86)\AnthemScore\AnthemScore.exe",
     ]
     if not any(Path(p).exists() for p in paths) and not shutil.which("anthemscore"):
         return (
