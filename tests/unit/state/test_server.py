@@ -1708,8 +1708,17 @@ class TestStateCacheThreadSafety:
     """Basic thread-safety sanity checks for StateCache."""
 
     def test_concurrent_get_state(self):
-        """Multiple threads calling get_state() don't crash."""
+        """Every thread calling get_state() finishes and sees the same state.
+
+        Deliberately strict: a deadlock makes join(timeout) return with the
+        thread still alive and `results` empty, so a bare `all(results)` would
+        pass on the exact failure this test exists to catch. We therefore assert
+        liveness (no survivor threads), the exact result count, and the observed
+        state itself — a cache that hands back `{}` under contention is a
+        failure, not a pass.
+        """
         state = _fresh_state()
+        thread_count = 10
 
         mock_state = MagicMock()
         mock_state.exists.return_value = True
@@ -1721,25 +1730,45 @@ class TestStateCacheThreadSafety:
         cache = server.StateCache()
         results = []
         errors = []
+        results_lock = threading.Lock()
 
         def worker():
             try:
                 result = cache.get_state()
-                results.append(result is not None)
-            except Exception as e:
-                errors.append(str(e))
+                with results_lock:
+                    results.append(result)
+            except Exception as e:  # pragma: no cover - only on a real failure
+                with results_lock:
+                    errors.append(str(e))
 
         with patch.object(server, "STATE_FILE", mock_state), \
              patch.object(server, "CONFIG_FILE", mock_config), \
              patch.object(server, "read_state", return_value=state):
-            threads = [threading.Thread(target=worker) for _ in range(10)]
+            # daemon=True so a genuine deadlock fails the assertion below
+            # instead of wedging interpreter shutdown for the whole suite.
+            threads = [
+                threading.Thread(target=worker, daemon=True)
+                for _ in range(thread_count)
+            ]
             for t in threads:
                 t.start()
-            for t in threads:
+            for i, t in enumerate(threads):
                 t.join(timeout=5)
+                assert not t.is_alive(), (
+                    f"Thread {i} still running after a 5s join — StateCache "
+                    f"deadlocked under concurrent get_state()"
+                )
 
-        assert len(errors) == 0, f"Thread errors: {errors}"
-        assert all(results)
+        assert not errors, f"Thread errors: {errors}"
+        assert len(results) == thread_count, (
+            f"Expected {thread_count} results, got {len(results)} — "
+            f"some threads never returned a value from get_state()"
+        )
+        for i, result in enumerate(results):
+            assert result == state, (
+                f"Thread {i} observed {result!r} instead of the populated "
+                f"state — concurrent reads must not see a partial/empty cache"
+            )
 
 
 # =============================================================================
