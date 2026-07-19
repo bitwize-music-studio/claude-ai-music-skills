@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
-import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -55,10 +55,16 @@ def test_prune_archival_removes_all_when_keep_is_zero(tmp_path: Path) -> None:
 def test_prune_archival_keeps_latest_n_by_mtime(tmp_path: Path) -> None:
     archival_dir = tmp_path / "archival"
     archival_dir.mkdir()
-    # Create files with increasing mtimes
-    for name in ("a.wav", "b.wav", "c.wav", "d.wav"):
-        (archival_dir / name).write_bytes(b"")
-        time.sleep(0.01)
+    # Stamp mtimes explicitly rather than sleeping between writes. Filesystem
+    # timestamp resolution is not guaranteed to resolve a 10 ms gap (the clock
+    # feeding Windows file times ticks at ~15 ms), so adjacent files could land
+    # on the same mtime and the kept set would come back wrong. Explicit,
+    # widely-spaced stamps are exact on every platform — and ~40 ms faster.
+    base = 1_700_000_000.0
+    for i, name in enumerate(("a.wav", "b.wav", "c.wav", "d.wav")):
+        path = archival_dir / name
+        path.write_bytes(b"")
+        os.utime(path, (base + i * 10, base + i * 10))
 
     def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
         return None, tmp_path
