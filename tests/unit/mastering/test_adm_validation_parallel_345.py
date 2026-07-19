@@ -64,25 +64,30 @@ class TestParallelExecution:
     def test_checks_run_concurrently(self, tmp_path, monkeypatch):
         """The per-track ADM checks overlap — serial code caps concurrency at 1.
 
-        This is the #345 regression pin: on the old serial loop max observed
-        concurrency is 1; the parallel stage reaches >1.
+        This is the #345 regression pin. Overlap is *forced* with a
+        ``threading.Barrier``, not observed through a sleep window: a check
+        cannot return until a second check has also entered it, which is a
+        happens-before relation rather than a wall-clock guess. Under a serial
+        stage the first check waits alone until the barrier times out and
+        raises ``BrokenBarrierError`` — deterministically, on any host, however
+        loaded (see ``test_serial_stage_breaks_the_barrier`` below, which pins
+        exactly that failure mode).
         """
         # Pin the concurrency bound so the test is deterministic on any host.
         monkeypatch.setattr(album_stages_mod.os, "cpu_count", lambda: 4)
 
-        lock = threading.Lock()
-        state = {"current": 0, "max": 0}
+        barrier = threading.Barrier(2, timeout=30)
+        entered = []
+        entered_lock = threading.Lock()
 
-        def _slow_check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
-            with lock:
-                state["current"] += 1
-                state["max"] = max(state["max"], state["current"])
-            time.sleep(0.05)
-            with lock:
-                state["current"] -= 1
+        def _paired_check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+            # Blocks until a *second* check is running concurrently.
+            barrier.wait()
+            with entered_lock:
+                entered.append(Path(path).name)
             return _clean_result(path, encoder, ceiling_db)
 
-        monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _slow_check)
+        monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _paired_check)
         wavs = [tmp_path / f"{i:02d}.wav" for i in range(1, 5)]
         for w in wavs:
             w.write_bytes(b"\x00")
@@ -94,8 +99,41 @@ class TestParallelExecution:
         result, ctx = asyncio.run(_run())
 
         assert result is None
-        assert state["max"] >= 2, "ADM checks did not run concurrently"
+        assert not barrier.broken, "ADM checks did not run concurrently"
+        assert sorted(entered) == ["01.wav", "02.wav", "03.wav", "04.wav"]
         assert len(ctx.adm_validation_results) == 4
+
+    def test_serial_stage_breaks_the_barrier(self, tmp_path, monkeypatch):
+        """The concurrency pin has teeth: a serial stage fails it, always.
+
+        Forcing the stage's own bound to 1 makes it run the checks strictly one
+        at a time — the pre-#345 behaviour. The barrier then cannot be met and
+        breaks, proving ``test_checks_run_concurrently`` above is a real
+        assertion about parallelism and not a test that any implementation
+        passes.
+        """
+        monkeypatch.setattr(album_stages_mod.os, "cpu_count", lambda: 1)
+
+        # Short timeout: this test *wants* the barrier to break, and with the
+        # bound pinned to 1 a second check can never arrive, so waiting longer
+        # buys nothing.
+        barrier = threading.Barrier(2, timeout=0.2)
+
+        def _paired_check(path, *, encoder="aac", ceiling_db=-1.0, bitrate_kbps=256):
+            barrier.wait()
+            return _clean_result(path, encoder, ceiling_db)
+
+        monkeypatch.setattr(album_stages_mod, "_adm_check_fn", _paired_check)
+        wavs = [tmp_path / f"{i:02d}.wav" for i in range(1, 5)]
+        for w in wavs:
+            w.write_bytes(b"\x00")
+
+        async def _run():
+            ctx = _make_ctx(tmp_path, wavs)
+            return await album_stages_mod._stage_adm_validation(ctx)
+
+        with pytest.raises(threading.BrokenBarrierError):
+            asyncio.run(_run())
 
     def test_results_preserve_input_order(self, tmp_path, monkeypatch):
         """results line up with ctx.mastered_files regardless of finish order."""

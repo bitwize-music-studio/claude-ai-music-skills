@@ -54,18 +54,73 @@ class TestAcquireLockWithTimeout:
             _funlock(holder)
             holder.close()
 
-    def test_acquires_after_holder_releases(self, tmp_path: Path) -> None:
+    def test_acquires_after_holder_releases(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The backoff loop retries and succeeds once the holder lets go.
+
+        The releasing thread is sequenced by an ``Event`` the contender's own
+        retry sets, not by ``time.sleep(0.3)`` racing the backoff schedule
+        (0.05 → 0.1 → 0.2 → 0.4 → 0.8): under load the sleeping releaser could
+        be descheduled past the final retry and the contender would time out
+        blaming the lock code. Here the release cannot happen *before* a failed
+        retry is observed, and the acquisition cannot happen before the
+        release — a happens-before chain with no wall-clock dependency.
+        """
+        import threading
+
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
         holder = open(lock_file, "r+")
         _flock_nb(holder)
-        import threading
-        def release_after_delay():
-            time.sleep(0.3)
+
+        # The lock is genuinely held: an independent handle cannot take it.
+        with open(lock_file, "r+") as probe:
+            with pytest.raises(OSError):
+                _flock_nb(probe)
+
+        import tools.state.indexer as indexer
+
+        real_flock_nb = indexer._flock_nb
+        attempts = 0
+        retried = threading.Event()
+
+        def counting_flock_nb(fd: object) -> None:
+            nonlocal attempts
+            attempts += 1
+            if attempts > 1:
+                # The contender has failed at least once and is in the
+                # backoff loop — only now is releasing meaningful.
+                retried.set()
+            real_flock_nb(fd)
+
+        monkeypatch.setattr(indexer, "_flock_nb", counting_flock_nb)
+
+        released = threading.Event()
+
+        def release_when_contender_has_retried() -> None:
+            assert retried.wait(timeout=10), "contender never retried the lock"
             _funlock(holder)
             holder.close()
-        t = threading.Thread(target=release_after_delay)
+            released.set()
+
+        t = threading.Thread(target=release_when_contender_has_retried)
         t.start()
-        with open(lock_file, "r+") as contender:
-            _acquire_lock_with_timeout(contender, timeout=2)
-        t.join()
+        try:
+            with open(lock_file, "r+") as contender:
+                _acquire_lock_with_timeout(contender, timeout=30)
+
+                # The contender really owns the lock now: a third, independent
+                # handle must be refused. Without this, the test would pass
+                # even if _acquire_lock_with_timeout() did nothing at all.
+                with open(lock_file, "r+") as after:
+                    with pytest.raises(OSError):
+                        _flock_nb(after)
+
+                assert released.is_set(), "acquired before the holder released"
+                # Acquisition came from a retry, not the first attempt, so the
+                # backoff loop itself is exercised.
+                assert attempts >= 2, f"expected a retry, saw {attempts} attempt(s)"
+        finally:
+            t.join(timeout=10)
+            assert not t.is_alive()

@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -4000,15 +4001,35 @@ class TestBuildStateSessionPreservation:
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
 
+        # Control the clock instead of racing it. `generated_at` is
+        # `datetime.now(UTC).isoformat()`; sleeping 10 ms and hoping the two
+        # timestamps differ is a bet on clock granularity that coarser
+        # platforms lose. Two fixed, known instants make the "original was not
+        # mutated" assertion exact rather than probabilistic.
+        stamps = iter([
+            datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2024, 1, 1, 0, 0, 5, tzinfo=UTC),
+        ])
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):  # noqa: ARG003 - signature parity only
+                return next(stamps)
+
+        # indexer does `from datetime import UTC, datetime`, so the name to
+        # patch is the module-level `datetime` binding inside indexer.
+        monkeypatch.setattr(indexer, 'datetime', _FrozenDatetime)
+
         existing = build_state(config)
         existing['config']['config_mtime'] = 100.0
         original_generated_at = existing['generated_at']
+        assert original_generated_at == '2024-01-01T00:00:00+00:00'
 
-        time.sleep(0.01)
         updated = incremental_update(existing, config)
 
         # Original should not have been mutated
         assert existing['generated_at'] == original_generated_at
+        assert updated['generated_at'] == '2024-01-01T00:00:05+00:00'
         assert updated['generated_at'] != original_generated_at
 
 
