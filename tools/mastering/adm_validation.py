@@ -49,6 +49,7 @@ def _ffmpeg_encode_decode(
         try:
             enc = subprocess.run(
                 enc_cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
                 timeout=_FFMPEG_TIMEOUT_SEC,
             )
         except FileNotFoundError as exc:
@@ -70,6 +71,7 @@ def _ffmpeg_encode_decode(
         try:
             dec = subprocess.run(
                 dec_cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
                 timeout=_FFMPEG_TIMEOUT_SEC,
             )
         except FileNotFoundError as exc:
@@ -120,6 +122,7 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
         try:
             enc = subprocess.run(
                 enc_cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
                 timeout=_FFMPEG_TIMEOUT_SEC,
             )
         except subprocess.TimeoutExpired:
@@ -138,6 +141,7 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
         try:
             dec = subprocess.run(
                 dec_cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
                 timeout=_FFMPEG_TIMEOUT_SEC,
             )
         except subprocess.TimeoutExpired as exc:

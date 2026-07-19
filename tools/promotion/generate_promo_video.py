@@ -355,7 +355,9 @@ def generate_waveform_video(
     logger.info("Generating: %s", output_path.name)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
         if result.returncode != 0:
             logger.error("ffmpeg failed: %s", result.stderr)
             return False

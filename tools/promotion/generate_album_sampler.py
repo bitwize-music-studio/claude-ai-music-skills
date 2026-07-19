@@ -207,7 +207,9 @@ def concatenate_with_crossfade(
     ]
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
         if result.returncode != 0:
             logger.error("Concatenation error: %s", result.stderr[:500])
             return False
