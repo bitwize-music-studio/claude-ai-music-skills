@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -26,10 +28,24 @@ class TestFindFont:
         assert result is None or isinstance(result, str)
 
     def test_returned_font_exists(self):
-        """If a font is found, the file actually exists."""
+        """A discovered font must be a path that actually exists.
+
+        Guarded unconditionally on purpose: `if result is not None` disarmed
+        this check on exactly the machines where font discovery is most likely
+        broken (a CI runner with no system fonts), so a total discovery failure
+        read as green. Hosts with genuinely no fonts opt out via the explicit
+        skip below rather than by silently asserting nothing.
+        """
         result = find_font()
-        if result is not None:
-            assert Path(result).exists()
+        if result is None:
+            pytest.skip(
+                "No system font found on this host — find_font() legitimately "
+                "returns None on a bare runner; nothing to validate"
+            )
+        assert isinstance(result, str), f"find_font() returned {type(result).__name__}"
+        assert Path(result).exists(), (
+            f"find_font() returned a path that does not exist: {result}"
+        )
 
     def test_returns_none_when_no_fonts(self):
         """Returns None when no system fonts exist."""
@@ -50,5 +66,11 @@ class TestFindFont:
 
         with mock.patch.object(Path, 'exists', mock_exists):
             result = find_font()
-            if result is not None:
-                assert 'Helvetica' in result
+        # The mock guarantees a Helvetica path exists, so `None` here means
+        # discovery is broken — it must not be waved through by an `if`.
+        assert result is not None, (
+            "find_font() returned None even though a candidate path exists"
+        )
+        assert 'Helvetica' in result, (
+            f"find_font() should return the first existing candidate, got: {result}"
+        )
