@@ -13,16 +13,19 @@ class TestSkillCount:
 
     def test_readme_skill_count(self, project_root, all_skill_frontmatter):
         readme_path = project_root / "README.md"
-        if not readme_path.exists():
-            pytest.skip("README.md not found")
+        assert readme_path.exists(), "Required file missing: README.md"
 
         readme_content = readme_path.read_text()
         match = (
             re.search(r'\*\*(\d+)\s+specialized skills\*\*', readme_content)
             or re.search(r'Skill System\s*\((\d+)\s+Skills\)', readme_content)
         )
-        if not match:
-            pytest.skip("Skill count pattern not found in README")
+        assert match, (
+            "README.md no longer advertises a skill count in a recognised form "
+            "('**N specialized skills**' or 'Skill System (N Skills)') — the "
+            "count can no longer be cross-checked. Update the README wording or "
+            "this pattern, but do not leave the check silently disabled."
+        )
 
         claimed = int(match.group(1))
         actual = len(all_skill_frontmatter)
@@ -38,8 +41,8 @@ class TestVersionSync:
         plugin_json = project_root / ".claude-plugin" / "plugin.json"
         marketplace_json = project_root / ".claude-plugin" / "marketplace.json"
 
-        if not plugin_json.exists() or not marketplace_json.exists():
-            pytest.skip("Version files not found")
+        assert plugin_json.exists(), "Required file missing: .claude-plugin/plugin.json"
+        assert marketplace_json.exists(), "Required file missing: .claude-plugin/marketplace.json"
 
         with open(plugin_json) as f:
             plugin_version = json.load(f).get('version', 'unknown')
@@ -67,8 +70,7 @@ class TestModelTierConsistency:
 
     def test_model_strategy_alignment(self, project_root, all_skill_frontmatter):
         strategy_path = project_root / "reference" / "model-strategy.md"
-        if not strategy_path.exists():
-            pytest.skip("model-strategy.md not found")
+        assert strategy_path.exists(), "Required file missing: reference/model-strategy.md"
 
         strategy_content = strategy_path.read_text()
 
@@ -120,8 +122,12 @@ class TestNoDisableModelInvocation:
             name for name, fm in all_skill_frontmatter.items()
             if '_error' not in fm and fm.get('disable-model-invocation')
         ]
-        # This is advisory, not a hard fail
-        assert not flagged or True  # soft check preserved
+        # No skill sets this flag today; setting it hides the skill from
+        # model-driven invocation, which would silently break routing.
+        assert not flagged, (
+            "Skills must not set disable-model-invocation (it hides them from "
+            f"model-driven routing): {', '.join(flagged)}"
+        )
 
 
 class TestHealthCheckCollisionDocs:
@@ -164,8 +170,7 @@ class TestGitignore:
     @pytest.mark.parametrize("entry", REQUIRED_IGNORES)
     def test_gitignore_entry(self, project_root, entry):
         gitignore_path = project_root / ".gitignore"
-        if not gitignore_path.exists():
-            pytest.skip(".gitignore not found")
+        assert gitignore_path.exists(), "Required file missing: .gitignore"
 
         content = gitignore_path.read_text()
         assert entry in content or entry.rstrip('/') in content, (

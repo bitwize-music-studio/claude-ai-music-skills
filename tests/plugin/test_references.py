@@ -26,8 +26,7 @@ class TestSunoReferences:
     @pytest.mark.parametrize("ref_file", REQUIRED_SUNO_REFS)
     def test_suno_ref_exists(self, reference_dir, ref_file):
         suno_dir = reference_dir / "suno"
-        if not suno_dir.exists():
-            pytest.skip("reference/suno/ not found")
+        assert suno_dir.exists(), "Required directory missing: reference/suno/"
         assert (suno_dir / ref_file).exists(), f"Missing: reference/suno/{ref_file}"
 
 

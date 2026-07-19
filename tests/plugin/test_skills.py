@@ -1,10 +1,23 @@
 """Tests for skill definitions: frontmatter, model refs, prerequisites, sections."""
 
+import json
 import re
+from pathlib import Path
 
 import pytest
 
 pytestmark = pytest.mark.plugin
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _plugin_version() -> str | None:
+    """Version declared in .claude-plugin/plugin.json, or None if unreadable."""
+    plugin_json = PROJECT_ROOT / ".claude-plugin" / "plugin.json"
+    try:
+        return json.loads(plugin_json.read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError):
+        return None
 
 # Required frontmatter fields
 REQUIRED_SKILL_FIELDS = {'name', 'description', 'model'}
@@ -74,6 +87,65 @@ REQUIRED_STRUCTURE = [
 
 # System skills to skip in SKILL_INDEX.md check
 SKIP_SKILLS_INDEX = {'help', 'about', 'configure', 'test'}
+
+
+def _skill_frontmatter(all_skill_frontmatter, skill_name: str) -> dict:
+    """Return a named skill's parsed frontmatter, failing hard if unusable.
+
+    A skill that is absent from skills/ or whose YAML frontmatter fails to
+    parse is a broken plugin asset, not a reason to skip: skipping reports
+    green for a shipped file that Claude Code cannot load. (On Windows a
+    path/encoding failure surfaces here too, so a skip would hide an
+    OS-specific breakage.)
+    """
+    fm = all_skill_frontmatter.get(skill_name)
+    assert fm is not None, (
+        f"Skill '{skill_name}' not found in skills/ — expected "
+        f"skills/{skill_name}/SKILL.md"
+    )
+    assert '_error' not in fm, (
+        f"skills/{skill_name}/SKILL.md frontmatter failed to parse: {fm['_error']}"
+    )
+    return fm
+
+
+def _skill_content(all_skill_frontmatter, skill_name: str) -> str:
+    """Return a named skill's SKILL.md body, failing hard if unusable."""
+    return _skill_frontmatter(all_skill_frontmatter, skill_name).get('_content', '')
+
+
+def _cache_dir_for_this_version() -> Path | None:
+    """Plugin cache dir matching this checkout's version, or None if absent."""
+    version = _plugin_version()
+    if not version:
+        return None
+    cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
+    if not cache_base.is_dir():
+        return None
+    for org_or_name in cache_base.iterdir():
+        if not org_or_name.is_dir():
+            continue
+        candidate = org_or_name / version
+        if (candidate / "skills").is_dir():
+            return candidate
+    return None
+
+
+@pytest.fixture(scope="module")
+def cached_skills() -> set:
+    """Skill names registered in the plugin cache entry for this version.
+
+    Skips when there is no cache entry for this exact version — the only
+    honest "nothing to compare" state. See TestSkillRegistrationIntegrity.
+    """
+    cache_dir = _cache_dir_for_this_version()
+    if cache_dir is None:
+        pytest.skip(
+            f"No plugin cache entry for v{_plugin_version()} "
+            f"(plugin not installed from the marketplace at this version) "
+            f"— nothing to compare against"
+        )
+    return {p.parent.name for p in (cache_dir / "skills").glob("*/SKILL.md")}
 
 
 class TestSkillMdExists:
@@ -167,20 +239,25 @@ class TestRequirements:
     """Skills with external deps should have requirements field."""
 
     def test_requirements_field(self, all_skill_frontmatter):
-        warnings = []
+        """Skills with external dependencies must declare a `requirements` field.
+
+        Every skill in SKILLS_WITH_REQUIREMENTS ships today with a requirements
+        field, so this is a real, currently-satisfied invariant — not advisory.
+        Dropping the field would leave `/bitwize-music:setup` unable to see the
+        skill's dependencies.
+        """
+        missing = []
         for skill_name, expected_deps in SKILLS_WITH_REQUIREMENTS.items():
-            if skill_name not in all_skill_frontmatter:
-                continue
-            fm = all_skill_frontmatter[skill_name]
-            if '_error' in fm:
-                continue
+            fm = _skill_frontmatter(all_skill_frontmatter, skill_name)
             if 'requirements' not in fm:
-                warnings.append(
-                    f"{skill_name} uses {', '.join(expected_deps[:3])}... but has no requirements field"
+                missing.append(
+                    f"{skill_name} uses {', '.join(expected_deps[:3])}... "
+                    f"but has no requirements field"
                 )
-        # This is a warning-level check, not a hard fail
-        # requirements field is advisory (original was WARN level)
-        assert True
+        assert not missing, (
+            "Skills with external dependencies missing a `requirements` field:\n"
+            + "\n".join(missing)
+        )
 
 
 class TestSkillSections:
@@ -254,10 +331,7 @@ class TestInstrumentalGuard:
         'pronunciation-specialist',
     ])
     def test_instrumental_guard_section(self, all_skill_frontmatter, skill_name):
-        fm = all_skill_frontmatter.get(skill_name, {})
-        if '_error' in fm:
-            pytest.skip(f"{skill_name} has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, skill_name)
         assert 'Instrumental Guard' in content, (
             f"{skill_name} SKILL.md missing 'Instrumental Guard' section"
         )
@@ -268,10 +342,7 @@ class TestPreGenInstrumental:
 
     def test_instrumental_gate_skipping(self, all_skill_frontmatter):
         """pre-generation-check must document skipping gates for instrumental tracks."""
-        fm = all_skill_frontmatter.get('pre-generation-check', {})
-        if '_error' in fm:
-            pytest.skip("pre-generation-check has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'pre-generation-check')
         assert 'instrumental' in content.lower(), (
             "pre-generation-check SKILL.md missing instrumental gate skipping"
         )
@@ -281,10 +352,7 @@ class TestPreGenInstrumental:
 
     def test_instrumental_field_sync_validation(self, all_skill_frontmatter):
         """pre-generation-check must block on instrumental field mismatch (#129)."""
-        fm = all_skill_frontmatter.get('pre-generation-check', {})
-        if '_error' in fm:
-            pytest.skip("pre-generation-check has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'pre-generation-check')
         assert 'mismatch' in content.lower(), (
             "pre-generation-check SKILL.md missing instrumental field mismatch blocking"
         )
@@ -296,10 +364,7 @@ class TestGuidedRegeneration:
     @pytest.mark.parametrize("skill_name", ['resume', 'next-step'])
     def test_generation_log_rating_reference(self, all_skill_frontmatter, skill_name):
         """Skill must reference Generation Log Rating with checkmark."""
-        fm = all_skill_frontmatter.get(skill_name, {})
-        if '_error' in fm:
-            pytest.skip(f"{skill_name} has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, skill_name)
         assert 'Generation Log Rating' in content, (
             f"{skill_name} SKILL.md missing Generation Log Rating reference"
         )
@@ -307,10 +372,7 @@ class TestGuidedRegeneration:
     @pytest.mark.parametrize("skill_name", ['resume', 'next-step'])
     def test_batch_approve_workflow(self, all_skill_frontmatter, skill_name):
         """Skill must document batch-approve workflow."""
-        fm = all_skill_frontmatter.get(skill_name, {})
-        if '_error' in fm:
-            pytest.skip(f"{skill_name} has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, skill_name)
         assert 'batch-approve' in content, (
             f"{skill_name} SKILL.md missing batch-approve workflow documentation"
         )
@@ -321,10 +383,7 @@ class TestAlbumStatusManagement:
 
     def test_verify_sources_auto_advancement(self, all_skill_frontmatter):
         """verify-sources must document auto-advancement of album status."""
-        fm = all_skill_frontmatter.get('verify-sources', {})
-        if '_error' in fm:
-            pytest.skip("verify-sources has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'verify-sources')
         assert 'auto-advance' in content.lower() or 'auto advance' in content.lower(), (
             "verify-sources SKILL.md missing auto-advancement documentation"
         )
@@ -349,10 +408,7 @@ class TestInstrumentalFieldSyncValidation:
     """validate-album must warn on instrumental field mismatch (#129)."""
 
     def test_validate_album_mismatch_warning(self, all_skill_frontmatter):
-        fm = all_skill_frontmatter.get('validate-album', {})
-        if '_error' in fm:
-            pytest.skip("validate-album has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'validate-album')
         assert 'mismatch' in content.lower(), (
             "validate-album SKILL.md missing instrumental field mismatch warning"
         )
@@ -363,10 +419,12 @@ class TestSkillIndex:
 
     def test_skills_in_index(self, all_skill_frontmatter, reference_dir):
         skill_index_file = reference_dir / "SKILL_INDEX.md"
-        if not skill_index_file.exists():
-            pytest.skip("SKILL_INDEX.md not found")
+        assert skill_index_file.exists(), (
+            "reference/SKILL_INDEX.md missing — it is a required plugin asset "
+            "(CLAUDE.md routes skill lookups through it)"
+        )
 
-        index_content = skill_index_file.read_text()
+        index_content = skill_index_file.read_text(encoding="utf-8")
         missing = []
         for skill_name in all_skill_frontmatter:
             if skill_name in SKIP_SKILLS_INDEX:
@@ -378,70 +436,44 @@ class TestSkillIndex:
 
 
 class TestSkillRegistrationIntegrity:
-    """On-disk skills must match the Claude Code plugin cache (#234)."""
+    """On-disk skills must match the Claude Code plugin cache (#234).
 
-    @pytest.mark.xfail(reason="Stale plugin cache — run: claude plugin update bitwize-music (#234)", strict=False)
-    def test_no_ghost_skills_in_cache(self, skills_dir):
+    The plugin cache is a *local developer artifact* — Claude Code populates
+    ~/.claude/plugins/cache/ when the plugin is installed from the marketplace,
+    and it is keyed by released version. There are exactly two honest states:
+
+    * no cache entry for the version in this working tree — nothing to compare,
+      so these tests skip (CI runners and any checkout whose version has not been
+      released yet land here);
+    * a cache entry for this exact version exists — the cached skill set must
+      then match skills/ on disk, and a mismatch is a real defect that must fail.
+
+    This replaces a blanket ``xfail(strict=False)``, which passed whether the
+    assertion held or not and so guarded nothing. Anchoring to the working
+    tree's own version also fixes a latent bug in the ghost check: it used to
+    union *every* cached version, so a skill legitimately deleted three releases
+    ago was reported as a ghost forever.
+    """
+
+    def test_no_ghost_skills_in_cache(self, skills_dir, cached_skills):
         """Skills in plugin cache but not on disk are ghost registrations."""
-        from pathlib import Path
-        cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
-        if not cache_base.is_dir():
-            pytest.skip("No plugin cache found (plugin not installed via marketplace)")
+        source_skills = {p.parent.name for p in skills_dir.glob("*/SKILL.md")}
+        assert source_skills, "No skills found on disk in skills/*/SKILL.md"
 
-        source_skills = {
-            p.parent.name for p in skills_dir.glob("*/SKILL.md")
-        }
-
-        # Find all cached version directories
-        ghost = set()
-        for org_or_name in cache_base.iterdir():
-            if not org_or_name.is_dir():
-                continue
-            for version_dir in org_or_name.iterdir():
-                cache_skills_dir = version_dir / "skills"
-                if not cache_skills_dir.is_dir():
-                    continue
-                cached = {p.parent.name for p in cache_skills_dir.glob("*/SKILL.md")}
-                ghost |= cached - source_skills
-
+        ghost = cached_skills - source_skills
         assert not ghost, (
-            f"Ghost skills in plugin cache (deleted but still cached): "
-            f"{', '.join(sorted(ghost))} — run: claude plugin update bitwize-music"
+            f"Ghost skills in plugin cache v{_plugin_version()} (deleted from "
+            f"skills/ but still registered): {', '.join(sorted(ghost))} "
+            f"— run: claude plugin update bitwize-music"
         )
 
-    @pytest.mark.xfail(reason="Stale plugin cache — run: claude plugin update bitwize-music (#234)", strict=False)
-    def test_no_missing_skills_in_cache(self, skills_dir):
+    def test_no_missing_skills_in_cache(self, skills_dir, cached_skills):
         """Skills on disk must also be present in the plugin cache."""
-        from pathlib import Path
-        cache_base = Path.home() / ".claude" / "plugins" / "cache" / "bitwize-music"
-        if not cache_base.is_dir():
-            pytest.skip("No plugin cache found (plugin not installed via marketplace)")
-
-        source_skills = {
-            p.parent.name for p in skills_dir.glob("*/SKILL.md")
-        }
-
-        # Find the latest cached version
-        candidates = []
-        for org_or_name in cache_base.iterdir():
-            if not org_or_name.is_dir():
-                continue
-            for version_dir in org_or_name.iterdir():
-                if version_dir.is_dir() and (version_dir / "skills").is_dir():
-                    candidates.append(version_dir)
-
-        if not candidates:
-            pytest.skip("No cached plugin versions found")
-
-        candidates.sort(key=lambda p: p.name, reverse=True)
-        latest_cache = candidates[0]
-        cached_skills = {
-            p.parent.name
-            for p in (latest_cache / "skills").glob("*/SKILL.md")
-        }
+        source_skills = {p.parent.name for p in skills_dir.glob("*/SKILL.md")}
+        assert source_skills, "No skills found on disk in skills/*/SKILL.md"
 
         missing = source_skills - cached_skills
         assert not missing, (
-            f"Skills on disk but missing from plugin cache (v{latest_cache.name}): "
+            f"Skills on disk but missing from plugin cache v{_plugin_version()}: "
             f"{', '.join(sorted(missing))} — run: claude plugin update bitwize-music"
         )

@@ -1052,15 +1052,18 @@ class TestRemainingToolsCoverage:
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         # Load the real blocklist to find an artist name to test with
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            artist_name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(
-                f"This sounds like {artist_name} style"
-            )))
-            assert result["clean"] is False
-            assert result["count"] >= 1
-            found_names = [f["name"] for f in result["matches"]]
-            assert artist_name in found_names
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        artist_name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(
+            f"This sounds like {artist_name} style"
+        )))
+        assert result["clean"] is False
+        assert result["count"] >= 1
+        found_names = [f["name"] for f in result["matches"]]
+        assert artist_name in found_names
 
     # --- check_pronunciation_enforcement ---
 
@@ -1940,21 +1943,29 @@ class TestScanArtistNamesExtended:
         """scan_artist_names found entries include an alternative suggestion."""
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
-            if result["matches"]:
-                assert "alternative" in result["matches"][0]
-                assert result["matches"][0]["alternative"] != ""
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
+        assert result["matches"], (
+            f"scan_artist_names found no match for blocklisted artist {name!r}"
+        )
+        assert "alternative" in result["matches"][0]
+        assert result["matches"][0]["alternative"] != ""
 
     def test_case_insensitive(self, integration_env, monkeypatch):
         """scan_artist_names matches regardless of case."""
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(name.upper())))
-            assert result["clean"] is False
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(name.upper())))
+        assert result["clean"] is False
 
 
 @pytest.mark.integration

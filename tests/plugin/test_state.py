@@ -28,15 +28,13 @@ class TestSchemaVersion:
 
     def test_current_version_exists(self, project_root):
         indexer = project_root / "tools" / "state" / "indexer.py"
-        if not indexer.exists():
-            pytest.skip("indexer.py not found")
+        assert indexer.exists(), "Required source file missing: tools/state/indexer.py"
         content = indexer.read_text()
         assert 'CURRENT_VERSION' in content, "CURRENT_VERSION not found in indexer.py"
 
     def test_current_version_is_semver(self, project_root):
         indexer = project_root / "tools" / "state" / "indexer.py"
-        if not indexer.exists():
-            pytest.skip("indexer.py not found")
+        assert indexer.exists(), "Required source file missing: tools/state/indexer.py"
         content = indexer.read_text()
         match = re.search(r'CURRENT_VERSION\s*=\s*["\'](\d+\.\d+\.\d+)["\']', content)
         assert match, "CURRENT_VERSION should be a semver string like '1.0.0'"
