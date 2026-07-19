@@ -33,6 +33,43 @@ omit = [
     "tools/validate_help_completeness.py",   # standalone validation script
 ]
 
+# Cross-OS `coverage combine` (see the `coverage` job in
+# .github/workflows/test.yml). Each runner records ABSOLUTE paths rooted at its
+# own workspace, so the same source file arrives as three different keys:
+#
+#   /home/runner/work/claude-ai-music-skills/claude-ai-music-skills/tools/...
+#   /Users/runner/work/claude-ai-music-skills/claude-ai-music-skills/tools/...
+#   D:\a\claude-ai-music-skills\claude-ai-music-skills\tools\...
+#
+# Without this section they stay three separate files and the "combined" total
+# is silently just a concatenation — the win32/darwin lines never merge into the
+# Linux picture. The first entry in each list is the canonical result; the rest
+# are patterns matched against recorded paths.
+#
+# Two non-obvious rules, both verified empirically against coverage 7.x — get
+# either wrong and the combine no-ops in silence:
+#   1. `**` is required, not `*`. A single `*` does not cross path separators,
+#      so `/home/runner/work/*/tools/` never matches the two-component
+#      `work/<repo>/<repo>/tools/` layout GitHub checks out.
+#   2. Coverage only applies a rule if the *mapped* path exists on disk, so the
+#      combine step MUST run from a repo checkout.
+# The workflow asserts the mapping worked rather than trusting it.
+[tool.coverage.paths]
+tools = [
+    "tools/",
+    "/home/runner/work/**/tools/",
+    "/Users/runner/work/**/tools/",
+    "D:\\a\\**\\tools\\",
+    "C:\\a\\**\\tools\\",
+]
+servers = [
+    "servers/",
+    "/home/runner/work/**/servers/",
+    "/Users/runner/work/**/servers/",
+    "D:\\a\\**\\servers\\",
+    "C:\\a\\**\\servers\\",
+]
+
 [tool.coverage.report]
 exclude_lines = [
     "if __name__ == .__main__.",
