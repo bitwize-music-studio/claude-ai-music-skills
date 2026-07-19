@@ -48,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: macOS, Linux, and WSL2 are fully supported. Native Windows is core (best-effort) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline are CI-tested on windows-latest; sheet-music tools (AnthemScore/MuseScore) still need WSL2. Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for details.
+**Platform**: macOS, Linux, and WSL2 are fully supported. Native Windows is core (best-effort) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run there, with the full test suite green on windows-latest in CI. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet-music tools (AnthemScore/MuseScore) still need WSL2. Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
 ---
 
@@ -108,7 +108,9 @@ Nothing ships without passing gates:
 
 ### CI/CD
 
-6 GitHub Actions workflows: tests (4,308 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
+6 GitHub Actions workflows: tests (4,412 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
+
+Coverage is measured on all three OSes and gated on the **combined** total, not one platform's view. That matters because every `sys.platform == "win32"` branch is unreachable on Linux — measuring only there made the platform-specific code invisible to the gate, which is exactly where this project's real bugs have lived. The merge is asserted rather than assumed: a mis-specified path mapping makes `coverage combine` report the Linux-only number while looking like success, so the job fails unless a known win32-only line is genuinely covered.
 
 ---
 
@@ -121,7 +123,7 @@ tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
 genres/              72 genre directories with production guides
 templates/           Album, track, artist, research templates
-tests/               4,308 tests across 14 categories
+tests/               4,412 tests across 14 categories
 config/              Example config and setup docs
 ```
 
