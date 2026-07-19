@@ -184,6 +184,84 @@ class TestFileScoping:
 
 
 # ---------------------------------------------------------------------------
+# Path separators: Windows is a core-tier platform and sends native paths
+# ---------------------------------------------------------------------------
+
+
+_WIN_TRACK_PATH = (
+    r"C:\Users\me\bitwize-music\artists\bitwize\albums\synthwave\my-album"
+    r"\tracks\01-opener.md"
+)
+
+
+@pytest.mark.unit
+class TestWindowsPathSeparators:
+    """Claude Code hands the hook the platform's *native* path.
+
+    On Windows that is backslash-separated, so a ``"/tracks/" in file_path``
+    substring test is always False there: ``is_track_file`` returns False,
+    ``validate`` returns ``[]``, and track-frontmatter validation silently
+    never runs on a core-tier platform. A hook that no-ops is indistinguishable
+    from a hook that passes, which is why these cases are explicit.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            # Pure Windows native path.
+            _WIN_TRACK_PATH,
+            # UNC share.
+            r"\\server\share\albums\synthwave\my-album\tracks\01-opener.md",
+            # Mixed separators — Claude Code / user config can produce these.
+            "C:/Users/me/albums/my-album\\tracks/01-opener.md",
+            "C:\\Users\\me\\albums\\my-album/tracks\\01-opener.md",
+            # Relative, either flavour.
+            r"tracks\01-opener.md",
+            "tracks/01-opener.md",
+        ],
+    )
+    def test_windows_and_mixed_separator_track_paths_are_recognised(self, path):
+        assert validate_track.is_track_file(path) is True
+
+    def test_windows_track_path_is_actually_validated(self):
+        """The whole point: bad frontmatter on a Windows path must be caught."""
+        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
+        issues = validate_track.validate(_write_event(_WIN_TRACK_PATH, content))
+        assert len(issues) == 1
+        assert "Almost Done" in issues[0]
+
+    def test_windows_track_path_exits_two_end_to_end(self):
+        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
+        result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, content)))
+        assert result.returncode == 2, (result.returncode, result.stderr)
+        assert "Almost Done" in result.stderr
+
+    def test_valid_windows_track_exits_zero(self):
+        result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, _valid_content())))
+        assert result.returncode == 0, (result.returncode, result.stderr)
+        assert result.stderr == ""
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            # "tracks" must be a whole path segment, not a substring of one.
+            r"C:\Users\me\music\soundtracks\01-opener.md",
+            r"C:\Users\me\music\tracksnotadir\01-opener.md",
+            r"C:\Users\me\music\tracks-old\01-opener.md",
+            "/content/soundtracks/01-opener.md",
+            "/content/my-tracks/01-opener.md",
+            # Right directory, wrong extension.
+            r"C:\Users\me\music\my-album\tracks\notes.txt",
+            # The filename itself is not a directory segment.
+            r"C:\Users\me\music\my-album\tracks.md",
+        ],
+    )
+    def test_lookalike_directories_do_not_false_positive(self, path):
+        assert validate_track.is_track_file(path) is False
+        assert validate_track.validate(_write_event(path, "no frontmatter here")) == []
+
+
+# ---------------------------------------------------------------------------
 # Payload shapes the hook must survive
 # ---------------------------------------------------------------------------
 
@@ -231,19 +309,16 @@ class TestPayloadHandling:
         assert "Traceback" not in result.stderr, result.stderr
         assert result.returncode == 0, (result.returncode, result.stderr)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Known hook bug: main() catches only (JSONDecodeError, EOFError), so "
-            "stdin holding *well-formed* JSON that is not an object reaches "
-            "validate() and dies on `data.get` with AttributeError — traceback and "
-            "a non-zero exit in the user's session. Not reachable from Claude Code "
-            "today (it always sends an object), so this is a defence-in-depth gap, "
-            "not a live failure. Remove the xfail when main() guards the shape."
-        ),
-    )
-    @pytest.mark.parametrize("stdin", ["[1, 2, 3]", "null", '"a string"', "42"])
+    @pytest.mark.parametrize("stdin", ["[1, 2, 3]", "null", '"a string"', "42", "true"])
     def test_non_object_json_stdin_exits_zero_without_traceback(self, stdin):
+        """Well-formed JSON that is not an object must degrade to "do nothing".
+
+        ``main()`` used to catch only ``(JSONDecodeError, EOFError)``, so such a
+        payload reached ``validate()`` and died on ``data.get`` with
+        ``AttributeError`` — traceback and a non-zero exit in the user's
+        session. Claude Code always sends an object today, so this is
+        defence-in-depth, not a live failure.
+        """
         result = _run_hook(stdin)
         assert "Traceback" not in result.stderr, result.stderr
         assert result.returncode == 0, (result.returncode, result.stderr)
