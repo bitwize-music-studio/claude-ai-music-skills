@@ -48,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: Linux or macOS (Windows users: use WSL). Python 3.11+ for the MCP server and audio tools.
+**Platform**: macOS, Linux, and WSL2 are fully supported. Native Windows is core (best-effort) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline are CI-tested on windows-latest; sheet-music tools (AnthemScore/MuseScore) still need WSL2. Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for details.
 
 ---
 
@@ -108,7 +108,7 @@ Nothing ships without passing gates:
 
 ### CI/CD
 
-5 GitHub Actions workflows: test suite (3,773 tests), security scanning (bandit + pip-audit), static validation, auto-release from changelog, and PR target enforcement. Dependabot watches pip and Actions versions weekly.
+6 GitHub Actions workflows: tests (4,308 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
 
 ---
 
@@ -121,7 +121,7 @@ tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
 genres/              72 genre directories with production guides
 templates/           Album, track, artist, research templates
-tests/               3,773 tests across 14 categories
+tests/               4,308 tests across 14 categories
 config/              Example config and setup docs
 ```
 
