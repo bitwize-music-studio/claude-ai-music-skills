@@ -259,17 +259,40 @@ jobs:
       run: |
         python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
 
-    - name: Run tests with coverage
+    # All three legs measure coverage. The gate itself lives in the `coverage`
+    # job, which merges the three data files — see that job's note for why a
+    # Linux-only measurement was actively misleading.
+    - name: Run tests with coverage (Linux)
       if: runner.os == 'Linux'
       run: |
-        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html --cov-fail-under=75
+        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html
 
-    - name: Run tests
-      # Coverage gate is ubuntu-only to avoid cross-platform variance from
-      # win32/darwin platform branches.
+    - name: Run tests with coverage (macOS/Windows)
+      # Stays parallel: -n auto is what keeps these legs inside their timeouts,
+      # and pytest-cov aggregates the xdist workers into one data file itself.
       if: runner.os != 'Linux'
       run: |
-        python -m pytest tests/ --tb=short -n auto
+        python -m pytest tests/ --tb=short -n auto --cov=tools --cov=servers --cov-report=term
+
+    # The raw .coverage SQLite file is what the combine job needs — the HTML
+    # report is a rendering and cannot be merged. Named WITHOUT a leading dot on
+    # purpose: upload-artifact skips hidden files unless include-hidden-files is
+    # set, which would silently ship an empty artifact and leave the combine job
+    # asserting against nothing.
+    - name: Stage raw coverage data
+      shell: bash
+      run: |
+        test -f .coverage
+        mkdir -p coverage-data
+        cp .coverage "coverage-data/coverage-${{ matrix.os }}.dat"
+
+    - name: Upload raw coverage data (${{ matrix.os }})
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: coverage-data-${{ matrix.os }}
+        path: coverage-data/
+        retention-days: 14
+        if-no-files-found: error
 
     - name: Upload coverage report
       if: runner.os == 'Linux'
@@ -278,6 +301,69 @@ jobs:
         name: coverage-report
         path: coverage-html/
         retention-days: 14
+
+  # The coverage gate used to run on ubuntu only, with an explicit note that it
+  # avoided "cross-platform variance from win32/darwin platform branches". That
+  # variance was the signal, not noise: every `sys.platform == "win32"` and
+  # darwin branch in tools/ and servers/ is unreachable on Linux, so the gate
+  # was structurally blind to the code where this project's real bugs have
+  # lived (#476 unconditional `import fcntl`, #497 missing os.replace retry, a
+  # hardcoded venv/bin/python3, os.fsync on a read-only handle, POSIX-only slug
+  # sanitisation). Measuring all three legs and gating on their UNION means a
+  # Windows-only regression can now show up as a coverage change.
+  coverage:
+    name: Combined Coverage Gate
+    runs-on: ubuntu-latest
+    needs: test
+    # Same guard as `test`: on fork PRs that job does not run, so there is no
+    # data to combine.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 15
+
+    steps:
+    # A checkout is mandatory, not incidental: coverage only applies a [paths]
+    # rule when the rewritten path exists on disk, so the source tree must be
+    # present for the three runner layouts to collapse onto one another.
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Installs the same requirements file the test legs do, so the coverage
+    # version reading the data files resolves identically to the one that wrote
+    # them. A bare `pip install coverage` could pick up a different release with
+    # a different data-file schema.
+    - name: Install coverage
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Download per-OS coverage data
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+      with:
+        pattern: coverage-data-*
+        path: coverage-parts
+
+    # Combines the three legs, then proves the merge actually happened before
+    # trusting the number: a mis-specified [paths] section makes `coverage
+    # combine` print "Combined 3 files" and still report the Linux-only total.
+    - name: Combine coverage and enforce the gate
+      run: |
+        python .github/scripts/assert_cross_os_coverage.py coverage-parts \
+          --expect-legs 3 --fail-under 80
+
+    - name: Upload combined coverage report
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: coverage-report-combined
+        path: coverage-html-combined/
+        retention-days: 14
+        if-no-files-found: ignore
 
   # DELIBERATELY has no PYTHONUTF8. This job drives a real stdio JSON-RPC
   # handshake through the same launcher `.mcp.json` invokes, so on windows-latest

@@ -35,6 +35,10 @@ $(VENV)/bin/activate: requirements.txt requirements-test.txt
 
 venv: $(VENV)/bin/activate
 
+# Deliberately a LOWER bar than CI's 80. This runs on one OS, so it can never
+# execute the win32/darwin branches and can never reach the combined number the
+# `coverage` job in test.yml gates on. Raising it to 80 to "match CI" would make
+# local runs fail for a reason no local change can fix.
 test: $(VENV)/bin/activate
 	$(PYTEST) tests/ -v --tb=short -n auto \
 		--cov=tools --cov=servers \
