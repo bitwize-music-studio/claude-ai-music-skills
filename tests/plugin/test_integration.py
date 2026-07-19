@@ -1,9 +1,10 @@
 """Tests for cross-skill integration: prerequisite chains, workflow consistency."""
 
 import re
-from typing import Dict, List
 
 import pytest
+
+from tests.plugin.test_skills import _skill_content
 
 pytestmark = [pytest.mark.plugin, pytest.mark.integration]
 
@@ -27,7 +28,7 @@ class TestPrerequisites:
 
     def test_no_circular_prerequisites(self, all_skill_frontmatter):
         # Build adjacency graph
-        prereq_graph: Dict[str, List[str]] = {}
+        prereq_graph: dict[str, list[str]] = {}
         for skill_name, fm in all_skill_frontmatter.items():
             if '_error' in fm:
                 continue
@@ -58,14 +59,8 @@ class TestLyricWorkflowChain:
     """Lyric writer/reviewer checklist counts must be consistent."""
 
     def test_reviewer_covers_writer_checklist(self, all_skill_frontmatter):
-        writer = all_skill_frontmatter.get('lyric-writer', {})
-        reviewer = all_skill_frontmatter.get('lyric-reviewer', {})
-
-        if '_error' in writer or '_error' in reviewer:
-            pytest.skip("lyric-writer or lyric-reviewer has errors")
-
-        writer_content = writer.get('_content', '')
-        reviewer_content = reviewer.get('_content', '')
+        writer_content = _skill_content(all_skill_frontmatter, 'lyric-writer')
+        reviewer_content = _skill_content(all_skill_frontmatter, 'lyric-reviewer')
 
         writer_match = re.search(
             r'(?:(\d+)-[Pp]oint.*(?:[Cc]hecklist|[Qq]uality [Cc]heck)|[Qq]uality [Cc]heck \((\d+)-[Pp]oint\))', writer_content
@@ -74,8 +69,14 @@ class TestLyricWorkflowChain:
             r'(\d+)-[Pp]oint.*[Cc]hecklist', reviewer_content
         )
 
-        if not writer_match or not reviewer_match:
-            pytest.skip("Could not find checklist counts")
+        assert writer_match, (
+            "lyric-writer SKILL.md no longer advertises an N-point quality "
+            "checklist — the writer/reviewer coverage guarantee cannot be checked"
+        )
+        assert reviewer_match, (
+            "lyric-reviewer SKILL.md no longer advertises an N-point checklist — "
+            "the writer/reviewer coverage guarantee cannot be checked"
+        )
 
         writer_count = int(writer_match.group(1) or writer_match.group(2))
         reviewer_count = int(reviewer_match.group(1))
@@ -90,15 +91,12 @@ class TestPreGenerationCheck:
     EXPECTED_REFS = ['lyric-writer', 'lyric-reviewer', 'pronunciation-specialist', 'suno-engineer']
 
     def test_pregen_references_qc_skills(self, all_skill_frontmatter):
-        pregen = all_skill_frontmatter.get('pre-generation-check', {})
-        if '_error' in pregen:
-            pytest.skip("pre-generation-check has errors")
-
-        content = pregen.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'pre-generation-check')
         missing = [ref for ref in self.EXPECTED_REFS if ref not in content]
-
-        # This is advisory (WARN level in original)
-        assert not missing or True  # soft check
+        assert not missing, (
+            "pre-generation-check SKILL.md must reference every QC skill it "
+            f"gates on; missing: {', '.join(missing)}"
+        )
 
 
 class TestArtistBlocklist:
@@ -108,21 +106,15 @@ class TestArtistBlocklist:
         blocklist = reference_dir / "suno" / "artist-blocklist.md"
         assert blocklist.exists(), "reference/suno/artist-blocklist.md not found"
 
-    def test_suno_engineer_references_blocklist(self, all_skill_frontmatter):
-        suno_eng = all_skill_frontmatter.get('suno-engineer', {})
-        if '_error' in suno_eng:
-            pytest.skip("suno-engineer has errors")
-        content = suno_eng.get('_content', '')
-        # Advisory check
-        assert 'artist-blocklist' in content or True  # soft check
-
-    def test_lyric_reviewer_references_blocklist(self, all_skill_frontmatter):
-        reviewer = all_skill_frontmatter.get('lyric-reviewer', {})
-        if '_error' in reviewer:
-            pytest.skip("lyric-reviewer has errors")
-        content = reviewer.get('_content', '')
-        # Advisory check
-        assert 'artist-blocklist' in content or True  # soft check
+    # Skills may cite the blocklist by file name (artist-blocklist.md) or by
+    # prose ("the artist blocklist"); both count as a reference.
+    @pytest.mark.parametrize("skill_name", ['suno-engineer', 'lyric-reviewer'])
+    def test_skill_references_blocklist(self, all_skill_frontmatter, skill_name):
+        content = _skill_content(all_skill_frontmatter, skill_name).lower()
+        assert 'artist-blocklist' in content or 'artist blocklist' in content, (
+            f"{skill_name} SKILL.md no longer references the artist blocklist — "
+            f"style prompts containing artist names would go unchecked"
+        )
 
 
 class TestHomographFlow:
@@ -136,12 +128,11 @@ class TestHomographFlow:
 
     @pytest.mark.parametrize("skill_name,role", ROLES.items())
     def test_homograph_role_documented(self, all_skill_frontmatter, skill_name, role):
-        fm = all_skill_frontmatter.get(skill_name, {})
-        if '_error' in fm:
-            pytest.skip(f"{skill_name} has errors")
-        content = fm.get('_content', '')
-        # Advisory check
-        assert role.lower() in content.lower() or True  # soft check
+        content = _skill_content(all_skill_frontmatter, skill_name)
+        assert role.lower() in content.lower(), (
+            f"{skill_name} SKILL.md does not document its homograph role "
+            f"('{role}') — the flag/resolve/verify handoff is broken"
+        )
 
 
 class TestInstrumentalRouting:
@@ -150,10 +141,7 @@ class TestInstrumentalRouting:
     @pytest.mark.parametrize("skill_name", ['resume', 'next-step'])
     def test_instrumental_routes_to_suno_engineer(self, all_skill_frontmatter, skill_name):
         """Decision tree must route instrumental tracks to suno-engineer."""
-        fm = all_skill_frontmatter.get(skill_name, {})
-        if '_error' in fm:
-            pytest.skip(f"{skill_name} has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, skill_name)
         # Must mention instrumental detection
         assert 'instrumental' in content.lower(), (
             f"{skill_name} SKILL.md missing instrumental track handling"
@@ -165,10 +153,7 @@ class TestInstrumentalRouting:
 
     def test_resume_handles_mixed_albums(self, all_skill_frontmatter):
         """resume must handle albums with both vocal and instrumental tracks."""
-        fm = all_skill_frontmatter.get('resume', {})
-        if '_error' in fm:
-            pytest.skip("resume has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'resume')
         # Check for mixed album awareness (vocal + instrumental)
         has_mixed = (
             'vocal' in content.lower() and 'instrumental' in content.lower()
@@ -183,10 +168,7 @@ class TestReviewAndApprovePhase:
 
     def test_resume_review_approve_phase(self, all_skill_frontmatter):
         """resume must show Review & Approve when all tracks are Generated."""
-        fm = all_skill_frontmatter.get('resume', {})
-        if '_error' in fm:
-            pytest.skip("resume has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'resume')
         assert 'Review & Approve' in content, (
             "resume SKILL.md missing 'Review & Approve' phase for all-Generated albums"
         )
@@ -197,10 +179,7 @@ class TestRegenerationPaths:
 
     def test_next_step_regeneration_paths(self, all_skill_frontmatter):
         """next-step must document style issue and lyrics issue regeneration paths."""
-        fm = all_skill_frontmatter.get('next-step', {})
-        if '_error' in fm:
-            pytest.skip("next-step has errors")
-        content = fm.get('_content', '')
+        content = _skill_content(all_skill_frontmatter, 'next-step')
         has_style_path = 'style issue' in content.lower() or 'Style issue' in content
         has_lyrics_path = 'lyrics issue' in content.lower() or 'Lyrics issue' in content
         assert has_style_path, (
