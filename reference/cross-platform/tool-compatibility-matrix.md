@@ -179,6 +179,17 @@ unproven.
 
 **Notes**:
 - AnthemScore: $42 (Professional edition), Windows/Mac/Linux
+- **AnthemScore's CLI requires a licensed install.** The free trial exposes no
+  command-line interface at all: an unlicensed binary rejects every option,
+  including `--help`, with `AnthemScore: Unknown options: a, p, x, m.` Verified
+  on the current macOS DMG and Linux AppImage. So `transcribe.py` works only
+  against an activated copy — anyone evaluating the sheet-music workflow on the
+  trial will hit that wall and reasonably conclude the tool is broken.
+- This also means AnthemScore transcription **cannot be covered in CI**:
+  activation is device-based (4 devices, plus one per year), and ephemeral
+  runners present as a new device every run, so CI would exhaust the
+  activations. Its tests are necessarily mock-only — unlike MuseScore, which is
+  free and installable per-run and therefore has a real integration job.
 - MuseScore: Free, open source
 - WSL2: Run GUI apps in Windows, use WSL for CLI scripts
 

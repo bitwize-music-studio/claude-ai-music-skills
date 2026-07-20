@@ -18,8 +18,14 @@ Complete reference for AnthemScore command-line interface and setup.
 **Free trial**:
 - 30 seconds per song
 - 100 total transcriptions
-- All features available
+- All *transcription* features available
 - No subscription needed
+
+> **The trial does not include the CLI.** The editions above are the paid ones,
+> and CLI support is a licensed feature. An unlicensed binary rejects every
+> option — including `--help` — with `AnthemScore: Unknown options: a, p, x, m.`
+> Verified against the current macOS DMG and Linux AppImage. Everything in this
+> reference therefore assumes an **activated** install; on the trial, use the GUI.
 
 ### Platform Support
 
