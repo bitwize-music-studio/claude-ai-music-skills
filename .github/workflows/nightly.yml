@@ -200,6 +200,54 @@ jobs:
   #    requested, please verify your 'runs-on' and 'wsl-version' settings"
   # on an image where WSL2 demonstrably works (and in the wsl-version: 1 path
   # it silently skips version pinning instead of erroring).
+  # Chromium launch smoke test for the document-hunter dependency.
+  #
+  # Lives in nightly, not PR CI, on cost: chromium is ~150MB per leg and almost
+  # nothing exercises it. It runs on all three OSes because browser download and
+  # launch are precisely the parts that differ per platform.
+  #
+  # `pip install playwright` does NOT install a browser — `playwright install
+  # chromium` does, out-of-band — so the cheap import check in the normal suite
+  # (tests/unit/shared/test_pinned_dependencies.py) proves nothing about whether
+  # a browser is usable. This closes that half.
+  playwright-smoke:
+    name: Playwright Chromium smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    env:
+      BITWIZE_INTEGRATION: "1"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      with:
+        ref: develop
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+        pip install -r requirements.txt
+
+    # --with-deps pulls the system libraries chromium needs on Linux; it is a
+    # no-op on macOS/Windows.
+    - name: Install Chromium
+      run: python -m playwright install --with-deps chromium
+
+    - name: Run the Chromium smoke test
+      run: |
+        python -m pytest tests/integration/test_playwright_browser.py -m integration -v --tb=short
+
   wsl2-suite:
     name: WSL2 Suite (windows-latest)
     runs-on: windows-latest
