@@ -50,14 +50,18 @@ MCP stdio boot check on windows-latest.
 | Linux | `xclip` | `sudo apt install xclip` |
 | Linux (alt) | `xsel` | `sudo apt install xsel` |
 | WSL2 | `clip.exe` | Built-in (Windows interop) |
-| Windows (native) | `clip.exe` — **unverified** | Built-in, but the skill is a bash snippet |
+| Windows (native) | `clip.exe` | Built-in (System32), via Git Bash |
 
 **Notes**:
 - SSH sessions: Clipboard unavailable (use X11 forwarding or copy manually)
 - Headless Linux: xclip requires X11 display, use xsel with `--clipboard`
-- Windows (native): `clip.exe` exists, but the clipboard skill is written as a
-  bash snippet, so it depends on a bash being present (e.g. Git Bash). Not
-  covered by any test — treat as unverified rather than supported.
+- Windows (native): supported. Verified on a windows-latest runner — Git Bash
+  is present, the skill's detection chain selects the `clip.exe` branch,
+  `clip.exe` resolves at `/c/Windows/system32/clip.exe`, and a copy round-trips
+  via `Get-Clipboard`. PowerShell's `Set-Clipboard` also round-trips, so there
+  is a native fallback if a bash is ever unavailable.
+- This cannot be regression-tested in the normal suite: a headless runner has no
+  clipboard, and the probe above was a one-off. Treat it as verified-by-hand.
 
 ### Audio Mastering
 
@@ -303,7 +307,7 @@ python3 --version
 
 # Clipboard
 if command -v pbcopy >/dev/null; then echo "macOS clipboard: OK"
-elif command -v clip.exe >/dev/null; then echo "WSL clipboard: OK"
+elif command -v clip.exe >/dev/null; then echo "Windows/WSL clipboard: OK"
 elif command -v xclip >/dev/null; then echo "Linux clipboard: OK"
 else echo "Clipboard: MISSING"; fi
 

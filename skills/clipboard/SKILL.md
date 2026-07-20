@@ -29,7 +29,11 @@ Run detection:
 if command -v pbcopy >/dev/null 2>&1; then
   echo "macOS"
 elif command -v clip.exe >/dev/null 2>&1; then
-  echo "WSL"
+  # clip.exe is a built-in Windows utility (System32). Reachable both from WSL
+  # via interop and from a native-Windows shell such as Git Bash, so this one
+  # branch covers both. Verified on a windows-latest runner: Git Bash present,
+  # clip.exe resolved at /c/Windows/system32/clip.exe, copy round-tripped.
+  echo "Windows/WSL"
 elif command -v xclip >/dev/null 2>&1; then
   echo "Linux-xclip"
 elif command -v xsel >/dev/null 2>&1; then
@@ -47,7 +51,7 @@ Error: No clipboard utility found.
 Install instructions:
 - macOS: pbcopy (built-in)
 - Linux: sudo apt install xclip
-- WSL: clip.exe (built-in)
+- Windows (native) and WSL: clip.exe (built-in)
 ```
 
 ## Step 2: Parse Arguments
@@ -94,7 +98,7 @@ Use the detected platform's clipboard command:
 | Platform | Command |
 |----------|---------|
 | macOS | `pbcopy` |
-| WSL | `clip.exe` |
+| Windows (native) / WSL | `clip.exe` |
 | Linux (xclip) | `xclip -selection clipboard` |
 | Linux (xsel) | `xsel --clipboard --input` |
 
@@ -206,7 +210,8 @@ See tools/userscripts/README.md for setup.
 
 **Clipboard Detection:**
 - Check multiple tools in order of preference
-- WSL has `clip.exe` which works from Linux subsystem
+- `clip.exe` is built into Windows, so it serves both native Windows (via Git Bash) and WSL (via interop)
+- If no bash is available at all, PowerShell's `Set-Clipboard` is an equivalent native fallback (verified working)
 - Linux users may have either `xclip` or `xsel`
 
 **Content Extraction:**
