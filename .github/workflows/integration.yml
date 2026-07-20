@@ -110,26 +110,35 @@ jobs:
       run: docker logs seaweedfs || true
 
   musescore:
-    name: Integration (MuseScore PDF export)
-    runs-on: ubuntu-latest
+    name: Integration (MuseScore PDF export / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     # Same fork-PR guard as the other jobs — untrusted code could modify
     # requirements/test files.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # MuseScore is free with a real CLI, so unlike AnthemScore (licensed,
+        # not CI-testable) its Windows path IS verifiable. choco installs it to
+        # C:\Program Files\MuseScore 4\bin\MuseScore4.exe — the first entry in
+        # find_musescore()'s Windows table, which detects it with no help.
+        os: [ubuntu-latest, windows-latest]
 
     env:
       # The env gate: only with this set does the double-gated MuseScore test
       # actually run (otherwise it collect-and-skips like the normal suite).
       BITWIZE_INTEGRATION: "1"
       PYTHONUTF8: "1"
-      # MuseScore is a Qt GUI app; run its CLI headless with the offscreen
-      # platform plugin (verified locally to export a real PDF this way).
-      QT_QPA_PLATFORM: offscreen
-      # apt `musescore3` installs /usr/bin/mscore3 (+ a musescore3 symlink),
-      # which find_musescore() now detects on its own; the test prefers that
-      # and only falls back to MUSESCORE_BIN, kept here as a belt-and-braces
-      # pin against future PATH surprises on the runner.
-      MUSESCORE_BIN: /usr/bin/mscore3
+      # Linux only: MuseScore is a Qt GUI app, so its CLI runs headless via the
+      # offscreen platform plugin. Windows runners have an interactive session,
+      # so no platform override is needed (empty = Qt's default plugin).
+      QT_QPA_PLATFORM: ${{ matrix.os == 'ubuntu-latest' && 'offscreen' || '' }}
+      # Linux only: apt `musescore3` installs /usr/bin/mscore3, which
+      # find_musescore() detects on its own; this is a belt-and-braces fallback.
+      # On Windows find_musescore() resolves MuseScore4.exe directly, so the
+      # test never consults this (find_musescore() or MUSESCORE_BIN).
+      MUSESCORE_BIN: ${{ matrix.os == 'ubuntu-latest' && '/usr/bin/mscore3' || '' }}
 
     steps:
     - name: Checkout code
@@ -142,6 +151,7 @@ jobs:
         cache: 'pip'
 
     - name: Install MuseScore (musescore3) + xvfb
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         # xvfb is a headless fallback if the offscreen plugin misbehaves on the
@@ -150,9 +160,19 @@ jobs:
         echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
         ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
 
+    - name: Install MuseScore (Chocolatey)
+      if: runner.os == 'Windows'
+      run: choco install musescore -y --no-progress
+
     - name: MuseScore diagnostics
+      shell: bash
       run: |
-        "${MUSESCORE_BIN}" --version || true
+        # Cross-platform: bash resolves to Git Bash on the Windows runner. Prints
+        # what the product's own detector finds, on whichever OS this leg is.
+        python -c "import importlib.util as u, sys; sys.path.insert(0, '.'); \
+          s = u.spec_from_file_location('ps', 'tools/sheet-music/prepare_singles.py'); \
+          m = u.module_from_spec(s); s.loader.exec_module(m); \
+          print('find_musescore() ->', m.find_musescore())"
 
     - name: Install dependencies
       run: |

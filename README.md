@@ -48,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: macOS, Linux, and WSL2 are fully supported. Native Windows is core (best-effort) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run there, with the full test suite green on windows-latest in CI. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet-music tools (AnthemScore/MuseScore) still need WSL2. Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
+**Platform**: macOS, Linux, and WSL2 are fully supported. Native Windows is core (best-effort) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run there, with the full test suite green on windows-latest in CI. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet music works natively too: MuseScore PDF export is CI-verified on windows-latest, and AnthemScore transcription runs against a licensed install (its free trial exposes no CLI on any OS, so that caveat isn't Windows-specific). Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
 ---
 

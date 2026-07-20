@@ -12,7 +12,7 @@ What works on each platform for the Claude AI Music Skills plugin.
 | **Linux** (native) | Full | Tested on Ubuntu 22.04+ |
 | **WSL2** | Full | See [WSL Setup Guide](wsl-setup-guide.md) |
 | **WSL1** | Partial | Works but slower, some limitations |
-| **Windows (native)** | Core (best-effort) | MCP server, state cache, non-audio workflow (albums, tracks, ideas, research docs, status tracking), and the ffmpeg audio pipeline (mixing/mastering/codec preview) — the full test suite runs on windows-latest in CI. Promo video works but its CI coverage is mock-only (see below). AnthemScore/MuseScore (sheet music) not supported natively; use WSL2 |
+| **Windows (native)** | Core (best-effort) | MCP server, state cache, non-audio workflow (albums, tracks, ideas, research docs, status tracking), and the ffmpeg audio pipeline (mixing/mastering/codec preview) — the full test suite runs on windows-latest in CI. Promo video works but its CI coverage is mock-only (see below). Sheet music works natively too — MuseScore is CI-verified on windows-latest; AnthemScore needs a licensed install (its trial has no CLI on any OS). |
 
 > **What "CI-tested" does and does not mean here.** The full suite, the MCP stdio
 > boot check, and the ffmpeg-gated *audio* tests (ADM validation, codec preview,
@@ -162,24 +162,37 @@ playwright install-deps chromium
 
 | Feature | macOS | Linux | WSL2 | Windows (native) | Requirements |
 |---------|-------|-------|------|------------------|------------------|
-| Auto transcription | Yes | Yes | Partial | No — use WSL2 | AnthemScore |
-| PDF export | Yes | Yes | Partial | No — use WSL2 | AnthemScore |
-| Notation editing | Yes | Yes | Partial | No — use WSL2 | MuseScore |
+| Auto transcription | Yes | Yes | Partial | Yes² | AnthemScore |
+| PDF export | Yes | Yes | Partial | Yes² | AnthemScore |
+| Notation editing / PDF re-export | Yes | Yes | Partial | Yes¹ | MuseScore |
 | Songbook creation | Yes | Yes | Yes | Yes | pypdf, reportlab |
 
-Songbook creation is pure Python (pypdf/reportlab) and runs anywhere. The other
-three shell out to AnthemScore/MuseScore, which stay WSL2-recommended by the
-support-tier decision. The discovery code *does* know the Windows install
-locations, but no runner has either tool, so those branches are exercised only
-by tests that patch `platform.system()` — real native-Windows sheet music is
-unproven.
+Songbook creation is pure Python (pypdf/reportlab) and runs anywhere.
+
+¹ **MuseScore on native Windows is CI-verified.** MuseScore is free with a real
+CLI, so — unlike AnthemScore — its Windows path is testable. A `windows-latest`
+leg of the MuseScore integration job installs it via Chocolatey (which lands it
+at `C:\Program Files\MuseScore 4\bin\MuseScore4.exe`, the first entry in
+`find_musescore()`'s Windows table), and `find_musescore()` detects it with no
+help before exporting a real PDF. This runs on every PR, so it cannot silently
+regress.
+
+² **AnthemScore on native Windows requires a licensed install, and is not
+independently CI-verified.** The blocker is *not* Windows-specific: the free
+trial exposes no CLI on **any** OS (an unlicensed binary rejects every flag,
+confirmed on the current macOS and Linux builds), and activation is device-based
+so ephemeral runners can't be licensed. It is expected to work — AnthemScore is
+a native-Windows application, `transcribe.py` knows its Windows install path and
+uses the correct `where` locator (fixed in #498), and the CLI is confirmed
+working on a licensed macOS install exercising the same code path. Not run on a
+Windows box here.
 
 **Software Requirements**:
 
-| Tool | macOS | Linux | WSL2 |
-|------|-------|-------|------|
-| AnthemScore | Native | Native | Run in Windows |
-| MuseScore | Native | Native | WSLg or Windows |
+| Tool | macOS | Linux | WSL2 | Windows (native) |
+|------|-------|-------|------|------------------|
+| AnthemScore | Native | Native | Run in Windows | Native (licensed) |
+| MuseScore | Native | Native | WSLg or Windows | Native (CI-verified) |
 
 **Notes**:
 - AnthemScore: $42 (Professional edition), Windows/Mac/Linux
