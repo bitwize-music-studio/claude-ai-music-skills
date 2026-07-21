@@ -6,6 +6,12 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+## [0.101.0] - 2026-07-21
+
+### Fixed
+- **MuseScore PDF-export integration test no longer flakes on windows-latest** — MuseScore 4's first launch on a clean Windows profile initializes its AppData tree (settings + crashpad `logs/dumps` dirs), and the very first CLI invocation races that init, so the export intermittently (~1 in 2) failed with a crashpad `GetFileAttributes ...\logs\dumps\attachments\...: cannot find` error. The Windows leg now warms MuseScore up once (pre-creating the crashpad dir and running a throwaway convert, tolerating failure) so the profile is initialized before the real test, with a bounded retry (3 attempts) as belt-and-braces — a persistent failure across all attempts still fails the job, so only the first-launch race is absorbed, not a real regression. Linux behaviour is unchanged (single-shot).
+- **The skipped Python Floor Check nightly job now shows a readable name** — when nightly runs without a `check-python-floor` input (the cron schedule, or a plain dispatch) the floor-check job is skipped, and GitHub does not expand an empty `${{ inputs.check-python-floor }}` template on a skipped job, so the Actions run page displayed the raw template string as the job name. It now falls back to `not requested`. No behaviour change.
+
 ## [0.100.0] - 2026-07-21
 
 ### Fixed

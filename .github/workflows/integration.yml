@@ -180,9 +180,44 @@ jobs:
         pip install -r requirements-test.txt
         pip install -r requirements.txt
 
-    - name: Run MuseScore integration test
+    - name: Run MuseScore integration test (Linux)
+      if: runner.os == 'Linux'
       run: |
         python -m pytest tests/integration/test_musescore_export.py -m integration -v --tb=short
+
+    # MuseScore 4's FIRST launch on a clean Windows profile initializes its
+    # AppData tree (settings + the crashpad logs/dumps dirs). The very first CLI
+    # invocation races that init and its export intermittently (~1 in 2) fails
+    # with a crashpad error:
+    #   filesystem_win.cc GetFileAttributes ...\logs\dumps\attachments\...: cannot find
+    # Warm up once (pre-create the crashpad dir + a throwaway convert, tolerating
+    # failure) so the profile is initialized, then run the real test with a
+    # couple of retries as belt-and-braces. A persistent failure — all attempts —
+    # still fails the job, so this masks only the first-launch race, not a real
+    # regression.
+    - name: Warm up MuseScore and run integration test (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $bin = "C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
+        $dumps = Join-Path $env:LOCALAPPDATA "MuseScore\MuseScore4\logs\dumps\attachments"
+        New-Item -ItemType Directory -Force -Path $dumps | Out-Null
+        $warmup = Join-Path $env:RUNNER_TEMP "warmup.pdf"
+        $fixture = "tests\integration\fixtures\minimal.musicxml"
+        Write-Host "== warm-up convert (first-launch profile init; failure tolerated) =="
+        & $bin -o $warmup $fixture 2>&1 | Out-Host
+        Write-Host "warm-up exit: $LASTEXITCODE (tolerated)"
+
+        $attempts = 3
+        for ($i = 1; $i -le $attempts; $i++) {
+          Write-Host "== MuseScore integration test attempt $i/$attempts =="
+          python -m pytest tests/integration/test_musescore_export.py -m integration -v --tb=short
+          if ($LASTEXITCODE -eq 0) { Write-Host "passed on attempt $i"; exit 0 }
+          Write-Host "attempt $i failed (exit $LASTEXITCODE)"
+          Start-Sleep -Seconds 3
+        }
+        Write-Host "::error::MuseScore integration test failed all $attempts attempts (not the first-launch flake)"
+        exit 1
 
   afconvert:
     name: Integration (ADM afconvert / macOS)

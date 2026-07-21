@@ -290,7 +290,10 @@ jobs:
         /tmp/wsl-venv/bin/python -m pytest tests/ --tb=short -n auto
 
   floor-check:
-    name: Python Floor Check (${{ inputs.check-python-floor }})
+    # Falls back to a label when no version is given: the job is skipped in that
+    # case (see `if` below), and GitHub does not expand an empty template on a
+    # skipped job — so without this the run page shows the raw ${{ ... }} string.
+    name: Python Floor Check (${{ inputs.check-python-floor || 'not requested' }})
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.check-python-floor != '' }}
     timeout-minutes: 30
