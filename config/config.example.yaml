@@ -601,7 +601,7 @@ sheet_music:
   #   public_url: ""  # Custom domain for public URLs (e.g., "https://cdn.example.com")
 
   # ---------------------------
-  # AWS S3 Configuration
+  # AWS S3 / S3-compatible Configuration
   # ---------------------------
   # Get credentials: AWS Console > IAM > Users > Security credentials
   #
@@ -610,6 +610,10 @@ sheet_music:
   #   access_key_id: "AKIAIOSFODNN7EXAMPLE"
   #   secret_access_key: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
   #   bucket: "my-promo-bucket"
+  #   # endpoint_url [optional] — point the s3 provider at ANY S3-compatible
+  #   # endpoint (SeaweedFS, MinIO, Backblaze B2, Wasabi, self-hosted). Omit
+  #   # for AWS S3. When set, the client uses path-style addressing.
+  #   endpoint_url: "http://localhost:8333"
 
 
 # =============================================================================

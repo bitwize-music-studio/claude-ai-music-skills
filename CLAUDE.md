@@ -71,7 +71,8 @@ At the beginning of a fresh session:
 
 1. **Verify setup** — Quick dependency check:
    ```bash
-   ~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing"
+   ~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing"        # macOS/Linux/WSL
+   ~/.bitwize-music/venv/Scripts/python.exe -c "import mcp" 2>&1 >/dev/null && echo "✅ MCP ready" || echo "❌ MCP missing" # Windows (Git Bash; cmd/PowerShell: %USERPROFILE%\.bitwize-music\venv\Scripts\python.exe)
    ```
    - If MCP missing → **Stop immediately** and suggest: `/bitwize-music:setup mcp`
    - If config missing → suggest: `/bitwize-music:configure`
@@ -104,7 +105,7 @@ At the beginning of a fresh session:
 5. _(Removed — skills use tier aliases (`opus`/`sonnet`/`haiku`) that auto-track the frontier model, and the test suite (`/bitwize-music:test`) enforces model/effort hygiene, so no action is needed on new releases.)_
 6. **Report from MCP state**:
    - Health warnings (from step 1.5 — omit if ok):
-     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `~/.bitwize-music/venv/bin/pip install -r .../requirements.txt`"
+     - Venv stale: "⚠️ Venv has N outdated package(s): pkg1 (1.0.0 → 1.1.0), ... Run: `<venv check's fix field from health_check>`" (already the correct command for the user's OS)
      - Skills stale: "⚠️ N skill(s) missing from Claude Code, N ghost — run: `claude plugin update bitwize-music`"
    - Album ideas (from `get_ideas`)
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")

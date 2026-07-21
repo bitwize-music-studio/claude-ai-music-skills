@@ -48,7 +48,7 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-**Platform**: Linux or macOS (Windows users: use WSL). Python 3.11+ for the MCP server and audio tools.
+**Platform**: macOS, Linux, WSL2, and native Windows are all fully supported. The full test suite runs on windows-latest in CI (plus dedicated Windows legs for the MCP boot check and MuseScore PDF export) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run natively there. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet music works natively too: MuseScore PDF export is CI-verified on windows-latest, and AnthemScore transcription runs against a licensed install (its free trial exposes no CLI on any OS, so that caveat isn't Windows-specific). Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
 ---
 
@@ -108,7 +108,9 @@ Nothing ships without passing gates:
 
 ### CI/CD
 
-5 GitHub Actions workflows: test suite (3,773 tests), security scanning (bandit + pip-audit), static validation, auto-release from changelog, and PR target enforcement. Dependabot watches pip and Actions versions weekly.
+6 GitHub Actions workflows: tests (4,412 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
+
+Coverage is measured on all three OSes and gated on the **combined** total, not one platform's view. That matters because every `sys.platform == "win32"` branch is unreachable on Linux — measuring only there made the platform-specific code invisible to the gate, which is exactly where this project's real bugs have lived. The merge is asserted rather than assumed: a mis-specified path mapping makes `coverage combine` report the Linux-only number while looking like success, so the job fails unless a known win32-only line is genuinely covered.
 
 ---
 
@@ -121,7 +123,7 @@ tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
 genres/              72 genre directories with production guides
 templates/           Album, track, artist, research templates
-tests/               3,773 tests across 14 categories
+tests/               4,412 tests across 14 categories
 config/              Example config and setup docs
 ```
 
@@ -151,6 +153,7 @@ config/              Example config and setup docs
 <a href="https://github.com/alijahak"><img src="https://images.weserv.nl/?url=github.com/alijahak.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@alijahak"></a>
 <a href="https://github.com/DaveMatNat"><img src="https://images.weserv.nl/?url=github.com/DaveMatNat.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@DaveMatNat"></a>
 <a href="https://github.com/thejesh23"><img src="https://images.weserv.nl/?url=github.com/thejesh23.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@thejesh23"></a>
+<a href="https://github.com/tgh612"><img src="https://images.weserv.nl/?url=github.com/tgh612.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@tgh612"></a>
 
 If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X, [join the Discord](https://discord.gg/dMURByGF), or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
 

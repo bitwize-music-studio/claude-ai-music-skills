@@ -1,0 +1,15 @@
+#!/bin/sh
+# Cross-platform MCP launcher (POSIX side; mcp-launch.cmd is the Windows side).
+#
+# .mcp.json references this by its extensionless name. Claude Code runs THIS
+# shebang script on macOS/Linux and resolves mcp-launch.cmd on Windows — which
+# is how one .mcp.json entry launches correctly on all three OSes despite the
+# venv interpreter living at bin/python3 (POSIX) vs Scripts\python.exe (Windows).
+#
+# Prefer the plugin venv; fall back to python3 on PATH (mirrors run.py).
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+venv="$HOME/.bitwize-music/venv/bin/python3"
+if [ -x "$venv" ]; then
+  exec "$venv" "$here/run.py" "$@"
+fi
+exec python3 "$here/run.py" "$@"

@@ -49,7 +49,7 @@ class TestLoadConfig:
             'artist': {'name': 'testartist'},
             'paths': {'content_root': '/tmp/content'},
         }
-        with open(config_path, 'w') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config_data, f)
 
         with mock.patch.object(config_module, 'CONFIG_PATH', config_path):

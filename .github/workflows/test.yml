@@ -9,10 +9,17 @@ on:
 permissions:
   contents: read
 
+# Rapid pushes to the same PR/branch stack full 3-OS matrices; keep only the
+# newest run per ref.
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Static Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
     - name: Checkout code
@@ -181,10 +188,26 @@ jobs:
         "
 
   test:
-    name: Tests
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     # Skip for fork PRs — untrusted code could modify requirements/test files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            timeout: 30
+          - os: macos-latest
+            timeout: 45
+          - os: windows-latest
+            timeout: 60
+    env:
+      # Scoped to this job ON PURPOSE. The *test harness* still has encoding-less
+      # text I/O, so it needs UTF-8 mode on cp1252 Windows runners. Do NOT hoist
+      # to workflow level: mcp-boot must stay WITHOUT it (see that job's note).
+      PYTHONUTF8: "1"
 
     steps:
     - name: Checkout code
@@ -196,10 +219,33 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    - name: Install system dependencies
+    - name: Install system dependencies (Linux)
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends ffmpeg
+
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install ffmpeg
+
+    # ffmpeg is installed on all three OSes so the ffmpeg-gated audio tests
+    # run everywhere; AnthemScore/MuseScore remain WSL-recommended externals.
+    - name: Install system dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: choco install ffmpeg -y --no-progress
+
+    # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
+    # so a half-succeeded install (or a PATH the shim never reached) would let
+    # ~10 audio tests silently skip while the leg still went green. Assert both
+    # binaries resolve here instead. shell: bash runs with -eo pipefail on all
+    # three OSes (Git Bash on Windows), so a missing binary fails the job.
+    - name: Verify ffmpeg and ffprobe are on PATH
+      shell: bash
+      run: |
+        ffmpeg -version
+        ffprobe -version
 
     - name: Install test dependencies
       run: |
@@ -207,22 +253,190 @@ jobs:
         pip install -r requirements-test.txt
         pip install -r requirements.txt
 
-    - name: Run tests with coverage
+    - name: Import smoke test (fcntl regression, issue 476)
+      # Fast, legible failure signal for issue #476 regressions.
+      if: runner.os == 'Windows'
       run: |
-        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html --cov-fail-under=75
+        python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
+
+    # All three legs measure coverage. The gate itself lives in the `coverage`
+    # job, which merges the three data files — see that job's note for why a
+    # Linux-only measurement was actively misleading.
+    - name: Run tests with coverage (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html
+
+    - name: Run tests with coverage (macOS/Windows)
+      # Stays parallel: -n auto is what keeps these legs inside their timeouts,
+      # and pytest-cov aggregates the xdist workers into one data file itself.
+      if: runner.os != 'Linux'
+      run: |
+        python -m pytest tests/ --tb=short -n auto --cov=tools --cov=servers --cov-report=term
+
+    # The raw .coverage SQLite file is what the combine job needs — the HTML
+    # report is a rendering and cannot be merged. Named WITHOUT a leading dot on
+    # purpose: upload-artifact skips hidden files unless include-hidden-files is
+    # set, which would silently ship an empty artifact and leave the combine job
+    # asserting against nothing.
+    - name: Stage raw coverage data
+      shell: bash
+      run: |
+        test -f .coverage
+        mkdir -p coverage-data
+        cp .coverage "coverage-data/coverage-${{ matrix.os }}.dat"
+
+    - name: Upload raw coverage data (${{ matrix.os }})
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: coverage-data-${{ matrix.os }}
+        path: coverage-data/
+        retention-days: 14
+        if-no-files-found: error
 
     - name: Upload coverage report
+      if: runner.os == 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
         name: coverage-report
         path: coverage-html/
         retention-days: 14
 
+  # The coverage gate used to run on ubuntu only, with an explicit note that it
+  # avoided "cross-platform variance from win32/darwin platform branches". That
+  # variance was the signal, not noise: every `sys.platform == "win32"` and
+  # darwin branch in tools/ and servers/ is unreachable on Linux, so the gate
+  # was structurally blind to the code where this project's real bugs have
+  # lived (#476 unconditional `import fcntl`, #497 missing os.replace retry, a
+  # hardcoded venv/bin/python3, os.fsync on a read-only handle, POSIX-only slug
+  # sanitisation). Measuring all three legs and gating on their UNION means a
+  # Windows-only regression can now show up as a coverage change.
+  coverage:
+    name: Combined Coverage Gate
+    runs-on: ubuntu-latest
+    needs: test
+    # Same guard as `test`: on fork PRs that job does not run, so there is no
+    # data to combine.
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 15
+
+    steps:
+    # A checkout is mandatory, not incidental: coverage only applies a [paths]
+    # rule when the rewritten path exists on disk, so the source tree must be
+    # present for the three runner layouts to collapse onto one another.
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Installs the same requirements file the test legs do, so the coverage
+    # version reading the data files resolves identically to the one that wrote
+    # them. A bare `pip install coverage` could pick up a different release with
+    # a different data-file schema.
+    - name: Install coverage
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-test.txt
+
+    - name: Download per-OS coverage data
+      uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+      with:
+        pattern: coverage-data-*
+        path: coverage-parts
+
+    # Combines the three legs, then proves the merge actually happened before
+    # trusting the number: a mis-specified [paths] section makes `coverage
+    # combine` print "Combined 3 files" and still report the Linux-only total.
+    - name: Combine coverage and enforce the gate
+      run: |
+        python .github/scripts/assert_cross_os_coverage.py coverage-parts \
+          --expect-legs 3 --fail-under 80
+
+    - name: Upload combined coverage report
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: coverage-report-combined
+        path: coverage-html-combined/
+        retention-days: 14
+        if-no-files-found: ignore
+
+  # DELIBERATELY has no PYTHONUTF8. This job drives a real stdio JSON-RPC
+  # handshake through the same launcher `.mcp.json` invokes, so on windows-latest
+  # it runs in the cp1252 locale a real user's MCP server actually starts in —
+  # Claude Code sets no UTF-8 mode. That fidelity is the point: it is the only
+  # job that would catch an encoding regression in the boot/stdio path. Do not
+  # "fix the inconsistency" by adding PYTHONUTF8 here; that would mask exactly
+  # the class of bug this job exists to find. (The `test` job scopes the var to
+  # itself because the test *harness* still has encoding-less I/O.)
+  mcp-boot:
+    name: MCP Server Boot (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    - name: Set up Python
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    # Simulates the documented user install (requirements.txt header):
+    #   python3 -m venv ~/.bitwize-music/venv && pip install -r requirements.txt
+    # The venv path is computed with Path.home() so it agrees byte-for-byte
+    # with run.py's venv discovery (on Windows, Path.home() uses USERPROFILE
+    # and ignores HOME, so a shell $HOME would be ambiguous here).
+    - name: Create user-style venv and install pinned requirements
+      run: |
+        python -c "import pathlib, venv; venv.create(pathlib.Path.home() / '.bitwize-music' / 'venv', with_pip=True)"
+        VENV_PY="$(python -c "import pathlib, sys; d = pathlib.Path.home() / '.bitwize-music' / 'venv'; print((d / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python3')).as_posix())")"
+        "$VENV_PY" -m pip install --upgrade pip
+        "$VENV_PY" -m pip install -r requirements.txt
+
+    # Boot the server through the SAME launcher .mcp.json invokes, and drive a
+    # real stdio JSON-RPC handshake. Catches process-level startup failures
+    # (e.g. #476) that the in-process unit suite with its mocked FastMCP cannot
+    # see. .mcp.json's command is the extensionless mcp-launch, which Claude Code
+    # runs as the POSIX shebang script here and resolves to mcp-launch.cmd on
+    # Windows (validated against real Claude Code on a Windows VM).
+    - name: Boot check via mcp-launch (POSIX)
+      if: runner.os != 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 120 --call-tool health_check --scenario state-workflow -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch"
+
+    - name: Boot check via mcp-launch.cmd (Windows)
+      if: runner.os == 'Windows'
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 240 --call-tool health_check --scenario state-workflow -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch.cmd"
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
     # Skip for fork PRs — untrusted code could modify requirements files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
@@ -238,9 +452,17 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
 
+    # hooks/ is in scope: it auto-executes on every Write/Edit in every user
+    # session, so it gets the same lint gate as tools/ and servers/.
     - name: Run ruff linter
       run: |
-        ruff check tools/ servers/
+        ruff check tools/ servers/ hooks/
+
+    # PLW1514 (unspecified-encoding) is preview-only, so it runs as a
+    # dedicated scoped invocation instead of enabling preview repo-wide
+    - name: Run ruff encoding check (PLW1514)
+      run: |
+        ruff check tools/ servers/ hooks/ tests/ --select PLW1514 --preview
 
     - name: Run bandit security linter
       run: |
@@ -249,6 +471,16 @@ jobs:
     - name: Run mypy type checker
       run: |
         mypy
+
+    # These two catch platform-gated typing drift (fcntl/msvcrt) without
+    # needing a Windows runner.
+    - name: Run mypy (win32 cross-check)
+      run: |
+        mypy --platform win32
+
+    - name: Run mypy (darwin cross-check)
+      run: |
+        mypy --platform darwin
 
     - name: Validation summary
       run: |
@@ -259,6 +491,7 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - name: Checkout code
@@ -281,3 +514,68 @@ jobs:
         # Unfixed CVEs are ignored here and tracked for follow-up.
         pip-audit -r requirements.txt -r requirements-test.txt \
           --ignore-vuln CVE-2026-4539  # pygments 2.19.2 - no fix available yet
+
+  plugin-install-smoke:
+    name: Plugin Install Smoke
+    runs-on: ubuntu-latest
+    # Skip for fork PRs — untrusted code could modify the plugin content this
+    # job feeds to the claude CLI (guard consistent with the other jobs)
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+    # Official install method from the install page — no node/npm dependency.
+    # install.sh accepts an optional target (stable|latest|X.Y.Z); we pass
+    # none and take its default (latest) deliberately: this job's purpose is
+    # "what users install today". The installer lands a symlink at
+    # ~/.local/bin/claude (verified from its own output: "Location:
+    # ~/.local/bin/claude") and that dir is not on the runner's PATH, so add
+    # it via GITHUB_PATH for the following steps.
+    - name: Install Claude Code CLI
+      run: |
+        curl -fsSL https://claude.ai/install.sh | bash
+        test -x "$HOME/.local/bin/claude"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    # The plugin CLI needs no Claude auth — proven empirically by the
+    # capability probes on PR #485: every plugin subcommand (marketplace
+    # add/list, install, list) runs unauthenticated with exit 0, with no
+    # ANTHROPIC_API_KEY / OAuth token anywhere in the environment. No
+    # interactive session is ever started, so nothing here consumes tokens.
+    #
+    # `marketplace add ./` registers THIS CHECKOUT as the marketplace (the
+    # CLI accepts owner/repo, URLs, or a ./path — a bare `.` is rejected),
+    # so the install exercises the PR's own plugin content. The remote
+    # `marketplace add owner/repo` form would clone the default branch and
+    # test released content instead of this PR.
+    - name: Add this checkout as a marketplace and install the plugin
+      run: |
+        claude --version
+        claude plugin marketplace add ./
+        claude plugin install bitwize-music@bitwize-music
+
+    - name: Assert plugin is listed as enabled
+      run: |
+        claude plugin list | tee plugin-list.txt
+        grep -q "bitwize-music@bitwize-music" plugin-list.txt
+        grep -q "✔ enabled" plugin-list.txt
+        echo "[OK] plugin listed and enabled"
+
+    # Local-path marketplaces don't populate ~/.claude/plugins/marketplaces/
+    # (no clone needed) — the installed content lands in the versioned cache
+    # dir, which is what users' sessions actually load.
+    - name: Assert installed content matches this checkout
+      run: |
+        VERSION=$(python3 -c "import json; print(json.load(open('.claude-plugin/plugin.json'))['version'])")
+        CACHE_DIR="$HOME/.claude/plugins/cache/bitwize-music/bitwize-music/$VERSION"
+        echo "Expecting installed cache at: $CACHE_DIR"
+        test -d "$CACHE_DIR"
+        test -f "$CACHE_DIR/.mcp.json"
+        REPO_SKILLS=$(find skills/ -mindepth 1 -maxdepth 1 | wc -l)
+        INSTALLED_SKILLS=$(find "$CACHE_DIR/skills/" -mindepth 1 -maxdepth 1 | wc -l)
+        echo "skills: repo=$REPO_SKILLS installed=$INSTALLED_SKILLS"
+        test "$REPO_SKILLS" -eq "$INSTALLED_SKILLS"
+        echo "[OK] version $VERSION installed with $INSTALLED_SKILLS skills and .mcp.json"

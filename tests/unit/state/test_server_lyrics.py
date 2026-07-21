@@ -1303,8 +1303,9 @@ class TestExtractDistinctiveNgrams:
         # Chorus items (priority 3) should come before verse items (priority 1)
         chorus_indices = [i for i, r in enumerate(result) if r["priority"] == 3]
         verse_indices = [i for i, r in enumerate(result) if r["priority"] == 1]
-        if chorus_indices and verse_indices:
-            assert max(chorus_indices) < min(verse_indices)
+        assert chorus_indices, "no priority-3 (chorus) n-grams extracted — nothing to order"
+        assert verse_indices, "no priority-1 (verse) n-grams extracted — nothing to order"
+        assert max(chorus_indices) < min(verse_indices)
 
     def test_empty_input(self):
         assert _lyrics_analysis_mod._extract_distinctive_ngrams([]) == []
@@ -1431,8 +1432,13 @@ class TestExtractDistinctivePhrases:
         result = json.loads(_run(server.extract_distinctive_phrases(lyrics)))
         verse_priorities = [p["priority"] for p in result["phrases"] if p["section"] == "Verse 1"]
         chorus_priorities = [p["priority"] for p in result["phrases"] if p["section"] == "Chorus"]
-        if verse_priorities and chorus_priorities:
-            assert max(verse_priorities) < min(chorus_priorities)
+        assert verse_priorities, (
+            "no phrases extracted from Verse 1 — nothing to compare priorities against"
+        )
+        assert chorus_priorities, (
+            "no phrases extracted from Chorus — nothing to compare priorities against"
+        )
+        assert max(verse_priorities) < min(chorus_priorities)
 
     def test_realistic_lyrics(self):
         """Full realistic lyrics should produce meaningful phrases."""

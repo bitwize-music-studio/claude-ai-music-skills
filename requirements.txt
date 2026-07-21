@@ -5,7 +5,8 @@
 #   ~/.bitwize-music/venv/bin/pip install -r requirements.txt
 #   ~/.bitwize-music/venv/bin/playwright install chromium  # For document-hunter
 #
-# Required: Python 3.10+
+# Required: Python 3.11+ (the MCP server imports datetime.UTC, a 3.11+ name;
+# scipy's pin below also floors at 3.11)
 
 # =============================================================================
 # MCP SERVER (required for plugin core functionality)
@@ -46,7 +47,7 @@ reportlab==5.0.0
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.43.43
+boto3==1.43.49
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)

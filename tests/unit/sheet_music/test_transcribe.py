@@ -42,6 +42,77 @@ class TestFindAnthemscore:
                 result = mod.find_anthemscore()
                 assert result == "/usr/local/bin/anthemscore"
 
+    # -- cross-platform coverage -------------------------------------------
+    # These run identically on every host OS: platform.system() and
+    # Path.exists() are both patched, so nothing touches the real filesystem.
+
+    @pytest.mark.parametrize(
+        ("system", "locator"),
+        [("Linux", "which"), ("Darwin", "which"), ("Windows", "where")],
+    )
+    def test_uses_correct_locator_per_platform(self, system, locator):
+        """PATH fallback shells out to `where` on Windows and `which` elsewhere."""
+        seen = []
+
+        def record(cmd, **kwargs):
+            seen.append(cmd[0])
+            return MagicMock(returncode=1, stdout="")
+
+        with patch("platform.system", return_value=system):
+            with patch.object(Path, "exists", return_value=False):
+                with patch("subprocess.run", side_effect=record):
+                    assert mod.find_anthemscore() is None
+
+        assert seen == [locator]
+
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            r"C:\Program Files\AnthemScore\AnthemScore.exe",
+            r"C:\Program Files (x86)\AnthemScore\AnthemScore.exe",
+        ],
+    )
+    def test_windows_path_table_is_reachable(self, expected):
+        """The Windows install locations are actually consulted.
+
+        Compare Path-to-Path, never str(self) == "...": a WindowsPath and a
+        PosixPath render the same literal differently, so a string compare
+        would silently never match on the other host OS.
+        """
+        with patch("platform.system", return_value="Windows"):
+            with patch.object(
+                Path, "exists", autospec=True,
+                side_effect=lambda self: self == Path(expected),
+            ):
+                with patch(
+                    "subprocess.run",
+                    side_effect=AssertionError("PATH fallback should not run"),
+                ):
+                    assert mod.find_anthemscore() == expected
+
+    def test_windows_where_returns_only_first_match(self):
+        """`where` prints one line per match; only the first is a usable path.
+
+        Regression guard: this previously returned the entire CRLF-joined
+        blob ("C:\\A\\AnthemScore.exe\\r\\nC:\\B\\AnthemScore.exe") as a single
+        "path", which then failed opaquely inside a subprocess command list.
+        """
+        stdout = (
+            "C:\\Program Files\\AnthemScore\\AnthemScore.exe\r\n"
+            "C:\\Users\\me\\AppData\\Local\\AnthemScore\\AnthemScore.exe\r\n"
+        )
+        with patch("platform.system", return_value="Windows"):
+            with patch.object(Path, "exists", return_value=False):
+                with patch(
+                    "subprocess.run",
+                    return_value=MagicMock(returncode=0, stdout=stdout),
+                ):
+                    found = mod.find_anthemscore()
+
+        assert found == "C:\\Program Files\\AnthemScore\\AnthemScore.exe"
+        assert "\n" not in found
+        assert not found.endswith("\r"), "CRLF left a trailing carriage return"
+
 
 # ---------------------------------------------------------------------------
 # get_wav_files

@@ -401,7 +401,7 @@ def content_dir(tmp_path):
         "generation": {"service": "suno"},
     }
     config_path = config_dir / "config.yaml"
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
     # Album directory
@@ -952,7 +952,7 @@ class TestRemainingToolsCoverage:
     def test_resolve_path_tracks(self, integration_env):
         """resolve_path tracks includes /tracks suffix."""
         result = json.loads(_run(server.resolve_path("tracks", "integration-test-album")))
-        assert result["path"].endswith("/tracks")
+        assert Path(result["path"]).as_posix().endswith("/tracks")
 
     def test_resolve_path_overrides(self, integration_env):
         """resolve_path overrides resolves from config."""
@@ -1052,15 +1052,18 @@ class TestRemainingToolsCoverage:
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         # Load the real blocklist to find an artist name to test with
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            artist_name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(
-                f"This sounds like {artist_name} style"
-            )))
-            assert result["clean"] is False
-            assert result["count"] >= 1
-            found_names = [f["name"] for f in result["matches"]]
-            assert artist_name in found_names
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        artist_name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(
+            f"This sounds like {artist_name} style"
+        )))
+        assert result["clean"] is False
+        assert result["count"] >= 1
+        found_names = [f["name"] for f in result["matches"]]
+        assert artist_name in found_names
 
     # --- check_pronunciation_enforcement ---
 
@@ -1830,7 +1833,8 @@ class TestResolvePathExtended:
     def test_documents_path(self, integration_env):
         """resolve_path documents resolves with full mirrored structure."""
         result = json.loads(_run(server.resolve_path("documents", "integration-test-album")))
-        assert "/artists/test-artist/albums/electronic/integration-test-album" in result["path"]
+        assert ("/artists/test-artist/albums/electronic/integration-test-album"
+                in Path(result["path"]).as_posix())
         assert result["genre"] == "electronic"
 
     def test_invalid_path_type(self, integration_env):
@@ -1939,21 +1943,29 @@ class TestScanArtistNamesExtended:
         """scan_artist_names found entries include an alternative suggestion."""
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
-            if result["matches"]:
-                assert "alternative" in result["matches"][0]
-                assert result["matches"][0]["alternative"] != ""
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(f"Sounds like {name}")))
+        assert result["matches"], (
+            f"scan_artist_names found no match for blocklisted artist {name!r}"
+        )
+        assert "alternative" in result["matches"][0]
+        assert result["matches"][0]["alternative"] != ""
 
     def test_case_insensitive(self, integration_env, monkeypatch):
         """scan_artist_names matches regardless of case."""
         monkeypatch.setattr(_text_analysis_mod, "_artist_blocklist_cache", None)
         blocklist = _text_analysis_mod._load_artist_blocklist()
-        if blocklist:
-            name = blocklist[0]["name"]
-            result = json.loads(_run(server.scan_artist_names(name.upper())))
-            assert result["clean"] is False
+        assert blocklist, (
+            "artist blocklist loaded empty — reference/suno/artist-blocklist.md "
+            "is missing, empty, or no longer parseable"
+        )
+        name = blocklist[0]["name"]
+        result = json.loads(_run(server.scan_artist_names(name.upper())))
+        assert result["clean"] is False
 
 
 @pytest.mark.integration
@@ -2638,7 +2650,7 @@ class TestWorkflowMultiFieldAtomicity:
             "integration-test-album", "03-third-track"
         )))
         assert resolve["found"] is True
-        content = Path(resolve["path"]).read_text()
+        content = Path(resolve["path"]).read_text(encoding="utf-8")
         assert "Generated" in content
         assert "Yes" in content
 
@@ -2923,7 +2935,7 @@ class TestCreateTrackIntegration:
 
         track_path = Path(result["path"])
         assert track_path.exists()
-        content = track_path.read_text()
+        content = track_path.read_text(encoding="utf-8")
         assert "Brand New Track" in content
         assert "| **Track #** | 04 |" in content
 
@@ -2937,6 +2949,40 @@ class TestCreateTrackIntegration:
         result = json.loads(_run(server.get_track("integration-test-album", "04-new-track")))
         assert result["found"] is True
         assert result["track"]["title"] == "New Track"
+
+    def test_created_track_immediately_visible_without_manual_rebuild(
+        self, integration_env, monkeypatch
+    ):
+        """create_track refreshes the cache so the new track is found at once.
+
+        Regression: create_track wrote the track file but never refreshed the
+        server's in-memory state cache, so get_track / update_track_field /
+        list_tracks resolved against stale state and returned "not found" until
+        the user ran rebuild_state manually. Mirrors create_album_structure,
+        which rebuilds after creating an album.
+        """
+        monkeypatch.setattr(server, "PLUGIN_ROOT", PROJECT_ROOT)
+
+        created = json.loads(_run(server.create_track(
+            "integration-test-album", "04", "Fresh Track"
+        )))
+        assert created["created"] is True
+        track_slug = created["track_slug"]  # "04-fresh-track"
+
+        # No manual rebuild_state() here — the new track must already be visible.
+        got = json.loads(_run(server.get_track("integration-test-album", track_slug)))
+        assert got["found"] is True, (
+            "create_track must refresh the cache so the new track is "
+            f"immediately visible without a manual rebuild; got: {got}"
+        )
+        assert got["track"]["title"] == "Fresh Track"
+
+        # And it shows up in a fresh cache-backed list_tracks read.
+        listed = json.loads(_run(server.list_tracks("integration-test-album")))
+        slugs = [t["slug"] for t in listed["tracks"]]
+        assert track_slug in slugs, (
+            f"new track {track_slug!r} should appear in list_tracks; got {slugs}"
+        )
 
     def test_reject_duplicate_track(self, integration_env, monkeypatch):
         """Cannot create track with same number+slug as existing."""

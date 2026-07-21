@@ -6,8 +6,10 @@ PostgreSQL integration for social media post management. The database complement
 
 ### 1. Install dependencies
 
+Get the venv interpreter via the `get_python_command` MCP tool, then:
+
 ```bash
-~/.bitwize-music/venv/bin/pip install psycopg2-binary
+$PYTHON -m pip install psycopg2-binary
 ```
 
 ### 2. Create the database

@@ -17,6 +17,7 @@ import os
 import shutil
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -28,6 +29,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests.platform_utils import requires_chmod_denial, requires_posix_permissions
 from tools.state.indexer import (
     CURRENT_VERSION,
     _acquire_lock_with_timeout,
@@ -537,8 +539,8 @@ class TestResolvePath:
         assert result.is_absolute()
 
     def test_absolute_path_unchanged(self):
-        result = resolve_path("/absolute/path")
-        assert str(result) == "/absolute/path"
+        native_abs = os.path.abspath(os.sep + "absolute" + os.sep + "path")
+        assert resolve_path(native_abs) == Path(native_abs)
 
     def test_dot_path(self):
         result = resolve_path(".")
@@ -655,7 +657,10 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/documents' in section['documents_root']
+        # Build the expectation through the same resolver the product uses —
+        # on Windows resolve_path() maps '/home/...' onto the current drive
+        assert section['documents_root'] == str(
+            resolve_path('/home/user/music-projects/documents'))
 
     def test_audio_root_derives_from_content_root(self, monkeypatch):
         config = {
@@ -666,7 +671,8 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert '/home/user/music-projects/audio' in section['audio_root']
+        assert section['audio_root'] == str(
+            resolve_path('/home/user/music-projects/audio'))
 
     def test_explicit_documents_root_preserved(self, monkeypatch):
         config = {
@@ -680,7 +686,7 @@ class TestBuildConfigSection:
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
 
         section = build_config_section(config)
-        assert section['documents_root'] == '/mnt/docs'
+        assert section['documents_root'] == str(resolve_path('/mnt/docs'))
 
     def test_empty_config(self, monkeypatch):
         import tools.state.indexer as indexer
@@ -1075,6 +1081,7 @@ class TestReadWriteState:
         result = read_state()
         assert result['value'] == 'third'
 
+    @requires_posix_permissions
     def test_write_state_file_permissions(self, tmp_path, monkeypatch):
         _override_indexer_paths(monkeypatch, tmp_path)
 
@@ -1110,46 +1117,355 @@ class TestReadWriteState:
 
 
 @pytest.mark.unit
+class TestWriteStateWindowsReplaceRetry:
+    """write_state must retry os.replace on transient Windows sharing violations.
+
+    On Windows, os.replace over a state.json that another process holds open
+    (a lock-free read_state, another session, or an AV scan) raises
+    PermissionError WinError 5 / 32. POSIX rename-over-open never hits this.
+    These tests force the Windows path deterministically on Linux by
+    monkeypatching indexer.sys.platform and indexer.os.replace.
+    """
+
+    @staticmethod
+    def _sharing_violation(winerror=5):
+        err = PermissionError("Access is denied")
+        err.winerror = winerror
+        return err
+
+    def test_retries_then_succeeds_on_windows(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        real_replace = os.replace
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._sharing_violation(5)
+            real_replace(src, dst)
+
+        monkeypatch.setattr(indexer.os, "replace", flaky_replace)
+
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        assert calls["n"] == fail_times + 1
+        loaded = read_state()
+        assert loaded['value'] == 'ok'
+
+    def test_retries_sharing_violation_winerror_32(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        real_replace = os.replace
+        calls = {"n": 0}
+
+        def flaky_replace(src, dst):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise self._sharing_violation(32)  # ERROR_SHARING_VIOLATION
+            real_replace(src, dst)
+
+        monkeypatch.setattr(indexer.os, "replace", flaky_replace)
+
+        write_state({'version': '1.0.0'})
+        assert calls["n"] == 2
+
+    def test_gives_up_and_raises_after_budget_on_windows(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        sleeps = []
+        monkeypatch.setattr(indexer.time, "sleep", lambda s: sleeps.append(s))
+
+        calls = {"n": 0}
+
+        def always_fail(src, dst):
+            calls["n"] += 1
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer.os, "replace", always_fail)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(PermissionError):
+                write_state({'version': '1.0.0'})
+
+        # Bounded: retried (not a single attempt) but did not loop forever.
+        assert calls["n"] > 1, "expected bounded retries, not a single attempt"
+        assert calls["n"] == indexer._REPLACE_RETRY_ATTEMPTS
+        # Slept only between attempts; total retry window stays ~1s.
+        assert len(sleeps) == indexer._REPLACE_RETRY_ATTEMPTS - 1
+        assert sum(sleeps) <= 1.0
+        # Existing except path ran: temp file cleaned up + error logged.
+        assert list(tmp_path.glob(".state_*.tmp")) == []
+        assert "Cannot write state file" in caplog.text
+
+    def test_non_sharing_oserror_not_retried_on_windows(self, tmp_path, monkeypatch):
+        """A non-sharing OSError (e.g. ENOENT) propagates immediately, no retry."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+
+        calls = {"n": 0}
+
+        def fail_other(src, dst):
+            calls["n"] += 1
+            err = OSError("no such file")
+            err.winerror = 2  # ERROR_FILE_NOT_FOUND — not a sharing violation
+            raise err
+
+        monkeypatch.setattr(indexer.os, "replace", fail_other)
+
+        with pytest.raises(OSError):
+            write_state({'version': '1.0.0'})
+        assert calls["n"] == 1
+
+    def test_posix_does_not_retry_replace(self, tmp_path, monkeypatch):
+        """POSIX behavior is unchanged: a PermissionError from replace is not retried."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "linux")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry os.replace on POSIX"),
+        )
+
+        calls = {"n": 0}
+
+        def fail_once(src, dst):
+            calls["n"] += 1
+            # Even with a winerror set, POSIX must re-raise on the first failure.
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer.os, "replace", fail_once)
+
+        with pytest.raises(PermissionError):
+            write_state({'version': '1.0.0'})
+        assert calls["n"] == 1
+
+
+@pytest.mark.unit
+class TestReadStateWindowsOpenRetry:
+    """read_state must retry a transient Windows open, and must NOT quarantine
+    an OSError as corruption.
+
+    On Windows, while a concurrent write_state is mid-os.replace, a reader's
+    open(STATE_FILE) transiently raises PermissionError WinError 5 / 32. The
+    old code caught it under ``except (json.JSONDecodeError, OSError)`` and
+    treated it as CORRUPTION — backing up the good state.json to a .corrupt
+    copy and returning {}. That is the data-loss-adjacent bug these tests pin:
+    transient contention is retried; a surviving OSError re-raises (never
+    quarantines good state, never returns {}); only genuinely malformed bytes
+    or wrong-shape JSON reach the quarantine path. POSIX open never fails
+    mid-rename, so no retry there. Windows is forced deterministically on Linux
+    by monkeypatching indexer.sys.platform and indexer.open.
+    """
+
+    @staticmethod
+    def _sharing_violation(winerror=5):
+        err = PermissionError("Access is denied")
+        err.winerror = winerror
+        return err
+
+    @staticmethod
+    def _spy_quarantine(monkeypatch, indexer):
+        """Wrap _quarantine_corrupt_state to record calls, preserving behavior."""
+        calls = []
+        real = indexer._quarantine_corrupt_state
+
+        def spy(reason):
+            calls.append(reason)
+            return real(reason)
+
+        monkeypatch.setattr(indexer, "_quarantine_corrupt_state", spy)
+        return calls
+
+    def test_retries_transient_open_then_succeeds_on_windows(self, tmp_path, monkeypatch):
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        real_open = open
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_open(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._sharing_violation(5)
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr(indexer, "open", flaky_open, raising=False)
+
+        loaded = read_state()
+
+        assert loaded is not None
+        assert loaded['value'] == 'ok'
+        assert calls["n"] == fail_times + 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_transient_open_gives_up_reraises_without_quarantine_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """THE regression pin: a persistent sharing violation must re-raise —
+        never quarantine good state, never return {}."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'good'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        sleeps = []
+        monkeypatch.setattr(indexer.time, "sleep", lambda s: sleeps.append(s))
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def always_fail(*args, **kwargs):
+            calls["n"] += 1
+            raise self._sharing_violation(5)
+
+        monkeypatch.setattr(indexer, "open", always_fail, raising=False)
+
+        with pytest.raises(PermissionError):
+            read_state()
+
+        # Bounded retry, same budget as the writer.
+        assert calls["n"] == indexer._REPLACE_RETRY_ATTEMPTS
+        assert len(sleeps) == indexer._REPLACE_RETRY_ATTEMPTS - 1
+        assert sum(sleeps) <= 1.0
+        # Never misclassified as corruption.
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+        # Good state left intact on disk.
+        assert (tmp_path / "state.json").exists()
+
+    def test_non_transient_open_oserror_not_retried_or_quarantined_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """A non-sharing OSError (winerror 2) is not corruption: raise at once,
+        no retry, no quarantine."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_other(*args, **kwargs):
+            calls["n"] += 1
+            err = OSError("no such file")
+            err.winerror = 2  # ERROR_FILE_NOT_FOUND — not a sharing violation
+            raise err
+
+        monkeypatch.setattr(indexer, "open", fail_other, raising=False)
+
+        with pytest.raises(OSError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_posix_open_oserror_not_retried_or_quarantined(self, tmp_path, monkeypatch):
+        """POSIX: a genuine OSError from open is not retried and is not
+        quarantined — it re-raises (open never fails mid-rename on POSIX)."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "linux")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry open on POSIX"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_once(*args, **kwargs):
+            calls["n"] += 1
+            raise PermissionError("Permission denied")
+
+        monkeypatch.setattr(indexer, "open", fail_once, raising=False)
+
+        with pytest.raises(PermissionError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
+        assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_genuine_corruption_still_quarantines_on_windows(self, tmp_path, monkeypatch):
+        """Malformed JSON is real corruption even on Windows: the retry loop
+        must not swallow a JSONDecodeError — quarantine and return {}."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+
+        (tmp_path / "state.json").write_text("{invalid json content")
+
+        result = read_state()
+        assert result == {}
+        assert len(list(tmp_path.glob("state.*.corrupt"))) == 1
+
+
+@pytest.mark.unit
 class TestFileLocking:
     """Tests for _acquire_lock_with_timeout()."""
 
     def test_acquire_lock_success(self, tmp_path):
         lock_file = tmp_path / "test.lock"
-        with open(lock_file, 'w') as fd:
+        with open(lock_file, 'w', encoding="utf-8") as fd:
             # Should not raise
             _acquire_lock_with_timeout(fd, timeout=1)
 
     def test_lock_timeout(self, tmp_path, monkeypatch):
         """Simulate a lock that cannot be acquired within timeout."""
-        import fcntl
-
         lock_file = tmp_path / "test.lock"
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'LOCK_FILE', lock_file)
 
         call_count = [0]
-        original_flock = fcntl.flock
 
-        def mock_flock(fd, operation):
+        def mock_flock_nb(fd):
             call_count[0] += 1
-            if operation & fcntl.LOCK_NB:
-                err = OSError()
-                err.errno = errno.EAGAIN
-                raise err
-            return original_flock(fd, operation)
+            err = OSError()
+            err.errno = errno.EAGAIN
+            raise err
 
         # Use very short timeout
-        with open(lock_file, 'w') as fd:
+        with open(lock_file, 'w', encoding="utf-8") as fd:
             lock_file.touch()  # Ensure mtime is fresh (not stale)
-            with patch('tools.state.indexer.fcntl.flock', side_effect=mock_flock):
+            with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with patch('tools.state.indexer.time.sleep'):
                     with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                         _acquire_lock_with_timeout(fd, timeout=0)
+        assert call_count[0] >= 1
 
     def test_stale_lock_not_bypassed(self, tmp_path, monkeypatch):
         """Old mtime-based stale lock detection was removed; old locks still timeout."""
-        import fcntl
-
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
         import tools.state.indexer as indexer
@@ -1159,14 +1475,14 @@ class TestFileLocking:
         old_mtime = time.time() - 300
         os.utime(lock_file, (old_mtime, old_mtime))
 
-        holder = open(lock_file)
-        fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        holder = open(lock_file, 'r+', encoding="utf-8")
+        indexer._flock_nb(holder)
         try:
-            with open(lock_file) as contender:
+            with open(lock_file, 'r+', encoding="utf-8") as contender:
                 with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                     _acquire_lock_with_timeout(contender, timeout=0.3)
         finally:
-            fcntl.flock(holder, fcntl.LOCK_UN)
+            indexer._funlock(holder)
             holder.close()
 
     def test_unexpected_oserror_reraises(self, tmp_path, monkeypatch):
@@ -1175,13 +1491,13 @@ class TestFileLocking:
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'LOCK_FILE', lock_file)
 
-        def mock_flock(fd, operation):
+        def mock_flock_nb(fd):
             err = OSError()
             err.errno = errno.EIO  # I/O error, not a lock contention error
             raise err
 
-        with open(lock_file, 'w') as fd:
-            with patch('tools.state.indexer.fcntl.flock', side_effect=mock_flock):
+        with open(lock_file, 'w', encoding="utf-8") as fd:
+            with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with pytest.raises(OSError):
                     _acquire_lock_with_timeout(fd, timeout=1)
 
@@ -2325,6 +2641,7 @@ class TestUpdateTracksIncremental:
 class TestReadConfigEdgeCases:
     """Additional edge cases for read_config()."""
 
+    @requires_chmod_denial
     def test_config_permission_error(self, tmp_path, monkeypatch):
         """OSError during read returns None."""
         config_path = tmp_path / "config.yaml"
@@ -2930,6 +3247,7 @@ class TestReadPluginVersion:
         result = _read_plugin_version(tmp_path)
         assert result is None
 
+    @requires_chmod_denial
     def test_permission_error(self, tmp_path):
         """Returns None when file is unreadable."""
         plugin_dir = tmp_path / ".claude-plugin"
@@ -3683,15 +4001,35 @@ class TestBuildStateSessionPreservation:
         import tools.state.indexer as indexer
         monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
 
+        # Control the clock instead of racing it. `generated_at` is
+        # `datetime.now(UTC).isoformat()`; sleeping 10 ms and hoping the two
+        # timestamps differ is a bet on clock granularity that coarser
+        # platforms lose. Two fixed, known instants make the "original was not
+        # mutated" assertion exact rather than probabilistic.
+        stamps = iter([
+            datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+            datetime(2024, 1, 1, 0, 0, 5, tzinfo=UTC),
+        ])
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):  # noqa: ARG003 - signature parity only
+                return next(stamps)
+
+        # indexer does `from datetime import UTC, datetime`, so the name to
+        # patch is the module-level `datetime` binding inside indexer.
+        monkeypatch.setattr(indexer, 'datetime', _FrozenDatetime)
+
         existing = build_state(config)
         existing['config']['config_mtime'] = 100.0
         original_generated_at = existing['generated_at']
+        assert original_generated_at == '2024-01-01T00:00:00+00:00'
 
-        time.sleep(0.01)
         updated = incremental_update(existing, config)
 
         # Original should not have been mutated
         assert existing['generated_at'] == original_generated_at
+        assert updated['generated_at'] == '2024-01-01T00:00:05+00:00'
         assert updated['generated_at'] != original_generated_at
 
 
@@ -3812,6 +4150,7 @@ class TestValidateStateDocumentsRoot:
 class TestScanTracksWithParseError:
     """Tests for scan_tracks when individual tracks have parse errors."""
 
+    @requires_chmod_denial
     def test_unreadable_track_skipped(self, tmp_path):
         """Track with parse error is skipped, others are included."""
         album_dir = tmp_path / "album"
@@ -3845,6 +4184,7 @@ class TestScanTracksWithParseError:
 class TestUpdateTracksIncrementalParseError:
     """Tests for _update_tracks_incremental when track parsing fails."""
 
+    @requires_chmod_denial
     def test_parse_error_track_not_updated(self, tmp_path):
         """If a new track fails to parse, it's silently skipped."""
         album_dir = tmp_path / "album"
@@ -4017,6 +4357,7 @@ class TestIncrementalUpdateAlbumsDirMissing:
 class TestScanAlbumsEdgeCases:
     """Additional edge cases for scan_albums()."""
 
+    @requires_chmod_denial
     def test_album_with_parse_error_skipped(self, tmp_path):
         """Album with unparseable README is silently skipped."""
         content_root = tmp_path / "content"

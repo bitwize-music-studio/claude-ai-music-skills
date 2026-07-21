@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import pytest
+from tests.platform_utils import requires_chmod_denial
 from tools.state.parsers import (
     _derive_model_tier,
     _extract_bold_field,
@@ -335,7 +336,7 @@ class TestParseIdeasFile:
     def test_empty_ideas_section(self):
         """Test IDEAS.md with no actual ideas (just template)."""
         import tempfile
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write("# Album Ideas\n\n## Ideas\n\n<!-- No ideas yet -->\n")
             f.flush()
             result = parse_ideas_file(Path(f.name))
@@ -364,7 +365,7 @@ explicit: false
 | **Status** | Concept |
 | **Tracks** | 5 |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_album_readme(Path(f.name))
@@ -388,7 +389,7 @@ explicit: false
 | **Explicit** | No |
 | **Sources Verified** | N/A |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -412,7 +413,7 @@ explicit: false
 | **Explicit** | Yes |
 | **Sources Verified** | N/A |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -643,7 +644,7 @@ class TestSourcesVerifiedParsing:
 | **Explicit** | No |
 | **Sources Verified** | ✅ Verified (2026-01-15) |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -664,7 +665,7 @@ class TestSourcesVerifiedParsing:
 | **Explicit** | No |
 | **Sources Verified** | ❌ Pending |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -685,7 +686,7 @@ class TestSourcesVerifiedParsing:
 | **Explicit** | No |
 | **Sources Verified** | Pending verification |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -705,7 +706,7 @@ class TestSourcesVerifiedParsing:
 | **Suno Link** | — |
 | **Explicit** | No |
 """
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        with tempfile.NamedTemporaryFile(encoding="utf-8", mode='w', suffix='.md', delete=False) as f:
             f.write(content)
             f.flush()
             result = parse_track_file(Path(f.name))
@@ -1030,6 +1031,7 @@ allowed-tools: []
         assert '_error' in result
         assert 'No frontmatter' in result['_error']
 
+    @requires_chmod_denial
     def test_unreadable_file(self, tmp_path):
         """Unreadable file returns error."""
         skill = tmp_path / "SKILL.md"

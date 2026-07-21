@@ -97,6 +97,8 @@ from handlers import _shared as _shared_mod
 # For lazy-imported functions that need patching at their source module
 import tools.state.parsers as _parsers_mod
 from handlers import core as _core_mod
+from tests.platform_utils import requires_chmod_denial
+from tools.shared.venv import venv_python
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +370,45 @@ class TestNormalizeSlug:
         assert server._normalize_slug("Album_01_Track") == "album-01-track"
 
 
+class TestNormalizeSlugWindowsFilenameChars:
+    """NTFS forbids <>:"|?* in filenames — _normalize_slug strips them on
+    Windows only, so quote-titled tracks still produce creatable files.
+    POSIX slugs must stay byte-identical (pinned below)."""
+
+    def test_windows_strips_double_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug('Say "Goodbye"') == "say-goodbye"
+
+    def test_windows_strips_all_invalid_chars(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        assert server._normalize_slug("a<b>c:d|e?f*g") == "abcdefg"
+
+    def test_posix_preserves_quotes(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug('Say "Goodbye"') == 'say-"goodbye"'
+
+    def test_windows_traversal_assembled_by_strip_rejected(self, monkeypatch):
+        # Stripping quotes from '."."' would assemble ".." — the traversal
+        # guard must run after the strip and still reject it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError):
+            server._normalize_slug('."."')
+
+    def test_windows_all_forbidden_chars_title_raises(self, monkeypatch):
+        # A title made entirely of forbidden chars (e.g. '???') strips to an
+        # empty slug on Windows. Path(base) / "" collapses to base itself,
+        # so this must raise the same as the other invalid-slug inputs above.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", True)
+        with pytest.raises(ValueError, match="empty slug"):
+            server._normalize_slug("???")
+
+    def test_posix_empty_raw_string_unchanged(self, monkeypatch):
+        # An empty raw string is a legitimate pass-through, not a
+        # strip-to-empty case — the new guard must not affect it.
+        monkeypatch.setattr(_shared_mod, "_IS_WINDOWS", False)
+        assert server._normalize_slug("") == ""
+
+
 # =============================================================================
 # Tests for _safe_json
 # =============================================================================
@@ -415,7 +456,8 @@ class TestSafeJson:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert result["path"] == "/tmp/test"
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
     def test_non_serializable_returns_error(self):
         """Non-serializable data that raises TypeError returns JSON error."""
@@ -1327,17 +1369,17 @@ class TestGetPythonCommand:
     """Tests for the get_python_command MCP tool."""
 
     def test_venv_exists(self, tmp_path):
-        """When venv python3 exists, returns path and venv_exists=True."""
-        venv_python = tmp_path / ".bitwize-music" / "venv" / "bin" / "python3"
-        venv_python.parent.mkdir(parents=True)
-        venv_python.touch()
-        venv_python.chmod(0o755)
+        """When the venv interpreter exists, returns path and venv_exists=True."""
+        fake_python = venv_python(home=tmp_path)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
+        fake_python.chmod(0o755)
 
         with patch.object(Path, "home", return_value=tmp_path):
             result = json.loads(_run(server.get_python_command()))
 
         assert result["venv_exists"] is True
-        assert str(venv_python) == result["python"]
+        assert result["python"] == str(fake_python)
         assert "plugin_root" in result
         assert "usage" in result
         assert "warning" not in result
@@ -1349,7 +1391,9 @@ class TestGetPythonCommand:
 
         assert result["venv_exists"] is False
         assert "warning" in result
-        assert "python3 -m venv" in result["warning"]
+        expected_create_cmd = "py -3 -m venv" if sys.platform == "win32" else "python3 -m venv"
+        assert expected_create_cmd in result["warning"]
+        assert f'"{venv_python(home=tmp_path)}" -m pip install' in result["warning"]
 
     def test_plugin_root_included(self):
         """Result always includes plugin_root."""
@@ -1358,11 +1402,29 @@ class TestGetPythonCommand:
         assert result["plugin_root"]  # non-empty
 
     def test_usage_template(self, tmp_path):
-        """Usage field contains a ready-to-paste command template."""
+        """Usage field contains a ready-to-paste, quoted command template."""
         with patch.object(Path, "home", return_value=tmp_path):
             result = json.loads(_run(server.get_python_command()))
         assert "PLUGIN_DIR" in result["usage"]
-        assert "python3" in result["python"]
+        assert result["python"] == str(venv_python(home=tmp_path))
+        assert f'"{venv_python(home=tmp_path)}"' in result["usage"]
+
+    def test_win32_python_path_and_quoted_usage(self, tmp_path, monkeypatch):
+        """On Windows, python path uses Scripts\\python.exe and usage quotes it.
+
+        This is the regression test for the original bug: get_python_command
+        hardcoded the POSIX bin/python3 layout, so on native Windows it
+        returned a path that could never exist.
+        """
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        with patch.object(Path, "home", return_value=tmp_path):
+            result = json.loads(_run(server.get_python_command()))
+
+        assert "Scripts" in result["python"]
+        assert result["python"].endswith("python.exe")
+        assert result["python"] == str(venv_python(home=tmp_path))
+        assert f'"{result["python"]}"' in result["usage"]
 
 
 # =============================================================================
@@ -1646,8 +1708,17 @@ class TestStateCacheThreadSafety:
     """Basic thread-safety sanity checks for StateCache."""
 
     def test_concurrent_get_state(self):
-        """Multiple threads calling get_state() don't crash."""
+        """Every thread calling get_state() finishes and sees the same state.
+
+        Deliberately strict: a deadlock makes join(timeout) return with the
+        thread still alive and `results` empty, so a bare `all(results)` would
+        pass on the exact failure this test exists to catch. We therefore assert
+        liveness (no survivor threads), the exact result count, and the observed
+        state itself — a cache that hands back `{}` under contention is a
+        failure, not a pass.
+        """
         state = _fresh_state()
+        thread_count = 10
 
         mock_state = MagicMock()
         mock_state.exists.return_value = True
@@ -1659,25 +1730,45 @@ class TestStateCacheThreadSafety:
         cache = server.StateCache()
         results = []
         errors = []
+        results_lock = threading.Lock()
 
         def worker():
             try:
                 result = cache.get_state()
-                results.append(result is not None)
-            except Exception as e:
-                errors.append(str(e))
+                with results_lock:
+                    results.append(result)
+            except Exception as e:  # pragma: no cover - only on a real failure
+                with results_lock:
+                    errors.append(str(e))
 
         with patch.object(server, "STATE_FILE", mock_state), \
              patch.object(server, "CONFIG_FILE", mock_config), \
              patch.object(server, "read_state", return_value=state):
-            threads = [threading.Thread(target=worker) for _ in range(10)]
+            # daemon=True so a genuine deadlock fails the assertion below
+            # instead of wedging interpreter shutdown for the whole suite.
+            threads = [
+                threading.Thread(target=worker, daemon=True)
+                for _ in range(thread_count)
+            ]
             for t in threads:
                 t.start()
-            for t in threads:
+            for i, t in enumerate(threads):
                 t.join(timeout=5)
+                assert not t.is_alive(), (
+                    f"Thread {i} still running after a 5s join — StateCache "
+                    f"deadlocked under concurrent get_state()"
+                )
 
-        assert len(errors) == 0, f"Thread errors: {errors}"
-        assert all(results)
+        assert not errors, f"Thread errors: {errors}"
+        assert len(results) == thread_count, (
+            f"Expected {thread_count} results, got {len(results)} — "
+            f"some threads never returned a value from get_state()"
+        )
+        for i, result in enumerate(results):
+            assert result == state, (
+                f"Thread {i} observed {result!r} instead of the populated "
+                f"state — concurrent reads must not see a partial/empty cache"
+            )
 
 
 # =============================================================================
@@ -1742,7 +1833,9 @@ class TestResolvePath:
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album")))
         assert "path" in result
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/electronic/test-album"
+        # Compare Path objects — the tool returns platform-native separators
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/electronic/test-album")
         assert result["path_type"] == "audio"
         assert result["genre"] == "electronic"
 
@@ -1750,14 +1843,16 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("audio", "test-album", genre="rock")))
-        assert result["path"] == "/tmp/test/audio/artists/test-artist/albums/rock/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/audio/artists/test-artist/albums/rock/test-album")
         assert result["genre"] == "rock"
 
     def test_documents_path(self):
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("documents", "test-album")))
-        assert result["path"] == "/tmp/test/docs/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/docs/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_audio_genre_required_not_found(self):
@@ -1780,7 +1875,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album", genre="electronic")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_from_state(self):
@@ -1788,7 +1884,8 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("content", "test-album")))
-        assert result["path"] == "/tmp/test/artists/test-artist/albums/electronic/test-album"
+        assert Path(result["path"]) == Path(
+            "/tmp/test/artists/test-artist/albums/electronic/test-album")
         assert result["genre"] == "electronic"
 
     def test_content_path_genre_required_not_found(self):
@@ -1803,7 +1900,7 @@ class TestResolvePath:
         mock_cache = MockStateCache()
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.resolve_path("tracks", "test-album")))
-        assert result["path"].endswith("/tracks")
+        assert Path(result["path"]).as_posix().endswith("/tracks")
         assert "electronic" in result["path"]
 
     def test_overrides_path(self):
@@ -4151,6 +4248,7 @@ class TestValidateAlbumStructure:
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("missing" in m.lower() for m in failed_msgs)
 
+    @requires_chmod_denial
     def test_permission_denied_tracks_dir(self, tmp_path):
         """Unreadable tracks/ directory still produces results."""
         mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
@@ -4376,7 +4474,7 @@ class TestGenreValidation:
             result = json.loads(_run(server.create_album_structure("rnb-test", "R&B")))
         _shared_mod._VALID_GENRES = None
         assert result["created"] is True
-        assert "/rnb/" in result["path"]
+        assert "/rnb/" in Path(result["path"]).as_posix()
 
     def test_genre_typo_rejected(self, tmp_path):
         """Genre typo 'elctronic' is rejected."""
@@ -4735,6 +4833,7 @@ class TestRunPreGenerationGates:
         # Should still produce gates (file-dependent ones SKIP or FAIL)
         assert len(track["gates"]) == 10
 
+    @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
         """Track with permission-denied file still produces gate results."""
         track_file = tmp_path / "05-denied.md"
@@ -6334,6 +6433,7 @@ class TestUpdateAlbumStatus:
         assert result["new_status"] == "Complete"
         assert result["album_slug"] == "test-album"
 
+    @requires_chmod_denial
     def test_readme_read_oserror(self, tmp_path):
         """Returns error when README.md cannot be read (OSError)."""
         readme_path = tmp_path / "README.md"
@@ -6615,6 +6715,7 @@ class TestCreateTrack:
         assert "## Legal" not in content
         assert "## Concept" in content
 
+    @requires_chmod_denial
     def test_template_read_oserror(self, tmp_path):
         """Returns error when template file cannot be read."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6632,6 +6733,7 @@ class TestCreateTrack:
         finally:
             template_file.chmod(0o644)
 
+    @requires_chmod_denial
     def test_track_write_oserror(self, tmp_path):
         """Returns error when track file cannot be written."""
         mock_cache, album_dir, tracks_dir = self._make_cache_with_album(tmp_path)
@@ -6814,6 +6916,7 @@ class TestGetPromoStatus:
             result = json.loads(_run(server.get_promo_status("test-album")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_error_handled(self, tmp_path):
         """File that exists but can't be read is reported as unpopulated."""
         mock_cache, promo_dir = self._make_cache_with_promo(tmp_path, {
@@ -6956,6 +7059,7 @@ class TestGetPromoContent:
             result = json.loads(_run(server.get_promo_content("test-album", "twitter")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_file_read_oserror(self, tmp_path):
         """Returns error when promo file exists but cannot be read."""
         album_dir = tmp_path / "album"
@@ -7135,6 +7239,7 @@ class TestGetPluginVersion:
             result = json.loads(_run(server.get_plugin_version()))
         assert result["current_version"] == ""
 
+    @requires_chmod_denial
     def test_plugin_json_read_oserror(self, tmp_path):
         """Handles OSError reading plugin.json gracefully."""
         state = _fresh_state()
@@ -7414,13 +7519,14 @@ class TestCheckVenvHealth:
                 return versions[pkg]
             raise importlib.metadata.PackageNotFoundError(pkg)
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "ok"
         assert result["ok_count"] == 2
@@ -7432,13 +7538,14 @@ class TestCheckVenvHealth:
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", return_value="2.28.0"), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert len(result["mismatches"]) == 1
@@ -7451,16 +7558,17 @@ class TestCheckVenvHealth:
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert len(result["missing"]) == 1
@@ -7468,23 +7576,24 @@ class TestCheckVenvHealth:
 
     def test_no_venv_returns_no_venv(self, tmp_path):
         """Missing venv returns no_venv status."""
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music"
-        venv_dir.mkdir(parents=True)
-        # No venv/bin/python3
+        fake_home = tmp_path / "fakehome"
+        (fake_home / ".bitwize-music").mkdir(parents=True)
+        # No venv interpreter created under fake_home
 
-        with patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+        with patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "no_venv"
 
     def test_missing_requirements_returns_error(self, tmp_path):
         """Missing requirements.txt returns error status."""
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
         # No requirements.txt in PLUGIN_ROOT
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "error"
 
@@ -7500,13 +7609,14 @@ class TestCheckVenvHealth:
                 return "1.9.0"  # mismatch
             raise importlib.metadata.PackageNotFoundError(pkg)  # ccc missing
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
         assert result["ok_count"] == 1
@@ -7514,24 +7624,52 @@ class TestCheckVenvHealth:
         assert len(result["missing"]) == 1
 
     def test_fix_command_includes_plugin_root(self, tmp_path):
-        """Fix command references the correct requirements.txt path."""
+        """Fix command references the correct requirements.txt path and interpreter."""
         req = tmp_path / "requirements.txt"
         req.write_text("requests==2.31.0\n")
 
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
 
         def mock_version(pkg):
             raise importlib.metadata.PackageNotFoundError(pkg)
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("importlib.metadata.version", side_effect=mock_version), \
-             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+             patch.object(Path, "home", return_value=fake_home):
             result = json.loads(_run(server.check_venv_health()))
         assert result["status"] == "stale"
-        assert str(tmp_path / "requirements.txt") in result["fix_command"]
-        assert "~/.bitwize-music/venv/bin/pip" in result["fix_command"]
+        assert str(req) in result["fix_command"]
+        assert f'"{fake_python}" -m pip install' in result["fix_command"]
+
+    def test_win32_fix_command_uses_interpreter_and_pip(self, tmp_path, monkeypatch):
+        """On Windows, fix_command uses Scripts\\python.exe with -m pip install.
+
+        Regression test for the original bug: check_venv_health hardcoded
+        the POSIX venv/bin/pip layout, which never exists on native Windows.
+        """
+        monkeypatch.setattr(sys, "platform", "win32")
+
+        req = tmp_path / "requirements.txt"
+        req.write_text("requests==2.31.0\n")
+
+        fake_home = tmp_path / "fakehome"
+        fake_python = venv_python(home=fake_home)
+        fake_python.parent.mkdir(parents=True)
+        fake_python.touch()
+
+        def mock_version(pkg):
+            raise importlib.metadata.PackageNotFoundError(pkg)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch("importlib.metadata.version", side_effect=mock_version), \
+             patch.object(Path, "home", return_value=fake_home):
+            result = json.loads(_run(server.check_venv_health()))
+        assert result["status"] == "stale"
+        assert "Scripts" in result["fix_command"]
+        assert result["fix_command"] == f'"{fake_python}" -m pip install -r "{req}"'
 
 
 # =============================================================================
@@ -7700,9 +7838,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         def mock_version(pkg):
             if pkg == "requests":
@@ -7746,9 +7886,11 @@ class TestHealthCheck:
         # Venv ok
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -7875,9 +8017,11 @@ class TestHealthCheck:
         # Set up venv
         req = plugin_root / "requirements.txt"
         req.write_text("requests==2.31.0\n")
-        venv_dir = tmp_path / "fakehome" / ".bitwize-music" / "venv" / "bin"
-        venv_dir.mkdir(parents=True)
-        (venv_dir / "python3").touch()
+        # Build the venv layout the product actually probes on this platform
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path / "fakehome")
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
              patch("importlib.metadata.version", return_value="2.31.0"), \
@@ -7978,6 +8122,7 @@ class TestCreateIdea:
             result = json.loads(_run(server.create_idea("Test")))
         assert "error" in result
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"
@@ -8253,6 +8398,7 @@ class TestUpdateIdea:
         text = (content_root / "IDEAS.md").read_text()
         assert "Neon & chrome [2026] {version}" in text
 
+    @requires_chmod_denial
     def test_ideas_read_oserror(self, tmp_path):
         """Returns error when IDEAS.md exists but cannot be read."""
         content_root = tmp_path / "content"
@@ -8796,8 +8942,7 @@ class TestResolveIdeasPath:
             result = _ideas_mod._resolve_ideas_path()
         assert result is not None
         assert isinstance(result, Path)
-        assert str(result).endswith("IDEAS.md")
-        assert str(result).startswith("/tmp/test")
+        assert result == Path("/tmp/test") / "IDEAS.md"
 
     def test_returns_none_when_no_content_root(self):
         """Returns None when content_root is empty."""
@@ -9760,7 +9905,7 @@ class TestReleaseReadinessGate:
         # Overwrite track file with content missing Streaming Lyrics
         state = mock_cache.get_state()
         track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
-        Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n")
+        Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n", encoding="utf-8")
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
@@ -9773,7 +9918,7 @@ class TestReleaseReadinessGate:
         track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
         Path(track_path).write_text(
             "# Track\n\n## Streaming Lyrics\n\n```\n"
-            "Plain lyrics here\nCapitalize first letter of each line\n```\n"
+            "Plain lyrics here\nCapitalize first letter of each line\n```\n", encoding="utf-8"
         )
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
@@ -10595,7 +10740,8 @@ class TestSafeJsonEdgeCasesRound5:
         """Path objects are serialized via default=str."""
         data = {"path": Path("/tmp/test")}
         result = json.loads(server._safe_json(data))
-        assert "/tmp/test" in result["path"]
+        # default=str renders the platform-native form (backslashes on Windows)
+        assert result["path"] == str(Path("/tmp/test"))
 
 
 @pytest.mark.unit
@@ -14934,8 +15080,6 @@ class TestTranscribeAudioFlow:
 
     def test_temp_dir_cleaned_up_on_failure(self, tmp_path):
         """Temp directory should be cleaned up even if transcription fails."""
-        import glob as glob_mod
-
         state = _fresh_state()
         audio_dir = tmp_path / "audio"
         originals = audio_dir / "originals"
@@ -14950,10 +15094,25 @@ class TestTranscribeAudioFlow:
         def failing_transcribe(anthemscore, wav_file, out_dir, args):
             return False
 
+        # Spy on the real mkdtemp so we assert on the EXACT dir this call
+        # creates, not a glob of the shared system temp dir. Under `pytest -n
+        # auto` a concurrent worker running another transcribe test has its own
+        # `test-album-transcribe-*` dir in flight, so a glob assertion races
+        # against it (a false failure). Checking the captured path is race-free.
+        import tempfile
+        created_dirs: list[str] = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def spy_mkdtemp(*args, **kwargs):
+            d = real_mkdtemp(*args, **kwargs)
+            created_dirs.append(d)
+            return d
+
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
              patch.object(_processing_helpers, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import:
+             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import, \
+             patch("tempfile.mkdtemp", side_effect=spy_mkdtemp):
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = failing_transcribe
@@ -14965,10 +15124,12 @@ class TestTranscribeAudioFlow:
                 dry_run=False,
             ))
 
-        # No temp dirs should remain
-        import tempfile
-        temp_dirs = glob_mod.glob(str(Path(tempfile.gettempdir()) / "test-album-transcribe-*"))
-        assert len(temp_dirs) == 0, f"Temp dirs not cleaned up: {temp_dirs}"
+        # The transcribe path must have created a temp dir, and it must be gone
+        # after the (failed) run. Asserting on the captured path — not a glob —
+        # is immune to concurrent workers' identically-prefixed dirs.
+        assert created_dirs, "expected transcribe_audio to create a temp dir"
+        leftover = [d for d in created_dirs if Path(d).exists()]
+        assert not leftover, f"Temp dirs not cleaned up: {leftover}"
 
 
 # =============================================================================
@@ -15483,10 +15644,11 @@ class TestDiagnose:
             json.dumps({"schema_version": "1.2.0", "albums": {}})
         )
 
-        # Fake venv (at patched home)
-        venv_bin = tmp_path / ".bitwize-music" / "venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        (venv_bin / "python3").touch()
+        # Fake venv (at patched home) — platform-appropriate layout
+        # (bin/python3 on POSIX, Scripts\python.exe on Windows)
+        venv_py = venv_python(home=tmp_path)
+        venv_py.parent.mkdir(parents=True)
+        venv_py.touch()
 
         # Plugin version
         plugin_dir = tmp_path / ".claude-plugin"

@@ -13,7 +13,7 @@ The skill auto-detects your platform and uses the appropriate clipboard utility:
 | macOS | `pbcopy` | Built-in, no install needed |
 | Linux | `xclip` | Install: `sudo apt install xclip` |
 | Linux (alt) | `xsel` | Install: `sudo apt install xsel` |
-| WSL | `clip.exe` | Built-in Windows utility |
+| Windows (native) / WSL | `clip.exe` | Built-in Windows utility |
 
 ---
 
@@ -106,7 +106,7 @@ sudo dnf install xclip  # Fedora
 sudo pacman -S xclip    # Arch
 ```
 
-**WSL**: Ensure you're running from WSL, not native Linux. `clip.exe` should be available.
+**Windows / WSL**: `clip.exe` is built into Windows and works from both a native-Windows shell (Git Bash) and WSL. On WSL, ensure you're running from WSL rather than native Linux, where it is genuinely absent.
 
 ### "Track not found"
 

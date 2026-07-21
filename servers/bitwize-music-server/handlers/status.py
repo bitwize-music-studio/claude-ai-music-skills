@@ -552,6 +552,16 @@ async def create_track(
 
     logger.info("Created track %s in album '%s'", filename, normalized)
 
+    # Refresh state so subsequent tools (get_track, update_track_field,
+    # list_tracks, ...) can find the new track without a manual rebuild_state,
+    # mirroring create_album_structure. The file is already written, so a
+    # rebuild failure is non-fatal — log it but still report the create as
+    # successful (same pattern as create_idea/promote_idea).
+    try:
+        _shared.cache.rebuild()
+    except Exception as e:
+        logger.warning("Track created but cache rebuild failed: %s", e)
+
     return _safe_json({
         "created": True,
         "path": str(track_path),

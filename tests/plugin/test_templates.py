@@ -46,8 +46,7 @@ class TestTrackTemplate:
     @pytest.mark.parametrize("section", ['Status', 'Suno Inputs', 'Generation Log'])
     def test_track_template_section(self, templates_dir, section):
         track_template = templates_dir / "track.md"
-        if not track_template.exists():
-            pytest.skip("track.md not found")
+        assert track_template.exists(), "Required template missing: track.md"
         content = track_template.read_text()
         assert section.lower() in content.lower(), f"track.md missing section: {section}"
 
@@ -58,8 +57,7 @@ class TestAlbumTemplate:
     @pytest.mark.parametrize("section", ['Concept', 'Tracklist', 'Production Notes'])
     def test_album_template_section(self, templates_dir, section):
         album_template = templates_dir / "album.md"
-        if not album_template.exists():
-            pytest.skip("album.md not found")
+        assert album_template.exists(), "Required template missing: album.md"
         content = album_template.read_text()
         assert section.lower() in content.lower(), f"album.md missing section: {section}"
 
@@ -94,8 +92,7 @@ class TestPromoTemplates:
     @pytest.mark.parametrize("template", PROMO_TEMPLATES)
     def test_promo_template_not_empty(self, templates_dir, template):
         promo_file = templates_dir / "promo" / template
-        if not promo_file.exists():
-            pytest.skip(f"promo/{template} not found")
+        assert promo_file.exists(), f"Required promo template missing: promo/{template}"
         content = promo_file.read_text()
         assert len(content.strip()) > 50, f"promo/{template} appears to be empty"
 
@@ -106,8 +103,7 @@ class TestPromoTemplates:
     )
     def test_promo_template_sections(self, templates_dir, template, sections):
         promo_file = templates_dir / "promo" / template
-        if not promo_file.exists():
-            pytest.skip(f"promo/{template} not found")
+        assert promo_file.exists(), f"Required promo template missing: promo/{template}"
         content = promo_file.read_text().lower()
         for section in sections:
             assert section.lower() in content, (
@@ -120,8 +116,7 @@ class TestSourcesTemplatePromoPointer:
 
     def test_sources_references_promo_dir(self, templates_dir):
         sources = templates_dir / "sources.md"
-        if not sources.exists():
-            pytest.skip("sources.md not found")
+        assert sources.exists(), "Required template missing: sources.md"
         content = sources.read_text()
         assert 'promo/' in content, "sources.md should reference promo/ directory"
 
@@ -268,8 +263,7 @@ class TestPromoCampaignCrossRefs:
     @pytest.mark.parametrize("template", PROMO_PLATFORM_TEMPLATES)
     def test_campaign_link(self, templates_dir, template):
         promo_file = templates_dir / "promo" / template
-        if not promo_file.exists():
-            pytest.skip(f"promo/{template} not found")
+        assert promo_file.exists(), f"Required promo template missing: promo/{template}"
         content = promo_file.read_text()
         assert 'campaign.md' in content, (
             f"promo/{template} missing campaign.md cross-reference link"
@@ -281,8 +275,7 @@ class TestCampaignLanguageField:
 
     def test_language_field(self, templates_dir):
         campaign = templates_dir / "promo" / "campaign.md"
-        if not campaign.exists():
-            pytest.skip("promo/campaign.md not found")
+        assert campaign.exists(), "Required promo template missing: promo/campaign.md"
         content = campaign.read_text()
         assert 'language' in content.lower(), (
             "campaign.md missing Language field in overview table"
@@ -290,8 +283,7 @@ class TestCampaignLanguageField:
 
     def test_platform_copy_table(self, templates_dir):
         campaign = templates_dir / "promo" / "campaign.md"
-        if not campaign.exists():
-            pytest.skip("promo/campaign.md not found")
+        assert campaign.exists(), "Required promo template missing: promo/campaign.md"
         content = campaign.read_text()
         assert 'platform copy' in content.lower(), (
             "campaign.md missing Platform Copy section"
@@ -300,8 +292,7 @@ class TestCampaignLanguageField:
     @pytest.mark.parametrize("platform_file", PROMO_PLATFORM_TEMPLATES)
     def test_platform_copy_links(self, templates_dir, platform_file):
         campaign = templates_dir / "promo" / "campaign.md"
-        if not campaign.exists():
-            pytest.skip("promo/campaign.md not found")
+        assert campaign.exists(), "Required promo template missing: promo/campaign.md"
         content = campaign.read_text()
         assert platform_file in content, (
             f"campaign.md Platform Copy table missing link to {platform_file}"
@@ -314,8 +305,7 @@ class TestPromoTemplateFormatting:
     @pytest.mark.parametrize("template", PROMO_PLATFORM_TEMPLATES)
     def test_no_emoji_in_templates(self, templates_dir, template):
         promo_file = templates_dir / "promo" / template
-        if not promo_file.exists():
-            pytest.skip(f"promo/{template} not found")
+        assert promo_file.exists(), f"Required promo template missing: promo/{template}"
         content = promo_file.read_text()
         # Check for common emoji that were removed in PR #75
         for emoji in ['🎵', '🤖', '🔗']:
@@ -327,8 +317,7 @@ class TestPromoTemplateFormatting:
     def test_em_dash_title(self, templates_dir, template):
         """Platform templates should use em dash in title (PR #75 formatting)."""
         promo_file = templates_dir / "promo" / template
-        if not promo_file.exists():
-            pytest.skip(f"promo/{template} not found")
+        assert promo_file.exists(), f"Required promo template missing: promo/{template}"
         content = promo_file.read_text()
         first_line = content.strip().split('\n')[0]
         assert '—' in first_line or '#' not in first_line, (

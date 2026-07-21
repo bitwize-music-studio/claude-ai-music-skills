@@ -371,6 +371,115 @@ class TestFindMusescore:
                 result = mod.find_musescore()
                 assert result == "/usr/local/bin/mscore"
 
+    @patch("platform.system", return_value="Linux")
+    def test_detects_apt_musescore3_binary(self, _mock_platform):
+        """The standard apt `musescore3` package installs /usr/bin/mscore3.
+
+        Regression guard: find_musescore must detect that version-suffixed
+        binary from its Linux path table (previously it returned None, since
+        the table only listed bare `mscore`/`musescore`).
+        """
+        with patch.object(
+            Path, "exists", autospec=True,
+            # Compare Path-to-Path, not against a POSIX string literal: the
+            # production code checks Path("/usr/bin/mscore3").exists(), and on
+            # Windows str(WindowsPath("/usr/bin/mscore3")) is "\\usr\\bin\\mscore3",
+            # so a string compare would never match and the test would wrongly
+            # fall through to the PATH fallback. Path equality normalizes on both.
+            side_effect=lambda self: self == Path("/usr/bin/mscore3"),
+        ):
+            # subprocess should never be reached — the path table matches first.
+            with patch("subprocess.run", side_effect=AssertionError("PATH fallback should not run")):
+                assert mod.find_musescore() == "/usr/bin/mscore3"
+
+    @patch("platform.system", return_value="Linux")
+    def test_detects_musescore3_via_path_fallback(self, _mock_platform):
+        """When no known absolute path exists, `which musescore3` is tried.
+
+        Covers the broadened PATH-fallback name list (mscore3/musescore3/
+        mscore4/musescore4) for installs outside the known /usr/bin locations.
+        """
+        def which_side_effect(cmd, **kwargs):
+            name = cmd[1]
+            if name == "musescore3":
+                return MagicMock(returncode=0, stdout="/opt/musescore3/bin/musescore3\n")
+            return MagicMock(returncode=1, stdout="")
+
+        with patch.object(Path, "exists", return_value=False):
+            with patch("subprocess.run", side_effect=which_side_effect):
+                assert mod.find_musescore() == "/opt/musescore3/bin/musescore3"
+
+    # -- cross-platform coverage -------------------------------------------
+    # These run identically on every host OS: platform.system() and
+    # Path.exists() are both patched, so nothing touches the real filesystem.
+
+    @pytest.mark.parametrize(
+        ("system", "locator"),
+        [("Linux", "which"), ("Darwin", "which"), ("Windows", "where")],
+    )
+    def test_uses_correct_locator_per_platform(self, system, locator):
+        """PATH fallback shells out to `where` on Windows and `which` elsewhere."""
+        seen = []
+
+        def record(cmd, **kwargs):
+            seen.append(cmd[0])
+            return MagicMock(returncode=1, stdout="")
+
+        with patch("platform.system", return_value=system):
+            with patch.object(Path, "exists", return_value=False):
+                with patch("subprocess.run", side_effect=record):
+                    assert mod.find_musescore() is None
+
+        assert seen, "PATH fallback never ran"
+        assert set(seen) == {locator}
+
+    @pytest.mark.parametrize(
+        "expected",
+        [
+            r"C:\Program Files\MuseScore 4\bin\MuseScore4.exe",
+            r"C:\Program Files (x86)\MuseScore 3\bin\MuseScore3.exe",
+        ],
+    )
+    def test_windows_path_table_is_reachable(self, expected):
+        """The Windows install locations are actually consulted.
+
+        Compare Path-to-Path, never str(self) == "...": a WindowsPath and a
+        PosixPath render the same literal differently, so a string compare
+        would silently never match on the other host OS.
+        """
+        with patch("platform.system", return_value="Windows"):
+            with patch.object(
+                Path, "exists", autospec=True,
+                side_effect=lambda self: self == Path(expected),
+            ):
+                with patch(
+                    "subprocess.run",
+                    side_effect=AssertionError("PATH fallback should not run"),
+                ):
+                    assert mod.find_musescore() == expected
+
+    def test_windows_where_returns_only_first_match(self):
+        """`where` prints one line per match; only the first is a usable path.
+
+        Regression guard: returning the whole CRLF-joined blob yields a
+        bogus "path" that fails opaquely once it reaches a command list.
+        """
+        stdout = (
+            "C:\\Program Files\\MuseScore 4\\bin\\MuseScore4.exe\r\n"
+            "C:\\Tools\\mscore.exe\r\n"
+        )
+        with patch("platform.system", return_value="Windows"):
+            with patch.object(Path, "exists", return_value=False):
+                with patch(
+                    "subprocess.run",
+                    return_value=MagicMock(returncode=0, stdout=stdout),
+                ):
+                    found = mod.find_musescore()
+
+        assert found == "C:\\Program Files\\MuseScore 4\\bin\\MuseScore4.exe"
+        assert "\n" not in found
+        assert not found.endswith("\r"), "CRLF left a trailing carriage return"
+
 
 # ---------------------------------------------------------------------------
 # export_pdf

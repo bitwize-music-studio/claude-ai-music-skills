@@ -24,7 +24,6 @@ import argparse
 import contextlib
 import copy
 import errno
-import fcntl
 import functools
 import json
 import logging
@@ -32,9 +31,43 @@ import os
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
+
+# fcntl is Unix-only (CPython does not ship it on Windows), so the lock
+# primitives are platform-gated. Both variants expose the same contract:
+# _flock_nb raises OSError with errno EACCES/EAGAIN when the lock is held
+# elsewhere, which is what _acquire_lock_with_timeout's backoff loop expects.
+if sys.platform == "win32":
+    import msvcrt
+
+    def _flock_nb(lock_fd: Any) -> None:
+        """Try to take an exclusive non-blocking lock on the first byte."""
+        lock_fd.seek(0)
+        msvcrt.locking(lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+
+    def _funlock(lock_fd: Any) -> None:
+        """Release the byte lock (best-effort).
+
+        Windows raises when unlocking a region this handle does not hold,
+        and write_state() unlocks in ``finally`` even after a lock timeout.
+        The handle is closed immediately after, which releases any lock.
+        """
+        lock_fd.seek(0)
+        with contextlib.suppress(OSError):
+            msvcrt.locking(lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _flock_nb(lock_fd: Any) -> None:
+        """Try to take an exclusive non-blocking flock on the file."""
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _funlock(lock_fd: Any) -> None:
+        """Release the flock (no-op if not held)."""
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
 
 # Lock timeout in seconds (prevents indefinite blocking)
 LOCK_TIMEOUT_SECONDS = 10
@@ -88,7 +121,7 @@ def _read_plugin_version(plugin_root: Path) -> str | None:
     if not plugin_json.exists():
         return None
     try:
-        with open(plugin_json) as f:
+        with open(plugin_json, encoding='utf-8') as f:
             data = json.load(f)
         version = data.get('version')
         return version if isinstance(version, str) else None
@@ -167,7 +200,7 @@ def read_config() -> dict[str, Any] | None:
     if not CONFIG_FILE.exists():
         return None
     try:
-        with open(CONFIG_FILE) as f:
+        with open(CONFIG_FILE, encoding='utf-8') as f:
             data = yaml.safe_load(f)
     except (yaml.YAMLError, OSError) as e:
         logger.error("Cannot read config: %s", e)
@@ -893,9 +926,10 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
 def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT_SECONDS) -> None:
     """Acquire an exclusive file lock with exponential backoff.
 
-    Uses only ``fcntl.flock`` for locking — no mtime-based stale detection,
-    which had a TOCTOU race.  ``flock`` locks auto-release when the holding
-    process dies, so stale locks self-heal.
+    Uses only OS-level advisory locking (``fcntl.flock`` on Unix,
+    ``msvcrt.locking`` on Windows via ``_flock_nb``) — no mtime-based stale
+    detection, which had a TOCTOU race.  These locks auto-release when the
+    holding process dies, so stale locks self-heal.
 
     Args:
         lock_fd: Open file descriptor for the lock file.
@@ -909,7 +943,7 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
 
     while True:
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _flock_nb(lock_fd)
             return  # Lock acquired
         except OSError as e:
             if e.errno not in (errno.EACCES, errno.EAGAIN):
@@ -923,6 +957,71 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
 
         time.sleep(min(wait, deadline - time.monotonic()))
         wait = min(wait * 2, 1.0)  # Cap at 1 second
+
+
+# Bounded retry budget for os.replace on Windows sharing violations.
+# Windows enforces mandatory locking on open file handles, so os.replace over
+# STATE_FILE raises PermissionError with winerror 5 (ERROR_ACCESS_DENIED) or 32
+# (ERROR_SHARING_VIOLATION) whenever another process holds the target open: a
+# lock-free read_state, a second Claude session, or a transient antivirus scan.
+# POSIX rename-over-open-file is atomic and never hits this, so retrying is
+# Windows-only. Budget: 10 attempts with a 10ms backoff doubling to a 100ms
+# cap keeps the total retry window under ~1s (9 sleeps sum to 650ms) — long
+# enough to outlast a transient reader/AV handle, short enough to fail loudly
+# on a genuinely stuck file.
+_REPLACE_RETRY_ATTEMPTS = 10
+_REPLACE_RETRY_INITIAL_WAIT = 0.01  # 10ms
+_REPLACE_RETRY_MAX_WAIT = 0.1  # 100ms per-sleep cap
+_WINDOWS_SHARING_VIOLATION_ERRNOS = (5, 32)
+
+_T = TypeVar("_T")
+
+
+def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
+    """Run ``operation``, retrying transient Windows sharing violations.
+
+    Shared by the writer's ``os.replace`` and the reader's ``open`` — both hit
+    the same Windows failure mode. On POSIX ``operation`` runs exactly once:
+    an atomic rename never fails on an open target, and ``open`` never fails
+    mid-rename, so there is nothing transient to retry. On Windows, a
+    concurrent open handle on ``STATE_FILE`` — a lock-free ``read_state``,
+    another session, or an AV scan — makes the operation raise
+    ``PermissionError`` with ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
+    (ERROR_SHARING_VIOLATION) until that handle closes. Only those transient
+    errors are retried, with a bounded backoff; every other error (and the
+    final attempt) propagates immediately so a genuinely stuck file still
+    fails loudly rather than being silently swallowed or misclassified.
+    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only
+    exists on Windows OSErrors.
+    """
+    if sys.platform == "win32":
+        wait = _REPLACE_RETRY_INITIAL_WAIT
+        for attempt in range(_REPLACE_RETRY_ATTEMPTS):
+            try:
+                return operation()
+            except OSError as e:
+                transient = (
+                    getattr(e, "winerror", None) in _WINDOWS_SHARING_VIOLATION_ERRNOS
+                )
+                if not transient or attempt == _REPLACE_RETRY_ATTEMPTS - 1:
+                    raise
+                time.sleep(wait)
+                wait = min(wait * 2, _REPLACE_RETRY_MAX_WAIT)
+    # POSIX: nothing transient to retry — run once and let errors propagate.
+    # (Also the win32 fall-through, which the loop above never actually reaches
+    # since its final attempt returns or raises; kept so mypy sees a return on
+    # every path and matches how it skips the platform-guarded block on POSIX.)
+    return operation()
+
+
+def _atomic_replace_with_retry(src: str, dst: str) -> None:
+    """Atomically replace ``dst`` with ``src``, retrying Windows sharing violations.
+
+    On POSIX this is a single ``os.replace`` (atomic rename never fails on an
+    open target). On Windows, a concurrent open handle on ``dst`` is retried
+    via :func:`_retry_on_windows_sharing_violation`.
+    """
+    _retry_on_windows_sharing_violation(lambda: os.replace(src, dst))
 
 
 def write_state(state: dict[str, Any]) -> None:
@@ -939,13 +1038,15 @@ def write_state(state: dict[str, Any]) -> None:
     tmp_fd = None
     tmp_path = None
     try:
-        lock_fd = open(LOCK_FILE, 'w')  # noqa: SIM115
+        # Append mode: 'w' would truncate, which fails on Windows while
+        # another process holds a byte-range lock on the file.
+        lock_fd = open(LOCK_FILE, 'a', encoding='utf-8')  # noqa: SIM115
         _acquire_lock_with_timeout(lock_fd)
 
         # Use tempfile for unpredictable filename in the same directory
         tmp_fd = tempfile.NamedTemporaryFile(  # noqa: SIM115
             mode='w', dir=CACHE_DIR, suffix='.tmp',
-            prefix='.state_', delete=False
+            prefix='.state_', delete=False, encoding='utf-8'
         )
         tmp_path = Path(tmp_fd.name)
         # Restrict temp file to owner-only access
@@ -956,7 +1057,9 @@ def write_state(state: dict[str, Any]) -> None:
         os.fsync(tmp_fd.fileno())
         tmp_fd.close()
         tmp_fd = None
-        os.replace(str(tmp_path), str(STATE_FILE))
+        # Retries transient Windows sharing violations while the write lock is
+        # still held, so no other writer interleaves; POSIX is a plain replace.
+        _atomic_replace_with_retry(str(tmp_path), str(STATE_FILE))
     except (OSError, TimeoutError) as e:
         logger.error("Cannot write state file: %s", e)
         # Clean up temp file
@@ -968,7 +1071,7 @@ def write_state(state: dict[str, Any]) -> None:
         raise
     finally:
         if lock_fd is not None:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            _funlock(lock_fd)
             lock_fd.close()
 
 
@@ -987,20 +1090,42 @@ def _quarantine_corrupt_state(reason: str) -> dict[str, Any]:
     return {}
 
 
+def _load_state_file() -> Any:
+    """Open and parse STATE_FILE, returning the decoded JSON value."""
+    with open(STATE_FILE, encoding='utf-8') as f:
+        return json.load(f)
+
+
 def read_state() -> dict[str, Any] | None:
     """Read state from cache file.
+
+    Quarantine (back up + return empty) is reserved for *genuine corruption* —
+    the bytes are present but are not valid state: malformed JSON, or JSON that
+    decodes to the wrong shape (list/str/number). An ``OSError`` from the open
+    is never corruption. On Windows a transient sharing violation (winerror
+    5/32) from a concurrent ``write_state`` mid-``os.replace`` is retried with
+    the same budget as the writer; any ``OSError`` that survives the retry
+    (persistent contention, a real permission/disk fault) re-raises so the
+    caller sees a genuinely-unreadable file rather than a wiped, quarantined
+    view of good state (#487). POSIX ``open`` never fails mid-rename, so an
+    ``OSError`` there re-raises immediately.
 
     Returns:
         Parsed state dict, empty dict if corrupted or not a JSON object
         (after backup), or None if missing.
+
+    Raises:
+        OSError: The file exists but could not be read (never quarantined).
     """
     if not STATE_FILE.exists():
         return None
     try:
-        with open(STATE_FILE) as f:
-            data = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
+        data = _retry_on_windows_sharing_violation(_load_state_file)
+    except json.JSONDecodeError as e:
+        # Bytes are there but are not valid JSON — genuine corruption (#393).
         return _quarantine_corrupt_state(f"Corrupted state file: {e}")
+    # OSError deliberately not caught: it is contention or a real read fault,
+    # not corruption, so it must never trigger quarantine — let it propagate.
     if not isinstance(data, dict):
         # JSON-valid but wrong shape (list/str/number) — same recovery as
         # corrupted JSON: back it up and start fresh (#393 family)

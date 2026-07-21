@@ -9,8 +9,8 @@ pytest-xdist>=3.8.0
 pyyaml>=6.0
 
 # Linting
-ruff>=0.15.20
-mypy>=2.2.0
+ruff>=0.15.21
+mypy>=2.3.0
 types-PyYAML>=6.0.12.20260518
 
 # Security

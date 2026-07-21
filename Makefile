@@ -35,6 +35,10 @@ $(VENV)/bin/activate: requirements.txt requirements-test.txt
 
 venv: $(VENV)/bin/activate
 
+# Deliberately a LOWER bar than CI's 80. This runs on one OS, so it can never
+# execute the win32/darwin branches and can never reach the combined number the
+# `coverage` job in test.yml gates on. Raising it to 80 to "match CI" would make
+# local runs fail for a reason no local change can fix.
 test: $(VENV)/bin/activate
 	$(PYTEST) tests/ -v --tb=short -n auto \
 		--cov=tools --cov=servers \
@@ -42,7 +46,12 @@ test: $(VENV)/bin/activate
 		--cov-fail-under=75
 
 lint: $(VENV)/bin/activate
-	$(RUFF) check tools/ servers/
+	# hooks/ is in scope: it auto-executes on every Write/Edit in every user
+	# session, so it gets the same lint gate as tools/ and servers/
+	$(RUFF) check tools/ servers/ hooks/
+	# PLW1514 (unspecified-encoding) is preview-only, so it runs as a
+	# dedicated scoped invocation instead of enabling preview repo-wide
+	$(RUFF) check tools/ servers/ hooks/ tests/ --select PLW1514 --preview
 	# -s B108: tmpfile paths (reviewed manually)
 	# -s B608: SQL string construction (all callsites use %s params; nosec
 	#         markers remain as documentation but bandit noise at -ll level

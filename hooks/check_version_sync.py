@@ -8,7 +8,6 @@ import os
 import subprocess
 import sys
 
-
 MANIFEST_FILES = {"plugin.json", "marketplace.json"}
 
 

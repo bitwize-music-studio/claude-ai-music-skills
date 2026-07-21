@@ -69,7 +69,8 @@ def render_aac_preview(
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=_FFMPEG_TIMEOUT_SEC
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=_FFMPEG_TIMEOUT_SEC,
         )
     except subprocess.TimeoutExpired as exc:
         # A killed ffmpeg leaves a truncated file that would sit in the

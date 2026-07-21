@@ -316,7 +316,7 @@ This document covers edge cases and recovery procedures for common workflow issu
 **Prevention**: Install and upgrade via the marketplace (`claude plugin update bitwize-music`) rather than editing the cached plugin. Keep the venv in sync (session-start venv check / `check_venv_health`).
 
 **Recovery Steps**:
-1. If MCP tools are entirely unavailable, the server didn't start — run `/bitwize-music:setup` (or `/bitwize-music:setup mcp`) to detect the Python environment and reinstall dependencies. Quick check: `~/.bitwize-music/venv/bin/python3 -c "import mcp"`
+1. If MCP tools are entirely unavailable, the server didn't start — run `/bitwize-music:setup` (or `/bitwize-music:setup mcp`) to detect the Python environment and reinstall dependencies. Quick check: `~/.bitwize-music/venv/bin/python3 -c "import mcp"` (macOS/Linux/WSL) or `~/.bitwize-music/venv/Scripts/python.exe -c "import mcp"` (Windows; cmd/PowerShell: `%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe`)
 2. If the server runs but skills are missing/ghost, `health_check` will say so — run `claude plugin update bitwize-music` to refresh the plugin cache, then restart the session
 3. If `health_check` reports skills `no_cache`, the plugin isn't installed via the marketplace — reinstall it (or use `--plugin-dir` for local development)
 4. If the venv is stale or missing (`check_venv_health` → `stale`/`no_venv`), run the reported `pip install -r requirements.txt` fix, or `/bitwize-music:setup` to rebuild the venv

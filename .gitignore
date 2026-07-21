@@ -36,6 +36,12 @@ dist/
 *.egg-info/
 TESTING.md
 .coverage
+.coverage.*
+coverage-html/
+coverage-html-combined/
+coverage-data/
+coverage-parts/
+coverage-combined.dat
 TODO.md
 .claude/worktrees/
 .worktrees/

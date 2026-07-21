@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from handlers._shared import (
     _normalize_slug,
     _safe_json,
 )
+from tools.shared.venv import venv_dir, venv_python
 from tools.state.indexer import write_state
 from tools.state.parsers import parse_track_file
 
@@ -440,27 +442,29 @@ async def get_python_command() -> str:
 
     Returns:
         JSON with:
-            python: Absolute path to ~/.bitwize-music/venv/bin/python3
+            python: Absolute path to the venv Python interpreter
+                (Scripts\\python.exe on Windows, bin/python3 elsewhere)
             plugin_root: Absolute path to the plugin directory
             venv_exists: Whether the venv exists
             usage: Ready-to-paste command template
             warning: Only present if venv is missing, with install instructions
     """
-    venv_python = Path.home() / ".bitwize-music" / "venv" / "bin" / "python3"
-    venv_exists = venv_python.is_file()
+    venv_python_path = venv_python()
+    venv_exists = venv_python_path.is_file()
 
     result: dict[str, Any] = {
-        "python": str(venv_python),
+        "python": str(venv_python_path),
         "plugin_root": str(_shared.PLUGIN_ROOT),
         "venv_exists": venv_exists,
-        "usage": f'{venv_python} "$PLUGIN_DIR/tools/<script>.py" <args>',
+        "usage": f'"{venv_python_path}" "$PLUGIN_DIR/tools/<script>.py" <args>',
     }
 
     if not venv_exists:
+        create_cmd = "py -3" if sys.platform == "win32" else "python3"
         result["warning"] = (
-            "Venv not found at ~/.bitwize-music/venv. "
-            "Create it with: python3 -m venv ~/.bitwize-music/venv && "
-            "~/.bitwize-music/venv/bin/pip install pyloudnorm scipy numpy "
+            f"Venv not found at {venv_dir()}. "
+            f'Create it with: {create_cmd} -m venv "{venv_dir()}" && '
+            f'"{venv_python_path}" -m pip install pyloudnorm scipy numpy '
             "soundfile matchering pillow pyyaml boto3"
         )
 

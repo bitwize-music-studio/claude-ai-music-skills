@@ -59,6 +59,9 @@ def find_musescore() -> str | None:
         ],
         'linux': [
             "/usr/bin/musescore4",
+            "/usr/bin/mscore4",
+            "/usr/bin/musescore3",
+            "/usr/bin/mscore3",
             "/usr/bin/musescore",
             "/usr/local/bin/musescore",
             "/usr/bin/mscore",
@@ -76,23 +79,25 @@ def find_musescore() -> str | None:
         if Path(path).exists():
             return path
 
-    # Try PATH
-    try:
-        cmd = ['which', 'mscore'] if system != 'windows' else ['where', 'mscore']
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip().split('\n')[0]
-    except (FileNotFoundError, subprocess.SubprocessError):
-        pass
-
-    # Try alternative names
-    try:
-        cmd = ['which', 'musescore'] if system != 'windows' else ['where', 'musescore']
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            return result.stdout.strip().split('\n')[0]
-    except (FileNotFoundError, subprocess.SubprocessError):
-        pass
+    # Try PATH. Include version-suffixed names: the standard apt package
+    # `musescore3` installs `mscore3`/`musescore3` (no bare `mscore`), and
+    # `musescore4` installs `mscore4`/`musescore4`.
+    locator = 'where' if system == 'windows' else 'which'
+    for name in ('mscore', 'musescore', 'mscore4', 'musescore4', 'mscore3', 'musescore3'):
+        try:
+            result = subprocess.run(
+                [locator, name], capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+            )
+            if result.returncode == 0:
+                # Windows `where` prints one line per match; take the first only.
+                # splitlines() (not split('\n')) so CRLF leaves no trailing '\r'.
+                for line in result.stdout.splitlines():
+                    found = line.strip()
+                    if found:
+                        return found
+        except (FileNotFoundError, subprocess.SubprocessError):
+            pass
 
     return None
 
@@ -134,6 +139,8 @@ def export_pdf(xml_path: Path, pdf_path: Path, musescore_path: str, dry_run: boo
             [musescore_path, '-o', str(pdf_path), str(xml_path)],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60
         )
 

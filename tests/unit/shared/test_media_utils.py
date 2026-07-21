@@ -149,3 +149,76 @@ class TestFindBestSegment:
             result = mod.find_best_segment(Path("/fake.wav"), duration=15)
             # Fallback: min(120 * 0.2, 120 - 15) = min(24, 105) = 24
             assert result == pytest.approx(24.0)
+
+
+@pytest.mark.unit
+class TestEscapeFilterPath:
+    """Paths interpolated into an ffmpeg filtergraph.
+
+    The expected Windows form is not guesswork: it was determined empirically on
+    a real windows-latest runner by rendering one frame per candidate escaping.
+    Only single-quoted + forward-slash + escaped-colon was accepted; bare,
+    forward-slash-only, escaped-colon-unquoted, and quoted-without-colon-escape
+    all died with "No option name near ...". These tests pin that finding so a
+    future "simplification" cannot silently re-break promo video on Windows.
+    """
+
+    # The exact expression proved to render on windows-latest.
+    PROVEN_WINDOWS_FONT = r"'C\:/Windows/Fonts/arialbd.ttf'"
+
+    def test_windows_font_path_matches_the_form_proven_on_a_real_runner(self):
+        assert mod.escape_filter_path(r"C:\Windows\Fonts\arialbd.ttf") == self.PROVEN_WINDOWS_FONT
+
+    def test_windows_temp_textfile_path(self):
+        result = mod.escape_filter_path(r"C:\Users\me\AppData\Local\Temp\t.txt")
+        assert result == r"'C\:/Users/me/AppData/Local/Temp/t.txt'"
+
+    def test_backslashes_become_forward_slashes(self):
+        # '\' is the filtergraph escape character, so it must not survive.
+        assert "\\W" not in mod.escape_filter_path(r"C:\Windows\x.ttf")
+
+    def test_colon_is_escaped(self):
+        # ':' separates filter options; an unescaped drive letter truncates it.
+        assert mod.escape_filter_path(r"C:\x.ttf").startswith(r"'C\:")
+
+    def test_result_is_single_quoted(self):
+        r = mod.escape_filter_path(r"C:\Program Files\f.ttf")
+        assert r.startswith("'") and r.endswith("'")
+
+    def test_spaces_survive_via_quoting(self):
+        assert mod.escape_filter_path(r"C:\Program Files\f.ttf") == r"'C\:/Program Files/f.ttf'"
+
+    def test_posix_path_only_gains_quotes(self):
+        # No backslashes and no colons on POSIX, so this is a near no-op —
+        # macOS/Linux filtergraphs are unchanged apart from the quoting.
+        p = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+        assert mod.escape_filter_path(p) == f"'{p}'"
+
+    def test_single_quote_in_path_is_escaped(self):
+        # A bare ' would terminate the quoted token early.
+        assert mod.escape_filter_path("/home/o'brien/f.ttf") == "'/home/o'\\''brien/f.ttf'"
+
+    def test_accepts_a_path_object(self):
+        assert mod.escape_filter_path(Path("/tmp/f.ttf")) == "'/tmp/f.ttf'"
+
+
+@pytest.mark.unit
+class TestPromoVideoFiltergraphEscaping:
+    """The promo-video filtergraph must route every path through the escaper."""
+
+    def test_filtergraph_source_uses_escaped_expressions_not_raw_paths(self):
+        src = (
+            Path(__file__).resolve().parents[3]
+            / "tools" / "promotion" / "generate_promo_video.py"
+        ).read_text(encoding="utf-8")
+
+        # The escaper supplies its own quotes, so the old hand-quoted and
+        # bare-interpolation forms must both be gone.
+        assert "textfile='{title_file_path}'" not in src
+        assert "textfile='{artist_file_path}'" not in src
+        assert "fontfile={font_path}" not in src
+
+        assert "textfile={title_file_expr}" in src
+        assert "textfile={artist_file_expr}" in src
+        assert "fontfile={font_expr}" in src
+        assert "escape_filter_path" in src
