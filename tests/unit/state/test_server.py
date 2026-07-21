@@ -15080,8 +15080,6 @@ class TestTranscribeAudioFlow:
 
     def test_temp_dir_cleaned_up_on_failure(self, tmp_path):
         """Temp directory should be cleaned up even if transcription fails."""
-        import glob as glob_mod
-
         state = _fresh_state()
         audio_dir = tmp_path / "audio"
         originals = audio_dir / "originals"
@@ -15096,10 +15094,25 @@ class TestTranscribeAudioFlow:
         def failing_transcribe(anthemscore, wav_file, out_dir, args):
             return False
 
+        # Spy on the real mkdtemp so we assert on the EXACT dir this call
+        # creates, not a glob of the shared system temp dir. Under `pytest -n
+        # auto` a concurrent worker running another transcribe test has its own
+        # `test-album-transcribe-*` dir in flight, so a glob assertion races
+        # against it (a false failure). Checking the captured path is race-free.
+        import tempfile
+        created_dirs: list[str] = []
+        real_mkdtemp = tempfile.mkdtemp
+
+        def spy_mkdtemp(*args, **kwargs):
+            d = real_mkdtemp(*args, **kwargs)
+            created_dirs.append(d)
+            return d
+
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_processing_helpers, "_check_anthemscore", return_value=None), \
              patch.object(_processing_helpers, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import:
+             patch.object(_processing_helpers, "_import_sheet_music_module") as mock_import, \
+             patch("tempfile.mkdtemp", side_effect=spy_mkdtemp):
             mock_mod = MagicMock()
             mock_mod.find_anthemscore.return_value = "/usr/bin/anthemscore"
             mock_mod.transcribe_track.side_effect = failing_transcribe
@@ -15111,10 +15124,12 @@ class TestTranscribeAudioFlow:
                 dry_run=False,
             ))
 
-        # No temp dirs should remain
-        import tempfile
-        temp_dirs = glob_mod.glob(str(Path(tempfile.gettempdir()) / "test-album-transcribe-*"))
-        assert len(temp_dirs) == 0, f"Temp dirs not cleaned up: {temp_dirs}"
+        # The transcribe path must have created a temp dir, and it must be gone
+        # after the (failed) run. Asserting on the captured path — not a glob —
+        # is immune to concurrent workers' identically-prefixed dirs.
+        assert created_dirs, "expected transcribe_audio to create a temp dir"
+        leftover = [d for d in created_dirs if Path(d).exists()]
+        assert not leftover, f"Temp dirs not cleaned up: {leftover}"
 
 
 # =============================================================================
