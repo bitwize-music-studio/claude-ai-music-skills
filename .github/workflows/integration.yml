@@ -216,13 +216,18 @@ jobs:
 
     - name: afconvert diagnostics
       run: |
-        # afconvert ships with macOS — no install. Prove it's present and show
-        # the probe's real exit code: the product runs `afconvert --help` under
-        # check=True, so a non-zero probe would wrongly force the ffmpeg
-        # fallback and the test would then catch encoder "aac" not "afconvert".
+        # afconvert ships with macOS — no install. The product probes for it by
+        # PRESENCE (shutil.which), not by running `afconvert --help`, precisely
+        # because `afconvert --help` exits 2 on macOS (a usage convention) — the
+        # old check=True probe caught that and silently disabled afconvert on
+        # every mac. So just prove presence here; do NOT gate on --help's exit.
         which afconvert
-        afconvert --help | head || true
-        afconvert --help >/dev/null 2>&1; echo "afconvert --help exit code: $?"
+        # `afconvert --help` exits 2 by convention — capture it without failing
+        # the step (documents the exact behaviour the presence-probe sidesteps).
+        set +e
+        afconvert --help >/dev/null 2>&1
+        echo "afconvert --help exit code: $? (non-zero is expected and harmless)"
+        set -e
         ffmpeg -version | head -1
 
     - name: Install dependencies

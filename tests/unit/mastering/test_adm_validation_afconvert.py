@@ -1,23 +1,26 @@
 """Unit coverage for the macOS ``afconvert`` path in adm_validation.py.
 
 ``_afconvert_encode_decode()`` is the product's only macOS-exclusive code path:
-it probes for ``afconvert``, encodes WAV→AAC with it, decodes via ffmpeg, and
-falls back to the ffmpeg ``aac`` encoder on THREE distinct failure branches:
+it probes for ``afconvert`` (by presence — ``shutil.which``), encodes WAV→AAC
+with it, decodes via ffmpeg, and falls back to the ffmpeg ``aac`` encoder on
+three distinct failure branches:
 
-  1. the ``afconvert --help`` probe raises (afconvert absent → FileNotFoundError,
-     or non-zero → CalledProcessError, or hung → TimeoutExpired);
+  1. afconvert is not installed (``shutil.which("afconvert") is None``);
   2. the ``afconvert`` encode step times out (subprocess.TimeoutExpired); or
   3. the ``afconvert`` encode step returns a non-zero rc.
 
+The probe is a PRESENCE check, not ``afconvert --help``: on macOS
+``afconvert --help`` exits 2 (usage convention), so the earlier ``check=True``
+probe raised and the afconvert path was silently dead on every macOS machine.
+These tests pin the corrected behaviour.
+
 None of these run on Linux/Windows CI (no afconvert), so before this file the
 whole path was invisible to the test suite (``grep -rn afconvert tests/`` → 0).
-These tests drive every branch deterministically by monkeypatching
-``adm_validation.subprocess.run`` with a dispatcher that:
-
-  * records every invoked command so a test can *spy* on which binary ran, and
-  * writes a real decoded WAV for the ffmpeg ``pcm_f32le`` decode call so the
-    trailing ``sf.read`` returns a genuine array — no real ffmpeg/afconvert
-    needed, so this module runs everywhere (no ``@requires_ffmpeg`` gate).
+The tests drive every branch deterministically: ``shutil.which`` is
+monkeypatched to say present/absent, and ``adm_validation.subprocess.run`` is
+replaced with a dispatcher that records commands (a spy on which binary ran)
+and writes a real decoded WAV for the ffmpeg ``pcm_f32le`` decode call so the
+trailing ``sf.read`` returns a genuine array — no real ffmpeg/afconvert needed.
 
 The real-``afconvert`` success path is proven separately, macOS-only, in
 ``tests/integration/test_afconvert_macos.py`` (the encoder cannot be faked into
@@ -31,7 +34,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pytest
 import soundfile as sf
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -43,18 +45,33 @@ if str(PROJECT_ROOT) not in sys.path:
 _DECODED_RATE = 44100
 _DECODED_SAMPLES = 256
 
+_FAKE_AFCONVERT = "/usr/bin/afconvert"
+
+
+def _set_afconvert_present(monkeypatch, present: bool) -> None:
+    """Point the product's ``shutil.which`` at a present/absent afconvert."""
+    import tools.mastering.adm_validation as adm
+
+    if present:
+        monkeypatch.setattr(
+            adm.shutil, "which",
+            lambda name: _FAKE_AFCONVERT if name == "afconvert" else None,
+        )
+    else:
+        monkeypatch.setattr(adm.shutil, "which", lambda name: None)
+
 
 class _FakeRunner:
     """A stand-in for ``subprocess.run`` that records calls and dispatches by
     program name, so a single object serves both the spy and the fake toolchain.
 
-    ``probe`` controls the ``afconvert --help`` probe outcome; ``encode``
-    controls the ``afconvert`` encode outcome. ffmpeg always "succeeds" and the
-    ``pcm_f32le`` decode writes a real WAV so ``sf.read`` returns a known array.
+    ``encode`` controls the ``afconvert`` encode outcome. ffmpeg always
+    "succeeds" and the ``pcm_f32le`` decode writes a real WAV so ``sf.read``
+    returns a known array. (afconvert presence is decided by ``shutil.which``,
+    not by any subprocess call, so there is no ``--help`` probe to fake.)
     """
 
-    def __init__(self, *, probe: str = "ok", encode: str = "ok") -> None:
-        self.probe = probe
+    def __init__(self, *, encode: str = "ok") -> None:
         self.encode = encode
         self.calls: list[list[str]] = []
 
@@ -64,7 +81,7 @@ class _FakeRunner:
         return [cmd[0] for cmd in self.calls]
 
     def ran_afconvert_encode(self) -> bool:
-        return any(c[0] == "afconvert" and "--help" not in c for c in self.calls)
+        return any(c[0] == "afconvert" for c in self.calls)
 
     def ran_ffmpeg_aac_encode(self) -> bool:
         """True iff the ffmpeg fallback ENCODE (``-c:a aac``) was invoked."""
@@ -81,16 +98,6 @@ class _FakeRunner:
         cmd = list(cmd)
         self.calls.append(cmd)
         prog = cmd[0]
-
-        if prog == "afconvert" and "--help" in cmd:
-            if self.probe == "absent":
-                raise FileNotFoundError(2, "No such file or directory: 'afconvert'")
-            if self.probe == "nonzero":
-                # subprocess.run(check=True) raises this on a non-zero rc.
-                raise subprocess.CalledProcessError(1, cmd)
-            if self.probe == "timeout":
-                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 0))
-            return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
 
         if prog == "afconvert":  # the encode step
             if self.encode == "timeout":
@@ -122,17 +129,18 @@ def _write_input_wav(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Fallback branch 1: the afconvert --help probe fails → ffmpeg "aac"
+# Fallback branch 1: afconvert not installed → ffmpeg "aac"
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("probe", ["absent", "nonzero", "timeout"])
-def test_probe_failure_falls_back_to_ffmpeg(tmp_path, monkeypatch, probe) -> None:
-    """Every probe failure mode (absent / non-zero rc / hang) falls back to
-    ffmpeg and reports the ffmpeg encoder name, never "afconvert"."""
+def test_afconvert_absent_falls_back_to_ffmpeg(tmp_path, monkeypatch) -> None:
+    """When shutil.which finds no afconvert, fall back to ffmpeg and report the
+    ffmpeg encoder name, never "afconvert" — and never even attempt an afconvert
+    subprocess."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe=probe)
+    _set_afconvert_present(monkeypatch, False)
+    runner = _FakeRunner()
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
@@ -140,8 +148,30 @@ def test_probe_failure_falls_back_to_ffmpeg(tmp_path, monkeypatch, probe) -> Non
 
     assert encoder == "aac"          # fell back, did NOT claim afconvert
     assert encoder != "afconvert"
-    assert runner.ran_ffmpeg_aac_encode()   # the fallback path really ran
-    assert not runner.ran_afconvert_encode()  # never reached afconvert encode
+    assert runner.ran_ffmpeg_aac_encode()      # the fallback path really ran
+    assert not runner.ran_afconvert_encode()   # never invoked afconvert at all
+    assert rate == _DECODED_RATE
+    assert data.size > 0
+
+
+def test_afconvert_help_nonzero_exit_does_not_block(tmp_path, monkeypatch) -> None:
+    """Regression guard for the fixed bug: afconvert is present, so the path must
+    proceed to the real encode. The old probe ran `afconvert --help` under
+    check=True; on macOS that exits 2, which wrongly forced the fallback every
+    time. Presence-based probing means a non-zero `--help` exit is irrelevant —
+    prove no `--help` command is ever issued and the encoder is "afconvert"."""
+    import tools.mastering.adm_validation as adm
+
+    _set_afconvert_present(monkeypatch, True)
+    runner = _FakeRunner(encode="ok")
+    monkeypatch.setattr(adm.subprocess, "run", runner)
+    wav = _write_input_wav(tmp_path)
+
+    data, rate, encoder = adm._afconvert_encode_decode(wav)
+
+    assert encoder == "afconvert"
+    # The bug was a `--help` probe; ensure it's gone for good.
+    assert not any("--help" in c for c in runner.calls)
     assert rate == _DECODED_RATE
     assert data.size > 0
 
@@ -152,10 +182,11 @@ def test_probe_failure_falls_back_to_ffmpeg(tmp_path, monkeypatch, probe) -> Non
 
 
 def test_afconvert_encode_timeout_falls_back(tmp_path, monkeypatch) -> None:
-    """Probe succeeds, then the afconvert encode raises TimeoutExpired → ffmpeg."""
+    """Present, then the afconvert encode raises TimeoutExpired → ffmpeg."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe="ok", encode="timeout")
+    _set_afconvert_present(monkeypatch, True)
+    runner = _FakeRunner(encode="timeout")
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
@@ -174,10 +205,11 @@ def test_afconvert_encode_timeout_falls_back(tmp_path, monkeypatch) -> None:
 
 
 def test_afconvert_encode_nonzero_falls_back(tmp_path, monkeypatch) -> None:
-    """Probe succeeds, then the afconvert encode returns rc!=0 → ffmpeg."""
+    """Present, then the afconvert encode returns rc!=0 → ffmpeg."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe="ok", encode="nonzero")
+    _set_afconvert_present(monkeypatch, True)
+    runner = _FakeRunner(encode="nonzero")
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
@@ -204,7 +236,8 @@ def test_afconvert_success_reports_afconvert(tmp_path, monkeypatch) -> None:
     afconvert (that end-to-end proof lives in the macOS integration test)."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe="ok", encode="ok")
+    _set_afconvert_present(monkeypatch, True)
+    runner = _FakeRunner(encode="ok")
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
@@ -229,7 +262,8 @@ def test_public_api_afconvert_fallback_records_encoder(tmp_path, monkeypatch) ->
     fallback encoder name in ``encoder_used`` when afconvert is unavailable."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe="absent")
+    _set_afconvert_present(monkeypatch, False)
+    runner = _FakeRunner()
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
@@ -245,7 +279,8 @@ def test_public_api_afconvert_success_records_encoder(tmp_path, monkeypatch) -> 
     ``encoder_used`` when the afconvert path succeeds."""
     import tools.mastering.adm_validation as adm
 
-    runner = _FakeRunner(probe="ok", encode="ok")
+    _set_afconvert_present(monkeypatch, True)
+    runner = _FakeRunner(encode="ok")
     monkeypatch.setattr(adm.subprocess, "run", runner)
     wav = _write_input_wav(tmp_path)
 
