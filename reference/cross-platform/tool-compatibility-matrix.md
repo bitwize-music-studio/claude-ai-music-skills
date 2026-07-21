@@ -12,7 +12,7 @@ What works on each platform for the Claude AI Music Skills plugin.
 | **Linux** (native) | Full | Tested on Ubuntu 22.04+ |
 | **WSL2** | Full | See [WSL Setup Guide](wsl-setup-guide.md) |
 | **WSL1** | Partial | Works but slower, some limitations |
-| **Windows (native)** | Core (best-effort) | MCP server, state cache, non-audio workflow (albums, tracks, ideas, research docs, status tracking), and the ffmpeg audio pipeline (mixing/mastering/codec preview) — the full test suite runs on windows-latest in CI. Promo video works but its CI coverage is mock-only (see below). Sheet music works natively too — MuseScore is CI-verified on windows-latest; AnthemScore needs a licensed install (its trial has no CLI on any OS). |
+| **Windows (native)** | Full | The full test suite runs on windows-latest in CI, plus dedicated windows-latest legs for the MCP stdio boot check and MuseScore PDF export. Everything works: MCP server, state cache, non-audio workflow, the ffmpeg audio pipeline (mixing/mastering/codec preview), clipboard, promo video, and sheet music (MuseScore CI-verified; AnthemScore requires a licensed install — its trial has no CLI on **any** OS, so that caveat is not Windows-specific). Not the primary development platform, and promo video is verified by a real windows-latest render rather than continuously guarded — but that mock-only caveat applies on every OS, not just Windows (see the promo-video note below). |
 
 > **What "CI-tested" does and does not mean here.** The full suite, the MCP stdio
 > boot check, and the ffmpeg-gated *audio* tests (ADM validation, codec preview,
