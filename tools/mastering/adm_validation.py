@@ -12,6 +12,7 @@ Encoder selection (adm_aac_encoder config key):
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from datetime import UTC, datetime
@@ -96,13 +97,13 @@ def _afconvert_encode_decode(input_path: Path) -> tuple[np.ndarray, int, str]:
     Returns ``"afconvert"`` as the encoder name when afconvert succeeds, or
     ``"aac"`` when it falls back to ffmpeg.
     """
-    try:
-        subprocess.run(
-            ["afconvert", "--help"],
-            capture_output=True, check=True,
-            timeout=_FFMPEG_TIMEOUT_SEC,
-        )
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    # Probe for afconvert by PRESENCE, not by running `afconvert --help`.
+    # `afconvert --help` exits 2 on macOS (usage convention), so the old
+    # `check=True` probe raised CalledProcessError and this function ALWAYS fell
+    # back to ffmpeg — afconvert was never actually used on any macOS machine.
+    # shutil.which answers the only question that matters (is it installed?);
+    # the real encode below already falls back on timeout / non-zero rc.
+    if shutil.which("afconvert") is None:
         # afconvert not available — fall back to ffmpeg
         data, rate = _ffmpeg_encode_decode(input_path, encoder="aac")
         return data, rate, "aac"
