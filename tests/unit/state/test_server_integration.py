@@ -401,7 +401,7 @@ def content_dir(tmp_path):
         "generation": {"service": "suno"},
     }
     config_path = config_dir / "config.yaml"
-    with open(config_path, "w") as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f)
 
     # Album directory
@@ -2650,7 +2650,7 @@ class TestWorkflowMultiFieldAtomicity:
             "integration-test-album", "03-third-track"
         )))
         assert resolve["found"] is True
-        content = Path(resolve["path"]).read_text()
+        content = Path(resolve["path"]).read_text(encoding="utf-8")
         assert "Generated" in content
         assert "Yes" in content
 
@@ -2935,7 +2935,7 @@ class TestCreateTrackIntegration:
 
         track_path = Path(result["path"])
         assert track_path.exists()
-        content = track_path.read_text()
+        content = track_path.read_text(encoding="utf-8")
         assert "Brand New Track" in content
         assert "| **Track #** | 04 |" in content
 

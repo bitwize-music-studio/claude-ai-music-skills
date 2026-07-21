@@ -323,7 +323,7 @@ class TestManifest:
         # We can't easily call create_songbook since pypdf is mocked,
         # but we can verify the manifest is read correctly
         manifest_path = singles / ".manifest.json"
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             loaded = json.load(f)
 
         assert loaded["tracks"][0]["title"] == "Apple Pie"
@@ -352,7 +352,7 @@ class TestManifest:
         (singles / ".manifest.json").write_text(json.dumps(manifest))
 
         manifest_path = singles / ".manifest.json"
-        with open(manifest_path) as f:
+        with open(manifest_path, encoding="utf-8") as f:
             loaded = json.load(f)
 
         # Verify filename field resolves to existing PDFs

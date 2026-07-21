@@ -44,9 +44,9 @@ class TestVersionSync:
         assert plugin_json.exists(), "Required file missing: .claude-plugin/plugin.json"
         assert marketplace_json.exists(), "Required file missing: .claude-plugin/marketplace.json"
 
-        with open(plugin_json) as f:
+        with open(plugin_json, encoding="utf-8") as f:
             plugin_version = json.load(f).get('version', 'unknown')
-        with open(marketplace_json) as f:
+        with open(marketplace_json, encoding="utf-8") as f:
             marketplace_data = json.load(f)
             marketplace_version = marketplace_data.get('plugins', [{}])[0].get('version', 'unknown')
 

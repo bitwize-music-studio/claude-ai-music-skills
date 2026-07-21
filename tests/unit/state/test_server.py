@@ -9905,7 +9905,7 @@ class TestReleaseReadinessGate:
         # Overwrite track file with content missing Streaming Lyrics
         state = mock_cache.get_state()
         track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
-        Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n")
+        Path(track_path).write_text("# Track\n\n## Lyrics Box\n\nSome lyrics here\n", encoding="utf-8")
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))
         assert "error" in result
@@ -9918,7 +9918,7 @@ class TestReleaseReadinessGate:
         track_path = state["albums"]["test-album"]["tracks"]["01-track"]["path"]
         Path(track_path).write_text(
             "# Track\n\n## Streaming Lyrics\n\n```\n"
-            "Plain lyrics here\nCapitalize first letter of each line\n```\n"
+            "Plain lyrics here\nCapitalize first letter of each line\n```\n", encoding="utf-8"
         )
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.update_album_status("test-album", "Released")))

@@ -21,16 +21,16 @@ class TestAcquireLockWithTimeout:
     def test_acquires_immediately_when_unlocked(self, tmp_path: Path) -> None:
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
-        with open(lock_file, "r+") as fd:
+        with open(lock_file, "r+", encoding="utf-8") as fd:
             _acquire_lock_with_timeout(fd, timeout=2)
 
     def test_timeout_raises_when_lock_held(self, tmp_path: Path) -> None:
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
-        holder = open(lock_file, "r+")
+        holder = open(lock_file, "r+", encoding="utf-8")
         _flock_nb(holder)
         try:
-            with open(lock_file, "r+") as contender:
+            with open(lock_file, "r+", encoding="utf-8") as contender:
                 with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                     _acquire_lock_with_timeout(contender, timeout=0.5)
         finally:
@@ -44,10 +44,10 @@ class TestAcquireLockWithTimeout:
         import os
         old_time = time.time() - 300
         os.utime(lock_file, (old_time, old_time))
-        holder = open(lock_file, "r+")
+        holder = open(lock_file, "r+", encoding="utf-8")
         _flock_nb(holder)
         try:
-            with open(lock_file, "r+") as contender:
+            with open(lock_file, "r+", encoding="utf-8") as contender:
                 with pytest.raises(TimeoutError):
                     _acquire_lock_with_timeout(contender, timeout=0.5)
         finally:
@@ -71,11 +71,11 @@ class TestAcquireLockWithTimeout:
 
         lock_file = tmp_path / "test.lock"
         lock_file.touch()
-        holder = open(lock_file, "r+")
+        holder = open(lock_file, "r+", encoding="utf-8")
         _flock_nb(holder)
 
         # The lock is genuinely held: an independent handle cannot take it.
-        with open(lock_file, "r+") as probe:
+        with open(lock_file, "r+", encoding="utf-8") as probe:
             with pytest.raises(OSError):
                 _flock_nb(probe)
 
@@ -107,13 +107,13 @@ class TestAcquireLockWithTimeout:
         t = threading.Thread(target=release_when_contender_has_retried)
         t.start()
         try:
-            with open(lock_file, "r+") as contender:
+            with open(lock_file, "r+", encoding="utf-8") as contender:
                 _acquire_lock_with_timeout(contender, timeout=30)
 
                 # The contender really owns the lock now: a third, independent
                 # handle must be refused. Without this, the test would pass
                 # even if _acquire_lock_with_timeout() did nothing at all.
-                with open(lock_file, "r+") as after:
+                with open(lock_file, "r+", encoding="utf-8") as after:
                     with pytest.raises(OSError):
                         _flock_nb(after)
 
