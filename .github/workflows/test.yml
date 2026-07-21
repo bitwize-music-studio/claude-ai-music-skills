@@ -462,7 +462,7 @@ jobs:
     # dedicated scoped invocation instead of enabling preview repo-wide
     - name: Run ruff encoding check (PLW1514)
       run: |
-        ruff check tools/ servers/ hooks/ --select PLW1514 --preview
+        ruff check tools/ servers/ hooks/ tests/ --select PLW1514 --preview
 
     - name: Run bandit security linter
       run: |
