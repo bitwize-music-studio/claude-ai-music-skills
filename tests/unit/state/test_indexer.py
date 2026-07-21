@@ -1437,7 +1437,7 @@ class TestFileLocking:
 
     def test_acquire_lock_success(self, tmp_path):
         lock_file = tmp_path / "test.lock"
-        with open(lock_file, 'w') as fd:
+        with open(lock_file, 'w', encoding="utf-8") as fd:
             # Should not raise
             _acquire_lock_with_timeout(fd, timeout=1)
 
@@ -1456,7 +1456,7 @@ class TestFileLocking:
             raise err
 
         # Use very short timeout
-        with open(lock_file, 'w') as fd:
+        with open(lock_file, 'w', encoding="utf-8") as fd:
             lock_file.touch()  # Ensure mtime is fresh (not stale)
             with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with patch('tools.state.indexer.time.sleep'):
@@ -1475,10 +1475,10 @@ class TestFileLocking:
         old_mtime = time.time() - 300
         os.utime(lock_file, (old_mtime, old_mtime))
 
-        holder = open(lock_file, 'r+')
+        holder = open(lock_file, 'r+', encoding="utf-8")
         indexer._flock_nb(holder)
         try:
-            with open(lock_file, 'r+') as contender:
+            with open(lock_file, 'r+', encoding="utf-8") as contender:
                 with pytest.raises(TimeoutError, match="Could not acquire state lock"):
                     _acquire_lock_with_timeout(contender, timeout=0.3)
         finally:
@@ -1496,7 +1496,7 @@ class TestFileLocking:
             err.errno = errno.EIO  # I/O error, not a lock contention error
             raise err
 
-        with open(lock_file, 'w') as fd:
+        with open(lock_file, 'w', encoding="utf-8") as fd:
             with patch('tools.state.indexer._flock_nb', side_effect=mock_flock_nb):
                 with pytest.raises(OSError):
                     _acquire_lock_with_timeout(fd, timeout=1)

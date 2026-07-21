@@ -29,7 +29,7 @@ def _get_migration_files():
 
 def _parse_migration(path: Path):
     """Parse a migration file, returning (frontmatter_dict, body_str)."""
-    content = path.read_text()
+    content = path.read_text(encoding="utf-8")
     if not content.startswith('---'):
         return None, content
 

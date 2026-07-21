@@ -16,7 +16,7 @@ class TestConfigExample:
         config_example = config_dir / "config.example.yaml"
         assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
-        with open(config_example) as f:
+        with open(config_example, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert data is not None, "config.example.yaml is empty"
 
@@ -25,7 +25,7 @@ class TestConfigExample:
         config_example = config_dir / "config.example.yaml"
         assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
-        with open(config_example) as f:
+        with open(config_example, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert section in data, f"Config missing section: {section}"
 
@@ -38,7 +38,7 @@ class TestConfigExample:
         config_example = config_dir / "config.example.yaml"
         assert config_example.exists(), "Required file missing: config/config.example.yaml"
 
-        with open(config_example) as f:
+        with open(config_example, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         assert section in data and field in data.get(section, {}), (
             f"Config missing: {section}.{field}"
