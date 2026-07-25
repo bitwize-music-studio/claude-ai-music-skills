@@ -690,7 +690,14 @@ def incremental_update(
     # would crash the .get() lookups below — hand back None so the caller
     # falls back to a full rebuild, the same contract as migrate_state
     # (#393 family).
-    for section_key in ('config', 'albums'):
+    #
+    # Every section this function reaches into with .get() must be listed
+    # here. 'ideas' and 'skills' were missing, so a non-mapping value in
+    # either raised AttributeError straight past cmd_update's `is None`
+    # fallback and aborted the CLI with a traceback — the exact failure this
+    # guard exists to prevent. Both are re-derived from disk on a rebuild, so
+    # falling back loses nothing (#525).
+    for section_key in ('config', 'albums', 'ideas', 'skills'):
         section_value = existing_state.get(section_key, {})
         if not isinstance(section_value, dict):
             logger.warning(

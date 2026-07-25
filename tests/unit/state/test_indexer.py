@@ -2843,6 +2843,47 @@ class TestIncrementalUpdateWrongTypedSections:
         assert result is None
         assert 'albums' in caplog.text
 
+    def test_ideas_section_string_returns_none(self, tmp_path, monkeypatch, caplog):
+        """A wrong-typed ideas section falls back to a rebuild, not AttributeError.
+
+        incremental_update does state['ideas'].get('file_mtime'), so a
+        non-mapping section used to raise AttributeError straight past
+        cmd_update's `is None` fallback and abort the CLI (#525).
+        """
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(ideas='not-a-mapping')
+        state['config']['config_mtime'] = 1000.0
+
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'ideas' in caplog.text
+
+    def test_skills_section_list_returns_none(self, tmp_path, monkeypatch, caplog):
+        """A wrong-typed skills section falls back to a rebuild, not AttributeError."""
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(skills=['not', 'a', 'mapping'])
+        state['config']['config_mtime'] = 1000.0
+
+        with caplog.at_level(logging.WARNING):
+            result = incremental_update(state, self._config_for(tmp_path))
+        assert result is None
+        assert 'skills' in caplog.text
+
+    def test_ideas_section_none_returns_none(self, tmp_path, monkeypatch):
+        """`ideas:` present but null is wrong-typed too, and must not crash."""
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 1000.0)
+
+        state = _make_minimal_state(ideas=None)
+        state['config']['config_mtime'] = 1000.0
+
+        assert incremental_update(state, self._config_for(tmp_path)) is None
+
 
 @pytest.mark.unit
 class TestIncrementalUpdateConfigChange:
