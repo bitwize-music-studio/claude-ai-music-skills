@@ -108,6 +108,29 @@ LOCK_FILE = CACHE_DIR / "state.lock"
 
 CONFIG_FILE = CONFIG_PATH
 
+# Track statuses that count toward an album's tracks_completed.
+_COMPLETED_TRACK_STATUSES = frozenset({'Final', 'Generated'})
+
+
+def _count_completed_tracks(tracks: dict[str, dict[str, Any]]) -> int:
+    """Count tracks whose status counts as completed.
+
+    Single source of truth for ``tracks_completed``, which
+    reference/state-schema.md defines as "Number of tracks with completed
+    status". It is always derived from the track files, never from the album
+    README's ``## Tracklist`` table: that table is a hand-maintained summary,
+    and ``update_track_field`` rewrites a track file without touching it, so
+    the two drift the moment a track's status changes. Deriving the count in
+    one place keeps the full-rebuild and incremental paths from disagreeing —
+    previously a rebuild reinstated the README's stale number and silently
+    regressed a count the incremental path had gotten right (#523).
+    """
+    return sum(
+        1 for t in tracks.values()
+        if t.get('status') in _COMPLETED_TRACK_STATUSES
+    )
+
+
 def _read_plugin_version(plugin_root: Path) -> str | None:
     """Read plugin version from .claude-plugin/plugin.json.
 
@@ -418,7 +441,7 @@ def scan_albums(
                 'mastering': album_data.get('mastering') or {},
                 'release_date': album_data.get('release_date'),
                 'track_count': album_data.get('track_count', len(tracks)),
-                'tracks_completed': album_data.get('tracks_completed', 0),
+                'tracks_completed': _count_completed_tracks(tracks),
                 'streaming_urls': album_data.get('streaming_urls', {}),
                 'readme_mtime': readme_mtime,
                 'tracks': tracks,
@@ -799,7 +822,7 @@ def incremental_update(
                     'mastering': album_data.get('mastering') or {},
                     'release_date': album_data.get('release_date'),
                     'track_count': album_data.get('track_count', len(tracks)),
-                    'tracks_completed': album_data.get('tracks_completed', 0),
+                    'tracks_completed': _count_completed_tracks(tracks),
                     'streaming_urls': album_data.get('streaming_urls', {}),
                     'readme_mtime': readme_mtime,
                     'tracks': tracks,
@@ -916,11 +939,7 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
     album['tracks'] = existing_tracks
 
     # Recompute completed count
-    completed_statuses = {'Final', 'Generated'}
-    album['tracks_completed'] = sum(
-        1 for t in existing_tracks.values()
-        if t.get('status') in completed_statuses
-    )
+    album['tracks_completed'] = _count_completed_tracks(existing_tracks)
 
 
 def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT_SECONDS) -> None:

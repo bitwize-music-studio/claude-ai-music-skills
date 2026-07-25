@@ -133,7 +133,7 @@ def _make_skill_content(name="test-skill", description="A test skill.",
 
 
 def _make_album_tree(content_root, artist, genre, album_slug,
-                     readme_text=None, tracks=None):
+                     readme_text=None, tracks=None, tracklist=None):
     """Create an album directory tree with optional tracks.
 
     Args:
@@ -143,6 +143,12 @@ def _make_album_tree(content_root, artist, genre, album_slug,
         album_slug: Album slug.
         readme_text: README.md content. Uses a default if None.
         tracks: Dict of {filename: content}. None means no tracks dir.
+        tracklist: Optional list of ``(number, title, status)`` tuples used to
+            emit a populated ``## Tracklist`` table, mirroring what
+            ``templates/album.md`` produces. The default README deliberately
+            omits the section entirely, which is what real albums look like
+            only before any track is added — pass this whenever a test needs
+            the README's tracklist statuses to differ from the track files'.
 
     Returns:
         Path to the album directory.
@@ -165,6 +171,19 @@ explicit: false
 |-----------|--------|
 | **Status** | Concept |
 | **Tracks** | 0 |
+"""
+        if tracklist is not None:
+            rows = "\n".join(
+                f"| {num} | [{title}](tracks/{num}-{title.lower().replace(' ', '-')}.md) "
+                f"| {status} |"
+                for num, title, status in tracklist
+            )
+            readme_text += f"""
+## Tracklist
+
+| # | Title | Status |
+|---|-------|--------|
+{rows}
 """
     (album_dir / "README.md").write_text(readme_text)
 
@@ -3881,14 +3900,25 @@ class TestIncrementalUpdateTracksCompleted:
     """Tests for tracks_completed recomputation during incremental updates."""
 
     def test_tracks_completed_recomputed_on_readme_change(self, tmp_path, monkeypatch):
-        """When README changes, tracks_completed is recomputed from actual track data."""
+        """When README changes, tracks_completed is recomputed from actual track data.
+
+        Rewrites README.md so the README-changed branch of incremental_update
+        actually runs. The README's tracklist table is deliberately left stale
+        (all 'Not Started') while the track files say otherwise — the count must
+        follow the track files, which are the authoritative per-track status.
+        """
         content_root = tmp_path / "content"
-        _make_album_tree(content_root, "testartist", "rock", "my-album",
-                         tracks={
-                             "01-track.md": _make_track_content("Track One", "Final"),
-                             "02-track.md": _make_track_content("Track Two", "Generated"),
-                             "03-track.md": _make_track_content("Track Three", "Not Started"),
-                         })
+        album_dir = _make_album_tree(
+            content_root, "testartist", "rock", "my-album",
+            tracks={
+                "01-track.md": _make_track_content("Track One", "Final"),
+                "02-track.md": _make_track_content("Track Two", "Generated"),
+                "03-track.md": _make_track_content("Track Three", "Not Started"),
+            },
+            tracklist=[("01", "Track One", "Not Started"),
+                       ("02", "Track Two", "Not Started"),
+                       ("03", "Track Three", "Not Started")],
+        )
 
         config = {
             'artist': {'name': 'testartist'},
@@ -3900,17 +3930,84 @@ class TestIncrementalUpdateTracksCompleted:
         existing = build_state(config)
         existing['config']['config_mtime'] = 100.0
 
-        # Modify a track to become Final
+        # Modify a track to become Final AND touch the README, so the
+        # README-changed branch is the one under test.
         time.sleep(0.05)
-        track_path = (content_root / "artists" / "testartist" / "albums" /
-                      "rock" / "my-album" / "tracks" / "03-track.md")
+        track_path = album_dir / "tracks" / "03-track.md"
         track_path.write_text(_make_track_content("Track Three", "Final"))
+        readme = album_dir / "README.md"
+        readme.write_text(readme.read_text() + "\nEdited.\n")
 
         updated = incremental_update(existing, config)
         album = updated['albums']['my-album']
-        # tracks_completed should include Final (2) + Generated (1) = 3
-        # _update_tracks_incremental counts Final+Generated+Complete
+        # Final (3) + Generated (0) = 3 from the track files. The README's
+        # stale table would say 0.
         assert album['tracks_completed'] == 3
+
+    def test_full_rebuild_counts_track_files_not_readme_table(self, tmp_path):
+        """A full rebuild derives tracks_completed from track files.
+
+        reference/state-schema.md defines the field as "Number of tracks with
+        completed status", so the README's hand-maintained tracklist table must
+        not be able to override the actual per-track statuses.
+        """
+        content_root = tmp_path / "content"
+        _make_album_tree(
+            content_root, "testartist", "rock", "my-album",
+            tracks={
+                "01-one.md": _make_track_content("One", "Final"),
+                "02-two.md": _make_track_content("Two", "Final"),
+            },
+            tracklist=[("01", "One", "Not Started"),
+                       ("02", "Two", "Not Started")],
+        )
+
+        albums = scan_albums(content_root, "testartist")
+        assert albums["my-album"]["tracks_completed"] == 2
+
+    def test_rebuild_and_incremental_agree(self, tmp_path, monkeypatch):
+        """rebuild_state must never regress the count an incremental produced.
+
+        A rebuild is the documented remedy for a stale cache, so it has to be
+        at least as accurate as the incremental path, not less.
+        """
+        content_root = tmp_path / "content"
+        album_dir = _make_album_tree(
+            content_root, "testartist", "rock", "agree-album",
+            tracks={
+                "01-one.md": _make_track_content("One", "Not Started"),
+                "02-two.md": _make_track_content("Two", "Not Started"),
+            },
+            tracklist=[("01", "One", "Not Started"),
+                       ("02", "Two", "Not Started")],
+        )
+
+        config = {
+            'artist': {'name': 'testartist'},
+            'paths': {'content_root': str(content_root)},
+        }
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 100.0)
+
+        existing = build_state(config)
+        existing['config']['config_mtime'] = 100.0
+
+        # Promote both tracks the way update_track_field does: the track file
+        # changes, the README's tracklist table does not.
+        time.sleep(0.05)
+        (album_dir / "tracks" / "01-one.md").write_text(
+            _make_track_content("One", "Final"))
+        (album_dir / "tracks" / "02-two.md").write_text(
+            _make_track_content("Two", "Final"))
+
+        incremental = incremental_update(existing, config)
+        from_incremental = incremental['albums']['agree-album']['tracks_completed']
+
+        rebuilt = build_state(config)
+        from_rebuild = rebuilt['albums']['agree-album']['tracks_completed']
+
+        assert from_incremental == 2
+        assert from_rebuild == from_incremental
 
     def test_tracks_completed_recomputed_on_track_change(self, tmp_path, monkeypatch):
         """Track status change triggers tracks_completed recount."""

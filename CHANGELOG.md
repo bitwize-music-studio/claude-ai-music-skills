@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`tracks_completed` no longer flips between two different numbers depending on which code path last ran** ([#523](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/523)) — `reference/state-schema.md` defines the field as "Number of tracks with completed status", but only the incremental track-change path counted the track files. A full rebuild (`scan_albums`) and the incremental README-changed branch both counted the album README's `## Tracklist` table instead. Since `update_track_field` rewrites a track file without touching that table, the two drifted the moment a track's status changed: `rebuild_state()` — the documented remedy for a stale cache — discarded the correct count and reinstated the README's stale one, and editing only the README silently reset it. This also made `list_albums` and `get_album_progress` disagree about the same album, and made the CLI print a README-derived numerator over an actual-file denominator (a finished album could render as `[0/12 tracks]`). All three sites now derive the count from the track files through a single `_count_completed_tracks` helper. `parse_album_readme` still reports what the README table claims, but nothing feeds it into state.
+
 ## [0.101.0] - 2026-07-21
 
 ### Fixed

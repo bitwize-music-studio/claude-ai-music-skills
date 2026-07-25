@@ -251,6 +251,12 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     tracklist = _parse_tracklist_table(text)
     result['tracklist'] = tracklist
 
+    # What the README's hand-maintained tracklist table CLAIMS is complete.
+    # This is not the album's tracks_completed and must not be used as it:
+    # the table lags the track files (update_track_field rewrites a track file
+    # without touching it), so feeding this into state made a full rebuild
+    # regress a count the incremental path had right. The state field is
+    # derived from the track files by indexer._count_completed_tracks (#523).
     completed_statuses = {'Final', 'Generated'}
     result['tracks_completed'] = sum(
         1 for t in tracklist if t.get('status') in completed_statuses
