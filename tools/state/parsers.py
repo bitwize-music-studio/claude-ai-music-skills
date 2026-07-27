@@ -363,6 +363,7 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     Extracts:
         - Track Details table (status, explicit, suno link, sources verified)
         - Title from heading or table
+        - Optional frontmatter genre (overrides the album's for this track)
 
     Args:
         path: Path to track .md file
@@ -412,6 +413,13 @@ def parse_track_file(path: Path) -> dict[str, Any]:
         result['has_suno_link'] = True
     else:
         result['has_suno_link'] = False
+
+    # Genre from frontmatter (optional). Absent on most tracks — the album's
+    # genre is the fallback. Set it per track when an album deliberately spans
+    # several, so the word-count target follows the track rather than the album.
+    fm_genre = fm.get('genre', '')
+    if fm_genre and str(fm_genre).strip():
+        result['genre'] = str(fm_genre).strip()
 
     # Suno URL from frontmatter (not in table)
     fm_suno_url = fm.get('suno_url', '')

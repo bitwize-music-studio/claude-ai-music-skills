@@ -606,6 +606,8 @@ async def extract_links(
 # --- Lyrics stats ---
 
 # Genre word-count targets from craft-reference.md
+_DEFAULT_WORD_TARGET = {"min": 150, "max": 350}
+
 _GENRE_WORD_TARGETS = {
     "pop":        {"min": 150, "max": 250},
     "dance-pop":  {"min": 150, "max": 250},
@@ -701,11 +703,24 @@ async def get_lyrics_stats(
     else:
         tracks_to_check = all_tracks
 
-    # Get genre target
-    target = _GENRE_WORD_TARGETS.get(genre, {"min": 150, "max": 350})
+    # Genre target, resolved per track: a track's own genre wins over the
+    # album's, so an album that deliberately spans several still gets a
+    # sensible target for each. Falls back to the album genre, then the default.
+    def _resolve(track: dict[str, Any]) -> tuple[str, dict[str, int]]:
+        track_genre = str(track.get("genre", "")).strip().lower()
+        if track_genre in _GENRE_WORD_TARGETS:
+            return track_genre, _GENRE_WORD_TARGETS[track_genre]
+        if genre in _GENRE_WORD_TARGETS:
+            return genre, _GENRE_WORD_TARGETS[genre]
+        # Neither is a known genre — report whichever was declared, so the note
+        # says what was asked for rather than silently claiming the album's.
+        return (track_genre or genre), _DEFAULT_WORD_TARGET
+
+    album_target = _GENRE_WORD_TARGETS.get(genre, _DEFAULT_WORD_TARGET)
 
     track_results = []
     for t_slug, t_data in sorted(tracks_to_check.items()):
+        track_genre, target = _resolve(t_data)
         track_path = t_data.get("path", "")
         if not track_path:
             track_results.append({
@@ -767,13 +782,13 @@ async def get_lyrics_stats(
             note = "Over 800 words — Suno will rush/compress/skip sections"
         elif word_count > target["max"]:
             status = "OVER"
-            note = f"Over target ({target['max']} max for {genre})"
+            note = f"Over target ({target['max']} max for {track_genre})"
         elif word_count < target["min"]:
             status = "UNDER"
-            note = f"Under target ({target['min']} min for {genre})"
+            note = f"Under target ({target['min']} min for {track_genre})"
         else:
             status = "OK"
-            note = f"Within target ({target['min']}\u2013{target['max']} for {genre})"
+            note = f"Within target ({target['min']}\u2013{target['max']} for {track_genre})"
 
         track_results.append({
             "track_slug": t_slug,
@@ -784,13 +799,15 @@ async def get_lyrics_stats(
             "section_count": section_count,
             "status": status,
             "note": note,
+            "genre": track_genre,
+            "target": target,
         })
 
     return _safe_json({
         "found": True,
         "album_slug": normalized_album,
         "genre": genre,
-        "target": target,
+        "target": album_target,
         "tracks": track_results,
     })
 

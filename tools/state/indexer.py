@@ -432,7 +432,11 @@ def scan_albums(
 
             albums[album_slug] = {
                 'path': str(album_dir),
-                'genre': album_dir.parent.name,
+                # parse_album_readme resolves frontmatter `genres:` first and
+                # falls back to the path itself, so prefer what it found — the
+                # directory is a filing label and an album may declare its real
+                # genre in the README.
+                'genre': album_data.get('genre') or album_dir.parent.name,
                 'title': album_data.get('title', album_slug),
                 'status': album_data.get('status', 'Unknown'),
                 'explicit': album_data.get('explicit', False),
@@ -511,6 +515,7 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
             'explicit': track_data.get('explicit', False),
             'has_suno_link': track_data.get('has_suno_link', False),
             'sources_verified': track_data.get('sources_verified', 'N/A'),
+            'genre': track_data.get('genre', ''),
             'mtime': track_mtime,
         }
 
@@ -820,7 +825,7 @@ def incremental_update(
 
                 existing_albums[slug] = {
                     'path': str(album_dir),
-                    'genre': genre,
+                    'genre': album_data.get('genre') or genre,
                     'title': album_data.get('title', slug),
                     'status': album_data.get('status', 'Unknown'),
                     'explicit': album_data.get('explicit', False),
