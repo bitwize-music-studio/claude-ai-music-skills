@@ -159,6 +159,106 @@ def _normalize_slug(name: str) -> str:
     return slug
 
 
+# The album directory shape, written down once. Every album mirrors this same
+# relative path under content_root, audio_root and documents_root.
+ALBUM_LAYOUT = "artists/{artist}/albums/{genre}/{album}"
+
+PATH_ESCAPES_ROOT = "Resolved path escapes root directory"
+
+
+def _album_dir(
+    root: str | Path,
+    *,
+    artist: str,
+    genre: str,
+    album: str,
+    subdir: str = "",
+    confine: bool = True,
+) -> Path:
+    """Resolve one album's directory under *root*, with the traversal guards applied.
+
+    This is the guarded resolution that ``core.py:resolve_path`` performs;
+    ``resolve_path`` is the MCP-tool wrapper around it. It lives here, beside
+    ``_normalize_slug`` and ``_is_path_confined``, so that the helper a caller
+    reaches for is the one that carries the guards — #529 removed a
+    ``tools/shared/paths.py`` that interpolated the slug straight in, and the
+    stated risk was precisely that a contributor would reach for the unguarded
+    variant.
+
+    *root* is whichever of content_root, audio_root or documents_root is
+    wanted; the shape below it is identical for all three.
+
+    Args:
+        root: Root directory from config.
+        artist: Artist name from config.
+        genre: Genre slug.
+        album: Album slug. Normalized here — callers need not pre-normalize,
+            and passing an already-normalized slug is idempotent.
+        subdir: Optional child directory, e.g. ``"tracks"``. Included in the
+            confinement check rather than appended after it.
+        confine: Also require the resolved path to stay within *root*. On by
+            default. Pass ``False`` only where a symlinked album directory is a
+            supported layout — see the note in the body.
+
+    Returns:
+        The resolved directory. Not created.
+
+    Raises:
+        ValueError: *album* contains a path separator, a null byte or a
+            traversal sequence (from ``_normalize_slug``), or the result
+            escapes *root* despite that.
+    """
+    normalized = _normalize_slug(album)
+    relative = ALBUM_LAYOUT.format(artist=artist, genre=genre, album=normalized)
+
+    # Lexical guard, always on. _normalize_slug already rejects traversal in the
+    # album slug, but artist and genre come from config and state rather than
+    # through the same guard, so every rendered segment is checked before it is
+    # joined. Appending segment by segment also means an absolute segment cannot
+    # reset the join back to the filesystem root.
+    base = Path(root)
+    for segment in [*relative.split("/"), subdir]:
+        if not segment:
+            # An empty genre collapses, exactly as Path("a") / "" always has.
+            continue
+        if segment == ".." or "/" in segment or "\\" in segment:
+            raise ValueError(PATH_ESCAPES_ROOT)
+        base = base / segment
+
+    # Resolved confinement, on by default. This is the check resolve_path has
+    # always applied, and it catches what the lexical pass cannot: a symlink
+    # *inside* the album path that points outside the root.
+    #
+    # Callers pass confine=False only where a symlinked album directory is a
+    # supported layout rather than an attack — validate_album_structure is the
+    # one such case, pinned by test_symlinked_audio_dir_passes. Resolving there
+    # would reject a layout the project explicitly supports. Everywhere else the
+    # stricter check stands, because loosening it silently for every caller in
+    # order to serve one is how a guard gets lost.
+    if confine and not base.resolve().is_relative_to(Path(root).resolve()):
+        raise ValueError(PATH_ESCAPES_ROOT)
+
+    return base
+
+
+def _albums_dir(root: str | Path, *, artist: str) -> Path:
+    """Directory holding every genre for one artist — the layout above ``{genre}``.
+
+    Used by the callers that sweep across genres, because album slugs are
+    globally unique rather than unique per genre (#392).
+
+    Takes no album slug, so there is no untrusted component to guard; callers
+    that append one use ``_is_path_confined`` or ``_album_dir``.
+    """
+    prefix = ALBUM_LAYOUT.split("/{genre}")[0].format(artist=artist)
+    return Path(root).joinpath(*prefix.split("/"))
+
+
+def _genre_dir(root: str | Path, *, artist: str, genre: str) -> Path:
+    """Directory holding every album of one genre — ``_album_dir``'s parent."""
+    return _albums_dir(root, artist=artist) / genre
+
+
 def _json_sanitize(value: Any) -> Any:
     """Recursively replace non-finite floats (inf/-inf/nan) with None.
 
@@ -556,7 +656,7 @@ def _resolve_audio_dir(album_slug: str, subfolder: str = "") -> tuple[str | None
         return _safe_json({
             "error": f"Genre not found for album '{album_slug}'. Ensure album exists in state.",
         }), None
-    audio_path = Path(audio_root) / "artists" / artist / "albums" / genre / normalized
+    audio_path = _album_dir(audio_root, artist=artist, genre=genre, album=normalized)
     if subfolder:
         if not _is_path_confined(audio_path, subfolder):
             return _safe_json({

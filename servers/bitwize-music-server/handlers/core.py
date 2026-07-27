@@ -23,6 +23,7 @@ from handlers._shared import (
     TRACK_GENERATED,
     TRACK_IN_PROGRESS,
     TRACK_NOT_STARTED,
+    _album_dir,
     _extract_code_block,
     _extract_markdown_section,
     _find_track_or_error,
@@ -690,14 +691,16 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
         "audio": audio_root,
         "documents": documents_root,
     }
-    root_dir = Path(root_map[path_type]).resolve()
-    base = Path(root_map[path_type]) / "artists" / artist / "albums" / genre / normalized
-    if path_type == "tracks":
-        base = base / "tracks"
-
-    # Defense-in-depth: verify resolved path stays within its root directory
-    if not base.resolve().is_relative_to(root_dir):
-        return _safe_json({"error": "Resolved path escapes root directory"})
+    try:
+        base = _album_dir(
+            root_map[path_type],
+            artist=artist,
+            genre=genre,
+            album=normalized,
+            subdir="tracks" if path_type == "tracks" else "",
+        )
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     resolved = str(base)
 

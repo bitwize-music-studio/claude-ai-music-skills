@@ -26,6 +26,7 @@ from handlers._shared import (
     TRACK_NOT_STARTED,
     TRACK_SOURCES_PENDING,
     TRACK_SOURCES_VERIFIED,
+    _album_dir,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
@@ -308,7 +309,7 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
         audio_root = state_config.get("audio_root", "")
         artist_name = state_config.get("artist_name", "")
         genre = album.get("genre", "")
-        audio_path = Path(audio_root) / "artists" / artist_name / "albums" / genre / normalized
+        audio_path = _album_dir(audio_root, artist=artist_name, genre=genre, album=normalized)
         if not audio_path.is_dir() or not list(_find_wav_source_dir(audio_path).glob("*.wav")):
             release_issues.append("No WAV files in audio directory")
 

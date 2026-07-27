@@ -11,10 +11,13 @@ from typing import Any
 from handlers import _shared
 from handlers._atomic import atomic_write_text
 from handlers._shared import (
+    _album_dir,
+    _albums_dir,
     _derive_title_from_slug,
     _find_album_or_error,
     _find_slug_dirs,
     _find_track_or_error,
+    _genre_dir,
     _is_path_confined,
     _normalize_slug,
     _safe_json,
@@ -111,22 +114,22 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
         return _safe_json({"error": "No artist_name in config."})
 
     # Resolve paths
-    content_dir_old = Path(content_root) / "artists" / artist / "albums" / genre / normalized_old
-    content_dir_new = Path(content_root) / "artists" / artist / "albums" / genre / normalized_new
-    audio_dir_old = Path(audio_root) / "artists" / artist / "albums" / genre / normalized_old
-    audio_dir_new = Path(audio_root) / "artists" / artist / "albums" / genre / normalized_new
-    docs_dir_old = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_old
-    docs_dir_new = Path(documents_root) / "artists" / artist / "albums" / genre / normalized_new
+    content_dir_old = _album_dir(content_root, artist=artist, genre=genre, album=normalized_old)
+    content_dir_new = _album_dir(content_root, artist=artist, genre=genre, album=normalized_new)
+    audio_dir_old = _album_dir(audio_root, artist=artist, genre=genre, album=normalized_old)
+    audio_dir_new = _album_dir(audio_root, artist=artist, genre=genre, album=normalized_new)
+    docs_dir_old = _album_dir(documents_root, artist=artist, genre=genre, album=normalized_old)
+    docs_dir_new = _album_dir(documents_root, artist=artist, genre=genre, album=normalized_new)
 
     # Defense-in-depth: verify new paths stay within their root directories
-    albums_content_base = Path(content_root) / "artists" / artist / "albums" / genre
+    albums_content_base = _genre_dir(content_root, artist=artist, genre=genre)
     if not _is_path_confined(albums_content_base, normalized_new):
         return _safe_json({"error": "Invalid new slug: would escape album directory"})
 
     # Album slugs are globally unique across genres (#392) — sweep the
     # filesystem for the new slug under every genre; the cache-key check
     # above misses twins that are stale or shadowed out of the cache.
-    albums_root = Path(content_root) / "artists" / artist / "albums"
+    albums_root = _albums_dir(content_root, artist=artist)
     collisions = _find_slug_dirs(albums_root, normalized_new)
     if collisions:
         existing = collisions[0]

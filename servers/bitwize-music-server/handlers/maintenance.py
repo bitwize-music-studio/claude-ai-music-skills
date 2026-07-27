@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
-from handlers._shared import _normalize_slug, _resolve_audio_dir, _safe_json
+from handlers._shared import _album_dir, _normalize_slug, _resolve_audio_dir, _safe_json
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +221,7 @@ async def migrate_audio_layout(
             skipped_count += 1
             continue
 
-        audio_dir = Path(audio_root) / "artists" / artist / "albums" / genre / slug
+        audio_dir = _album_dir(audio_root, artist=artist, genre=genre, album=slug)
 
         if not audio_dir.is_dir():
             results.append({
