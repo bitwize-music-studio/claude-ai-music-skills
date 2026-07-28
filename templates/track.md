@@ -3,6 +3,11 @@ title: "[Track Title]"
 track_number: 0
 instrumental: false
 explicit: false
+# Optional. Set only when this track's genre differs from the album's — it gives
+# the track its own lyrics word-count target (e.g. "hip-hop" on a pop album).
+# Omit and the track uses the album's. A musical descriptor, not a filing
+# location: unlike the album's genre it never forms part of a path.
+# genre: ""
 suno_url: ""
 sheet_music:
   pdf: ""
