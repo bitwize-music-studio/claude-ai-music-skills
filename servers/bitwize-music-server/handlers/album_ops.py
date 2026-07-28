@@ -208,9 +208,15 @@ async def validate_album_structure(
     # confine=False: an album's audio directory is allowed to be a symlink
     # pointing outside audio_root (test_symlinked_audio_dir_passes). This is a
     # read-only existence check, and the lexical traversal guard still applies.
-    audio_path = str(_album_dir(
-        audio_root, artist=artist, genre=genre, album=normalized, confine=False,
-    ))
+    #
+    # Caught rather than raised: this handler returns a JSON report, and a raise
+    # would discard the checks already accumulated.
+    try:
+        audio_path = str(_album_dir(
+            audio_root, artist=artist, genre=genre, album=normalized, confine=False,
+        ))
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     passed = 0
     failed = 0

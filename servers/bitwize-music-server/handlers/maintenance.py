@@ -221,7 +221,27 @@ async def migrate_audio_layout(
             skipped_count += 1
             continue
 
-        audio_dir = _album_dir(audio_root, artist=artist, genre=genre, album=slug)
+        # confine=False: this site never had a resolved check, and it operates on
+        # album directories that already exist — which may be symlinks pointing
+        # outside audio_root. The lexical traversal guard still applies.
+        #
+        # Caught per album rather than allowed to propagate: the call sits inside
+        # the loop, so in migrate-all mode a raise on album N would discard the
+        # whole results report after files for albums 1..N-1 had already been
+        # physically moved into originals/.
+        try:
+            audio_dir = _album_dir(
+                audio_root, artist=artist, genre=genre, album=slug, confine=False,
+            )
+        except ValueError as exc:
+            results.append({
+                "slug": slug,
+                "status": "skipped",
+                "files_moved": [],
+                "skip_reason": f"could not resolve audio path: {exc}",
+            })
+            skipped_count += 1
+            continue
 
         if not audio_dir.is_dir():
             results.append({

@@ -698,6 +698,9 @@ async def resolve_path(path_type: str, album_slug: str, genre: str = "") -> str:
             genre=genre,
             album=normalized,
             subdir="tracks" if path_type == "tracks" else "",
+            # Stated rather than inherited: this is the one site that has always
+            # applied the resolved confinement check, and it must keep it.
+            confine=True,
         )
     except ValueError as exc:
         return _safe_json({"error": str(exc)})

@@ -1,10 +1,13 @@
 """Tests for the guarded album-path helpers in handlers/_shared.py.
 
 These lock two things: that the helpers reproduce the inline construction they
-replaced at nineteen call sites, and that they keep the traversal guards
-``core.py:resolve_path`` has always applied. #529 removed an unguarded
-``tools/shared/paths.py`` precisely because a helper without those guards is
-the one a contributor reaches for.
+replaced at fifteen call sites across six handler modules, and that they keep
+the traversal guards ``core.py:resolve_path`` has always applied. #529 removed
+an unguarded ``tools/shared/paths.py`` precisely because a helper without those
+guards is the one a contributor reaches for.
+
+The call sites' own contracts — which failure each reports, and how — are
+covered in ``test_album_path_call_sites.py``.
 """
 
 from __future__ import annotations
@@ -112,6 +115,26 @@ class TestGuards:
         with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
             _album_dir(tmp_path, artist="../../..", genre="g", album="al")
 
+    @pytest.mark.parametrize("absolute", ["/etc", "/", "\\windows"])
+    def test_rejects_an_absolute_segment_rather_than_relativizing_it(
+        self, tmp_path, absolute,
+    ):
+        """A confined-but-wrong path is a worse failure mode than an error.
+
+        Joining segment by segment stops an absolute segment resetting the join
+        to the filesystem root — but on its own that silently rewrites
+        genre="/etc" into a relative "etc" and returns a path the caller never
+        asked for. develop rejected this input; so does the helper, with the
+        same message.
+        """
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _album_dir(tmp_path, artist="a", genre=absolute, album="al")
+
+    def test_rejects_an_absolute_subdir(self, tmp_path):
+        """subdir is joined last, so it is the other place an absolute lands."""
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _album_dir(tmp_path, artist="a", genre="g", album="al", subdir="/etc")
+
     def test_escape_message_is_the_one_resolve_path_returns(self):
         """resolve_path surfaces str(exc) verbatim — keep the wording stable."""
         assert PATH_ESCAPES_ROOT == "Resolved path escapes root directory"
@@ -127,25 +150,30 @@ class TestGuards:
         (linked / "test-album").symlink_to(real)
         return root, linked
 
-    def test_symlink_escaping_root_is_rejected_by_default(self, tmp_path):
-        """confine=True is the default, and it is what resolve_path has always done.
+    def test_symlink_escaping_root_is_rejected_under_confine(self, tmp_path):
+        """confine=True is what resolve_path has always done, and must keep doing.
 
         The lexical pass cannot see this: every segment is a plain name, and the
-        escape only exists once the symlink is followed. Defaulting to strict
-        means a caller has to ask for the looser behaviour rather than inherit it.
+        escape only exists once the symlink is followed.
+
+        It is also the default, so a new caller who forgets fails closed and
+        loudly rather than silently losing the check. Which value each *existing*
+        site passes is decided by what that site did before centralisation, not
+        by the default — see test_album_path_call_sites.py.
         """
         root, _ = self._symlinked_album(tmp_path)
         with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
-            _album_dir(root, artist="a", genre="g", album="test-album")
+            _album_dir(root, artist="a", genre="g", album="test-album", confine=True)
 
     def test_symlinked_album_dir_allowed_with_confine_false(self, tmp_path):
-        """The one supported case, and it must be opted into explicitly.
+        """The supported case, and it must be opted into explicitly.
 
         An album's audio directory may legitimately be a symlink pointing outside
         audio_root — see
         test_server.py::TestValidateAlbumStructure::test_symlinked_audio_dir_passes.
-        Resolving rejects that layout, so validate_album_structure passes
-        confine=False. The lexical traversal guard still applies there.
+        Resolving rejects that layout, so every site that operates on an album
+        directory which already exists passes confine=False. The lexical
+        traversal guard still applies there.
         """
         root, linked = self._symlinked_album(tmp_path)
         resolved = _album_dir(

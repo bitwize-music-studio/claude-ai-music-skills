@@ -113,13 +113,26 @@ async def rename_album(old_slug: str, new_slug: str, new_title: str = "") -> str
     if not artist:
         return _safe_json({"error": "No artist_name in config."})
 
-    # Resolve paths
-    content_dir_old = _album_dir(content_root, artist=artist, genre=genre, album=normalized_old)
-    content_dir_new = _album_dir(content_root, artist=artist, genre=genre, album=normalized_new)
-    audio_dir_old = _album_dir(audio_root, artist=artist, genre=genre, album=normalized_old)
-    audio_dir_new = _album_dir(audio_root, artist=artist, genre=genre, album=normalized_new)
-    docs_dir_old = _album_dir(documents_root, artist=artist, genre=genre, album=normalized_old)
-    docs_dir_new = _album_dir(documents_root, artist=artist, genre=genre, album=normalized_new)
+    # Resolve paths. confine=False at all six: none of these sites had a resolved
+    # check, and the *_old paths address album directories that already exist —
+    # which may be symlinks pointing outside their root. The lexical traversal
+    # guard applies to all six, and normalized_new additionally goes through
+    # _is_path_confined below.
+    #
+    # Caught rather than raised: this handler's contract is a JSON string, and
+    # every other failure here returns one.
+    def _dir(root: str, slug: str) -> Path:
+        return _album_dir(root, artist=artist, genre=genre, album=slug, confine=False)
+
+    try:
+        content_dir_old = _dir(content_root, normalized_old)
+        content_dir_new = _dir(content_root, normalized_new)
+        audio_dir_old = _dir(audio_root, normalized_old)
+        audio_dir_new = _dir(audio_root, normalized_new)
+        docs_dir_old = _dir(documents_root, normalized_old)
+        docs_dir_new = _dir(documents_root, normalized_new)
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     # Defense-in-depth: verify new paths stay within their root directories
     albums_content_base = _genre_dir(content_root, artist=artist, genre=genre)
