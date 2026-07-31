@@ -154,6 +154,7 @@ config/              Example config and setup docs
 <a href="https://github.com/DaveMatNat"><img src="https://images.weserv.nl/?url=github.com/DaveMatNat.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@DaveMatNat"></a>
 <a href="https://github.com/thejesh23"><img src="https://images.weserv.nl/?url=github.com/thejesh23.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@thejesh23"></a>
 <a href="https://github.com/tgh612"><img src="https://images.weserv.nl/?url=github.com/tgh612.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@tgh612"></a>
+<a href="https://github.com/MrReasonable"><img src="https://images.weserv.nl/?url=github.com/MrReasonable.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@MrReasonable"></a>
 
 If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X, [join the Discord](https://discord.gg/dMURByGF), or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
 
