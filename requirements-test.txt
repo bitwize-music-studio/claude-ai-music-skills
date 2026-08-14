@@ -13,7 +13,7 @@ pyyaml>=6.0
 # verdict, and a new rule or widened check reddens a commit nobody touched while
 # an old green build stops reproducing. Dependabot still bumps these — the
 # difference is the upgrade arrives as a reviewable PR with CI attached (#532).
-ruff==0.16.0
+ruff==0.16.2
 mypy==2.3.0
 types-PyYAML>=6.0.12.20260724
 
