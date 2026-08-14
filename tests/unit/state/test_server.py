@@ -42,7 +42,7 @@ SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 # Check if the real MCP SDK is available; if not, create a minimal mock.
 _mcp_was_mocked = False
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     _mcp_was_mocked = True
 

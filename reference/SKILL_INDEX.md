@@ -347,7 +347,7 @@ Redundant or conflicting combinations:
 
 Skills are assigned to models based on task complexity. See [model-strategy.md](model-strategy.md) for full rationale.
 
-### Opus 4.6 (Critical Creative Work — 7 skills)
+### `opus` (Critical Creative Work — 7 skills)
 - `/lyric-writer` - Core creative content
 - `/lyric-refiner` - Multi-pass lyric refinement and album cohesion
 - `/suno-engineer` - Music generation prompts
@@ -356,7 +356,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### Sonnet 4.5 (Reasoning & Coordination — 30 skills)
+### `sonnet` (Reasoning & Coordination — 30 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -382,7 +382,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/verify-sources` - Human verification gate
 - `/voice-checker` - Advisory review for AI-sounding patterns
 
-### Haiku 4.5 (Pattern Matching — 17 skills)
+### `haiku` (Pattern Matching — 16 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard

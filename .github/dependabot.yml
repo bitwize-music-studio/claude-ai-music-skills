@@ -12,11 +12,16 @@ updates:
     open-pull-requests-limit: 10
     # Plugin runs in the user's venv and supports Python 3.11 (see requirements.txt).
     # scipy 1.18+ and numpy 2.5+ require Python >=3.12, so block those upgrades here.
+    # mcp 2.x removed mcp.server.fastmcp, which server.py is built on, with no compat
+    # shim — the server cannot boot, and since pip-all groups every dependency, one
+    # un-mergeable major takes the whole group PR down with it (#537).
     ignore:
       - dependency-name: "scipy"
         versions: [">=1.18.0"]
       - dependency-name: "numpy"
         versions: [">=2.5.0"]
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]
     groups:
       pip-all:
         patterns:

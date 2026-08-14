@@ -30,11 +30,11 @@ You perform the 8-step session startup procedure that initializes a working sess
 Quick dependency check:
 
 ```bash
-~/.bitwize-music/venv/bin/python3 -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing"        # macOS/Linux/WSL
-~/.bitwize-music/venv/Scripts/python.exe -c "import mcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP missing" # Windows (Git Bash; cmd/PowerShell: %USERPROFILE%\.bitwize-music\venv\Scripts\python.exe)
+~/.bitwize-music/venv/bin/python3 -c "import mcp.server.fastmcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP unusable"        # macOS/Linux/WSL
+~/.bitwize-music/venv/Scripts/python.exe -c "import mcp.server.fastmcp" 2>&1 >/dev/null && echo "MCP ready" || echo "MCP unusable" # Windows (Git Bash; cmd/PowerShell: %USERPROFILE%\.bitwize-music\venv\Scripts\python.exe)
 ```
 
-- If MCP missing: **Stop immediately** and suggest: `/bitwize-music:setup mcp`
+- If MCP unusable: **Stop immediately** and suggest: `/bitwize-music:setup mcp` (either the SDK is missing, or mcp 2.x is installed — it dropped `mcp.server.fastmcp`, so bare `import mcp` would report healthy on an install the server cannot boot on)
 - If config missing (`~/.bitwize-music/config.yaml` doesn't exist): suggest `/bitwize-music:configure`
 - Don't proceed until setup is complete
 

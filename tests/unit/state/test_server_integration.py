@@ -40,7 +40,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # Mock MCP SDK if not installed (same strategy as test_server.py)
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
 
     class _FakeFastMCP:

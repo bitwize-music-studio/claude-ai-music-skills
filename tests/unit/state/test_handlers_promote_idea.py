@@ -29,7 +29,7 @@ SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 
 # Mock the MCP SDK if not installed
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     class _FakeFastMCP:
         def __init__(self, name: str = "") -> None:
