@@ -135,9 +135,60 @@ class TestGuards:
         with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
             _album_dir(tmp_path, artist="a", genre="g", album="al", subdir="/etc")
 
+    @pytest.mark.parametrize("drive_relative", ["D:evil", "C:", "c:/windows"])
+    def test_rejects_a_drive_relative_segment(self, tmp_path, drive_relative):
+        """The one shape of absolute segment a separator check cannot see (#538).
+
+        ``D:evil`` is not ``..``, carries no separator and no null byte, so the
+        lexical pass waved it through — and ``Path`` then discards everything to
+        its left, so genre="D:evil" returned ``D:evil\\al``: outside the root,
+        with no error. UNC (``\\\\server\\share``) was already caught, because it
+        carries backslashes; a bare drive prefix was not.
+
+        Checked with ``PureWindowsPath`` on every platform rather than only on
+        Windows, so which runner sees the input does not decide whether the
+        guarantee holds.
+        """
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _album_dir(tmp_path, artist="a", genre=drive_relative, album="al")
+
+    def test_rejects_a_drive_relative_artist(self, tmp_path):
+        """artist is the one segment of the three that user input reaches.
+
+        genre is a real directory name (NTFS forbids ``:``) and subdir is a
+        caller literal, but artist is ``artist_name`` from the user's own
+        config.yaml, which nothing normalizes on the way in.
+        """
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _album_dir(tmp_path, artist="D:evil", genre="g", album="al")
+
+    def test_rejects_a_drive_relative_subdir(self, tmp_path):
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _album_dir(tmp_path, artist="a", genre="g", album="al", subdir="D:evil")
+
+    @pytest.mark.parametrize("colon_name", ["AC:DC", "foo:bar"])
+    def test_a_colon_that_is_not_a_drive_is_still_a_legal_segment(
+        self, tmp_path, colon_name,
+    ):
+        """The guard rejects drive prefixes, not colons.
+
+        ``:`` is legal in a POSIX directory name, and only ``X:`` — a single
+        character followed by a colon — is a drive. Rejecting every colon would
+        turn a working POSIX layout into an error.
+        """
+        assert _album_dir(
+            tmp_path, artist="a", genre=colon_name, album="al",
+        ) == tmp_path / "artists" / "a" / "albums" / colon_name / "al"
+
     def test_escape_message_is_the_one_resolve_path_returns(self):
-        """resolve_path surfaces str(exc) verbatim — keep the wording stable."""
-        assert PATH_ESCAPES_ROOT == "Resolved path escapes root directory"
+        """resolve_path surfaces str(exc) verbatim — keep the wording stable.
+
+        It read "Resolved path escapes root directory" while the only check was
+        the one that ran after resolution. The lexical pass raises the same
+        message with nothing resolved, so the first word stayed true of one
+        check behind it and became false of every other.
+        """
+        assert PATH_ESCAPES_ROOT == "Path escapes root directory"
 
     @staticmethod
     def _symlinked_album(tmp_path):
@@ -193,6 +244,40 @@ class TestGuards:
         """A missing genre is a caller bug, not a traversal — preserve behaviour."""
         assert _album_dir(tmp_path, artist="a", genre="", album="al") == (
             tmp_path / "artists" / "a" / "albums" / "al"
+        )
+
+
+class TestTruncationGuards:
+    """The truncations carry the same lexical guard as the full layout (#538).
+
+    ``_albums_dir`` left ``artist`` unguarded on the grounds that it is trusted
+    config. That is true, and it is also the component ``_album_dir`` guards —
+    so which of the two a caller happened to reach for decided whether the guard
+    applied. A guard present in one helper and absent from its own truncation is
+    the failure mode #529 was opened about.
+    """
+
+    UNSAFE = ("..", "a/b", "a\\b", "x\x00y", "D:evil")
+
+    @pytest.mark.parametrize("evil", UNSAFE)
+    def test_albums_dir_guards_artist(self, tmp_path, evil):
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _albums_dir(tmp_path, artist=evil)
+
+    @pytest.mark.parametrize("evil", UNSAFE)
+    def test_genre_dir_guards_genre(self, tmp_path, evil):
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _genre_dir(tmp_path, artist="a", genre=evil)
+
+    def test_genre_dir_guards_artist_through_albums_dir(self, tmp_path):
+        """It renders the same ``{artist}`` segment, so it inherits that guard."""
+        with pytest.raises(ValueError, match=PATH_ESCAPES_ROOT):
+            _genre_dir(tmp_path, artist="..", genre="g")
+
+    def test_an_empty_genre_still_collapses(self, tmp_path):
+        """As in _album_dir: a missing genre is a caller bug, not a traversal."""
+        assert _genre_dir(tmp_path, artist="a", genre="") == _albums_dir(
+            tmp_path, artist="a",
         )
 
 

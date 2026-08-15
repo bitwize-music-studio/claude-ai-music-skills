@@ -12,7 +12,7 @@ import json
 import math
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from handlers._atomic import atomic_write_text
@@ -170,7 +170,50 @@ _ALBUMS_SEGMENTS = ("artists", "{artist}", "albums")
 ALBUM_LAYOUT_SEGMENTS = (*_ALBUMS_SEGMENTS, "{genre}", "{album}")
 ALBUM_LAYOUT = "/".join(ALBUM_LAYOUT_SEGMENTS)
 
-PATH_ESCAPES_ROOT = "Resolved path escapes root directory"
+# Raised for a lexical rejection as well as for a failed resolved-confinement
+# check, so the wording deliberately does not claim anything was resolved.
+PATH_ESCAPES_ROOT = "Path escapes root directory"
+
+
+def _reject_unsafe_segments(*values: str) -> None:
+    """Reject any segment that would not stay one level down when joined.
+
+    The lexical half of the album-path guard, applied to caller-supplied values
+    *before* the layout is rendered. Checking before rendering rather than after
+    matters: splitting the rendered template would turn genre="/etc" into a bare
+    "etc" segment and hand back a confined-but-wrong path. develop rejected that
+    input, and a wrong path is a worse failure mode than an error.
+
+    A segment is rejected when it is ``..``, carries a path separator or a null
+    byte, or carries a **Windows drive prefix**. The drive case is the one shape
+    of absolute segment the separator check cannot see: ``D:evil`` is not ``..``
+    and carries neither a separator nor a null byte, so it passed — and ``Path``
+    then discarded everything to its left, so genre="D:evil" resolved to
+    ``D:evil\\al``, outside the root and with no error raised (#538). UNC paths
+    (``\\\\server\\share``) were already caught by the backslash check.
+
+    ``PureWindowsPath`` runs on every platform, not just Windows, so which
+    runner sees the input does not decide whether the guarantee holds. It
+    recognises only a drive prefix — a single character followed by ``:`` — so a
+    colon elsewhere in the name (``AC:DC``) stays the legal POSIX directory name
+    it has always been.
+
+    An empty value is skipped: ``Path("a") / ""`` has always collapsed, and a
+    missing genre is a caller bug rather than a traversal.
+
+    Raises:
+        ValueError: With ``PATH_ESCAPES_ROOT``, which the MCP error boundary
+            surfaces to the user verbatim.
+    """
+    for value in values:
+        if value and (
+            value == ".."
+            or "/" in value
+            or "\\" in value
+            or "\0" in value
+            or PureWindowsPath(value).drive
+        ):
+            raise ValueError(PATH_ESCAPES_ROOT)
 
 
 def _album_dir(
@@ -222,23 +265,16 @@ def _album_dir(
     Raises:
         ValueError: *album* contains a path separator, a null byte or a
             traversal sequence (from ``_normalize_slug``); *artist*, *genre* or
-            *subdir* is a traversal or carries a separator; or, under
-            ``confine``, the result escapes *root* despite all of that.
+            *subdir* is a traversal, carries a separator or carries a drive
+            prefix (from ``_reject_unsafe_segments``); or, under ``confine``,
+            the result escapes *root* despite all of that.
     """
     normalized = _normalize_slug(album)
 
-    # Lexical guard, always on, and applied to the caller-supplied values
-    # *before* the layout is rendered. _normalize_slug already rejects traversal
-    # and separators in the album slug, but artist and genre come from config
-    # and state without passing through it, and subdir is a caller literal.
-    #
-    # Checking before rendering rather than after matters: splitting the
-    # rendered template would turn genre="/etc" into a bare "etc" segment and
-    # hand back a confined-but-wrong path. develop rejected that input, and a
-    # wrong path is a worse failure mode than an error.
-    for value in (artist, genre, subdir):
-        if value and (value == ".." or "/" in value or "\\" in value or "\0" in value):
-            raise ValueError(PATH_ESCAPES_ROOT)
+    # Lexical guard, always on. _normalize_slug already rejects traversal and
+    # separators in the album slug, but artist and genre come from config and
+    # state without passing through it, and subdir is a caller literal.
+    _reject_unsafe_segments(artist, genre, subdir)
 
     relative = ALBUM_LAYOUT.format(artist=artist, genre=genre, album=normalized)
     base = Path(root)
@@ -263,16 +299,31 @@ def _albums_dir(root: str | Path, *, artist: str) -> Path:
     Used by the callers that sweep across genres, because album slugs are
     globally unique rather than unique per genre (#392).
 
-    ``artist`` is trusted config — it is the same component ``_album_dir``
-    guards, and is unguarded here only because it comes from the user's own
-    ``artist_name`` rather than from a tool argument. Callers that append an
-    album slug use ``_is_path_confined`` or ``_album_dir``.
+    ``artist`` gets the same lexical guard ``_album_dir`` applies to it. It is
+    trusted config either way — the user's own ``artist_name``, not a tool
+    argument — but the truncation renders the same ``{artist}`` segment, and a
+    guard that depends on which of the two helpers a caller happened to reach
+    for is the failure mode #529 was opened about. Callers that append an album
+    slug use ``_is_path_confined`` or ``_album_dir``.
+
+    Raises:
+        ValueError: *artist* is a traversal, carries a separator or a null byte,
+            or carries a drive prefix (from ``_reject_unsafe_segments``).
     """
+    _reject_unsafe_segments(artist)
     return Path(root).joinpath(*(s.format(artist=artist) for s in _ALBUMS_SEGMENTS))
 
 
 def _genre_dir(root: str | Path, *, artist: str, genre: str) -> Path:
-    """Directory holding every album of one genre — ``_album_dir``'s parent."""
+    """Directory holding every album of one genre — ``_album_dir``'s parent.
+
+    Guards both segments: *artist* through ``_albums_dir``, *genre* here.
+
+    Raises:
+        ValueError: Either segment is a traversal, carries a separator or a null
+            byte, or carries a drive prefix (from ``_reject_unsafe_segments``).
+    """
+    _reject_unsafe_segments(genre)
     return _albums_dir(root, artist=artist) / genre
 
 
