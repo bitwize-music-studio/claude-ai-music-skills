@@ -47,7 +47,7 @@ reportlab==5.0.0
 # =============================================================================
 # CLOUD UPLOADS (required for /bitwize-music:cloud-uploader)
 # =============================================================================
-boto3==1.43.56
+boto3==1.43.69
 
 # =============================================================================
 # DATABASE (required for db_* MCP tools - tweet/promo management)
@@ -58,4 +58,4 @@ psycopg2-binary==2.9.12
 # DOCUMENT HUNTING (required for /bitwize-music:document-hunter)
 # After pip install, also run: playwright install chromium
 # =============================================================================
-playwright==1.61.0
+playwright==1.62.0

@@ -11,7 +11,10 @@ updates:
       - "dependencies"
     open-pull-requests-limit: 10
     # Plugin runs in the user's venv and supports Python 3.11 (see requirements.txt).
-    # scipy 1.18+ and numpy 2.5+ require Python >=3.12, so block those upgrades here.
+    # scipy 1.18+, numpy 2.5+ and librosa 1.0+ require Python >=3.12, so block those
+    # upgrades here. They do not merely fail tests — pip cannot resolve them at all
+    # ("No matching distribution found"), which takes down every job that installs
+    # requirements.txt, pip-audit included.
     # mcp 2.x removed mcp.server.fastmcp, which server.py is built on, with no compat
     # shim — the server cannot boot, and since pip-all groups every dependency, one
     # un-mergeable major takes the whole group PR down with it (#537).
@@ -20,6 +23,8 @@ updates:
         versions: [">=1.18.0"]
       - dependency-name: "numpy"
         versions: [">=2.5.0"]
+      - dependency-name: "librosa"
+        versions: [">=1.0.0"]
       - dependency-name: "mcp"
         update-types: ["version-update:semver-major"]
     groups:
