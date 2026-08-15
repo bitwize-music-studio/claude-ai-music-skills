@@ -7,7 +7,7 @@ Used two ways:
     diffs the output against the committed golden file;
   * by a maintainer regenerating that golden after an intentional tool change::
 
-        python3 tests/unit/state/_dump_tool_schemas.py > tests/fixtures/tool_schemas.json
+        python3 tests/unit/state/_dump_tool_schemas.py --golden > tests/fixtures/tool_schemas.json
 
 Why a subprocess rather than an in-process import: the ~24 test modules that
 exercise ``server.py`` install a fake ``mcp.server.fastmcp`` into ``sys.modules``
@@ -51,22 +51,32 @@ def _isolate_state_cache(tmp: Path) -> None:
     indexer.LOCK_FILE = tmp / "state.lock"
 
 
+# The fields the committed golden file locks. `description` is deliberately NOT
+# among them: it comes from the handler docstring, so locking it would turn every
+# prose edit into a regeneration — roughly one every five days at this repo's rate
+# of handler churn. A golden that moves weekly stops being read, which would cost
+# the schema half of this file its whole point. Descriptions are still *dumped*,
+# and guarded structurally instead — see test_tool_schema_parity.py.
+GOLDEN_FIELDS = ("name", "inputSchema", "outputSchema")
+
+
+def golden_projection(tool: dict[str, object]) -> dict[str, object]:
+    """Narrow a dumped tool to the fields the golden file locks."""
+    return {field: tool.get(field) for field in GOLDEN_FIELDS}
+
+
 def collect() -> list[dict[str, object]]:
-    """Return each tool's name and generated schemas, sorted by name."""
+    """Return each tool's description and generated schemas, sorted by name."""
     import server
 
     tools = asyncio.run(server.mcp.list_tools())
     dumped = [t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in tools]
 
-    # `description` is deliberately excluded. It comes from the handler docstring,
-    # so including it would turn every prose edit into a golden-file regeneration —
-    # real friction for contributors, and not what this file guards. The generated
-    # schemas are the SDK-dependent part (#537) and the part the error boundary
-    # could silently change (#443).
     return sorted(
         (
             {
                 "name": t["name"],
+                "description": t.get("description") or "",
                 "inputSchema": t.get("inputSchema"),
                 "outputSchema": t.get("outputSchema"),
             }
@@ -77,9 +87,14 @@ def collect() -> list[dict[str, object]]:
 
 
 def main() -> None:
+    """Dump all tools; ``--golden`` narrows output to the golden file's fields."""
+    golden_only = "--golden" in sys.argv[1:]
     with tempfile.TemporaryDirectory() as tmp:
         _isolate_state_cache(Path(tmp))
-        json.dump(collect(), sys.stdout, indent=2, sort_keys=True)
+        tools = collect()
+        if golden_only:
+            tools = [golden_projection(t) for t in tools]
+        json.dump(tools, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
 
 
