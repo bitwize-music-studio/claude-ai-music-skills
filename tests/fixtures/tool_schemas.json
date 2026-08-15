@@ -1,0 +1,3368 @@
+[
+  {
+    "inputSchema": {
+      "properties": {
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "title": "acknowledge_migrationsArguments",
+      "type": "object"
+    },
+    "name": "acknowledge_migrations",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "acknowledge_migrationsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "anchor_track": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor Track"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "subfolder": {
+          "default": "mastered",
+          "title": "Subfolder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "album_coherence_checkArguments",
+      "type": "object"
+    },
+    "name": "album_coherence_check",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "album_coherence_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "anchor_track": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor Track"
+        },
+        "ceiling_db": {
+          "default": -1.0,
+          "title": "Ceiling Db",
+          "type": "number"
+        },
+        "check_subfolder": {
+          "default": "mastered",
+          "title": "Check Subfolder",
+          "type": "string"
+        },
+        "cut_highmid": {
+          "default": 0.0,
+          "title": "Cut Highmid",
+          "type": "number"
+        },
+        "cut_highs": {
+          "default": 0.0,
+          "title": "Cut Highs",
+          "type": "number"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "genre": {
+          "title": "Genre",
+          "type": "string"
+        },
+        "source_subfolder": {
+          "default": "polished",
+          "title": "Source Subfolder",
+          "type": "string"
+        },
+        "target_lufs": {
+          "default": -14.0,
+          "title": "Target Lufs",
+          "type": "number"
+        }
+      },
+      "required": [
+        "album_slug",
+        "genre"
+      ],
+      "title": "album_coherence_correctArguments",
+      "type": "object"
+    },
+    "name": "album_coherence_correct",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "album_coherence_correctOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "subfolder": {
+          "default": "",
+          "title": "Subfolder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "analyze_audioArguments",
+      "type": "object"
+    },
+    "name": "analyze_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "analyze_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "analyze_mix_issuesArguments",
+      "type": "object"
+    },
+    "name": "analyze_mix_issues",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "analyze_mix_issuesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "analyze_readabilityArguments",
+      "type": "object"
+    },
+    "name": "analyze_readability",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "analyze_readabilityOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "analyze_rhyme_schemeArguments",
+      "type": "object"
+    },
+    "name": "analyze_rhyme_scheme",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "analyze_rhyme_schemeOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "max_results": {
+          "default": 0,
+          "title": "Max Results",
+          "type": "integer"
+        },
+        "min_tracks": {
+          "default": 3,
+          "title": "Min Tracks",
+          "type": "integer"
+        },
+        "summary_only": {
+          "default": false,
+          "title": "Summary Only",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "check_cross_track_repetitionArguments",
+      "type": "object"
+    },
+    "name": "check_cross_track_repetition",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_cross_track_repetitionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "check_explicit_contentArguments",
+      "type": "object"
+    },
+    "name": "check_explicit_content",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_explicit_contentOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "check_homographsArguments",
+      "type": "object"
+    },
+    "name": "check_homographs",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_homographsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "check_pronunciation_enforcementArguments",
+      "type": "object"
+    },
+    "name": "check_pronunciation_enforcement",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_pronunciation_enforcementOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "check_streaming_lyricsArguments",
+      "type": "object"
+    },
+    "name": "check_streaming_lyrics",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_streaming_lyricsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "check_venv_healthArguments",
+      "type": "object"
+    },
+    "name": "check_venv_health",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_venv_healthOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "dry_run": {
+          "default": true,
+          "title": "Dry Run",
+          "type": "boolean"
+        }
+      },
+      "title": "cleanup_legacy_venvsArguments",
+      "type": "object"
+    },
+    "name": "cleanup_legacy_venvs",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "cleanup_legacy_venvsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "count_syllablesArguments",
+      "type": "object"
+    },
+    "name": "count_syllables",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "count_syllablesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "documentary": {
+          "default": false,
+          "title": "Documentary",
+          "type": "boolean"
+        },
+        "genre": {
+          "title": "Genre",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "genre"
+      ],
+      "title": "create_album_structureArguments",
+      "type": "object"
+    },
+    "name": "create_album_structure",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "create_album_structureOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "concept": {
+          "default": "",
+          "title": "Concept",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "idea_type": {
+          "default": "",
+          "title": "Idea Type",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "title": "create_ideaArguments",
+      "type": "object"
+    },
+    "name": "create_idea",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "create_ideaOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "page_size": {
+          "default": "letter",
+          "title": "Page Size",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "title"
+      ],
+      "title": "create_songbookArguments",
+      "type": "object"
+    },
+    "name": "create_songbook",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "create_songbookOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "documentary": {
+          "default": false,
+          "title": "Documentary",
+          "type": "boolean"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "track_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Track Number"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_number",
+        "title"
+      ],
+      "title": "create_trackArguments",
+      "type": "object"
+    },
+    "name": "create_track",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "create_trackOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "content_type": {
+          "default": "promo",
+          "title": "Content Type",
+          "type": "string"
+        },
+        "media_path": {
+          "default": "",
+          "title": "Media Path",
+          "type": "string"
+        },
+        "platform": {
+          "default": "twitter",
+          "title": "Platform",
+          "type": "string"
+        },
+        "track_number": {
+          "default": 0,
+          "title": "Track Number",
+          "type": "integer"
+        },
+        "tweet_text": {
+          "title": "Tweet Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "tweet_text"
+      ],
+      "title": "db_create_tweetArguments",
+      "type": "object"
+    },
+    "name": "db_create_tweet",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_create_tweetOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "tweet_id": {
+          "title": "Tweet Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tweet_id"
+      ],
+      "title": "db_delete_tweetArguments",
+      "type": "object"
+    },
+    "name": "db_delete_tweet",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_delete_tweetOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "title": "db_get_tweet_statsArguments",
+      "type": "object"
+    },
+    "name": "db_get_tweet_stats",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_get_tweet_statsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "run_migrations": {
+          "default": "true",
+          "title": "Run Migrations",
+          "type": "string"
+        }
+      },
+      "title": "db_initArguments",
+      "type": "object"
+    },
+    "name": "db_init",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_initOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "enabled": {
+          "default": "",
+          "title": "Enabled",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "platform": {
+          "default": "",
+          "title": "Platform",
+          "type": "string"
+        },
+        "posted": {
+          "default": "",
+          "title": "Posted",
+          "type": "string"
+        }
+      },
+      "title": "db_list_tweetsArguments",
+      "type": "object"
+    },
+    "name": "db_list_tweets",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_list_tweetsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "default": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "platform": {
+          "default": "",
+          "title": "Platform",
+          "type": "string"
+        },
+        "query": {
+          "title": "Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "db_search_tweetsArguments",
+      "type": "object"
+    },
+    "name": "db_search_tweets",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_search_tweetsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "db_sync_albumArguments",
+      "type": "object"
+    },
+    "name": "db_sync_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_sync_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "content_type": {
+          "default": "",
+          "title": "Content Type",
+          "type": "string"
+        },
+        "enabled": {
+          "default": "",
+          "title": "Enabled",
+          "type": "string"
+        },
+        "media_path": {
+          "default": "",
+          "title": "Media Path",
+          "type": "string"
+        },
+        "platform": {
+          "default": "",
+          "title": "Platform",
+          "type": "string"
+        },
+        "posted": {
+          "default": "",
+          "title": "Posted",
+          "type": "string"
+        },
+        "times_posted": {
+          "default": -1,
+          "title": "Times Posted",
+          "type": "integer"
+        },
+        "tweet_id": {
+          "title": "Tweet Id",
+          "type": "integer"
+        },
+        "tweet_text": {
+          "default": "",
+          "title": "Tweet Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tweet_id"
+      ],
+      "title": "db_update_tweetArguments",
+      "type": "object"
+    },
+    "name": "db_update_tweet",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "db_update_tweetOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "diagnoseArguments",
+      "type": "object"
+    },
+    "name": "diagnose",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "diagnoseOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "include_raw_lines": {
+          "default": true,
+          "title": "Include Raw Lines",
+          "type": "boolean"
+        },
+        "max_phrases": {
+          "default": 0,
+          "title": "Max Phrases",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "extract_distinctive_phrasesArguments",
+      "type": "object"
+    },
+    "name": "extract_distinctive_phrases",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "extract_distinctive_phrasesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "file_name": {
+          "default": "SOURCES.md",
+          "title": "File Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "extract_linksArguments",
+      "type": "object"
+    },
+    "name": "extract_links",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "extract_linksOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "section": {
+          "title": "Section",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "section"
+      ],
+      "title": "extract_sectionArguments",
+      "type": "object"
+    },
+    "name": "extract_section",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "extract_sectionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "find_albumArguments",
+      "type": "object"
+    },
+    "name": "find_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "find_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_filename": {
+          "title": "Track Filename",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_filename"
+      ],
+      "title": "fix_dynamic_trackArguments",
+      "type": "object"
+    },
+    "name": "fix_dynamic_track",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "fix_dynamic_trackOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "content_type": {
+          "title": "Content Type",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "content_type"
+      ],
+      "title": "format_for_clipboardArguments",
+      "type": "object"
+    },
+    "name": "format_for_clipboard",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "format_for_clipboardOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "clip_duration": {
+          "default": 12,
+          "title": "Clip Duration",
+          "type": "integer"
+        },
+        "color_hex": {
+          "default": "",
+          "title": "Color Hex",
+          "type": "string"
+        },
+        "crossfade": {
+          "default": 0.5,
+          "title": "Crossfade",
+          "type": "number"
+        },
+        "glow": {
+          "default": 0.6,
+          "title": "Glow",
+          "type": "number"
+        },
+        "style": {
+          "default": "pulse",
+          "title": "Style",
+          "type": "string"
+        },
+        "text_color": {
+          "default": "",
+          "title": "Text Color",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "generate_album_samplerArguments",
+      "type": "object"
+    },
+    "name": "generate_album_sampler",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "generate_album_samplerOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "color_hex": {
+          "default": "",
+          "title": "Color Hex",
+          "type": "string"
+        },
+        "duration": {
+          "default": 15,
+          "title": "Duration",
+          "type": "integer"
+        },
+        "glow": {
+          "default": 0.6,
+          "title": "Glow",
+          "type": "number"
+        },
+        "style": {
+          "default": "pulse",
+          "title": "Style",
+          "type": "string"
+        },
+        "text_color": {
+          "default": "",
+          "title": "Text Color",
+          "type": "string"
+        },
+        "track_filename": {
+          "default": "",
+          "title": "Track Filename",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "generate_promo_videosArguments",
+      "type": "object"
+    },
+    "name": "generate_promo_videos",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "generate_promo_videosOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "include_sections": {
+          "default": "",
+          "title": "Include Sections",
+          "type": "string"
+        },
+        "summary_only": {
+          "default": false,
+          "title": "Summary Only",
+          "type": "boolean"
+        },
+        "track_slugs": {
+          "default": "",
+          "title": "Track Slugs",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_fullArguments",
+      "type": "object"
+    },
+    "name": "get_album_full",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_fullOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_progressArguments",
+      "type": "object"
+    },
+    "name": "get_album_progress",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_progressOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "get_configArguments",
+      "type": "object"
+    },
+    "name": "get_config",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_configOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "status_filter": {
+          "default": "",
+          "title": "Status Filter",
+          "type": "string"
+        }
+      },
+      "title": "get_ideasArguments",
+      "type": "object"
+    },
+    "name": "get_ideas",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_ideasOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_lyrics_statsArguments",
+      "type": "object"
+    },
+    "name": "get_lyrics_stats",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_lyrics_statsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "get_pending_migrationsArguments",
+      "type": "object"
+    },
+    "name": "get_pending_migrations",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_pending_migrationsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "summary_only": {
+          "default": false,
+          "title": "Summary Only",
+          "type": "boolean"
+        }
+      },
+      "title": "get_pending_verificationsArguments",
+      "type": "object"
+    },
+    "name": "get_pending_verifications",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_pending_verificationsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "get_plugin_versionArguments",
+      "type": "object"
+    },
+    "name": "get_plugin_version",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_plugin_versionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "platform"
+      ],
+      "title": "get_promo_contentArguments",
+      "type": "object"
+    },
+    "name": "get_promo_content",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_promo_contentOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_promo_statusArguments",
+      "type": "object"
+    },
+    "name": "get_promo_status",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_promo_statusOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "get_python_commandArguments",
+      "type": "object"
+    },
+    "name": "get_python_command",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_python_commandOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "section": {
+          "default": "",
+          "title": "Section",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "get_referenceArguments",
+      "type": "object"
+    },
+    "name": "get_reference",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_referenceOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "get_sessionArguments",
+      "type": "object"
+    },
+    "name": "get_session",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_sessionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "get_skillArguments",
+      "type": "object"
+    },
+    "name": "get_skill",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_skillOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_streaming_urlsArguments",
+      "type": "object"
+    },
+    "name": "get_streaming_urls",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_streaming_urlsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_trackArguments",
+      "type": "object"
+    },
+    "name": "get_track",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_trackOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "health_checkArguments",
+      "type": "object"
+    },
+    "name": "health_check",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "health_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "status_filter": {
+          "default": "",
+          "title": "Status Filter",
+          "type": "string"
+        }
+      },
+      "title": "list_albumsArguments",
+      "type": "object"
+    },
+    "name": "list_albums",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "list_albumsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "category": {
+          "default": "",
+          "title": "Category",
+          "type": "string"
+        },
+        "model_filter": {
+          "default": "",
+          "title": "Model Filter",
+          "type": "string"
+        }
+      },
+      "title": "list_skillsArguments",
+      "type": "object"
+    },
+    "name": "list_skills",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "list_skillsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "status_filter": {
+          "default": "",
+          "title": "Status Filter",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "list_track_filesArguments",
+      "type": "object"
+    },
+    "name": "list_track_files",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "list_track_filesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "list_tracksArguments",
+      "type": "object"
+    },
+    "name": "list_tracks",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "list_tracksOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "override_name": {
+          "title": "Override Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "override_name"
+      ],
+      "title": "load_overrideArguments",
+      "type": "object"
+    },
+    "name": "load_override",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "load_overrideOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "ceiling_db": {
+          "default": -1.0,
+          "title": "Ceiling Db",
+          "type": "number"
+        },
+        "cut_highmid": {
+          "default": 0.0,
+          "title": "Cut Highmid",
+          "type": "number"
+        },
+        "cut_highs": {
+          "default": 0.0,
+          "title": "Cut Highs",
+          "type": "number"
+        },
+        "freeze_signature": {
+          "default": false,
+          "title": "Freeze Signature",
+          "type": "boolean"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "new_anchor": {
+          "default": false,
+          "title": "New Anchor",
+          "type": "boolean"
+        },
+        "source_subfolder": {
+          "default": "",
+          "title": "Source Subfolder",
+          "type": "string"
+        },
+        "target_lufs": {
+          "default": -14.0,
+          "title": "Target Lufs",
+          "type": "number"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "master_albumArguments",
+      "type": "object"
+    },
+    "name": "master_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "master_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "ceiling_db": {
+          "default": -1.0,
+          "title": "Ceiling Db",
+          "type": "number"
+        },
+        "cut_highmid": {
+          "default": 0.0,
+          "title": "Cut Highmid",
+          "type": "number"
+        },
+        "cut_highs": {
+          "default": 0.0,
+          "title": "Cut Highs",
+          "type": "number"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "source_subfolder": {
+          "default": "",
+          "title": "Source Subfolder",
+          "type": "string"
+        },
+        "target_lufs": {
+          "default": -14.0,
+          "title": "Target Lufs",
+          "type": "number"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "master_audioArguments",
+      "type": "object"
+    },
+    "name": "master_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "master_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "reference_filename": {
+          "title": "Reference Filename",
+          "type": "string"
+        },
+        "target_filename": {
+          "default": "",
+          "title": "Target Filename",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "reference_filename"
+      ],
+      "title": "master_with_referenceArguments",
+      "type": "object"
+    },
+    "name": "master_with_reference",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "master_with_referenceOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "anchor_track": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anchor Track"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "subfolder": {
+          "default": "mastered",
+          "title": "Subfolder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "measure_album_signatureArguments",
+      "type": "object"
+    },
+    "name": "measure_album_signature",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "measure_album_signatureOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": true,
+          "title": "Dry Run",
+          "type": "boolean"
+        }
+      },
+      "title": "migrate_audio_layoutArguments",
+      "type": "object"
+    },
+    "name": "migrate_audio_layout",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "migrate_audio_layoutOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "subfolder": {
+          "default": "mastered",
+          "title": "Subfolder",
+          "type": "string"
+        },
+        "write_audio": {
+          "default": true,
+          "title": "Write Audio",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "mono_fold_checkArguments",
+      "type": "object"
+    },
+    "name": "mono_fold_check",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "mono_fold_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "polish_albumArguments",
+      "type": "object"
+    },
+    "name": "polish_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "polish_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "ceiling_db": {
+          "default": -1.0,
+          "title": "Ceiling Db",
+          "type": "number"
+        },
+        "cut_highmid": {
+          "default": 0.0,
+          "title": "Cut Highmid",
+          "type": "number"
+        },
+        "cut_highs": {
+          "default": 0.0,
+          "title": "Cut Highs",
+          "type": "number"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "target_lufs": {
+          "default": -14.0,
+          "title": "Target Lufs",
+          "type": "number"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "polish_and_master_albumArguments",
+      "type": "object"
+    },
+    "name": "polish_and_master_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "polish_and_master_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "analyzer_results": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Analyzer Results"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "track_filename": {
+          "default": "",
+          "title": "Track Filename",
+          "type": "string"
+        },
+        "use_stems": {
+          "default": true,
+          "title": "Use Stems",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "polish_audioArguments",
+      "type": "object"
+    },
+    "name": "polish_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "polish_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "xml_only": {
+          "default": false,
+          "title": "Xml Only",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "prepare_singlesArguments",
+      "type": "object"
+    },
+    "name": "prepare_singles",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prepare_singlesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "documentary": {
+          "default": false,
+          "title": "Documentary",
+          "type": "boolean"
+        },
+        "idea_title": {
+          "title": "Idea Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idea_title"
+      ],
+      "title": "promote_ideaArguments",
+      "type": "object"
+    },
+    "name": "promote_idea",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "promote_ideaOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "keep": {
+          "default": 3,
+          "title": "Keep",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "prune_archivalArguments",
+      "type": "object"
+    },
+    "name": "prune_archival",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prune_archivalOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "include_source": {
+          "default": false,
+          "title": "Include Source",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "publish_sheet_musicArguments",
+      "type": "object"
+    },
+    "name": "publish_sheet_music",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "publish_sheet_musicOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "checks": {
+          "default": "",
+          "title": "Checks",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "subfolder": {
+          "default": "",
+          "title": "Subfolder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "qc_audioArguments",
+      "type": "object"
+    },
+    "name": "qc_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "qc_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "rebuild_stateArguments",
+      "type": "object"
+    },
+    "name": "rebuild_state",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "rebuild_stateOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "new_slug": {
+          "title": "New Slug",
+          "type": "string"
+        },
+        "new_title": {
+          "default": "",
+          "title": "New Title",
+          "type": "string"
+        },
+        "old_slug": {
+          "title": "Old Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "old_slug",
+        "new_slug"
+      ],
+      "title": "rename_albumArguments",
+      "type": "object"
+    },
+    "name": "rename_album",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "rename_albumOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "new_title": {
+          "default": "",
+          "title": "New Title",
+          "type": "string"
+        },
+        "new_track_slug": {
+          "title": "New Track Slug",
+          "type": "string"
+        },
+        "old_track_slug": {
+          "title": "Old Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "old_track_slug",
+        "new_track_slug"
+      ],
+      "title": "rename_trackArguments",
+      "type": "object"
+    },
+    "name": "rename_track",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "rename_trackOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "bitrate_kbps": {
+          "default": 128,
+          "title": "Bitrate Kbps",
+          "type": "integer"
+        },
+        "subfolder": {
+          "default": "mastered",
+          "title": "Subfolder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "render_codec_previewArguments",
+      "type": "object"
+    },
+    "name": "render_codec_preview",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "render_codec_previewOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": true,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "subfolders": {
+          "default": [
+            "mastered"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Subfolders",
+          "type": "array"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "reset_masteringArguments",
+      "type": "object"
+    },
+    "name": "reset_mastering",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "reset_masteringOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "genre": {
+          "default": "",
+          "title": "Genre",
+          "type": "string"
+        },
+        "path_type": {
+          "title": "Path Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path_type",
+        "album_slug"
+      ],
+      "title": "resolve_pathArguments",
+      "type": "object"
+    },
+    "name": "resolve_path",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "resolve_pathOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "resolve_track_fileArguments",
+      "type": "object"
+    },
+    "name": "resolve_track_file",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "resolve_track_fileOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "run_pre_generation_gatesArguments",
+      "type": "object"
+    },
+    "name": "run_pre_generation_gates",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "run_pre_generation_gatesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "scan_artist_namesArguments",
+      "type": "object"
+    },
+    "name": "scan_artist_names",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "scan_artist_namesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "scope": {
+          "default": "all",
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "searchArguments",
+      "type": "object"
+    },
+    "name": "search",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "searchOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "formats": {
+          "default": "pdf,xml,midi",
+          "title": "Formats",
+          "type": "string"
+        },
+        "track_filename": {
+          "default": "",
+          "title": "Track Filename",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "transcribe_audioArguments",
+      "type": "object"
+    },
+    "name": "transcribe_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "transcribe_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "status"
+      ],
+      "title": "update_album_statusArguments",
+      "type": "object"
+    },
+    "name": "update_album_status",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_album_statusOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "field",
+        "value"
+      ],
+      "title": "update_ideaArguments",
+      "type": "object"
+    },
+    "name": "update_idea",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_ideaOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "action": {
+          "default": "",
+          "title": "Action",
+          "type": "string"
+        },
+        "album": {
+          "default": "",
+          "title": "Album",
+          "type": "string"
+        },
+        "clear": {
+          "default": false,
+          "title": "Clear",
+          "type": "boolean"
+        },
+        "phase": {
+          "default": "",
+          "title": "Phase",
+          "type": "string"
+        },
+        "track": {
+          "default": "",
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "title": "update_sessionArguments",
+      "type": "object"
+    },
+    "name": "update_session",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_sessionOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "platform",
+        "url"
+      ],
+      "title": "update_streaming_urlArguments",
+      "type": "object"
+    },
+    "name": "update_streaming_url",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_streaming_urlOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "force": {
+          "default": false,
+          "title": "Force",
+          "type": "boolean"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "field",
+        "value"
+      ],
+      "title": "update_track_fieldArguments",
+      "type": "object"
+    },
+    "name": "update_track_field",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_track_fieldOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "checks": {
+          "default": "all",
+          "title": "Checks",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "validate_album_structureArguments",
+      "type": "object"
+    },
+    "name": "validate_album_structure",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "validate_album_structureOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "validate_section_structureArguments",
+      "type": "object"
+    },
+    "name": "validate_section_structure",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "validate_section_structureOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "verify_streaming_urlsArguments",
+      "type": "object"
+    },
+    "name": "verify_streaming_urls",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "verify_streaming_urlsOutput",
+      "type": "object"
+    }
+  }
+]

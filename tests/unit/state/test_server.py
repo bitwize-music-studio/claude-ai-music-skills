@@ -48,7 +48,7 @@ except ImportError:
 
     class _FakeFastMCP:
         """Minimal stand-in for FastMCP that records tool registrations."""
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 

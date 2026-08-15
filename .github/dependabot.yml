@@ -15,9 +15,6 @@ updates:
     # upgrades here. They do not merely fail tests — pip cannot resolve them at all
     # ("No matching distribution found"), which takes down every job that installs
     # requirements.txt, pip-audit included.
-    # mcp 2.x removed mcp.server.fastmcp, which server.py is built on, with no compat
-    # shim — the server cannot boot, and since pip-all groups every dependency, one
-    # un-mergeable major takes the whole group PR down with it (#537).
     ignore:
       - dependency-name: "scipy"
         versions: [">=1.18.0"]
@@ -25,8 +22,6 @@ updates:
         versions: [">=2.5.0"]
       - dependency-name: "librosa"
         versions: [">=1.0.0"]
-      - dependency-name: "mcp"
-        update-types: ["version-update:semver-major"]
     groups:
       pip-all:
         patterns:

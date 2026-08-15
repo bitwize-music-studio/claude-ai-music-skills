@@ -49,7 +49,7 @@ try:
 except ImportError:
 
     class _FakeFastMCP:
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 

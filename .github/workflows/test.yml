@@ -431,6 +431,65 @@ jobs:
         python tests/e2e/mcp_boot_check.py --timeout 240 --call-tool health_check --scenario state-workflow -- \
           "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch.cmd"
 
+  # requirements.txt pins mcp 2.x, so every other job exercises only that line.
+  # server.py also supports 1.x (#537) so a plugin upgrade does not break users
+  # whose hand-managed venv has not been updated yet — and an untested fallback
+  # branch is one that quietly rots. This job is that branch's only coverage:
+  # it boots the server on the 1.x floor and re-checks the schema golden, which
+  # is what proves the two SDK lines really do generate identical tool schemas.
+  # Linux-only on purpose: the variable under test is the SDK, not the OS.
+  mcp-boot-legacy-sdk:
+    name: MCP Server Boot (mcp 1.x fallback)
+    runs-on: ubuntu-latest
+    # Skip for fork PRs — untrusted code could modify requirements/test files
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+
+    # Install the pinned set, then downgrade mcp alone to the documented floor.
+    # mcp 2.x's extra distributions (mcp-types, httpx2) stay installed and unused,
+    # which is exactly the state a user lands in when they downgrade by hand.
+    - name: Install requirements, then pin mcp to the 1.x floor
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt -r requirements-test.txt
+        python -m pip install "mcp[cli]==1.28.1"
+        python -c "import mcp.server.fastmcp; print('fastmcp import OK — on the 1.x line')"
+        if python -c "import mcp.server.mcpserver" 2>/dev/null; then
+          echo "::error::mcp.server.mcpserver is still importable — the downgrade did not take, so this job would retest 2.x"
+          exit 1
+        fi
+
+    - name: Boot check via mcp-launch on the 1.x fallback branch
+      env:
+        CLAUDE_PLUGIN_ROOT: ${{ github.workspace }}
+      run: |
+        python tests/e2e/mcp_boot_check.py --timeout 120 --call-tool health_check --scenario state-workflow -- \
+          "$GITHUB_WORKSPACE/servers/bitwize-music-server/mcp-launch"
+
+    # The cross-SDK guarantee: the golden was generated on one line and must
+    # reproduce byte-for-byte on the other.
+    - name: Verify tool schemas match the golden on mcp 1.x
+      run: |
+        python -m pytest tests/unit/state/test_tool_schema_parity.py tests/unit/shared/test_pinned_dependencies.py -v
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

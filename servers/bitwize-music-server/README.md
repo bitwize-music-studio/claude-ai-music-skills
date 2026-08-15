@@ -11,7 +11,7 @@ The server is registered as `bitwize-music-mcp` in Claude Code. Future MCP tools
 ## Requirements
 
 - Python 3.10+
-- `mcp[cli]>=1.28.1,<2` — mcp 2.x removed `mcp.server.fastmcp` with no compat shim ([#537](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/537))
+- `mcp[cli]>=1.28.1,<3` — both SDK lines work. mcp 2.x moved `mcp.server.fastmcp`'s `FastMCP` to `mcp.server.mcpserver`'s `MCPServer`; `server.py` imports whichever is present, and the two generate identical tool schemas ([#537](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/537))
 - `pyyaml>=6.0`
 
 ## Installation
@@ -51,7 +51,7 @@ The MCP server automatically detects and uses the platform venv (`~/.bitwize-mus
 **Alternative: User install (externally-managed Python)**
 
 ```bash
-pip install --user "mcp[cli]>=1.28.1,<2" pyyaml
+pip install --user "mcp[cli]>=1.28.1,<3" pyyaml
 ```
 
 **Alternative: System install (user-managed Python)**

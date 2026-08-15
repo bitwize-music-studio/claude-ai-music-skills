@@ -63,10 +63,46 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Try to import MCP SDK
+# Try to import MCP SDK.
+#
+# mcp 2.x restructured `mcp.server.fastmcp`'s FastMCP into `mcp.server.mcpserver`'s
+# MCPServer and shipped no compat shim (#537). Both classes expose the same surface
+# this server uses — `Server(name)`, a no-kwargs `.tool()` decorator, and
+# `.run(transport="stdio")` — and both build tool schemas from the handler signature
+# via `inspect.signature(fn, eval_str=True)`, so the two lines generate byte-identical
+# wire schemas for all registered tools (locked by tests/unit/state/test_tool_schema_parity.py).
+#
+# 2.x is tried first so that the fallback branch is what the test suite's fake
+# `mcp.server.fastmcp` stub satisfies when no SDK is installed at all. Supporting both
+# decouples the plugin upgrade from the user's venv upgrade: the venv is updated by
+# hand, so a hard cutover would break every existing install the moment the plugin
+# updated. `check_venv_health` reports the pin drift and lets users move at their pace.
+#
+# `_MCPServer` is annotated `Any` rather than left to inference on purpose: only
+# one of the two imports resolves on any given box, so mypy's view of this name —
+# and therefore whether a `type: ignore` here is required or unused — would
+# otherwise depend on which SDK the machine running it happens to have installed.
+# `Any` makes the file typecheck identically on both lines.
+_MCPServer: Any = None
+
+# 2.x takes an explicit `version`; 1.x's FastMCP has no such parameter and
+# hardcodes the SDK's own version instead. See the instantiation below.
+_MCP_ACCEPTS_VERSION = False
+
 try:
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
+
+    _MCPServer = MCPServer
+    _MCP_ACCEPTS_VERSION = True
 except ImportError:
+    try:
+        from mcp.server.fastmcp import FastMCP
+
+        _MCPServer = FastMCP
+    except ImportError:
+        pass
+
+if _MCPServer is None:
     print("=" * 70, file=sys.stderr)
     print("ERROR: MCP SDK not installed", file=sys.stderr)
     print("=" * 70, file=sys.stderr)
@@ -76,10 +112,10 @@ except ImportError:
     print("Install with ONE of these methods:", file=sys.stderr)
     print("", file=sys.stderr)
     print("  1. User install (recommended):", file=sys.stderr)
-    print('     pip install --user "mcp[cli]>=1.28.1,<2" pyyaml', file=sys.stderr)
+    print('     pip install --user "mcp[cli]>=1.28.1,<3" pyyaml', file=sys.stderr)
     print("", file=sys.stderr)
     print("  2. Using pipx:", file=sys.stderr)
-    print('     pipx install "mcp<2"', file=sys.stderr)
+    print('     pipx install "mcp<3"', file=sys.stderr)
     print("", file=sys.stderr)
     print("  3. Virtual environment:", file=sys.stderr)
     if sys.platform == "win32":
@@ -90,7 +126,7 @@ except ImportError:
         _venv_python_hint = "$HOME/.bitwize-music/venv/bin/python3"
     print(f"     {_venv_create_hint}", file=sys.stderr)
     print(
-        f'     "{_venv_python_hint}" -m pip install "mcp[cli]>=1.28.1,<2" pyyaml',
+        f'     "{_venv_python_hint}" -m pip install "mcp[cli]>=1.28.1,<3" pyyaml',
         file=sys.stderr,
     )
     print("", file=sys.stderr)
@@ -114,8 +150,16 @@ from tools.state.indexer import (
 )
 from tools.state.parsers import parse_album_readme, parse_track_file  # noqa: F401
 
-# Initialize FastMCP server
-mcp = FastMCP("bitwize-music-mcp")
+# Initialize the MCP server (FastMCP on mcp 1.x, MCPServer on 2.x — see the import above).
+#
+# `version` lands in serverInfo on the `initialize` response. 2.x accepts it and would
+# otherwise default to "", so pass the plugin version — far more useful to a client than
+# either the empty string or 1.x's hardcoded SDK version. 1.x has no such parameter, so
+# it keeps reporting the SDK version exactly as it does today; nothing regresses there.
+_server_kwargs = (
+    {"version": _read_plugin_version(PLUGIN_ROOT) or ""} if _MCP_ACCEPTS_VERSION else {}
+)
+mcp = _MCPServer("bitwize-music-mcp", **_server_kwargs)
 
 
 # ---------------------------------------------------------------------------

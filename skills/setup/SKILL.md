@@ -60,7 +60,9 @@ if [ -f "$VENV_PYTHON" ]; then
     echo "✅ Venv exists at ~/.bitwize-music/venv"
 
     # Check each component in the venv
-    $VENV_PYTHON -c "import mcp.server.fastmcp; print('✅ mcp installed')" 2>&1 || echo "❌ mcp not installed (or mcp 2.x, which the server cannot use)"
+    # 2.x serves MCPServer from mcp.server.mcpserver, 1.x serves FastMCP from
+    # mcp.server.fastmcp; the server takes either, so probe both (#537).
+    $VENV_PYTHON -c "import mcp.server.mcpserver" 2>/dev/null || $VENV_PYTHON -c "import mcp.server.fastmcp" 2>/dev/null && echo "✅ mcp installed" || echo "❌ mcp not installed (need mcp[cli]>=1.28.1,<3)"
     $VENV_PYTHON -c "import matchering; print('✅ matchering installed')" 2>&1 || echo "❌ matchering not installed"
     $VENV_PYTHON -c "import boto3; print('✅ boto3 installed')" 2>&1 || echo "❌ boto3 not installed"
     $VENV_PYTHON -c "from playwright.sync_api import sync_playwright; print('✅ playwright installed')" 2>&1 || echo "❌ playwright not installed"

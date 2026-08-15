@@ -27,7 +27,6 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 # (import name, distribution name as pinned in requirements.txt)
 # Import name and distribution name are tracked separately because they are not
@@ -97,20 +96,24 @@ def test_gate_tool_is_exactly_pinned(package: str, project_root: Path) -> None:
     )
 
 
-# --- mcp 2.x guardrails (#537) ------------------------------------------------
+# --- mcp SDK-line guardrails (#537) -------------------------------------------
 #
 # mcp 2.0.0 restructured `mcp.server.fastmcp` (FastMCP) into `mcp.server.mcpserver`
-# (MCPServer) and shipped no compat shim, so `server.py`'s single `from mcp` import
-# raises and the server exits 1 at import time. Three separate things go wrong on a
-# 2.x install, and each gets a guard here.
+# (MCPServer) and shipped no compat shim. `server.py` imports whichever is present,
+# preferring 2.x, so BOTH SDK lines boot — that is what keeps a plugin upgrade from
+# breaking users whose hand-managed venv still has 1.x. These guards check the
+# install is on one of the two supported lines, not on either one specifically.
+
+# The two module paths `server.py` accepts, in the order it tries them.
+SUPPORTED_MCP_SERVER_MODULES = ["mcp.server.mcpserver", "mcp.server.fastmcp"]
 
 
 @pytest.mark.unit
-def test_pinned_mcp_exposes_fastmcp() -> None:
-    """The installed mcp must expose the module `server.py` imports.
+def test_pinned_mcp_exposes_a_supported_server_module() -> None:
+    """The installed mcp must expose one of the modules `server.py` imports.
 
-    Bare `import mcp` succeeds on 2.x — the removed module is the submodule — so
-    this asserts the submodule specifically.
+    Bare `import mcp` succeeds on both lines — what moved is the submodule — so
+    this asserts the submodules specifically.
 
     Deliberately a subprocess rather than `importlib.import_module`. The 24 test
     modules that exercise `server.py` install a fake `mcp.server.fastmcp` into
@@ -119,21 +122,25 @@ def test_pinned_mcp_exposes_fastmcp() -> None:
     this test exists to catch. A clean interpreter is also precisely what the
     documented readiness probe runs.
     """
-    result = subprocess.run(  # noqa: S603 - fixed argv, no shell, no user input
-        [sys.executable, "-c", "import mcp.server.fastmcp"],
-        capture_output=True,
-        encoding="utf-8",
-        check=False,
-    )
-    if result.returncode != 0:  # pragma: no cover - only on a real regression
-        pytest.fail(
-            f"`{sys.executable} -c 'import mcp.server.fastmcp'` exited "
-            f"{result.returncode}:\n{result.stderr.strip()}\n\n"
-            "mcp 2.x removed this module (it is now mcp.server.mcpserver.MCPServer) "
-            "with no compat shim, so servers/bitwize-music-server/server.py cannot "
-            "boot. requirements.txt must stay on the 1.x line until that migration "
-            "lands. See #537."
+    failures = []
+    for module in SUPPORTED_MCP_SERVER_MODULES:
+        result = subprocess.run(  # noqa: S603 - fixed argv, no shell, no user input
+            [sys.executable, "-c", f"import {module}"],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
         )
+        if result.returncode == 0:
+            return
+        failures.append(f"  {module}: exit {result.returncode}\n{result.stderr.strip()}")
+
+    pytest.fail(  # pragma: no cover - only on a real regression
+        f"No supported MCP server module is importable under {sys.executable}:\n"
+        + "\n".join(failures)
+        + "\n\nservers/bitwize-music-server/server.py needs one of "
+        f"{SUPPORTED_MCP_SERVER_MODULES} and exits 1 without them. Install "
+        '`mcp[cli]>=1.28.1,<3`. See #537.'
+    )
 
 
 # Files that tell a *user* how to install mcp. requirements.txt is excluded (it
@@ -151,15 +158,18 @@ _MCP_CLI_SPEC = re.compile(r"mcp\[cli\]([<>=!~][^\"'\s`]*)")
 
 @pytest.mark.unit
 @pytest.mark.parametrize("relative_path", MCP_INSTALL_ADVICE_FILES)
-def test_documented_mcp_install_is_capped_below_2(
+def test_documented_mcp_install_is_capped_below_3(
     relative_path: str, project_root: Path
 ) -> None:
-    """Install advice must exclude 2.x, or it tells users to install a broken server.
+    """Install advice must carry a major-version ceiling.
 
     Two of these strings are printed by the ImportError handler itself, so an
-    unbounded `>=` sends someone whose server will not start off to install the
-    exact version that will not start — and back to the same message. A setup
-    loop, shown precisely when the user is already stuck.
+    unbounded `>=` sends someone whose server will not start off to install
+    whatever major ships next — which, on the evidence of 2.0.0, may well
+    restructure the entry point again and land them back at the same message.
+    A setup loop, shown precisely when the user is already stuck. 3.x is
+    unreleased and unverified, so it stays outside the advice until someone
+    checks it the way #537 checked 2.x.
     """
     text = (project_root / relative_path).read_text(encoding="utf-8")
     specs = _MCP_CLI_SPEC.findall(text)
@@ -169,17 +179,18 @@ def test_documented_mcp_install_is_capped_below_2(
         f"advice moved, update MCP_INSTALL_ADVICE_FILES."
     )
     for spec in specs:
-        assert spec.startswith("==") or "<2" in spec, (
-            f"{relative_path} advises `mcp[cli]{spec}`, which resolves to 2.x "
-            f"today. mcp 2.x cannot run this server (#537) — bound it, e.g. "
-            f"`mcp[cli]>=1.28.1,<2`."
+        assert spec.startswith("==") or "<3" in spec, (
+            f"{relative_path} advises `mcp[cli]{spec}`, which is unbounded above "
+            f"the supported majors. server.py accepts 1.x and 2.x only (#537) — "
+            f"bound it, e.g. `mcp[cli]>=1.28.1,<3`."
         )
 
 
 # Every place that tells a session (or a user) how to check the SDK is healthy.
-# This is the failure that actually reached people: bare `import mcp` succeeds on
-# 2.x, so the gate CLAUDE.md says must halt the session reported ready on an
-# install where the server was already dead.
+# This is the failure that actually reached people: bare `import mcp` succeeds
+# whichever line is installed — and even when neither server module is present —
+# so the gate CLAUDE.md says must halt the session reported ready on an install
+# where the server was already dead.
 PROBE_FILES = [
     "CLAUDE.md",
     "skills/session-start/SKILL.md",
@@ -195,54 +206,35 @@ _BARE_MCP_PROBE = re.compile(r"""-c\s+(["'])import mcp\1""")
 
 @pytest.mark.unit
 @pytest.mark.parametrize("relative_path", PROBE_FILES)
-def test_readiness_probe_checks_the_module_the_server_imports(
+def test_readiness_probe_checks_the_modules_the_server_imports(
     relative_path: str, project_root: Path
 ) -> None:
-    """A readiness probe must import what `server.py` imports, not just `mcp`."""
+    """A readiness probe must import what `server.py` imports, not just `mcp`.
+
+    Both module paths, not either one: `server.py` accepts 1.x and 2.x, so a probe
+    naming only one reports a perfectly working install on the other line as broken.
+    """
     text = (project_root / relative_path).read_text(encoding="utf-8")
 
-    assert "import mcp.server.fastmcp" in text, (
-        f"{relative_path} no longer probes `mcp.server.fastmcp` — if the check "
-        f"moved, update PROBE_FILES."
-    )
+    for module in SUPPORTED_MCP_SERVER_MODULES:
+        assert f"import {module}" in text, (
+            f"{relative_path} does not probe `{module}`. server.py boots on either "
+            f"SDK line, so a probe naming only one calls a working install broken. "
+            f"If the check moved, update PROBE_FILES. See #537."
+        )
     assert not _BARE_MCP_PROBE.search(text), (
         f"{relative_path} probes readiness with a bare `-c \"import mcp\"`. That "
-        f"succeeds on mcp 2.x, which dropped `mcp.server.fastmcp` — so the probe "
-        f"reports healthy on an install the server cannot boot on. Import the "
-        f"submodule instead. See #537."
+        f"succeeds even when neither `mcp.server.mcpserver` nor `mcp.server.fastmcp` "
+        f"is present — so the probe reports healthy on an install the server cannot "
+        f"boot on. Import the submodules instead. See #537."
     )
 
 
-@pytest.mark.unit
-def test_dependabot_ignores_mcp_majors(project_root: Path) -> None:
-    """Without this ignore, one un-mergeable major takes the whole group PR down.
-
-    `pip-all` groups every dependency with `patterns: ["*"]`, so each weekly PR
-    that picks up mcp 2.x fails Tests and MCP Server Boot on all three runners
-    and holds every unrelated bump in the group hostage with it.
-    """
-    config = yaml.safe_load(
-        (project_root / ".github" / "dependabot.yml").read_text(encoding="utf-8")
-    )
-    pip_updates = [u for u in config["updates"] if u["package-ecosystem"] == "pip"]
-    assert pip_updates, "No pip ecosystem entry in .github/dependabot.yml"
-
-    ignored = [
-        entry
-        for update in pip_updates
-        for entry in update.get("ignore", [])
-        if entry.get("dependency-name") == "mcp"
-    ]
-    assert ignored, (
-        "`.github/dependabot.yml` no longer ignores mcp major updates. mcp 2.x "
-        "cannot boot this server (#537), and because pip-all groups everything, "
-        "the resulting PR fails 6 jobs and blocks every other bump in the group. "
-        "Remove this only together with the mcp 2.0 migration."
-    )
-    assert any(
-        "version-update:semver-major" in entry.get("update-types", [])
-        or any(v.startswith(">=2") for v in entry.get("versions", []))
-        for entry in ignored
-    ), (
-        "The mcp ignore entry no longer blocks the 2.x major. See #537."
-    )
+# `test_dependabot_ignores_mcp_majors` lived here and has been removed. It existed
+# to keep an un-mergeable mcp major out of the `pip-all` group PR, and its own
+# docstring set the condition for taking it out: "Remove this only together with
+# the mcp 2.0 migration." That migration has landed — server.py boots on 1.x and
+# 2.x alike — so the ignore is gone from .github/dependabot.yml and mcp majors flow
+# again. A future major that breaks the entry point is caught by
+# `test_pinned_mcp_exposes_a_supported_server_module` plus the boot jobs, which fail
+# on the actual breakage rather than pre-emptively blocking every major (#537).

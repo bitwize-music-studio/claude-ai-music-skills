@@ -44,7 +44,7 @@ try:
     import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     class _FakeFastMCP:
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 
