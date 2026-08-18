@@ -161,7 +161,7 @@ If you make something with this, I'd genuinely love to hear it — [@bitwizemusi
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bitwize-music-studio/claude-ai-music-skills&type=Date)](https://star-history.com/#bitwize-music-studio/claude-ai-music-skills&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=bitwize-music-studio/claude-ai-music-skills&type=Date)](https://star-history.dera.page/#bitwize-music-studio/claude-ai-music-skills&Date)
 
 ---
 
