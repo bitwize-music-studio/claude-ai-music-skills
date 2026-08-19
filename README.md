@@ -162,12 +162,6 @@ If you make something with this, I'd genuinely love to hear it — [@bitwizemusi
 
 ---
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=bitwize-music-studio/claude-ai-music-skills&type=Date)](https://star-history.com/#bitwize-music-studio/claude-ai-music-skills&Date)
-
----
-
 ## License
 
 CC0 — Public Domain. Do whatever you want with it.
