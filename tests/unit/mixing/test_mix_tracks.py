@@ -2406,3 +2406,243 @@ class TestPhase2ProcessorWiring:
         result_off = process_percussion(data.copy(), rate, settings_off)
         result_on = process_percussion(data.copy(), rate, settings_on)
         assert not np.allclose(result_off, result_on)
+
+
+class TestClickRemovalOverrideIsHonored:
+    """#553: a user's `click_removal` setting in `{overrides}/mix-presets.yaml`
+
+    must win over the shipped preset in BOTH directions — `false` over a
+    shipped `true` (non-vocal stems) and `true` over the shipped `false`
+    (vocals / backing_vocals, flipped off by default in #553). Field
+    report: `click_removal: false` under `genres.electronic.vocals` was
+    not honored and the vocal stem still came back with
+    `clicks_removed: 35`.
+    """
+
+    @staticmethod
+    def _install_override(tmp_path, monkeypatch, yaml_text):
+        """Write a user override file and reload the presets from it.
+
+        Mirrors the real startup path: `load_mix_presets()` reads
+        `{overrides}/mix-presets.yaml`, and the module-level
+        `MIX_PRESETS` that `_get_stem_settings` consults is the result.
+        """
+        import tools.mixing.mix_tracks as mt
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir(exist_ok=True)
+        (override_dir / "mix-presets.yaml").write_text(yaml_text)
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+        monkeypatch.setattr(mt, 'MIX_PRESETS', mt.load_mix_presets())
+
+    @staticmethod
+    def _clicky_vocal_stem(path, n_clicks=35, rate=44100):
+        """A quiet tone with `n_clicks` single-sample spikes — the shape
+        the peak/RMS detector flags. Written to `path` as a stereo WAV."""
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(n_clicks):
+            mono[2000 + i * 1000] = 0.9
+        sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='PCM_16')
+
+    # ── settings-resolution path ──────────────────────────────────────
+
+    def test_genre_override_disabling_click_removal_on_vocals_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """The exact field setup: `genres.electronic.vocals.click_removal:
+        false` must resolve to an effective False."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+            "      noise_reduction: 0\n"
+        ))
+        settings = _get_stem_settings('vocals', 'electronic')
+        assert settings['click_removal'] is False
+        assert settings['noise_reduction'] == 0
+
+    def test_genre_override_enabling_click_removal_on_vocals_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """Inverse direction — proves the *override* wins, not the
+        shipped default: `true` over the #553 vocals default of false."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_genre_override_disabling_click_removal_on_non_vocal_stem_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """A non-vocal stem ships `click_removal: true`, so `false` here
+        can only come from the user's override."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_defaults_override_disabling_click_removal_on_non_vocal_stem_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """The `defaults:`-scoped form of the same override, resolved
+        with a genre whose shipped section touches that stem."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  drums:\n"
+            "    click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_genre_override_is_honored_when_the_override_key_is_capitalized(
+        self, tmp_path, monkeypatch,
+    ):
+        """Genre lookups are case-insensitive (`_get_stem_settings`
+        lowercases `genre`), so an override block written under a
+        capitalized genre key must reach the same stem settings."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'Electronic')['click_removal'] is True
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_capitalized_override_of_a_new_genre_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """Same rule for a genre the shipped file doesn't define."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Dark-Electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'Dark-Electronic')['click_removal'] is True
+
+    def test_capitalized_override_reaches_full_mix_settings(
+        self, tmp_path, monkeypatch,
+    ):
+        """Full-mix fallback resolves genres the same way."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    full_mix:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_full_mix_settings('Electronic')['click_removal'] is False
+
+    # ── processing path ───────────────────────────────────────────────
+
+    def test_vocals_chain_repairs_no_clicks_when_override_disables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Field symptom: with the override in place, a vocal stem full
+        of detectable clicks must come back `clicks_removed == 0`."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] == 0
+
+    def test_vocals_chain_repairs_clicks_when_override_enables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Inverse direction through the same processing path — proves
+        the run reflects the override rather than the shipped default."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] > 0
+
+    def test_non_vocal_chain_repairs_no_clicks_when_override_disables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Drums ship `click_removal: true`; the user's `false` must
+        still reach the processing chain."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "drums.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["drums"]["clicks_removed"] == 0
+
+    def test_analyzer_recommendation_cannot_re_enable_disabled_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """#336 guard: `analyze_mix_issues` recommends `click_removal:
+        true` whenever it counts >10 clicky windows. That key is
+        deliberately outside `_ANALYZER_EQ_OVERRIDE_KEYS`, so it must not
+        resurrect a stem the user switched off."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+            analyzer_recs={"vocals": {
+                "recommendations": {"click_removal": True},
+                "issues": ["clicks_detected"],
+            }},
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] == 0
+
+    def test_capitalized_genre_override_reaches_the_processing_chain(
+        self, tmp_path, monkeypatch,
+    ):
+        """End-to-end version of the case-insensitivity rule."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "drums.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="Electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["drums"]["clicks_removed"] == 0

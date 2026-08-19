@@ -189,6 +189,15 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 def load_mix_presets() -> dict[str, Any]:
     """Load mix presets from YAML, merging built-in with user overrides.
 
+    Genre keys from the user's override file are lowercased before
+    merging (#553). Every consumer resolves a genre with `genre.lower()`
+    (`_get_stem_settings`, `_get_full_mix_settings`), so an override
+    written under a capitalized key — `Electronic:` rather than
+    `electronic:` — used to land in the presets dict under a key nothing
+    ever reads: the whole block was silently discarded and the shipped
+    defaults applied instead. Normalizing here keeps the write side and
+    the read side on the same key.
+
     Returns:
         Dict with 'defaults' and 'genres' keys containing per-stem settings.
     """
@@ -203,9 +212,10 @@ def load_mix_presets() -> dict[str, Any]:
         override_data = _load_yaml_file(override_file)
         if override_data.get('defaults'):
             defaults = _deep_merge(defaults, override_data['defaults'])
-        for genre_name, genre_overrides in override_data.get('genres', {}).items():
+        for raw_genre_name, genre_overrides in override_data.get('genres', {}).items():
             if not isinstance(genre_overrides, dict):
                 continue
+            genre_name = str(raw_genre_name).lower()
             if genre_name in genres:
                 genres[genre_name] = _deep_merge(genres[genre_name], genre_overrides)
             else:
