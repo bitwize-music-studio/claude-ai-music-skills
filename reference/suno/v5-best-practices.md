@@ -48,7 +48,7 @@ nostalgic, melancholic, 85 BPM, male vocals, gravelly voice, introspective
 | Studio-Grade Audio | 44.1 kHz output with fuller, more balanced mixes |
 | Vocal Engine | Human-like vocals with breath, emotion, vibrato control |
 | 10x Faster | Seconds instead of minutes for generation |
-| Stem Separation (3 modes) | Auto Split (12 stems), Split from Mix (target + the rest), Advanced Split (~100 instruments) — generative regeneration |
+| Stem Separation (3 modes) | Auto Split (12 stems), Split from Mix (target + the rest), Advanced Split (~100 instruments) — Auto Split output shows bleed/shared reverb in practice; see § Stem Extraction |
 | Extended Length | Up to 8 minutes per generation |
 | Persistent Memory | Vocal characters and instruments remain stable across project generations |
 | Granular Controls | Tempo, key, dynamics, arrangement with optional automation |
@@ -549,7 +549,9 @@ These are typical loudness levels Suno generates — **not** final mastering tar
 
 ## Stem Extraction
 
-Suno's stem separation was overhauled (June 2026) into **three selectable modes**, and it now *generatively regenerates* each stem rather than frequency-carving the mix — extracted parts sound cleaner and more natural than the old model.
+Suno's stem separation was overhauled in June 2026 into **three selectable modes**. Suno's own materials describe the new pipeline as "listening to" the finished track and regenerating each stem from scratch with its latest model, rather than slicing the mix apart by frequency — the company frames this as why pulls sound cleaner than the old approach. That claim is Suno's own and hasn't been independently verified; some independent write-ups instead describe **Auto Split** specifically as classic frequency/spectral-mask separation, with the regenerative framing applying most clearly to **Advanced Split**.
+
+In practice, stems pulled via **Auto Split** — the mode most people reach for — still show behavior consistent with post-hoc source separation performed on the rendered stereo mix: bleed/crosstalk between stems, reverb embedded and shared across multiple stems, and separation artifacts. Auto Split also returns a file for every one of the 12 stem categories even when the source has none of that content — expect a near-silent (~-55 dBFS) placeholder stem, not an omission. Plan mix polish around these observed behaviors, not around an assumption that "generative" means artifact-free or independently synthesized.
 
 ### Split Modes
 
@@ -575,7 +577,7 @@ Percussion, Synth, FX/Other
 
 ### Cleaner Single-Stem Pulls
 
-For an isolated vocal or instrument, **Split from Mix** targeting that part is usually cleaner in one pass than the old carve-and-repeat trick (a benefit of the generative model). If a stem still bleeds, run extraction again on the extracted stem.
+For an isolated vocal or instrument, **Split from Mix** targeting that part is usually cleaner in one pass than the old carve-and-repeat trick. If a stem still bleeds — a real possibility even with the new pipeline, see § Stem Extraction above — run extraction again on the extracted stem.
 
 > **Tier note:** Advanced Split is Premier-tier with a per-extraction credit cost (exact costs vary — check Suno's current pricing). Auto Split / Split from Mix availability follows your plan.
 
