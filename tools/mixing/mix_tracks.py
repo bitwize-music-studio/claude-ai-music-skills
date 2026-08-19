@@ -63,6 +63,16 @@ STEM_NAMES = (
     "woodwinds", "percussion", "synth", "other",
 )
 
+# #553: Suno's Auto Split returns every requested stem category even when
+# the source has no audio for it — such "empty" stems come back not as
+# exact digital silence but at roughly -55 dBFS peak / -111 dBFS RMS noise
+# floor. Running the full per-stem chain (declick, EQ, compression,
+# saturation) on that noise floor wastes cycles and, worse, the de-clicker
+# mistakes noise-floor transients for clicks (~600 false positives observed
+# on a single silent percussion stem). Any stem peaking below this
+# threshold skips its entire processing chain and passes through untouched.
+SILENT_STEM_PEAK_DBFS = -40.0
+
 # Keyword → category mapping for smart routing (case-insensitive).
 # Ordered list of tuples — checked top-to-bottom; first match wins.
 # CRITICAL: "backing_vocal" must be checked BEFORE "vocal" because
@@ -2096,56 +2106,70 @@ def mix_track_stems(
         pre_peak = float(np.max(np.abs(data)))
         pre_rms = float(np.sqrt(np.mean(data ** 2)))
 
+        # Silence gate (#553), evaluated before ANY processing: Suno Auto
+        # Split "empty" stems come back around -55 dBFS peak rather than
+        # exact digital silence (peak=0 -> -inf dB, guarded explicitly so
+        # log10 is never called on zero). See SILENT_STEM_PEAK_DBFS.
+        peak_dbfs = 20.0 * np.log10(pre_peak) if pre_peak > 0.0 else float('-inf')
+        skipped_empty = peak_dbfs < SILENT_STEM_PEAK_DBFS
+
         # Only drums/percussion write clicks_removed into the report dict —
         # keeping the per-processor kwarg asymmetric is intentional (the
         # other 10 processors have no metric to report). The dict is
         # initialized empty so the `get('clicks_removed', 0)` fallback in
         # the append-below always has a value, even for non-declicking stems.
-        stem_report: dict[str, Any] = {'clicks_removed': 0}
+        stem_report: dict[str, Any] = {'clicks_removed': 0, 'skipped_empty': False}
 
-        # #336: pull per-stem recommendations from analyzer (if any).
-        # INVARIANT: _ANALYZER_EQ_OVERRIDE_KEYS (used here for telemetry)
-        # MUST match the same whitelist _get_stem_settings applies in
-        # its merge below — otherwise overrides_applied would claim
-        # changes the merge didn't actually make.
-        stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
-        stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
-        stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
+        if skipped_empty:
+            # Entire processing chain bypassed — audio passes through to
+            # the remix bit-identical (no gain entry means remix_stems
+            # applies unity gain, and `data` itself is never touched).
+            stem_report['skipped_empty'] = True
+            stem_report['peak_dbfs'] = round(peak_dbfs, 1)
+        else:
+            # #336: pull per-stem recommendations from analyzer (if any).
+            # INVARIANT: _ANALYZER_EQ_OVERRIDE_KEYS (used here for telemetry)
+            # MUST match the same whitelist _get_stem_settings applies in
+            # its merge below — otherwise overrides_applied would claim
+            # changes the merge didn't actually make.
+            stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
+            stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
+            stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
 
-        # Capture genre baseline BEFORE merging analyzer recs so we can
-        # report what the override changed.
-        if stem_recs:
-            baseline_settings = _get_stem_settings(stem_name, genre)
-            for key, rec_val in stem_recs.items():
-                if key in _ANALYZER_EQ_OVERRIDE_KEYS:
-                    # Issue tag that justifies THIS parameter specifically.
-                    # Look up only the tags that are valid justifications for
-                    # this key — prevents a multi-issue stem from reporting
-                    # the same (wrong) first-match reason on every entry.
-                    reason = next(
-                        (t for t in stem_issues
-                         if t in _ANALYZER_PARAM_REASONS.get(key, ())),
-                        None,
-                    )
-                    overrides_applied.append({
-                        "stem":           stem_name,
-                        "parameter":      key,
-                        "genre_default":  baseline_settings.get(key),
-                        "analyzer_rec":   rec_val,
-                        "applied":        rec_val,
-                        "reason":         reason,
-                    })
+            # Capture genre baseline BEFORE merging analyzer recs so we can
+            # report what the override changed.
+            if stem_recs:
+                baseline_settings = _get_stem_settings(stem_name, genre)
+                for key, rec_val in stem_recs.items():
+                    if key in _ANALYZER_EQ_OVERRIDE_KEYS:
+                        # Issue tag that justifies THIS parameter specifically.
+                        # Look up only the tags that are valid justifications for
+                        # this key — prevents a multi-issue stem from reporting
+                        # the same (wrong) first-match reason on every entry.
+                        reason = next(
+                            (t for t in stem_issues
+                             if t in _ANALYZER_PARAM_REASONS.get(key, ())),
+                            None,
+                        )
+                        overrides_applied.append({
+                            "stem":           stem_name,
+                            "parameter":      key,
+                            "genre_default":  baseline_settings.get(key),
+                            "analyzer_rec":   rec_val,
+                            "applied":        rec_val,
+                            "reason":         reason,
+                        })
 
-        if not dry_run:
-            # Get settings and process. Every processor now accepts
-            # `report` and accumulates `clicks_removed` via
-            # `_apply_click_removal`, so the dispatch is uniform.
-            settings = _get_stem_settings(stem_name, genre, analyzer_rec=stem_recs or None)
-            processor = STEM_PROCESSORS[stem_name]
-            data = processor(data, rate, settings, report=stem_report)
+            if not dry_run:
+                # Get settings and process. Every processor now accepts
+                # `report` and accumulates `clicks_removed` via
+                # `_apply_click_removal`, so the dispatch is uniform.
+                settings = _get_stem_settings(stem_name, genre, analyzer_rec=stem_recs or None)
+                processor = STEM_PROCESSORS[stem_name]
+                data = processor(data, rate, settings, report=stem_report)
 
-            # Get remix gain
-            gains[stem_name] = settings.get('gain_db', 0.0)
+                # Get remix gain
+                gains[stem_name] = settings.get('gain_db', 0.0)
 
         # Measure post-processing level
         post_peak = float(np.max(np.abs(data)))
@@ -2161,14 +2185,18 @@ def mix_track_stems(
             stem_out_path.parent.mkdir(parents=True, exist_ok=True)
             sf.write(str(stem_out_path), data, rate, subtype='PCM_16')
 
-        result['stems_processed'].append({
+        stem_result: dict[str, Any] = {
             'stem': stem_name,
             'pre_peak': pre_peak,
             'pre_rms': pre_rms,
             'post_peak': post_peak,
             'post_rms': post_rms,
             'clicks_removed': int(stem_report['clicks_removed']),
-        })
+            'skipped_empty': bool(stem_report['skipped_empty']),
+        }
+        if stem_report['skipped_empty']:
+            stem_result['peak_dbfs'] = stem_report['peak_dbfs']
+        result['stems_processed'].append(stem_result)
 
     if not processed_stems:
         result['error'] = 'No stems could be loaded'

@@ -10,6 +10,7 @@ Usage:
 
 import logging
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -1271,6 +1272,97 @@ class TestMixTrackStems:
         assert by_stem['drums']['clicks_removed'] >= 1
         assert 'clicks_removed' in by_stem['guitar']
         assert by_stem['guitar']['clicks_removed'] >= 1
+
+
+class TestSilenceGate:
+    """#553: Suno Auto Split returns every requested stem category even
+    when the source has no audio for it. Those "empty" stems come back
+    at roughly -55 dBFS peak (not exact digital silence), and running
+    the full per-stem chain on that noise floor wastes cycles and trips
+    the de-clicker on noise-floor transients. Stems peaking below
+    SILENT_STEM_PEAK_DBFS must skip their entire processing chain."""
+
+    def test_low_peak_noise_floor_stem_is_skipped_and_passed_through(
+        self, tmp_path
+    ):
+        """A stem at ~-60 dBFS peak with noise-floor transients (the
+        field-observed Suno Auto Split "empty" pattern) must be skipped:
+        the report flags it and its own per-stem WAV passes through
+        bit-identical rather than running the declick/EQ/compression
+        chain."""
+        rate = 44100
+        rng = np.random.default_rng(7)
+        noise = rng.standard_normal(rate)
+        noise = noise / np.max(np.abs(noise))  # normalize peak to 1.0
+        target_peak = 10 ** (-60.0 / 20)  # -60 dBFS
+        mono = (noise * target_peak).astype(np.float64)
+        data = np.column_stack([mono, mono])
+
+        stem_path = tmp_path / "percussion.wav"
+        _write_wav(stem_path, data, rate)
+        stem_out_dir = tmp_path / "stem_out"
+
+        result = mix_track_stems(
+            {'percussion': str(stem_path)},
+            str(tmp_path / "out.wav"),
+            stem_output_dir=stem_out_dir,
+        )
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['peak_dbfs'] == pytest.approx(-60.0, abs=2.0)
+
+        # Passed through bit-identical — the written per-stem WAV must
+        # match the input exactly, not the output of the processing chain
+        # (which would flag the noise floor as clicks — #553 field bug).
+        original, _ = sf.read(str(stem_path))
+        passed_through, _ = sf.read(str(stem_out_dir / "percussion.wav"))
+        np.testing.assert_array_equal(original, passed_through)
+
+    def test_all_zero_stem_skips_cleanly_without_warnings(
+        self, silent_wav, output_path
+    ):
+        """True digital silence (peak=0, -inf dBFS) is the degenerate
+        case of the same gate: it must skip cleanly with no numpy
+        RuntimeWarning (e.g. divide-by-zero in log10) and no NaN
+        anywhere in the report or output."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = mix_track_stems({'bass': silent_wav}, output_path)
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['peak_dbfs'] == float('-inf')
+
+        assert Path(output_path).exists()
+        data, _ = sf.read(output_path)
+        assert np.all(np.isfinite(data))
+
+    def test_normal_level_stem_still_processed_normally(self, tmp_path):
+        """A stem at a normal playing level must run the full processing
+        chain exactly as before — the silence gate must not false-positive
+        on real audio, and the report must not claim it was skipped."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.95
+        drums = np.column_stack([mono, mono])
+
+        drums_path = tmp_path / "drums.wav"
+        _write_wav(drums_path, drums, rate)
+
+        result = mix_track_stems(
+            {'drums': str(drums_path)},
+            str(tmp_path / "out.wav"),
+            genre='electronic',
+        )
+
+        report = result['stems_processed'][0]
+        assert report.get('skipped_empty') is not True
+        # Declicker still ran — proof the full chain executed, not the
+        # passthrough branch.
+        assert report['clicks_removed'] >= 1
 
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
