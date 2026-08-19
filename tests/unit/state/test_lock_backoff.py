@@ -66,6 +66,13 @@ class TestAcquireLockWithTimeout:
         blaming the lock code. Here the release cannot happen *before* a failed
         retry is observed, and the acquisition cannot happen before the
         release — a happens-before chain with no wall-clock dependency.
+
+        The ``released`` flag is set *before* the unlock: the contender can
+        acquire the instant ``_funlock()`` lands and reach its
+        ``released.is_set()`` assert before this thread is scheduled again,
+        so setting the flag after the unlock races the assert (the 2026-08-17
+        nightly failure). Flag-then-unlock closes it: acquisition requires the
+        unlock, and the unlock requires the flag.
         """
         import threading
 
@@ -100,9 +107,9 @@ class TestAcquireLockWithTimeout:
 
         def release_when_contender_has_retried() -> None:
             assert retried.wait(timeout=10), "contender never retried the lock"
+            released.set()
             _funlock(holder)
             holder.close()
-            released.set()
 
         t = threading.Thread(target=release_when_contender_has_retried)
         t.start()
