@@ -9,7 +9,7 @@ Human-readable guide to what each preset does and when to override defaults.
 Each genre preset adjusts per-stem processing settings. Settings not specified in a genre preset inherit from defaults.
 
 **Defaults** are calibrated for typical Suno V5 output:
-- Moderate noise reduction on vocals (0.5)
+- Noise reduction off (0) on every stem — Suno stems are synthesized, not recorded, so there's no stationary noise floor to profile; spectral gating would strip quiet musical content instead. Enable per stem only for imported/recorded audio.
 - Presence boost at 3 kHz for vocal clarity
 - Mud cut around 200-300 Hz for low-mid cleanup
 - Gentle compression for dynamic consistency
@@ -41,11 +41,11 @@ Each preset can adjust per-stem gain to change the mix balance:
 
 These are the problems mix-engineer is designed to fix:
 
-### AI Hiss / Noise Floor
-**What**: Faint background noise, especially on vocal stems
-**Fix**: Spectral gating noise reduction (noisereduce library)
-**Default**: 0.5 strength on vocals, 0.3 on other instruments
-**Override when**: Very clean stems (reduce to 0.1-0.2) or very noisy (increase to 0.7-0.8)
+### AI Hiss / Noise Floor (Imported/Recorded Audio Only)
+**What**: Faint background noise from a real recording chain. Suno-synthesized stems don't have this — there's no stationary noise floor to profile, so spectral gating strips quiet musical content (consonants, breath, sibilance decay) instead of noise.
+**Fix**: Spectral gating noise reduction (noisereduce library) — enable per stem, only for imported/recorded audio
+**Default**: 0 (off) on every stem
+**Override when**: Importing a real recording with an audible noise floor — start at 0.3-0.5 and adjust from there
 
 ### Digital Clicks / Pops
 **What**: Brief transient spikes from generation artifacts
@@ -94,7 +94,6 @@ These are the problems mix-engineer is designed to fix:
 
 ### Ambient / Lo-Fi
 - Lighter processing overall
-- Reduced noise reduction (0.2-0.3) — some noise is character
 - Reduced presence boost (+1 dB vs. default +2 dB) — warmth over clarity
 - Ambient uses lower vocal compression (1.5:1) — preserve dynamics
 
@@ -137,6 +136,9 @@ Override files deep-merge: you only need to specify the values you want to chang
 
 ```yaml
 # Example: Custom preset for dark electronic music
+# (noise_reduction here assumes imported/recorded vocals with a real noise
+# floor — leave it at 0 for standard Suno-synthesized stems; see SKILL.md
+# "Stems First")
 genres:
   dark-electronic:
     vocals:
@@ -157,7 +159,7 @@ genres:
 
 When stems aren't available, mix-engineer processes the full stereo mix directly. This is less effective than per-stem processing but still valuable:
 
-- Noise reduction (0.3 — lighter since it affects everything)
+- Noise reduction off (0) — same synthesized-audio rationale as per-stem processing; enable only when the full mix comes from imported/recorded audio
 - Highpass at 35 Hz
 - Click removal
 - Mud cut at 250 Hz (-2 dB)

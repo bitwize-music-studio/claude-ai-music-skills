@@ -60,6 +60,11 @@ Suno's `split_stem` provides up to 12 separate stem WAVs (vocals, backing vocals
 
 > Suno's stem separation now offers three modes — **Auto Split** (all 12 at once), **Split from Mix** (one target + the rest), and **Advanced Split** (one instrument from ~100). For a single clean stem, Split from Mix often beats pulling all 12. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Stem Extraction.
 
+**Stems are for balance, not surgery.** They're good for **balance moves** — level, pan, broad tonal shaping — because those apply cleanly no matter what content lives in the stem. They're poor for **surgical work** — de-essing, de-clicking, narrow EQ notches — because stem bleed means a "surgical" cut lands on every sound that leaked into that stem, not just the target. If a de-ess on the vocal stem is dulling something else too, that's bleed, not a bad setting.
+
+### Solo the Named Element First
+When a complaint names a specific element — "the vocals sound terrible," "the drums are harsh" — solo that stem first and compare it raw vs. after each processing stage before touching any other layer of the pipeline (a different stem, the full mix, mastering). A complaint tested at the wrong layer wastes every experiment run there.
+
 ### Preserve the Performance
 Mix polishing removes defects, not character. Be conservative with processing. Over-processing sounds worse than under-processing.
 
@@ -90,6 +95,8 @@ Check for custom mix presets:
 genres:
   dark-electronic:
     vocals:
+      # noise_reduction only helps imported/recorded audio with a real
+      # noise floor — leave at 0 for Suno-synthesized stems (see Stems First)
       noise_reduction: 0.8
       high_tame_db: -3.0
     bass:
@@ -247,13 +254,13 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 ## Per-Stem Processing Chains
 
 ### Vocals (Lead)
-1. **Noise reduction** (strength 0.5) — removes AI hiss and artifacts
+1. **Noise reduction** (off by default) — Suno vocals are synthesized, not recorded, so there's no noise floor to remove; spectral gating would strip consonants and breath instead. Enable per stem only for imported/recorded vocals.
 2. **Presence boost** (+2 dB at 3 kHz) — vocal clarity
 3. **High tame** (-2 dB shelf at 7 kHz) — de-ess sibilance
 4. **Gentle compress** (-15 dB threshold, 2.5:1) — dynamic consistency
 
 ### Backing Vocals
-1. **Noise reduction** (strength 0.5) — same as lead
+1. **Noise reduction** (off by default) — same rationale as lead vocals; enable per stem only for imported/recorded audio
 2. **Presence boost** (+1 dB at 3 kHz) — half of lead's boost, sits behind
 3. **High tame** (-2.5 dB shelf at 7 kHz) — slightly more aggressive de-essing
 4. **Stereo width** (1.3×) — spread behind lead
@@ -322,7 +329,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 5. **Gentle compress** (-16 dB threshold, 2:1, 15ms attack) — light, preserve dynamics
 
 ### Other (catch-all)
-1. **Noise reduction** (strength 0.3) — lighter than vocals
+1. **Noise reduction** (off by default) — same synthesized-audio rationale as vocals; enable per stem only for imported/recorded audio
 2. **Mud cut** (-2 dB at 300 Hz) — low-mid cleanup
 3. **High tame** (-1.5 dB shelf at 8 kHz) — brightness control
 
@@ -344,7 +351,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 
 ### Don't: Over-process
 **Wrong:** noise_reduction: 0.9 on everything
-**Right:** Use default strengths; increase only when analysis shows elevated noise
+**Right:** Noise reduction defaults to **off (0)** on every stem. Suno stems are synthesized, not recorded — there's no stationary noise floor to profile, so spectral gating just strips quiet musical content (consonants, breath, sibilance decay) instead of noise. Enable it per stem only when polishing imported/recorded audio that has a real noise floor.
 
 ### Don't: Skip analysis
 **Wrong:** `polish_audio(album_slug)` without looking at issues first
