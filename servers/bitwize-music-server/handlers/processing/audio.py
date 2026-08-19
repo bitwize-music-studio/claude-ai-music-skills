@@ -229,8 +229,8 @@ async def master_audio(
     genre: str = "",
     target_lufs: float = -14.0,
     ceiling_db: float = -1.0,
-    cut_highmid: float = 0.0,
-    cut_highs: float = 0.0,
+    cut_highmid: float | None = None,
+    cut_highs: float | None = None,
     dry_run: bool = False,
     source_subfolder: str = "",
 ) -> str:
@@ -244,8 +244,12 @@ async def master_audio(
         genre: Genre preset to apply (overrides EQ/LUFS defaults if set)
         target_lufs: Target integrated loudness (default: -14.0)
         ceiling_db: True peak ceiling in dB (default: -1.0)
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0)
-        cut_highs: High shelf cut in dB at 8kHz
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
+            (None) to use the genre preset's cut; pass 0 or 0.0 explicitly
+            to disable the cut regardless of genre.
+        cut_highs: High shelf cut in dB at 8kHz. Same omit-vs-explicit-0
+            semantics as cut_highmid: None uses the genre preset, an
+            explicit 0/0.0 disables it.
         dry_run: If true, analyze only without writing files
         source_subfolder: Read WAV files from this subfolder instead of the
             base audio dir (e.g., "polished" to master from mix-engineer output)
@@ -289,8 +293,14 @@ async def master_audio(
 
     bundle = build_effective_preset(
         genre=genre,
-        cut_highmid_arg=cut_highmid,
-        cut_highs_arg=cut_highs,
+        # build_effective_preset's own arg sentinel is "0.0 == not
+        # supplied" and can't tell an omitted cut_highmid/cut_highs apart
+        # from an explicit 0 meant to disable the genre preset's cut
+        # (#553). Feed it the pre-#553 sentinel value for both cases, then
+        # correct the resolution below using the caller's real
+        # None-vs-explicit-0 value.
+        cut_highmid_arg=cut_highmid if cut_highmid is not None else 0.0,
+        cut_highs_arg=cut_highs if cut_highs is not None else 0.0,
         target_lufs_arg=target_lufs,
         ceiling_db_arg=ceiling_db,
     )
@@ -300,14 +310,25 @@ async def master_audio(
             "available_genres": bundle["error"]["available_genres"],
         })
     targets = bundle["targets"]
-    settings = bundle["settings"]
-    effective_preset = bundle["effective_preset"]
+    effective_preset = dict(bundle["effective_preset"])
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
-    effective_highmid = settings["cut_highmid"]
-    effective_highs = settings["cut_highs"]
+    effective_highmid = bundle["settings"]["cut_highmid"]
+    effective_highs = bundle["settings"]["cut_highs"]
     effective_compress = effective_preset["compress_ratio"]
     genre_applied = bundle["genre_applied"]
+
+    # An explicit 0/0.0 disables the cut outright, overriding whatever
+    # build_effective_preset resolved it to above (see comment on the
+    # build_effective_preset call). Correct both the preset handed to
+    # master_track and the values echoed in the response settings block
+    # so they reflect what's actually applied, not the genre preset.
+    if cut_highmid == 0.0:
+        effective_highmid = 0.0
+        effective_preset["cut_highmid"] = 0.0
+    if cut_highs == 0.0:
+        effective_highs = 0.0
+        effective_preset["cut_highs"] = 0.0
 
     # EQ is applied inside master_track from preset.cut_highmid / cut_highs
     # below; no need to pre-build an eq_settings tuple list here.
