@@ -210,7 +210,7 @@ Creates `polished/` subdirectory with processed files.
 Check polished output:
 - No clipping (peak < 0.99)
 - All samples finite (no NaN/inf)
-- Noise floor reduced vs original
+- Noise floor reduced vs original — only applicable if noise reduction was enabled (imported/recorded audio); off by default for Suno stems
 - No obvious artifacts introduced
 
 ### Step 7: Hand Off to Mastering
@@ -340,7 +340,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 ### Before Handoff to Mastering
 - [ ] All stems processed (or full mix if no stems)
 - [ ] No clipping in polished output
-- [ ] Noise floor reduced vs originals
+- [ ] Noise floor reduced vs originals — only if noise reduction was enabled (imported/recorded audio); off by default for Suno stems
 - [ ] No obvious processing artifacts
 - [ ] All samples finite (no NaN/inf corruption)
 - [ ] Polished files written to polished/ subfolder

@@ -50,8 +50,8 @@ These are the problems mix-engineer is designed to fix:
 ### Digital Clicks / Pops
 **What**: Brief transient spikes from generation artifacts
 **Fix**: Click detection (amplitude spike > 6σ) + linear interpolation
-**Default**: Enabled on drums, available on all stems
-**Override when**: Drums have intentional sharp transients (raise threshold to 8-10)
+**Default**: On for every stem except vocals/backing_vocals (off there — a peak/RMS detector can't reliably tell a clean synthetic consonant from a click)
+**Override when**: Drums have intentional sharp transients (raise threshold to 8-10); imported/recorded vocals need click cleanup (enable per stem)
 
 ### Muddy Low-Mids
 **What**: Excess energy in 150-400 Hz range, makes mix sound thick and undefined
