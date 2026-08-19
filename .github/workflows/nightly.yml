@@ -64,11 +64,18 @@ jobs:
         python-version: ${{ matrix.python }}
         # No pip cache — a from-scratch install is part of what nightly proves.
 
+    # timeout-minutes + apt retry/timeout opts: on 2026-08-19 two ubuntu legs
+    # hung inside `apt-get update` with zero output (mirror stall) and burned
+    # the full 90-minute job budget. The step timeout converts that into a
+    # fast, clearly-attributed failure; the apt opts ride out transient mirror
+    # and dpkg-lock contention (unattended-upgrades) on the runner.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
+      timeout-minutes: 10
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends ffmpeg
+        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+        sudo apt-get $APT_OPTS update -qq
+        sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
 
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
@@ -319,7 +326,16 @@ jobs:
   notify-failure:
     name: Notify on Failure
     needs: [deep-test, mcp-e2e, wsl2-suite]
-    if: failure()
+    # Checks needs.*.result explicitly ON PURPOSE: a job killed by its
+    # timeout-minutes (e.g. the 2026-08-19 apt-mirror hang) concludes
+    # "cancelled", not "failed" — with bare failure() such a night files no
+    # issue and goes unnoticed. always() forces evaluation even when an
+    # ancestor was cancelled; the tradeoff is that manually cancelling a
+    # nightly run also files/comments the issue, which is acceptable.
+    if: >-
+      always() &&
+      (contains(needs.*.result, 'failure') ||
+       contains(needs.*.result, 'cancelled'))
     runs-on: ubuntu-latest
     permissions:
       issues: write

@@ -150,13 +150,18 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
+    # Step timeout + apt opts guard against silent apt-mirror stalls (the
+    # 2026-08-19 nightly burned 90 min inside `apt-get update`) — see nightly.yml.
+    # 15 min, not 10: musescore3 pulls a large dependency tree.
     - name: Install MuseScore (musescore3) + xvfb
       if: runner.os == 'Linux'
+      timeout-minutes: 15
       run: |
-        sudo apt-get update
+        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+        sudo apt-get $APT_OPTS update
         # xvfb is a headless fallback if the offscreen plugin misbehaves on the
         # runner; the primary path is QT_QPA_PLATFORM=offscreen.
-        sudo apt-get install -y musescore3 xvfb
+        sudo apt-get $APT_OPTS install -y musescore3 xvfb
         echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
         ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
 
