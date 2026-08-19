@@ -8,6 +8,7 @@ Usage:
     python -m pytest tests/unit/mixing/test_mix_tracks.py -v
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -57,6 +58,7 @@ from tools.mixing.mix_tracks import (
     _get_stem_settings,
     _get_full_mix_settings,
     _resolve_master_click_thresholds,
+    _coerce_setting_bool,
 )
 
 
@@ -2646,3 +2648,110 @@ class TestClickRemovalOverrideIsHonored:
         )
         by_stem = {s["stem"]: s for s in result["stems_processed"]}
         assert by_stem["drums"]["clicks_removed"] == 0
+
+
+class TestClickRemovalFlagCoercion:
+    """#553: `click_removal` is the only boolean-valued setting read in
+
+    this module (`adm_aware_excitation`, the other boolean in the preset
+    file, is consumed by the analyzer handler). It was read with a bare
+    `settings.get('click_removal', False)` — no coercion — while every
+    numeric setting alongside it goes through `float(...)`. A YAML value
+    that is truthy but not a `bool` (`click_removal: "false"` quoted, or
+    `"no"`, or any non-YAML-bool token) therefore left declicking *on*
+    while a numeric `noise_reduction: 0` in the same block still worked,
+    which is the shape of the field report's asymmetry.
+    """
+
+    _install_override = staticmethod(TestClickRemovalOverrideIsHonored._install_override)
+    _clicky_vocal_stem = staticmethod(TestClickRemovalOverrideIsHonored._clicky_vocal_stem)
+
+    def _clicks_removed(self, tmp_path, stem_name, genre):
+        stem = tmp_path / f"{stem_name}.wav"
+        self._clicky_vocal_stem(stem)
+        result = mix_track_stems(
+            {stem_name: str(stem)}, str(tmp_path / "out.wav"), genre=genre,
+        )
+        return {s["stem"]: s for s in result["stems_processed"]}[stem_name]["clicks_removed"]
+
+    def test_quoted_false_string_does_not_enable_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """`click_removal: "false"` reads as the string 'false' — truthy
+        in Python. It must not switch declicking on."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: "false"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "vocals", "electronic") == 0
+
+    def test_quoted_no_string_does_not_enable_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """Same for 'no' over a stem that ships `click_removal: true`."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    drums:\n'
+            '      click_removal: "no"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "drums", "electronic") == 0
+
+    def test_quoted_true_string_still_enables_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """Guard against over-correcting to False: a quoted 'true' must
+        still turn declicking on."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: "true"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "vocals", "electronic") > 0
+
+    def test_ambiguous_value_falls_back_to_disabled_and_warns(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """An uninterpretable value must not be guessed as enabled — fall
+        back to the caller's default and tell the user why."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: maybe\n'
+        ))
+        with caplog.at_level(logging.WARNING):
+            assert self._clicks_removed(tmp_path, "vocals", "electronic") == 0
+        assert any('click_removal' in r.message for r in caplog.records)
+
+    # ── the coercion helper itself ────────────────────────────────────
+
+    @pytest.mark.parametrize("raw", ["false", "False", "FALSE", "no", "off", "n", "0", " false "])
+    def test_falsey_yaml_tokens_coerce_to_false(self, raw):
+        assert _coerce_setting_bool(raw, default=True, key='click_removal') is False
+
+    @pytest.mark.parametrize("raw", ["true", "True", "TRUE", "yes", "on", "y", "1", " true "])
+    def test_truthy_yaml_tokens_coerce_to_true(self, raw):
+        assert _coerce_setting_bool(raw, default=False, key='click_removal') is True
+
+    def test_real_bools_pass_through_unchanged(self):
+        assert _coerce_setting_bool(True, default=False, key='click_removal') is True
+        assert _coerce_setting_bool(False, default=True, key='click_removal') is False
+
+    def test_numbers_use_numeric_truthiness(self):
+        assert _coerce_setting_bool(1, default=False, key='click_removal') is True
+        assert _coerce_setting_bool(0, default=True, key='click_removal') is False
+
+    def test_missing_value_uses_the_default(self):
+        assert _coerce_setting_bool(None, default=False, key='click_removal') is False
+        assert _coerce_setting_bool(None, default=True, key='click_removal') is True
+
+    def test_uninterpretable_value_returns_default_and_warns(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            assert _coerce_setting_bool("maybe", default=False, key='click_removal') is False
+            assert _coerce_setting_bool([1], default=True, key='click_removal') is True
+        assert len(caplog.records) == 2
+        assert all('click_removal' in r.message for r in caplog.records)

@@ -186,6 +186,55 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+# YAML 1.1 boolean spellings, as PyYAML would resolve them from an
+# *unquoted* scalar. We accept the same vocabulary from a quoted one.
+_BOOL_TRUE_TOKENS = frozenset({'true', 'yes', 'on', 'y', 't', '1'})
+_BOOL_FALSE_TOKENS = frozenset({'false', 'no', 'off', 'n', 'f', '0'})
+
+
+def _coerce_setting_bool(value: Any, default: bool, key: str) -> bool:
+    """Interpret a preset value that is meant to be a boolean (#553).
+
+    Numeric settings are read through `float(...)`, so `noise_reduction:
+    "0"` behaves as 0. Boolean settings had no such coercion: a bare
+    `settings.get(key, False)` treats *any* non-empty string as enabled,
+    so `click_removal: "false"` — quoted, and therefore a plain string
+    rather than a YAML bool — silently left click removal switched ON
+    while a numeric `noise_reduction: 0` in the same override block
+    worked as written. Quoting a boolean is an easy thing to do by
+    accident (and some editors add the quotes), so accept the YAML 1.1
+    boolean vocabulary from a string instead of trusting truthiness.
+
+    Args:
+        value: Raw preset value. `None` means the key was absent.
+        default: Returned when the key is absent or uninterpretable.
+        key: Setting name, for the warning message.
+
+    Returns:
+        The value as a bool. Anything that isn't a bool, a number, or a
+        recognized boolean spelling logs a warning and yields `default`
+        — an unreadable setting must never be *guessed* as enabled.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in _BOOL_TRUE_TOKENS:
+            return True
+        if token in _BOOL_FALSE_TOKENS:
+            return False
+    logger.warning(
+        "Cannot interpret %s=%r as a boolean; using %r. Use an unquoted "
+        "true/false in your mix-presets override.",
+        key, value, default,
+    )
+    return default
+
+
 def load_mix_presets() -> dict[str, Any]:
     """Load mix presets from YAML, merging built-in with user overrides.
 
@@ -681,7 +730,9 @@ def _apply_click_removal(
     """Shared click-removal step for every stem's processing chain.
 
     Reads `settings`:
-        click_removal (bool): on/off. Defaults to False here when the
+        click_removal (bool): on/off, read through `_coerce_setting_bool`
+            so a quoted `"false"` in a user override is honored rather
+            than treated as a truthy string (#553). Defaults to False here when the
             key is absent from `settings` — the YAML presets are the
             source of truth for what each stem actually gets. There,
             every stem except vocals / backing_vocals defaults to True
@@ -703,7 +754,9 @@ def _apply_click_removal(
     dispatch in mix_track_stems can surface a per-stem count regardless
     of which processor ran.
     """
-    if not settings.get('click_removal', False):
+    if not _coerce_setting_bool(
+        settings.get('click_removal'), default=False, key='click_removal',
+    ):
         return data
     repair = settings.get('click_repair', default_repair)
     peak_ratio = float(settings.get('click_peak_ratio', 15.0))
