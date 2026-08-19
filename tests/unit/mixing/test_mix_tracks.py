@@ -1240,32 +1240,35 @@ class TestMixTrackStems:
         mono[click_idx] = 0.95
         drums = np.column_stack([mono, mono])
 
-        # Vocal stem also with a single-sample spike — after #323 follow-up
-        # every stem (not just drums/percussion) runs the declicker, so the
-        # count should come back > 0 on vocals too.
-        vocal_mono = (0.02 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
-        vocal_mono[click_idx] = 0.95
-        vocals = np.column_stack([vocal_mono, vocal_mono])
+        # Guitar stem also with a single-sample spike — after #323
+        # follow-up every non-vocal stem (not just drums/percussion) runs
+        # the declicker, so the count should come back > 0 on guitar too.
+        # (vocals / backing_vocals are the exception per #553 — see
+        # TestSyntheticAudioDefaults — so this test uses a non-vocal
+        # melodic stem to keep asserting the general #323 behavior.)
+        guitar_mono = (0.02 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        guitar_mono[click_idx] = 0.95
+        guitar = np.column_stack([guitar_mono, guitar_mono])
 
         drums_path = tmp_path / "drums.wav"
-        vocals_path = tmp_path / "vocals.wav"
+        guitar_path = tmp_path / "guitar.wav"
         sf.write(str(drums_path), drums, rate, subtype='PCM_16')
-        sf.write(str(vocals_path), vocals, rate, subtype='PCM_16')
+        sf.write(str(guitar_path), guitar, rate, subtype='PCM_16')
         out_path = tmp_path / "out.wav"
 
         result = mix_track_stems(
-            {'drums': str(drums_path), 'vocals': str(vocals_path)},
+            {'drums': str(drums_path), 'guitar': str(guitar_path)},
             out_path,
             genre='electronic',
         )
 
-        # Every stem should carry clicks_removed and drums + vocals both
+        # Every stem should carry clicks_removed and drums + guitar both
         # have injected clicks, so both counts must be > 0.
         by_stem = {s['stem']: s for s in result['stems_processed']}
         assert 'clicks_removed' in by_stem['drums']
         assert by_stem['drums']['clicks_removed'] >= 1
-        assert 'clicks_removed' in by_stem['vocals']
-        assert by_stem['vocals']['clicks_removed'] >= 1
+        assert 'clicks_removed' in by_stem['guitar']
+        assert by_stem['guitar']['clicks_removed'] >= 1
 
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
@@ -1743,6 +1746,114 @@ class TestPresetLoading:
         bad.write_text(": : : not valid [[[")
         result = _load_yaml_file(bad)
         assert result == {}
+
+
+class TestSyntheticAudioDefaults:
+    """#553: noise_reduction and vocal click_removal default off — Suno
+
+    stems are synthesized, not recorded, so they have no stationary
+    noise floor to profile and no mechanical/handling clicks to repair.
+    A spectral-gating noise reduction pass or a peak/RMS click detector
+    tuned for recorded audio instead damages clean synthetic content
+    (consonants, breath, sibilance).
+    """
+
+    def test_vocals_default_noise_reduction_is_off(self):
+        settings = _get_stem_settings('vocals')
+        assert settings['noise_reduction'] == 0
+
+    def test_vocals_default_click_removal_is_off(self):
+        settings = _get_stem_settings('vocals')
+        assert settings['click_removal'] is False
+
+    def test_backing_vocals_default_noise_reduction_is_off(self):
+        settings = _get_stem_settings('backing_vocals')
+        assert settings['noise_reduction'] == 0
+
+    def test_backing_vocals_default_click_removal_is_off(self):
+        settings = _get_stem_settings('backing_vocals')
+        assert settings['click_removal'] is False
+
+    def test_non_vocal_stem_click_removal_stays_on(self):
+        """#323 behavior preserved: non-vocal stems still declick by default."""
+        settings = _get_stem_settings('drums')
+        assert settings['click_removal'] is True
+
+    def test_percussion_click_removal_stays_on(self):
+        settings = _get_stem_settings('percussion')
+        assert settings['click_removal'] is True
+
+    def test_shipped_yaml_has_no_nonzero_noise_reduction(self):
+        """Guards defaults *and* every genre section against regression —
+        a genre override re-introducing a nonzero noise_reduction would
+        silently defeat the off-by-default rationale above."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+
+        def find_nonzero(node, path=""):
+            offenders = []
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    child_path = f"{path}.{key}" if path else key
+                    if key == 'noise_reduction' and value != 0:
+                        offenders.append((child_path, value))
+                    offenders.extend(find_nonzero(value, child_path))
+            return offenders
+
+        offenders = find_nonzero(data)
+        assert offenders == [], f"Non-zero noise_reduction found: {offenders}"
+
+
+class TestNoiseReductionCodeFallbackDefaults:
+    """#553: the bare `settings.get('noise_reduction', ...)` fallback in
+    each processor — used only when a hand-built settings dict omits the
+    key entirely, since real callers get the key from the YAML presets —
+    must itself default to off. Before this fix the fallbacks were 0.5
+    (vocals/backing_vocals) or 0.3 (other/full_mix), silently
+    reintroducing noise reduction for any settings dict that happened to
+    omit the key.
+    """
+
+    def test_process_vocals_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('vocals')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        process_vocals(data, rate, settings=settings)
+        assert called == []
+
+    def test_process_backing_vocals_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('backing_vocals')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        process_backing_vocals(data, rate, settings=settings)
+        assert called == []
+
+    def test_process_other_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('other')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=2000, amplitude=0.4)
+        process_other(data, rate, settings=settings)
+        assert called == []
+
+    def test_mix_track_full_defaults_to_no_noise_reduction_when_key_omitted(
+        self, monkeypatch, noise_wav, output_path,
+    ):
+        import tools.mixing.mix_tracks as mt
+        base_settings = mt._get_full_mix_settings()
+        del base_settings['noise_reduction']
+        monkeypatch.setattr(mt, '_get_full_mix_settings', lambda genre=None: dict(base_settings))
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        mix_track_full(noise_wav, output_path)
+        assert called == []
 
 
 class TestDeepMerge:

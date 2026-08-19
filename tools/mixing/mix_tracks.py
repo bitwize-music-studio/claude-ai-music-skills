@@ -671,8 +671,14 @@ def _apply_click_removal(
     """Shared click-removal step for every stem's processing chain.
 
     Reads `settings`:
-        click_removal (bool): on/off. Default True — every stem gets
-            declicked. Pre-#323-followup only drums / percussion did.
+        click_removal (bool): on/off. Defaults to False here when the
+            key is absent from `settings` — the YAML presets are the
+            source of truth for what each stem actually gets. There,
+            every stem except vocals / backing_vocals defaults to True
+            (#323); vocals and backing_vocals default to False (#553)
+            because a peak/RMS ratio detector can't tell a consonant
+            from a click on a clean synthetic vocal (measured: 35
+            "clicks" removed = 35 consonants damaged).
         click_peak_ratio (float): windowed peak/RMS ratio above which a
             10 ms window is flagged as a click. Defaults to 15.0 when
             absent — matches the analyzer in `analyze_mix_issues` so
@@ -1181,7 +1187,7 @@ def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction
-    nr_strength = settings.get('noise_reduction', 0.5)
+    nr_strength = settings.get('noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
@@ -1238,7 +1244,7 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (same as lead)
-    nr_strength = settings.get('noise_reduction', 0.5)
+    nr_strength = settings.get('noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
@@ -1843,7 +1849,7 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (lighter than vocals)
-    nr_strength = settings.get('noise_reduction', 0.3)
+    nr_strength = settings.get('noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
@@ -2171,7 +2177,7 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         settings = _get_full_mix_settings(genre)
 
         # Noise reduction
-        nr_strength = settings.get('noise_reduction', 0.3)
+        nr_strength = settings.get('noise_reduction', 0.0)
         if nr_strength > 0:
             data = reduce_noise(data, rate, strength=nr_strength)
 
