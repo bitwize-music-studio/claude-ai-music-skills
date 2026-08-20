@@ -107,14 +107,28 @@
           "type": "string"
         },
         "cut_highmid": {
-          "default": 0.0,
-          "title": "Cut Highmid",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highmid"
         },
         "cut_highs": {
-          "default": 0.0,
-          "title": "Cut Highs",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highs"
         },
         "dry_run": {
           "default": false,
@@ -2033,14 +2047,28 @@
           "type": "number"
         },
         "cut_highmid": {
-          "default": 0.0,
-          "title": "Cut Highmid",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highmid"
         },
         "cut_highs": {
-          "default": 0.0,
-          "title": "Cut Highs",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highs"
         },
         "freeze_signature": {
           "default": false,
@@ -2375,14 +2403,28 @@
           "type": "number"
         },
         "cut_highmid": {
-          "default": 0.0,
-          "title": "Cut Highmid",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highmid"
         },
         "cut_highs": {
-          "default": 0.0,
-          "title": "Cut Highs",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cut Highs"
         },
         "genre": {
           "default": "",

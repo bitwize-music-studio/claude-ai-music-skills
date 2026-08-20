@@ -854,8 +854,8 @@ async def polish_and_master_album(
     genre: str = "",
     target_lufs: float = -14.0,
     ceiling_db: float = -1.0,
-    cut_highmid: float = 0.0,
-    cut_highs: float = 0.0,
+    cut_highmid: float | None = None,
+    cut_highs: float | None = None,
 ) -> str:
     """Combined polish + master pipeline in a single call.
 
@@ -871,16 +871,13 @@ async def polish_and_master_album(
         genre: Genre preset for both polish and master stages
         target_lufs: Mastering target integrated loudness (default: -14.0)
         ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz. **0 means "use the
-            genre preset" here** — it is also this parameter's default,
-            and the shared preset builder cannot tell an explicit 0 from
-            an omitted argument, so a genre's high-mid cut cannot be
-            disabled through this tool. That differs from `master_audio`,
-            where the default is None and an explicit 0 disables the cut
-            (#553); migrating the shared mastering plumbing is a
-            follow-up. Forwarded to `master_album` unchanged.
-        cut_highs: High shelf cut in dB at 8kHz. Same semantics as
-            `cut_highmid` above: 0 means "use the genre preset".
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
+            (None) to use the genre preset's cut; pass 0 or 0.0
+            explicitly to disable the cut regardless of genre. Forwarded
+            to `master_album` unchanged.
+        cut_highs: High shelf cut in dB at 8kHz. Same omit-vs-explicit-0
+            semantics as cut_highmid: None uses the genre preset, an
+            explicit 0/0.0 disables it.
 
     Returns:
         JSON with combined polish and master stage results

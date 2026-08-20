@@ -119,8 +119,10 @@ class MasterAlbumCtx:
     genre: str
     target_lufs: float
     ceiling_db: float
-    cut_highmid: float
-    cut_highs: float
+    # None = "use the genre preset's cut"; an explicit 0.0 disables it
+    # (#556 — same sentinel master_audio uses).
+    cut_highmid: float | None
+    cut_highs: float | None
     source_subfolder: str
     freeze_signature: bool
     new_anchor: bool
