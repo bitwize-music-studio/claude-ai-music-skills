@@ -257,3 +257,75 @@ class TestCoerceYamlFloat:
         with caplog.at_level("WARNING", logger="tools.shared.config"):
             assert coerce_yaml_float([], default=-2.0, context="high_tame_db") == -2.0
         assert any("high_tame_db" in r.message for r in caplog.records)
+
+
+class TestWarnOnceForBadOverrideValues:
+    """A persistently bad override value used to warn on every read — once
+
+    per stem per track, for a setting read on every stem of every track in
+    an album (#556). Each distinct (setting, bad value) pair should now
+    warn once per process; a *different* bad value for the same setting
+    must still warn, and the warning text itself is unchanged.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _fresh_warned_set(self, monkeypatch):
+        """Isolate each test from warnings other tests already triggered."""
+        monkeypatch.setattr(config_module, "_WARNED_BAD_VALUES", set())
+
+    def test_second_read_same_bad_bool_emits_no_second_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_bool
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_bool("maybe", default=False, context="warn_once_bool")
+            coerce_yaml_bool("maybe", default=False, context="warn_once_bool")
+        matches = [r for r in caplog.records if "warn_once_bool" in r.message]
+        assert len(matches) == 1
+
+    def test_different_bad_bool_value_still_warns(self, caplog):
+        from tools.shared.config import coerce_yaml_bool
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_bool("maybe", default=False, context="warn_once_bool2")
+            coerce_yaml_bool("nope", default=False, context="warn_once_bool2")
+        matches = [r for r in caplog.records if "warn_once_bool2" in r.message]
+        assert len(matches) == 2
+
+    def test_second_read_same_bad_float_emits_no_second_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_float
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_float("0.5", default=0.0, context="warn_once_float")
+            coerce_yaml_float("0.5", default=0.0, context="warn_once_float")
+        matches = [r for r in caplog.records if "warn_once_float" in r.message]
+        assert len(matches) == 1
+
+    def test_different_bad_float_value_still_warns(self, caplog):
+        from tools.shared.config import coerce_yaml_float
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_float("0.5", default=0.0, context="warn_once_float2")
+            coerce_yaml_float("garbage", default=0.0, context="warn_once_float2")
+        matches = [r for r in caplog.records if "warn_once_float2" in r.message]
+        assert len(matches) == 2
+
+    def test_same_bad_value_different_setting_still_warns(self, caplog):
+        """The key is (setting, value), not just the value."""
+        from tools.shared.config import coerce_yaml_bool
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_bool("maybe", default=False, context="setting_a")
+            coerce_yaml_bool("maybe", default=False, context="setting_b")
+        assert any("setting_a" in r.message for r in caplog.records)
+        assert any("setting_b" in r.message for r in caplog.records)
+
+    def test_warning_text_unchanged(self, caplog):
+        """The dedup guard must not alter the warning's wording."""
+        from tools.shared.config import coerce_yaml_bool, coerce_yaml_float
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            coerce_yaml_bool("maybe", default=True, context="cloud.enabled")
+            coerce_yaml_float("0.5", default=0.0, context="noise_reduction")
+        bool_msg = next(r.message for r in caplog.records if "cloud.enabled" in r.message)
+        float_msg = next(r.message for r in caplog.records if "noise_reduction" in r.message)
+        assert bool_msg == (
+            "Cannot interpret cloud.enabled='maybe' as a boolean — using default True"
+        )
+        assert float_msg == (
+            "Cannot interpret noise_reduction='0.5' as a number — using default 0.0. "
+            "Use an unquoted number in your override file."
+        )

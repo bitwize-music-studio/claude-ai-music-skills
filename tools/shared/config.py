@@ -39,6 +39,25 @@ _YAML_BOOL_LITERALS: dict[str, bool] = {
     "false": False, "no": False, "off": False, "0": False,
 }
 
+# (setting name, repr(bad value)) pairs already warned about this process
+# (#556). A persistently bad override value — a typo'd `click_repair` or a
+# quoted number in a genre block — used to warn on every read: once per
+# stem per track for a per-stem setting, or once per track for an
+# album-level one. That's the same fact reported hundreds of times in one
+# run. Each distinct (setting, bad value) pair now warns once per process;
+# a *different* bad value for the same setting still warns, since that's
+# new information.
+_WARNED_BAD_VALUES: set[tuple[str, str]] = set()
+
+
+def _should_warn(context: str, value: Any) -> bool:
+    """True the first time (context, value) is seen this process (#556)."""
+    key = (context, repr(value))
+    if key in _WARNED_BAD_VALUES:
+        return False
+    _WARNED_BAD_VALUES.add(key)
+    return True
+
 
 def parse_yaml_bool(value: Any) -> bool:
     """Coerce a YAML-sourced value to bool, honoring quoted boolean strings.
@@ -70,12 +89,14 @@ def coerce_yaml_bool(value: Any, *, default: bool = False, context: str = "") ->
     try:
         return parse_yaml_bool(value)
     except ValueError:
-        logger.warning(
-            "Cannot interpret %s=%r as a boolean — using default %s",
-            context or "value",
-            value,
-            default,
-        )
+        ctx = context or "value"
+        if _should_warn(ctx, value):
+            logger.warning(
+                "Cannot interpret %s=%r as a boolean — using default %s",
+                ctx,
+                value,
+                default,
+            )
         return default
 
 
@@ -121,13 +142,15 @@ def coerce_yaml_float(value: Any, *, default: float = 0.0, context: str = "") ->
     try:
         return parse_yaml_float(value)
     except ValueError:
-        logger.warning(
-            "Cannot interpret %s=%r as a number — using default %s. Use an "
-            "unquoted number in your override file.",
-            context or "value",
-            value,
-            default,
-        )
+        ctx = context or "value"
+        if _should_warn(ctx, value):
+            logger.warning(
+                "Cannot interpret %s=%r as a number — using default %s. Use an "
+                "unquoted number in your override file.",
+                ctx,
+                value,
+                default,
+            )
         return default
 
 
