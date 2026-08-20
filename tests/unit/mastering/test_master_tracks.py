@@ -740,6 +740,121 @@ class TestYamlPresetLoading:
         assert len(presets) > 50
 
 
+class TestOverrideGenreKeyCaseNormalization:
+    """Every reader of `GENRE_PRESETS` looks a genre up by `genre.lower()`
+
+    (this module's CLI, `qc_tracks.py`, `_album_stages.py`, and
+    `mix_tracks.py`'s mastering click-threshold overlay) — but override
+    genre keys used to be kept verbatim, so a capitalized genre block in
+    `{overrides}/mastering-presets.yaml` landed under a key nothing ever
+    reads and was silently discarded (#556). Mirrors the genre-key
+    normalization `load_mix_presets` already applies on the mixing side.
+    """
+
+    def test_capitalized_genre_key_is_honored(self, tmp_path, monkeypatch):
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n"
+            "  Electronic:\n"
+            "    cut_highmid: -3.5\n"
+        )
+        import tools.mastering.master_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        presets = load_genre_presets()
+        assert 'electronic' in presets
+        assert presets['electronic']['cut_highmid'] == -3.5
+
+    def test_capitalized_genre_merges_into_existing_lowercase_section(
+        self, tmp_path, monkeypatch,
+    ):
+        """A capitalized override must merge into (not replace) the
+        built-in lowercase genre's other fields."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n"
+            "  Rock:\n"
+            "    cut_highmid: -1.0\n"
+        )
+        import tools.mastering.master_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        presets = load_genre_presets()
+        preset = presets['rock']
+        assert preset['cut_highmid'] == -1.0       # Overridden
+        assert preset['target_lufs'] == -14.0       # Inherited from built-in
+        assert preset['compress_ratio'] == 1.5      # Default
+
+    def test_capitalized_new_genre_is_honored(self, tmp_path, monkeypatch):
+        """Same rule when the genre doesn't exist in the built-in file."""
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n"
+            "  Dark-Electronic:\n"
+            "    target_lufs: -12.0\n"
+        )
+        import tools.mastering.master_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        presets = load_genre_presets()
+        assert 'dark-electronic' in presets
+        assert presets['dark-electronic']['target_lufs'] == -12.0
+
+    def test_colliding_genre_keys_merge_in_document_order_and_warn(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """`Electronic:` and `electronic:` are distinct, legal YAML
+
+        siblings that collide once lowered. They still merge in document
+        order (unchanged behavior) but now warn, naming both keys.
+        """
+        import logging
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n"
+            "  Electronic:\n"
+            "    cut_highmid: -1.0\n"
+            "  electronic:\n"
+            "    cut_highs: -0.5\n"
+        )
+        import tools.mastering.master_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        with caplog.at_level(logging.WARNING):
+            presets = load_genre_presets()
+        preset = presets['electronic']
+        assert preset['cut_highmid'] == -1.0
+        assert preset['cut_highs'] == -0.5
+        assert any(
+            'Electronic' in r.message and 'electronic' in r.message
+            for r in caplog.records
+        )
+
+    def test_non_colliding_genres_do_not_warn(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n"
+            "  electronic:\n"
+            "    cut_highmid: -1.0\n"
+            "  rock:\n"
+            "    cut_highmid: -1.5\n"
+        )
+        import tools.mastering.master_tracks as mt
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+
+        with caplog.at_level(logging.WARNING):
+            load_genre_presets()
+        assert not any('lowercase' in r.message for r in caplog.records)
+
+
 # ─── Tests: Fade Out ─────────────────────────────────────────────────
 
 

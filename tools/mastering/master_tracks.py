@@ -156,6 +156,49 @@ _PRESET_DEFAULTS: dict[str, float] = {
 }
 
 
+def _lower_genre_keys(raw_genres: dict[str, Any]) -> dict[str, Any]:
+    """Lowercase override genre keys, merging document-order on collision.
+
+    Mirrors `tools.mixing.mix_tracks._lower_section_keys` / the genre-key
+    normalization `load_mix_presets` applies on the mixing side (#553).
+    Every reader of `GENRE_PRESETS` looks a genre up by `genre.lower()`
+    (this module's CLI, `qc_tracks.py`, `_album_stages.py`, and
+    `mix_tracks.py`'s mastering click-threshold overlay) — but the genre
+    keys from a user's `{overrides}/mastering-presets.yaml` used to be
+    kept verbatim, so a block written as `Electronic:` rather than
+    `electronic:` landed under a key nothing ever reads and was silently
+    discarded (#556).
+
+    Unlike `mix-presets.yaml`, a mastering-preset genre entry has no
+    nested stem-level keys to normalize — it's a flat dict of the fixed
+    setting names in `_PRESET_DEFAULTS` — so only the genre key itself
+    needs lowering.
+
+    Two override keys that collide once lowered (`Electronic` and
+    `electronic` both present — distinct, legal YAML siblings) are merged
+    in document order rather than one silently clobbering the other, with
+    a warning naming both keys.
+    """
+    lowered: dict[str, Any] = {}
+    seen_raw: dict[str, str] = {}
+    for raw_name, value in raw_genres.items():
+        if not isinstance(value, dict):
+            continue
+        name = str(raw_name).lower()
+        if name in seen_raw and seen_raw[name] != str(raw_name):
+            logger.warning(
+                "Override genre keys %r and %r both lowercase to %r in "
+                "mastering-presets.yaml; merging in document order",
+                seen_raw[name], raw_name, name,
+            )
+        seen_raw[name] = str(raw_name)
+        if name in lowered:
+            lowered[name] = {**lowered[name], **value}
+        else:
+            lowered[name] = dict(value)
+    return lowered
+
+
 def load_genre_presets() -> dict[str, dict[str, float]]:
     """Load genre presets from YAML, merging built-in with user overrides.
 
@@ -175,11 +218,11 @@ def load_genre_presets() -> dict[str, dict[str, float]]:
 
     # Load user overrides
     overrides_dir = _get_overrides_path()
-    override_genres = {}
+    override_genres: dict[str, Any] = {}
     if overrides_dir:
         override_file = overrides_dir / 'mastering-presets.yaml'
         override_data = _load_yaml_file(override_file)
-        override_genres = override_data.get('genres', {})
+        override_genres = _lower_genre_keys(override_data.get('genres', {}))
         override_defaults = override_data.get('defaults', {})
         if override_defaults:
             for key in defaults:
