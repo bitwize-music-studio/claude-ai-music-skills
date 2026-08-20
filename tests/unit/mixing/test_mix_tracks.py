@@ -121,6 +121,16 @@ def _install_override(tmp_path, monkeypatch, yaml_text):
     monkeypatch.setattr(mt, 'MIX_PRESETS', mt.load_mix_presets())
 
 
+def _clicky_stem(path, n_clicks=35, rate=44100):
+    """A quiet tone with `n_clicks` single-sample spikes — the shape the
+    peak/RMS detector flags. Written to `path` as a stereo WAV."""
+    t = np.linspace(0, 1.0, rate, endpoint=False)
+    mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+    for i in range(n_clicks):
+        mono[2000 + i * 1000] = 0.9
+    sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='PCM_16')
+
+
 # ─── Fixtures ─────────────────────────────────────────────────────────
 
 
@@ -1382,6 +1392,115 @@ class TestSilenceGate:
         assert report['clicks_removed'] >= 1
 
 
+class TestClickDetectionIsReportedWhenDeclickIsOff:
+    """#553 follow-up: turning declick off for vocals (and, now, for the
+
+    full-mix fallback that *contains* the vocals) means a genuine click
+    is no longer repaired during polish — and the first place the user
+    hears about it is `master_album`'s post-QC hard fail, after a full
+    mastering run. Polish therefore still *detects* clicks on stems whose
+    `click_removal` is off and reports the count plus how to act on it,
+    so the information arrives before mastering rather than after.
+    """
+
+    _install_override = staticmethod(_install_override)
+    _clicky_stem = staticmethod(_clicky_stem)
+
+    def test_vocal_stem_reports_detected_clicks_without_repairing_them(self, tmp_path):
+        stem = tmp_path / "vocals.wav"
+        self._clicky_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        report = result["stems_processed"][0]
+
+        assert report["clicks_removed"] == 0
+        assert report["clicks_detected"] >= 1
+        assert "click_removal" in report["click_note"]
+        assert "mix-presets.yaml" in report["click_note"]
+
+    def test_detection_leaves_the_audio_untouched(self):
+        """Detect-only must count without repairing: the helper returns
+        the input samples unchanged."""
+        from tools.mixing.mix_tracks import _apply_click_removal
+
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(35):
+            mono[2000 + i * 1000] = 0.9
+        data = np.column_stack([mono, mono])
+
+        report: dict = {}
+        out = _apply_click_removal(
+            data.copy(), rate, {'click_removal': False}, report,
+        )
+        np.testing.assert_array_equal(out, data)
+        assert report['clicks_detected'] >= 1
+        assert report.get('clicks_removed', 0) == 0
+
+    def test_no_note_when_nothing_was_detected(self, tmp_path):
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        stem = tmp_path / "vocals.wav"
+        _write_wav(stem, np.column_stack([mono, mono]), rate)
+
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        report = result["stems_processed"][0]
+        assert report["clicks_detected"] == 0
+        assert "click_note" not in report
+
+    def test_stem_with_declick_on_reports_removed_not_a_note(self, tmp_path):
+        stem = tmp_path / "drums.wav"
+        self._clicky_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        report = result["stems_processed"][0]
+        assert report["clicks_removed"] >= 1
+        assert report["clicks_detected"] == report["clicks_removed"]
+        assert "click_note" not in report
+
+    def test_skipped_stem_gets_no_click_detection(self, silent_wav, output_path):
+        """A stem under the silence gate never runs the chain at all, so
+        it must not acquire a click count either."""
+        result = mix_track_stems({"bass": silent_wav}, output_path)
+        report = result["stems_processed"][0]
+        assert report["skipped_empty"] is True
+        assert report["clicks_detected"] == 0
+        assert "click_note" not in report
+
+    def test_full_mix_declick_is_off_by_default(self):
+        """#553: the no-stems fallback contains the vocals, so the same
+        synthetic-consonant rationale applies to it."""
+        assert _get_full_mix_settings()["click_removal"] is False
+
+    def test_full_mix_reports_detected_clicks_without_repairing(self, tmp_path):
+        src = tmp_path / "01-track.wav"
+        self._clicky_stem(src)
+
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] == 0
+        assert result["clicks_detected"] >= 1
+        assert "click_removal" in result["click_note"]
+
+    def test_full_mix_override_re_enables_repair(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
+        src = tmp_path / "01-track.wav"
+        self._clicky_stem(src)
+
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] >= 1
+        assert "click_note" not in result
+
+
 class TestSilenceGateIsConfigurable:
     """#553 follow-up: the gate threshold was a bare module constant read
 
@@ -1891,8 +2010,17 @@ class TestMixTrackFull:
         assert 'post_peak' in result
         assert 'post_rms' in result
 
-    def test_full_mix_reports_clicks_removed(self, tmp_path):
-        """mix_track_full's result should include clicks_removed."""
+    def test_full_mix_reports_clicks_removed(self, tmp_path, monkeypatch):
+        """mix_track_full's result should include clicks_removed.
+
+        full_mix declick defaults to off since #553 (the no-stems
+        fallback contains the vocals), so this enables it the way a user
+        would — via `{overrides}/mix-presets.yaml`."""
+        _install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
         rate = 44100
         t = np.linspace(0, 1.0, rate, endpoint=False)
         # Quiet sine background (0.10) so the click dominates a 10ms window.
@@ -1914,10 +2042,16 @@ class TestMixTrackFull:
         assert isinstance(result['clicks_removed'], int)
         assert result['clicks_removed'] >= 1
 
-    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path):
+    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path, monkeypatch):
         """A big single-sample click against a quiet sine should register
         clicks_removed>0 even without a genre — the helper falls back to
-        ``peak_ratio=15.0`` (matches the analyzer in `analyze_mix_issues`)."""
+        ``peak_ratio=15.0`` (matches the analyzer in `analyze_mix_issues`).
+        Declick enabled via override (off by default since #553)."""
+        _install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
         rate = 44100
         t = np.linspace(0, 1.0, rate, endpoint=False)
         mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)

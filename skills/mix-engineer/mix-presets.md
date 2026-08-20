@@ -50,7 +50,7 @@ These are the problems mix-engineer is designed to fix:
 ### Digital Clicks / Pops
 **What**: Brief transient spikes from generation artifacts
 **Fix**: Click detection (amplitude spike > 6σ) + linear interpolation
-**Default**: On for every stem except vocals/backing_vocals (off there — a peak/RMS detector can't reliably tell a clean synthetic consonant from a click)
+**Default**: On for every stem except vocals, backing_vocals, and the full-mix fallback (off there — a peak/RMS detector can't reliably tell a clean synthetic consonant from a click, and the full mix *contains* the vocals). Where it's off, polish still runs the detector and reports `clicks_detected` plus a note, so a genuine click surfaces during polish rather than at `master_album`'s post-QC hard fail.
 **Override when**: Drums have intentional sharp transients (raise threshold to 8-10); imported/recorded vocals need click cleanup (enable per stem)
 
 ### Muddy Low-Mids

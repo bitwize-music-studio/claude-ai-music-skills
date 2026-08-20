@@ -568,6 +568,7 @@ def remove_clicks(
     peak_ratio: float | None = None,
     repair: str = "linear",
     window_ms: float = 1.5,
+    detect_only: bool = False,
 ) -> tuple[Any, int]:
     """Detect and remove clicks/pops via interpolation.
 
@@ -601,11 +602,16 @@ def remove_clicks(
             samples ±`window_ms` away from the click; falls back to linear
             if neighbors are unavailable (near the start/end of the buffer).
         window_ms: Half-width of the cubic repair window, in milliseconds.
+        detect_only: Count click sites without repairing any of them and
+            return `data` unchanged. Used by the polish chain on stems
+            whose `click_removal` is off, so the count is still reported
+            (#553) without touching audio the user asked to leave alone.
 
     Returns:
-        `(repaired_data, clicks_removed)` where `clicks_removed` is the
-        number of click sites repaired (not windows flagged — coincident
-        clicks in the same window count once).
+        `(data, n_clicks)` where `n_clicks` is the number of click sites
+        found (not windows flagged — coincident clicks in the same window
+        count once). `data` is the repaired buffer, or the input
+        unchanged when `detect_only` is set.
     """
     if threshold <= 0 and peak_ratio is None:
         return data, 0
@@ -707,6 +713,8 @@ def remove_clicks(
             indices = _detect_std(channel)
         if len(indices) == 0:
             return channel, 0
+        if detect_only:
+            return channel, len(indices)
         if repair == "cubic":
             repaired = _repair_cubic(channel, indices)
         else:
@@ -723,7 +731,23 @@ def remove_clicks(
         repaired, n_clicks = _process_channel(data[:, ch])
         result[:, ch] = repaired
         total_clicks += n_clicks
+    if detect_only:
+        return data, total_clicks
     return result, total_clicks
+
+
+# #553: attached to a stem report when the de-clicker found something on
+# a stem whose `click_removal` is off, so the user learns about a genuine
+# click during polish instead of at master_album's post-QC hard fail.
+CLICKS_DETECTED_NOTE = (
+    "Clicks were detected but NOT repaired: click_removal is off for this "
+    "stem. It defaults to off on vocals, backing_vocals and the full-mix "
+    "fallback because a peak/RMS detector cannot tell a clean synthetic "
+    "consonant from a click (#553), and repairing consonants damages them. "
+    "If these are genuine clicks, set `click_removal: true` for this stem "
+    "in {overrides}/mix-presets.yaml and re-run polish — otherwise "
+    "master_album's post-QC click check will fail on them later."
+)
 
 
 def _apply_click_removal(
@@ -741,11 +765,13 @@ def _apply_click_removal(
             than treated as a truthy string (#553). Defaults to False here when the
             key is absent from `settings` — the YAML presets are the
             source of truth for what each stem actually gets. There,
-            every stem except vocals / backing_vocals defaults to True
-            (#323); vocals and backing_vocals default to False (#553)
-            because a peak/RMS ratio detector can't tell a consonant
-            from a click on a clean synthetic vocal (measured: 35
-            "clicks" removed = 35 consonants damaged).
+            every stem except vocals / backing_vocals / full_mix
+            defaults to True (#323); vocals, backing_vocals and the
+            full-mix fallback default to False (#553) because a
+            peak/RMS ratio detector can't tell a consonant from a click
+            on a clean synthetic vocal (measured: 35 "clicks" removed =
+            35 consonants damaged), and the full mix contains those
+            same vocals.
         click_peak_ratio (float): windowed peak/RMS ratio above which a
             10 ms window is flagged as a click. Defaults to 15.0 when
             absent — matches the analyzer in `analyze_mix_issues` so
@@ -756,23 +782,36 @@ def _apply_click_removal(
         click_repair (str): "linear" (safer on dense mixes, vocals) or
             "cubic" (better spectral reconstruction on isolated stems).
 
-    `report` is accumulated (`report["clicks_removed"] += n`) so the
+    `report` is accumulated (`report["clicks_detected"] += n`, plus
+    `report["clicks_removed"] += n` when repair actually ran) so the
     dispatch in mix_track_stems can surface a per-stem count regardless
     of which processor ran.
+
+    When `click_removal` is off the detector still runs (#553). Vocals
+    and the full-mix fallback default to off because the detector cannot
+    tell a synthetic consonant from a click — but a *genuine* click on
+    those stems is not fixed either, and the next thing that notices is
+    `master_album`'s post-QC hard fail, after a whole mastering run. The
+    count and `CLICKS_DETECTED_NOTE` land in the polish report so the
+    user can decide before mastering rather than after.
     """
-    if not coerce_yaml_bool(
-        settings.get('click_removal', False), default=False, context='click_removal',
-    ):
-        return data
     repair = settings.get('click_repair', default_repair)
     peak_ratio = _setting_float(settings, 'click_peak_ratio', 15.0)
+    enabled = coerce_yaml_bool(
+        settings.get('click_removal', False), default=False, context='click_removal',
+    )
     data, n_clicks = remove_clicks(
         data, rate,
         peak_ratio=peak_ratio,
         repair=repair,
+        detect_only=not enabled,
     )
     if report is not None:
-        report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
+        report['clicks_detected'] = report.get('clicks_detected', 0) + int(n_clicks)
+        if enabled:
+            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
+        elif n_clicks:
+            report['click_note'] = CLICKS_DETECTED_NOTE
     return data
 
 
@@ -2184,7 +2223,9 @@ def mix_track_stems(
         # other 10 processors have no metric to report). The dict is
         # initialized empty so the `get('clicks_removed', 0)` fallback in
         # the append-below always has a value, even for non-declicking stems.
-        stem_report: dict[str, Any] = {'clicks_removed': 0, 'skipped_empty': False}
+        stem_report: dict[str, Any] = {
+            'clicks_removed': 0, 'clicks_detected': 0, 'skipped_empty': False,
+        }
 
         if skipped_empty:
             # Entire processing chain bypassed — audio passes through to
@@ -2265,8 +2306,11 @@ def mix_track_stems(
             'post_peak': post_peak,
             'post_rms': post_rms,
             'clicks_removed': int(stem_report['clicks_removed']),
+            'clicks_detected': int(stem_report['clicks_detected']),
             'skipped_empty': bool(stem_report['skipped_empty']),
         }
+        if stem_report.get('click_note'):
+            stem_result['click_note'] = stem_report['click_note']
         if stem_report['skipped_empty']:
             stem_result['peak_dbfs'] = stem_report['peak_dbfs']
         result['stems_processed'].append(stem_result)
@@ -2317,6 +2361,7 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
             'skipped': True,
             'dry_run': dry_run,
             'clicks_removed': 0,
+            'clicks_detected': 0,
         }
 
     # Handle mono
@@ -2335,6 +2380,7 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         'pre_rms': pre_rms,
         'dry_run': dry_run,
         'clicks_removed': 0,
+        'clicks_detected': 0,
     }
 
     if not dry_run:
@@ -2354,11 +2400,14 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         # (dense mix content amplifies the artefacts of any deeper
         # surgical repair). Delegate to the shared helper so full-mix
         # and per-stem paths align with the analyzer (#323 comment).
-        _report: dict[str, Any] = {'clicks_removed': 0}
+        _report: dict[str, Any] = {'clicks_removed': 0, 'clicks_detected': 0}
         data = _apply_click_removal(
             data, rate, settings, _report, default_repair="linear"
         )
         result['clicks_removed'] = int(_report['clicks_removed'])
+        result['clicks_detected'] = int(_report['clicks_detected'])
+        if _report.get('click_note'):
+            result['click_note'] = _report['click_note']
 
         # Mud cut
         mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.0)

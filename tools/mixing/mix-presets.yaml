@@ -1,12 +1,17 @@
 # Mix Polish Presets — Per-Stem Processing Settings
 #
-# Click removal runs first on every chain (#323 comment) — except vocals
-# and backing_vocals, where it now defaults to off (#553): a peak/RMS
-# ratio detector can't distinguish a consonant from a click on a clean
-# synthetic vocal (measured: 35 "clicks" removed = 35 consonants
-# damaged). Non-vocal stems keep click removal on by default; their
+# Click removal runs first on every chain (#323 comment) — except
+# vocals, backing_vocals and full_mix, where it now defaults to off
+# (#553): a peak/RMS ratio detector can't distinguish a consonant from a
+# click on a clean synthetic vocal (measured: 35 "clicks" removed = 35
+# consonants damaged), and the no-stems full_mix fallback contains those
+# same vocals. Other stems keep click removal on by default; their
 # threshold aligns with the analyzer's detector (click_peak_ratio: 15.0)
-# so polish and analyze_mix_issues report the same events.
+# so polish and analyze_mix_issues report the same events. Where click
+# removal is off the detector still runs: polish reports the count as
+# `clicks_detected` with a note explaining how to switch repair on, so a
+# genuine click surfaces before mastering rather than at master_album's
+# post-QC hard fail.
 #
 # noise_reduction defaults to 0 (off) everywhere in this file (#553):
 # spectral-gating noise reduction profiles a stationary noise floor, but
@@ -81,9 +86,10 @@ defaults:
     # caveats. Pair with mastering's adm_validation_enabled when
     # your target is Apple Digital Masters submission.
     adm_aware_excitation: false
-  # Click removal is on by default for every stem except vocals and
-  # backing_vocals (#553 — see header comment: a peak/RMS detector
-  # can't tell a clean synthetic consonant from a click). Where it's
+  # Click removal is on by default for every stem except vocals,
+  # backing_vocals and full_mix (#553 — see header comment: a peak/RMS
+  # detector can't tell a clean synthetic consonant from a click, and
+  # the full-mix fallback contains the vocals). Where it's
   # on, the threshold defaults to `click_peak_ratio: 15.0` (same as
   # the analyzer in `analyze_mix_issues`) so polish and analysis
   # report the same events. Genre mastering presets
@@ -299,7 +305,11 @@ defaults:
     high_tame_freq: 7000
     compress_threshold_db: -15.0
     compress_ratio: 2.0
-    click_removal: true
+    # Off for the same reason vocals and backing_vocals are (#553): the
+    # no-stems fallback *contains* the vocals, so the peak/RMS detector
+    # gets the same consonants to misread and nothing to separate them
+    # from. Detection still runs and the count is reported.
+    click_removal: false
     saturation_drive: 0
     lowpass_cutoff: 20000
     stereo_width: 1.0

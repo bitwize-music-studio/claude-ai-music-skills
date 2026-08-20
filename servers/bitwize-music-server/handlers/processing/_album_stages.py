@@ -1819,6 +1819,24 @@ async def _stage_mastering_samples(ctx: MasterAlbumCtx) -> str | None:
     return None
 
 
+# #553: how to clear a post-QC click failure. Vocals, backing_vocals and
+# the full-mix fallback default to `click_removal: false` because a
+# peak/RMS detector cannot tell a clean synthetic consonant from a click,
+# so a genuine click is detected during polish (reported there as
+# `clicks_detected` with a note) but not repaired — and post-QC is where
+# it becomes a hard failure.
+_POST_QC_CLICK_REMEDIATION = (
+    "Clicks survive polish because click_removal defaults to false on "
+    "vocals, backing_vocals and the full-mix fallback (#553). To fix: set "
+    "`click_removal: true` for the offending stem in "
+    "{overrides}/mix-presets.yaml (polish's per-stem `clicks_detected` "
+    "count names which stem found them), re-run polish_audio for this "
+    "track, then re-run master_album. If the flagged spikes are musical "
+    "transients rather than clicks, raise `click_peak_ratio` for the "
+    "genre in {overrides}/mastering-presets.yaml instead."
+)
+
+
 async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
     """Stage 6: Technical QC on mastered files (all checks enabled).
 
@@ -1861,12 +1879,21 @@ async def _stage_post_qc(ctx: MasterAlbumCtx) -> str | None:
         for r in failed_tracks:
             for check_name, check_info in r["checks"].items():
                 if check_info["status"] == "FAIL":
-                    fail_details.append({
+                    entry = {
                         "filename": r["filename"],
                         "check": check_name,
                         "status": "FAIL",
                         "detail": check_info["detail"],
-                    })
+                    }
+                    # #553: the click check is a hard fail with no
+                    # recovery path, and since vocals / backing_vocals /
+                    # full_mix default to `click_removal: false` a
+                    # genuine click now survives polish and lands here.
+                    # Name the way out rather than leaving the operator
+                    # to reverse-engineer which knob turns it back on.
+                    if check_name == "clicks":
+                        entry["remediation"] = _POST_QC_CLICK_REMEDIATION
+                    fail_details.append(entry)
         ctx.stages["post_qc"] = {
             "status": "fail",
             "passed": post_passed,
