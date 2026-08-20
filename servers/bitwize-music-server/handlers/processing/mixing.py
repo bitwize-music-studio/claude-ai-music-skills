@@ -846,8 +846,16 @@ async def polish_and_master_album(
         genre: Genre preset for both polish and master stages
         target_lufs: Mastering target integrated loudness (default: -14.0)
         ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz
-        cut_highs: High shelf cut in dB at 8kHz
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz. **0 means "use the
+            genre preset" here** — it is also this parameter's default,
+            and the shared preset builder cannot tell an explicit 0 from
+            an omitted argument, so a genre's high-mid cut cannot be
+            disabled through this tool. That differs from `master_audio`,
+            where the default is None and an explicit 0 disables the cut
+            (#553); migrating the shared mastering plumbing is a
+            follow-up. Forwarded to `master_album` unchanged.
+        cut_highs: High shelf cut in dB at 8kHz. Same semantics as
+            `cut_highmid` above: 0 means "use the genre preset".
 
     Returns:
         JSON with combined polish and master stage results

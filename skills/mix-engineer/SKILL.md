@@ -276,7 +276,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 5. **Gentle compress** (-14 dB threshold, 3:1, 8ms attack) — tighter than lead
 
 ### Drums
-1. **Click removal** (threshold 6σ) — removes digital clicks/pops
+1. **Click removal** (windowed peak/RMS ratio > `click_peak_ratio`, default 15.0; cubic-spline repair) — removes digital clicks/pops
 2. **Gentle compress** (-12 dB threshold, 2:1, fast 5ms attack) — transient control
 
 ### Bass
@@ -324,7 +324,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 
 ### Percussion
 1. **Highpass** (60 Hz Butterworth) — sub-rumble removal
-2. **Click removal** (threshold 6σ) — digital clicks/pops
+2. **Click removal** (windowed peak/RMS ratio > `click_peak_ratio`, default 15.0; cubic-spline repair) — digital clicks/pops
 3. **Presence boost** (+1 dB at 4 kHz) — highest of all stems (shakers/tambourines)
 4. **High tame** (-1 dB shelf at 10 kHz) — preserve shimmer
 5. **Stereo width** (1.2×) — wider than drums

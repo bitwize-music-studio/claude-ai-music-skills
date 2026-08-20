@@ -53,9 +53,9 @@ These are the problems mix-engineer is designed to fix:
 
 ### Digital Clicks / Pops
 **What**: Brief transient spikes from generation artifacts
-**Fix**: Click detection (amplitude spike > 6σ) + linear interpolation
+**Fix**: The detector splits the stem into 10 ms windows and flags any window whose peak-to-RMS ratio exceeds `click_peak_ratio` (default **15.0**), then repairs the loudest sample in each flagged window — linear interpolation on most stems, cubic spline on drums/percussion. A genuine digital click is a single-sample discontinuity that spikes one window's crest factor; a musical transient spreads its energy across the window and stays below. Genre mastering presets can lower the ratio for dense-transient genres (e.g. electronic: 10), and `analyze_mix_issues` uses the same threshold so analysis and polish report the same events.
 **Default**: On for every stem except vocals, backing_vocals, and the full-mix fallback (off there — a peak/RMS detector can't reliably tell a clean synthetic consonant from a click, and the full mix *contains* the vocals). Where it's off, polish still runs the detector and reports `clicks_detected` plus a note, so a genuine click surfaces during polish rather than at `master_album`'s post-QC hard fail.
-**Override when**: Drums have intentional sharp transients (raise threshold to 8-10); imported/recorded vocals need click cleanup (enable per stem)
+**Override when**: Real transients are being flagged as clicks — **raise** `click_peak_ratio` above 15 (try 20-25) to make the detector *less* aggressive, since a higher ratio means a window has to be more spike-like to count. Lower it (10-12) only when genuine clicks are slipping through. Imported/recorded vocals that need click cleanup: set `click_removal: true` for that stem.
 
 ### Muddy Low-Mids
 **What**: Excess energy in 150-400 Hz range, makes mix sound thick and undefined

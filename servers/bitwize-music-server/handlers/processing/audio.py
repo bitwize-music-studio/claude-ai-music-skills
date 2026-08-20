@@ -726,6 +726,31 @@ async def master_album(
         NOT a recovery casualty (peak issue, or album-range failure
         with non-recovery-casualty participants).
       - Any non-verification, non-ADM stage error.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album").
+        genre: Genre preset to apply (EQ/LUFS/QC tolerances).
+        target_lufs: Target integrated loudness (default: -14.0).
+        ceiling_db: True peak ceiling in dB (default: -1.0).
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz. **0 means "use the
+            genre preset" here** — it is this parameter's default and
+            `build_effective_preset` cannot tell it from an omitted
+            argument, so there is no way to disable a genre's high-mid
+            cut through this tool. That differs from `master_audio`,
+            where the default is None and an explicit 0 disables the cut
+            (#553); migrating the shared mastering plumbing is a
+            follow-up. To master without the cut, use `master_audio`.
+        cut_highs: High shelf cut in dB at 8kHz. Same semantics as
+            `cut_highmid` above: 0 means "use the genre preset".
+        source_subfolder: Read WAV files from this subfolder (e.g.
+            "polished" to master from mix-engineer output).
+        freeze_signature: Reuse the stored album signature instead of
+            re-measuring. Mutually exclusive with new_anchor.
+        new_anchor: Force re-selection of the coherence anchor.
+            Mutually exclusive with freeze_signature.
+
+    Returns:
+        JSON with per-stage results, settings, warnings, and notices.
     """
     if freeze_signature and new_anchor:
         return _safe_json({
@@ -1888,10 +1913,17 @@ async def album_coherence_correct(
         genre: Genre preset — required (tolerances + preset base).
         source_subfolder: Directory to re-master from (default "polished").
         check_subfolder: Directory to measure first (default "mastered").
-        target_lufs / ceiling_db / cut_highmid / cut_highs: Mastering
-            overrides — same semantics as master_album. Used only as
-            the initial preset; per-track target_lufs is overridden
-            with the anchor's measured LUFS during correction.
+        target_lufs / ceiling_db: Mastering overrides used only as the
+            initial preset; per-track target_lufs is overridden with the
+            anchor's measured LUFS during correction.
+        cut_highmid / cut_highs: EQ cuts in dB (3.5kHz / 8kHz). **0
+            means "use the genre preset" here** — 0 is also each
+            parameter's default and `build_effective_preset` cannot tell
+            the two apart, so neither cut can be disabled through this
+            tool. Same as `master_album`, and unlike `master_audio`,
+            where the default is None and an explicit 0 disables the cut
+            (#553). Migrating the shared mastering plumbing is a
+            follow-up.
         anchor_track: Optional explicit anchor.
         dry_run: When True, build the correction plan and return it
             without writing any files.
