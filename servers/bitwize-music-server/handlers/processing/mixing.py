@@ -245,6 +245,15 @@ async def polish_audio(
 
 _ANALYZER_DEFAULT_PEAK_RATIO = 15.0
 
+# Per-stem issue tags that are NOT album-level mix problems, and so must
+# not roll up into a track's `issues` or `album_summary.common_issues`.
+# `none_detected` is the explicit all-clear. `skipped_empty` (#553) is a
+# routing fact, not a defect: Suno's Auto Split returns every requested
+# stem category, and the ones with no source content come back as a
+# ~-55 dBFS noise floor — normal, and already reported on the stem
+# itself. Rolling it up read as "every track has something wrong".
+_NON_ISSUE_TAGS = frozenset({"none_detected", "skipped_empty"})
+
 
 def _resolve_analyzer_peak_ratio(
     stem_name: str | None, genre: str | None,
@@ -276,6 +285,7 @@ def _resolve_analyzer_peak_ratio(
         from tools.mixing.mix_tracks import (
             _get_full_mix_settings,
             _get_stem_settings,
+            _setting_float,
         )
     except ImportError:
         return _ANALYZER_DEFAULT_PEAK_RATIO
@@ -285,8 +295,13 @@ def _resolve_analyzer_peak_ratio(
         settings = _get_stem_settings(stem_name, g)
     else:
         settings = _get_full_mix_settings(g)
-    raw = settings.get("click_peak_ratio", _ANALYZER_DEFAULT_PEAK_RATIO)
-    return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
+    # Read the key exactly as the de-clicker does (#553). A bare
+    # `float(raw)` split the two sides apart on anything unparseable: a
+    # quoted `click_peak_ratio: "20"` gave the analyzer 20.0 while polish
+    # warned and fell back to 15.0, and a non-numeric string raised
+    # ValueError out of the analyzer instead of warning. Same read, same
+    # default, same warn-and-default contract.
+    return _setting_float(settings, "click_peak_ratio", _ANALYZER_DEFAULT_PEAK_RATIO)
 
 
 def _resolve_silence_gate_dbfs(stem_name: str, genre: str | None) -> float:
@@ -540,6 +555,17 @@ async def analyze_mix_issues(
     import numpy as np
     import soundfile as sf
 
+    # Re-read `{overrides}/mix-presets.yaml` on the way in, exactly as
+    # `mix_track_stems` / `mix_track_full` do (#553). Both per-stem
+    # resolvers below (`_resolve_analyzer_peak_ratio`,
+    # `_resolve_silence_gate_dbfs`) go through `_get_stem_settings`,
+    # which reads the module-global snapshot — so without this a
+    # mid-session override edit was visible to polish and invisible to
+    # analyze, and the two halves of one `polish_album` run disagreed
+    # about which stems are empty and what click threshold applies.
+    from tools.mixing.mix_tracks import _refresh_mix_presets
+    _refresh_mix_presets()
+
     loop = asyncio.get_running_loop()
 
     source_dir = _find_wav_source_dir(audio_dir)
@@ -621,7 +647,7 @@ async def analyze_mix_issues(
                 )
                 stems_result[category] = analysis
                 track_issues.update(
-                    i for i in analysis["issues"] if i != "none_detected"
+                    i for i in analysis["issues"] if i not in _NON_ISSUE_TAGS
                 )
             track_analyses.append({
                 "track": track_name,
@@ -636,7 +662,7 @@ async def analyze_mix_issues(
     # Album-level summary
     all_issues: set[str] = set()
     for a in track_analyses:
-        all_issues.update(i for i in a["issues"] if i != "none_detected")
+        all_issues.update(i for i in a["issues"] if i not in _NON_ISSUE_TAGS)
 
     return _safe_json({
         "tracks": track_analyses,
