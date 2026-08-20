@@ -74,6 +74,25 @@ STEM_NAMES = (
 # threshold skips its entire processing chain and passes through untouched.
 SILENT_STEM_PEAK_DBFS = -40.0
 
+
+def resolve_silence_gate_dbfs(settings: dict[str, Any] | None = None) -> float:
+    """Effective silence-gate threshold, in dBFS, for a resolved stem.
+
+    The gate used to read `SILENT_STEM_PEAK_DBFS` directly, before the
+    stem's settings had even been resolved, so a user could neither lower
+    it for a genuinely quiet stem (a fade-in intro, a distant pad — thrown
+    away as "empty") nor raise it. It is now the per-stem setting
+    `silence_gate_dbfs`, overridable at `defaults:` or genre scope in
+    `{overrides}/mix-presets.yaml` like every other setting, defaulting to
+    the module constant when absent (#553).
+
+    Shared with the analyzer (`analyze_mix_issues`) so the stems polish
+    skips and the stems analysis reports as empty are the same set.
+    """
+    if not settings:
+        return SILENT_STEM_PEAK_DBFS
+    return _setting_float(settings, 'silence_gate_dbfs', SILENT_STEM_PEAK_DBFS)
+
 # Keyword → category mapping for smart routing (case-insensitive).
 # Ordered list of tuples — checked top-to-bottom; first match wins.
 # CRITICAL: "backing_vocal" must be checked BEFORE "vocal" because
@@ -2124,12 +2143,41 @@ def mix_track_stems(
         pre_peak = float(np.max(np.abs(data)))
         pre_rms = float(np.sqrt(np.mean(data ** 2)))
 
+        # #336: pull per-stem recommendations from analyzer (if any).
+        # INVARIANT: _ANALYZER_EQ_OVERRIDE_KEYS (used below for telemetry)
+        # MUST match the same whitelist _get_stem_settings applies in its
+        # merge — otherwise overrides_applied would claim changes the
+        # merge didn't actually make.
+        stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
+        stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
+        stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
+
+        # Settings are resolved BEFORE the gate (#553): the gate threshold
+        # is itself a setting, so reading it needs the merged presets.
+        settings = _get_stem_settings(stem_name, genre, analyzer_rec=stem_recs or None)
+
         # Silence gate (#553), evaluated before ANY processing: Suno Auto
         # Split "empty" stems come back around -55 dBFS peak rather than
         # exact digital silence (peak=0 -> -inf dB, guarded explicitly so
         # log10 is never called on zero). See SILENT_STEM_PEAK_DBFS.
-        peak_dbfs = 20.0 * np.log10(pre_peak) if pre_peak > 0.0 else float('-inf')
-        skipped_empty = peak_dbfs < SILENT_STEM_PEAK_DBFS
+        #
+        # A non-finite peak means the stem itself contains NaN/inf. That
+        # is a defect, not silence — and `NaN > 0.0` is False, so it used
+        # to fall down the zero-peak path and get reported as a clean
+        # `skipped_empty` pass-through. Name it in the log and run the
+        # normal chain so the anomaly surfaces in the metrics instead.
+        if not np.isfinite(pre_peak):
+            logger.warning(
+                "Stem '%s' has a non-finite peak (NaN/inf in the audio) — "
+                "processing it normally rather than treating it as an empty "
+                "stem; check the source WAV.",
+                stem_name,
+            )
+            peak_dbfs = float('nan')
+            skipped_empty = False
+        else:
+            peak_dbfs = 20.0 * np.log10(pre_peak) if pre_peak > 0.0 else float('-inf')
+            skipped_empty = peak_dbfs < resolve_silence_gate_dbfs(settings)
 
         # Only drums/percussion write clicks_removed into the report dict —
         # keeping the per-processor kwarg asymmetric is intentional (the
@@ -2145,16 +2193,7 @@ def mix_track_stems(
             stem_report['skipped_empty'] = True
             stem_report['peak_dbfs'] = round(peak_dbfs, 1)
         else:
-            # #336: pull per-stem recommendations from analyzer (if any).
-            # INVARIANT: _ANALYZER_EQ_OVERRIDE_KEYS (used here for telemetry)
-            # MUST match the same whitelist _get_stem_settings applies in
-            # its merge below — otherwise overrides_applied would claim
-            # changes the merge didn't actually make.
-            stem_analyzer = (analyzer_recs or {}).get(stem_name) or {}
-            stem_recs = stem_analyzer.get("recommendations", {}) if stem_analyzer else {}
-            stem_issues = stem_analyzer.get("issues", []) if stem_analyzer else []
-
-            # Capture genre baseline BEFORE merging analyzer recs so we can
+            # Capture genre baseline WITHOUT the analyzer recs so we can
             # report what the override changed.
             if stem_recs:
                 baseline_settings = _get_stem_settings(stem_name, genre)
@@ -2191,19 +2230,23 @@ def mix_track_stems(
                         })
 
             if not dry_run:
-                # Get settings and process. Every processor now accepts
-                # `report` and accumulates `clicks_removed` via
+                # Process. Every processor accepts `report` and
+                # accumulates `clicks_removed` / `clicks_detected` via
                 # `_apply_click_removal`, so the dispatch is uniform.
-                settings = _get_stem_settings(stem_name, genre, analyzer_rec=stem_recs or None)
                 processor = STEM_PROCESSORS[stem_name]
                 data = processor(data, rate, settings, report=stem_report)
 
                 # Get remix gain
                 gains[stem_name] = _setting_float(settings, 'gain_db', 0.0)
 
-        # Measure post-processing level
-        post_peak = float(np.max(np.abs(data)))
-        post_rms = float(np.sqrt(np.mean(data ** 2)))
+        # Measure post-processing level. A skipped stem was never touched,
+        # so re-measuring it would be two more full-buffer passes for
+        # numbers we already have (#553).
+        if skipped_empty:
+            post_peak, post_rms = pre_peak, pre_rms
+        else:
+            post_peak = float(np.max(np.abs(data)))
+            post_rms = float(np.sqrt(np.mean(data ** 2)))
 
         processed_stems[stem_name] = (data, rate)
 

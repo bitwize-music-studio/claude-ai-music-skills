@@ -44,6 +44,20 @@
 #   transient_attack_db: dB (drums/percussion, positive = more punch, negative = softer)
 #   transient_sustain_db: dB (drums/percussion, positive = more body, negative = tighter)
 #
+# Silence gate (#553): before any processing, each stem's peak is
+# measured and stems below `silence_gate_dbfs` skip the entire chain and
+# pass through bit-identical. Suno's Auto Split returns every requested
+# stem category even when the source has no audio for it, and those
+# "empty" stems come back around -55 dBFS peak rather than exact digital
+# silence — running the chain on that noise floor wastes cycles and
+# trips the de-clicker on noise-floor transients. The threshold defaults
+# to -40.0 dBFS and is not listed per stem below; set
+# `silence_gate_dbfs` on any stem (at `defaults:` or genre scope) to move
+# it: lower it (e.g. -80) to let a genuinely quiet stem through, raise it
+# to discard more. The same value is read by `analyze_mix_issues`, so
+# analysis and polish agree on which stems are empty. True digital
+# silence (peak 0) is always skipped.
+#
 # Override per-user: copy to {overrides}/mix-presets.yaml and edit.
 # User overrides deep-merge on top of these defaults.
 

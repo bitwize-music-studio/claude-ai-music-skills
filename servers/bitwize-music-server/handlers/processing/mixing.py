@@ -289,6 +289,31 @@ def _resolve_analyzer_peak_ratio(
     return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
 
 
+def _resolve_silence_gate_dbfs(stem_name: str, genre: str | None) -> float:
+    """Resolve the polish silence gate for a (stem, genre) pair.
+
+    Delegates to the processor side so `analyze_mix_issues` and
+    `mix_track_stems` cannot drift: both read `silence_gate_dbfs` out of
+    the same merged presets, falling back to the same module constant
+    (#553). Returns the constant's value when the mixing module is
+    unavailable, matching `_resolve_analyzer_peak_ratio`'s posture.
+    """
+    try:
+        from tools.mixing.mix_tracks import (
+            SILENT_STEM_PEAK_DBFS,
+            _get_stem_settings,
+            resolve_silence_gate_dbfs,
+        )
+    except ImportError:
+        return -40.0
+
+    try:
+        settings = _get_stem_settings(stem_name, genre or None)
+    except KeyError:
+        return SILENT_STEM_PEAK_DBFS
+    return resolve_silence_gate_dbfs(settings)
+
+
 def _resolve_analyzer_thresholds() -> tuple[float, float, bool]:
     """Load (dark_high_mid_ratio, harsh_high_mid_ratio, adm_aware_excitation)
     from mix presets.
@@ -364,6 +389,25 @@ def _build_analyzer(
         rms = float(np.sqrt(np.mean(data ** 2)))
         result["peak"] = peak
         result["rms"] = rms
+
+        # #553: mirror the polish silence gate. `mix_track_stems` skips a
+        # stem whose peak falls under `silence_gate_dbfs` — Suno Auto
+        # Split returns every requested category, and the ones with no
+        # source content come back as a ~-55 dBFS noise floor. Analyzing
+        # that floor produced click counts and recommendations for a stem
+        # polish would never touch (~600 false-positive "clicks" on one
+        # silent percussion stem), so the two halves of the pipeline
+        # disagreed about whether the stem existed at all. Same threshold
+        # source, same verdict. Only the stems path is gated: the
+        # full-mix fallback has no such skip.
+        if stem_name and np.isfinite(peak):
+            gate_dbfs = _resolve_silence_gate_dbfs(stem_name, genre)
+            peak_dbfs = 20.0 * np.log10(peak) if peak > 0.0 else float("-inf")
+            if peak_dbfs < gate_dbfs:
+                result["skipped_empty"] = True
+                result["peak_dbfs"] = round(peak_dbfs, 1)
+                result["issues"] = ["skipped_empty"]
+                return result
 
         # Noise floor estimate (quietest 10% of signal). #402: buffers
         # shorter than 10 samples make the //10 slice empty, and np.mean of

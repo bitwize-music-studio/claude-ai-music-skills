@@ -65,6 +65,12 @@ These are the problems mix-engineer is designed to fix:
 **Default**: -2 dB at 7 kHz (vocals), -1.5 dB at 8 kHz (other)
 **Override when**: Vocals are naturally warm (reduce cut) or very bright (increase cut)
 
+### Empty / Near-Silent Stems
+**What**: Suno's Auto Split returns every requested stem category, including ones the track has no audio for. Those come back as a ~-55 dBFS noise floor, not digital silence.
+**Fix**: A silence gate skips the whole chain for those stems — they pass through to the remix bit-identical. `analyze_mix_issues` reports them as `skipped_empty` for the same reason, so analysis and polish agree.
+**Default**: `silence_gate_dbfs: -40.0` (not listed per stem in the preset file — it falls back to this constant)
+**Override when**: A genuinely quiet stem is being discarded (a fade-in intro, a distant pad) — lower it per stem, e.g. `silence_gate_dbfs: -80`. Raise it to discard more. True digital silence is always skipped regardless.
+
 ### Sub-Bass Rumble
 **What**: Inaudible low-frequency content below 30 Hz that eats headroom
 **Fix**: Butterworth highpass filter

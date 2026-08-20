@@ -105,6 +105,22 @@ def _write_wav(path, data, rate):
     sf.write(str(path), data, rate, subtype='PCM_16')
 
 
+def _install_override(tmp_path, monkeypatch, yaml_text):
+    """Write a user override file and reload the presets from it.
+
+    Mirrors the real startup path: `load_mix_presets()` reads
+    `{overrides}/mix-presets.yaml`, and the module-level `MIX_PRESETS`
+    that `_get_stem_settings` consults is the result.
+    """
+    import tools.mixing.mix_tracks as mt
+
+    override_dir = tmp_path / "overrides"
+    override_dir.mkdir(exist_ok=True)
+    (override_dir / "mix-presets.yaml").write_text(yaml_text)
+    monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+    monkeypatch.setattr(mt, 'MIX_PRESETS', mt.load_mix_presets())
+
+
 # ─── Fixtures ─────────────────────────────────────────────────────────
 
 
@@ -1366,6 +1382,151 @@ class TestSilenceGate:
         assert report['clicks_removed'] >= 1
 
 
+class TestSilenceGateIsConfigurable:
+    """#553 follow-up: the gate threshold was a bare module constant read
+
+    *before* the stem's settings were resolved, so a user could neither
+    lower it (a genuinely quiet stem — a fade-in intro, a distant pad —
+    was thrown away as "empty") nor raise it. It is now a per-stem
+    setting, `silence_gate_dbfs`, resolved from the same merged presets
+    as everything else and defaulting to `SILENT_STEM_PEAK_DBFS`.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    @staticmethod
+    def _stem_at(path, peak_dbfs, rate=44100):
+        """A tone whose peak sits at `peak_dbfs`, with a lone spike the
+        de-clicker would flag if the chain ever ran on it."""
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = np.sin(2 * np.pi * 440 * t).astype(np.float64)
+        mono *= (10 ** (peak_dbfs / 20)) / np.max(np.abs(mono))
+        _write_wav(path, np.column_stack([mono, mono]), rate)
+
+    def _run(self, tmp_path, stem_name, peak_dbfs):
+        stem = tmp_path / f"{stem_name}.wav"
+        self._stem_at(stem, peak_dbfs)
+        result = mix_track_stems(
+            {stem_name: str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        return result["stems_processed"][0]
+
+    def test_default_gate_still_skips_a_minus_60_stem(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, "defaults: {}\n")
+        assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is True
+
+    def test_lowered_gate_lets_a_quiet_stem_through(self, tmp_path, monkeypatch):
+        """A user with a genuinely quiet stem lowers the gate and the
+        stem is processed instead of discarded."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  percussion:\n"
+            "    silence_gate_dbfs: -80\n"
+        ))
+        report = self._run(tmp_path, "percussion", -60.0)
+        assert report["skipped_empty"] is False
+        assert "peak_dbfs" not in report
+
+    def test_raised_gate_skips_a_louder_stem(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    percussion:\n"
+            "      silence_gate_dbfs: -20\n"
+        ))
+        assert self._run(tmp_path, "percussion", -30.0)["skipped_empty"] is True
+
+    def test_gate_is_resolved_per_stem(self, tmp_path, monkeypatch):
+        """Lowering the gate on one stem must not move it for another."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  percussion:\n"
+            "    silence_gate_dbfs: -80\n"
+        ))
+        assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is False
+        assert self._run(tmp_path, "guitar", -60.0)["skipped_empty"] is True
+
+    def test_unreadable_gate_falls_back_to_the_module_default(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            'defaults:\n'
+            '  percussion:\n'
+            '    silence_gate_dbfs: "-80"\n'
+        ))
+        with caplog.at_level(logging.WARNING):
+            assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is True
+        assert any('silence_gate_dbfs' in r.message for r in caplog.records)
+
+
+class TestNonFiniteStemIsNotLaunderedAsSilence:
+    """#553 follow-up: `np.max(np.abs(data))` on a stem containing NaN is
+
+    NaN, and `NaN > 0.0` is False — so the gate's zero-peak guard sent it
+    down the `-inf dBFS` path and reported a corrupt stem as a clean
+    `skipped_empty` pass-through. A non-finite peak is a defect, not
+    silence: it must be named in the log and processed, so the NaN
+    surfaces in the metrics instead of being laundered away.
+    """
+
+    @staticmethod
+    def _nan_stem(path, rate=44100):
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        mono[1000] = np.nan
+        sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='FLOAT')
+
+    def test_nan_stem_is_not_reported_as_skipped_empty(self, tmp_path, caplog):
+        stem = tmp_path / "guitar.wav"
+        self._nan_stem(stem)
+
+        with caplog.at_level(logging.WARNING):
+            result = mix_track_stems(
+                {'guitar': str(stem)}, str(tmp_path / "out.wav"),
+            )
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is False
+        assert 'peak_dbfs' not in report
+        assert any('guitar' in r.message for r in caplog.records)
+
+    def test_nan_surfaces_in_the_reported_metrics(self, tmp_path):
+        stem = tmp_path / "guitar.wav"
+        self._nan_stem(stem)
+        result = mix_track_stems({'guitar': str(stem)}, str(tmp_path / "out.wav"))
+        assert np.isnan(result['stems_processed'][0]['pre_peak'])
+
+
+class TestSkippedStemReusesPreMetrics:
+    """#553 follow-up: the skip branch fell through to the same post-metric
+
+    recomputation as a processed stem — two more full-buffer passes over
+    audio that is by definition untouched. The skipped branch now reports
+    the pre-measurement values it already has.
+    """
+
+    def test_skipped_stem_post_metrics_are_the_pre_metrics(self, silent_wav, output_path):
+        result = mix_track_stems({'bass': silent_wav}, output_path)
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['post_peak'] == report['pre_peak']
+        assert report['post_rms'] == report['pre_rms']
+
+    def test_low_level_skipped_stem_post_metrics_are_the_pre_metrics(self, tmp_path):
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = np.sin(2 * np.pi * 440 * t).astype(np.float64)
+        mono *= (10 ** (-60.0 / 20)) / np.max(np.abs(mono))
+        stem = tmp_path / "percussion.wav"
+        _write_wav(stem, np.column_stack([mono, mono]), rate)
+
+        result = mix_track_stems({'percussion': str(stem)}, str(tmp_path / "out.wav"))
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['post_peak'] == report['pre_peak']
+        assert report['post_rms'] == report['pre_rms']
+
+
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
 
 
@@ -2514,21 +2675,7 @@ class TestClickRemovalOverrideIsHonored:
     `clicks_removed: 35`.
     """
 
-    @staticmethod
-    def _install_override(tmp_path, monkeypatch, yaml_text):
-        """Write a user override file and reload the presets from it.
-
-        Mirrors the real startup path: `load_mix_presets()` reads
-        `{overrides}/mix-presets.yaml`, and the module-level
-        `MIX_PRESETS` that `_get_stem_settings` consults is the result.
-        """
-        import tools.mixing.mix_tracks as mt
-
-        override_dir = tmp_path / "overrides"
-        override_dir.mkdir(exist_ok=True)
-        (override_dir / "mix-presets.yaml").write_text(yaml_text)
-        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
-        monkeypatch.setattr(mt, 'MIX_PRESETS', mt.load_mix_presets())
+    _install_override = staticmethod(_install_override)
 
     @staticmethod
     def _clicky_vocal_stem(path, n_clicks=35, rate=44100):
@@ -2761,7 +2908,7 @@ class TestClickRemovalFlagCoercion:
     take the warn-and-default path like any other unreadable value.
     """
 
-    _install_override = staticmethod(TestClickRemovalOverrideIsHonored._install_override)
+    _install_override = staticmethod(_install_override)
     _clicky_vocal_stem = staticmethod(TestClickRemovalOverrideIsHonored._clicky_vocal_stem)
 
     def _clicks_removed(self, tmp_path, stem_name, genre):
@@ -2885,7 +3032,7 @@ class TestNumericSettingCoercion:
     gets guessed into effect.
     """
 
-    _install_override = staticmethod(TestClickRemovalOverrideIsHonored._install_override)
+    _install_override = staticmethod(_install_override)
 
     def test_quoted_noise_reduction_neither_crashes_nor_enables(self, caplog):
         """The field shape: `"0.5"` must behave exactly like the default

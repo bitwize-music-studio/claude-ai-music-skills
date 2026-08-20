@@ -114,3 +114,86 @@ def test_preset_override_of_dark_threshold_changes_trigger():
     result_raised = analyze_raised(data, rate, filename="mid.wav", stem_name="synth", genre="electronic")
     assert "already_dark" in result_raised["issues"]
     assert result_raised["recommendations"]["high_tame_db"] == pytest.approx(0.0)
+
+
+class TestAnalyzerMirrorsThePolishSilenceGate:
+    """#553 follow-up: polish skips a stem whose peak falls under the
+
+    silence gate, but the analyzer happily measured the same noise floor
+    and emitted click counts and recommendations for it — so the two
+    halves of the pipeline disagreed about whether the stem existed, and
+    an operator reading `analyze_mix_issues` saw "600 clicks" on a stem
+    polish would never touch. Both sides now read the same threshold.
+    """
+
+    @staticmethod
+    def _noise_at(peak_dbfs, rate=44100, seed=7):
+        import numpy as np
+
+        rng = np.random.default_rng(seed)
+        noise = rng.standard_normal(rate)
+        noise = noise / np.max(np.abs(noise))
+        mono = (noise * (10 ** (peak_dbfs / 20))).astype("float64")
+        return np.column_stack([mono, mono]), rate
+
+    def test_stem_below_the_gate_reports_as_skipped(self):
+        from handlers.processing.mixing import _build_analyzer
+
+        data, rate = self._noise_at(-60.0)
+        analyze_one = _build_analyzer()
+        result = analyze_one(
+            data, rate, filename="percussion.wav",
+            stem_name="percussion", genre="electronic",
+        )
+
+        assert result["skipped_empty"] is True
+        assert result["issues"] == ["skipped_empty"]
+        assert result["recommendations"] == {}
+        assert "click_count" not in result
+        assert result["peak_dbfs"] == pytest.approx(-60.0, abs=2.0)
+
+    def test_stem_above_the_gate_is_analyzed_normally(self):
+        from handlers.processing.mixing import _build_analyzer
+
+        data, rate = self._noise_at(-6.0)
+        analyze_one = _build_analyzer()
+        result = analyze_one(
+            data, rate, filename="percussion.wav",
+            stem_name="percussion", genre="electronic",
+        )
+
+        assert result.get("skipped_empty") is not True
+        assert "click_count" in result
+
+    def test_full_mix_analysis_is_not_gated(self):
+        """The gate lives in `mix_track_stems`; the full-mix fallback has
+        no such skip, so full-mix analysis must not grow one either."""
+        from handlers.processing.mixing import _build_analyzer
+
+        data, rate = self._noise_at(-60.0)
+        analyze_one = _build_analyzer()
+        result = analyze_one(data, rate, filename="01-quiet.wav")
+
+        assert result.get("skipped_empty") is not True
+        assert "click_count" in result
+
+    def test_analyzer_honors_a_lowered_gate_override(self, monkeypatch):
+        """The threshold comes from the same per-stem setting polish
+        reads, so an override moves both sides together."""
+        import tools.mixing.mix_tracks as mt
+        from handlers.processing.mixing import _build_analyzer
+
+        real = mt._get_stem_settings
+
+        def _lowered(stem_name, genre=None, analyzer_rec=None):
+            return {**real(stem_name, genre, analyzer_rec),
+                    "silence_gate_dbfs": -80.0}
+
+        monkeypatch.setattr(mt, "_get_stem_settings", _lowered)
+
+        data, rate = self._noise_at(-60.0)
+        result = _build_analyzer()(
+            data, rate, filename="percussion.wav",
+            stem_name="percussion", genre="electronic",
+        )
+        assert result.get("skipped_empty") is not True
