@@ -466,14 +466,13 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    # Step timeout + apt opts guard against silent apt-mirror stalls (the
-    # 2026-08-19 nightly burned 90 min inside `apt-get update`) — see nightly.yml.
-    - name: Install system dependencies
-      timeout-minutes: 10
-      run: |
-        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
-        sudo apt-get $APT_OPTS update
-        sudo apt-get $APT_OPTS install -y ffmpeg
+    # No ffmpeg step here, deliberately. This job boots the server and calls
+    # health_check, which checks venv packages, skill registration and album
+    # slug collisions — it never probes for ffmpeg — and its pytest targets
+    # (tool-schema parity, pinned dependencies) touch no audio code. The twin
+    # `mcp-boot` job proves the same thing empirically: it has never installed
+    # ffmpeg and boots green on all three OSes. An install that nothing in the
+    # job depends on is pure latency plus one more mirror that can stall it.
 
     # Install the pinned set, then downgrade mcp alone to the documented floor.
     # mcp 2.x's extra distributions (mcp-types, httpx2) stay installed and unused,
