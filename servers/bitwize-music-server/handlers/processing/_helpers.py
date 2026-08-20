@@ -208,6 +208,38 @@ def _check_songbook_deps() -> str | None:
     return None
 
 
+def _derive_album_genre(album_slug: str) -> str:
+    """Best-effort genre lookup for an album, keyed by slug, from state.
+
+    The state cache is the authoritative source for an album's genre —
+    it is the exact value `_resolve_audio_dir` already reads to build the
+    album's on-disk path (`{audio_root}/artists/[artist]/albums/[genre]/
+    [album]`), so this reuses that source rather than re-deriving genre
+    by splitting the resolved path back apart, which would duplicate
+    `_album_dir`'s layout logic and break for a symlinked audio
+    directory (a supported layout — `confine=False` at
+    `_resolve_audio_dir`).
+
+    Used by the polish handlers (`polish_audio`, `polish_album`,
+    `analyze_mix_issues`, #556) to default `genre` from the album's own
+    genre when the caller omits it, so genre-scoped mix overrides apply
+    without the caller having to pass `genre` explicitly.
+
+    Returns "" — today's no-genre behavior — on any failure: a
+    malformed slug, an album missing from state, or no `genre` recorded
+    for it. Never raises.
+    """
+    try:
+        normalized = _normalize_slug(album_slug)
+    except ValueError:
+        return ""
+    state = _shared.cache.get_state()
+    albums = state.get("albums", {})
+    album_data = albums.get(normalized, {})
+    genre = album_data.get("genre", "")
+    return genre if isinstance(genre, str) else ""
+
+
 def _check_mixing_deps() -> str | None:
     """Return error message if mixing deps missing, else None."""
     missing = []

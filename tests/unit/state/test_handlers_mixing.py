@@ -193,6 +193,59 @@ class TestPolishAudio:
         assert "error" in result
         assert "genre" in result["error"].lower()
 
+    # -- genre defaulting from the album's state entry (#556) -------------
+
+    def test_derives_genre_from_state_when_omitted(self, tmp_path):
+        """A plain polish_audio(album_slug) call, with no genre argument,
+        picks up the album's genre from state so genre-scoped overrides
+        apply without the caller passing genre explicitly."""
+        audio_dir = _setup_audio_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="hip-hop"):
+            raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert result["settings"]["genre"] == "hip-hop"
+
+    def test_explicit_genre_wins_over_derived(self, tmp_path):
+        """An explicit genre argument always wins over derivation — the
+        derivation helper must not even be consulted."""
+        audio_dir = _setup_audio_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre") as mock_derive:
+            raw = _run(_mixing_mod.polish_audio("test", genre="pop", dry_run=True))
+        result = json.loads(raw)
+        assert result["settings"]["genre"] == "pop"
+        mock_derive.assert_not_called()
+
+    def test_derivation_failure_keeps_no_genre_behavior(self, tmp_path):
+        """When derivation can't find a genre (album missing from state,
+        unexpected layout, ...), fall back to today's no-genre behavior
+        instead of erroring."""
+        audio_dir = _setup_audio_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value=""):
+            raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert result["settings"]["genre"] is None
+
+    def test_unknown_derived_genre_returns_error_not_crash(self, tmp_path):
+        """A derived genre is validated exactly like an explicit one —
+        an unrecognized value returns the same structured error, not a
+        crash."""
+        audio_dir = _setup_audio_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"):
+            raw = _run(_mixing_mod.polish_audio("test"))
+        result = json.loads(raw)
+        assert "error" in result
+        assert "genre" in result["error"].lower()
+
     def test_no_wav_files_returns_error(self, tmp_path):
         audio_dir = tmp_path / "empty"
         audio_dir.mkdir()
@@ -440,6 +493,56 @@ class TestAnalyzeMixIssues:
         assert "clicks_detected" in track["issues"]
         assert track["recommendations"].get("click_removal") is True
 
+    # -- genre defaulting from the album's state entry (#556) -------------
+
+    def test_derives_genre_from_state_when_omitted(self, tmp_path):
+        """analyze_mix_issues(album_slug), with no genre argument, resolves
+        the album's genre from state and threads it into the analyzer core
+        — the same value polish_audio would derive for the same album."""
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        captured_genres = []
+
+        def spy_analyze_core(data, rate, *, filename, stem_name=None, genre=""):
+            captured_genres.append(genre)
+            return {"filename": filename, "issues": ["none_detected"], "recommendations": {}}
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="electronic"), \
+             patch.object(_mixing_mod, "_build_analyzer", return_value=spy_analyze_core):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert captured_genres == ["electronic"]
+
+    def test_explicit_genre_wins_over_derived(self, tmp_path):
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        captured_genres = []
+
+        def spy_analyze_core(data, rate, *, filename, stem_name=None, genre=""):
+            captured_genres.append(genre)
+            return {"filename": filename, "issues": ["none_detected"], "recommendations": {}}
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre") as mock_derive, \
+             patch.object(_mixing_mod, "_build_analyzer", return_value=spy_analyze_core):
+            raw = _run(_mixing_mod.analyze_mix_issues("test", genre="pop"))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert captured_genres == ["pop"]
+        mock_derive.assert_not_called()
+
+    def test_derivation_failure_keeps_no_genre_behavior(self, tmp_path):
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value=""):
+            raw = _run(_mixing_mod.analyze_mix_issues("test"))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert result["album_summary"]["tracks_analyzed"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Tests: polish_album (3-stage pipeline)
@@ -500,3 +603,145 @@ class TestPolishAlbum:
         result = json.loads(raw)
         if result["stage_reached"] == "complete":
             assert "master_audio" in result.get("next_step", "")
+
+    # -- genre plumbing between stage 1 (analyze) and stage 2 (polish),
+    #    and defaulting genre from the album's state entry (#556) --------
+
+    def test_stage1_and_stage2_resolve_the_same_genre(self, tmp_path):
+        """Headline regression test: stage 1 (analyze_mix_issues) used to
+        be called with no genre at all, so an explicit genre only reached
+        stage 2 (polish) — the two stages could resolve different
+        genre-scoped settings for the same run. Both must now see the
+        identical genre string."""
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        import tools.mixing.mix_tracks as mt
+
+        captured_analyze_genre = []
+        real_analyze = _mixing_mod.analyze_mix_issues
+
+        async def spy_analyze(album_slug, genre=""):
+            captured_analyze_genre.append(genre)
+            return await real_analyze(album_slug, genre)
+
+        captured_polish_genre = []
+        real_mix_full = mt.mix_track_full
+
+        def spy_mix_full(*args, **kwargs):
+            captured_polish_genre.append(kwargs.get("genre"))
+            return real_mix_full(*args, **kwargs)
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_mixing_mod, "analyze_mix_issues", side_effect=spy_analyze), \
+             patch.object(mt, "mix_track_full", side_effect=spy_mix_full):
+            raw = _run(_mixing_mod.polish_album("test", genre="hip-hop"))
+
+        result = json.loads(raw)
+        assert result["stage_reached"] == "complete"
+        assert captured_analyze_genre == ["hip-hop"]
+        assert captured_polish_genre and all(g == "hip-hop" for g in captured_polish_genre)
+
+    def test_derives_genre_once_and_shares_it_across_both_stages(self, tmp_path):
+        """With no genre argument, polish_album derives it once from state
+        and forwards the SAME resolved value to both stages — not an
+        independent re-derivation per stage, which could in principle
+        disagree if state changed mid-run."""
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        import tools.mixing.mix_tracks as mt
+
+        captured_analyze_genre = []
+        real_analyze = _mixing_mod.analyze_mix_issues
+
+        async def spy_analyze(album_slug, genre=""):
+            captured_analyze_genre.append(genre)
+            return await real_analyze(album_slug, genre)
+
+        captured_polish_genre = []
+        real_mix_full = mt.mix_track_full
+
+        def spy_mix_full(*args, **kwargs):
+            captured_polish_genre.append(kwargs.get("genre"))
+            return real_mix_full(*args, **kwargs)
+
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="electronic") as mock_derive, \
+             patch.object(_mixing_mod, "analyze_mix_issues", side_effect=spy_analyze), \
+             patch.object(mt, "mix_track_full", side_effect=spy_mix_full):
+            raw = _run(_mixing_mod.polish_album("test"))
+
+        result = json.loads(raw)
+        assert result["stage_reached"] == "complete"
+        assert captured_analyze_genre == ["electronic"]
+        assert captured_polish_genre and all(g == "electronic" for g in captured_polish_genre)
+        assert mock_derive.call_count == 1
+
+    def test_derivation_failure_keeps_no_genre_behavior(self, tmp_path):
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value=""):
+            raw = _run(_mixing_mod.polish_album("test"))
+        result = json.loads(raw)
+        assert result["stage_reached"] == "complete"
+
+    def test_unknown_derived_genre_fails_the_polish_stage_not_a_crash(self, tmp_path):
+        """A derived genre goes through polish_audio's existing unknown-genre
+        check — same handling as if the caller had passed it explicitly."""
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"):
+            raw = _run(_mixing_mod.polish_album("test"))
+        result = json.loads(raw)
+        assert result["failed_stage"] == "polish"
+        assert "genre" in json.dumps(result["failure_detail"]).lower()
+
+
+# ---------------------------------------------------------------------------
+# Tests: _derive_album_genre (#556)
+# ---------------------------------------------------------------------------
+
+
+class TestDeriveAlbumGenre:
+    """Tests for handlers.processing._helpers._derive_album_genre.
+
+    This is the state-cache lookup the polish handlers use to default
+    `genre` when the caller omits it — same authoritative source
+    `_resolve_audio_dir` already reads to build the album's path, not a
+    re-derivation from path segments.
+    """
+
+    def test_reads_genre_from_state(self, monkeypatch):
+        monkeypatch.setattr(
+            _shared_mod.cache, "get_state",
+            lambda: {"albums": {"my-album": {"genre": "electronic"}}},
+        )
+        assert _helpers_mod._derive_album_genre("my-album") == "electronic"
+
+    def test_album_missing_from_state_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod.cache, "get_state", lambda: {"albums": {}})
+        assert _helpers_mod._derive_album_genre("my-album") == ""
+
+    def test_genre_field_missing_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(
+            _shared_mod.cache, "get_state",
+            lambda: {"albums": {"my-album": {}}},
+        )
+        assert _helpers_mod._derive_album_genre("my-album") == ""
+
+    def test_empty_state_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(_shared_mod.cache, "get_state", lambda: {})
+        assert _helpers_mod._derive_album_genre("my-album") == ""
+
+    def test_malformed_slug_returns_empty_not_a_crash(self):
+        assert _helpers_mod._derive_album_genre("bad/slug") == ""
+
+    def test_normalizes_slug_before_lookup(self, monkeypatch):
+        """State keys are normalized slugs — a raw title-like input must
+        still find the entry."""
+        monkeypatch.setattr(
+            _shared_mod.cache, "get_state",
+            lambda: {"albums": {"my-album": {"genre": "pop"}}},
+        )
+        assert _helpers_mod._derive_album_genre("My Album") == "pop"

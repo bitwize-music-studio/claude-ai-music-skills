@@ -35,7 +35,11 @@ async def polish_audio(
 
     Args:
         album_slug: Album slug (e.g., "my-album")
-        genre: Genre preset for stem-specific settings (e.g., "hip-hop")
+        genre: Genre preset for stem-specific settings (e.g., "hip-hop").
+            Defaults to the album's own genre (looked up from state) when
+            omitted, so genre-scoped overrides apply without passing it
+            explicitly; an explicit value always wins. An unrecognized
+            genre — explicit or defaulted — returns an error. (#556)
         use_stems: If true, process per-stem WAVs; if false, process full mixes
         dry_run: If true, analyze only without writing files
         track_filename: If set, only process this one track (e.g.,
@@ -69,6 +73,16 @@ async def polish_audio(
         mix_track_full,
         mix_track_stems,
     )
+
+    # #556: default genre from the album's own genre (state cache) when
+    # the caller didn't pass one explicitly, so genre-scoped mix
+    # overrides apply on a plain polish_audio(album_slug) call. An
+    # explicit genre always wins; a derivation failure (album missing
+    # from state, no genre recorded) falls back to today's no-genre
+    # behavior rather than erroring. The derived value goes through the
+    # same validation below as an explicit one.
+    if not genre:
+        genre = _helpers._derive_album_genre(album_slug)
 
     # Validate genre if specified
     if genre:
@@ -548,6 +562,9 @@ async def analyze_mix_issues(
         genre: Optional genre preset (e.g. "electronic"). Routed through
             the same resolver the polish processors use so click counts
             match what polish will actually remove (#323 follow-up).
+            Defaults to the album's own genre (looked up from state) when
+            omitted, so it agrees with what a same-genre polish_audio
+            call would resolve; an explicit value always wins. (#556)
 
     Returns:
         JSON with per-track analysis, detected issues, and recommendations
@@ -560,6 +577,14 @@ async def analyze_mix_issues(
     if err:
         return err
     assert audio_dir is not None
+
+    # #556: same genre defaulting as polish_audio — an omitted genre is
+    # looked up from the album's state entry so the analyzer and polish
+    # stages of one polish_album run cannot resolve different
+    # genre-scoped settings. Explicit genre always wins; a derivation
+    # failure leaves genre empty, matching today's no-genre behavior.
+    if not genre:
+        genre = _helpers._derive_album_genre(album_slug)
 
     import numpy as np
     import soundfile as sf
@@ -698,7 +723,11 @@ async def polish_album(
 
     Args:
         album_slug: Album slug (e.g., "my-album")
-        genre: Genre preset for stem-specific settings
+        genre: Genre preset for stem-specific settings. Defaults to the
+            album's own genre (looked up from state) when omitted, and is
+            resolved once and forwarded to both the analyze and polish
+            stages so they cannot disagree about which genre-scoped
+            settings apply; an explicit value always wins. (#556)
 
     Returns:
         JSON with per-stage results, settings, and recommendations
@@ -724,6 +753,18 @@ async def polish_album(
 
     stages: dict[str, Any] = {}
 
+    # #556: resolve genre once, up front, and forward the SAME value to
+    # both stages below — an explicit genre always wins; an omitted one
+    # is derived from the album's state entry. Deriving once here (rather
+    # than letting each stage derive independently) is what guarantees
+    # stage 1 (analyze) and stage 2 (polish) resolve identical
+    # genre-scoped settings, which is the whole point of this pipeline.
+    # A derivation failure leaves genre empty, matching today's no-genre
+    # behavior; an unknown genre is caught by polish_audio's existing
+    # validation in stage 2.
+    if not genre:
+        genre = _helpers._derive_album_genre(album_slug)
+
     # Determine mode: stems or full mix
     stems_dir = audio_dir / "stems"
     use_stems = stems_dir.is_dir() and any(stems_dir.iterdir())
@@ -736,7 +777,11 @@ async def polish_album(
     }
 
     # --- Stage 1: Analysis ---
-    analysis_json = await analyze_mix_issues(album_slug)
+    # #556: forward genre so stage 1 resolves the same genre-scoped
+    # analyzer settings (e.g. click_peak_ratio) that stage 2's polish
+    # will use — previously this call dropped genre entirely, so the two
+    # stages of one run could disagree.
+    analysis_json = await analyze_mix_issues(album_slug, genre)
     analysis = json.loads(analysis_json)
 
     if "error" in analysis:
