@@ -342,12 +342,21 @@ def _resolve_analyzer_thresholds() -> tuple[float, float, bool]:
         from tools.mixing.mix_tracks import load_mix_presets
     except ImportError:
         return 0.10, 0.25, False
+    from tools.shared.config import coerce_yaml_bool
 
     presets = load_mix_presets()
     analyzer = presets.get("defaults", {}).get("analyzer", {})
     dark = float(analyzer.get("dark_high_mid_ratio", 0.10))
     harsh = float(analyzer.get("harsh_high_mid_ratio", 0.25))
-    adm_aware = bool(analyzer.get("adm_aware_excitation", False))
+    # `bool(...)` treated any non-empty string as truthy, so a quoted
+    # `adm_aware_excitation: "false"` silently enabled the flag it was
+    # writing to disable (#556) — the same class of bug #388/#553 already
+    # fixed for other boolean gates.
+    adm_aware = coerce_yaml_bool(
+        analyzer.get("adm_aware_excitation", False),
+        default=False,
+        context="adm_aware_excitation",
+    )
     return dark, harsh, adm_aware
 
 

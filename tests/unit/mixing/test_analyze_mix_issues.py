@@ -30,6 +30,60 @@ def test_resolve_analyzer_thresholds_defaults(monkeypatch):
     assert adm_aware is False
 
 
+def test_resolve_analyzer_thresholds_quoted_false_does_not_enable(monkeypatch):
+    """A quoted "false" override must not enable adm_aware_excitation (#556).
+
+    The old `bool(analyzer.get("adm_aware_excitation", False))` treats any
+    non-empty string as truthy, so a user writing `adm_aware_excitation:
+    "false"` (quotes added by an editor, or by habit) silently turned the
+    flag ON — the opposite of what they wrote. Routed through the shared
+    `coerce_yaml_bool`, the quoted literal parses to its real value.
+    """
+    import tools.mixing.mix_tracks as mix_tracks
+    from handlers.processing.mixing import _resolve_analyzer_thresholds
+
+    monkeypatch.setattr(
+        mix_tracks, "load_mix_presets",
+        lambda: {"defaults": {"analyzer": {"adm_aware_excitation": "false"}}},
+    )
+
+    _, _, adm_aware = _resolve_analyzer_thresholds()
+    assert adm_aware is False
+
+
+def test_resolve_analyzer_thresholds_quoted_true_enables(monkeypatch):
+    """The symmetric case: a quoted "true" override does enable it."""
+    import tools.mixing.mix_tracks as mix_tracks
+    from handlers.processing.mixing import _resolve_analyzer_thresholds
+
+    monkeypatch.setattr(
+        mix_tracks, "load_mix_presets",
+        lambda: {"defaults": {"analyzer": {"adm_aware_excitation": "true"}}},
+    )
+
+    _, _, adm_aware = _resolve_analyzer_thresholds()
+    assert adm_aware is True
+
+
+def test_resolve_analyzer_thresholds_unparseable_value_warns_and_defaults(monkeypatch, caplog):
+    """An uninterpretable value falls back to the documented default (False)
+    and warns, rather than being guessed into effect or crashing."""
+    import logging
+
+    import tools.mixing.mix_tracks as mix_tracks
+    from handlers.processing.mixing import _resolve_analyzer_thresholds
+
+    monkeypatch.setattr(
+        mix_tracks, "load_mix_presets",
+        lambda: {"defaults": {"analyzer": {"adm_aware_excitation": "maybe"}}},
+    )
+
+    with caplog.at_level(logging.WARNING, logger="tools.shared.config"):
+        _, _, adm_aware = _resolve_analyzer_thresholds()
+    assert adm_aware is False
+    assert any("adm_aware_excitation" in r.message for r in caplog.records)
+
+
 def test_dark_condition_emits_high_tame_zero_and_already_dark_issue():
     """A track with high_mid_ratio < 0.10 gets recommendation high_tame_db=0.0."""
     import numpy as np
