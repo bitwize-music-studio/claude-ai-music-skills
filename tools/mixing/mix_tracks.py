@@ -75,24 +75,6 @@ STEM_NAMES = (
 SILENT_STEM_PEAK_DBFS = -40.0
 
 
-def resolve_silence_gate_dbfs(settings: dict[str, Any] | None = None) -> float:
-    """Effective silence-gate threshold, in dBFS, for a resolved stem.
-
-    The gate used to read `SILENT_STEM_PEAK_DBFS` directly, before the
-    stem's settings had even been resolved, so a user could neither lower
-    it for a genuinely quiet stem (a fade-in intro, a distant pad — thrown
-    away as "empty") nor raise it. It is now the per-stem setting
-    `silence_gate_dbfs`, overridable at `defaults:` or genre scope in
-    `{overrides}/mix-presets.yaml` like every other setting, defaulting to
-    the module constant when absent (#553).
-
-    Shared with the analyzer (`analyze_mix_issues`) so the stems polish
-    skips and the stems analysis reports as empty are the same set.
-    """
-    if not settings:
-        return SILENT_STEM_PEAK_DBFS
-    return _setting_float(settings, 'silence_gate_dbfs', SILENT_STEM_PEAK_DBFS)
-
 # Keyword → category mapping for smart routing (case-insensitive).
 # Ordered list of tuples — checked top-to-bottom; first match wins.
 # CRITICAL: "backing_vocal" must be checked BEFORE "vocal" because
@@ -241,6 +223,25 @@ def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     return coerce_yaml_float(settings[key], default=default, context=key)
 
 
+def resolve_silence_gate_dbfs(settings: dict[str, Any] | None = None) -> float:
+    """Effective silence-gate threshold, in dBFS, for a resolved stem.
+
+    The gate used to read `SILENT_STEM_PEAK_DBFS` directly, before the
+    stem's settings had even been resolved, so a user could neither lower
+    it for a genuinely quiet stem (a fade-in intro, a distant pad — thrown
+    away as "empty") nor raise it. It is now the per-stem setting
+    `silence_gate_dbfs`, overridable at `defaults:` or genre scope in
+    `{overrides}/mix-presets.yaml` like every other setting, defaulting to
+    the module constant when absent (#553).
+
+    Shared with the analyzer (`analyze_mix_issues`) so the stems polish
+    skips and the stems analysis reports as empty are the same set.
+    """
+    if not settings:
+        return SILENT_STEM_PEAK_DBFS
+    return _setting_float(settings, 'silence_gate_dbfs', SILENT_STEM_PEAK_DBFS)
+
+
 def _lower_section_keys(section: dict[str, Any]) -> dict[str, Any]:
     """Lowercase the stem-name keys of one override section (#553).
 
@@ -361,13 +362,15 @@ def reduce_noise(data: Any, rate: int, strength: float = 0.5) -> Any:
         return result
 
 
-def apply_highpass(data: Any, rate: int, cutoff: int = 30) -> Any:
+def apply_highpass(data: Any, rate: int, cutoff: float = 30.0) -> Any:
     """Apply Butterworth highpass filter for rumble removal.
 
     Args:
         data: Audio data
         rate: Sample rate
-        cutoff: Cutoff frequency in Hz
+        cutoff: Cutoff frequency in Hz. A float, not an int: preset
+            values reach this through `_setting_float` and a user is
+            free to write a fractional cutoff.
 
     Returns:
         Highpass-filtered audio data.
@@ -375,7 +378,7 @@ def apply_highpass(data: Any, rate: int, cutoff: int = 30) -> Any:
     nyquist = rate / 2
     if cutoff <= 0 or cutoff >= nyquist:
         if cutoff > 0:
-            logger.warning("Highpass cutoff %d Hz out of range (0\u2013%.0f Hz), skipping", cutoff, nyquist)
+            logger.warning("Highpass cutoff %.0f Hz out of range (0\u2013%.0f Hz), skipping", cutoff, nyquist)
         return data
 
     normalized_cutoff = cutoff / nyquist
@@ -385,7 +388,7 @@ def apply_highpass(data: Any, rate: int, cutoff: int = 30) -> Any:
     # Verify stability
     poles = np.roots(a)
     if not np.all(np.abs(poles) < 1.0):
-        logger.warning("Unstable highpass filter at %d Hz, skipping", cutoff)
+        logger.warning("Unstable highpass filter at %.0f Hz, skipping", cutoff)
         return data
 
     if len(data.shape) == 1:
@@ -760,14 +763,17 @@ def remove_clicks(
         repaired, n_clicks = _process_channel(data)
         return repaired, n_clicks
 
+    if detect_only:
+        return data, sum(
+            _process_channel(data[:, ch])[1] for ch in range(data.shape[1])
+        )
+
     result = np.zeros_like(data)
     total_clicks = 0
     for ch in range(data.shape[1]):
         repaired, n_clicks = _process_channel(data[:, ch])
         result[:, ch] = repaired
         total_clicks += n_clicks
-    if detect_only:
-        return data, total_clicks
     return result, total_clicks
 
 
@@ -830,23 +836,34 @@ def _apply_click_removal(
     count and `CLICKS_DETECTED_NOTE` land in the polish report so the
     user can decide before mastering rather than after.
     """
-    repair = settings.get('click_repair', default_repair)
     peak_ratio = _setting_float(settings, 'click_peak_ratio', 15.0)
     enabled = coerce_yaml_bool(
         settings.get('click_removal', False), default=False, context='click_removal',
     )
+
+    if not enabled:
+        if report is None:
+            # Nowhere to report a count to, so there is nothing to detect
+            # for — skip the scan rather than spend it on a discarded
+            # number. (`click_repair` is not read here either: a typo in
+            # it must not fail a stem that isn't being repaired.)
+            return data
+        _, n_clicks = remove_clicks(
+            data, rate, peak_ratio=peak_ratio, detect_only=True,
+        )
+        report['clicks_detected'] = report.get('clicks_detected', 0) + int(n_clicks)
+        if n_clicks:
+            report['click_note'] = CLICKS_DETECTED_NOTE
+        return data
+
     data, n_clicks = remove_clicks(
         data, rate,
         peak_ratio=peak_ratio,
-        repair=repair,
-        detect_only=not enabled,
+        repair=settings.get('click_repair', default_repair),
     )
     if report is not None:
         report['clicks_detected'] = report.get('clicks_detected', 0) + int(n_clicks)
-        if enabled:
-            report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
-        elif n_clicks:
-            report['click_note'] = CLICKS_DETECTED_NOTE
+        report['clicks_removed'] = report.get('clicks_removed', 0) + int(n_clicks)
     return data
 
 
@@ -910,13 +927,14 @@ def apply_saturation(data: Any, rate: int, drive: float = 0.0) -> Any:
     return saturated
 
 
-def apply_lowpass(data: Any, rate: int, cutoff: int = 20000) -> Any:
+def apply_lowpass(data: Any, rate: int, cutoff: float = 20000.0) -> Any:
     """Apply Butterworth lowpass filter for dark/vintage character.
 
     Args:
         data: Audio data
         rate: Sample rate
-        cutoff: Cutoff frequency in Hz (20000 = effectively off)
+        cutoff: Cutoff frequency in Hz (20000 = effectively off). A
+            float, not an int — see `apply_highpass`.
 
     Returns:
         Lowpass-filtered audio data.
@@ -932,7 +950,7 @@ def apply_lowpass(data: Any, rate: int, cutoff: int = 20000) -> Any:
     # Verify stability
     poles = np.roots(a)
     if not np.all(np.abs(poles) < 1.0):
-        logger.warning("Unstable lowpass filter at %d Hz, skipping", cutoff)
+        logger.warning("Unstable lowpass filter at %.0f Hz, skipping", cutoff)
         return data
 
     if len(data.shape) == 1:
@@ -2255,11 +2273,10 @@ def mix_track_stems(
             peak_dbfs = 20.0 * np.log10(pre_peak) if pre_peak > 0.0 else float('-inf')
             skipped_empty = peak_dbfs < resolve_silence_gate_dbfs(settings)
 
-        # Only drums/percussion write clicks_removed into the report dict —
-        # keeping the per-processor kwarg asymmetric is intentional (the
-        # other 10 processors have no metric to report). The dict is
-        # initialized empty so the `get('clicks_removed', 0)` fallback in
-        # the append-below always has a value, even for non-declicking stems.
+        # Every processor accumulates its click counts here through the
+        # shared `_apply_click_removal`. Both counters are seeded so the
+        # append below always has a value, including for a stem that
+        # skips the chain entirely or has declicking switched off.
         stem_report: dict[str, Any] = {
             'clicks_removed': 0, 'clicks_detected': 0, 'skipped_empty': False,
         }

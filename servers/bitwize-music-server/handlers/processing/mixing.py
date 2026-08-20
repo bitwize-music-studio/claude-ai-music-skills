@@ -301,17 +301,16 @@ def _resolve_silence_gate_dbfs(stem_name: str, genre: str | None) -> float:
     try:
         from tools.mixing.mix_tracks import (
             SILENT_STEM_PEAK_DBFS,
+            STEM_NAMES,
             _get_stem_settings,
             resolve_silence_gate_dbfs,
         )
     except ImportError:
         return -40.0
 
-    try:
-        settings = _get_stem_settings(stem_name, genre or None)
-    except KeyError:
+    if stem_name not in STEM_NAMES:
         return SILENT_STEM_PEAK_DBFS
-    return resolve_silence_gate_dbfs(settings)
+    return resolve_silence_gate_dbfs(_get_stem_settings(stem_name, genre or None))
 
 
 def _resolve_analyzer_thresholds() -> tuple[float, float, bool]:
