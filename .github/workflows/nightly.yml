@@ -85,8 +85,13 @@ jobs:
         sudo apt-get $APT_OPTS update -qq
         sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
 
+    # Same hazard as the apt step above, different package manager: brew and
+    # choco both hit third-party mirrors that can stall with no output, and a
+    # stalled install burns the whole 90-minute job budget. The apt step was
+    # hardened first only because apt is what happened to hang on 2026-08-19.
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
+      timeout-minutes: 10
       run: |
         brew install ffmpeg
 
@@ -94,6 +99,7 @@ jobs:
     # run everywhere; AnthemScore/MuseScore remain WSL-recommended externals.
     - name: Install system dependencies (Windows)
       if: runner.os == 'Windows'
+      timeout-minutes: 10
       run: choco install ffmpeg -y --no-progress
 
     # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
@@ -107,7 +113,11 @@ jobs:
         ffmpeg -version
         ffprobe -version
 
+    # Deliberately uncached (see setup-python above), so every byte comes off
+    # PyPI on every run — the same network-stall class as the apt/brew/choco
+    # steps, and the one that moves the most data.
     - name: Install test dependencies
+      timeout-minutes: 15
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
@@ -250,7 +260,10 @@ jobs:
       with:
         python-version: '3.11'
 
+    # Uncached pip (no `cache: 'pip'` above) — same network-stall class as the
+    # deep-test job's install step.
     - name: Install dependencies
+      timeout-minutes: 15
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
@@ -258,7 +271,14 @@ jobs:
 
     # --with-deps pulls the system libraries chromium needs on Linux; it is a
     # no-op on macOS/Windows.
+    #
+    # The single least-bounded step in the workflow: a ~150MB browser download
+    # from Microsoft's CDN, plus an apt transaction run INSIDE playwright on
+    # Linux that this file cannot pass Acquire::Retries/Timeout options to. A
+    # step timeout is the only lever available here, and without it a CDN or
+    # mirror stall silently eats the job's whole 25-minute budget.
     - name: Install Chromium
+      timeout-minutes: 10
       run: python -m playwright install --with-deps chromium
 
     - name: Run the Chromium smoke test
@@ -276,7 +296,10 @@ jobs:
       with:
         ref: develop
 
+    # Downloads and registers a full distro image on a cache miss — network
+    # work this file has no other lever over, inside a 45-minute job.
     - name: Set up WSL2 (Ubuntu-24.04)
+      timeout-minutes: 15
       uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
       with:
         # Ubuntu-24.04 ships Python 3.12, which the pinned requirements
@@ -292,12 +315,24 @@ jobs:
     # inside WSL — ffmpeg-gated tests skip via shutil.which fixtures, matching
     # the probe benchmark (the native legs install ffmpeg since #484, but the
     # Windows-side choco install is invisible inside the distro).
+    #
+    # The apt options are spelled out INLINE here rather than read from the
+    # workflow-level APT_OPTS: this script runs inside the WSL distro through
+    # the wsl-bash wrapper, and workflow/job env does not cross that boundary
+    # (same reason PYTHONUTF8 is re-exported below). This is the fifth apt site
+    # in CI and it was the last one still unhardened — a mirror stall here hangs
+    # exactly like the 2026-08-19 ubuntu legs did.
+    #
+    # No step-level timeout on purpose: this one step both installs AND runs the
+    # full suite (~11.5 min), so any cap tight enough to catch an install stall
+    # would kill legitimate test runs. The job's 45-minute cap governs instead.
     - name: Install pinned requirements and run full suite inside WSL2
       shell: wsl-bash {0}
       run: |
         uname -a
-        apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv python3-pip
+        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+        apt-get $APT_OPTS update
+        DEBIAN_FRONTEND=noninteractive apt-get $APT_OPTS install -y --no-install-recommends python3 python3-venv python3-pip
         python3 -m venv /tmp/wsl-venv
         /tmp/wsl-venv/bin/pip install --upgrade pip -q
         /tmp/wsl-venv/bin/pip install -q -r requirements-test.txt -r requirements.txt
@@ -330,6 +365,7 @@ jobs:
     # install the pins (e.g. dispatch with 3.10). No tests are run — this
     # job exists purely to prove `pip install` succeeds on the floor version.
     - name: Install pinned requirements
+      timeout-minutes: 15
       run: |
         pip install -r requirements.txt -r requirements-test.txt
 

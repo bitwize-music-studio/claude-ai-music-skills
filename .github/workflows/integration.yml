@@ -115,7 +115,13 @@ jobs:
     # Same fork-PR guard as the other jobs — untrusted code could modify
     # requirements/test files.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
-    timeout-minutes: 20
+    # 30, not 20: the apt step below is allowed 15 of its own, and a step cap
+    # that close to the job cap cannot do its job — the step would be killed at
+    # 15 but the job has only 5 minutes left to run the diagnostics, install
+    # requirements and execute the test, so a slow-but-recovering install still
+    # fails the leg with a job-level timeout, which is precisely the
+    # unattributable failure the step cap exists to replace.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -165,8 +171,11 @@ jobs:
         echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
         ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
 
+    # Same hazard class and same size as the Linux apt install above (MuseScore
+    # is a large download), just a different package manager.
     - name: Install MuseScore (Chocolatey)
       if: runner.os == 'Windows'
+      timeout-minutes: 15
       run: choco install musescore -y --no-progress
 
     - name: MuseScore diagnostics
@@ -252,6 +261,9 @@ jobs:
 
     - name: Install ffmpeg (Homebrew)
       # ffmpeg generates the WAV fixture (lavfi) and decodes afconvert's m4a.
+      # Capped like every other brew/choco/apt site — a stalled mirror here
+      # would otherwise burn the job's whole budget with no attribution.
+      timeout-minutes: 10
       run: brew install ffmpeg
 
     - name: afconvert diagnostics
