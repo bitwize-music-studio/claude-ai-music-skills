@@ -33,7 +33,7 @@ from handlers.processing import _album_stages as album_stages_mod  # noqa: E402
 def _make_ctx(genre: str, wav: Path) -> "album_stages_mod.MasterAlbumCtx":
     ctx = album_stages_mod.MasterAlbumCtx(
         album_slug="genre-test", genre=genre, target_lufs=-14.0,
-        ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+        ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
         source_subfolder="", freeze_signature=False, new_anchor=False,
         loop=asyncio.get_event_loop(),
     )

@@ -69,7 +69,7 @@ def test_coherence_check_classifies_tracks() -> None:
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -116,7 +116,7 @@ def test_coherence_check_counts_spectral_correctables() -> None:
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -142,7 +142,7 @@ def test_coherence_check_warns_without_anchor() -> None:
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -169,7 +169,7 @@ def test_coherence_correct_no_op_when_no_outliers() -> None:
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -242,7 +242,7 @@ def test_coherence_correct_clamps_to_1_5_db(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -356,7 +356,7 @@ def test_coherence_correct_clamps_when_target_below_window(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -474,7 +474,7 @@ def test_coherence_correct_applies_tilt_for_low_rms_outlier(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -605,7 +605,7 @@ def test_coherence_correct_breaks_on_fixed_point_with_tilt_clamp(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -733,7 +733,7 @@ def test_coherence_correct_unconvergent_entry_exposes_diagnostics(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -909,7 +909,7 @@ def test_coherence_correct_all_clamp_bound_downgrades_to_pass(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -1036,7 +1036,7 @@ def test_coherence_correct_mixed_clamp_and_drift_stays_warn(
     async def _run():
         ctx = MasterAlbumCtx(
             album_slug="test-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
