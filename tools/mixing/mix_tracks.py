@@ -241,17 +241,32 @@ def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     return coerce_yaml_float(settings[key], default=default, context=key)
 
 
+def _lower_section_keys(section: dict[str, Any]) -> dict[str, Any]:
+    """Lowercase the stem-name keys of one override section (#553).
+
+    Companion to the genre-key normalization below, and the same bug:
+    every consumer looks a stem up by its canonical lowercase
+    `STEM_NAMES` entry (`_get_stem_settings`, `_get_full_mix_settings`),
+    so an override written as `Vocals:` rather than `vocals:` landed
+    under a key nothing ever reads and the whole block was silently
+    discarded. Applies to both `defaults:` and each genre section.
+    """
+    return {str(key).lower(): value for key, value in section.items()}
+
+
 def load_mix_presets() -> dict[str, Any]:
     """Load mix presets from YAML, merging built-in with user overrides.
 
-    Genre keys from the user's override file are lowercased before
-    merging (#553). Every consumer resolves a genre with `genre.lower()`
+    Genre keys *and* stem keys from the user's override file are
+    lowercased before merging (#553). Every consumer resolves a genre
+    with `genre.lower()` and a stem by its canonical `STEM_NAMES` entry
     (`_get_stem_settings`, `_get_full_mix_settings`), so an override
     written under a capitalized key — `Electronic:` rather than
-    `electronic:` — used to land in the presets dict under a key nothing
-    ever reads: the whole block was silently discarded and the shipped
-    defaults applied instead. Normalizing here keeps the write side and
-    the read side on the same key.
+    `electronic:`, `Vocals:` rather than `vocals:` — used to land in the
+    presets dict under a key nothing ever reads: the whole block was
+    silently discarded and the shipped defaults applied instead.
+    Normalizing here keeps the write side and the read side on the same
+    key.
 
     Returns:
         Dict with 'defaults' and 'genres' keys containing per-stem settings.
@@ -265,12 +280,14 @@ def load_mix_presets() -> dict[str, Any]:
     if overrides_dir:
         override_file = overrides_dir / 'mix-presets.yaml'
         override_data = _load_yaml_file(override_file)
-        if override_data.get('defaults'):
-            defaults = _deep_merge(defaults, override_data['defaults'])
-        for raw_genre_name, genre_overrides in override_data.get('genres', {}).items():
-            if not isinstance(genre_overrides, dict):
+        override_defaults = override_data.get('defaults')
+        if isinstance(override_defaults, dict) and override_defaults:
+            defaults = _deep_merge(defaults, _lower_section_keys(override_defaults))
+        for raw_genre_name, raw_genre_overrides in override_data.get('genres', {}).items():
+            if not isinstance(raw_genre_overrides, dict):
                 continue
             genre_name = str(raw_genre_name).lower()
+            genre_overrides = _lower_section_keys(raw_genre_overrides)
             if genre_name in genres:
                 genres[genre_name] = _deep_merge(genres[genre_name], genre_overrides)
             else:
@@ -279,8 +296,26 @@ def load_mix_presets() -> dict[str, Any]:
     return {'defaults': defaults, 'genres': genres}
 
 
-# Load presets at import time (fast — just two small YAML reads)
+# Load presets at import time (fast — just two small YAML reads). This is
+# a starting value, not the source of truth: `_refresh_mix_presets()` at
+# every polish entry point re-reads it (#553).
 MIX_PRESETS = load_mix_presets()
+
+
+def _refresh_mix_presets() -> dict[str, Any]:
+    """Re-read the presets and update the module global (#553).
+
+    `MIX_PRESETS` used to be an import-time snapshot. The MCP server is
+    long-lived, so a user who edited `{overrides}/mix-presets.yaml`
+    mid-session — the documented way to change any of these settings —
+    saw no effect until the server restarted, and every polish run in
+    between silently used the stale presets. Called at each polish entry
+    point (`mix_track_stems`, `mix_track_full`) so a run always reflects
+    the file as it is on disk now. Both reads are small YAML files.
+    """
+    global MIX_PRESETS
+    MIX_PRESETS = load_mix_presets()
+    return MIX_PRESETS
 
 
 # ─── Audio Processing Functions ──────────────────────────────────────
@@ -2112,6 +2147,8 @@ def mix_track_stems(
         list and a ``blocked`` list (both always present, possibly
         empty).
     """
+    _refresh_mix_presets()
+
     stems_processed: list[dict[str, Any]] = []
     overrides_applied: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -2349,6 +2386,8 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
     Returns:
         Dict with processing results and metrics.
     """
+    _refresh_mix_presets()
+
     input_path = Path(input_path)
     data, rate = sf.read(str(input_path))
 

@@ -3230,3 +3230,195 @@ class TestNumericSettingCoercion:
 
         result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
         assert [s["stem"] for s in result["stems_processed"]] == ["vocals"]
+
+
+class TestDefaultsScopeOverridesReachEveryGenre:
+    """#553 follow-up: 22 genre sections carried a `noise_reduction: 0`
+
+    entry that was a pure no-op against the shipped defaults (already 0)
+    — but not against a user's override. `defaults:`-scope overrides
+    merge *below* the genre section, so `defaults: vocals:
+    noise_reduction: 0.5` was silently shadowed back to 0 on exactly the
+    genres a user importing recorded audio is most likely to reach for.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    @pytest.mark.parametrize("genre", [
+        "grunge", "ambient", "lo-fi", "classical", "shoegaze", "opera",
+    ])
+    def test_defaults_scope_noise_reduction_reaches_genre_stems(
+        self, tmp_path, monkeypatch, genre,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  vocals:\n"
+            "    noise_reduction: 0.5\n"
+            "  other:\n"
+            "    noise_reduction: 0.4\n"
+        ))
+        assert _get_stem_settings('vocals', genre)['noise_reduction'] == pytest.approx(0.5)
+        assert _get_stem_settings('other', genre)['noise_reduction'] == pytest.approx(0.4)
+
+    def test_no_genre_section_pins_noise_reduction(self):
+        """No genre may carry a `noise_reduction` entry at all — a value
+        there shadows the `defaults:` scope even when it is 0."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        offenders = [
+            f"{g}.{stem}"
+            for g, block in (data.get('genres') or {}).items()
+            if isinstance(block, dict)
+            for stem, settings in block.items()
+            if isinstance(settings, dict) and 'noise_reduction' in settings
+        ]
+        assert offenders == [], f"genre-level noise_reduction found: {offenders}"
+
+    def test_no_empty_stem_blocks_remain(self):
+        """Deleting the entries must not leave a bare `other:` key —
+        `_deep_merge` would be handed None and crash."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        empties = [
+            f"{g}.{stem}"
+            for g, block in (data.get('genres') or {}).items()
+            if isinstance(block, dict)
+            for stem, settings in block.items()
+            if not settings
+        ]
+        assert empties == [], f"empty preset blocks: {empties}"
+
+
+class TestPresetsRefreshAtRunEntry:
+    """#553 follow-up: `MIX_PRESETS` was a module-level snapshot taken at
+
+    import time. The MCP server is long-lived, so a user who edited
+    `{overrides}/mix-presets.yaml` mid-session — the documented way to
+    change any of this — saw no effect until the server restarted, and
+    every polish run in between silently used the stale presets. The
+    polish entry points re-read the overrides now.
+    """
+
+    @staticmethod
+    def _override_dir(tmp_path, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir(exist_ok=True)
+        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+        return override_dir
+
+    def test_mix_track_stems_sees_an_override_written_after_import(
+        self, tmp_path, monkeypatch,
+    ):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        # No MIX_PRESETS refresh here — this is exactly the mid-session
+        # edit the snapshot used to swallow.
+        (override_dir / "mix-presets.yaml").write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: true\n"
+        )
+
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        assert result["stems_processed"][0]["clicks_removed"] > 0
+
+    def test_mix_track_full_sees_an_override_written_after_import(
+        self, tmp_path, monkeypatch,
+    ):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        (override_dir / "mix-presets.yaml").write_text(
+            "defaults:\n  full_mix:\n    click_removal: true\n"
+        )
+
+        src = tmp_path / "01-track.wav"
+        _clicky_stem(src)
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] > 0
+
+    def test_a_later_edit_replaces_an_earlier_one(self, tmp_path, monkeypatch):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        override_file = override_dir / "mix-presets.yaml"
+
+        override_file.write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: true\n"
+        )
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        first = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out1.wav"), genre="electronic",
+        )
+        assert first["stems_processed"][0]["clicks_removed"] > 0
+
+        override_file.write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: false\n"
+        )
+        second = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out2.wav"), genre="electronic",
+        )
+        assert second["stems_processed"][0]["clicks_removed"] == 0
+
+
+class TestCapitalizedStemKeysInOverrides:
+    """#553 follow-up: the genre-key fix lowercased genre names but not
+
+    stem names. Every consumer looks a stem up by its canonical lowercase
+    `STEM_NAMES` entry, so an override written as `Vocals:` landed under
+    a key nothing reads — silently discarded, exactly like the
+    capitalized genre keys were.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    def test_capitalized_stem_key_at_defaults_scope_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Vocals:\n"
+            "    click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals')['click_removal'] is True
+
+    def test_capitalized_stem_key_at_genre_scope_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    Vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_capitalized_stem_key_under_a_capitalized_genre(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    Drums:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_capitalized_full_mix_key_is_honored(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Full_Mix:\n"
+            "    click_removal: true\n"
+        ))
+        assert _get_full_mix_settings()['click_removal'] is True
+
+    def test_capitalized_stem_key_reaches_the_processing_chain(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Vocals:\n"
+            "    click_removal: true\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        assert result["stems_processed"][0]["clicks_removed"] > 0

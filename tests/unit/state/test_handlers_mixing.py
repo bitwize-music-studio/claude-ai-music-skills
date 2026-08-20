@@ -335,11 +335,13 @@ class TestAnalyzeMixIssues:
         import tools.mixing.mix_tracks as mt
         from tools.mixing.mix_tracks import _deep_merge, mix_track_stems
 
-        patched_presets = _deep_merge(
-            mt.MIX_PRESETS,
-            {"defaults": {"vocals": {"click_removal": True}}},
-        )
-        monkeypatch.setattr(mt, "MIX_PRESETS", patched_presets)
+        # Patch the loader, not the `MIX_PRESETS` snapshot: every polish
+        # entry point re-reads the presets on the way in (#553), so a
+        # snapshot patched here would be replaced before it was consulted.
+        real_load = mt.load_mix_presets
+        monkeypatch.setattr(mt, "load_mix_presets", lambda: _deep_merge(
+            real_load(), {"defaults": {"vocals": {"click_removal": True}}},
+        ))
 
         audio_dir = tmp_path / "audio"
         audio_dir.mkdir()

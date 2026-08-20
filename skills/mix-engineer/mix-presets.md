@@ -17,6 +17,10 @@ Each genre preset adjusts per-stem processing settings. Settings not specified i
 
 **Genre presets** override specific values. For example, hip-hop boosts vocal and bass gain in the remix to push those elements forward.
 
+**User overrides** live in `{overrides}/mix-presets.yaml` and deep-merge on top of the shipped file. Genre and stem keys are matched case-insensitively, so `Electronic:` / `Vocals:` work as well as the lowercase forms. Every polish run re-reads the file, so an edit takes effect on the next run — no server restart needed.
+
+**Scope matters.** A value under `defaults: <stem>:` applies to every genre *unless* that genre's section sets the same key — a genre entry always wins, even when it repeats the shipped default. If a `defaults:`-scope override seems to have no effect, check whether the genre you're polishing with pins that key.
+
 ---
 
 ## Stem Gain (Remix Balance)
