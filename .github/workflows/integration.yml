@@ -16,6 +16,13 @@ concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
+# apt hardening options, defined ONCE per workflow file — see nightly.yml's copy
+# for the full rationale. Retries + http::Timeout ride out a transient mirror
+# stall; DPkg::Lock::Timeout rides out unattended-upgrades holding the dpkg
+# lock. Safe to hoist because the variable is inert outside an apt command line.
+env:
+  APT_OPTS: "-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+
 jobs:
   integration:
     name: Integration (Postgres + SeaweedFS)
@@ -156,14 +163,20 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    # Step timeout + apt opts guard against silent apt-mirror stalls (the
-    # 2026-08-19 nightly burned 90 min inside `apt-get update`) — see nightly.yml.
-    # 15 min, not 10: musescore3 pulls a large dependency tree.
+    # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
+    # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
+    # update`) — see nightly.yml. 15 min, not 10: musescore3 pulls a large
+    # dependency tree. No -qq here either, for the same attribution reason.
+    #
+    # This install deliberately does NOT carry --no-install-recommends, unlike
+    # the ffmpeg sites: musescore3 is a Qt GUI application whose recommends pull
+    # its soundfont and Qt plugin set, and this job's whole purpose is to prove
+    # a real PDF export works. Trimming here to match the other copies would be
+    # cosmetic consistency bought with a plausible test failure.
     - name: Install MuseScore (musescore3) + xvfb
       if: runner.os == 'Linux'
       timeout-minutes: 15
       run: |
-        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
         sudo apt-get $APT_OPTS update
         # xvfb is a headless fallback if the offscreen plugin misbehaves on the
         # runner; the primary path is QT_QPA_PLATFORM=offscreen.

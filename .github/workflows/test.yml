@@ -15,6 +15,15 @@ concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
+# apt hardening options, defined ONCE per workflow file — see nightly.yml's copy
+# for the full rationale. Short version: Retries + http::Timeout ride out a
+# transient mirror stall, DPkg::Lock::Timeout rides out unattended-upgrades
+# holding the dpkg lock, and hoisting is safe for THIS variable (inert outside
+# an apt command line) in a way it is not for PYTHONUTF8, which changes how
+# every Python process decodes text and must stay scoped to the `test` job.
+env:
+  APT_OPTS: "-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+
 jobs:
   validate:
     name: Static Validation
@@ -219,14 +228,15 @@ jobs:
         python-version: '3.11'
         cache: 'pip'
 
-    # Step timeout + apt opts guard against silent apt-mirror stalls (the
-    # 2026-08-19 nightly burned 90 min inside `apt-get update`) — see nightly.yml.
+    # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
+    # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
+    # update`) — see nightly.yml. No -qq: it hides the Get:/Hit: lines that name
+    # which mirror a timeout-killed step was stalled on.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       timeout-minutes: 10
       run: |
-        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
-        sudo apt-get $APT_OPTS update -qq
+        sudo apt-get $APT_OPTS update
         sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
 
     # Same hazard as the apt step above, different package manager — brew and

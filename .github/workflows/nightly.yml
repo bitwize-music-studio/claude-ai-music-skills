@@ -25,6 +25,26 @@ concurrency:
   group: nightly
   cancel-in-progress: true
 
+# apt hardening options, defined ONCE per workflow file. Retries + http::Timeout
+# ride out a transient mirror stall; DPkg::Lock::Timeout rides out
+# unattended-upgrades holding the dpkg lock on a freshly booted runner. This
+# lived as a hand-pasted shell assignment inside each apt step across three
+# workflow files, and those copies had already drifted in the flags they were
+# paired with — one `update -qq` and one not, one install with
+# --no-install-recommends and one without.
+#
+# Hoisting is safe here in a way it is NOT for PYTHONUTF8 (see the job-level
+# notes below): APT_OPTS is inert everywhere except an apt command line — a
+# step that never runs apt never expands it, and nothing branches on it —
+# whereas PYTHONUTF8 changes how every Python process decodes text, so hoisting
+# THAT would silently rewrite the behaviour of the jobs that must run without
+# it. The rule is about the variable, not about workflow-level env.
+#
+# The WSL2 job below keeps its own inline copy: workflow env does not cross the
+# WSL boundary.
+env:
+  APT_OPTS: "-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+
 jobs:
   deep-test:
     name: Deep Tests (${{ matrix.os }} / py${{ matrix.python }})
@@ -72,17 +92,20 @@ jobs:
         python-version: ${{ matrix.python }}
         # No pip cache — a from-scratch install is part of what nightly proves.
 
-    # timeout-minutes + apt retry/timeout opts: on 2026-08-19 two ubuntu legs
-    # hung inside `apt-get update` with zero output (mirror stall) and burned
-    # the full 90-minute job budget. The step timeout converts that into a
-    # fast, clearly-attributed failure; the apt opts ride out transient mirror
-    # and dpkg-lock contention (unattended-upgrades) on the runner.
+    # timeout-minutes + $APT_OPTS (workflow env, top of file): on 2026-08-19 two
+    # ubuntu legs hung inside `apt-get update` with zero output (mirror stall)
+    # and burned the full 90-minute job budget. The step timeout converts that
+    # into a fast, clearly-attributed failure; the apt opts ride out transient
+    # mirror and dpkg-lock contention (unattended-upgrades) on the runner.
+    #
+    # No -qq on `update`, on purpose: -qq suppresses the per-mirror Get:/Hit:
+    # lines, which are the only evidence of WHICH mirror a timeout-killed step
+    # was stalled on. Quiet output is worth less than an attributable hang.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       timeout-minutes: 10
       run: |
-        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
-        sudo apt-get $APT_OPTS update -qq
+        sudo apt-get $APT_OPTS update
         sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
 
     # Same hazard as the apt step above, different package manager: brew and
