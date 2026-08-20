@@ -197,3 +197,63 @@ class TestCoerceYamlBool:
             assert coerce_yaml_bool("maybe", default=True, context="cloud.enabled") is True
             assert coerce_yaml_bool([], default=False, context="x") is False
         assert any("cloud.enabled" in r.message for r in caplog.records)
+
+
+class TestParseYamlFloat:
+    """parse_yaml_float() is the numeric sibling of parse_yaml_bool (#553).
+
+    Numeric preset/config values were read with a bare `float(...)`, which
+    raises on a quoted `"0.5"`-shaped mistake and takes the whole run down
+    with a traceback. This helper gives numeric gates the same
+    raise-then-warn-and-default contract the boolean gates already have.
+    """
+
+    @pytest.mark.parametrize("value", [0, 1, -2, 0.5, -3.5])
+    def test_passes_through_real_numbers(self, value):
+        from tools.shared.config import parse_yaml_float
+        assert parse_yaml_float(value) == float(value)
+        assert isinstance(parse_yaml_float(value), float)
+
+    @pytest.mark.parametrize("value", [True, False])
+    def test_bools_are_not_numbers(self, value):
+        """`isinstance(True, int)` is True in Python — a boolean in a
+        numeric slot is a mistake, not a 1.0."""
+        from tools.shared.config import parse_yaml_float
+        with pytest.raises(ValueError):
+            parse_yaml_float(value)
+
+    @pytest.mark.parametrize("value", ["0.5", "0", " 1 ", "abc", "", None, [], {}])
+    def test_strings_and_junk_raise(self, value):
+        """A quoted number is not silently accepted: an unreadable
+        setting must fall back to its documented default, never be
+        guessed into effect."""
+        from tools.shared.config import parse_yaml_float
+        with pytest.raises(ValueError):
+            parse_yaml_float(value)
+
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_raises(self, value):
+        from tools.shared.config import parse_yaml_float
+        with pytest.raises(ValueError):
+            parse_yaml_float(value)
+
+
+class TestCoerceYamlFloat:
+    """coerce_yaml_float() = parse_yaml_float with warn-and-default fallback."""
+
+    def test_numbers_pass_through(self):
+        from tools.shared.config import coerce_yaml_float
+        assert coerce_yaml_float(0.5, default=0.0) == 0.5
+        assert coerce_yaml_float(0, default=1.0) == 0.0
+
+    def test_quoted_number_returns_default_with_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_float
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            assert coerce_yaml_float("0.5", default=0.0, context="noise_reduction") == 0.0
+        assert any("noise_reduction" in r.message for r in caplog.records)
+
+    def test_garbage_returns_default_with_warning(self, caplog):
+        from tools.shared.config import coerce_yaml_float
+        with caplog.at_level("WARNING", logger="tools.shared.config"):
+            assert coerce_yaml_float([], default=-2.0, context="high_tame_db") == -2.0
+        assert any("high_tame_db" in r.message for r in caplog.records)

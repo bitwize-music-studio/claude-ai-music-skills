@@ -59,8 +59,9 @@ from tools.mixing.mix_tracks import (
     _get_stem_settings,
     _get_full_mix_settings,
     _resolve_master_click_thresholds,
-    _coerce_setting_bool,
+    _setting_float,
 )
+from tools.shared.config import coerce_yaml_bool
 
 
 # ─── Test Helpers ─────────────────────────────────────────────────────
@@ -2747,12 +2748,17 @@ class TestClickRemovalFlagCoercion:
 
     this module (`adm_aware_excitation`, the other boolean in the preset
     file, is consumed by the analyzer handler). It was read with a bare
-    `settings.get('click_removal', False)` — no coercion — while every
-    numeric setting alongside it goes through `float(...)`. A YAML value
-    that is truthy but not a `bool` (`click_removal: "false"` quoted, or
-    `"no"`, or any non-YAML-bool token) therefore left declicking *on*
-    while a numeric `noise_reduction: 0` in the same block still worked,
-    which is the shape of the field report's asymmetry.
+    `settings.get('click_removal', False)` — no coercion — so a YAML
+    value that is truthy but not a `bool` (`click_removal: "false"`
+    quoted, or `"no"`) left declicking *on*, which is the shape of the
+    field report's asymmetry.
+
+    The gate now uses the shared `tools.shared.config.coerce_yaml_bool`
+    (#388) rather than a mix-local fork with its own dialect, so the
+    accepted spellings are exactly PyYAML's YAML 1.1 boolean literals —
+    `true/yes/on/1` and `false/no/off/0`. The fork additionally accepted
+    `y/t/n/f`, which PyYAML itself does not resolve to a bool; those now
+    take the warn-and-default path like any other unreadable value.
     """
 
     _install_override = staticmethod(TestClickRemovalOverrideIsHonored._install_override)
@@ -2819,31 +2825,127 @@ class TestClickRemovalFlagCoercion:
             assert self._clicks_removed(tmp_path, "vocals", "electronic") == 0
         assert any('click_removal' in r.message for r in caplog.records)
 
-    # ── the coercion helper itself ────────────────────────────────────
+    # ── the shared coercion helper, as this gate calls it ─────────────
 
-    @pytest.mark.parametrize("raw", ["false", "False", "FALSE", "no", "off", "n", "0", " false "])
+    @pytest.mark.parametrize("raw", ["false", "False", "FALSE", "no", "off", "0", " false "])
     def test_falsey_yaml_tokens_coerce_to_false(self, raw):
-        assert _coerce_setting_bool(raw, default=True, key='click_removal') is False
+        assert coerce_yaml_bool(raw, default=True, context='click_removal') is False
 
-    @pytest.mark.parametrize("raw", ["true", "True", "TRUE", "yes", "on", "y", "1", " true "])
+    @pytest.mark.parametrize("raw", ["true", "True", "TRUE", "yes", "on", "1", " true "])
     def test_truthy_yaml_tokens_coerce_to_true(self, raw):
-        assert _coerce_setting_bool(raw, default=False, key='click_removal') is True
+        assert coerce_yaml_bool(raw, default=False, context='click_removal') is True
+
+    @pytest.mark.parametrize("raw", ["y", "t", "n", "f"])
+    def test_single_letter_tokens_are_not_yaml_booleans(self, raw):
+        """PyYAML does not resolve a bare `y`/`n` to a bool either, so the
+        shared dialect treats them as unreadable rather than guessing."""
+        assert coerce_yaml_bool(raw, default=False, context='click_removal') is False
+        assert coerce_yaml_bool(raw, default=True, context='click_removal') is True
 
     def test_real_bools_pass_through_unchanged(self):
-        assert _coerce_setting_bool(True, default=False, key='click_removal') is True
-        assert _coerce_setting_bool(False, default=True, key='click_removal') is False
+        assert coerce_yaml_bool(True, default=False, context='click_removal') is True
+        assert coerce_yaml_bool(False, default=True, context='click_removal') is False
 
     def test_numbers_use_numeric_truthiness(self):
-        assert _coerce_setting_bool(1, default=False, key='click_removal') is True
-        assert _coerce_setting_bool(0, default=True, key='click_removal') is False
+        assert coerce_yaml_bool(1, default=False, context='click_removal') is True
+        assert coerce_yaml_bool(0, default=True, context='click_removal') is False
 
-    def test_missing_value_uses_the_default(self):
-        assert _coerce_setting_bool(None, default=False, key='click_removal') is False
-        assert _coerce_setting_bool(None, default=True, key='click_removal') is True
+    def test_missing_key_uses_the_gate_default(self):
+        """`_apply_click_removal` reads `settings.get(key, False)`, so an
+        absent key never reaches the coercer as None."""
+        assert coerce_yaml_bool({}.get('click_removal', False), default=False) is False
 
     def test_uninterpretable_value_returns_default_and_warns(self, caplog):
         with caplog.at_level(logging.WARNING):
-            assert _coerce_setting_bool("maybe", default=False, key='click_removal') is False
-            assert _coerce_setting_bool([1], default=True, key='click_removal') is True
+            assert coerce_yaml_bool("maybe", default=False, context='click_removal') is False
+            assert coerce_yaml_bool([1], default=True, context='click_removal') is True
         assert len(caplog.records) == 2
         assert all('click_removal' in r.message for r in caplog.records)
+
+    def test_absent_key_does_not_warn(self, caplog):
+        """A stem whose preset simply omits `click_removal` must not
+        produce a warning on every polish run."""
+        data, rate = _generate_sine(amplitude=0.3)
+        with caplog.at_level(logging.WARNING):
+            process_vocals(data.copy(), rate, {'presence_boost_db': 0})
+        assert not any('click_removal' in r.message for r in caplog.records)
+
+
+class TestNumericSettingCoercion:
+    """#553: numeric settings were read straight out of the dict and
+
+    compared with `>` / `!=` — so a quoted `noise_reduction: "0.5"` in a
+    user override raised `TypeError: '>' not supported between instances
+    of 'str' and 'int'` and took the whole polish run down. (The #553
+    `_coerce_setting_bool` docstring claimed numerics already went
+    through `float(...)`; only `click_peak_ratio` ever did, and that one
+    crashed on a non-numeric string too.) Numeric reads now share the
+    boolean gate's warn-and-default contract: an unreadable value falls
+    back to the documented default and says so, never crashes and never
+    gets guessed into effect.
+    """
+
+    _install_override = staticmethod(TestClickRemovalOverrideIsHonored._install_override)
+
+    def test_quoted_noise_reduction_neither_crashes_nor_enables(self, caplog):
+        """The field shape: `"0.5"` must behave exactly like the default
+        (0 — off), not crash and not apply a 0.5-strength pass."""
+        data, rate = _generate_sine(amplitude=0.3)
+        base = _get_stem_settings('vocals')
+
+        off = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0})
+        with caplog.at_level(logging.WARNING):
+            quoted = process_vocals(data.copy(), rate, {**base, 'noise_reduction': "0.5"})
+
+        np.testing.assert_allclose(quoted, off)
+        assert any('noise_reduction' in r.message for r in caplog.records)
+
+    def test_real_numeric_noise_reduction_still_applies(self):
+        """Guard against over-correcting: an unquoted 0.5 must still run
+        the noise-reduction pass."""
+        data, rate = _generate_noise(amplitude=0.3)
+        base = _get_stem_settings('vocals')
+
+        off = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0})
+        on = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0.5})
+
+        assert not np.allclose(on, off)
+
+    def test_quoted_eq_setting_falls_back_to_the_code_default(self, caplog):
+        """Same contract for a non-`noise_reduction` numeric read — the
+        sweep covers every numeric setting each processor reads."""
+        data, rate = _generate_sine(amplitude=0.3)
+        base = {k: v for k, v in _get_stem_settings('other').items()
+                if k != 'high_tame_db'}
+
+        with caplog.at_level(logging.WARNING):
+            quoted = process_other(data.copy(), rate, {**base, 'high_tame_db': "-6"})
+        missing = process_other(data.copy(), rate, dict(base))
+
+        np.testing.assert_allclose(quoted, missing)
+        assert any('high_tame_db' in r.message for r in caplog.records)
+
+    def test_quoted_click_peak_ratio_does_not_crash(self, caplog):
+        """`click_peak_ratio` was the one numeric read already wrapped in
+        `float(...)` — which raises, rather than warns, on 'aggressive'."""
+        data, rate = _generate_sine(amplitude=0.3)
+        settings = {**_get_stem_settings('drums'),
+                    'click_removal': True, 'click_peak_ratio': "aggressive"}
+        with caplog.at_level(logging.WARNING):
+            process_drums(data.copy(), rate, settings)
+        assert any('click_peak_ratio' in r.message for r in caplog.records)
+
+    def test_quoted_override_survives_a_whole_polish_run(self, tmp_path, monkeypatch):
+        """End-to-end through the override file that produced the field
+        crash — the run completes and the stem is reported."""
+        self._install_override(tmp_path, monkeypatch, (
+            'defaults:\n'
+            '  vocals:\n'
+            '    noise_reduction: "0.5"\n'
+        ))
+        stem = tmp_path / "vocals.wav"
+        data, rate = _generate_sine(amplitude=0.3)
+        _write_wav(stem, data, rate)
+
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        assert [s["stem"] for s in result["stems_processed"]] == ["vocals"]

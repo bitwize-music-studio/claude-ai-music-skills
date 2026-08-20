@@ -45,6 +45,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.mixing.excitation import apply_harmonic_excitation
+from tools.shared.config import coerce_yaml_bool, coerce_yaml_float
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -196,53 +197,29 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
-# YAML 1.1 boolean spellings, as PyYAML would resolve them from an
-# *unquoted* scalar. We accept the same vocabulary from a quoted one.
-_BOOL_TRUE_TOKENS = frozenset({'true', 'yes', 'on', 'y', 't', '1'})
-_BOOL_FALSE_TOKENS = frozenset({'false', 'no', 'off', 'n', 'f', '0'})
+def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
+    """Read a numeric preset value with a warn-and-default fallback (#553).
 
+    Every numeric setting in this module used to be read straight out of
+    the dict and then compared (`if nr_strength > 0`) or handed to scipy.
+    A quoted `noise_reduction: "0.5"` — easy to write by accident, and
+    some editors add the quotes — therefore raised `TypeError: '>' not
+    supported between instances of 'str' and 'int'` mid-polish, and the
+    one read that *was* wrapped in `float(...)` (`click_peak_ratio`)
+    raised `ValueError` on a non-numeric string instead.
 
-def _coerce_setting_bool(value: Any, default: bool, key: str) -> bool:
-    """Interpret a preset value that is meant to be a boolean (#553).
-
-    Numeric settings are read through `float(...)`, so `noise_reduction:
-    "0"` behaves as 0. Boolean settings had no such coercion: a bare
-    `settings.get(key, False)` treats *any* non-empty string as enabled,
-    so `click_removal: "false"` — quoted, and therefore a plain string
-    rather than a YAML bool — silently left click removal switched ON
-    while a numeric `noise_reduction: 0` in the same override block
-    worked as written. Quoting a boolean is an easy thing to do by
-    accident (and some editors add the quotes), so accept the YAML 1.1
-    boolean vocabulary from a string instead of trusting truthiness.
+    Numeric reads now get the same contract the boolean gate has: an
+    unreadable value logs a warning naming the key and yields `default`.
+    An override nobody can parse must never be *guessed* into effect.
 
     Args:
-        value: Raw preset value. `None` means the key was absent.
-        default: Returned when the key is absent or uninterpretable.
-        key: Setting name, for the warning message.
-
-    Returns:
-        The value as a bool. Anything that isn't a bool, a number, or a
-        recognized boolean spelling logs a warning and yields `default`
-        — an unreadable setting must never be *guessed* as enabled.
+        settings: Resolved per-stem settings dict.
+        key: Setting name, also used as the warning's context.
+        default: Value used when the key is absent or uninterpretable.
     """
-    if value is None:
+    if key not in settings:
         return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return bool(value)
-    if isinstance(value, str):
-        token = value.strip().lower()
-        if token in _BOOL_TRUE_TOKENS:
-            return True
-        if token in _BOOL_FALSE_TOKENS:
-            return False
-    logger.warning(
-        "Cannot interpret %s=%r as a boolean; using %r. Use an unquoted "
-        "true/false in your mix-presets override.",
-        key, value, default,
-    )
-    return default
+    return coerce_yaml_float(settings[key], default=default, context=key)
 
 
 def load_mix_presets() -> dict[str, Any]:
@@ -740,7 +717,7 @@ def _apply_click_removal(
     """Shared click-removal step for every stem's processing chain.
 
     Reads `settings`:
-        click_removal (bool): on/off, read through `_coerce_setting_bool`
+        click_removal (bool): on/off, read through `coerce_yaml_bool`
             so a quoted `"false"` in a user override is honored rather
             than treated as a truthy string (#553). Defaults to False here when the
             key is absent from `settings` — the YAML presets are the
@@ -764,12 +741,12 @@ def _apply_click_removal(
     dispatch in mix_track_stems can surface a per-stem count regardless
     of which processor ran.
     """
-    if not _coerce_setting_bool(
-        settings.get('click_removal'), default=False, key='click_removal',
+    if not coerce_yaml_bool(
+        settings.get('click_removal', False), default=False, context='click_removal',
     ):
         return data
     repair = settings.get('click_repair', default_repair)
-    peak_ratio = float(settings.get('click_peak_ratio', 15.0))
+    peak_ratio = _setting_float(settings, 'click_peak_ratio', 15.0)
     data, n_clicks = remove_clicks(
         data, rate,
         peak_ratio=peak_ratio,
@@ -1069,19 +1046,19 @@ def _apply_character_effects(
         lowpass: Whether to apply lowpass filter
     """
     if stereo:
-        width = settings.get('stereo_width', 1.0)
+        width = _setting_float(settings, 'stereo_width', 1.0)
         if width != 1.0:
             # Convert width multiplier to enhancement amount
             # width 1.3 → amount 0.3, width 0.9 → amount -0.1
             data = enhance_stereo(data, rate, amount=width - 1.0)
 
     if saturation:
-        drive = settings.get('saturation_drive', 0)
+        drive = _setting_float(settings, 'saturation_drive', 0)
         if drive > 0:
             data = apply_saturation(data, rate, drive=drive)
 
     if lowpass:
-        cutoff = settings.get('lowpass_cutoff', 20000)
+        cutoff = _setting_float(settings, 'lowpass_cutoff', 20000)
         if cutoff < 20000:
             data = apply_lowpass(data, rate, cutoff=cutoff)
 
@@ -1260,31 +1237,31 @@ def process_vocals(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction
-    nr_strength = settings.get('noise_reduction', 0.0)
+    nr_strength = _setting_float(settings, 'noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
     # Presence boost (~3 kHz)
-    presence_db = settings.get('presence_boost_db', 2.0)
-    presence_freq = settings.get('presence_freq', 3000)
+    presence_db = _setting_float(settings, 'presence_boost_db', 2.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 3000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~7 kHz)
-    high_tame_db = settings.get('high_tame_db', -2.0)
-    high_tame_freq = settings.get('high_tame_freq', 7000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -2.0)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 7000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
     # Gentle compression
-    comp_threshold = settings.get('compress_threshold_db', -15.0)
-    comp_ratio = settings.get('compress_ratio', 2.5)
-    comp_attack = settings.get('compress_attack_ms', 10.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -15.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.5)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 10.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1317,24 +1294,24 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (same as lead)
-    nr_strength = settings.get('noise_reduction', 0.0)
+    nr_strength = _setting_float(settings, 'noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
     # Presence boost — half of lead's +2.0 dB
-    presence_db = settings.get('presence_boost_db', 1.0)
-    presence_freq = settings.get('presence_freq', 3000)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 3000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs — slightly more aggressive than lead for de-essing
-    high_tame_db = settings.get('high_tame_db', -2.5)
-    high_tame_freq = settings.get('high_tame_freq', 7000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -2.5)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 7000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1342,9 +1319,9 @@ def process_backing_vocals(data: Any, rate: int, settings: dict[str, Any] | None
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression — tighter than lead
-    comp_threshold = settings.get('compress_threshold_db', -14.0)
-    comp_ratio = settings.get('compress_ratio', 3.0)
-    comp_attack = settings.get('compress_attack_ms', 8.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -14.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 3.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 8.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1378,15 +1355,15 @@ def process_drums(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="cubic")
 
     # Transient shaping (before compression to preserve punch)
-    attack_db = settings.get('transient_attack_db', 0)
-    sustain_db = settings.get('transient_sustain_db', 0)
+    attack_db = _setting_float(settings, 'transient_attack_db', 0)
+    sustain_db = _setting_float(settings, 'transient_sustain_db', 0)
     if attack_db != 0 or sustain_db != 0:
         data = apply_transient_shaper(data, rate, attack_gain=attack_db, sustain_gain=sustain_db)
 
     # Compression with fast attack for transient preservation
-    comp_threshold = settings.get('compress_threshold_db', -12.0)
-    comp_ratio = settings.get('compress_ratio', 2.0)
-    comp_attack = settings.get('compress_attack_ms', 5.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -12.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 5.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1417,28 +1394,28 @@ def process_bass(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass for sub-rumble removal
-    hp_cutoff = settings.get('highpass_cutoff', 30)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 30)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~200 Hz)
-    mud_cut_db = settings.get('mud_cut_db', -3.0)
-    mud_freq = settings.get('mud_freq', 200)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -3.0)
+    mud_freq = _setting_float(settings, 'mud_freq', 200)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
     # Compression
-    comp_threshold = settings.get('compress_threshold_db', -15.0)
-    comp_ratio = settings.get('compress_ratio', 3.0)
-    comp_attack = settings.get('compress_attack_ms', 10.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -15.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 3.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 10.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
 
     # Sub-bass harmonic exciter (post-compression for consistent level)
-    exciter_amount = settings.get('sub_bass_exciter', 0)
+    exciter_amount = _setting_float(settings, 'sub_bass_exciter', 0)
     if exciter_amount > 0:
-        exciter_freq = settings.get('sub_bass_freq', 80)
+        exciter_freq = _setting_float(settings, 'sub_bass_freq', 80)
         data = apply_sub_bass_exciter(data, rate, amount=exciter_amount, freq=exciter_freq)
 
     # Character effects (post-compression)
@@ -1469,24 +1446,24 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — avoid bass competition
-    hp_cutoff = settings.get('highpass_cutoff', 80)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 80)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mid boost — body/presence (wide Q)
-    mid_boost_db = settings.get('mid_boost_db', 1.0)
-    mid_freq = settings.get('mid_freq', 2000)
+    mid_boost_db = _setting_float(settings, 'mid_boost_db', 1.0)
+    mid_freq = _setting_float(settings, 'mid_freq', 2000)
     if mid_boost_db != 0:
         data = apply_eq(data, rate, freq=mid_freq, gain_db=mid_boost_db, q=0.8)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs — control digital brightness
-    high_tame_db = settings.get('high_tame_db', -1.5)
-    high_tame_freq = settings.get('high_tame_freq', 9000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.5)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 9000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1494,9 +1471,9 @@ def process_synth(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression — light, preserve dynamics
-    comp_threshold = settings.get('compress_threshold_db', -16.0)
-    comp_ratio = settings.get('compress_ratio', 2.0)
-    comp_attack = settings.get('compress_attack_ms', 15.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -16.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 15.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1529,30 +1506,30 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — remove sub-bass
-    hp_cutoff = settings.get('highpass_cutoff', 80)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 80)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~250 Hz) — guitar boxiness zone
-    mud_cut_db = settings.get('mud_cut_db', -2.5)
-    mud_freq = settings.get('mud_freq', 250)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.5)
+    mud_freq = _setting_float(settings, 'mud_freq', 250)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
     # Presence boost (~3 kHz) — pick articulation
-    presence_db = settings.get('presence_boost_db', 1.5)
-    presence_freq = settings.get('presence_freq', 3000)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.5)
+    presence_freq = _setting_float(settings, 'presence_freq', 3000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.2)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~8 kHz)
-    high_tame_db = settings.get('high_tame_db', -1.5)
-    high_tame_freq = settings.get('high_tame_freq', 8000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.5)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 8000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1560,9 +1537,9 @@ def process_guitar(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression — moderate, preserve dynamics
-    comp_threshold = settings.get('compress_threshold_db', -14.0)
-    comp_ratio = settings.get('compress_ratio', 2.5)
-    comp_attack = settings.get('compress_attack_ms', 12.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -14.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.5)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 12.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1595,30 +1572,30 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — low cutoff to preserve piano bass notes
-    hp_cutoff = settings.get('highpass_cutoff', 40)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 40)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~300 Hz)
-    mud_cut_db = settings.get('mud_cut_db', -2.0)
-    mud_freq = settings.get('mud_freq', 300)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.0)
+    mud_freq = _setting_float(settings, 'mud_freq', 300)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
     # Presence boost (~2.5 kHz) — avoids vocal zone
-    presence_db = settings.get('presence_boost_db', 1.0)
-    presence_freq = settings.get('presence_freq', 2500)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 2500)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=0.8)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~9 kHz)
-    high_tame_db = settings.get('high_tame_db', -1.5)
-    high_tame_freq = settings.get('high_tame_freq', 9000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.5)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 9000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1626,9 +1603,9 @@ def process_keyboard(data: Any, rate: int, settings: dict[str, Any] | None = Non
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression — light, preserve dynamics
-    comp_threshold = settings.get('compress_threshold_db', -16.0)
-    comp_ratio = settings.get('compress_ratio', 2.0)
-    comp_attack = settings.get('compress_attack_ms', 15.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -16.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 15.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1662,30 +1639,30 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass — very low cutoff for cello/bass range
-    hp_cutoff = settings.get('highpass_cutoff', 35)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 35)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~250 Hz, wide Q)
-    mud_cut_db = settings.get('mud_cut_db', -1.5)
-    mud_freq = settings.get('mud_freq', 250)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -1.5)
+    mud_freq = _setting_float(settings, 'mud_freq', 250)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=0.8)
 
     # Presence boost (~3.5 kHz) — above vocals
-    presence_db = settings.get('presence_boost_db', 1.0)
-    presence_freq = settings.get('presence_freq', 3500)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 3500)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~9 kHz) — gentle
-    high_tame_db = settings.get('high_tame_db', -1.0)
-    high_tame_freq = settings.get('high_tame_freq', 9000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.0)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 9000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1693,9 +1670,9 @@ def process_strings(data: Any, rate: int, settings: dict[str, Any] | None = None
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression — very gentle, preserve orchestral dynamics
-    comp_threshold = settings.get('compress_threshold_db', -18.0)
-    comp_ratio = settings.get('compress_ratio', 1.5)
-    comp_attack = settings.get('compress_attack_ms', 20.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -18.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 1.5)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 20.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1729,37 +1706,37 @@ def process_brass(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass
-    hp_cutoff = settings.get('highpass_cutoff', 60)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 60)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~300 Hz)
-    mud_cut_db = settings.get('mud_cut_db', -2.0)
-    mud_freq = settings.get('mud_freq', 300)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.0)
+    mud_freq = _setting_float(settings, 'mud_freq', 300)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
     # Presence boost (~2 kHz) — brass bite
-    presence_db = settings.get('presence_boost_db', 1.5)
-    presence_freq = settings.get('presence_freq', 2000)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.5)
+    presence_freq = _setting_float(settings, 'presence_freq', 2000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~7 kHz) — aggressive, brass is piercing
-    high_tame_db = settings.get('high_tame_db', -2.0)
-    high_tame_freq = settings.get('high_tame_freq', 7000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -2.0)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 7000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
     # Compression
-    comp_threshold = settings.get('compress_threshold_db', -14.0)
-    comp_ratio = settings.get('compress_ratio', 2.5)
-    comp_attack = settings.get('compress_attack_ms', 10.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -14.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.5)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 10.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1792,37 +1769,37 @@ def process_woodwinds(data: Any, rate: int, settings: dict[str, Any] | None = No
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Highpass
-    hp_cutoff = settings.get('highpass_cutoff', 50)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 50)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
     # Mud cut (~250 Hz, wide Q)
-    mud_cut_db = settings.get('mud_cut_db', -1.5)
-    mud_freq = settings.get('mud_freq', 250)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -1.5)
+    mud_freq = _setting_float(settings, 'mud_freq', 250)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=0.8)
 
     # Presence boost (~2.5 kHz)
-    presence_db = settings.get('presence_boost_db', 1.0)
-    presence_freq = settings.get('presence_freq', 2500)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 2500)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~8 kHz) — gentle, preserve breathiness
-    high_tame_db = settings.get('high_tame_db', -1.0)
-    high_tame_freq = settings.get('high_tame_freq', 8000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.0)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 8000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
     # Compression
-    comp_threshold = settings.get('compress_threshold_db', -16.0)
-    comp_ratio = settings.get('compress_ratio', 2.0)
-    comp_attack = settings.get('compress_attack_ms', 15.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -16.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 15.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1856,7 +1833,7 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     settings = settings or _get_stem_settings('percussion')
 
     # Highpass
-    hp_cutoff = settings.get('highpass_cutoff', 60)
+    hp_cutoff = _setting_float(settings, 'highpass_cutoff', 60)
     if hp_cutoff > 0:
         data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
@@ -1864,25 +1841,25 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     data = _apply_click_removal(data, rate, settings, report, default_repair="cubic")
 
     # Transient shaping (before compression to preserve punch)
-    attack_db = settings.get('transient_attack_db', 0)
-    sustain_db = settings.get('transient_sustain_db', 0)
+    attack_db = _setting_float(settings, 'transient_attack_db', 0)
+    sustain_db = _setting_float(settings, 'transient_sustain_db', 0)
     if attack_db != 0 or sustain_db != 0:
         data = apply_transient_shaper(data, rate, attack_gain=attack_db, sustain_gain=sustain_db)
 
     # Presence boost (~4 kHz) — shakers/tambourines
-    presence_db = settings.get('presence_boost_db', 1.0)
-    presence_freq = settings.get('presence_freq', 4000)
+    presence_db = _setting_float(settings, 'presence_boost_db', 1.0)
+    presence_freq = _setting_float(settings, 'presence_freq', 4000)
     if presence_db != 0:
         data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.0)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs (~10 kHz) — highest of all stems, preserve shimmer
-    high_tame_db = settings.get('high_tame_db', -1.0)
-    high_tame_freq = settings.get('high_tame_freq', 10000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.0)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 10000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -1890,9 +1867,9 @@ def process_percussion(data: Any, rate: int, settings: dict[str, Any] | None = N
     data = _apply_character_effects(data, rate, settings, stereo=True)
 
     # Compression
-    comp_threshold = settings.get('compress_threshold_db', -15.0)
-    comp_ratio = settings.get('compress_ratio', 2.0)
-    comp_attack = settings.get('compress_attack_ms', 8.0)
+    comp_threshold = _setting_float(settings, 'compress_threshold_db', -15.0)
+    comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
+    comp_attack = _setting_float(settings, 'compress_attack_ms', 8.0)
     if comp_ratio > 1.0:
         data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                ratio=comp_ratio, attack_ms=comp_attack)
@@ -1922,24 +1899,24 @@ def process_other(data: Any, rate: int, settings: dict[str, Any] | None = None,
     data = _apply_click_removal(data, rate, settings, report, default_repair="linear")
 
     # Noise reduction (lighter than vocals)
-    nr_strength = settings.get('noise_reduction', 0.0)
+    nr_strength = _setting_float(settings, 'noise_reduction', 0.0)
     if nr_strength > 0:
         data = reduce_noise(data, rate, strength=nr_strength)
 
     # Mud cut (~300 Hz)
-    mud_cut_db = settings.get('mud_cut_db', -2.0)
-    mud_freq = settings.get('mud_freq', 300)
+    mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.0)
+    mud_freq = _setting_float(settings, 'mud_freq', 300)
     if mud_cut_db != 0:
         data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
     # Harmonic excitation — adds upper harmonics before high tame
-    excitation_db = settings.get('excitation_db', 0.0)
+    excitation_db = _setting_float(settings, 'excitation_db', 0.0)
     if excitation_db > 0:
         data = apply_harmonic_excitation(data, rate, amount_db=excitation_db)
 
     # Tame highs
-    high_tame_db = settings.get('high_tame_db', -1.5)
-    high_tame_freq = settings.get('high_tame_freq', 8000)
+    high_tame_db = _setting_float(settings, 'high_tame_db', -1.5)
+    high_tame_freq = _setting_float(settings, 'high_tame_freq', 8000)
     if high_tame_db != 0:
         data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
@@ -2169,7 +2146,7 @@ def mix_track_stems(
                 data = processor(data, rate, settings, report=stem_report)
 
                 # Get remix gain
-                gains[stem_name] = settings.get('gain_db', 0.0)
+                gains[stem_name] = _setting_float(settings, 'gain_db', 0.0)
 
         # Measure post-processing level
         post_peak = float(np.max(np.abs(data)))
@@ -2268,12 +2245,12 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         settings = _get_full_mix_settings(genre)
 
         # Noise reduction
-        nr_strength = settings.get('noise_reduction', 0.0)
+        nr_strength = _setting_float(settings, 'noise_reduction', 0.0)
         if nr_strength > 0:
             data = reduce_noise(data, rate, strength=nr_strength)
 
         # Highpass
-        hp_cutoff = settings.get('highpass_cutoff', 35)
+        hp_cutoff = _setting_float(settings, 'highpass_cutoff', 35)
         if hp_cutoff > 0:
             data = apply_highpass(data, rate, cutoff=hp_cutoff)
 
@@ -2288,26 +2265,26 @@ def mix_track_full(input_path: Path | str, output_path: Path | str,
         result['clicks_removed'] = int(_report['clicks_removed'])
 
         # Mud cut
-        mud_cut_db = settings.get('mud_cut_db', -2.0)
-        mud_freq = settings.get('mud_freq', 250)
+        mud_cut_db = _setting_float(settings, 'mud_cut_db', -2.0)
+        mud_freq = _setting_float(settings, 'mud_freq', 250)
         if mud_cut_db != 0:
             data = apply_eq(data, rate, freq=mud_freq, gain_db=mud_cut_db, q=1.0)
 
         # Presence boost
-        presence_db = settings.get('presence_boost_db', 1.5)
-        presence_freq = settings.get('presence_freq', 3000)
+        presence_db = _setting_float(settings, 'presence_boost_db', 1.5)
+        presence_freq = _setting_float(settings, 'presence_freq', 3000)
         if presence_db != 0:
             data = apply_eq(data, rate, freq=presence_freq, gain_db=presence_db, q=1.5)
 
         # Tame highs
-        high_tame_db = settings.get('high_tame_db', -1.5)
-        high_tame_freq = settings.get('high_tame_freq', 7000)
+        high_tame_db = _setting_float(settings, 'high_tame_db', -1.5)
+        high_tame_freq = _setting_float(settings, 'high_tame_freq', 7000)
         if high_tame_db != 0:
             data = apply_high_shelf(data, rate, freq=high_tame_freq, gain_db=high_tame_db)
 
         # Compression
-        comp_threshold = settings.get('compress_threshold_db', -15.0)
-        comp_ratio = settings.get('compress_ratio', 2.0)
+        comp_threshold = _setting_float(settings, 'compress_threshold_db', -15.0)
+        comp_ratio = _setting_float(settings, 'compress_ratio', 2.0)
         if comp_ratio > 1.0:
             data = gentle_compress(data, rate, threshold_db=comp_threshold,
                                    ratio=comp_ratio)
