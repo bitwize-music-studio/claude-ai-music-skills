@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,58 @@ def coerce_yaml_bool(value: Any, *, default: bool = False, context: str = "") ->
     except ValueError:
         logger.warning(
             "Cannot interpret %s=%r as a boolean — using default %s",
+            context or "value",
+            value,
+            default,
+        )
+        return default
+
+
+def parse_yaml_float(value: Any) -> float:
+    """Coerce a YAML-sourced value to float, rejecting anything ambiguous.
+
+    The numeric sibling of :func:`parse_yaml_bool` (#553). Numeric preset
+    values used to be read with a bare ``float(...)``, which raises
+    ``ValueError``/``TypeError`` on a quoted ``"0.5"`` or a stray list and
+    takes the whole run down with a traceback.
+
+    Only real, finite ``int``/``float`` values are accepted:
+
+    - ``bool`` is rejected even though ``isinstance(True, int)`` holds — a
+      boolean in a numeric slot is a mistake, not a 1.0.
+    - Strings are rejected, quoted digits included. An unreadable setting
+      must fall back to its documented default rather than be guessed into
+      effect (the same principle :func:`parse_yaml_bool` applies when it
+      refuses to read an uninterpretable value as "enabled").
+    - Non-finite floats (``nan``/``inf``) are rejected: they propagate
+      silently through filters and thresholds instead of failing loudly.
+
+    Raises:
+        ValueError: for anything not a real, finite number.
+    """
+    if isinstance(value, bool):
+        raise ValueError(f"not a number: {value!r}")
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError(f"not a finite number: {value!r}")
+        return number
+    raise ValueError(f"not a number: {value!r}")
+
+
+def coerce_yaml_float(value: Any, *, default: float = 0.0, context: str = "") -> float:
+    """parse_yaml_float with a warn-and-default fallback for settings reads.
+
+    For numeric settings where an unreadable value should fall back to the
+    key's documented default rather than crash the run. ``context`` names
+    the key in the warning (e.g. ``"noise_reduction"``).
+    """
+    try:
+        return parse_yaml_float(value)
+    except ValueError:
+        logger.warning(
+            "Cannot interpret %s=%r as a number — using default %s. Use an "
+            "unquoted number in your override file.",
             context or "value",
             value,
             default,

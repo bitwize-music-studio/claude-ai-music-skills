@@ -322,14 +322,46 @@ class TestAnalyzeMixIssues:
         assert "clicks_detected" not in track["issues"]
         assert "click_removal" not in track["recommendations"]
 
-    def test_vocal_click_removal_wired_through_polish(self, tmp_path):
-        """Genuine clicks on a vocal stem must now get removed by polish
-        (#323 comment). Pre-fix the vocal chain had no declicker so
-        analyze_mix_issues would flag clicks that polish silently
-        ignored. With click_removal wired onto every stem's chain, the
-        count from analyzer and polish should both be > 0.
+    @staticmethod
+    def _shipped_presets_only(monkeypatch):
+        """Resolve mix + mastering presets from the shipped files only.
+
+        `_get_stem_settings` merges `{overrides}/mix-presets.yaml` and,
+        through `_resolve_master_click_thresholds`, the mastering genre
+        presets — both from the developer's real `~/.bitwize-music`
+        config. An assertion about a shipped default has to be told to
+        ignore them (#553).
         """
-        from tools.mixing.mix_tracks import mix_track_stems
+        import tools.mastering.master_tracks as mast
+        import tools.mixing.mix_tracks as mt
+
+        monkeypatch.setattr(mt, "_get_overrides_path", lambda: None)
+        monkeypatch.setattr(mt, "MIX_PRESETS", mt.load_mix_presets())
+        monkeypatch.setattr(mast, "_get_overrides_path", lambda: None)
+        monkeypatch.setattr(mast, "GENRE_PRESETS", mast.load_genre_presets())
+
+    def test_vocal_click_removal_wired_through_polish(self, tmp_path, monkeypatch):
+        """Genuine clicks on a vocal stem still get removed by polish when
+        click_removal is enabled for that stem (#323 comment) — the
+        underlying declick mechanism is unchanged. Vocal click_removal
+        now defaults to *off* (#553: a peak/RMS ratio detector can't
+        distinguish a consonant from a click on a clean synthetic vocal,
+        measured as 35 "clicks" removed = 35 consonants damaged), so this
+        test enables it explicitly via a preset override — the same path
+        a user re-enabling it for imported recorded vocals would take.
+        """
+        import tools.mixing.mix_tracks as mt
+        from tools.mixing.mix_tracks import _deep_merge, mix_track_stems
+
+        self._shipped_presets_only(monkeypatch)
+
+        # Patch the loader, not the `MIX_PRESETS` snapshot: every polish
+        # entry point re-reads the presets on the way in (#553), so a
+        # snapshot patched here would be replaced before it was consulted.
+        real_load = mt.load_mix_presets
+        monkeypatch.setattr(mt, "load_mix_presets", lambda: _deep_merge(
+            real_load(), {"defaults": {"vocals": {"click_removal": True}}},
+        ))
 
         audio_dir = tmp_path / "audio"
         audio_dir.mkdir()
@@ -352,6 +384,33 @@ class TestAnalyzeMixIssues:
         assert by_stem["vocals"]["clicks_removed"] >= 1, (
             f"vocal declicker did not run: {by_stem['vocals']}"
         )
+
+    def test_vocal_click_removal_off_by_default(self, tmp_path, monkeypatch):
+        """#553: without an override, the same genuine clicks on a vocal
+        stem are left untouched — click_removal defaults to off for
+        vocals now, so `clicks_removed` should come back 0."""
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        self._shipped_presets_only(monkeypatch)
+
+        audio_dir = tmp_path / "audio"
+        audio_dir.mkdir()
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(10):
+            mono[2000 + i * 4000] = 0.9
+        data = np.column_stack([mono, mono])
+        stem_path = audio_dir / "vocals.wav"
+        write_wav(str(stem_path), data, rate)
+
+        result = mix_track_stems(
+            {"vocals": str(stem_path)},
+            str(audio_dir / "out.wav"),
+        )
+
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] == 0
 
     def test_actual_clicks_still_detected(self, tmp_path):
         """Single-sample discontinuities inserted into an otherwise clean

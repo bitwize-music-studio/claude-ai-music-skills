@@ -9,13 +9,17 @@ Human-readable guide to what each preset does and when to override defaults.
 Each genre preset adjusts per-stem processing settings. Settings not specified in a genre preset inherit from defaults.
 
 **Defaults** are calibrated for typical Suno V5 output:
-- Moderate noise reduction on vocals (0.5)
+- Noise reduction off (0) on every stem — Suno stems are synthesized, not recorded, so there's no stationary noise floor to profile; spectral gating would strip quiet musical content instead. Enable per stem only for imported/recorded audio.
 - Presence boost at 3 kHz for vocal clarity
 - Mud cut around 200-300 Hz for low-mid cleanup
 - Gentle compression for dynamic consistency
 - Unity gain (0 dB) for each stem in the remix
 
 **Genre presets** override specific values. For example, hip-hop boosts vocal and bass gain in the remix to push those elements forward.
+
+**User overrides** live in `{overrides}/mix-presets.yaml` and deep-merge on top of the shipped file. Genre and stem keys are matched case-insensitively, so `Electronic:` / `Vocals:` work as well as the lowercase forms. Every polish run re-reads the file, so an edit takes effect on the next run — no server restart needed.
+
+**Scope matters.** A value under `defaults: <stem>:` applies to every genre *unless* that genre's section sets the same key — a genre entry always wins, even when it repeats the shipped default. If a `defaults:`-scope override seems to have no effect, check whether the genre you're polishing with pins that key.
 
 ---
 
@@ -41,17 +45,17 @@ Each preset can adjust per-stem gain to change the mix balance:
 
 These are the problems mix-engineer is designed to fix:
 
-### AI Hiss / Noise Floor
-**What**: Faint background noise, especially on vocal stems
-**Fix**: Spectral gating noise reduction (noisereduce library)
-**Default**: 0.5 strength on vocals, 0.3 on other instruments
-**Override when**: Very clean stems (reduce to 0.1-0.2) or very noisy (increase to 0.7-0.8)
+### AI Hiss / Noise Floor (Imported/Recorded Audio Only)
+**What**: Faint background noise from a real recording chain. Suno-synthesized stems don't have this — there's no stationary noise floor to profile, so spectral gating strips quiet musical content (consonants, breath, sibilance decay) instead of noise.
+**Fix**: Spectral gating noise reduction (noisereduce library) — enable per stem, only for imported/recorded audio
+**Default**: 0 (off) on every stem
+**Override when**: Importing a real recording with an audible noise floor — start at 0.3-0.5 and adjust from there
 
 ### Digital Clicks / Pops
 **What**: Brief transient spikes from generation artifacts
-**Fix**: Click detection (amplitude spike > 6σ) + linear interpolation
-**Default**: Enabled on drums, available on all stems
-**Override when**: Drums have intentional sharp transients (raise threshold to 8-10)
+**Fix**: The detector splits the stem into 10 ms windows and flags any window whose peak-to-RMS ratio exceeds `click_peak_ratio` (default **15.0**), then repairs the loudest sample in each flagged window — linear interpolation on most stems, cubic spline on drums/percussion. A genuine digital click is a single-sample discontinuity that spikes one window's crest factor; a musical transient spreads its energy across the window and stays below. Genre mastering presets can lower the ratio for dense-transient genres (e.g. electronic: 10), and `analyze_mix_issues` uses the same threshold so analysis and polish report the same events.
+**Default**: On for every stem except vocals, backing_vocals, and the full-mix fallback (off there — a peak/RMS detector can't reliably tell a clean synthetic consonant from a click, and the full mix *contains* the vocals). Where it's off, polish still runs the detector and reports `clicks_detected` plus a note, so a genuine click surfaces during polish rather than at `master_album`'s post-QC hard fail.
+**Override when**: Real transients are being flagged as clicks — **raise** `click_peak_ratio` above 15 (try 20-25) to make the detector *less* aggressive, since a higher ratio means a window has to be more spike-like to count. Lower it (10-12) only when genuine clicks are slipping through. Imported/recorded vocals that need click cleanup: set `click_removal: true` for that stem.
 
 ### Muddy Low-Mids
 **What**: Excess energy in 150-400 Hz range, makes mix sound thick and undefined
@@ -64,6 +68,12 @@ These are the problems mix-engineer is designed to fix:
 **Fix**: High shelf cut
 **Default**: -2 dB at 7 kHz (vocals), -1.5 dB at 8 kHz (other)
 **Override when**: Vocals are naturally warm (reduce cut) or very bright (increase cut)
+
+### Empty / Near-Silent Stems
+**What**: Suno's Auto Split returns every requested stem category, including ones the track has no audio for. Those come back as a ~-55 dBFS noise floor, not digital silence.
+**Fix**: A silence gate skips the whole chain for those stems — they pass through to the remix bit-identical. `analyze_mix_issues` reports them as `skipped_empty` for the same reason, so analysis and polish agree.
+**Default**: `silence_gate_dbfs: -40.0` (not listed per stem in the preset file — it falls back to this constant)
+**Override when**: A genuinely quiet stem is being discarded (a fade-in intro, a distant pad) — lower it per stem, e.g. `silence_gate_dbfs: -80`. Raise it to discard more. True digital silence is always skipped regardless.
 
 ### Sub-Bass Rumble
 **What**: Inaudible low-frequency content below 30 Hz that eats headroom
@@ -94,7 +104,6 @@ These are the problems mix-engineer is designed to fix:
 
 ### Ambient / Lo-Fi
 - Lighter processing overall
-- Reduced noise reduction (0.2-0.3) — some noise is character
 - Reduced presence boost (+1 dB vs. default +2 dB) — warmth over clarity
 - Ambient uses lower vocal compression (1.5:1) — preserve dynamics
 
@@ -137,6 +146,9 @@ Override files deep-merge: you only need to specify the values you want to chang
 
 ```yaml
 # Example: Custom preset for dark electronic music
+# (noise_reduction here assumes imported/recorded vocals with a real noise
+# floor — leave it at 0 for standard Suno-synthesized stems; see SKILL.md
+# "Stems First")
 genres:
   dark-electronic:
     vocals:
@@ -157,7 +169,7 @@ genres:
 
 When stems aren't available, mix-engineer processes the full stereo mix directly. This is less effective than per-stem processing but still valuable:
 
-- Noise reduction (0.3 — lighter since it affects everything)
+- Noise reduction off (0) — same synthesized-audio rationale as per-stem processing; enable only when the full mix comes from imported/recorded audio
 - Highpass at 35 Hz
 - Click removal
 - Mud cut at 250 Hz (-2 dB)

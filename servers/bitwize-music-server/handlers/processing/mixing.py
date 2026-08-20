@@ -211,6 +211,7 @@ async def polish_audio(
         return _safe_json({"error": "No tracks were processed."})
 
     aggregated_overrides: list[dict[str, Any]] = []
+    aggregated_blocked: list[dict[str, Any]] = []
     for tr in track_results:
         track_label = tr.get("track_name") or tr.get("filename") or ""
         for entry in tr.get("overrides_applied", []):
@@ -218,6 +219,11 @@ async def polish_audio(
             # that ever gains a "track" field (defensive — entries don't
             # currently carry one).
             aggregated_overrides.append({**entry, "track": track_label})
+        # #553: recommendations the polish whitelist dropped. Surfaced
+        # next to the applied ones so "the analyzer keeps recommending
+        # this and polish never applies it" is visible to the operator.
+        for entry in tr.get("blocked", []):
+            aggregated_blocked.append({**entry, "track": track_label})
 
     return _safe_json({
         "tracks": track_results,
@@ -232,11 +238,21 @@ async def polish_audio(
             "mode": "stems" if use_stems else "full_mix",
             "output_dir": str(output_dir) if not dry_run else None,
             "overrides_applied": aggregated_overrides,
+            "blocked_recommendations": aggregated_blocked,
         },
     })
 
 
 _ANALYZER_DEFAULT_PEAK_RATIO = 15.0
+
+# Per-stem issue tags that are NOT album-level mix problems, and so must
+# not roll up into a track's `issues` or `album_summary.common_issues`.
+# `none_detected` is the explicit all-clear. `skipped_empty` (#553) is a
+# routing fact, not a defect: Suno's Auto Split returns every requested
+# stem category, and the ones with no source content come back as a
+# ~-55 dBFS noise floor — normal, and already reported on the stem
+# itself. Rolling it up read as "every track has something wrong".
+_NON_ISSUE_TAGS = frozenset({"none_detected", "skipped_empty"})
 
 
 def _resolve_analyzer_peak_ratio(
@@ -269,6 +285,7 @@ def _resolve_analyzer_peak_ratio(
         from tools.mixing.mix_tracks import (
             _get_full_mix_settings,
             _get_stem_settings,
+            _setting_float,
         )
     except ImportError:
         return _ANALYZER_DEFAULT_PEAK_RATIO
@@ -278,8 +295,37 @@ def _resolve_analyzer_peak_ratio(
         settings = _get_stem_settings(stem_name, g)
     else:
         settings = _get_full_mix_settings(g)
-    raw = settings.get("click_peak_ratio", _ANALYZER_DEFAULT_PEAK_RATIO)
-    return float(raw) if raw is not None else _ANALYZER_DEFAULT_PEAK_RATIO
+    # Read the key exactly as the de-clicker does (#553). A bare
+    # `float(raw)` split the two sides apart on anything unparseable: a
+    # quoted `click_peak_ratio: "20"` gave the analyzer 20.0 while polish
+    # warned and fell back to 15.0, and a non-numeric string raised
+    # ValueError out of the analyzer instead of warning. Same read, same
+    # default, same warn-and-default contract.
+    return _setting_float(settings, "click_peak_ratio", _ANALYZER_DEFAULT_PEAK_RATIO)
+
+
+def _resolve_silence_gate_dbfs(stem_name: str, genre: str | None) -> float:
+    """Resolve the polish silence gate for a (stem, genre) pair.
+
+    Delegates to the processor side so `analyze_mix_issues` and
+    `mix_track_stems` cannot drift: both read `silence_gate_dbfs` out of
+    the same merged presets, falling back to the same module constant
+    (#553). Returns the constant's value when the mixing module is
+    unavailable, matching `_resolve_analyzer_peak_ratio`'s posture.
+    """
+    try:
+        from tools.mixing.mix_tracks import (
+            SILENT_STEM_PEAK_DBFS,
+            STEM_NAMES,
+            _get_stem_settings,
+            resolve_silence_gate_dbfs,
+        )
+    except ImportError:
+        return -40.0
+
+    if stem_name not in STEM_NAMES:
+        return SILENT_STEM_PEAK_DBFS
+    return resolve_silence_gate_dbfs(_get_stem_settings(stem_name, genre or None))
 
 
 def _resolve_analyzer_thresholds() -> tuple[float, float, bool]:
@@ -357,6 +403,25 @@ def _build_analyzer(
         rms = float(np.sqrt(np.mean(data ** 2)))
         result["peak"] = peak
         result["rms"] = rms
+
+        # #553: mirror the polish silence gate. `mix_track_stems` skips a
+        # stem whose peak falls under `silence_gate_dbfs` — Suno Auto
+        # Split returns every requested category, and the ones with no
+        # source content come back as a ~-55 dBFS noise floor. Analyzing
+        # that floor produced click counts and recommendations for a stem
+        # polish would never touch (~600 false-positive "clicks" on one
+        # silent percussion stem), so the two halves of the pipeline
+        # disagreed about whether the stem existed at all. Same threshold
+        # source, same verdict. Only the stems path is gated: the
+        # full-mix fallback has no such skip.
+        if stem_name and np.isfinite(peak):
+            gate_dbfs = _resolve_silence_gate_dbfs(stem_name, genre)
+            peak_dbfs = 20.0 * np.log10(peak) if peak > 0.0 else float("-inf")
+            if peak_dbfs < gate_dbfs:
+                result["skipped_empty"] = True
+                result["peak_dbfs"] = round(peak_dbfs, 1)
+                result["issues"] = ["skipped_empty"]
+                return result
 
         # Noise floor estimate (quietest 10% of signal). #402: buffers
         # shorter than 10 samples make the //10 slice empty, and np.mean of
@@ -490,6 +555,17 @@ async def analyze_mix_issues(
     import numpy as np
     import soundfile as sf
 
+    # Re-read `{overrides}/mix-presets.yaml` on the way in, exactly as
+    # `mix_track_stems` / `mix_track_full` do (#553). Both per-stem
+    # resolvers below (`_resolve_analyzer_peak_ratio`,
+    # `_resolve_silence_gate_dbfs`) go through `_get_stem_settings`,
+    # which reads the module-global snapshot — so without this a
+    # mid-session override edit was visible to polish and invisible to
+    # analyze, and the two halves of one `polish_album` run disagreed
+    # about which stems are empty and what click threshold applies.
+    from tools.mixing.mix_tracks import _refresh_mix_presets
+    _refresh_mix_presets()
+
     loop = asyncio.get_running_loop()
 
     source_dir = _find_wav_source_dir(audio_dir)
@@ -571,7 +647,7 @@ async def analyze_mix_issues(
                 )
                 stems_result[category] = analysis
                 track_issues.update(
-                    i for i in analysis["issues"] if i != "none_detected"
+                    i for i in analysis["issues"] if i not in _NON_ISSUE_TAGS
                 )
             track_analyses.append({
                 "track": track_name,
@@ -586,7 +662,7 @@ async def analyze_mix_issues(
     # Album-level summary
     all_issues: set[str] = set()
     for a in track_analyses:
-        all_issues.update(i for i in a["issues"] if i != "none_detected")
+        all_issues.update(i for i in a["issues"] if i not in _NON_ISSUE_TAGS)
 
     return _safe_json({
         "tracks": track_analyses,
@@ -795,8 +871,16 @@ async def polish_and_master_album(
         genre: Genre preset for both polish and master stages
         target_lufs: Mastering target integrated loudness (default: -14.0)
         ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz
-        cut_highs: High shelf cut in dB at 8kHz
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz. **0 means "use the
+            genre preset" here** — it is also this parameter's default,
+            and the shared preset builder cannot tell an explicit 0 from
+            an omitted argument, so a genre's high-mid cut cannot be
+            disabled through this tool. That differs from `master_audio`,
+            where the default is None and an explicit 0 disables the cut
+            (#553); migrating the shared mastering plumbing is a
+            follow-up. Forwarded to `master_album` unchanged.
+        cut_highs: High shelf cut in dB at 8kHz. Same semantics as
+            `cut_highmid` above: 0 means "use the genre preset".
 
     Returns:
         JSON with combined polish and master stage results

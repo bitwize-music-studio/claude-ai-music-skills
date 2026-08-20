@@ -8,7 +8,9 @@ Usage:
     python -m pytest tests/unit/mixing/test_mix_tracks.py -v
 """
 
+import logging
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -20,6 +22,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests.unit.mixing._presets import (
+    install_override as _install_override,
+    point_overrides_at as _point_overrides_at,
+)
 from tools.mixing.mix_tracks import (
     MIX_PRESETS,
     _BUILTIN_PRESETS_FILE,
@@ -57,7 +63,9 @@ from tools.mixing.mix_tracks import (
     _get_stem_settings,
     _get_full_mix_settings,
     _resolve_master_click_thresholds,
+    _setting_float,
 )
+from tools.shared.config import coerce_yaml_bool
 
 
 # ─── Test Helpers ─────────────────────────────────────────────────────
@@ -99,6 +107,16 @@ def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
 
 def _write_wav(path, data, rate):
     sf.write(str(path), data, rate, subtype='PCM_16')
+
+
+def _clicky_stem(path, n_clicks=35, rate=44100):
+    """A quiet tone with `n_clicks` single-sample spikes — the shape the
+    peak/RMS detector flags. Written to `path` as a stereo WAV."""
+    t = np.linspace(0, 1.0, rate, endpoint=False)
+    mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+    for i in range(n_clicks):
+        mono[2000 + i * 1000] = 0.9
+    sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='PCM_16')
 
 
 # ─── Fixtures ─────────────────────────────────────────────────────────
@@ -1240,32 +1258,380 @@ class TestMixTrackStems:
         mono[click_idx] = 0.95
         drums = np.column_stack([mono, mono])
 
-        # Vocal stem also with a single-sample spike — after #323 follow-up
-        # every stem (not just drums/percussion) runs the declicker, so the
-        # count should come back > 0 on vocals too.
-        vocal_mono = (0.02 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
-        vocal_mono[click_idx] = 0.95
-        vocals = np.column_stack([vocal_mono, vocal_mono])
+        # Guitar stem also with a single-sample spike — after #323
+        # follow-up every non-vocal stem (not just drums/percussion) runs
+        # the declicker, so the count should come back > 0 on guitar too.
+        # (vocals / backing_vocals are the exception per #553 — see
+        # TestSyntheticAudioDefaults — so this test uses a non-vocal
+        # melodic stem to keep asserting the general #323 behavior.)
+        guitar_mono = (0.02 * np.sin(2 * np.pi * 330 * t)).astype(np.float64)
+        guitar_mono[click_idx] = 0.95
+        guitar = np.column_stack([guitar_mono, guitar_mono])
 
         drums_path = tmp_path / "drums.wav"
-        vocals_path = tmp_path / "vocals.wav"
+        guitar_path = tmp_path / "guitar.wav"
         sf.write(str(drums_path), drums, rate, subtype='PCM_16')
-        sf.write(str(vocals_path), vocals, rate, subtype='PCM_16')
+        sf.write(str(guitar_path), guitar, rate, subtype='PCM_16')
         out_path = tmp_path / "out.wav"
 
         result = mix_track_stems(
-            {'drums': str(drums_path), 'vocals': str(vocals_path)},
+            {'drums': str(drums_path), 'guitar': str(guitar_path)},
             out_path,
             genre='electronic',
         )
 
-        # Every stem should carry clicks_removed and drums + vocals both
+        # Every stem should carry clicks_removed and drums + guitar both
         # have injected clicks, so both counts must be > 0.
         by_stem = {s['stem']: s for s in result['stems_processed']}
         assert 'clicks_removed' in by_stem['drums']
         assert by_stem['drums']['clicks_removed'] >= 1
-        assert 'clicks_removed' in by_stem['vocals']
-        assert by_stem['vocals']['clicks_removed'] >= 1
+        assert 'clicks_removed' in by_stem['guitar']
+        assert by_stem['guitar']['clicks_removed'] >= 1
+
+
+class TestSilenceGate:
+    """#553: Suno Auto Split returns every requested stem category even
+    when the source has no audio for it. Those "empty" stems come back
+    at roughly -55 dBFS peak (not exact digital silence), and running
+    the full per-stem chain on that noise floor wastes cycles and trips
+    the de-clicker on noise-floor transients. Stems peaking below
+    SILENT_STEM_PEAK_DBFS must skip their entire processing chain."""
+
+    def test_low_peak_noise_floor_stem_is_skipped_and_passed_through(
+        self, tmp_path
+    ):
+        """A stem at ~-60 dBFS peak with noise-floor transients (the
+        field-observed Suno Auto Split "empty" pattern) must be skipped:
+        the report flags it and its own per-stem WAV passes through
+        bit-identical rather than running the declick/EQ/compression
+        chain."""
+        rate = 44100
+        rng = np.random.default_rng(7)
+        noise = rng.standard_normal(rate)
+        noise = noise / np.max(np.abs(noise))  # normalize peak to 1.0
+        target_peak = 10 ** (-60.0 / 20)  # -60 dBFS
+        mono = (noise * target_peak).astype(np.float64)
+        data = np.column_stack([mono, mono])
+
+        stem_path = tmp_path / "percussion.wav"
+        _write_wav(stem_path, data, rate)
+        stem_out_dir = tmp_path / "stem_out"
+
+        result = mix_track_stems(
+            {'percussion': str(stem_path)},
+            str(tmp_path / "out.wav"),
+            stem_output_dir=stem_out_dir,
+        )
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['peak_dbfs'] == pytest.approx(-60.0, abs=2.0)
+
+        # Passed through bit-identical — the written per-stem WAV must
+        # match the input exactly, not the output of the processing chain
+        # (which would flag the noise floor as clicks — #553 field bug).
+        original, _ = sf.read(str(stem_path))
+        passed_through, _ = sf.read(str(stem_out_dir / "percussion.wav"))
+        np.testing.assert_array_equal(original, passed_through)
+
+    def test_all_zero_stem_skips_cleanly_without_warnings(
+        self, silent_wav, output_path
+    ):
+        """True digital silence (peak=0, -inf dBFS) is the degenerate
+        case of the same gate: it must skip cleanly with no numpy
+        RuntimeWarning (e.g. divide-by-zero in log10) and no NaN
+        anywhere in the report or output."""
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            result = mix_track_stems({'bass': silent_wav}, output_path)
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['peak_dbfs'] == float('-inf')
+
+        assert Path(output_path).exists()
+        data, _ = sf.read(output_path)
+        assert np.all(np.isfinite(data))
+
+    def test_normal_level_stem_still_processed_normally(self, tmp_path):
+        """A stem at a normal playing level must run the full processing
+        chain exactly as before — the silence gate must not false-positive
+        on real audio, and the report must not claim it was skipped."""
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        click_idx = int(0.5 * rate) + 50
+        mono[click_idx] = 0.95
+        drums = np.column_stack([mono, mono])
+
+        drums_path = tmp_path / "drums.wav"
+        _write_wav(drums_path, drums, rate)
+
+        result = mix_track_stems(
+            {'drums': str(drums_path)},
+            str(tmp_path / "out.wav"),
+            genre='electronic',
+        )
+
+        report = result['stems_processed'][0]
+        assert report.get('skipped_empty') is not True
+        # Declicker still ran — proof the full chain executed, not the
+        # passthrough branch.
+        assert report['clicks_removed'] >= 1
+
+
+class TestClickDetectionIsReportedWhenDeclickIsOff:
+    """#553 follow-up: turning declick off for vocals (and, now, for the
+
+    full-mix fallback that *contains* the vocals) means a genuine click
+    is no longer repaired during polish — and the first place the user
+    hears about it is `master_album`'s post-QC hard fail, after a full
+    mastering run. Polish therefore still *detects* clicks on stems whose
+    `click_removal` is off and reports the count plus how to act on it,
+    so the information arrives before mastering rather than after.
+    """
+
+    _install_override = staticmethod(_install_override)
+    _clicky_stem = staticmethod(_clicky_stem)
+
+    def test_vocal_stem_reports_detected_clicks_without_repairing_them(self, tmp_path):
+        stem = tmp_path / "vocals.wav"
+        self._clicky_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        report = result["stems_processed"][0]
+
+        assert report["clicks_removed"] == 0
+        assert report["clicks_detected"] >= 1
+        assert "click_removal" in report["click_note"]
+        assert "mix-presets.yaml" in report["click_note"]
+
+    def test_detection_leaves_the_audio_untouched(self):
+        """Detect-only must count without repairing: the helper returns
+        the input samples unchanged."""
+        from tools.mixing.mix_tracks import _apply_click_removal
+
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(35):
+            mono[2000 + i * 1000] = 0.9
+        data = np.column_stack([mono, mono])
+
+        report: dict = {}
+        out = _apply_click_removal(
+            data.copy(), rate, {'click_removal': False}, report,
+        )
+        np.testing.assert_array_equal(out, data)
+        assert report['clicks_detected'] >= 1
+        assert report.get('clicks_removed', 0) == 0
+
+    def test_no_note_when_nothing_was_detected(self, tmp_path):
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        stem = tmp_path / "vocals.wav"
+        _write_wav(stem, np.column_stack([mono, mono]), rate)
+
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        report = result["stems_processed"][0]
+        assert report["clicks_detected"] == 0
+        assert "click_note" not in report
+
+    def test_stem_with_declick_on_reports_removed_not_a_note(self, tmp_path):
+        stem = tmp_path / "drums.wav"
+        self._clicky_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        report = result["stems_processed"][0]
+        assert report["clicks_removed"] >= 1
+        assert report["clicks_detected"] == report["clicks_removed"]
+        assert "click_note" not in report
+
+    def test_skipped_stem_gets_no_click_detection(self, silent_wav, output_path):
+        """A stem under the silence gate never runs the chain at all, so
+        it must not acquire a click count either."""
+        result = mix_track_stems({"bass": silent_wav}, output_path)
+        report = result["stems_processed"][0]
+        assert report["skipped_empty"] is True
+        assert report["clicks_detected"] == 0
+        assert "click_note" not in report
+
+    def test_full_mix_declick_is_off_by_default(self):
+        """#553: the no-stems fallback contains the vocals, so the same
+        synthetic-consonant rationale applies to it."""
+        assert _get_full_mix_settings()["click_removal"] is False
+
+    def test_full_mix_reports_detected_clicks_without_repairing(self, tmp_path):
+        src = tmp_path / "01-track.wav"
+        self._clicky_stem(src)
+
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] == 0
+        assert result["clicks_detected"] >= 1
+        assert "click_removal" in result["click_note"]
+
+    def test_full_mix_override_re_enables_repair(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
+        src = tmp_path / "01-track.wav"
+        self._clicky_stem(src)
+
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] >= 1
+        assert "click_note" not in result
+
+
+class TestSilenceGateIsConfigurable:
+    """#553 follow-up: the gate threshold was a bare module constant read
+
+    *before* the stem's settings were resolved, so a user could neither
+    lower it (a genuinely quiet stem — a fade-in intro, a distant pad —
+    was thrown away as "empty") nor raise it. It is now a per-stem
+    setting, `silence_gate_dbfs`, resolved from the same merged presets
+    as everything else and defaulting to `SILENT_STEM_PEAK_DBFS`.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    @staticmethod
+    def _stem_at(path, peak_dbfs, rate=44100):
+        """A tone whose peak sits at `peak_dbfs`, with a lone spike the
+        de-clicker would flag if the chain ever ran on it."""
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = np.sin(2 * np.pi * 440 * t).astype(np.float64)
+        mono *= (10 ** (peak_dbfs / 20)) / np.max(np.abs(mono))
+        _write_wav(path, np.column_stack([mono, mono]), rate)
+
+    def _run(self, tmp_path, stem_name, peak_dbfs):
+        stem = tmp_path / f"{stem_name}.wav"
+        self._stem_at(stem, peak_dbfs)
+        result = mix_track_stems(
+            {stem_name: str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        return result["stems_processed"][0]
+
+    def test_default_gate_still_skips_a_minus_60_stem(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, "defaults: {}\n")
+        assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is True
+
+    def test_lowered_gate_lets_a_quiet_stem_through(self, tmp_path, monkeypatch):
+        """A user with a genuinely quiet stem lowers the gate and the
+        stem is processed instead of discarded."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  percussion:\n"
+            "    silence_gate_dbfs: -80\n"
+        ))
+        report = self._run(tmp_path, "percussion", -60.0)
+        assert report["skipped_empty"] is False
+        assert "peak_dbfs" not in report
+
+    def test_raised_gate_skips_a_louder_stem(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    percussion:\n"
+            "      silence_gate_dbfs: -20\n"
+        ))
+        assert self._run(tmp_path, "percussion", -30.0)["skipped_empty"] is True
+
+    def test_gate_is_resolved_per_stem(self, tmp_path, monkeypatch):
+        """Lowering the gate on one stem must not move it for another."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  percussion:\n"
+            "    silence_gate_dbfs: -80\n"
+        ))
+        assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is False
+        assert self._run(tmp_path, "guitar", -60.0)["skipped_empty"] is True
+
+    def test_unreadable_gate_falls_back_to_the_module_default(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            'defaults:\n'
+            '  percussion:\n'
+            '    silence_gate_dbfs: "-80"\n'
+        ))
+        with caplog.at_level(logging.WARNING):
+            assert self._run(tmp_path, "percussion", -60.0)["skipped_empty"] is True
+        assert any('silence_gate_dbfs' in r.message for r in caplog.records)
+
+
+class TestNonFiniteStemIsNotLaunderedAsSilence:
+    """#553 follow-up: `np.max(np.abs(data))` on a stem containing NaN is
+
+    NaN, and `NaN > 0.0` is False — so the gate's zero-peak guard sent it
+    down the `-inf dBFS` path and reported a corrupt stem as a clean
+    `skipped_empty` pass-through. A non-finite peak is a defect, not
+    silence: it must be named in the log and processed, so the NaN
+    surfaces in the metrics instead of being laundered away.
+    """
+
+    @staticmethod
+    def _nan_stem(path, rate=44100):
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.3 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        mono[1000] = np.nan
+        sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='FLOAT')
+
+    def test_nan_stem_is_not_reported_as_skipped_empty(self, tmp_path, caplog):
+        stem = tmp_path / "guitar.wav"
+        self._nan_stem(stem)
+
+        with caplog.at_level(logging.WARNING):
+            result = mix_track_stems(
+                {'guitar': str(stem)}, str(tmp_path / "out.wav"),
+            )
+
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is False
+        assert 'peak_dbfs' not in report
+        assert any('guitar' in r.message for r in caplog.records)
+
+    def test_nan_surfaces_in_the_reported_metrics(self, tmp_path):
+        stem = tmp_path / "guitar.wav"
+        self._nan_stem(stem)
+        result = mix_track_stems({'guitar': str(stem)}, str(tmp_path / "out.wav"))
+        assert np.isnan(result['stems_processed'][0]['pre_peak'])
+
+
+class TestSkippedStemReusesPreMetrics:
+    """#553 follow-up: the skip branch fell through to the same post-metric
+
+    recomputation as a processed stem — two more full-buffer passes over
+    audio that is by definition untouched. The skipped branch now reports
+    the pre-measurement values it already has.
+    """
+
+    def test_skipped_stem_post_metrics_are_the_pre_metrics(self, silent_wav, output_path):
+        result = mix_track_stems({'bass': silent_wav}, output_path)
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['post_peak'] == report['pre_peak']
+        assert report['post_rms'] == report['pre_rms']
+
+    def test_low_level_skipped_stem_post_metrics_are_the_pre_metrics(self, tmp_path):
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = np.sin(2 * np.pi * 440 * t).astype(np.float64)
+        mono *= (10 ** (-60.0 / 20)) / np.max(np.abs(mono))
+        stem = tmp_path / "percussion.wav"
+        _write_wav(stem, np.column_stack([mono, mono]), rate)
+
+        result = mix_track_stems({'percussion': str(stem)}, str(tmp_path / "out.wav"))
+        report = result['stems_processed'][0]
+        assert report['skipped_empty'] is True
+        assert report['post_peak'] == report['pre_peak']
+        assert report['post_rms'] == report['pre_rms']
 
 
 # ─── Tests: Stem Discovery ───────────────────────────────────────────
@@ -1632,8 +1998,17 @@ class TestMixTrackFull:
         assert 'post_peak' in result
         assert 'post_rms' in result
 
-    def test_full_mix_reports_clicks_removed(self, tmp_path):
-        """mix_track_full's result should include clicks_removed."""
+    def test_full_mix_reports_clicks_removed(self, tmp_path, monkeypatch):
+        """mix_track_full's result should include clicks_removed.
+
+        full_mix declick defaults to off since #553 (the no-stems
+        fallback contains the vocals), so this enables it the way a user
+        would — via `{overrides}/mix-presets.yaml`."""
+        _install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
         rate = 44100
         t = np.linspace(0, 1.0, rate, endpoint=False)
         # Quiet sine background (0.10) so the click dominates a 10ms window.
@@ -1655,10 +2030,16 @@ class TestMixTrackFull:
         assert isinstance(result['clicks_removed'], int)
         assert result['clicks_removed'] >= 1
 
-    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path):
+    def test_full_mix_linear_repair_catches_obvious_click(self, tmp_path, monkeypatch):
         """A big single-sample click against a quiet sine should register
         clicks_removed>0 even without a genre — the helper falls back to
-        ``peak_ratio=15.0`` (matches the analyzer in `analyze_mix_issues`)."""
+        ``peak_ratio=15.0`` (matches the analyzer in `analyze_mix_issues`).
+        Declick enabled via override (off by default since #553)."""
+        _install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  full_mix:\n"
+            "    click_removal: true\n"
+        ))
         rate = 44100
         t = np.linspace(0, 1.0, rate, endpoint=False)
         mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
@@ -1743,6 +2124,114 @@ class TestPresetLoading:
         bad.write_text(": : : not valid [[[")
         result = _load_yaml_file(bad)
         assert result == {}
+
+
+class TestSyntheticAudioDefaults:
+    """#553: noise_reduction and vocal click_removal default off — Suno
+
+    stems are synthesized, not recorded, so they have no stationary
+    noise floor to profile and no mechanical/handling clicks to repair.
+    A spectral-gating noise reduction pass or a peak/RMS click detector
+    tuned for recorded audio instead damages clean synthetic content
+    (consonants, breath, sibilance).
+    """
+
+    def test_vocals_default_noise_reduction_is_off(self):
+        settings = _get_stem_settings('vocals')
+        assert settings['noise_reduction'] == 0
+
+    def test_vocals_default_click_removal_is_off(self):
+        settings = _get_stem_settings('vocals')
+        assert settings['click_removal'] is False
+
+    def test_backing_vocals_default_noise_reduction_is_off(self):
+        settings = _get_stem_settings('backing_vocals')
+        assert settings['noise_reduction'] == 0
+
+    def test_backing_vocals_default_click_removal_is_off(self):
+        settings = _get_stem_settings('backing_vocals')
+        assert settings['click_removal'] is False
+
+    def test_non_vocal_stem_click_removal_stays_on(self):
+        """#323 behavior preserved: non-vocal stems still declick by default."""
+        settings = _get_stem_settings('drums')
+        assert settings['click_removal'] is True
+
+    def test_percussion_click_removal_stays_on(self):
+        settings = _get_stem_settings('percussion')
+        assert settings['click_removal'] is True
+
+    def test_shipped_yaml_has_no_nonzero_noise_reduction(self):
+        """Guards defaults *and* every genre section against regression —
+        a genre override re-introducing a nonzero noise_reduction would
+        silently defeat the off-by-default rationale above."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+
+        def find_nonzero(node, path=""):
+            offenders = []
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    child_path = f"{path}.{key}" if path else key
+                    if key == 'noise_reduction' and value != 0:
+                        offenders.append((child_path, value))
+                    offenders.extend(find_nonzero(value, child_path))
+            return offenders
+
+        offenders = find_nonzero(data)
+        assert offenders == [], f"Non-zero noise_reduction found: {offenders}"
+
+
+class TestNoiseReductionCodeFallbackDefaults:
+    """#553: the bare `settings.get('noise_reduction', ...)` fallback in
+    each processor — used only when a hand-built settings dict omits the
+    key entirely, since real callers get the key from the YAML presets —
+    must itself default to off. Before this fix the fallbacks were 0.5
+    (vocals/backing_vocals) or 0.3 (other/full_mix), silently
+    reintroducing noise reduction for any settings dict that happened to
+    omit the key.
+    """
+
+    def test_process_vocals_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('vocals')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        process_vocals(data, rate, settings=settings)
+        assert called == []
+
+    def test_process_backing_vocals_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('backing_vocals')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=800, amplitude=0.5)
+        process_backing_vocals(data, rate, settings=settings)
+        assert called == []
+
+    def test_process_other_defaults_to_no_noise_reduction_when_key_omitted(self, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        settings = _get_stem_settings('other')
+        del settings['noise_reduction']
+        data, rate = _generate_sine(freq=2000, amplitude=0.4)
+        process_other(data, rate, settings=settings)
+        assert called == []
+
+    def test_mix_track_full_defaults_to_no_noise_reduction_when_key_omitted(
+        self, monkeypatch, noise_wav, output_path,
+    ):
+        import tools.mixing.mix_tracks as mt
+        base_settings = mt._get_full_mix_settings()
+        del base_settings['noise_reduction']
+        monkeypatch.setattr(mt, '_get_full_mix_settings', lambda genre=None: dict(base_settings))
+        called: list[bool] = []
+        monkeypatch.setattr(mt, 'reduce_noise', lambda *a, **k: called.append(True) or a[0])
+        mix_track_full(noise_wav, output_path)
+        assert called == []
 
 
 class TestDeepMerge:
@@ -2295,3 +2784,627 @@ class TestPhase2ProcessorWiring:
         result_off = process_percussion(data.copy(), rate, settings_off)
         result_on = process_percussion(data.copy(), rate, settings_on)
         assert not np.allclose(result_off, result_on)
+
+
+class TestClickRemovalOverrideIsHonored:
+    """#553: a user's `click_removal` setting in `{overrides}/mix-presets.yaml`
+
+    must win over the shipped preset in BOTH directions — `false` over a
+    shipped `true` (non-vocal stems) and `true` over the shipped `false`
+    (vocals / backing_vocals, flipped off by default in #553). Field
+    report: `click_removal: false` under `genres.electronic.vocals` was
+    not honored and the vocal stem still came back with
+    `clicks_removed: 35`.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    @staticmethod
+    def _clicky_vocal_stem(path, n_clicks=35, rate=44100):
+        """A quiet tone with `n_clicks` single-sample spikes — the shape
+        the peak/RMS detector flags. Written to `path` as a stereo WAV."""
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(n_clicks):
+            mono[2000 + i * 1000] = 0.9
+        sf.write(str(path), np.column_stack([mono, mono]), rate, subtype='PCM_16')
+
+    # ── settings-resolution path ──────────────────────────────────────
+
+    def test_genre_override_disabling_click_removal_on_vocals_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """The exact field setup: `genres.electronic.vocals.click_removal:
+        false` must resolve to an effective False."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+            "      noise_reduction: 0\n"
+        ))
+        settings = _get_stem_settings('vocals', 'electronic')
+        assert settings['click_removal'] is False
+        assert settings['noise_reduction'] == 0
+
+    def test_genre_override_enabling_click_removal_on_vocals_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """Inverse direction — proves the *override* wins, not the
+        shipped default: `true` over the #553 vocals default of false."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_genre_override_disabling_click_removal_on_non_vocal_stem_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """A non-vocal stem ships `click_removal: true`, so `false` here
+        can only come from the user's override."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_defaults_override_disabling_click_removal_on_non_vocal_stem_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """The `defaults:`-scoped form of the same override, resolved
+        with a genre whose shipped section touches that stem."""
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  drums:\n"
+            "    click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_genre_override_is_honored_when_the_override_key_is_capitalized(
+        self, tmp_path, monkeypatch,
+    ):
+        """Genre lookups are case-insensitive (`_get_stem_settings`
+        lowercases `genre`), so an override block written under a
+        capitalized genre key must reach the same stem settings."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'Electronic')['click_removal'] is True
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_capitalized_override_of_a_new_genre_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        """Same rule for a genre the shipped file doesn't define."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Dark-Electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'Dark-Electronic')['click_removal'] is True
+
+    def test_capitalized_override_reaches_full_mix_settings(
+        self, tmp_path, monkeypatch,
+    ):
+        """Full-mix fallback resolves genres the same way."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    full_mix:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_full_mix_settings('Electronic')['click_removal'] is False
+
+    # ── processing path ───────────────────────────────────────────────
+
+    def test_vocals_chain_repairs_no_clicks_when_override_disables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Field symptom: with the override in place, a vocal stem full
+        of detectable clicks must come back `clicks_removed == 0`."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] == 0
+
+    def test_vocals_chain_repairs_clicks_when_override_enables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Inverse direction through the same processing path — proves
+        the run reflects the override rather than the shipped default."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] > 0
+
+    def test_non_vocal_chain_repairs_no_clicks_when_override_disables_it(
+        self, tmp_path, monkeypatch,
+    ):
+        """Drums ship `click_removal: true`; the user's `false` must
+        still reach the processing chain."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "drums.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["drums"]["clicks_removed"] == 0
+
+    def test_analyzer_recommendation_cannot_re_enable_disabled_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """#336 guard: `analyze_mix_issues` recommends `click_removal:
+        true` whenever it counts >10 clicky windows. That key is
+        deliberately outside `_ANALYZER_EQ_OVERRIDE_KEYS`, so it must not
+        resurrect a stem the user switched off."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+            analyzer_recs={"vocals": {
+                "recommendations": {"click_removal": True},
+                "issues": ["clicks_detected"],
+            }},
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["vocals"]["clicks_removed"] == 0
+
+    def test_capitalized_genre_override_reaches_the_processing_chain(
+        self, tmp_path, monkeypatch,
+    ):
+        """End-to-end version of the case-insensitivity rule."""
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        stem = tmp_path / "drums.wav"
+        self._clicky_vocal_stem(stem)
+
+        result = mix_track_stems(
+            {"drums": str(stem)}, str(tmp_path / "out.wav"), genre="Electronic",
+        )
+        by_stem = {s["stem"]: s for s in result["stems_processed"]}
+        assert by_stem["drums"]["clicks_removed"] == 0
+
+
+class TestClickRemovalFlagCoercion:
+    """#553: `click_removal` is the only boolean-valued setting read in
+
+    this module (`adm_aware_excitation`, the other boolean in the preset
+    file, is consumed by the analyzer handler). It was read with a bare
+    `settings.get('click_removal', False)` — no coercion — so a YAML
+    value that is truthy but not a `bool` (`click_removal: "false"`
+    quoted, or `"no"`) left declicking *on*, which is the shape of the
+    field report's asymmetry.
+
+    The gate now uses the shared `tools.shared.config.coerce_yaml_bool`
+    (#388) rather than a mix-local fork with its own dialect, so the
+    accepted spellings are exactly PyYAML's YAML 1.1 boolean literals —
+    `true/yes/on/1` and `false/no/off/0`. The fork additionally accepted
+    `y/t/n/f`, which PyYAML itself does not resolve to a bool; those now
+    take the warn-and-default path like any other unreadable value.
+    """
+
+    _install_override = staticmethod(_install_override)
+    _clicky_vocal_stem = staticmethod(TestClickRemovalOverrideIsHonored._clicky_vocal_stem)
+
+    def _clicks_removed(self, tmp_path, stem_name, genre):
+        stem = tmp_path / f"{stem_name}.wav"
+        self._clicky_vocal_stem(stem)
+        result = mix_track_stems(
+            {stem_name: str(stem)}, str(tmp_path / "out.wav"), genre=genre,
+        )
+        return {s["stem"]: s for s in result["stems_processed"]}[stem_name]["clicks_removed"]
+
+    def test_quoted_false_string_does_not_enable_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """`click_removal: "false"` reads as the string 'false' — truthy
+        in Python. It must not switch declicking on."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: "false"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "vocals", "electronic") == 0
+
+    def test_quoted_no_string_does_not_enable_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """Same for 'no' over a stem that ships `click_removal: true`."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    drums:\n'
+            '      click_removal: "no"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "drums", "electronic") == 0
+
+    def test_quoted_true_string_still_enables_click_removal(
+        self, tmp_path, monkeypatch,
+    ):
+        """Guard against over-correcting to False: a quoted 'true' must
+        still turn declicking on."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: "true"\n'
+        ))
+        assert self._clicks_removed(tmp_path, "vocals", "electronic") > 0
+
+    def test_ambiguous_value_falls_back_to_disabled_and_warns(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """An uninterpretable value must not be guessed as enabled — fall
+        back to the caller's default and tell the user why."""
+        self._install_override(tmp_path, monkeypatch, (
+            'genres:\n'
+            '  electronic:\n'
+            '    vocals:\n'
+            '      click_removal: maybe\n'
+        ))
+        with caplog.at_level(logging.WARNING):
+            assert self._clicks_removed(tmp_path, "vocals", "electronic") == 0
+        assert any('click_removal' in r.message for r in caplog.records)
+
+    # ── the shared coercion helper, as this gate calls it ─────────────
+
+    @pytest.mark.parametrize("raw", ["false", "False", "FALSE", "no", "off", "0", " false "])
+    def test_falsey_yaml_tokens_coerce_to_false(self, raw):
+        assert coerce_yaml_bool(raw, default=True, context='click_removal') is False
+
+    @pytest.mark.parametrize("raw", ["true", "True", "TRUE", "yes", "on", "1", " true "])
+    def test_truthy_yaml_tokens_coerce_to_true(self, raw):
+        assert coerce_yaml_bool(raw, default=False, context='click_removal') is True
+
+    @pytest.mark.parametrize("raw", ["y", "t", "n", "f"])
+    def test_single_letter_tokens_are_not_yaml_booleans(self, raw):
+        """PyYAML does not resolve a bare `y`/`n` to a bool either, so the
+        shared dialect treats them as unreadable rather than guessing."""
+        assert coerce_yaml_bool(raw, default=False, context='click_removal') is False
+        assert coerce_yaml_bool(raw, default=True, context='click_removal') is True
+
+    def test_real_bools_pass_through_unchanged(self):
+        assert coerce_yaml_bool(True, default=False, context='click_removal') is True
+        assert coerce_yaml_bool(False, default=True, context='click_removal') is False
+
+    def test_numbers_use_numeric_truthiness(self):
+        assert coerce_yaml_bool(1, default=False, context='click_removal') is True
+        assert coerce_yaml_bool(0, default=True, context='click_removal') is False
+
+    def test_missing_key_uses_the_gate_default(self):
+        """`_apply_click_removal` reads `settings.get(key, False)`, so an
+        absent key never reaches the coercer as None."""
+        assert coerce_yaml_bool({}.get('click_removal', False), default=False) is False
+
+    def test_uninterpretable_value_returns_default_and_warns(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            assert coerce_yaml_bool("maybe", default=False, context='click_removal') is False
+            assert coerce_yaml_bool([1], default=True, context='click_removal') is True
+        assert len(caplog.records) == 2
+        assert all('click_removal' in r.message for r in caplog.records)
+
+    def test_absent_key_does_not_warn(self, caplog):
+        """A stem whose preset simply omits `click_removal` must not
+        produce a warning on every polish run."""
+        data, rate = _generate_sine(amplitude=0.3)
+        with caplog.at_level(logging.WARNING):
+            process_vocals(data.copy(), rate, {'presence_boost_db': 0})
+        assert not any('click_removal' in r.message for r in caplog.records)
+
+
+class TestNumericSettingCoercion:
+    """#553: numeric settings were read straight out of the dict and
+
+    compared with `>` / `!=` — so a quoted `noise_reduction: "0.5"` in a
+    user override raised `TypeError: '>' not supported between instances
+    of 'str' and 'int'` and took the whole polish run down. (The #553
+    `_coerce_setting_bool` docstring claimed numerics already went
+    through `float(...)`; only `click_peak_ratio` ever did, and that one
+    crashed on a non-numeric string too.) Numeric reads now share the
+    boolean gate's warn-and-default contract: an unreadable value falls
+    back to the documented default and says so, never crashes and never
+    gets guessed into effect.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    def test_quoted_noise_reduction_neither_crashes_nor_enables(self, caplog):
+        """The field shape: `"0.5"` must behave exactly like the default
+        (0 — off), not crash and not apply a 0.5-strength pass."""
+        data, rate = _generate_sine(amplitude=0.3)
+        base = _get_stem_settings('vocals')
+
+        off = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0})
+        with caplog.at_level(logging.WARNING):
+            quoted = process_vocals(data.copy(), rate, {**base, 'noise_reduction': "0.5"})
+
+        np.testing.assert_allclose(quoted, off)
+        assert any('noise_reduction' in r.message for r in caplog.records)
+
+    def test_real_numeric_noise_reduction_still_applies(self):
+        """Guard against over-correcting: an unquoted 0.5 must still run
+        the noise-reduction pass."""
+        data, rate = _generate_noise(amplitude=0.3)
+        base = _get_stem_settings('vocals')
+
+        off = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0})
+        on = process_vocals(data.copy(), rate, {**base, 'noise_reduction': 0.5})
+
+        assert not np.allclose(on, off)
+
+    def test_quoted_eq_setting_falls_back_to_the_code_default(self, caplog):
+        """Same contract for a non-`noise_reduction` numeric read — the
+        sweep covers every numeric setting each processor reads."""
+        data, rate = _generate_sine(amplitude=0.3)
+        base = {k: v for k, v in _get_stem_settings('other').items()
+                if k != 'high_tame_db'}
+
+        with caplog.at_level(logging.WARNING):
+            quoted = process_other(data.copy(), rate, {**base, 'high_tame_db': "-6"})
+        missing = process_other(data.copy(), rate, dict(base))
+
+        np.testing.assert_allclose(quoted, missing)
+        assert any('high_tame_db' in r.message for r in caplog.records)
+
+    def test_quoted_click_peak_ratio_does_not_crash(self, caplog):
+        """`click_peak_ratio` was the one numeric read already wrapped in
+        `float(...)` — which raises, rather than warns, on 'aggressive'."""
+        data, rate = _generate_sine(amplitude=0.3)
+        settings = {**_get_stem_settings('drums'),
+                    'click_removal': True, 'click_peak_ratio': "aggressive"}
+        with caplog.at_level(logging.WARNING):
+            process_drums(data.copy(), rate, settings)
+        assert any('click_peak_ratio' in r.message for r in caplog.records)
+
+    def test_quoted_override_survives_a_whole_polish_run(self, tmp_path, monkeypatch):
+        """End-to-end through the override file that produced the field
+        crash — the run completes and the stem is reported."""
+        self._install_override(tmp_path, monkeypatch, (
+            'defaults:\n'
+            '  vocals:\n'
+            '    noise_reduction: "0.5"\n'
+        ))
+        stem = tmp_path / "vocals.wav"
+        data, rate = _generate_sine(amplitude=0.3)
+        _write_wav(stem, data, rate)
+
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        assert [s["stem"] for s in result["stems_processed"]] == ["vocals"]
+
+
+class TestDefaultsScopeOverridesReachEveryGenre:
+    """#553 follow-up: 22 genre sections carried a `noise_reduction: 0`
+
+    entry that was a pure no-op against the shipped defaults (already 0)
+    — but not against a user's override. `defaults:`-scope overrides
+    merge *below* the genre section, so `defaults: vocals:
+    noise_reduction: 0.5` was silently shadowed back to 0 on exactly the
+    genres a user importing recorded audio is most likely to reach for.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    @pytest.mark.parametrize("genre", [
+        "grunge", "ambient", "lo-fi", "classical", "shoegaze", "opera",
+    ])
+    def test_defaults_scope_noise_reduction_reaches_genre_stems(
+        self, tmp_path, monkeypatch, genre,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  vocals:\n"
+            "    noise_reduction: 0.5\n"
+            "  other:\n"
+            "    noise_reduction: 0.4\n"
+        ))
+        assert _get_stem_settings('vocals', genre)['noise_reduction'] == pytest.approx(0.5)
+        assert _get_stem_settings('other', genre)['noise_reduction'] == pytest.approx(0.4)
+
+    def test_no_genre_section_pins_noise_reduction(self):
+        """No genre may carry a `noise_reduction` entry at all — a value
+        there shadows the `defaults:` scope even when it is 0."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        offenders = [
+            f"{g}.{stem}"
+            for g, block in (data.get('genres') or {}).items()
+            if isinstance(block, dict)
+            for stem, settings in block.items()
+            if isinstance(settings, dict) and 'noise_reduction' in settings
+        ]
+        assert offenders == [], f"genre-level noise_reduction found: {offenders}"
+
+    def test_no_empty_stem_blocks_remain(self):
+        """Deleting the entries must not leave a bare `other:` key —
+        `_deep_merge` would be handed None and crash."""
+        data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
+        empties = [
+            f"{g}.{stem}"
+            for g, block in (data.get('genres') or {}).items()
+            if isinstance(block, dict)
+            for stem, settings in block.items()
+            if not settings
+        ]
+        assert empties == [], f"empty preset blocks: {empties}"
+
+
+class TestPresetsRefreshAtRunEntry:
+    """#553 follow-up: `MIX_PRESETS` was a module-level snapshot taken at
+
+    import time. The MCP server is long-lived, so a user who edited
+    `{overrides}/mix-presets.yaml` mid-session — the documented way to
+    change any of this — saw no effect until the server restarted, and
+    every polish run in between silently used the stale presets. The
+    polish entry points re-read the overrides now.
+    """
+
+    @staticmethod
+    def _override_dir(tmp_path, monkeypatch):
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir(exist_ok=True)
+        _point_overrides_at(monkeypatch, override_dir)
+        return override_dir
+
+    def test_mix_track_stems_sees_an_override_written_after_import(
+        self, tmp_path, monkeypatch,
+    ):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        # No MIX_PRESETS refresh here — this is exactly the mid-session
+        # edit the snapshot used to swallow.
+        (override_dir / "mix-presets.yaml").write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: true\n"
+        )
+
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        assert result["stems_processed"][0]["clicks_removed"] > 0
+
+    def test_mix_track_full_sees_an_override_written_after_import(
+        self, tmp_path, monkeypatch,
+    ):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        (override_dir / "mix-presets.yaml").write_text(
+            "defaults:\n  full_mix:\n    click_removal: true\n"
+        )
+
+        src = tmp_path / "01-track.wav"
+        _clicky_stem(src)
+        result = mix_track_full(str(src), str(tmp_path / "out.wav"))
+        assert result["clicks_removed"] > 0
+
+    def test_a_later_edit_replaces_an_earlier_one(self, tmp_path, monkeypatch):
+        override_dir = self._override_dir(tmp_path, monkeypatch)
+        override_file = override_dir / "mix-presets.yaml"
+
+        override_file.write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: true\n"
+        )
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        first = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out1.wav"), genre="electronic",
+        )
+        assert first["stems_processed"][0]["clicks_removed"] > 0
+
+        override_file.write_text(
+            "genres:\n  electronic:\n    vocals:\n      click_removal: false\n"
+        )
+        second = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out2.wav"), genre="electronic",
+        )
+        assert second["stems_processed"][0]["clicks_removed"] == 0
+
+
+class TestCapitalizedStemKeysInOverrides:
+    """#553 follow-up: the genre-key fix lowercased genre names but not
+
+    stem names. Every consumer looks a stem up by its canonical lowercase
+    `STEM_NAMES` entry, so an override written as `Vocals:` landed under
+    a key nothing reads — silently discarded, exactly like the
+    capitalized genre keys were.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    def test_capitalized_stem_key_at_defaults_scope_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Vocals:\n"
+            "    click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals')['click_removal'] is True
+
+    def test_capitalized_stem_key_at_genre_scope_is_honored(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    Vocals:\n"
+            "      click_removal: true\n"
+        ))
+        assert _get_stem_settings('vocals', 'electronic')['click_removal'] is True
+
+    def test_capitalized_stem_key_under_a_capitalized_genre(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    Drums:\n"
+            "      click_removal: false\n"
+        ))
+        assert _get_stem_settings('drums', 'electronic')['click_removal'] is False
+
+    def test_capitalized_full_mix_key_is_honored(self, tmp_path, monkeypatch):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Full_Mix:\n"
+            "    click_removal: true\n"
+        ))
+        assert _get_full_mix_settings()['click_removal'] is True
+
+    def test_capitalized_stem_key_reaches_the_processing_chain(
+        self, tmp_path, monkeypatch,
+    ):
+        self._install_override(tmp_path, monkeypatch, (
+            "defaults:\n"
+            "  Vocals:\n"
+            "    click_removal: true\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        _clicky_stem(stem)
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        assert result["stems_processed"][0]["clicks_removed"] > 0
