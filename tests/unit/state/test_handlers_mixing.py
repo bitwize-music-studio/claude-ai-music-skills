@@ -322,6 +322,24 @@ class TestAnalyzeMixIssues:
         assert "clicks_detected" not in track["issues"]
         assert "click_removal" not in track["recommendations"]
 
+    @staticmethod
+    def _shipped_presets_only(monkeypatch):
+        """Resolve mix + mastering presets from the shipped files only.
+
+        `_get_stem_settings` merges `{overrides}/mix-presets.yaml` and,
+        through `_resolve_master_click_thresholds`, the mastering genre
+        presets — both from the developer's real `~/.bitwize-music`
+        config. An assertion about a shipped default has to be told to
+        ignore them (#553).
+        """
+        import tools.mastering.master_tracks as mast
+        import tools.mixing.mix_tracks as mt
+
+        monkeypatch.setattr(mt, "_get_overrides_path", lambda: None)
+        monkeypatch.setattr(mt, "MIX_PRESETS", mt.load_mix_presets())
+        monkeypatch.setattr(mast, "_get_overrides_path", lambda: None)
+        monkeypatch.setattr(mast, "GENRE_PRESETS", mast.load_genre_presets())
+
     def test_vocal_click_removal_wired_through_polish(self, tmp_path, monkeypatch):
         """Genuine clicks on a vocal stem still get removed by polish when
         click_removal is enabled for that stem (#323 comment) — the
@@ -334,6 +352,8 @@ class TestAnalyzeMixIssues:
         """
         import tools.mixing.mix_tracks as mt
         from tools.mixing.mix_tracks import _deep_merge, mix_track_stems
+
+        self._shipped_presets_only(monkeypatch)
 
         # Patch the loader, not the `MIX_PRESETS` snapshot: every polish
         # entry point re-reads the presets on the way in (#553), so a
@@ -365,11 +385,13 @@ class TestAnalyzeMixIssues:
             f"vocal declicker did not run: {by_stem['vocals']}"
         )
 
-    def test_vocal_click_removal_off_by_default(self, tmp_path):
+    def test_vocal_click_removal_off_by_default(self, tmp_path, monkeypatch):
         """#553: without an override, the same genuine clicks on a vocal
         stem are left untouched — click_removal defaults to off for
         vocals now, so `clicks_removed` should come back 0."""
         from tools.mixing.mix_tracks import mix_track_stems
+
+        self._shipped_presets_only(monkeypatch)
 
         audio_dir = tmp_path / "audio"
         audio_dir.mkdir()

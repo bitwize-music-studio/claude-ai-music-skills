@@ -35,10 +35,27 @@ from handlers import _shared as shared_mod
 from handlers.processing import _helpers as processing_helpers
 from handlers.processing import audio as audio_mod
 
-# Known genre-presets.yaml values this test suite pins to. If genre-presets.yaml
-# changes these, update the expected values below.
-POP_CUT_HIGHMID = -1.0  # genres.pop.cut_highmid
-BLACK_METAL_CUT_HIGHS = -1.0  # genres.black-metal.cut_highs
+def _shipped_genre_preset(genre: str, key: str) -> float:
+    """Read one value straight out of the genre presets this repo ships.
+
+    Not out of `master_tracks.GENRE_PRESETS`: that is the shipped file
+    deep-merged with the developer's `{overrides}/mastering-presets.yaml`,
+    so reading it would compare the handler's output against the same
+    override the handler used — an assertion that holds no matter what
+    the code does. Reading the file makes the expected value a fact about
+    this repo, and `_run_master_audio` patches the overrides path away so
+    the handler resolves from the same file (#553).
+    """
+    import yaml
+
+    presets_file = PROJECT_ROOT / "tools" / "mastering" / "genre-presets.yaml"
+    with open(presets_file, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return float(data["genres"][genre][key])
+
+
+POP_CUT_HIGHMID = _shipped_genre_preset("pop", "cut_highmid")
+BLACK_METAL_CUT_HIGHS = _shipped_genre_preset("black-metal", "cut_highs")
 
 
 class _MockCache:
@@ -71,8 +88,15 @@ def _run_master_audio(**kwargs: object) -> dict:
     def _fake_resolve(slug: str, *_: object, **__: object) -> tuple[str | None, Path]:
         return None, audio_dir
 
+    # `build_effective_preset` calls `load_genre_presets()` fresh on every
+    # run, which merges `{overrides}/mastering-presets.yaml` on top of the
+    # shipped file. Point it at nothing so the run resolves from the
+    # shipped presets the expected values above were read from (#553).
+    import tools.mastering.master_tracks as master_tracks_mod
+
     with patch.object(processing_helpers, "_resolve_audio_dir", _fake_resolve), \
-         patch.object(shared_mod, "cache", _MockCache()):
+         patch.object(shared_mod, "cache", _MockCache()), \
+         patch.object(master_tracks_mod, "_get_overrides_path", lambda: None):
         result_json = asyncio.run(audio_mod.master_audio(**kwargs))
     return json.loads(result_json)
 

@@ -22,6 +22,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests.unit.mixing._presets import (
+    install_override as _install_override,
+    point_overrides_at as _point_overrides_at,
+)
 from tools.mixing.mix_tracks import (
     MIX_PRESETS,
     _BUILTIN_PRESETS_FILE,
@@ -103,22 +107,6 @@ def _generate_click(duration=1.0, rate=44100, click_pos=0.5, amplitude=0.5):
 
 def _write_wav(path, data, rate):
     sf.write(str(path), data, rate, subtype='PCM_16')
-
-
-def _install_override(tmp_path, monkeypatch, yaml_text):
-    """Write a user override file and reload the presets from it.
-
-    Mirrors the real startup path: `load_mix_presets()` reads
-    `{overrides}/mix-presets.yaml`, and the module-level `MIX_PRESETS`
-    that `_get_stem_settings` consults is the result.
-    """
-    import tools.mixing.mix_tracks as mt
-
-    override_dir = tmp_path / "overrides"
-    override_dir.mkdir(exist_ok=True)
-    (override_dir / "mix-presets.yaml").write_text(yaml_text)
-    monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
-    monkeypatch.setattr(mt, 'MIX_PRESETS', mt.load_mix_presets())
 
 
 def _clicky_stem(path, n_clicks=35, rate=44100):
@@ -3299,11 +3287,9 @@ class TestPresetsRefreshAtRunEntry:
 
     @staticmethod
     def _override_dir(tmp_path, monkeypatch):
-        import tools.mixing.mix_tracks as mt
-
         override_dir = tmp_path / "overrides"
         override_dir.mkdir(exist_ok=True)
-        monkeypatch.setattr(mt, '_get_overrides_path', lambda: override_dir)
+        _point_overrides_at(monkeypatch, override_dir)
         return override_dir
 
     def test_mix_track_stems_sees_an_override_written_after_import(
