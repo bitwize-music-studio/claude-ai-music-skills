@@ -983,7 +983,14 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
                 f"Lock file: {LOCK_FILE}"
             )
 
-        time.sleep(min(wait, deadline - time.monotonic()))
+        # max(0.0, ...) is not defensive padding: the guard above and this line
+        # read the clock separately, so the deadline can pass in between (a
+        # descheduled process, a GC pause, a loaded runner). The remaining
+        # budget is then negative and time.sleep() rejects it with ValueError —
+        # which would escape read_state/write_state as a bug report instead of
+        # the TimeoutError every caller is written to handle. Clamping to 0
+        # makes the iteration a no-op and lets the next guard raise properly.
+        time.sleep(max(0.0, min(wait, deadline - time.monotonic())))
         wait = min(wait * 2, 1.0)  # Cap at 1 second
 
 
