@@ -211,6 +211,7 @@ async def polish_audio(
         return _safe_json({"error": "No tracks were processed."})
 
     aggregated_overrides: list[dict[str, Any]] = []
+    aggregated_blocked: list[dict[str, Any]] = []
     for tr in track_results:
         track_label = tr.get("track_name") or tr.get("filename") or ""
         for entry in tr.get("overrides_applied", []):
@@ -218,6 +219,11 @@ async def polish_audio(
             # that ever gains a "track" field (defensive — entries don't
             # currently carry one).
             aggregated_overrides.append({**entry, "track": track_label})
+        # #553: recommendations the polish whitelist dropped. Surfaced
+        # next to the applied ones so "the analyzer keeps recommending
+        # this and polish never applies it" is visible to the operator.
+        for entry in tr.get("blocked", []):
+            aggregated_blocked.append({**entry, "track": track_label})
 
     return _safe_json({
         "tracks": track_results,
@@ -232,6 +238,7 @@ async def polish_audio(
             "mode": "stems" if use_stems else "full_mix",
             "output_dir": str(output_dir) if not dry_run else None,
             "overrides_applied": aggregated_overrides,
+            "blocked_recommendations": aggregated_blocked,
         },
     })
 

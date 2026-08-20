@@ -1111,10 +1111,19 @@ def _resolve_master_click_thresholds(genre: str | None) -> tuple[float | None, i
 # override genre defaults in polish. click_removal is intentionally
 # excluded — it's wired through _resolve_analyzer_peak_ratio, not
 # merged into per-stem EQ settings.
+#
+# noise_reduction is excluded too (#553). This whitelist merges LAST in
+# `_get_stem_settings`, and `polish_audio` auto-runs the analyzer, whose
+# `elevated_noise_floor` heuristic fires on ordinary sustained content
+# and recommends 0.5-0.8. Leaving the key here meant the analyzer
+# silently re-enabled noise reduction over the shipped default of 0 —
+# and over an explicit user `noise_reduction: 0` — on every polish run.
+# The analyzer still detects and reports an elevated noise floor;
+# whether to act on it is the user's call, made in
+# `{overrides}/mix-presets.yaml`.
 _ANALYZER_EQ_OVERRIDE_KEYS = frozenset({
     "mud_cut_db",
     "high_tame_db",
-    "noise_reduction",
     "highpass_cutoff",
     "excitation_db",
 })
@@ -1127,10 +1136,33 @@ _ANALYZER_EQ_OVERRIDE_KEYS = frozenset({
 _ANALYZER_PARAM_REASONS: dict[str, tuple[str, ...]] = {
     "high_tame_db":    ("harsh_highmids", "already_dark"),
     "mud_cut_db":      ("muddy_low_mids",),
-    "noise_reduction": ("elevated_noise_floor",),
     "highpass_cutoff": ("sub_rumble",),
     "excitation_db":   ("already_dark",),
 }
+
+# #553: why a recommendation outside the whitelist was dropped. Without
+# this, a blocked recommendation vanished silently — the analyzer kept
+# recommending it every run and polish kept never applying it, with
+# nothing in the report to make that loop visible.
+_ANALYZER_BLOCKED_REASONS: dict[str, str] = {
+    "noise_reduction": (
+        "noise reduction is never auto-applied (#553) — Suno stems are "
+        "synthesized and have no stationary noise floor to profile, so a "
+        "spectral-gating pass subtracts quiet musical content instead. "
+        "Set `noise_reduction` for this stem in "
+        "{overrides}/mix-presets.yaml if you are polishing imported "
+        "recorded audio."
+    ),
+    "click_removal": (
+        "click_removal comes from the presets, not from analyzer "
+        "recommendations (#336) — set it for this stem in "
+        "{overrides}/mix-presets.yaml to turn declicking on or off."
+    ),
+}
+_ANALYZER_BLOCKED_DEFAULT_REASON = (
+    "not an analyzer-overridable parameter — set it for this stem in "
+    "{overrides}/mix-presets.yaml"
+)
 
 
 def _get_stem_settings(
@@ -1147,11 +1179,13 @@ def _get_stem_settings(
         genre: Optional genre name for genre-specific overrides
         analyzer_rec: Optional per-stem recommendations from
             `analyze_mix_issues`. When provided, any whitelisted key
-            (mud_cut_db, high_tame_db, noise_reduction, highpass_cutoff)
+            (mud_cut_db, high_tame_db, highpass_cutoff, excitation_db)
             overrides the genre default. Non-whitelisted keys
-            (click_removal, etc.) are ignored. A sentinel value of 0.0
-            is honored — it means "override the genre default to
-            zero," not "no recommendation." (#336)
+            (click_removal, noise_reduction) are ignored — see
+            `_ANALYZER_EQ_OVERRIDE_KEYS`; `mix_track_stems` reports them
+            under `blocked`. A sentinel value of 0.0 is honored — it
+            means "override the genre default to zero," not "no
+            recommendation." (#336, #553)
 
     Returns:
         Dict of processing settings for this stem.
@@ -2010,17 +2044,24 @@ def mix_track_stems(
             stem. The overrides fired are recorded in the return dict's
             ``overrides_applied`` list with ``(stem, parameter,
             genre_default, analyzer_rec, applied, reason)``. (#336)
+            Recommendations the whitelist drops are recorded in the
+            ``blocked`` list with ``(stem, parameter, analyzer_rec,
+            reason)`` so a "recommended every run, never applied" loop
+            is visible rather than silent. (#553)
 
     Returns:
-        Dict with processing results, metrics, and (when analyzer_recs
-        is present or absent) an ``overrides_applied`` list.
+        Dict with processing results, metrics, an ``overrides_applied``
+        list and a ``blocked`` list (both always present, possibly
+        empty).
     """
     stems_processed: list[dict[str, Any]] = []
     overrides_applied: list[dict[str, Any]] = []
+    blocked: list[dict[str, Any]] = []
     result: dict[str, Any] = {
         'mode': 'stems',
         'stems_processed': stems_processed,
         'overrides_applied': overrides_applied,
+        'blocked': blocked,
         'dry_run': dry_run,
     }
 
@@ -2135,6 +2176,18 @@ def mix_track_stems(
                             "analyzer_rec":   rec_val,
                             "applied":        rec_val,
                             "reason":         reason,
+                        })
+                    else:
+                        # #553: the merge drops this key. Say so, with the
+                        # override that *would* apply it, instead of
+                        # discarding it silently run after run.
+                        blocked.append({
+                            "stem":         stem_name,
+                            "parameter":    key,
+                            "analyzer_rec": rec_val,
+                            "reason":       _ANALYZER_BLOCKED_REASONS.get(
+                                key, _ANALYZER_BLOCKED_DEFAULT_REASON,
+                            ),
                         })
 
             if not dry_run:

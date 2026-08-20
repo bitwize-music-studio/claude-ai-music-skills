@@ -165,8 +165,17 @@ This automatically detects stems — if no root WAVs exist but `stems/` has trac
 - Sub-bass rumble
 
 **Report findings** to user with plain-English explanations:
-- "Track 03 has elevated noise floor — noise reduction recommended"
+- "Track 03 has elevated noise floor — polish will NOT act on this; noise reduction is off by default because Suno stems are synthesized. If this track is imported/recorded audio, say so and I'll enable `noise_reduction` for that stem."
 - "Most tracks show muddy low-mids — will apply 200 Hz cut"
+
+**The analyzer detects; it does not decide.** `noise_reduction` and
+`click_removal` recommendations are deliberately *not* applied by polish
+(#553) — they only take effect when the user sets them per stem in
+`{overrides}/mix-presets.yaml`. Polish reports every dropped
+recommendation under `summary.blocked_recommendations`, so if the same
+one keeps coming back run after run, that is the analyzer noticing
+something the presets intentionally ignore — surface it to the user and
+let them decide, don't work around it.
 
 ### Step 3: Choose Settings
 
