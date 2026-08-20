@@ -284,10 +284,23 @@ def load_mix_presets() -> dict[str, Any]:
         override_defaults = override_data.get('defaults')
         if isinstance(override_defaults, dict) and override_defaults:
             defaults = _deep_merge(defaults, _lower_section_keys(override_defaults))
+        seen_genre_keys: dict[str, str] = {}
         for raw_genre_name, raw_genre_overrides in override_data.get('genres', {}).items():
             if not isinstance(raw_genre_overrides, dict):
                 continue
             genre_name = str(raw_genre_name).lower()
+            # Two override keys that only differ in case (`Electronic:` and
+            # `electronic:`) are both legal YAML siblings and collide once
+            # lowered. They still merge in document order (unchanged
+            # behavior) but now warn, naming both keys, so the collision
+            # isn't silent (#556).
+            if genre_name in seen_genre_keys and seen_genre_keys[genre_name] != str(raw_genre_name):
+                logger.warning(
+                    "Override genre keys %r and %r both lowercase to %r in "
+                    "mix-presets.yaml; merging in document order",
+                    seen_genre_keys[genre_name], raw_genre_name, genre_name,
+                )
+            seen_genre_keys[genre_name] = str(raw_genre_name)
             genre_overrides = _lower_section_keys(raw_genre_overrides)
             if genre_name in genres:
                 genres[genre_name] = _deep_merge(genres[genre_name], genre_overrides)
@@ -822,6 +835,8 @@ def _apply_click_removal(
             mastering overlay.
         click_repair (str): "linear" (safer on dense mixes, vocals) or
             "cubic" (better spectral reconstruction on isolated stems).
+            Anything else warns and falls back to `default_repair` (#556)
+            rather than raising out of `remove_clicks` mid-stem.
 
     `report` is accumulated (`report["clicks_detected"] += n`, plus
     `report["clicks_removed"] += n` when repair actually ran) so the
@@ -856,10 +871,25 @@ def _apply_click_removal(
             report['click_note'] = CLICKS_DETECTED_NOTE
         return data
 
+    repair = settings.get('click_repair', default_repair)
+    if repair not in ('linear', 'cubic'):
+        # `remove_clicks` used to raise ValueError straight out of a typo'd
+        # preset (`click_repair: "linar"`), taking the whole polish run
+        # down mid-stem (#556). Every other unreadable setting gets a
+        # warn-and-default fallback; this one now does too — falling back
+        # to the chain's own default_repair, not a hardcoded "linear".
+        logger.warning(
+            "Cannot interpret click_repair=%r — using default %r. Use "
+            "'linear' or 'cubic'.",
+            repair,
+            default_repair,
+        )
+        repair = default_repair
+
     data, n_clicks = remove_clicks(
         data, rate,
         peak_ratio=peak_ratio,
-        repair=settings.get('click_repair', default_repair),
+        repair=repair,
     )
     if report is not None:
         report['clicks_detected'] = report.get('clicks_detected', 0) + int(n_clicks)
