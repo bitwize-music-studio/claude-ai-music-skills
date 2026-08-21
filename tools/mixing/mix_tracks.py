@@ -45,7 +45,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.mixing.excitation import apply_harmonic_excitation
-from tools.shared.config import coerce_yaml_bool, coerce_yaml_float
+from tools.shared.config import _should_warn, coerce_yaml_bool, coerce_yaml_float
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -878,12 +878,17 @@ def _apply_click_removal(
         # down mid-stem (#556). Every other unreadable setting gets a
         # warn-and-default fallback; this one now does too — falling back
         # to the chain's own default_repair, not a hardcoded "linear".
-        logger.warning(
-            "Cannot interpret click_repair=%r — using default %r. Use "
-            "'linear' or 'cubic'.",
-            repair,
-            default_repair,
-        )
+        # Gated through the same warn-once dedup as coerce_yaml_bool/
+        # coerce_yaml_float (#556 fix round): this runs once per stem per
+        # track, so an album-wide bad override otherwise logs the same
+        # line dozens of times.
+        if _should_warn('click_repair', repair):
+            logger.warning(
+                "Cannot interpret click_repair=%r — using default %r. Use "
+                "'linear' or 'cubic'.",
+                repair,
+                default_repair,
+            )
         repair = default_repair
 
     data, n_clicks = remove_clicks(

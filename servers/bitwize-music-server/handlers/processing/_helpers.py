@@ -240,6 +240,43 @@ def _derive_album_genre(album_slug: str) -> str:
     return genre if isinstance(genre, str) else ""
 
 
+def _warn_unknown_derived_genre(genre: str, album_slug: str, *, preset_kind: str) -> None:
+    """Log that `genre` isn't recognized by the named preset set.
+
+    Reproduced (#556): an album's real, recorded genre (e.g. a niche
+    "dark-cabaret") can simply predate or fall outside a preset file's
+    genre list — that's a fact about the preset file, not user error,
+    and there was previously no way to opt out of it once it's in state
+    (passing `genre=""` just re-derives the same value). Callers that
+    derived `genre` rather than taking it as an explicit argument treat
+    an unrecognized result as a soft fallback: call this to log it, then
+    proceed with no genre, instead of the hard "Unknown genre" error
+    reserved for a genre a caller actually typed.
+
+    `preset_kind` names which preset set rejected it (``"mix"`` or
+    ``"mastering"``) — the two are independent (`tools/mixing/
+    mix-presets.yaml` vs `tools/mastering/genre-presets.yaml` plus their
+    respective overrides), so a genre can be known to one and not the
+    other; a caller checks the set relevant to it and reports which one.
+
+    Deduped once per process per distinct (album, genre, preset_kind) via
+    the shared warn-once mechanism (`tools.shared.config._should_warn`,
+    #556) — the same fact can otherwise be discovered independently at
+    more than one call site in a single run (e.g. `polish_and_master_album`
+    pre-checking the mastering preset set, then `polish_album`'s own
+    stage-3 QC guard hitting the identical fact for the identical album).
+    """
+    from tools.shared.config import _should_warn
+
+    key = f"unknown_{preset_kind}_genre:{album_slug}"
+    if _should_warn(key, genre):
+        logger.warning(
+            "Genre %r for album %r is not a known %s-preset genre; "
+            "proceeding without a genre preset.",
+            genre, album_slug, preset_kind,
+        )
+
+
 def _check_mixing_deps() -> str | None:
     """Return error message if mixing deps missing, else None."""
     missing = []

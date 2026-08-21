@@ -1558,6 +1558,29 @@ class TestClickRepairWarnAndDefault:
         assert repair == "cubic"
         assert not any("click_repair" in r.message for r in caplog.records)
 
+    def test_repeated_same_bad_value_warns_once(self, monkeypatch, caplog):
+        """#556 fix round: this warning used to log directly, once per
+        stem per track — the exact per-run noise the shared warn-once
+        dedup (`tools.shared.config._should_warn`) exists to collapse
+        for every other unreadable setting. It now goes through the same
+        mechanism, so a persistently bad `click_repair` (one preset
+        value, many stems/tracks reading it in one run) warns once."""
+        with caplog.at_level(logging.WARNING):
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+        matches = [r for r in caplog.records if "click_repair" in r.message]
+        assert len(matches) == 1
+
+    def test_different_bad_value_still_warns(self, monkeypatch, caplog):
+        """A *different* bad value for the same setting is new
+        information and still warns, even after an earlier bad value on
+        the same key has already been logged."""
+        with caplog.at_level(logging.WARNING):
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+            self._spy_repair(monkeypatch, {"click_repair": "cubik"})
+        matches = [r for r in caplog.records if "click_repair" in r.message]
+        assert len(matches) == 2
+
     def test_end_to_end_unknown_repair_does_not_crash_the_stem(self, tmp_path, monkeypatch):
         """Before the fix this raised ValueError out of remove_clicks and
         took the whole mix_track_stems call down with it."""

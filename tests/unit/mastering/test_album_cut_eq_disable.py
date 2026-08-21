@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -354,3 +356,133 @@ class TestPolishAndMasterAlbumCutEq:
         assert captured["cut_highmid"] == -4.5
         assert captured["cut_highs"] == -2.25
         assert result["master"]["settings"]["cut_highs"] == -2.25
+
+
+# ---------------------------------------------------------------------------
+# polish_and_master_album — genre derivation (#556 fix round)
+# ---------------------------------------------------------------------------
+#
+# polish_and_master_album resolves genre once, up front (explicit wins,
+# else derived from the album's state entry), and forwards it to both the
+# polish and master phases. The two phases validate it against INDEPENDENT
+# preset sets (tools/mixing/mix-presets.yaml vs tools/mastering/
+# genre-presets.yaml) — a genre known to one and not the other is a real,
+# expected case, so each phase gets its own soft fallback (warn + proceed
+# without a genre preset for that phase only) rather than a hard error,
+# when the genre was DERIVED rather than explicitly passed by the caller.
+
+
+def _run_polish_and_master_genre(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    genre_arg: str = "",
+    derived_genre: str | None = None,
+    mastering_known_genres: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Run polish_and_master_album with both phases stubbed, capturing the
+    genre kwarg each phase actually received.
+
+    `derived_genre`, when given, patches `_derive_album_genre` so the
+    "no genre argument" path resolves to a controlled value without
+    needing a real state cache. `mastering_known_genres`, when given,
+    patches `load_genre_presets` so the master-phase validity check can
+    be forced to reject a genre the mix side would accept.
+    """
+    captured_polish: dict[str, Any] = {}
+    captured_master: dict[str, Any] = {}
+
+    async def _fake_polish(**kw: Any) -> str:
+        captured_polish.update(kw)
+        return json.dumps({"stage_reached": "complete"})
+
+    async def _fake_master(**kw: Any) -> str:
+        captured_master.update(kw)
+        return json.dumps({
+            "stage_reached": "complete",
+            "settings": {},
+        })
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(mixing_mod, "polish_album", _fake_polish))
+        stack.enter_context(patch.object(audio_mod, "master_album", _fake_master))
+        if derived_genre is not None:
+            stack.enter_context(patch.object(
+                processing_helpers, "_derive_album_genre", return_value=derived_genre,
+            ))
+        if mastering_known_genres is not None:
+            import tools.mastering.master_tracks as mast_mod
+            stack.enter_context(patch.object(
+                mast_mod, "load_genre_presets", return_value=mastering_known_genres,
+            ))
+        result_json = asyncio.run(
+            mixing_mod.polish_and_master_album(album_slug="genre-pm", genre=genre_arg)
+        )
+    return json.loads(result_json), captured_polish, captured_master
+
+
+class TestPolishAndMasterAlbumGenreDerivation:
+    def test_explicit_genre_reaches_both_phases_undisturbed(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg=GENRE,
+        )
+        assert captured_polish.get("genre") == GENRE
+        assert captured_master.get("genre") == GENRE
+
+    def test_derive_helper_not_called_when_genre_explicit(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        with patch.object(processing_helpers, "_derive_album_genre") as mock_derive:
+            _run_polish_and_master_genre(monkeypatch, genre_arg=GENRE)
+        mock_derive.assert_not_called()
+
+    def test_derived_genre_reaches_both_phases(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A single derivation resolves the genre used by both phases —
+        proven by matching, not just each independently correct."""
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg="", derived_genre=GENRE,
+        )
+        assert captured_polish.get("genre") == GENRE
+        assert captured_master.get("genre") == GENRE
+        assert captured_polish.get("genre") == captured_master.get("genre")
+
+    def test_derivation_failure_forwards_no_genre_to_both_phases(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg="", derived_genre="",
+        )
+        assert not captured_polish.get("genre")
+        assert not captured_master.get("genre")
+
+    def test_mix_known_mastering_unknown_derived_genre_masters_genre_less_with_warning(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """The headline case for this fix: a genre valid on the mix side
+        (so the polish phase still applies genre-scoped overrides) but
+        absent from the SEPARATE mastering-preset genre list masters
+        without a genre preset, with a warning — not a hard failure of
+        the whole run, and not silently dropped for the mix phase too.
+        """
+        with caplog.at_level(logging.WARNING):
+            _result, captured_polish, captured_master = _run_polish_and_master_genre(
+                monkeypatch, genre_arg="", derived_genre=GENRE,
+                mastering_known_genres={},
+            )
+        assert captured_polish.get("genre") == GENRE
+        assert not captured_master.get("genre")
+        assert any(GENRE in r.message for r in caplog.records)
+
+    def test_explicit_genre_unknown_to_mastering_is_not_softened(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An EXPLICIT genre unrecognized by the mastering presets is not
+        this function's call to soften — that stays master_album's own
+        existing hard-validation job, unchanged from before #556."""
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg=GENRE, mastering_known_genres={},
+        )
+        assert captured_master.get("genre") == GENRE

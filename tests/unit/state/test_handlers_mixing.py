@@ -10,6 +10,7 @@ import asyncio
 import importlib
 import importlib.util
 import json
+import logging
 import sys
 import types
 from pathlib import Path
@@ -233,18 +234,49 @@ class TestPolishAudio:
         assert "error" not in result
         assert result["settings"]["genre"] is None
 
-    def test_unknown_derived_genre_returns_error_not_crash(self, tmp_path):
-        """A derived genre is validated exactly like an explicit one —
-        an unrecognized value returns the same structured error, not a
-        crash."""
+    def test_unknown_derived_genre_falls_back_with_warning(self, tmp_path, caplog):
+        """A DERIVED genre unrecognized by the mix presets is a
+        derivation failure, not a hard error (#556 fix round): an
+        album's own state-recorded genre can simply predate or fall
+        outside a preset's genre list, and unlike an EXPLICIT unknown
+        genre (test_invalid_genre, above) there was previously no way to
+        opt out of it once it's in state — genre="" just re-derives the
+        same bad value. polish_audio now warns, naming the genre, and
+        proceeds with today's no-genre behavior."""
         audio_dir = _setup_audio_dir(tmp_path)
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"):
-            raw = _run(_mixing_mod.polish_audio("test"))
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"), \
+             caplog.at_level(logging.WARNING):
+            raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
         result = json.loads(raw)
-        assert "error" in result
-        assert "genre" in result["error"].lower()
+        assert "error" not in result
+        assert result["settings"]["genre"] is None
+        assert any(
+            "nonexistent-genre-xyz" in r.message for r in caplog.records
+        ), "expected a warning naming the unrecognized derived genre"
+
+    def test_dark_cabaret_shaped_case_state_genre_absent_from_presets(
+        self, tmp_path, caplog,
+    ):
+        """End-to-end reproduction of the reported regression: an album
+        whose state entry genuinely records a real-but-unpresetted genre
+        (not a mocked return value) still polishes successfully, using
+        the shipped defaults, with a warning rather than a hard failure.
+        """
+        audio_dir = _setup_audio_dir(tmp_path)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             patch.object(
+                 _shared_mod.cache, "get_state",
+                 return_value={"albums": {"test": {"genre": "dark-cabaret"}}},
+             ), \
+             caplog.at_level(logging.WARNING):
+            raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
+        result = json.loads(raw)
+        assert "error" not in result
+        assert result["settings"]["genre"] is None
+        assert any("dark-cabaret" in r.message for r in caplog.records)
 
     def test_no_wav_files_returns_error(self, tmp_path):
         audio_dir = tmp_path / "empty"
@@ -685,17 +717,57 @@ class TestPolishAlbum:
         result = json.loads(raw)
         assert result["stage_reached"] == "complete"
 
-    def test_unknown_derived_genre_fails_the_polish_stage_not_a_crash(self, tmp_path):
-        """A derived genre goes through polish_audio's existing unknown-genre
-        check — same handling as if the caller had passed it explicitly."""
+    def test_unknown_derived_genre_falls_back_with_warning(self, tmp_path, caplog):
+        """#556 fix round: a DERIVED genre unrecognized by the mix
+        presets must not fail the polish stage — polish_album validates
+        it BEFORE forwarding to stage 2, softens it to no-genre with a
+        warning, and the pipeline completes normally. (The original fix
+        hard-failed this exact case — polish_audio's own "Unknown genre"
+        check can't tell a derived genre from one the caller typed once
+        it's a plain non-empty argument, so polish_album must resolve
+        this itself before stage 2 ever sees it.)"""
         audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
-             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"):
+             patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"), \
+             caplog.at_level(logging.WARNING):
             raw = _run(_mixing_mod.polish_album("test"))
         result = json.loads(raw)
-        assert result["failed_stage"] == "polish"
-        assert "genre" in json.dumps(result["failure_detail"]).lower()
+        assert result["stage_reached"] == "complete"
+        assert "failed_stage" not in result
+        assert any(
+            "nonexistent-genre-xyz" in r.message for r in caplog.records
+        ), "expected a warning naming the unrecognized derived genre"
+
+    def test_qc_genre_unknown_to_mastering_presets_falls_back_with_warning(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """#556 item 3: qc_track raises ValueError for a genre absent
+        from the mastering presets. A genre resolvable in MIX presets
+        (so the polish stage succeeds) but absent from the separate
+        MASTERING preset genre list used to crash stage 3's verify loop
+        with an unhandled exception out of run_in_executor. It now warns
+        and QCs genre-less instead.
+        """
+        from tests.unit.mixing._presets import install_override
+
+        install_override(
+            tmp_path, monkeypatch,
+            "genres:\n  custom-genre:\n    full_mix: {}\n",
+        )
+
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             caplog.at_level(logging.WARNING):
+            raw = _run(_mixing_mod.polish_album("test", genre="custom-genre"))
+        result = json.loads(raw)
+        assert result["stage_reached"] == "complete"
+        assert result["stages"]["polish"]["status"] == "pass"
+        assert result["stages"]["verify"]["status"] in ("pass", "warn", "fail")
+        assert any(
+            "custom-genre" in r.message for r in caplog.records
+        ), "expected a warning naming the genre unknown to mastering presets"
 
 
 # ---------------------------------------------------------------------------
