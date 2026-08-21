@@ -39,11 +39,14 @@ async def polish_audio(
             Defaults to the album's own genre (looked up from state) when
             omitted, so genre-scoped overrides apply without passing it
             explicitly; an explicit value always wins. An unrecognized
-            EXPLICIT genre returns an error; an unrecognized DERIVED
-            genre (the album's own state-recorded genre isn't in the mix
-            presets) is logged and treated as no genre for this run
-            rather than erroring — there is otherwise no way to opt out
-            of a bad derived genre once it's recorded in state. (#556)
+            EXPLICIT genre returns an error. An unrecognized DERIVED
+            genre (the album's own state-recorded genre has no
+            `tools/mixing/mix-presets.yaml` section) is NOT an error and
+            is NOT dropped either — it's logged and used as-is, since
+            settings resolution already tolerates a mix-unknown genre
+            gracefully (shipped per-stem defaults, plus the
+            mastering-preset click-threshold overlay, which may still
+            recognize the genre). (#556)
         use_stems: If true, process per-stem WAVs; if false, process full mixes
         dry_run: If true, analyze only without writing files
         track_filename: If set, only process this one track (e.g.,
@@ -98,16 +101,21 @@ async def polish_audio(
                     "error": f"Unknown genre: {genre}",
                     "available_genres": sorted(presets.get('genres', {}).keys()),
                 })
-            # #556: an unrecognized DERIVED genre is a derivation
-            # failure, not a hard error — the album's own state-recorded
-            # genre can simply predate or fall outside this preset's
-            # genre list (e.g. a niche "dark-cabaret"), and there was
-            # previously no escape hatch (an explicit genre="" just
-            # re-derives the same value). Warn and proceed genre-less,
-            # same as any other derivation failure. The hard error above
-            # stays for a genre the caller actually typed.
-            _helpers._warn_unknown_derived_genre(genre, album_slug, preset_kind="mix")
-            genre = ""
+            # #556 round 2: an unrecognized DERIVED genre is NOT blanked
+            # — the album's own state-recorded genre can simply predate
+            # or fall outside this preset's genre list (e.g. a niche
+            # "dark-cabaret"), and `load_mix_presets()`-based settings
+            # resolution already tolerates that gracefully (shipped
+            # per-stem defaults, plus the mastering-preset click overlay,
+            # which reads a SEPARATE preset set and may still recognize
+            # the genre). Blanking here (round 1) threw that overlay
+            # away and made this function's own analyzer-auto-run call
+            # below (which shares this SAME `genre` variable) agree with
+            # itself, but disagreed with a standalone `analyze_mix_issues`
+            # call for the same album, which never blanked. Just inform;
+            # `genre` keeps flowing through unchanged below. The hard
+            # error above stays for a genre the caller actually typed.
+            _helpers._note_unpresetted_mix_genre(genre, album_slug)
 
     output_dir = audio_dir / "polished"
     if not dry_run:
@@ -739,13 +747,16 @@ async def polish_album(
     Args:
         album_slug: Album slug (e.g., "my-album")
         genre: Genre preset for stem-specific settings. Defaults to the
-            album's own genre (looked up from state) when omitted, and is
-            resolved once and forwarded to both the analyze and polish
-            stages so they cannot disagree about which genre-scoped
-            settings apply; an explicit value always wins. A DERIVED
-            genre unrecognized by the mix presets is not an error — it's
-            logged and treated as no genre for this run, unlike an
-            explicit unrecognized genre, which still fails the polish
+            album's own genre (looked up from state) when omitted; an
+            explicit value always wins. Analyze and polish always resolve
+            the SAME effective genre — stage 1 uses it directly, and
+            stage 2 either gets it directly or (for a DERIVED genre with
+            no mix-preset section) gets forwarded "" so it re-derives and
+            reaches the identical result via its own logic; either way
+            the two stages cannot disagree. A DERIVED genre unrecognized
+            by the mix presets is not an error and is not dropped — it's
+            logged and used as-is (settings resolution already tolerates
+            it). An EXPLICIT unrecognized genre still fails the polish
             stage. (#556)
 
     Returns:
@@ -772,31 +783,15 @@ async def polish_album(
 
     stages: dict[str, Any] = {}
 
-    # #556: resolve genre once, up front, and forward the SAME value to
-    # both stages below — an explicit genre always wins; an omitted one
-    # is derived from the album's state entry. Deriving once here (rather
-    # than letting each stage derive independently) is what guarantees
-    # stage 1 (analyze) and stage 2 (polish) resolve identical
-    # genre-scoped settings, which is the whole point of this pipeline.
-    # A derivation failure leaves genre empty, matching today's no-genre
-    # behavior.
+    # #556: resolve genre once, up front — an explicit genre always
+    # wins; an omitted one is derived from the album's state entry (and,
+    # since round 2, no longer validated/blanked here — see the stage-2
+    # call below for why). `genre` is used as-is for stage 1 and for
+    # stage 3's QC guard. A derivation failure leaves genre empty,
+    # matching today's no-genre behavior.
+    genre_was_explicit = bool(genre)
     if not genre:
         genre = _helpers._derive_album_genre(album_slug)
-        if genre:
-            # #556: validate the DERIVED genre here, before it ever
-            # reaches stage 2 — polish_audio's own "Unknown genre" check
-            # is a hard error, but only for a genre a caller actually
-            # typed. Forwarding an invalid derived genre unchanged would
-            # make polish_audio treat it as if the caller had typed it
-            # (it arrives as a plain non-empty argument either way) and
-            # hard-fail the whole run over a fact about the album's own
-            # state entry. Soften it to no-genre here instead, so both
-            # stages agree on "no genre" the same way they'd agree on any
-            # other genre.
-            from tools.mixing.mix_tracks import load_mix_presets
-            if genre.lower() not in load_mix_presets().get('genres', {}):
-                _helpers._warn_unknown_derived_genre(genre, album_slug, preset_kind="mix")
-                genre = ""
 
     # Determine mode: stems or full mix
     stems_dir = audio_dir / "stems"
@@ -837,9 +832,30 @@ async def polish_album(
     # #336: pass the analysis-stage output into polish so analyzer
     # recommendations become per-track overrides (no duplicate analysis
     # run — polish_audio would otherwise re-invoke analyze_mix_issues).
+    #
+    # #556 round 2: an explicit genre is forwarded unchanged. A DERIVED
+    # genre is forwarded unchanged too UNLESS it has no mix-preset
+    # section — in that one case, "" is forwarded instead, so
+    # polish_audio re-derives it internally (identical state, identical
+    # result) and — critically — correctly resolves its OWN
+    # genre_was_explicit to False, applying its informational (not
+    # hard-error) treatment. polish_audio cannot otherwise tell a
+    # derived-and-forwarded genre apart from one a caller actually
+    # typed, since both arrive as the same plain non-empty argument;
+    # forwarding the concrete value here would trip its hard "Unknown
+    # genre" error over a fact about the album's own state entry.
+    if genre_was_explicit:
+        polish_stage_genre = genre
+    else:
+        from tools.mixing.mix_tracks import load_mix_presets
+        if genre and genre.lower() not in load_mix_presets().get('genres', {}):
+            polish_stage_genre = ""
+        else:
+            polish_stage_genre = genre
+
     polish_json = await polish_audio(
         album_slug=album_slug,
-        genre=genre,
+        genre=polish_stage_genre,
         use_stems=use_stems,
         dry_run=False,
         analyzer_results=analysis,
@@ -892,8 +908,16 @@ async def polish_album(
         # genre valid on the mix side is not guaranteed valid here; warn
         # and QC genre-less rather than let the exception propagate out
         # of run_in_executor.
-        from tools.mastering.master_tracks import load_genre_presets
-        if qc_genre.lower() not in load_genre_presets():
+        #
+        # #556 round 2: check against `master_tracks.GENRE_PRESETS` —
+        # the import-time snapshot `qc_track`'s own `_resolve_click_
+        # thresholds` actually reads — not a fresh `load_genre_presets()`
+        # call. The two can disagree after a mid-session override edit
+        # (the snapshot is stale until something re-reads it), and a
+        # guard checking the fresh source would pass while the
+        # ValueError from the stale-reading code underneath still fires.
+        import tools.mastering.master_tracks as _mast
+        if qc_genre.lower() not in _mast.GENRE_PRESETS:
             _helpers._warn_unknown_derived_genre(qc_genre, album_slug, preset_kind="mastering")
             qc_genre = None
     verify_results = []
@@ -970,14 +994,18 @@ async def polish_and_master_album(
         album_slug: Album slug (e.g., "my-album")
         genre: Genre preset for both polish and master stages. Defaults to
             the album's own genre (looked up from state) when omitted;
-            resolved once here and forwarded to both phases. The mix and
-            mastering genre-preset sets are independent, so a DERIVED
-            genre unrecognized by one is not an error there — it's
-            logged and that phase proceeds without a genre preset, even
-            if the other phase's preset set does recognize it. An
-            explicit value always wins and is forwarded to both phases
-            unchanged (#556); an explicit value unrecognized by either
-            phase still fails that phase's existing validation.
+            resolved once here. The mix and mastering genre-preset sets
+            are independent, so a DERIVED genre unrecognized by one
+            preset set is handled per-phase: on the mix side it's kept
+            and used as-is (logged, not an error — settings resolution
+            already tolerates it); on the master side it's logged and
+            that phase proceeds without a genre preset instead, since
+            `master_album` validates strictly with no such tolerance.
+            Either way both phases still apply it where it IS
+            recognized. An explicit value always wins and is forwarded
+            to both phases unchanged (#556); an explicit value
+            unrecognized by either phase still fails that phase's
+            existing validation.
         target_lufs: Mastering target integrated loudness (default: -14.0)
         ceiling_db: Mastering true peak ceiling in dB (default: -1.0)
         cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
@@ -994,34 +1022,36 @@ async def polish_and_master_album(
     from handlers.processing.audio import master_album
 
     # #556: resolve genre once, up front — explicit wins; otherwise
-    # derive from the album's state entry — and forward it to both
-    # phases below. Each phase validates it against its OWN preset set
-    # (`polish_genre`/`master_genre` below), independently: mix presets
-    # and mastering presets are separate files with separate genre
-    # lists, so a genre known to one and not the other is a real,
-    # expected case, not a bug — see the "custom-genre" example in the
-    # #556 CHANGELOG entry.
+    # derive from the album's state entry. Each phase below validates it
+    # against its OWN preset set independently: mix presets and
+    # mastering presets are separate files with separate genre lists, so
+    # a genre known to one and not the other is a real, expected case,
+    # not a bug — see the "custom-genre" example in the #556 CHANGELOG
+    # entry.
     genre_was_explicit = bool(genre)
     if not genre:
         genre = _helpers._derive_album_genre(album_slug)
 
-    polish_genre = genre
-    if polish_genre and not genre_was_explicit:
-        # #556: pre-validate a DERIVED genre against mix presets before
-        # forwarding to polish_album — polish_album (and, inside it,
-        # polish_audio) cannot tell a genre it received as a plain
-        # non-empty argument apart from one the end user actually typed,
-        # so an invalid derived genre reaching it unchanged would trip
-        # polish_audio's hard "Unknown genre" error over a fact about
-        # the album's own state entry rather than caller input. Soften
-        # it to no-genre here instead; polish_album independently
-        # re-derives and reaches the same "" via the identical check
-        # when it receives an empty genre, so this cannot disagree with
-        # what polish_album itself would decide for a direct call.
+    # #556 round 2: mirrors polish_album's own stage-2 forwarding logic
+    # (see there for the full rationale) — an explicit genre is
+    # forwarded unchanged; a DERIVED genre is forwarded unchanged too
+    # UNLESS it has no mix-preset section, in which case "" is forwarded
+    # instead so polish_album re-derives it internally and correctly
+    # resolves its OWN genre_was_explicit to False. Forwarding the
+    # concrete value here for a mix-unknown DERIVED genre would make
+    # polish_album (and, inside it, polish_audio) treat it as if a
+    # caller had typed it — round 1's actual bug, which blanked the
+    # genre in a way that made analyze_mix_issues (never blanked) and
+    # the real polish processing (blanked) disagree about a state genre
+    # neither of them was told to distrust.
+    if genre_was_explicit:
+        polish_genre = genre
+    else:
         from tools.mixing.mix_tracks import load_mix_presets
-        if polish_genre.lower() not in load_mix_presets().get('genres', {}):
-            _helpers._warn_unknown_derived_genre(polish_genre, album_slug, preset_kind="mix")
+        if genre and genre.lower() not in load_mix_presets().get('genres', {}):
             polish_genre = ""
+        else:
+            polish_genre = genre
 
     polish_json = await polish_album(album_slug=album_slug, genre=polish_genre)
     polish_result = json.loads(polish_json)

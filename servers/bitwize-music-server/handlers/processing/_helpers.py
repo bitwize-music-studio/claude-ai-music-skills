@@ -241,23 +241,24 @@ def _derive_album_genre(album_slug: str) -> str:
 
 
 def _warn_unknown_derived_genre(genre: str, album_slug: str, *, preset_kind: str) -> None:
-    """Log that `genre` isn't recognized by the named preset set.
+    """Log that `genre` isn't recognized by the named preset set, and that
+    the caller is proceeding WITHOUT a genre preset for it (blank
+    fallback).
 
-    Reproduced (#556): an album's real, recorded genre (e.g. a niche
-    "dark-cabaret") can simply predate or fall outside a preset file's
-    genre list — that's a fact about the preset file, not user error,
-    and there was previously no way to opt out of it once it's in state
-    (passing `genre=""` just re-derives the same value). Callers that
-    derived `genre` rather than taking it as an explicit argument treat
-    an unrecognized result as a soft fallback: call this to log it, then
-    proceed with no genre, instead of the hard "Unknown genre" error
-    reserved for a genre a caller actually typed.
+    #556 round 2: this is now used only for `preset_kind="mastering"` —
+    `master_album`'s pipeline validates strictly (a hard `build_effective_
+    preset` failure, or `qc_track`'s raw `ValueError`) with no tolerance
+    mechanism of its own, so a DERIVED genre unrecognized by the
+    mastering presets genuinely has nothing sensible to resolve to and
+    is dropped. The mix side no longer blanks — see
+    `_note_unpresetted_mix_genre` below, which keeps the genre instead
+    of dropping it, because the mix processing chain (`_get_stem_
+    settings`) already tolerates an unrecognized genre gracefully.
 
-    `preset_kind` names which preset set rejected it (``"mix"`` or
-    ``"mastering"``) — the two are independent (`tools/mixing/
-    mix-presets.yaml` vs `tools/mastering/genre-presets.yaml` plus their
-    respective overrides), so a genre can be known to one and not the
-    other; a caller checks the set relevant to it and reports which one.
+    `preset_kind` names which preset set rejected it (independent files:
+    `tools/mixing/mix-presets.yaml` vs `tools/mastering/genre-presets.yaml`
+    plus their respective overrides) — a caller checks the set relevant
+    to it and reports which one.
 
     Deduped once per process per distinct (album, genre, preset_kind) via
     the shared warn-once mechanism (`tools.shared.config._should_warn`,
@@ -274,6 +275,41 @@ def _warn_unknown_derived_genre(genre: str, album_slug: str, *, preset_kind: str
             "Genre %r for album %r is not a known %s-preset genre; "
             "proceeding without a genre preset.",
             genre, album_slug, preset_kind,
+        )
+
+
+def _note_unpresetted_mix_genre(genre: str, album_slug: str) -> None:
+    """Log that a DERIVED genre has no `tools/mixing/mix-presets.yaml`
+    section — informational only. Unlike `_warn_unknown_derived_genre`,
+    this does NOT mean the genre is dropped.
+
+    #556 round 2: `_get_stem_settings`/`_get_full_mix_settings`/
+    `_resolve_analyzer_peak_ratio` already resolve a mix-unknown genre
+    gracefully — shipped per-stem defaults, plus the mastering-preset
+    click-threshold overlay via `_resolve_master_click_thresholds`,
+    which reads the SEPARATE mastering preset set and may well still
+    recognize the genre there (e.g. a niche "dark-cabaret" that's a real
+    mastering genre with no mix-side section). Blanking a genre in this
+    situation (round 1's behavior) threw that overlay away for no
+    reason, and worse: `analyze_mix_issues` never blanked while
+    `polish_audio`/`polish_album` did, so the two independently
+    re-derived the SAME state genre and applied DIFFERENT fallback
+    treatments to it — the exact analyzer/polish disagreement D3 item 1
+    exists to prevent, reproduced live on a real catalog. The genre is
+    kept and used unchanged wherever it flows; only this note is logged.
+
+    Deduped the same way `_warn_unknown_derived_genre` is (once per
+    process per distinct album+genre).
+    """
+    from tools.shared.config import _should_warn
+
+    key = f"unpresetted_mix_genre:{album_slug}"
+    if _should_warn(key, genre):
+        logger.warning(
+            "Genre %r for album %r has no tools/mixing/mix-presets.yaml "
+            "section; resolving via shipped per-stem defaults and the "
+            "mastering-preset click-threshold overlay where applicable.",
+            genre, album_slug,
         )
 
 

@@ -11,6 +11,12 @@ These tests pin the unified contract for all three tools: omitting the
 parameter applies (and echoes) the genre preset exactly as before, an
 explicit 0/0.0 disables the cut and is echoed as 0, and an explicit
 non-zero value is applied and echoed.
+
+This file also hosts `TestPolishAndMasterAlbumGenreDerivation` (#556), which
+reuses the `polish_album`/`master_album`-stubbing pattern below for
+`polish_and_master_album`'s own genre-derivation and per-phase fallback
+behavior — a different #556 sub-issue that happens to need the exact same
+scaffolding already built here for the cut-EQ tests.
 """
 
 from __future__ import annotations
@@ -486,3 +492,24 @@ class TestPolishAndMasterAlbumGenreDerivation:
             monkeypatch, genre_arg=GENRE, mastering_known_genres={},
         )
         assert captured_master.get("genre") == GENRE
+
+    def test_mix_unknown_mastering_known_derived_genre_is_not_forwarded_to_polish(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """#556 round 2: a DERIVED genre absent from the mix presets is
+        forwarded to `polish_album` as "" — not the concrete value —
+        so `polish_album` re-derives it internally and applies its OWN
+        keep-and-inform treatment (see test_handlers_mixing.py for that
+        half). Forwarding the concrete value here would make
+        `polish_album` (and, inside it, `polish_audio`) treat it as
+        though a caller had typed it, tripping `polish_audio`'s hard
+        "Unknown genre" error over a fact about the album's own state
+        entry — the actual round-1 bug. "dark-cabaret" is a real shipped
+        mastering genre with no mix-presets.yaml section (confirmed via
+        grep, not assumed), so the master phase still gets it directly.
+        """
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg="", derived_genre="dark-cabaret",
+        )
+        assert not captured_polish.get("genre")
+        assert captured_master.get("genre") == "dark-cabaret"

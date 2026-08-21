@@ -234,15 +234,21 @@ class TestPolishAudio:
         assert "error" not in result
         assert result["settings"]["genre"] is None
 
-    def test_unknown_derived_genre_falls_back_with_warning(self, tmp_path, caplog):
-        """A DERIVED genre unrecognized by the mix presets is a
-        derivation failure, not a hard error (#556 fix round): an
-        album's own state-recorded genre can simply predate or fall
-        outside a preset's genre list, and unlike an EXPLICIT unknown
-        genre (test_invalid_genre, above) there was previously no way to
-        opt out of it once it's in state — genre="" just re-derives the
-        same bad value. polish_audio now warns, naming the genre, and
-        proceeds with today's no-genre behavior."""
+    def test_unknown_derived_genre_flows_through_unblanked(self, tmp_path, caplog):
+        """#556 round 2 (reverses round 1's blank-on-mix-unknown fix): a
+        DERIVED genre unrecognized by the mix presets is NOT dropped —
+        the album's own state-recorded genre can simply predate or fall
+        outside a preset's genre list, and settings resolution already
+        tolerates a mix-unknown genre gracefully (shipped per-stem
+        defaults, plus the mastering-preset click overlay). Round 1
+        blanked it to no-genre instead, which threw that overlay away
+        and — worse — made this function's own internal analyzer call
+        (which shares the SAME genre value) agree with itself while
+        disagreeing with a standalone `analyze_mix_issues` call for the
+        same album, which never blanked. polish_audio now keeps the
+        genre and just logs that it has no mix-preset section. Unlike an
+        EXPLICIT unknown genre (test_invalid_genre, above), which still
+        hard-errors."""
         audio_dir = _setup_audio_dir(tmp_path)
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
@@ -251,31 +257,59 @@ class TestPolishAudio:
             raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
         result = json.loads(raw)
         assert "error" not in result
-        assert result["settings"]["genre"] is None
+        assert result["settings"]["genre"] == "nonexistent-genre-xyz"
         assert any(
             "nonexistent-genre-xyz" in r.message for r in caplog.records
-        ), "expected a warning naming the unrecognized derived genre"
+        ), "expected a warning naming the unpresetted derived genre"
 
-    def test_dark_cabaret_shaped_case_state_genre_absent_from_presets(
+    def test_dark_cabaret_shaped_case_analyzer_and_polish_agree(
         self, tmp_path, caplog,
     ):
-        """End-to-end reproduction of the reported regression: an album
-        whose state entry genuinely records a real-but-unpresetted genre
-        (not a mocked return value) still polishes successfully, using
-        the shipped defaults, with a warning rather than a hard failure.
+        """Headline regression test (#556 round 2): with a real
+        state-recorded genre absent from the mix presets but present in
+        the SEPARATE mastering presets ("dark-cabaret" — a real shipped
+        mastering genre, confirmed absent from mix-presets.yaml), the
+        internal analyzer auto-run and the actual per-track polish
+        processing must resolve to the IDENTICAL genre. dry_run=False so
+        the auto-run analyzer call (`analyzer_results is None and not
+        dry_run`) actually fires — round 1's bug was invisible here
+        because polish_audio blanked its OWN `genre` variable before
+        either call, so its two internal uses of `genre` trivially
+        agreed with EACH OTHER while diverging from a standalone
+        `analyze_mix_issues` call, which never blanked.
         """
-        audio_dir = _setup_audio_dir(tmp_path)
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        import tools.mixing.mix_tracks as mt
+
+        captured_analyze_genre = []
+        real_analyze = _mixing_mod.analyze_mix_issues
+
+        async def spy_analyze(album_slug, genre=""):
+            captured_analyze_genre.append(genre)
+            return await real_analyze(album_slug, genre)
+
+        captured_polish_genre = []
+        real_mix_full = mt.mix_track_full
+
+        def spy_mix_full(*args, **kwargs):
+            captured_polish_genre.append(kwargs.get("genre"))
+            return real_mix_full(*args, **kwargs)
+
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
              patch.object(
                  _shared_mod.cache, "get_state",
                  return_value={"albums": {"test": {"genre": "dark-cabaret"}}},
              ), \
+             patch.object(_mixing_mod, "analyze_mix_issues", side_effect=spy_analyze), \
+             patch.object(mt, "mix_track_full", side_effect=spy_mix_full), \
              caplog.at_level(logging.WARNING):
-            raw = _run(_mixing_mod.polish_audio("test", dry_run=True))
+            raw = _run(_mixing_mod.polish_audio("test", dry_run=False))
+
         result = json.loads(raw)
         assert "error" not in result
-        assert result["settings"]["genre"] is None
+        assert captured_analyze_genre == ["dark-cabaret"]
+        assert captured_polish_genre and all(g == "dark-cabaret" for g in captured_polish_genre)
         assert any("dark-cabaret" in r.message for r in caplog.records)
 
     def test_no_wav_files_returns_error(self, tmp_path):
@@ -717,27 +751,53 @@ class TestPolishAlbum:
         result = json.loads(raw)
         assert result["stage_reached"] == "complete"
 
-    def test_unknown_derived_genre_falls_back_with_warning(self, tmp_path, caplog):
-        """#556 fix round: a DERIVED genre unrecognized by the mix
-        presets must not fail the polish stage — polish_album validates
-        it BEFORE forwarding to stage 2, softens it to no-genre with a
-        warning, and the pipeline completes normally. (The original fix
-        hard-failed this exact case — polish_audio's own "Unknown genre"
-        check can't tell a derived genre from one the caller typed once
-        it's a plain non-empty argument, so polish_album must resolve
-        this itself before stage 2 ever sees it.)"""
+    def test_unknown_derived_genre_flows_through_and_stages_agree(self, tmp_path, caplog):
+        """#556 round 2 (reverses round 1's fix): a DERIVED genre
+        unrecognized by the mix presets must not fail the polish stage,
+        and must not be dropped either — it flows through to BOTH
+        stages unchanged. Round 1's fix hard-blanked it to "" before
+        stage 1, which — because polish_audio ALSO independently
+        re-derives on an empty genre and has its OWN mix-preset check —
+        caused stage 1 (never validated) and stage 2 (blanked) to
+        resolve DIFFERENT effective genres for the same run, live on a
+        real catalog with a state genre absent from mix-presets.yaml.
+        Spied on both, the same way test_stage1_and_stage2_resolve_the_
+        same_genre pins the explicit-genre case."""
         audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        import tools.mixing.mix_tracks as mt
+
+        captured_analyze_genre = []
+        real_analyze = _mixing_mod.analyze_mix_issues
+
+        async def spy_analyze(album_slug, genre=""):
+            captured_analyze_genre.append(genre)
+            return await real_analyze(album_slug, genre)
+
+        captured_polish_genre = []
+        real_mix_full = mt.mix_track_full
+
+        def spy_mix_full(*args, **kwargs):
+            captured_polish_genre.append(kwargs.get("genre"))
+            return real_mix_full(*args, **kwargs)
+
         with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
              patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
              patch.object(_helpers_mod, "_derive_album_genre", return_value="nonexistent-genre-xyz"), \
+             patch.object(_mixing_mod, "analyze_mix_issues", side_effect=spy_analyze), \
+             patch.object(mt, "mix_track_full", side_effect=spy_mix_full), \
              caplog.at_level(logging.WARNING):
             raw = _run(_mixing_mod.polish_album("test"))
+
         result = json.loads(raw)
         assert result["stage_reached"] == "complete"
         assert "failed_stage" not in result
+        assert captured_analyze_genre == ["nonexistent-genre-xyz"]
+        assert captured_polish_genre and all(
+            g == "nonexistent-genre-xyz" for g in captured_polish_genre
+        )
         assert any(
             "nonexistent-genre-xyz" in r.message for r in caplog.records
-        ), "expected a warning naming the unrecognized derived genre"
+        ), "expected a warning naming the unpresetted derived genre"
 
     def test_qc_genre_unknown_to_mastering_presets_falls_back_with_warning(
         self, tmp_path, monkeypatch, caplog,
@@ -768,6 +828,57 @@ class TestPolishAlbum:
         assert any(
             "custom-genre" in r.message for r in caplog.records
         ), "expected a warning naming the genre unknown to mastering presets"
+
+    def test_qc_guard_checks_the_stale_snapshot_qc_track_actually_reads(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """#556 round 2 item 2: the qc guard above checked a FRESH
+        `load_genre_presets()` call, but `qc_track`'s own
+        `_resolve_click_thresholds` reads the import-time snapshot
+        `master_tracks.GENRE_PRESETS` — which can be stale relative to a
+        mid-session override edit. A guard checking the fresh source
+        would have passed here (the override IS on disk) while the
+        ValueError from the snapshot-reading code underneath still
+        fired. Reproduces that gap directly: writes an override the
+        FRESH loader would find, while deliberately leaving the
+        snapshot un-refreshed (unlike `_presets.point_overrides_at`,
+        which re-syncs it) — the exact scenario the guard has to track
+        the RIGHT source for.
+        """
+        import tools.mastering.master_tracks as mast
+        import tools.mixing.mix_tracks as mt
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mix-presets.yaml").write_text(
+            "genres:\n  custom-genre:\n    full_mix: {}\n"
+        )
+        (override_dir / "mastering-presets.yaml").write_text(
+            "genres:\n  custom-genre:\n    cut_highmid: 0\n"
+        )
+        monkeypatch.setattr(mt, "_get_overrides_path", lambda: override_dir)
+        monkeypatch.setattr(mast, "_get_overrides_path", lambda: override_dir)
+        # Deliberately do NOT refresh mast.GENRE_PRESETS here — that is
+        # the whole point of this test.
+
+        assert "custom-genre" not in mast.GENRE_PRESETS, (
+            "precondition: the stale snapshot must not know this genre "
+            "for the test to be meaningful"
+        )
+        assert "custom-genre" in mast.load_genre_presets(), (
+            "precondition: a FRESH read must know it (the override is "
+            "on disk) — that's the exact gap the guard has to track "
+            "the right side of"
+        )
+
+        audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
+        with patch.object(_helpers_mod, "_check_mixing_deps", return_value=None), \
+             patch.object(_helpers_mod, "_resolve_audio_dir", return_value=(None, audio_dir)), \
+             caplog.at_level(logging.WARNING):
+            raw = _run(_mixing_mod.polish_album("test", genre="custom-genre"))
+        result = json.loads(raw)
+        assert result["stage_reached"] == "complete"
+        assert any("custom-genre" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------
