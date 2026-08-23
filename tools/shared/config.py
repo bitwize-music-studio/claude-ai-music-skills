@@ -90,7 +90,12 @@ def coerce_yaml_bool(value: Any, *, default: bool = False, context: str = "") ->
         return parse_yaml_bool(value)
     except ValueError:
         ctx = context or "value"
-        if _should_warn(ctx, value):
+        # #556 round 3: `default` is part of the dedup key because the
+        # message prints it. Keyed on (context, value) alone, a second
+        # read of the same key and same bad value but a DIFFERENT
+        # documented default was suppressed, leaving one line that named
+        # a fallback the other site never used.
+        if _should_warn(f"{ctx}|{default}", value):
             logger.warning(
                 "Cannot interpret %s=%r as a boolean — using default %s",
                 ctx,
@@ -143,7 +148,8 @@ def coerce_yaml_float(value: Any, *, default: float = 0.0, context: str = "") ->
         return parse_yaml_float(value)
     except ValueError:
         ctx = context or "value"
-        if _should_warn(ctx, value):
+        # Same reasoning as coerce_yaml_bool above (#556 round 3).
+        if _should_warn(f"{ctx}|{default}", value):
             logger.warning(
                 "Cannot interpret %s=%r as a number — using default %s. Use an "
                 "unquoted number in your override file.",

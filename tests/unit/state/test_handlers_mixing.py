@@ -829,21 +829,27 @@ class TestPolishAlbum:
             "custom-genre" in r.message for r in caplog.records
         ), "expected a warning naming the genre unknown to mastering presets"
 
-    def test_qc_guard_checks_the_stale_snapshot_qc_track_actually_reads(
+    def test_mid_session_override_genre_is_honored_not_dropped(
         self, tmp_path, monkeypatch, caplog,
     ):
-        """#556 round 2 item 2: the qc guard above checked a FRESH
-        `load_genre_presets()` call, but `qc_track`'s own
-        `_resolve_click_thresholds` reads the import-time snapshot
-        `master_tracks.GENRE_PRESETS` — which can be stale relative to a
-        mid-session override edit. A guard checking the fresh source
-        would have passed here (the override IS on disk) while the
-        ValueError from the snapshot-reading code underneath still
-        fired. Reproduces that gap directly: writes an override the
-        FRESH loader would find, while deliberately leaving the
-        snapshot un-refreshed (unlike `_presets.point_overrides_at`,
-        which re-syncs it) — the exact scenario the guard has to track
-        the RIGHT source for.
+        """#556 round 3: the guard and `qc_track` can no longer disagree,
+        because `qc_track` refreshes the snapshot it reads.
+
+        Round 2 had a genuine fresh-vs-stale split: the guard checked a
+        FRESH `load_genre_presets()` while `qc_track`'s
+        `_resolve_click_thresholds` read the import-time
+        `master_tracks.GENRE_PRESETS`, so a guard that passed could still
+        be followed by a `ValueError` from the snapshot-reading code
+        underneath. Round 2 closed it by pointing the guard at the stale
+        side — which meant a genre the user had just added to their
+        overrides was silently dropped rather than used.
+
+        Round 3 closes it at the source instead: `qc_track` calls
+        `refresh_genre_presets()` at its entry, mirroring
+        `_refresh_mix_presets()` on the mix side. Same setup as before —
+        an override only a FRESH read knows, snapshot deliberately left
+        un-refreshed — but now the genre is HONORED, and the run neither
+        warns about dropping it nor raises from underneath.
         """
         import tools.mastering.master_tracks as mast
         import tools.mixing.mix_tracks as mt
@@ -862,13 +868,12 @@ class TestPolishAlbum:
         # the whole point of this test.
 
         assert "custom-genre" not in mast.GENRE_PRESETS, (
-            "precondition: the stale snapshot must not know this genre "
-            "for the test to be meaningful"
+            "precondition: the snapshot must start stale for this test "
+            "to prove the refresh does anything"
         )
         assert "custom-genre" in mast.load_genre_presets(), (
             "precondition: a FRESH read must know it (the override is "
-            "on disk) — that's the exact gap the guard has to track "
-            "the right side of"
+            "on disk)"
         )
 
         audio_dir = _setup_audio_dir(tmp_path, num_tracks=1)
@@ -877,8 +882,16 @@ class TestPolishAlbum:
              caplog.at_level(logging.WARNING):
             raw = _run(_mixing_mod.polish_album("test", genre="custom-genre"))
         result = json.loads(raw)
+        # Completing is necessary but not sufficient — round 2 completed
+        # too, by dropping the genre. The genre must be USED.
         assert result["stage_reached"] == "complete"
-        assert any("custom-genre" in r.message for r in caplog.records)
+        assert not any(
+            "not a known mastering-preset genre" in r.message
+            for r in caplog.records
+        ), "the genre is on disk and must be honored, not dropped"
+        assert "custom-genre" in mast.GENRE_PRESETS, (
+            "qc_track must have refreshed the snapshot it reads"
+        )
 
 
 # ---------------------------------------------------------------------------

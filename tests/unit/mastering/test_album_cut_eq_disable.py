@@ -443,17 +443,24 @@ class TestPolishAndMasterAlbumGenreDerivation:
             _run_polish_and_master_genre(monkeypatch, genre_arg=GENRE)
         mock_derive.assert_not_called()
 
-    def test_derived_genre_reaches_both_phases(
+    def test_derived_genre_reaches_polish_only_not_master(
         self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A single derivation resolves the genre used by both phases —
-        proven by matching, not just each independently correct."""
+        """#556 round 3: derivation is scoped to the POLISH phase.
+
+        Round 2 handed the derived genre to the master phase too, which
+        silently changed mastered output — a genre preset carries
+        `target_lufs` and EQ cuts, so omitting an argument that had never
+        been required moved an album's loudness target and added an EQ
+        cut. #556 §3 asked for inference so genre-scoped MIX overrides
+        apply without the argument; mastering keeps its "trust exactly
+        what's given" contract.
+        """
         _result, captured_polish, captured_master = _run_polish_and_master_genre(
             monkeypatch, genre_arg="", derived_genre=GENRE,
         )
         assert captured_polish.get("genre") == GENRE
-        assert captured_master.get("genre") == GENRE
-        assert captured_polish.get("genre") == captured_master.get("genre")
+        assert not captured_master.get("genre")
 
     def test_derivation_failure_forwards_no_genre_to_both_phases(
         self, monkeypatch: pytest.MonkeyPatch,
@@ -464,23 +471,26 @@ class TestPolishAndMasterAlbumGenreDerivation:
         assert not captured_polish.get("genre")
         assert not captured_master.get("genre")
 
-    def test_mix_known_mastering_unknown_derived_genre_masters_genre_less_with_warning(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    def test_mastering_unknown_derived_genre_needs_no_softening(
+        self, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The headline case for this fix: a genre valid on the mix side
-        (so the polish phase still applies genre-scoped overrides) but
-        absent from the SEPARATE mastering-preset genre list masters
-        without a genre preset, with a warning — not a hard failure of
-        the whole run, and not silently dropped for the mix phase too.
+        """#556 round 3: a derived genre the mastering presets don't know
+        is a non-event, because no derived genre reaches mastering at all.
+
+        Round 2 needed a warn-and-drop guard here, and that guard carried
+        the fresh-vs-stale hazard: it validated against a fresh
+        `load_genre_presets()` while the code it protected (`qc_track` ->
+        `_resolve_click_thresholds`) reads the `GENRE_PRESETS` snapshot,
+        so it could pass while the ValueError underneath still fired.
+        Scoping derivation to polish removes the guard and the hazard
+        together. The polish phase still gets the genre.
         """
-        with caplog.at_level(logging.WARNING):
-            _result, captured_polish, captured_master = _run_polish_and_master_genre(
-                monkeypatch, genre_arg="", derived_genre=GENRE,
-                mastering_known_genres={},
-            )
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg="", derived_genre=GENRE,
+            mastering_known_genres={},
+        )
         assert captured_polish.get("genre") == GENRE
         assert not captured_master.get("genre")
-        assert any(GENRE in r.message for r in caplog.records)
 
     def test_explicit_genre_unknown_to_mastering_is_not_softened(
         self, monkeypatch: pytest.MonkeyPatch,
@@ -504,12 +514,35 @@ class TestPolishAndMasterAlbumGenreDerivation:
         `polish_album` (and, inside it, `polish_audio`) treat it as
         though a caller had typed it, tripping `polish_audio`'s hard
         "Unknown genre" error over a fact about the album's own state
-        entry — the actual round-1 bug. "dark-cabaret" is a real shipped
-        mastering genre with no mix-presets.yaml section (confirmed via
-        grep, not assumed), so the master phase still gets it directly.
+        entry — the actual round-1 bug.
+
+        #556 round 3 narrows when that hand-off is needed. `polish_audio`
+        now hard-errors an explicit genre only when NEITHER preset set
+        knows it, so a genre that merely lacks a mix section survives
+        being forwarded verbatim and no longer has to be re-derived.
+        "dark-cabaret" is a real shipped mastering genre with no
+        mix-presets.yaml section (confirmed via grep, not assumed), so it
+        is forwarded as-is; the master phase gets nothing, because
+        derivation is polish-scoped.
         """
         _result, captured_polish, captured_master = _run_polish_and_master_genre(
             monkeypatch, genre_arg="", derived_genre="dark-cabaret",
         )
+        assert captured_polish.get("genre") == "dark-cabaret"
+        assert not captured_master.get("genre")
+
+    def test_derived_genre_unknown_to_both_preset_sets_is_handed_off_blank(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The one case that still needs the "" hand-off (#556 round 3):
+        a state genre matching nothing in either preset set. Forwarding it
+        verbatim would reach `polish_audio` as a plain non-empty argument
+        it cannot tell from one a caller typed, tripping its typo error
+        over a fact about the album's own state entry.
+        """
+        _result, captured_polish, captured_master = _run_polish_and_master_genre(
+            monkeypatch, genre_arg="", derived_genre="not-a-real-genre-anywhere",
+            mastering_known_genres={},
+        )
         assert not captured_polish.get("genre")
-        assert captured_master.get("genre") == "dark-cabaret"
+        assert not captured_master.get("genre")

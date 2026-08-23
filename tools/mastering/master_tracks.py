@@ -33,6 +33,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.mixing.mix_tracks import gentle_compress
+from tools.shared.config import _should_warn
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -185,7 +186,14 @@ def _lower_genre_keys(raw_genres: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(value, dict):
             continue
         name = str(raw_name).lower()
-        if name in seen_raw and seen_raw[name] != str(raw_name):
+        if (
+            name in seen_raw
+            and seen_raw[name] != str(raw_name)
+            # Deduped for the same reason as the mixing-side collision
+            # warning (#556 round 3); load_genre_presets() is re-read at
+            # every mastering entry point.
+            and _should_warn("override_genre_key_collision:mastering", name)
+        ):
             logger.warning(
                 "Override genre keys %r and %r both lowercase to %r in "
                 "mastering-presets.yaml; merging in document order",
@@ -244,8 +252,32 @@ def load_genre_presets() -> dict[str, dict[str, float]]:
     return presets
 
 
-# Load presets at import time (fast — just two small YAML reads)
+# Load presets at import time (fast — just two small YAML reads).
+# A starting value, not the source of truth: `refresh_genre_presets()`
+# re-reads it at the mastering entry points (#556 round 3), mirroring
+# what `_refresh_mix_presets()` has done for `MIX_PRESETS` since #553.
 GENRE_PRESETS = load_genre_presets()
+
+
+def refresh_genre_presets() -> dict[str, dict[str, float]]:
+    """Re-read the mastering presets and update the module global (#556).
+
+    `GENRE_PRESETS` was an import-time snapshot with no equivalent of the
+    mix side's `_refresh_mix_presets()`. The MCP server is long-lived, so
+    a user who added a genre to `{overrides}/mastering-presets.yaml`
+    mid-session — the documented way to add one — left the snapshot stale
+    while `load_genre_presets()` callers saw the new genre immediately.
+
+    That split source was not merely a staleness annoyance: callers that
+    validated a genre against a fresh `load_genre_presets()` would accept
+    it and then hand it to `qc_track`, whose `_resolve_click_thresholds`
+    reads this snapshot and raises `ValueError: Unknown genre` for it —
+    a guard passing while the code it guards still fails. Refreshing at
+    the entry points keeps the two in agreement.
+    """
+    global GENRE_PRESETS
+    GENRE_PRESETS = load_genre_presets()
+    return GENRE_PRESETS
 
 def apply_eq(data: Any, rate: int, freq: float, gain_db: float, q: float = 1.0) -> Any:
     """Apply parametric EQ to audio data.

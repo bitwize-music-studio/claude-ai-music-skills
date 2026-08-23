@@ -198,6 +198,19 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+# Private marker stamped into every resolved settings dict by
+# `_get_stem_settings`/`_get_full_mix_settings` so a warning about an
+# unreadable value can name WHICH block it came from (#556 round 3).
+# Nothing iterates a settings dict's keys, so an extra private entry is
+# inert; `_setting_float` is the only reader.
+_SCOPE_KEY = "__preset_scope__"
+
+
+def _scope_label(stem_name: str, genre: str | None) -> str:
+    """Human-readable name for the preset block a setting was resolved from."""
+    return f"{genre.lower()}.{stem_name}" if genre else f"defaults.{stem_name}"
+
+
 def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     """Read a numeric preset value with a warn-and-default fallback (#553).
 
@@ -220,7 +233,15 @@ def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     """
     if key not in settings:
         return default
-    return coerce_yaml_float(settings[key], default=default, context=key)
+    # #556 round 3: qualify the context with the block the value came
+    # from. `context=key` alone produced "Cannot interpret
+    # noise_reduction='0.5' as a number" with no indication of which stem
+    # or genre section to go fix — and since the warn-once dedup keys on
+    # the context, a second broken block with the same key and value was
+    # suppressed entirely rather than reported.
+    scope = settings.get(_SCOPE_KEY)
+    context = f"{scope}.{key}" if scope else key
+    return coerce_yaml_float(settings[key], default=default, context=context)
 
 
 def resolve_silence_gate_dbfs(settings: dict[str, Any] | None = None) -> float:
@@ -294,7 +315,16 @@ def load_mix_presets() -> dict[str, Any]:
             # lowered. They still merge in document order (unchanged
             # behavior) but now warn, naming both keys, so the collision
             # isn't silent (#556).
-            if genre_name in seen_genre_keys and seen_genre_keys[genre_name] != str(raw_genre_name):
+            if (
+                genre_name in seen_genre_keys
+                and seen_genre_keys[genre_name] != str(raw_genre_name)
+                # #556 round 3: route through the same warn-once dedup
+                # the rest of this round added. load_mix_presets() is
+                # re-read per track (_refresh_mix_presets), so a single
+                # colliding pair otherwise logged the identical line once
+                # per track plus once per validation/forwarding check.
+                and _should_warn("override_genre_key_collision:mix", genre_name)
+            ):
                 logger.warning(
                     "Override genre keys %r and %r both lowercase to %r in "
                     "mix-presets.yaml; merging in document order",
@@ -882,7 +912,15 @@ def _apply_click_removal(
         # coerce_yaml_float (#556 fix round): this runs once per stem per
         # track, so an album-wide bad override otherwise logs the same
         # line dozens of times.
-        if _should_warn('click_repair', repair):
+        # #556 round 3: the dedup key includes default_repair because the
+        # message prints it and it differs per stem — drums and
+        # percussion pass "cubic", the other eleven chains "linear". With
+        # the key keyed on the bad value alone, whichever stem ran first
+        # consumed the single slot, so a run that logged "using default
+        # 'linear'" could silently repair drums with cubic spline
+        # interpolation, and the operator debugging spline artefacts read
+        # a line contradicting what actually ran.
+        if _should_warn(f'click_repair:{default_repair}', repair):
             logger.warning(
                 "Cannot interpret click_repair=%r — using default %r. Use "
                 "'linear' or 'cubic'.",
@@ -1366,6 +1404,7 @@ def _get_stem_settings(
             if key in _ANALYZER_EQ_OVERRIDE_KEYS:
                 result[key] = value
 
+    result[_SCOPE_KEY] = _scope_label(stem_name, genre)
     return result
 
 
@@ -1395,6 +1434,7 @@ def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
         result['click_peak_ratio'] = peak_ratio
     if fail_count is not None and 'click_fail_count' not in result:
         result['click_fail_count'] = fail_count
+    result[_SCOPE_KEY] = _scope_label('full_mix', genre)
     return result
 
 

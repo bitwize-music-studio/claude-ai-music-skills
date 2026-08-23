@@ -20,8 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import tools.mastering.master_tracks as master_tracks
 from tools.mastering.master_tracks import (
-    GENRE_PRESETS,
     _BUILTIN_PRESETS_FILE,
     _PRESET_DEFAULTS,
     _design_linear_phase_eq,
@@ -498,7 +498,7 @@ class TestGenrePresets:
     """Tests for genre preset configuration."""
 
     def test_all_presets_are_dicts(self):
-        for genre, preset in GENRE_PRESETS.items():
+        for genre, preset in master_tracks.GENRE_PRESETS.items():
             assert isinstance(preset, dict), f"Genre '{genre}' preset should be a dict"
             assert 'target_lufs' in preset, f"Genre '{genre}' missing target_lufs"
             assert 'cut_highmid' in preset, f"Genre '{genre}' missing cut_highmid"
@@ -506,22 +506,22 @@ class TestGenrePresets:
             assert 'compress_ratio' in preset, f"Genre '{genre}' missing compress_ratio"
 
     def test_all_presets_have_negative_lufs(self):
-        for genre, preset in GENRE_PRESETS.items():
+        for genre, preset in master_tracks.GENRE_PRESETS.items():
             assert preset['target_lufs'] < 0, f"Genre '{genre}' LUFS should be negative"
 
     def test_all_presets_have_nonpositive_eq(self):
         """EQ values should be cuts (negative) or zero."""
-        for genre, preset in GENRE_PRESETS.items():
+        for genre, preset in master_tracks.GENRE_PRESETS.items():
             assert preset['cut_highmid'] <= 0, f"Genre '{genre}' high-mid should be <= 0"
             assert preset['cut_highs'] <= 0, f"Genre '{genre}' highs should be <= 0"
 
     def test_common_genres_exist(self):
         for genre in ['pop', 'rock', 'hip-hop', 'electronic', 'jazz', 'classical', 'folk', 'country', 'metal']:
-            assert genre in GENRE_PRESETS, f"Expected genre '{genre}' in presets"
+            assert genre in master_tracks.GENRE_PRESETS, f"Expected genre '{genre}' in presets"
 
     def test_preset_with_mastering(self, noise_wav, output_path):
         """Apply a genre preset through the full mastering chain."""
-        preset = GENRE_PRESETS['rock']
+        preset = master_tracks.GENRE_PRESETS['rock']
         eq = []
         if preset['cut_highmid'] != 0:
             eq.append((preset['eq_highmid_freq'], preset['cut_highmid'], preset['eq_highmid_q']))
@@ -628,8 +628,8 @@ class TestYamlPresetLoading:
         """GENRE_PRESETS dict should match what's in the YAML file."""
         data = _load_yaml_file(_BUILTIN_PRESETS_FILE)
         for genre, settings in data['genres'].items():
-            assert genre in GENRE_PRESETS, f"Genre '{genre}' in YAML but not in GENRE_PRESETS"
-            preset = GENRE_PRESETS[genre]
+            assert genre in master_tracks.GENRE_PRESETS, f"Genre '{genre}' in YAML but not in GENRE_PRESETS"
+            preset = master_tracks.GENRE_PRESETS[genre]
             assert preset['target_lufs'] == float(settings['target_lufs']), (
                 f"Genre '{genre}' target_lufs mismatch"
             )
@@ -968,13 +968,13 @@ class TestPresetResolution:
 
     def test_genre_preset_is_complete_dict(self):
         """Each genre preset should have all keys from _PRESET_DEFAULTS."""
-        for genre, preset in GENRE_PRESETS.items():
+        for genre, preset in master_tracks.GENRE_PRESETS.items():
             for key in _PRESET_DEFAULTS:
                 assert key in preset, f"Genre '{genre}' missing key '{key}'"
 
     def test_genre_preset_values_are_floats(self):
         """All preset values should be floats."""
-        for genre, preset in GENRE_PRESETS.items():
+        for genre, preset in master_tracks.GENRE_PRESETS.items():
             for key, value in preset.items():
                 assert isinstance(value, float), (
                     f"Genre '{genre}' key '{key}' is {type(value).__name__}, expected float"
