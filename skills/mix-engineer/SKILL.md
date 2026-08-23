@@ -155,6 +155,16 @@ Before polishing, verify:
 analyze_mix_issues(album_slug)
 ```
 
+> **Keep the genre argument consistent across a run.** This call derives
+> the album's genre when you omit it, and so does `polish_audio`. Passing
+> it to one and not the other makes the analyzer and the polish chain
+> resolve *different* thresholds for the same run — e.g.
+> `click_peak_ratio` 6.0 on one side and 15.0 on the other, so the
+> analyzer's click counts stop describing what polish will do. Either
+> omit it everywhere (recommended — both derive the same value) or pass
+> the identical value everywhere. `album_summary.genre` and
+> `album_summary.genre_source` report what this call resolved.
+
 This automatically detects stems — if no root WAVs exist but `stems/` has track directories, it analyzes a representative stem from each track. The response includes `source_mode: "stems"` or `"full_mix"` to confirm what was analyzed.
 
 **What to check:**
@@ -181,15 +191,25 @@ let them decide, don't work around it.
 
 **Stems are always preferred.** `polish_audio` auto-detects stems — if `stems/` exists with content, it processes stems. If not, it falls back to full-mix mode automatically. You do NOT need to pass `use_stems` manually.
 
-**Default (auto-detects stems, recommended for most albums):**
+**Default (auto-detects stems and genre, recommended for most albums):**
 ```
 polish_audio(album_slug)
 ```
 
-**Genre-specific (still auto-detects stems):**
+Since #556 an omitted `genre` is **derived from the album's own genre**
+(the one recorded in state, which is also its directory name), so
+genre-scoped overrides apply without passing anything. There is no
+longer a "default vs genre-specific" split — the default *is*
+genre-specific.
+
+**Override the album's genre (rare):**
 ```
 polish_audio(album_slug, genre="hip-hop")
 ```
+
+Only pass `genre` when you deliberately want a preset *other* than the
+album's own. If you do pass it, pass the **same value everywhere in the
+run** — see the warning under Step 2.
 
 **Force full-mix mode** (only use when you explicitly want to skip available stems):
 ```
@@ -209,10 +229,14 @@ Shows what processing would be applied without writing files.
 ### Step 5: Polish
 
 ```
-polish_audio(album_slug, genre="rock")
+polish_audio(album_slug)
 ```
 
 Creates `polished/` subdirectory with processed files.
+
+The response echoes the genre that was actually used under
+`settings.genre`. Check it against what `analyze_mix_issues` reported —
+they must match.
 
 ### Step 6: Verify
 
