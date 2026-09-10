@@ -326,7 +326,7 @@ generation:
   # Default (if omitted): suno
   #
   # Currently supported:
-  #   suno    - Suno V5 (default, recommended)
+  #   suno    - Suno, v6 model family (default, recommended)
   #
   # Future support planned:
   #   udio    - Udio
@@ -354,7 +354,7 @@ generation:
   # max_lyric_words [optional]
   # ---------------------------
   # Maximum word count for lyrics before generation is blocked.
-  # Suno V5 has a practical limit of ~800 words — lyrics beyond this
+  # Suno has a practical limit of ~800 words — lyrics beyond this
   # are compressed or skipped during generation.
   #
   # Default (if omitted): 800

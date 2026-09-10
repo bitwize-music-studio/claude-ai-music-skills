@@ -156,7 +156,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
 | [`setup`](/skills/setup/SKILL.md) | Verify environment and dependencies | First-time installation check |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
-| [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno V5 prompting, genre selection | Crafting optimal Suno style prompts |
+| [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno prompting (v6 family), model choice, genre selection | Crafting optimal Suno style prompts |
 | [`test`](/skills/test/SKILL.md) | Run automated tests to validate plugin integrity | Verifying plugin works correctly |
 | [`tutorial`](/skills/tutorial/SKILL.md) | Interactive guided album creation | Learning the workflow step-by-step |
 | [`validate-album`](/skills/validate-album/SKILL.md) | Validate album structure, file locations | Catching path issues before they cause problems |

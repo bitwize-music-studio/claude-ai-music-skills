@@ -447,7 +447,7 @@ When in doubt:
 
 ## See Also
 
-- **`/reference/suno/best-practices.md`** - Overall Suno V5 prompting guide, style box construction
+- **`/reference/suno/best-practices.md`** - Overall Suno prompting guide, style box construction
 - **`/reference/suno/structure-tags.md`** - Section tags for organizing lyrics ([Verse], [Chorus], etc.)
 - **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and quality standards
 - **`/skills/pronunciation-specialist/SKILL.md`** - Detailed pronunciation specialist skill documentation

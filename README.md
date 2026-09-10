@@ -27,7 +27,7 @@ Claude: Dispatches legal, financial, and security researchers in parallel
 You:    "Sources look good. Let's write track 1"
 Claude: Drafts lyrics, checks prosody and rhyme schemes
         Scans for pronunciation risks, suggests phonetic fixes
-        Builds Suno V5 style prompt with genre tags and vocal direction
+        Builds the Suno style prompt and generation settings (model, Variety, Max Mode)
 
 You:    "Track sounds great, here are the stems"
 Claude: Imports stems from Suno, polishes per-stem
@@ -142,7 +142,8 @@ config/              Example config and setup docs
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Model strategy | [reference/model-strategy.md](reference/model-strategy.md) |
 | Skill decision tree | [reference/SKILL_INDEX.md](reference/SKILL_INDEX.md) |
-| Suno V5 best practices | [reference/suno/best-practices.md](reference/suno/best-practices.md) |
+| Suno best practices | [reference/suno/best-practices.md](reference/suno/best-practices.md) |
+| Suno model catalog | [reference/suno/models.md](reference/suno/models.md) |
 | The story behind bitwize-music | [bitwizemusic.com/behind-the-music](https://www.bitwizemusic.com/behind-the-music/) |
 
 ---

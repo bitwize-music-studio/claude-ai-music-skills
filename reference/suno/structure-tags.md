@@ -5,7 +5,7 @@ Complete reference for song structure tags in Suno lyrics.
 > **Suno tag/metatag terminology**: "metatag" gets used loosely — here's the actual taxonomy across this plugin's reference docs:
 > - **Structure tags** (this file) — `[Verse]`, `[Chorus]`, etc. Define song sections. Go in the Lyrics Box.
 > - **Delivery/mood bracket tags** (this file, "Custom Mood/Style Tags" below) — `[Whispered]`, `[Shout]`, etc. Short, standalone Lyrics Box tags that color delivery without defining a section.
-> - **Style Box descriptors** ([voice-tags.md](voice-tags.md), [instrumental-tags.md](instrumental-tags.md)) — comma-separated prose in the Style Box (`gravelly, belting, Southern rock vocal`), not bracket tags. This is how Suno V5 actually wants mood/energy/instrumentation — see the "Keep It Simple" guidance in [best-practices.md](best-practices.md).
+> - **Style Box descriptors** ([voice-tags.md](voice-tags.md), [instrumental-tags.md](instrumental-tags.md)) — comma-separated prose in the Style Box (`gravelly, belting, Southern rock vocal`), not bracket tags. This is how Suno actually wants mood/energy/instrumentation — see the "Keep It Simple" guidance in [best-practices.md](best-practices.md).
 > - **Inline lyrical metatags** ([tips-and-tricks.md](tips-and-tricks.md#vocal-sounds-too-young-despite-maturedeep-descriptors)) — a per-section descriptor prefixed inside the section tag itself, e.g. `[Verse 1: Raspy older female vocal, husky contralto]`. An escalation technique for stubborn vocal-identity issues, not a default pattern.
 >
 > Rule of thumb: structure tags are mandatory every section; delivery bracket tags and inline metatags are optional accents (1-3 max per section — see "Performance Cues" below); mood/energy/instrumentation belongs in Style Box prose, not bracket tags.
@@ -225,6 +225,10 @@ V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsist
 
 ---
 
+## v6 Note
+
+Nothing in the tag syntax changed with v6. Two data points worth knowing: a launch-day test found v6's own description of an output naming details that existed only in a `[Bridge | Female — Whispered …]` cue, i.e. per-section direction is read **(unverified — no controlled test yet)**; and Suno's redesigned lyrics editor now offers a "Melodic instructions" option that "adds one bracketed production note per section (e.g. [half-time drums])" — Suno itself now writes per-section bracketed cues, which is this guide's Performance Cues convention. Bar-count targeting (`[VERSE 1 8]`) is **unverified** on v6.
+
 ## Related Skills
 
 - **`/bitwize-music:lyric-writer`** - Lyric writing with automatic section tagging
@@ -232,7 +236,7 @@ V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsist
   - Uses tags from this reference guide
   - Ensures proper song structure
 
-- **`/bitwize-music:suno-engineer`** - Technical Suno V5 prompting
+- **`/bitwize-music:suno-engineer`** - Technical Suno prompting (v6 family)
   - Applies section tags correctly in lyrics boxes
   - Optimizes tag placement for generation results
   - Uses this guide as reference for tag selection
@@ -244,7 +248,7 @@ V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsist
 
 ## See Also
 
-- **`/reference/suno/best-practices.md`** - Complete Suno V5 prompting guide, style box construction, Sound Effects/Atmospheric tags
+- **`/reference/suno/best-practices.md`** - Complete Suno prompting guide, style box construction, Sound Effects/Atmospheric tags
 - **`/reference/suno/pronunciation-guide.md`** - Phonetic spelling and pronunciation fixes for lyrics
 - **`/reference/suno/voice-tags.md`** - Vocal style descriptors, Duet pattern, Production/Vocal FX descriptors
 - **`/reference/suno/tips-and-tricks.md`** - Inline lyrical metatags for stubborn vocal-identity issues

@@ -1,13 +1,13 @@
-# Covers and Personas
+# Covers and Voices (formerly Personas)
 
 Two Suno features let you carry work forward instead of starting every track from a blank prompt:
 
-- **Personas** save a generated song's vocal identity so the *same singer* can appear across many different songs.
+- **Voices** (Suno renamed Personas to Voices in March 2026 — "Personas are now Voices"; a Legacy option remains) save a vocal identity so the *same singer* can appear across many songs, and can now be your own cloned voice.
 - **Covers** reimagine an *existing* song or sample in a new style or genre, keeping the underlying song while changing the production.
 
-This is the workflow companion. For the underlying feature reference — creation steps, best practices, and limits — see [Personas](../suno/best-practices.md#personas) and [Personas for Vocal Consistency](../suno/tips-and-tricks.md#personas-for-vocal-consistency); this guide points to that material rather than repeating it.
+This is the workflow companion. For the underlying feature reference — creation steps, best practices, and limits — see [Personas (now Voices)](../suno/best-practices.md#personas-now-voices) and [Personas for Vocal Consistency](../suno/tips-and-tricks.md#personas-for-vocal-consistency); this guide points to that material rather than repeating it.
 
-> **Plan note**: Personas and Voices are **Pro/Premier** features. Covers are the **Cover** action in the Suno editor, applied to uploaded audio or a prior generation.
+> **Plan note**: Voices are **Pro/Premier** (limited free trial). Turn **Max Mode On** when a Voice is attached — Suno's recommendation for voice consistency (20 credits per generation). Upgrade older Voices with the one-click "Upgrade Voice to v6" before an album run.
 
 ---
 
@@ -18,12 +18,14 @@ This is the workflow companion. For the underlying feature reference — creatio
 | Write a brand-new song from lyrics + a style prompt | **Original generation** | The default for most album tracks. |
 | Keep the *same singer* across several different songs | **Persona** | Save one good vocal, reuse it. Pro/Premier. |
 | Reinterpret an *existing* song or sample in a new style/genre | **Cover** | Keeps the song, changes the production. |
-| Sing a track in *your own real voice* | **Voices** (voice cloning) | V5.5, Pro/Premier. An alternative to a Persona — pick one, not both (see [Voices & Custom Models](../suno/best-practices.md#voices--custom-models)). |
+| Sing a track in *your own real voice* | **Voices** (voice cloning) | Pro/Premier. The same feature as a Persona in v6 — one saved Voice per track (see [Voices, Custom Models & My Taste](../suno/best-practices.md#voices-custom-models--my-taste)). A Custom Model can be stacked with it. |
 | A consistent voice *and* genre variety across the album | **Persona + Cover** | The Persona holds the voice; the Cover shifts the genre. |
 
 ---
 
 ## Personas: A Reusable Vocal Identity
+
+In Suno's UI these now live under **Voices**; the steps are the same.
 
 A Persona is the most reliable way to keep one voice consistent across an album. Full reference: [Personas](../suno/best-practices.md#personas).
 
@@ -128,11 +130,11 @@ The track template has an optional **Cover / Persona Setup** block (in `template
 
 ## See Also
 
-- [Personas — best-practices.md](../suno/best-practices.md#personas) — feature reference, best practices, limits
+- [Personas (now Voices) — best-practices.md](../suno/best-practices.md#personas-now-voices) — feature reference, best practices, limits
 - [Personas for Vocal Consistency — tips-and-tricks.md](../suno/tips-and-tricks.md#personas-for-vocal-consistency) — quick workflow and the Covers combo
 - [Combining Personas with Covers — tips-and-tricks.md](../suno/tips-and-tricks.md#combining-personas-with-covers)
 - [Working with Splice Samples — tips-and-tricks.md](../suno/tips-and-tricks.md#working-with-splice-samples) — Cover vs Extend on uploads
-- [Voices & Custom Models — best-practices.md](../suno/best-practices.md#voices--custom-models) — voice cloning, the alternative to a Persona
+- [Voices, Custom Models & My Taste — best-practices.md](../suno/best-practices.md#voices-custom-models--my-taste) — voice cloning, the alternative to a Persona
 - [Creative Sliders — best-practices.md](../suno/best-practices.md#creative-sliders) — Audio Influence and Style Influence
 - [terminology.md](../terminology.md) — Cover, Persona, Voice Tags definitions
 - [Importing Audio Files](importing-audio.md) — moving finished WAVs into the album

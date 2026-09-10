@@ -187,15 +187,23 @@ As part of the Warner Music Group partnership, download policies changed:
 
 ---
 
-## Voices & Custom Models (V5.5)
+## Upgrading an Older Track to v6
 
-V5.5 (March 26, 2026) adds three personalization features. None of them change prompt syntax — V5 prompts still work identically.
+Suno retired every pre-v6 model on 2026-09-09. To bring a v5/v5.5 song forward, Suno's own guidance (transition video): **Remaster** when you like the song and only want better audio quality; **Cover** when you want v6 to reinterpret it while following the original melody. Both render on v6; the original is never modified. Use Max Mode on a Cover you want to stay close to the source.
 
-- **Voices** (Pro/Premier, 4 credits/creation): upload 15s–4min of singing (clean acapella best), pass a spoken-phrase consent check, then generate with your own voice. Activation requires checking a broad training-consent box — not optional. 18+. When prompting with a Voice, drop gender/register descriptors from the style box.
-- **Custom Models** (Pro/Premier, up to 3/account): fine-tune a private V5.5 on ≥6 of your own tracks. Build takes 2–5 minutes. Drop generic production language when prompting — the model encodes your aesthetic.
-- **My Taste** (all tiers, free included): passive background learning that shapes the style autogenerate feature. Not prompt-facing.
+## Download Budget
 
-See [best-practices.md](best-practices.md#voices--custom-models) for the full breakdown.
+Since 2026-09-03 downloads are capped per plan (Free 7 lifetime and personal-use only, Pro 20/month, Premier 60/month). One song is one download whatever the format, and its stems are included — so download the WAV once and pull stems later at no extra cost; re-downloads are free. Studio exports (Premier) do not count. Some recent older-model users received 500 non-expiring transition credits; it was not a universal grant.
+
+## Voices & Custom Models (v6)
+
+All three carried over to v6 (the models were auto-upgraded; Voices offer a one-click "Upgrade Voice to v6"). None change prompt syntax.
+
+- **Voices** (Pro/Premier; free trial): 15 s–4 min of your own singing plus a spoken-phrase consent check. 18+. Not usable on instrumentals. When prompting with a Voice, drop gender/register descriptors from the style box and turn **Max Mode On**.
+- **Custom Models** (Pro/Premier, up to 3/account, 100 credits): fine-tune on ≥6 of your own tracks ("24+ for best results"). Build takes 2–5 minutes. Drop generic production language when prompting.
+- **My Taste** (all tiers): feeds the Personalize toggle next to Variety; inert while Variety is Off.
+
+See [best-practices.md](best-practices.md#voices-custom-models--my-taste) for the full breakdown.
 
 ---
 

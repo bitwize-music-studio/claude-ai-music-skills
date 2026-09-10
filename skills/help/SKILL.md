@@ -133,7 +133,7 @@ Display this help information to the user in a clear, organized format.
 
 - **CLAUDE.md** - Main workflow instructions
 - **README.md** - Project overview
-- `${CLAUDE_PLUGIN_ROOT}/reference/suno/` - Suno V5 guides, pronunciation, tips
+- `${CLAUDE_PLUGIN_ROOT}/reference/suno/` - Suno guides (best practices, model catalog), pronunciation, tips
 - `${CLAUDE_PLUGIN_ROOT}/reference/workflows/` - Detailed workflow procedures
 - `${CLAUDE_PLUGIN_ROOT}/reference/mastering/` - Audio mastering documentation
 - `${CLAUDE_PLUGIN_ROOT}/templates/` - Templates for new content

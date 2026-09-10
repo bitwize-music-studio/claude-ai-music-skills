@@ -50,9 +50,12 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **Replace Section** | Suno Pro/Premier feature to edit lyrics or insert instrumental sections within a 10-30 second segment. | Fix one verse without regenerating entire track |
 | **Reroll** | Generating new variations of a track using the same prompts. Each reroll produces different results. | Generate 3 variations, pick the best |
 | **Section Tags** | Markers in lyrics that tell Suno how to structure the song. | `[Verse]`, `[Chorus]`, `[Bridge]`, `[End]` |
-| **Stem Extraction** | Suno V5 feature to separate a track into 12 individual stems (vocals, drums, bass, etc.). | Extract vocals for a cappella version |
+| **Stem Extraction** | Suno feature to separate a track into stems: Auto Split (up to 12, 50 credits), Split from Mix (one target + the rest, 10/stem), Advanced Split (~100 instruments, Premier, 10/stem). | Extract vocals for a cappella version |
 | **Style Box** | Text field in Suno for describing musical style. Contains genre, vocal style, instrumentation, mood. | `"dark industrial electronic, aggressive male vocals"` |
 | **Style Prompt** | The text written for the Style Box. Same as Style Box content. | `"nerdcore hip-hop, lo-fi, nostalgic, 85 BPM"` |
+| **Variety** | v6 control that rewrites/expands the style prompt at any setting above Off. Off = "Exact style". | Set Off so the Style Box is used verbatim |
+| **Max Mode** | v6 toggle: more compute for consistency through the song; 2× credits. | On for tracks over ~2:00, covers, Voices |
+| **Generation Settings** | Track-file table recording Model, Variety, Max Mode, Vocal Gender, Duration, Weirdness, Style Influence. | `templates/track.md` § Generation Settings |
 | **Suno Link** | URL to a generated track on Suno. Stored in track files after generation. | `https://suno.com/song/abc123` |
 | **Suno Studio** | Generative audio workstation (Premier plan) with multitrack editing, stem controls, MIDI export, and Sample to Song. | Timeline-based editing with AI generation |
 | **Top-Anchor Approach** | Starting Suno prompts with vocal description before lyrics for better voice consistency. | Put `"Female pop vocalist, breathy"` first |
@@ -178,4 +181,5 @@ Variables used in documentation that resolve from config:
 - [CLAUDE.md](/CLAUDE.md) - Main workflow instructions
 - [skills/help/SKILL_GLOSSARY.md](/skills/help/SKILL_GLOSSARY.md) - Quick glossary in help skill
 - [reference/suno/best-practices.md](/reference/suno/best-practices.md) - Suno prompting guide
+- [reference/suno/models.md](/reference/suno/models.md) - Suno model catalog
 - [reference/mastering/mastering-workflow.md](/reference/mastering/mastering-workflow.md) - Audio mastering details
