@@ -62,6 +62,10 @@ _UPDATABLE_FIELDS = {
 # The row rewrite is scoped to that section so the Generation Log's multi-column
 # "Model" header can never be matched.
 _GENERATION_SETTINGS_FIELDS = frozenset({"Model", "Variety", "Max Mode"})
+# Note: the gate (handlers/gates.py) locates this section with _extract_markdown_section,
+# which bounds the section at the next heading; here we only need the start offset because
+# the row regex matches a single bold-key table row, which cannot occur in the Generation
+# Log's multi-column table.
 _GENERATION_SETTINGS_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+Generation Settings\s*$")
 
 

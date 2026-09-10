@@ -73,7 +73,7 @@ Definitions live in the [capability table](../suno/best-practices.md#song-editor
 
 ### Delete — remove a weak section
 
-**Use it when** the song is stronger without a part: a redundant "twin verse," a dead instrumental stretch, a second bridge that adds nothing, or trimming length (Suno quality [degrades past ~6–7 minutes](../suno/best-practices.md#known-v5-limitations)). The engine smooths the transition.
+**Use it when** the song is stronger without a part: a redundant "twin verse," a dead instrumental stretch, a second bridge that adds nothing, or trimming length (Suno quality [degrades past ~6–7 minutes](../suno/best-practices.md#known-limitations)). The engine smooths the transition.
 
 **Watch for**: two things. Deleting can pull the track under its **Target Duration** — check against the album/track duration target. And on documentary tracks, deleting a verse may drop a *sourced* fact — make sure nothing load-bearing (or cited) leaves with it.
 
@@ -145,7 +145,7 @@ After a Song Editor pass:
 ## See Also
 
 - [best-practices.md#song-editor](../suno/best-practices.md#song-editor) — capability table (Remake / Rewrite / Extend / Reorder / Delete)
-- [tips-and-tricks.md#song-editor-v5](../suno/tips-and-tricks.md#song-editor-v5) — quick-reference tips
+- [tips-and-tricks.md#song-editor](../suno/tips-and-tricks.md#song-editor) — quick-reference tips
 - [CLAUDE.md#regeneration-workflow](../../CLAUDE.md#regeneration-workflow) — rejected-track decision spine
 - [mix-engineer skill](../../skills/mix-engineer/SKILL.md) — stem polish (the audio-quality path)
 - [mastering-workflow.md](../mastering/mastering-workflow.md) — loudness normalization and limiting

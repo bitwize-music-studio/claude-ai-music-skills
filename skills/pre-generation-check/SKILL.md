@@ -53,7 +53,7 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 
 ---
 
-## The 6 Gates
+## The Gates
 
 The MCP tool behind this skill reports 8 blocking gates plus 3 advisories (Style Box Descriptor Count, Performance Cues, Generation Settings).
 

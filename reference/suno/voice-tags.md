@@ -4,9 +4,9 @@ Complete reference for vocal manipulation tags in Suno.
 
 > **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (now "Voices" in Suno) (see [best-practices.md](best-practices.md#personas-now-voices)).
 
-## V5 Voice Gender Selector
+## Vocal Gender Selector
 
-V5 has a dedicated **Voice Gender** selector in Advanced Options (male/female). This provides the most reliable gender control — more consistent than style prompt descriptions alone.
+Suno has a dedicated **Vocal Gender** selector in Advanced Options (male/female). This provides the most reliable gender control — more consistent than style prompt descriptions alone.
 
 You can still control gender via style prompt ("male baritone") or Personas, but the Advanced Options selector is the baseline.
 
@@ -154,7 +154,7 @@ Control vocal delivery with text formatting:
 
 ## Emotion Arc Mapping
 
-V5 supports mapping different emotional qualities to different sections:
+Suno supports mapping different emotional qualities to different sections:
 
 ```
 Vocal: female alto, breathy, intimate, close-mic.

@@ -185,18 +185,18 @@ EDM build-up, increasing tension, white noise sweep, pitch-rising synth
 
 ## The Producer's Prompt Approach
 
-V5 responds better to **narrative-style descriptions** than flat tag lists. Describe the arrangement like you're talking to a session musician:
+Suno responds better to **narrative-style descriptions** than flat tag lists. Describe the arrangement like you're talking to a session musician:
 
 ```
 ❌ Tag soup (V3/V4 style):
 [Genre: Southern Rock], [Tempo: 110 BPM], [Instrumentation: Slide Guitar, Heavy Drums]
 
-✅ Producer's Prompt (V5 style):
+✅ Producer's Prompt (narrative style):
 Start with a lonely, overdriven slide guitar intro.
 Build into a heavy, stomping drum groove for the verse.
 ```
 
-**Why**: V5 understands context and fills in gaps intelligently. Flat tag lists cause "prompt fatigue" — the model dilutes attention across too many directives.
+**Why**: Suno understands context and fills in gaps intelligently. Flat tag lists cause "prompt fatigue" — the model dilutes attention across too many directives.
 
 ### Arrangement Strategies
 
@@ -215,5 +215,5 @@ Build into a heavy, stomping drum groove for the verse.
 3. **Match instruments to genre** in Style prompt
 4. **Use descriptive tags** like `[melodic interlude]` vs just `[Interlude]`
 5. **Genre context matters** — a fiddle works better in Country than Hip-Hop (unless that's what you want!)
-6. **Avoid tag soup** — V5 gets "prompt fatigue" with too many bracket tags. Keep it to 2–3 instrument cues per section
+6. **Avoid tag soup** — Suno gets "prompt fatigue" with too many bracket tags. Keep it to 2–3 instrument cues per section
 7. **Punctuation lines can trigger solos**: `!!! --- !!!` between section tags sometimes forces instrumental solos

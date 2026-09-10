@@ -163,9 +163,9 @@ Final chorus...
 [Big Finish]
 ```
 
-## Bar Count Targeting (V5)
+## Bar Count Targeting
 
-V5 supports targeting specific bar counts per section by adding numbers after tags:
+Suno supports targeting specific bar counts per section by adding numbers after tags:
 
 ```
 [INTRO 4] [VERSE 1 8] [PRE 4] [CHORUS 8] [VERSE 2 8] [PRE 4] [CHORUS 8] [BRIDGE 8] [CHORUS 8] [OUTRO 4]
@@ -196,14 +196,14 @@ Lyrics here...
 
 ## Tag Reliability Notes
 
-V5 improved tag reliability significantly over V4/V4.5. Tags that were inconsistent in earlier versions now produce more predictable results.
+Tag reliability has improved significantly over earlier Suno versions. Tags that were inconsistent in earlier versions now produce more predictable results.
 
 ### Reliable Tags
 - `[Verse]`, `[Verse 1]`, etc.
 - `[Chorus]`
 - `[End]`
 - `[Fade Out]`
-- `[Pre-Chorus]` (improved in V5)
+- `[Pre-Chorus]` (improved over earlier versions)
 
 ### Moderately Reliable
 - `[Bridge]`

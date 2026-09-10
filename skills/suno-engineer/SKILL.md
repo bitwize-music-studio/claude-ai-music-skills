@@ -182,7 +182,7 @@ Exclusions **shift the odds** against an element — probabilistic, not a hard f
 
 **Where they go:**
 - **Pro/Premier** → Suno's dedicated **Exclude Styles** field (Custom Mode → Advanced Options). The reliable path.
-- **Free tier / no field** → append inline `no [element]` to the Style Box. Weaker, but still nudges the result.
+- **Inline `no [element]` in the Style Box does not work on v6** — a launch-week test saw "no drums" ignored (The Verge). Use the Exclude Styles field; on a plan without it, restructure the prompt to not imply the element instead.
 
 **Rules:**
 - **Max 2–4 items** — over-specification dilutes the effect
@@ -209,7 +209,7 @@ Fill the track's `### Generation Settings` table (Advanced Mode → More Options
 | **Variety** | **Off**, always, when the Style Box was engineered. Normal (the default on v6/v6-mini) lets Suno rewrite the box. State the reason in Production Notes if you ever raise it. |
 | **Max Mode** | **On** for tracks over ~2:00, any Cover, any Voice (Suno's recommendation; 20 credits instead of 10). Off for short ideas and sketches. |
 | **Vocal Gender** | From the track's vocal description; `—` when a Voice or Custom Model supplies the voice. |
-| **Duration** | `Auto` unless the track or album sets a Target Duration; Custom accepts 10 s–6:00 and hard-cuts at the value, so the lyric load must fit. |
+| **Duration** | `Auto` unless the track or album sets a Target Duration; Custom accepts 10 s–6:00 and hard-cuts at the value, so the lyric load must fit **(unverified on v6)**. |
 | **Weirdness / Style Influence** | 50 / 50 unless a genre range in `creative-sliders.md` says otherwise. Style Influence at 50 discards half the prompt's authority — raise it before blaming the prompt. |
 | **Audio Influence** | Only with attached audio (Cover / Voice): ~0.70–0.85 for a Voice; see the Cover / Voice Setup block. |
 
@@ -276,7 +276,7 @@ Check target duration: track Target Duration → album Target Duration → genre
 **Duration control tips (especially for instrumentals/OSTs):**
 - **Section count is the primary lever** — fewer section tags = shorter track
 - **`[End]` tag** is the strongest stop signal. Place after `[Outro]` to force termination.
-- **Duration Custom** (More Options, 10 s–6:00) hard-cuts at the value and rushes lyrics that don't fit; Auto plus section count is safer for lyric tracks. Expect 2–3 generations to hit a target either way.
+- **Duration Custom** (More Options, 10 s–6:00) hard-cuts at the value and rushes lyrics that don't fit **(unverified on v6)**; Auto plus section count is safer for lyric tracks. Expect 2–3 generations to hit a target either way.
 - **Trim in post** — generate slightly long and fade/cut to exact length
 - **For very short tracks** (~1:00–1:30): `[Intro]` → `[Main Theme]` → `[End]` with Instrumental: On
 
@@ -391,6 +391,6 @@ When you discover new Suno behavior or techniques, **update the reference docume
 5. **Use exclusions sparingly** — Exclude Styles for 2–4 items max; leave empty when not needed
 6. **Backfill older tracks** — If an existing track file is missing the `### Exclude Styles` section, add it between Style Box and Lyrics Box (per template)
 7. **Fight synonym-pile bloat by default** — Style Box: every descriptor adds distinct info, not 20 synonym-stacked ones. Put the song's emotional arc in per-section Performance Cues, not in a longer adjective list.
-8. **Fill Generation Settings every time** — model, Variety Off, Max Mode; the advisory gate warns when it's missing or Variety is on.
+8. **Fill Generation Settings every time** — model, Variety Off, Max Mode; the advisory gate skips when the section is missing and warns when Variety is on or the model isn't a catalog name.
 
 Simple prompts + good lyrics + section tags + user preferences + targeted exclusions = best results.

@@ -372,7 +372,7 @@ Exclusions **shift the odds** against an element — they're probabilistic, not 
 
 **Two ways to exclude:**
 - **Dedicated Exclude Styles field** (Custom Mode → Advanced Options, **Pro/Premier**) — the reliable path. Put exclusions here, not buried in the main style prompt.
-- **Inline `no [element]`** appended to the style box — the fallback when you don't have the field (free tier). Weaker; the engine may still slip the element in.
+- **v6 ignores prompt-level exclusions.** A launch-week test typed "no drums" and "monotone vocals" into the prompt and both were ignored (The Verge, Sep 2026); use the dedicated **Exclude Styles** field (Advanced Mode → More Options, 1,000 chars) — there is no working inline fallback.
 
 Keep it to **2–4 items** — over-specifying dilutes the effect.
 
@@ -380,16 +380,17 @@ Keep it to **2–4 items** — over-specifying dilutes the effect.
 - Instruments: "no drums", "no electric guitar"
 - Vocal effects: "no autotune", "no heavy reverb"
 - Stylistic elements: "no EDM drops", "no screaming"
-- **Unwanted group vocals** (a common Suno over-add): "no choir", "no crowd vocals", "no backing vocals", "no gang vocals", "no call-and-response", "no vocal harmonies", "no layered vocals"
+- **Unwanted group vocals** (a common Suno over-add): "no choir", "no crowd vocals", "no backing vocals", "no gang vocals", "no call-and-response", "no vocal harmonies", "no layered vocals" **(unverified on v6)**
 
 ### Best Practices
 
 ```
 ✅ Good:
-"Acoustic folk, warm, intimate, no drums, no electric instruments"
+Style Box: "Acoustic folk, warm, intimate"
+Exclude Styles: drums, electric instruments
 
 ❌ Bad (over-specified):
-"No drums, no bass, no synths, no reverb, no distortion, no..."
+Exclude Styles: drums, bass, synths, reverb, distortion, ...
 ```
 
 > **Group vocals** are probabilistic to suppress: excluding "choir / crowd / backing vocals" improves your odds, but a big anthemic prompt can still pull them back in. Pair the exclusion with a leaner, more intimate style prompt for the strongest effect.
@@ -440,7 +441,7 @@ Suno includes sliders in the generation interface that affect output:
 
 Upload a clean acapella, a full track with background music, or sing directly into a mic (15 seconds to 4 minutes; the cleaner the source, the less needed). Suno then has you read a spoken phrase aloud and matches it to the upload as a consent check. Own voice only; 18+.
 
-- **Upgrade Voice to v6.** Voices made on v5.5 keep working, and the Create form offers a one-click upgrade ("Upgrade your Voice for better vocal consistency. You will still be able to use it the old way if you wish."). The picker distinguishes **Voice (new) — better vocal consistency** from **Style Voice (legacy) — the old method**. Upgrade before an album run so every track uses the same engine.
+- **Upgrade Voice to v6.** Voices made on v5.5 keep working, and the Create form offers a one-click upgrade ("Upgrade your Voice for better vocal consistency. You will still be able to use it the old way if you wish."). The picker distinguishes **Voice (new) — better vocal consistency** from **Style Voice (legacy) — the old method**. Upgrade before an album run so every track uses the same engine. Which v6 models accept a Voice without the upgrade is **(unverified)**.
 - **Not on instrumentals.** "Songs with Voices cannot be instrumental."
 - **Max Mode On** when a Voice is attached — Suno's own recommendation for voice consistency; keep Audio Influence fairly high (~0.70–0.85, see [creative-sliders.md](creative-sliders.md)).
 - **Prompting with a Voice**: drop gender/register descriptors from the style box — the Voice carries them. Keep the style prompt to 1–2 genres plus instrumentation.

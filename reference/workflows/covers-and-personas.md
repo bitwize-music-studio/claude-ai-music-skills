@@ -108,7 +108,7 @@ Combining the two is a powerful remixing technique — full notes at [Combining 
 
 ## Track File Setup
 
-The track template has an optional **Cover / Persona Setup** block (in `templates/track.md`) for recording the original-song reference, the Persona in use, and cover-specific style notes. Fill it in for cover or persona tracks; delete the block for standard original-generation tracks — it does not affect the normal writing flow.
+The track template has an optional **Cover / Voice Setup** block (in `templates/track.md`) for recording the original-song reference, the Voice in use, and cover-specific style notes. Fill it in for cover or Voice tracks; delete the block for standard original-generation tracks — it does not affect the normal writing flow.
 
 ---
 

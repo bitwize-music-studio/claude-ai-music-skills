@@ -9,7 +9,7 @@ Suno's text-to-speech engine can mispronounce words, especially homographs (same
 
 Suno reads lyrics literally. It doesn't understand context the way humans do. When it sees "live," it picks one pronunciation — and it might be wrong for your meaning.
 
-**V5 Note**: V5 improved context sensitivity for pronunciation, but our rule stands: **never trust context for homographs**. The improvement is incremental, not reliable enough to skip phonetic spelling.
+**Note**: Suno's context sensitivity for pronunciation has improved over earlier versions, but our rule stands: **never trust context for homographs**. The improvement is incremental, not reliable enough to skip phonetic spelling.
 
 **IPA Note**: IPA (International Phonetic Alphabet) is **not natively supported** by Suno despite community requests. Use the phonetic spelling approaches documented below instead.
 
@@ -313,7 +313,7 @@ For songs with lyrics in multiple languages:
 
 - **Use one language per section** — mixing languages within a section causes pronunciation drift
 - Add `all lyrics in [language], no English` to the style prompt for non-English sections to prevent the model reverting to English
-- V5 improved multilingual fluency, but section isolation remains the most reliable approach
+- Multilingual fluency has improved over earlier versions, but section isolation remains the most reliable approach
 
 **Example**:
 ```

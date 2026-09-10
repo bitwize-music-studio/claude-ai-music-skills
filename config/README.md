@@ -337,7 +337,8 @@ Your preferred Suno settings and genre combinations.
 
 ## Default Settings
 - Instrumental: false
-- Model: V5
+- Model: v6
+- Variety: Off
 - Always include: atmospheric, moody
 
 ## Avoid

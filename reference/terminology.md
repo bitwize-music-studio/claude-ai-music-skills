@@ -26,7 +26,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **7 Planning Phases** | Structured planning process required before writing lyrics: Foundation, Concept Deep Dive, Sonic Direction, Structure Planning, Album Art, Practical Details, Confirmation. | "Phase 3: What are the sonic inspirations?" |
 | **Album Completion Checklist** | Final checklist before release covering all tracks Final, album art, mastering, metadata, and platform uploads. | See CLAUDE.md "Album Completion Checklist" |
 | **Album Status** | Lifecycle state of an album: Concept, Research Complete, Sources Verified, In Progress, Complete, Released. | `Status: In Progress` in album README |
-| **Generation Log** | Table in each track file logging Suno generation attempts with date, model, result URL, notes, and keeper rating. | `| 2 | 2025-12-03 | V5 | [Listen](url) | Boosted vocals | ✓ |` |
+| **Generation Log** | Table in each track file logging Suno generation attempts with date, model, result URL, notes, and keeper rating. | `| 2 | 2025-12-03 | v6 | [Listen](url) | Boosted vocals | ✓ |` |
 | **Human Verification** | Required manual review confirming captured sources are accurate before using them in lyrics. For true-story albums only. | Status changes from `Pending` to `Verified (2025-01-15)` |
 | **Keeper** | A generated track that meets quality standards and is marked for use. Indicated with checkmark in Generation Log. | `✓` in Rating column |
 | **Source Verification** | The process of confirming research sources are accurate and properly cited. Required before production. | `Status: Sources Verified` |
@@ -45,7 +45,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **Extend** | Suno feature to continue a generated clip by adding ~1 minute of new content. Creates 2 versions per extension. | Click EXTEND to add verse 2 |
 | **Extend From Timestamp** | Ability to continue generation from an earlier point in the clip rather than the end. | Go back to 1:30 and regenerate |
 | **Lyrics Box** | Text field in Suno where lyrics with section tags are entered. Accepts structure tags and vocal directions. | The input field for `[Verse 1]\nLyrics here...` |
-| **Negative Prompting** | Using exclusions in style prompts to remove unwanted elements. V5 handles reliably. | `"no drums, no electric guitar"` |
+| **Negative Prompting** | Telling Suno what to leave out. Use the dedicated Exclude Styles field; prompt-level "no X" is ignored on v6. | `Exclude Styles: drums, electric guitar` |
 | **Persona** | Description of the vocalist to maintain consistency across an album. Stored in album README. | `Male baritone, gravelly, introspective, folk storyteller` |
 | **Replace Section** | Suno Pro/Premier feature to edit lyrics or insert instrumental sections within a 10-30 second segment. | Fix one verse without regenerating entire track |
 | **Reroll** | Generating new variations of a track using the same prompts. Each reroll produces different results. | Generate 3 variations, pick the best |
@@ -171,7 +171,7 @@ Variables used in documentation that resolve from config:
 | **EQ** | Equalization | Adjusting frequency balance |
 | **LUFS** | Loudness Units Full Scale | Perceived loudness measurement |
 | **QA** | Quality Assurance | Review process before release |
-| **v6 (model family)** | The current Suno model generation — v6, v6-wild, v6-mini, plus Custom Models. All earlier models (v5.5, v5, v4.5) were retired on 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
+| **v6** | The current Suno model generation (v6, v6-wild, v6-mini). Earlier models retired 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
 | **WAV** | Waveform Audio File | Uncompressed audio format |
 
 ---

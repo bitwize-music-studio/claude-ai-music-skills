@@ -29,7 +29,7 @@ Operational techniques and troubleshooting for Suno. For prompting guidance, see
 **Fix:**
 1. Replace the age adjective with a specific vocal range: `alto`, `contralto`, `low register` (female) or `baritone`, `bass-baritone` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that connote maturity/experience rather than youth: `smoky`, `weathered`, `resonant`, `gravelly` — avoid `breathy`, `whispered`, `delicate`, `intimate` if you want an older-sounding voice, since those skew young in Suno's training data
-3. Add an explicit exclude: `no youthful or breathy vocals` appended to the Style Box (see [Negative Prompting](best-practices.md#negative-prompting) — Suno excludes via "no X" phrasing in the prompt text, not a separate bare-terms field)
+3. Add an explicit exclude: `youthful or breathy vocals` in Suno's dedicated **Exclude Styles** field (Advanced Mode → More Options) — prompt-level `no X` is ignored on v6 (see [Negative Prompting](best-practices.md#negative-prompting))
 4. Still expect 2–3 regenerations — vocal-age control is inconsistent even with well-chosen tags, this narrows the odds rather than guaranteeing the result
 
 **Example fix:**
@@ -54,7 +54,7 @@ If all of the above still fails, the underlying genre/instrumentation combo may 
 **Fix:** Same principle as the age issue — replace or supplement emotion/character words with concrete vocal range and texture tags:
 1. Add a specific vocal range: `mezzo-soprano`, `alto`, `contralto` (female) or `baritone`, `tenor` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that are actually audible qualities, not moods: `gritty`, `raspy`, `rasp on the belted notes`, `raw chest voice`, `commanding`, `weathered` — these describe grain and register, which Suno can render; "defiant" and "powerful" describe intent, which it can't
-3. Add an explicit exclude: `no generic or polished studio pop vocal` appended to the Style Box (see [Negative Prompting](best-practices.md#negative-prompting))
+3. Add an explicit exclude: `generic or polished studio pop vocal` in Suno's dedicated **Exclude Styles** field (Advanced Mode → More Options) — prompt-level `no X` is ignored on v6 (see [Negative Prompting](best-practices.md#negative-prompting))
 4. Keep one or two emotion words if they help set the performance arc (e.g. "controlled and low in the verses, breaking open into a full-throated belt on the chorus") — the fix isn't to strip emotion language entirely, it's to make sure concrete texture/range tags are doing the actual work
 
 **Example fix:**
@@ -231,7 +231,7 @@ A powerful technique for remixing:
 
 ---
 
-## Song Editor (V5)
+## Song Editor
 
 Edit individual sections without regenerating the entire track:
 
@@ -254,7 +254,7 @@ See [best-practices.md](best-practices.md) for the full Song Editor workflow.
 
 ## Creative Sliders
 
-Quick reference for V5's generation sliders:
+Quick reference for Suno's generation sliders:
 
 - **Weirdness**: Higher = more experimental. Lower = predictable hooks.
 - **Style Influence**: Higher = tighter genre adherence. Lower = looser fusion.

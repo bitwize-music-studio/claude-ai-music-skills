@@ -105,7 +105,7 @@ Starting points only — generate, listen, then adjust. Weirdness and Style Infl
 | Cinematic / Orchestral | `0.15–0.40` | `0.55–0.75` | Mood and coherence carry the piece. |
 | Jazz / Improv | `0.40–0.65` | `0.40–0.60` | An improvisational feel benefits from deviation. |
 | Ambient / Experimental / IDM | `0.55–0.85` | `0.25–0.50` | The unexpected is the point; loosen the leash. |
-| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known Limitations](best-practices.md#known-limitations); consider testing V4.5). |
+| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known Limitations](best-practices.md#known-limitations); consider a v6-wild first pass, then Cover on v6). |
 | Documentary / narrative | `0.10–0.30` | `0.55–0.75` | The story carries the track — favor clear vocals and predictable structure so the lyric lands. |
 
 ---
