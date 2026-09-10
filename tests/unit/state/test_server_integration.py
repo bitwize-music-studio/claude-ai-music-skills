@@ -324,7 +324,7 @@ allowed-tools:
 SKILL_SONNET = """\
 ---
 name: suno-engineer
-description: Constructs technical Suno V5 style prompts and optimizes generation settings.
+description: Constructs technical Suno style prompts for the current model family and optimizes generation settings.
 argument-hint: <track-file-path>
 model: claude-sonnet-4-5-20250929
 prerequisites:
