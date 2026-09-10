@@ -10,6 +10,7 @@ Reference guides for Suno AI music generation.
 | [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
+| [100 Expert Tips](100-expert-tips.md) | Words of advice: craft, workflows, blueprints, spoken word, noise, video, profit |
 | [Structure Tags](structure-tags.md) | Song section tags reference |
 | [Voice Tags](voice-tags.md) | Vocal manipulation and style tags |
 | [Instrumental Tags](instrumental-tags.md) | Instruments and instrumental sections |
