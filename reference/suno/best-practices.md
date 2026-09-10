@@ -533,7 +533,7 @@ These are typical loudness levels Suno generates — **not** final mastering tar
 1. **Start broad**, then refine
 2. **Log every attempt** - note what worked/didn't
 3. **Adjust one element at a time** when refining
-4. **Try different models** - V4.5 vs Suno produce different results
+4. **Try different models** - v6 and v6-wild read the same prompt differently; for heavy or "attitude" genres run a first pass on v6-wild and Cover the keeper on v6 (see [models.md](models.md))
 5. **Use extends** to build on good sections
 
 ---
@@ -625,7 +625,7 @@ Suno Studio is a generative audio workstation that combines AI music generation 
 - Niche subgenres (metalcore, extreme styles) may miss hallmarks
 - Extreme cross-style fusions → muddy results
 - Quality may degrade past 6-7 minutes
-- **V4.5 may produce better results for heavy genres** (metal, hardcore) — consider testing both if Suno output sounds thin
+- Heavy genres (metal, hardcore, blues-rock) remain the weakest; v6-wild is the better first pass, then Cover on v6. (V4.5, the old fallback for these genres, was retired on 2026-09-09.)
 - Prompt-level "no drums" / "monotone vocals" requests are ignored — use Exclude Styles (v6 hands-on, The Verge, Sep 2026)
 - Rock/metal vocals drift toward a generic post-grunge timbre; try v6-wild, then Cover on v6, or a Custom Model
 
