@@ -2523,6 +2523,59 @@ class TestUpdateTrackField:
         content = track_file.read_text()
         assert "✅ Verified (2026-02-06)" in content
 
+    _SETTINGS_TRACK_MD = _SAMPLE_TRACK_MD + """
+## Suno Inputs
+
+### Generation Settings
+
+| Setting | Value |
+|---------|-------|
+| **Model** | v6 |
+| **Variety** | Normal |
+| **Max Mode** | Off |
+
+## Generation Log
+
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| — | — | — | — | — | — |
+"""
+
+    def _make_cache_with_settings_file(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        track_file.write_text(self._SETTINGS_TRACK_MD)
+        return mock_cache, track_file
+
+    @pytest.mark.parametrize("field,table_key,value", [
+        ("model", "Model", "v6-wild"),
+        ("variety", "Variety", "Off"),
+        ("max-mode", "Max Mode", "On"),
+        ("max_mode", "Max Mode", "On"),
+    ])
+    def test_update_generation_settings(self, tmp_path, field, table_key, value):
+        mock_cache, track_file = self._make_cache_with_settings_file(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", field, value
+            )))
+        assert result["success"] is True
+        assert result["field"] == table_key
+        content = track_file.read_text()
+        assert f"| **{table_key}** | {value} |" in content
+        # The Generation Log header is a multi-column table and must be untouched
+        assert "| # | Date | Model | Result | Notes | Rating |" in content
+
+    def test_update_generation_setting_without_section_errors(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)  # _SAMPLE_TRACK_MD has no section
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "variety", "Off"
+            )))
+        assert "error" in result
+        assert "Generation Settings" in result["error"]
+
     def test_update_with_prefix_match(self, tmp_path):
         """Track number prefix works for updates too."""
         track_file = tmp_path / "05-unique-track.md"
