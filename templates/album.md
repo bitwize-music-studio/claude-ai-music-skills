@@ -152,14 +152,15 @@ Omit the block entirely to use the default (ADM off).
 ## Production Notes
 
 <!-- SERVICE: suno -->
-**Suno Persona** (optional):
+**Suno Voice** (optional; Suno renamed Personas to Voices):
 | Attribute | Value |
 |-----------|-------|
-| **Persona Name** | [Name in Suno] |
-| **Persona Link** | [Suno persona URL] |
+| **Voice Name** | [Name in Suno] |
+| **Voice Link** | [Suno voice URL] |
 
 **Suno Settings**:
 - **Target Duration**: [3:30–5:00]
+- **Default Model**: v6 (v6-wild for exploration; see reference/suno/models.md)
 - Per-track overrides noted in individual track files
 - [Vocal consistency notes]
 - [Production continuity notes]
