@@ -2,7 +2,7 @@
 
 Complete reference for vocal manipulation tags in Suno.
 
-> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (now "Voices" in Suno) (see [best-practices.md](best-practices.md#personas)).
+> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (now "Voices" in Suno) (see [best-practices.md](best-practices.md#personas-now-voices)).
 
 ## V5 Voice Gender Selector
 

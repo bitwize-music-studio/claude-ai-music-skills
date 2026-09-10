@@ -63,7 +63,7 @@ Controls how much a piece of **uploaded reference audio** shapes the output. Thi
 
 **Raise it** when a cover or reworked upload isn't resembling the source enough. **Lower it** when you want more transformation and less of the original bleeding through.
 
-**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](best-practices.md#voices--custom-models). Suno's own tip in the Voices article is simply "have the Audio Influence slider up fairly high". Defaults are Weirdness 50 / Style Influence 50 / Audio Influence 25; "Reset sliders" restores them.
+**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](best-practices.md#voices-custom-models--my-taste). Suno's own tip in the Voices article is simply "have the Audio Influence slider up fairly high". Defaults are Weirdness 50 / Style Influence 50 / Audio Influence 25; "Reset sliders" restores them.
 
 ---
 

@@ -27,7 +27,7 @@ This is the workflow companion. For the underlying feature reference — creatio
 
 In Suno's UI these now live under **Voices**; the steps are the same.
 
-A Persona is the most reliable way to keep one voice consistent across an album. Full reference: [Personas](../suno/best-practices.md#personas).
+A Persona is the most reliable way to keep one voice consistent across an album. Full reference: [Personas (now Voices)](../suno/best-practices.md#personas-now-voices).
 
 ### Creating a Persona
 
