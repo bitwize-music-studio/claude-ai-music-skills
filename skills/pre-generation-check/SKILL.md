@@ -55,6 +55,8 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 
 ## The 6 Gates
 
+The MCP tool behind this skill reports 8 blocking gates plus 3 advisories (Style Box Descriptor Count, Performance Cues, Generation Settings).
+
 ### Gate 1: Sources Verified
 - **Check**: Track's `Sources Verified` field is `Verified` or `N/A`
 - **Fail if**: `Pending` or `❌ Pending`
@@ -79,7 +81,7 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 ### Gate 4: Explicit Flag Set
 - **Check**: Track has `Explicit` field set to `Yes` or `No` (not empty/template)
 - **Fail if**: Explicit field is missing, empty, or template placeholder
-- **Severity**: WARNING — Can proceed but should be set for distribution metadata
+- **Severity**: BLOCKING — the MCP gate fails closed when the flag is unset (#370)
 
 ### Gate 5: Style Box Complete
 - **Check**: Suno Inputs section has a non-empty Style Box (the `### Style Box` heading in the track template)
@@ -88,6 +90,7 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 - **Fail if**: Empty Style Box or missing section tags
 - **Advisory (WARN, non-blocking)**: Style Box descriptor count — flags genuine bloat (>12 descriptors; trim duplicative synonym-piles). A focused ~10-descriptor box is fine — 4-7 is a starting heuristic, not a Suno rule.
 - **Advisory (WARN, non-blocking)**: Performance Cues — flags ≥2 structure tags with no per-section cues (`[Verse 1 - cold regal]`); bare tags are a common cause of flat, generic output
+- **Advisory (WARN, non-blocking)**: Generation Settings — the track's `### Generation Settings` table must record a catalog model (`v6`, `v6-wild`, `v6-mini`, `Custom: <name>`) and **Variety Off**; at any higher Variety Suno rewrites the Style Box, so the descriptor checks above are meaningless. A PASS detail also notes when Max Mode is Off on a track targeting 2:30 or longer (Suno recommends it over two minutes; 2× credits). SKIP when the section is missing — add it from `templates/track.md`.
 - **Fix**: Style Box is created by suno-engineer, which is normally auto-invoked by lyric-writer. Run `/bitwize-music:suno-engineer [track]` to create the missing Style Box.
 - **Severity**: BLOCKING
 
@@ -104,13 +107,13 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 
 ### Single Track
 
-1. Call `run_pre_generation_gates(album_slug, track_slug)` — returns all 6 gate results
+1. Call `run_pre_generation_gates(album_slug, track_slug)` — returns all gate results (8 blocking + 3 advisory)
 2. Format pass/fail report from MCP response
 3. Output verdict: READY or NOT READY
 
 ### Full Album
 
-1. Call `run_pre_generation_gates(album_slug)` — returns all tracks' gate results in one call
+1. Call `run_pre_generation_gates(album_slug)` — returns all gate results (8 blocking + 3 advisory)
 2. Format per-track and album-level summary from MCP response
 3. Output verdict: ALL READY, PARTIAL (list ready tracks), or NOT READY
 
@@ -134,6 +137,7 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 | Explicit Flag | PASS | Yes |
 | Style Prompt | PASS | "Male baritone, gritty..." |
 | Artist Names | PASS | No blocked names found |
+| Generation Settings | PASS | Model v6, Variety Off, Max Mode On |
 
 **Verdict**: READY FOR GENERATION
 
@@ -146,11 +150,13 @@ Do NOT proceed with gate evaluation until the mismatch is resolved — the wrong
 | Sources Verified | FAIL | ❌ Pending |
 | Lyrics Reviewed | PASS | 312 words |
 | Pronunciation Resolved | FAIL | "live" unresolved in V2:L3 |
-| Explicit Flag | WARN | Not set |
+| Explicit Flag | FAIL | Not set |
 | Style Prompt | PASS | Complete |
 | Artist Names | FAIL | "Nirvana" found in style prompt |
+| Generation Settings | WARN | Variety is 'Normal' — set Off |
 
-**Verdict**: NOT READY — 3 issues (2 blocking, 1 warning)
+**Verdict**: NOT READY — 4 issues (3 blocking, 1 warning)
+**Warnings**: 2
 
 ---
 
