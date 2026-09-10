@@ -4,6 +4,66 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-09-10 - v6 Launch Sweep
+
+Suno shipped the v6 family (`v6`, `v6-wild`, `v6-mini`) on 2026-09-09 and retired every earlier model the same day. Sweep sources: Suno's blog, release notes, the six new help articles, the live app's UI strings, both official launch videos, the Billboard CEO interview, 37 press pieces, 14 launch-day video transcripts and ~75 r/SunoAI posts (full dossier on #562). Headline: **prompt syntax and limits unchanged; two new controls (Variety, Max Mode) and the Sep 3 download/ToS regime change the workflow.**
+
+### Features
+- **Three models.** v6 (flagship, Pro/Premier), v6-wild (exploration, Pro/Premier; Variety default Off), v6-mini (free tier). Custom Models auto-upgraded to v6; Voices get "Upgrade Voice to v6"; "Personas are now Voices". New `models.md` catalog.
+- **Variety** (More Options; default Normal on v6/v6-mini): rewrites and expands the style prompt at any setting above Off — Suno: "reduce the Variety slider to 0" to keep your style tags. Plugin rule: Off for engineered Style Boxes.
+- **Max Mode**: "Uses more compute to maximize consistency throughout the song. Costs 2x credits per song." Recommended over two minutes, for covers and Voices.
+- Simple Mode gained plain-language edits, lyric swaps, mashups, sample/isolate and image/video/voice-memo inputs; it expands supplied lyrics, so the plugin stays in Advanced Mode.
+
+### Changes
+- Docs restructured: `v5-best-practices.md` archived to `version-history/`; version-agnostic `best-practices.md` with a "v6 Update" section; `models.md`; `version-history/v6-changes.md`.
+- Track template gained `### Generation Settings` (Model, Variety, Max Mode, Vocal Gender, Duration, Weirdness, Style Influence); Cover/Persona block renamed Cover/Voice.
+- New advisory pre-generation gate "Generation Settings" (WARN on Variety above Off or an unknown model; note when Max Mode is Off on a ≥2:30 target). `update_track_field` accepts `model`, `variety`, `max-mode`.
+- Downloads (since 2026-09-03): Free 7 lifetime, Pro 20/month, Premier 60/month; one song = one download including stems; Studio exports uncapped (32-bit float / 48 kHz). ToS: commercial rights need a paid-plan download; Remixes never commercial; watermark/fingerprint removal prohibited. Believe/TuneCore accept only new-model tracks.
+- Artist names: still rewritten ("Artist name '…' replaced"), now with a visible notice.
+
+### Refuted / Not Adopted
+- "v6 changed prompt syntax or character limits" — no; Style 1,000 / Lyrics 5,000 / Exclude 1,000 / 8 min all measured unchanged.
+- "v6 allows artist names for partner artists" — no.
+- "v6 was trained exclusively on licensed music" — Suno says "developed with our industry partners"; executives describe Warner data + user-preference data + R&D; BMG not in the launch model. Attributed, not asserted.
+- `V6` / `V6_WILD` / `V6_MINI` API identifiers — do not exist; no official API.
+- "Personas were removed" — renamed to Voices; legacy option remains.
+- "Duration slider is v5.5-only" — present on v6 (10 s–6:00, default 3:00).
+- "v6 has fewer artifacts" as a blanket claim — contested (The Verge, Reddit); genre-dependent.
+
+### Open verification (docs tag these **(unverified)** until tested on the maintainer's account)
+1. Structure tags and Performance Cues honored on v6 at Variety Off.
+2. Variety Off vs Normal on an engineered Style Box.
+3. Max Mode vs the reported late-song muffling (~2:30+).
+4. Exclude Styles still suppressing group vocals.
+5. Which v6 models accept a Voice / Custom Model without the upgrade step.
+6. Create-page WAV sample rate / bit depth.
+7. Duration Custom vs an overlong lyric.
+8. v6-mini vs v6 on a nerdcore and a rock track.
+9. Single-lyric swap and a chorus-only edit (Simple Mode) — scope bleed.
+10. Bar-count tags `[VERSE 1 8]`.
+
+### Documentation
+- best-practices.md (new, from v5 guide) · models.md (new) · version-history/v6-changes.md (new) · version-history/v5-best-practices.md (archived) · creative-sliders.md (Variety, Personalize, Max Mode) · tips-and-tricks.md · structure-tags.md · voice-tags.md · workflows/covers-and-personas.md · README.md · terminology.md · suno-engineer/SKILL.md · pre-generation-check/SKILL.md · templates/track.md, album.md · import-audio, mastering-engineer, mix-engineer, release-director docs · config.example.yaml comments.
+
+**Sources**:
+- https://suno.com/blog/introducing-v6 (official — launch)
+- https://suno.com/release-notes (official — Sep 9 entry; Jul 20 Duration slider; Aug 7 Voices; Aug 13 Studio 2.0)
+- https://help.suno.com/en/articles/13924481 (official — v6 FAQ: Variety, Max Mode, credits, custom-model upgrade, retirement)
+- https://help.suno.com/en/articles/13924801 · https://help.suno.com/en/articles/13924737 · https://help.suno.com/en/articles/13924993 · https://help.suno.com/en/articles/13924929 (official — models, length)
+- https://help.suno.com/en/articles/13925185 (official — stems and credits)
+- https://help.suno.com/en/articles/13614785 · https://help.suno.com/en/articles/13926209 · https://help.suno.com/en/articles/13926081 (official — downloads, formats)
+- https://suno.com/blog/suno-updates-tos · https://suno.com/terms (official — ToS effective 2026-09-03)
+- https://suno.com/blog/studio-2 (official — 32-bit/48 kHz uncapped exports)
+- https://youtu.be/_lHvWn2SNC4 · https://youtu.be/tkKGNBzkHwE (official — launch and transition videos)
+- suno.com/locales/en/create.json, voices.json, lyrics.json (official UI strings — Max Mode tooltip, Variety labels, Duration range, artist-name notice, "Personas are now Voices")
+- https://hookgenius.app/learn/suno-v6-guide/ · https://hookgenius.app/learn/suno-character-limits/ (community — launch-day limit measurements, section-cue observation)
+- https://www.theverge.com/ai-artificial-intelligence/991977/suno-releases-its-first-ai-music-model-made-with-record-industry-help (press — hands-on)
+- https://www.musicbusinessworldwide.com/suno-v6-ai-music-models-launch-in-partnership-with-wmg-bmg-and-believe/ · https://musically.com/2026/09/09/suno-launches-its-v6-ai-music-models-heres-what-you-need-to-know/ (press — CPO interviews)
+- Billboard "On the Record" with Mikey Shulman, Sep 9 2026 (CEO interview)
+- Refuted-claim sources (recorded for traceability): kie.ai/blog/what-is-suno-v6, songmakerai.org/tools/suno-v6, lumimusic.ai/blog/suno-v6
+
+---
+
 ## 2026-07-07 - V5.5 Mid-Year Research Sweep
 
 Deep multi-source research pass (Suno primary docs + community guides, adversarially fact-checked). Headline: the genuinely new/vetted material since the April V5.5 update is **feature-driven**, not a new prompt grammar. Most third-party "V5.5 prompt-grammar" tips failed verification and were **not adopted** (see Refuted below).
