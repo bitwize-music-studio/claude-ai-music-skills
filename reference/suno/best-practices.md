@@ -376,11 +376,11 @@ Exclusions **shift the odds** against an element — they're probabilistic, not 
 
 Keep it to **2–4 items** — over-specifying dilutes the effect.
 
-### What You Can Exclude
-- Instruments: "no drums", "no electric guitar"
-- Vocal effects: "no autotune", "no heavy reverb"
-- Stylistic elements: "no EDM drops", "no screaming"
-- **Unwanted group vocals** (a common Suno over-add): "no choir", "no crowd vocals", "no backing vocals", "no gang vocals", "no call-and-response", "no vocal harmonies", "no layered vocals" **(unverified on v6)**
+### Typical Exclude Styles values (enter the element, not "no element"):
+- Instruments: "drums", "electric guitar"
+- Vocal effects: "autotune", "heavy reverb"
+- Stylistic elements: "EDM drops", "screaming"
+- **Unwanted group vocals** (a common Suno over-add): "choir", "crowd vocals", "backing vocals", "gang vocals", "call-and-response", "vocal harmonies", "layered vocals" **(unverified on v6)**
 
 ### Best Practices
 
