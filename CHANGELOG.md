@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **100 Expert Suno Tips reference guide** — new `reference/suno/100-expert-tips.md`: a compilation of 100 tips, workflows, blueprints, and templates covering Style Box craft, lyric structure, vocals, artist-sound distilling, sliders/personas/editor, spoken word and experimental noise, mastering, the AI music video process, and rights/profit, plus a V6 launch addendum. Linked from the Suno reference README.
+
 ## [0.101.0] - 2026-07-21
 
 ### Fixed
