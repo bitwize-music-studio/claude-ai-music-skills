@@ -1591,8 +1591,8 @@ class TestRunPreGenerationGatesExtended:
                 "integration-test-album", "01"
             )))
         track = result["tracks"][0]
-        # 8 core gates + 2 advisory (Style Box Descriptor Count, Performance Cues)
-        assert len(track["gates"]) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(track["gates"]) == 11
 
 
 @pytest.mark.integration

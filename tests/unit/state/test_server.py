@@ -4699,7 +4699,8 @@ class TestRunPreGenerationGates:
         assert "Lyric Length" in gate_names
         assert "Style Box Descriptor Count" in gate_names
         assert "Performance Cues" in gate_names
-        assert len(gates) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
 
     def test_track_no_file_path(self):
         """Track with no file path gets SKIP for file-dependent gates."""
@@ -4830,8 +4831,9 @@ class TestRunPreGenerationGates:
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-unreadable")))
         assert result["found"] is True
         track = result["tracks"][0]
-        # Should still produce gates (file-dependent ones SKIP or FAIL)
-        assert len(track["gates"]) == 10
+        # Should still produce gates (file-dependent ones SKIP or FAIL).
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(track["gates"]) == 11
 
     @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
@@ -4853,7 +4855,8 @@ class TestRunPreGenerationGates:
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
-            assert len(track["gates"]) == 10
+            # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+            assert len(track["gates"]) == 11
         finally:
             track_file.chmod(0o644)
 
