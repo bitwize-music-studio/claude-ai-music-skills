@@ -750,13 +750,13 @@ class TestBlockingAggregation:
         )
         assert blocking >= 2
 
-    def test_returns_ten_gates(self):
+    def test_returns_eleven_gates(self):
         t_data = {"sources_verified": "N/A", "explicit": False}
         blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
             t_data, TRACK_FILE_COMPLETE, blocklist=[],
         )
-        # 8 core gates + 2 advisory (Style Box Descriptor Count, Performance Cues)
-        assert len(gates) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
 
 
 def _track_with(style, lyrics):
@@ -1269,3 +1269,120 @@ class TestCheckStreamingLyrics:
         track = result["tracks"][0]
         section_check = next(c for c in track["checks"] if c["check"] == "Section Exists")
         assert section_check["status"] == "FAIL"
+
+
+def _settings_block(model="v6", variety="Off", max_mode="On"):
+    return (
+        "### Generation Settings\n\n"
+        "| Setting | Value |\n|---------|-------|\n"
+        f"| **Model** | {model} |\n"
+        f"| **Variety** | {variety} |\n"
+        f"| **Max Mode** | {max_mode} |\n"
+        "| **Vocal Gender** | — |\n"
+        "| **Duration** | Auto |\n"
+        "| **Weirdness** | 50 |\n"
+        "| **Style Influence** | 50 |\n\n"
+    )
+
+
+def _track_with_settings(settings_block, target_duration=None, instrumental=False):
+    """Gate-complete track file with a Generation Settings section."""
+    fm_instr = "instrumental: true\n" if instrumental else ""
+    details = ""
+    if target_duration is not None:
+        details = f"## Track Details\n\n| Attribute | Detail |\n|---|---|\n| **Target Duration** | {target_duration} |\n\n"
+    return (
+        f"---\ntitle: T\nstatus: In Progress\nexplicit: false\n{fm_instr}---\n\n"
+        f"{details}"
+        "## Suno Inputs\n\n"
+        "### Style Box\n\n```\nupbeat electronic pop, 120 BPM\n```\n\n"
+        "### Exclude Styles\n\n```\n(none)\n```\n\n"
+        f"{settings_block}"
+        "### Lyrics Box\n\n```\n[Verse 1 - cold]\nla la\n\n[Chorus - big]\nla la\n```\n\n"
+        "## Pronunciation Notes\n\n| Word | Phonetic | Note |\n| --- | --- | --- |\n| — | — | — |\n"
+    )
+
+
+class TestGenerationSettingsGate:
+    """Advisory v6 gate: Variety must be Off, Model must be a catalog name."""
+
+    T = {"sources_verified": "N/A", "explicit": False}
+
+    def _gate(self, text):
+        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(self.T, text, blocklist=[])
+        return blocking, warnings, next(g for g in gates if g["gate"] == "Generation Settings")
+
+    def test_missing_section_skips(self):
+        blocking, warnings, g = self._gate(_track_with("upbeat pop, 120 BPM", "[Verse 1 - cold]\nla la"))
+        assert g["status"] == "SKIP"
+        assert "Generation Settings" in g["detail"]
+        assert blocking == 0
+
+    def test_defaults_pass(self):
+        blocking, warnings, g = self._gate(_track_with_settings(_settings_block()))
+        assert g["status"] == "PASS"
+        assert g["detail"] == "Model v6, Variety Off, Max Mode On"
+        assert warnings == 0
+
+    def test_variety_normal_warns(self):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(variety="Normal")))
+        assert g["status"] == "WARN"
+        assert g["severity"] == "WARNING"
+        assert "Variety is 'Normal'" in g["detail"]
+        assert warnings == 1
+
+    def test_variety_zero_counts_as_off(self):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(variety="0")))
+        assert g["status"] == "PASS"
+
+    @pytest.mark.parametrize("model", ["", "—", "V5.5", "v7"])
+    def test_unknown_model_warns(self, model):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(model=model)))
+        assert g["status"] == "WARN"
+        assert "not recognized" in g["detail"]
+
+    @pytest.mark.parametrize("model", ["v6", "V6-WILD", "v6-mini", "Custom: bitwize-core"])
+    def test_catalog_models_pass(self, model):
+        _, _, g = self._gate(_track_with_settings(_settings_block(model=model)))
+        assert g["status"] == "PASS"
+
+    def test_bare_custom_prefix_warns(self):
+        _, _, g = self._gate(_track_with_settings(_settings_block(model="Custom:")))
+        assert g["status"] == "WARN"
+
+    def test_two_problems_one_warning(self):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(model="v7", variety="High")))
+        assert g["status"] == "WARN"
+        assert warnings == 1
+        assert "not recognized" in g["detail"] and "Variety is 'High'" in g["detail"]
+
+    def test_max_mode_off_long_target_notes(self):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(max_mode="Off"), target_duration="3:10"))
+        assert g["status"] == "PASS"
+        assert warnings == 0
+        assert "Max Mode off on a 3:10 target" in g["detail"]
+
+    def test_max_mode_off_short_target_silent(self):
+        _, _, g = self._gate(_track_with_settings(_settings_block(max_mode="Off"), target_duration="1:45"))
+        assert g["status"] == "PASS"
+        assert "Max Mode off on" not in g["detail"]
+
+    def test_max_mode_off_no_target_silent(self):
+        _, _, g = self._gate(_track_with_settings(_settings_block(max_mode="Off")))
+        assert g["detail"] == "Model v6, Variety Off, Max Mode Off"
+
+    def test_instrumental_not_skipped(self):
+        _, warnings, g = self._gate(_track_with_settings(_settings_block(variety="Normal"), instrumental=True))
+        assert g["status"] == "WARN"
+
+    def test_never_blocks(self):
+        blocking, _, _ = self._gate(_track_with_settings(_settings_block(model="v7", variety="Max")))
+        assert blocking == 0
+
+
+class TestGenerationSettingsHelpers:
+    @pytest.mark.parametrize("value,expected", [
+        ("3:10", 190), ("0:45", 45), ("3:30–5:00", 210), ("—", None), ("", None), (None, None), ("4 minutes", None),
+    ])
+    def test_parse_duration_seconds(self, value, expected):
+        assert _gates_mod._parse_duration_seconds(value) == expected
