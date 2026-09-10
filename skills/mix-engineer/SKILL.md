@@ -68,6 +68,8 @@ When a complaint names a specific element — "the vocals sound terrible," "the 
 ### Preserve the Performance
 Mix polishing removes defects, not character. Be conservative with processing. Over-processing sounds worse than under-processing.
 
+Polish is tonal and dynamic clean-up only. Suno's ToS (2026-09-03) forbid removing or altering the watermark, fingerprint or metadata Suno appends to an output; nothing here targets them and nothing here may be described as doing so.
+
 ### Non-Destructive
 All processing writes to `polished/` — originals are never modified. The user can always go back.
 

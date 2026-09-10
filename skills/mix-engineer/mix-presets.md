@@ -8,7 +8,7 @@ Human-readable guide to what each preset does and when to override defaults.
 
 Each genre preset adjusts per-stem processing settings. Settings not specified in a genre preset inherit from defaults.
 
-**Defaults** are calibrated for typical Suno V5 output:
+**Defaults** were calibrated on Suno V5 output and have not yet been re-measured on v6 (reported v6 profile: de-essed/smeared sibilance, less top-end harshness on most genres, more artifacts on rock and metal) — re-check the presence and mud settings on a v6 corpus before trusting them:
 - Noise reduction off (0) on every stem — Suno stems are synthesized, not recorded, so there's no stationary noise floor to profile; spectral gating would strip quiet musical content instead. Enable per stem only for imported/recorded audio.
 - Presence boost at 3 kHz for vocal clarity
 - Mud cut around 200-300 Hz for low-mid cleanup

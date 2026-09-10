@@ -158,6 +158,7 @@ Check for custom release preferences:
 7. **Documentation** - README complete, generation logs filled
 8. **Explicit Content** - Flagged correctly
 9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
+10. **Rights** - every track's audio came from a permitted download on a paid plan (trial/free downloads carry no commercial rights); no Remix (Remixes are never commercial); distributor accepts Suno's current model family (Believe/TuneCore: new-model tracks only)
 
 **QA Gate**: All checks must pass before proceeding
 
@@ -208,6 +209,8 @@ Check for custom release preferences:
 - [ ] Album art 3000x3000px, correct format
 - [ ] README completion checklist done
 - [ ] Streaming Lyrics validated via `check_streaming_lyrics` MCP tool (if using distributor)
+- [ ] Audio downloaded on a paid plan (commercial rights) — not a free-tier trial download
+- [ ] No watermark/fingerprint removal anywhere in the chain (Suno ToS)
 
 ### Before Campaign Trigger
 

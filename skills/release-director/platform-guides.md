@@ -69,7 +69,7 @@ Detailed upload sequences and requirements for each platform.
 - Trigger full campaign
 
 ### Platform Specs
-- **Audio format**: WAV (16-bit or 24-bit, 44.1kHz minimum)
+- **Audio format**: WAV (16-bit or 24-bit, 44.1kHz minimum; Suno Studio exports arrive at 48 kHz / 32-bit float and are fine)
 - **Artwork**: 3000x3000px minimum, JPG or PNG, RGB color mode
 - **Lyrics**: Plain text, no section labels, written out fully
 - **Metadata**: Comprehensive (album, artist, genre, copyright, language)
