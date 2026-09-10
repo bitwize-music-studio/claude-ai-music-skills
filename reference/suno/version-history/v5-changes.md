@@ -339,10 +339,10 @@ STEMS
 
 - This guide reflects community knowledge and testing
 - V5 continues to evolve - check [CHANGELOG.md](../CHANGELOG.md) for updates
-- For new V6+ features, see corresponding version-history files
+- For V6, see [v6-changes.md](v6-changes.md) — V5 and V5.5 were retired on 2026-09-09
 - When in doubt, test and iterate - V5 is very consistent with good prompts
 
 ---
 
 **Last Updated**: 2026-01-07
-**Next Version**: See [CHANGELOG.md](../CHANGELOG.md) for V6 announcements
+**Next Version**: [v6-changes.md](v6-changes.md)
