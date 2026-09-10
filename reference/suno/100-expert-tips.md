@@ -303,6 +303,21 @@ Example: `Indie folk, chamber-pop touches, soft male tenor with cracked falsetto
 
 ---
 
+## V6 Addendum (launched September 9, 2026)
+
+Suno V6 shipped the day before this doc was written, so the community consensus is thin. What is confirmed from Suno's own launch notes and early coverage:
+
+- **Three models, pick on purpose.** `v6` is the precise, reliable flagship (Pro and Premier). `v6-wild` is deliberately less predictable and more textured, built for exploration. `v6-mini` is the faster free-tier model. Draft in wild, then bring the idea back into v6 for the keeper.
+- **Single-lyric edits are real now.** You can change one word or one line by natural-language prompt without regenerating the track. This replaces most Replace Section workarounds in tips 61 and 62.
+- **Advanced Mode controls.** Vocal Gender, Duration (Custom or Auto), Max Mode on/off, and three sliders: Weirdness and Style Influence both default to 50, plus a new Variety slider defaulting to Normal. Treat Variety as your batch-diversity knob (tip 2).
+- **Personas did not go away.** They moved into a larger identity system alongside Voices, Lyricist, Custom Models, and My Taste. Tips 53 and 63 still apply.
+- **Photos, video, and voice memos as input.** V6 accepts media as a seed, which extends tip 58 beyond audio uploads.
+- **Early community advice is the same as V5.5.** Shorter Style Box, concrete instrument names over adjectives, tempo as a number, one variable per iteration, and the Exclude field to stop unrequested guitar solos and EDM drops. The word `Duet` must appear in the Style Box itself for two-voice tracks.
+
+Revisit this section after a few weeks of r/SunoAI threads. Model-specific quirks usually surface in the first month.
+
+---
+
 ## See Also
 
 - [v5-best-practices.md](v5-best-practices.md) — full prompting guide
