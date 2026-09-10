@@ -82,7 +82,7 @@ async def get_reference(name: str, section: str = "") -> str:
     Args:
         name: Reference path relative to plugin root's reference/ directory
               (e.g., "suno/pronunciation-guide", "suno/artist-blocklist",
-               "suno/genre-list", "suno/v5-best-practices")
+               "suno/genre-list", "suno/best-practices", "suno/models")
               Extension .md is added automatically if missing.
         section: Optional heading to extract (returns full file if empty)
 

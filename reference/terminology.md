@@ -177,5 +177,5 @@ Variables used in documentation that resolve from config:
 
 - [CLAUDE.md](/CLAUDE.md) - Main workflow instructions
 - [skills/help/SKILL_GLOSSARY.md](/skills/help/SKILL_GLOSSARY.md) - Quick glossary in help skill
-- [reference/suno/v5-best-practices.md](/reference/suno/v5-best-practices.md) - Suno prompting guide
+- [reference/suno/best-practices.md](/reference/suno/best-practices.md) - Suno prompting guide
 - [reference/mastering/mastering-workflow.md](/reference/mastering/mastering-workflow.md) - Audio mastering details

@@ -142,7 +142,7 @@ config/              Example config and setup docs
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Model strategy | [reference/model-strategy.md](reference/model-strategy.md) |
 | Skill decision tree | [reference/SKILL_INDEX.md](reference/SKILL_INDEX.md) |
-| Suno V5 best practices | [reference/suno/v5-best-practices.md](reference/suno/v5-best-practices.md) |
+| Suno V5 best practices | [reference/suno/best-practices.md](reference/suno/best-practices.md) |
 | The story behind bitwize-music | [bitwizemusic.com/behind-the-music](https://www.bitwizemusic.com/behind-the-music/) |
 
 ---

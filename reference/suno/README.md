@@ -6,7 +6,7 @@ Reference guides for Suno AI music generation.
 
 | Guide | Description |
 |-------|-------------|
-| [V5 Best Practices](v5-best-practices.md) | Comprehensive prompting guide for V5 |
+| [V5 Best Practices](best-practices.md) | Comprehensive prompting guide for V5 |
 | [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
@@ -22,7 +22,7 @@ Reference guides for Suno AI music generation.
 
 | Task | Start Here |
 |------|-----------|
-| Writing a style prompt from scratch | [V5 Best Practices](v5-best-practices.md) |
+| Writing a style prompt from scratch | [V5 Best Practices](best-practices.md) |
 | Checking lyrics for mispronunciation risks | [Pronunciation Guide](pronunciation-guide.md) |
 | Adding section markers (`[Verse]`, `[Chorus]`, etc.) | [Structure Tags](structure-tags.md) |
 | Controlling vocal style or vocal effects | [Voice Tags](voice-tags.md) |

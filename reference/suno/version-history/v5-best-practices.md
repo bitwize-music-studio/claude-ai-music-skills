@@ -1,9 +1,11 @@
-# Suno V5 / V5.5 Best Practices
+# Suno V5 / V5.5 Best Practices (archived)
+
+> **Archived.** Suno retired v5.5, v5 and v4.5 on 2026-09-09; new generations run on the v6 family only. This file is kept verbatim so older Generation Logs and track files can be read. Current guidance: [best-practices.md](../best-practices.md) and the model catalog [models.md](../models.md). Migration notes: [v6-changes.md](v6-changes.md).
 
 Comprehensive guide for getting the best results with Suno V5 and V5.5.
 
 > **Related skills**: `/bitwize-music:suno-engineer` (interactive prompting), `/bitwize-music:pronunciation-specialist` (phonetic review)
-> **Related docs**: [pronunciation-guide.md](pronunciation-guide.md), [structure-tags.md](structure-tags.md), [voice-tags.md](voice-tags.md), [tips-and-tricks.md](tips-and-tricks.md)
+> **Related docs**: [pronunciation-guide.md](../pronunciation-guide.md), [structure-tags.md](../structure-tags.md), [voice-tags.md](../voice-tags.md), [tips-and-tricks.md](../tips-and-tricks.md)
 
 ---
 
@@ -416,7 +418,7 @@ V5 includes sliders in the generation interface that affect output:
 - High Weirdness + specific genre tag = interesting results within a genre
 - Low Style Influence is useful when you want the AI to surprise you
 
-> **Deep dive**: [creative-sliders.md](creative-sliders.md) — per-slider behavior, genre starting ranges, interaction effects, and when to move a slider vs. rewrite the prompt.
+> **Deep dive**: [creative-sliders.md](../creative-sliders.md) — per-slider behavior, genre starting ranges, interaction effects, and when to move a slider vs. rewrite the prompt.
 
 ---
 

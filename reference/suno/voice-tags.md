@@ -2,7 +2,7 @@
 
 Complete reference for vocal manipulation tags in Suno.
 
-> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (see [v5-best-practices.md](v5-best-practices.md#personas)).
+> **Note**: Many voice tags are hit-or-miss. A reliable strategy is to upload a vocal sample from Splice, then use Extend/Cover features with voice tags to manipulate it. For album-wide vocal consistency, use **Personas** (see [best-practices.md](best-practices.md#personas)).
 
 ## V5 Voice Gender Selector
 
@@ -69,12 +69,12 @@ Style Box prose describing how the vocal is processed (not bracket tags — comm
 | `Reverb` / `spacious reverb` | Echoing, roomy sound — ballads, ambient |
 | `Delay` / `slapback delay` | Repeated echoes — dub, experimental |
 | `Auto-tuned` | Pitch-corrected, modern pop/trap effect |
-| `No autotune` / `natural pitch` | Organic, unprocessed vocal — see [Negative Prompting](v5-best-practices.md#negative-prompting) |
+| `No autotune` / `natural pitch` | Organic, unprocessed vocal — see [Negative Prompting](best-practices.md#negative-prompting) |
 | `Vocoded` / `vocoder` | Robotic, electronic processing |
 | `Distorted vocals` | Gritty, overdriven — rock, industrial |
 | `Filtered` / `telephone effect` | Narrow-band, lo-fi/vintage transition sound |
 
-**Note**: To exclude one of these instead, use the Style Box's negative-prompting pattern (`no autotune`, `no heavy reverb`) rather than a separate field — see [v5-best-practices.md § Negative Prompting](v5-best-practices.md#negative-prompting).
+**Note**: To exclude one of these instead, use the Style Box's negative-prompting pattern (`no autotune`, `no heavy reverb`) rather than a separate field — see [best-practices.md § Negative Prompting](best-practices.md#negative-prompting).
 
 ## Duet / Call-and-Response
 

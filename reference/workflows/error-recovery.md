@@ -117,7 +117,7 @@ This document covers edge cases and recovery procedures for common workflow issu
 **Recovery Steps**:
 1. Document what went wrong in Generation Log
 2. Analyze: Was it the style prompt, lyrics structure, or Suno interpretation?
-3. Revise style prompt (see `/reference/suno/v5-best-practices.md`)
+3. Revise style prompt (see `/reference/suno/best-practices.md`)
 4. Test new prompt on a single track
 5. Once working, regenerate affected tracks
 6. Save both old and new style prompts for reference

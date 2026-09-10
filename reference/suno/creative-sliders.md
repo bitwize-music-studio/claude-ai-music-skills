@@ -3,7 +3,7 @@
 Deep-dive guide to Suno V5's three Creative Sliders — **Weirdness**, **Style Influence**, and **Audio Influence** — including per-slider behavior, genre starting points, interaction effects, and when to reach for a slider vs. rewrite the style prompt.
 
 > **Related skills**: `/bitwize-music:suno-engineer` (constructs prompts and picks slider settings)
-> **Related docs**: [v5-best-practices.md](v5-best-practices.md#creative-sliders) (this file expands the brief Creative Sliders table there), [tips-and-tricks.md](tips-and-tricks.md), [genre-list.md](genre-list.md)
+> **Related docs**: [best-practices.md](best-practices.md#creative-sliders) (this file expands the brief Creative Sliders table there), [tips-and-tricks.md](tips-and-tricks.md), [genre-list.md](genre-list.md)
 
 ---
 
@@ -63,13 +63,13 @@ Controls how much a piece of **uploaded reference audio** shapes the output. Thi
 
 **Raise it** when a cover or reworked upload isn't resembling the source enough. **Lower it** when you want more transformation and less of the original bleeding through.
 
-**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](v5-best-practices.md#voices--custom-models).
+**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](best-practices.md#voices--custom-models).
 
 ---
 
 ## Recommended Starting Ranges by Genre
 
-Starting points only — generate, listen, then adjust. Weirdness and Style Influence are always available; Audio Influence applies only to upload/cover workflows. See [Genre-Specific Tips](v5-best-practices.md#genre-specific-tips) for the matching prompt guidance.
+Starting points only — generate, listen, then adjust. Weirdness and Style Influence are always available; Audio Influence applies only to upload/cover workflows. See [Genre-Specific Tips](best-practices.md#genre-specific-tips) for the matching prompt guidance.
 
 | Genre category | Weirdness | Style Influence | Why |
 |----------------|-----------|-----------------|-----|
@@ -82,7 +82,7 @@ Starting points only — generate, listen, then adjust. Weirdness and Style Infl
 | Cinematic / Orchestral | `0.15–0.40` | `0.55–0.75` | Mood and coherence carry the piece. |
 | Jazz / Improv | `0.40–0.65` | `0.40–0.60` | An improvisational feel benefits from deviation. |
 | Ambient / Experimental / IDM | `0.55–0.85` | `0.25–0.50` | The unexpected is the point; loosen the leash. |
-| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known V5 Limitations](v5-best-practices.md#known-v5-limitations); consider testing V4.5). |
+| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known V5 Limitations](best-practices.md#known-v5-limitations); consider testing V4.5). |
 | Documentary / narrative | `0.10–0.30` | `0.55–0.75` | The story carries the track — favor clear vocals and predictable structure so the lyric lands. |
 
 ---
@@ -116,7 +116,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 - The **style prompt** decides *what* the track is — genre, instruments, mood, tempo, vocal identity. A slider can't add a banjo, fix a mispronunciation, or change the tempo.
 - The **sliders** decide *how strictly* Suno commits to that prompt and *how far* it may wander. They're fine-tuning, not a rescue for a vague or wrong prompt.
 
-**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt focused — every descriptor doing distinct work; a bloated synonym-pile won't be rescued by sliders either; see [Keep It Simple](v5-best-practices.md#prompt-construction).)
+**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt focused — every descriptor doing distinct work; a bloated synonym-pile won't be rescued by sliders either; see [Keep It Simple](best-practices.md#prompt-construction).)
 
 **Adjust a slider when** the prompt is already right but the *interpretation* is off:
 
@@ -131,7 +131,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 | Cover doesn't resemble the source | Raise Audio Influence |
 | Cover too close, want more transformation | Lower Audio Influence and/or raise Weirdness |
 
-**Golden rule — change one thing at a time.** Adjusting a slider *and* rewriting the prompt in the same pass makes it impossible to know which move helped (this mirrors the "adjust one element at a time" advice in [Iteration Tips](v5-best-practices.md#iteration-tips)).
+**Golden rule — change one thing at a time.** Adjusting a slider *and* rewriting the prompt in the same pass makes it impossible to know which move helped (this mirrors the "adjust one element at a time" advice in [Iteration Tips](best-practices.md#iteration-tips)).
 
 ---
 
@@ -157,7 +157,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 
 ## See Also
 
-- **`/reference/suno/v5-best-practices.md`** — Full V5 prompting guide; the [Creative Sliders](v5-best-practices.md#creative-sliders) section this file expands, plus [Genre-Specific Tips](v5-best-practices.md#genre-specific-tips) and [Known V5 Limitations](v5-best-practices.md#known-v5-limitations)
+- **`/reference/suno/best-practices.md`** — Full V5 prompting guide; the [Creative Sliders](best-practices.md#creative-sliders) section this file expands, plus [Genre-Specific Tips](best-practices.md#genre-specific-tips) and [Known V5 Limitations](best-practices.md#known-v5-limitations)
 - **`/reference/suno/tips-and-tricks.md`** — Operational troubleshooting; Personas and Style Influence interaction
 - **`/reference/suno/genre-list.md`** — 500+ genre tags to pin down the genre before tuning sliders
 - **`/reference/suno/README.md`** — API parameter table (`styleWeight`, `weirdnessConstraint`)

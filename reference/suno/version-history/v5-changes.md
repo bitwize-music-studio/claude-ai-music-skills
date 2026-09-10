@@ -283,7 +283,7 @@ Style: "Female vocalist, warm, intimate, clear storytelling. Acoustic folk, fing
 ## Resources
 
 ### V5-Specific Documentation
-- [V5 Best Practices](../v5-best-practices.md) - Complete V5 prompting guide
+- [V5 Best Practices](v5-best-practices.md) - Complete V5 prompting guide
 - [Pronunciation Guide](../pronunciation-guide.md) - Handle tricky words in V5
 - [Tips and Tricks](../tips-and-tricks.md) - Operational guidance for V5
 

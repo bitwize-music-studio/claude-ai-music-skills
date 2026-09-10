@@ -1,6 +1,6 @@
 # Suno Tips & Tricks
 
-Operational techniques and troubleshooting for Suno. For prompting guidance, see [v5-best-practices.md](v5-best-practices.md).
+Operational techniques and troubleshooting for Suno. For prompting guidance, see [best-practices.md](best-practices.md).
 
 ---
 
@@ -29,7 +29,7 @@ Operational techniques and troubleshooting for Suno. For prompting guidance, see
 **Fix:**
 1. Replace the age adjective with a specific vocal range: `alto`, `contralto`, `low register` (female) or `baritone`, `bass-baritone` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that connote maturity/experience rather than youth: `smoky`, `weathered`, `resonant`, `gravelly` — avoid `breathy`, `whispered`, `delicate`, `intimate` if you want an older-sounding voice, since those skew young in Suno's training data
-3. Add an explicit exclude: `no youthful or breathy vocals` appended to the Style Box (see [Negative Prompting](v5-best-practices.md#negative-prompting) — Suno excludes via "no X" phrasing in the prompt text, not a separate bare-terms field)
+3. Add an explicit exclude: `no youthful or breathy vocals` appended to the Style Box (see [Negative Prompting](best-practices.md#negative-prompting) — Suno excludes via "no X" phrasing in the prompt text, not a separate bare-terms field)
 4. Still expect 2–3 regenerations — vocal-age control is inconsistent even with well-chosen tags, this narrows the odds rather than guaranteeing the result
 
 **Example fix:**
@@ -54,7 +54,7 @@ If all of the above still fails, the underlying genre/instrumentation combo may 
 **Fix:** Same principle as the age issue — replace or supplement emotion/character words with concrete vocal range and texture tags:
 1. Add a specific vocal range: `mezzo-soprano`, `alto`, `contralto` (female) or `baritone`, `tenor` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that are actually audible qualities, not moods: `gritty`, `raspy`, `rasp on the belted notes`, `raw chest voice`, `commanding`, `weathered` — these describe grain and register, which Suno can render; "defiant" and "powerful" describe intent, which it can't
-3. Add an explicit exclude: `no generic or polished studio pop vocal` appended to the Style Box (see [Negative Prompting](v5-best-practices.md#negative-prompting))
+3. Add an explicit exclude: `no generic or polished studio pop vocal` appended to the Style Box (see [Negative Prompting](best-practices.md#negative-prompting))
 4. Keep one or two emotion words if they help set the performance arc (e.g. "controlled and low in the verses, breaking open into a full-throated belt on the chorus") — the fix isn't to strip emotion language entirely, it's to make sure concrete texture/range tags are doing the actual work
 
 **Example fix:**
@@ -195,7 +195,7 @@ V5.5 (March 26, 2026) adds three personalization features. None of them change p
 - **Custom Models** (Pro/Premier, up to 3/account): fine-tune a private V5.5 on ≥6 of your own tracks. Build takes 2–5 minutes. Drop generic production language when prompting — the model encodes your aesthetic.
 - **My Taste** (all tiers, free included): passive background learning that shapes the style autogenerate feature. Not prompt-facing.
 
-See [v5-best-practices.md](v5-best-practices.md#voices--custom-models) for the full breakdown.
+See [best-practices.md](best-practices.md#voices--custom-models) for the full breakdown.
 
 ---
 
@@ -240,7 +240,7 @@ Edit individual sections without regenerating the entire track:
 - Keep total extensions to 2–3 times max per song to avoid quality degradation
 - Section rewrite preserves the role/intent while changing content
 
-See [v5-best-practices.md](v5-best-practices.md) for the full Song Editor workflow.
+See [best-practices.md](best-practices.md) for the full Song Editor workflow.
 
 ---
 

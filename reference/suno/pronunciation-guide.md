@@ -3,7 +3,7 @@
 Suno's text-to-speech engine can mispronounce words, especially homographs (same spelling, different pronunciation) and technical terms. This guide helps identify problem words and provides solutions.
 
 > **Related skill**: `/bitwize-music:pronunciation-specialist` (automated scanning for pronunciation risks)
-> **Related docs**: [v5-best-practices.md](v5-best-practices.md)
+> **Related docs**: [best-practices.md](best-practices.md)
 
 ## Why This Matters
 
@@ -447,7 +447,7 @@ When in doubt:
 
 ## See Also
 
-- **`/reference/suno/v5-best-practices.md`** - Overall Suno V5 prompting guide, style box construction
+- **`/reference/suno/best-practices.md`** - Overall Suno V5 prompting guide, style box construction
 - **`/reference/suno/structure-tags.md`** - Section tags for organizing lyrics ([Verse], [Chorus], etc.)
 - **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and quality standards
 - **`/skills/pronunciation-specialist/SKILL.md`** - Detailed pronunciation specialist skill documentation
