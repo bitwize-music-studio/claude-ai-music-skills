@@ -1,0 +1,51 @@
+# Suno V6 defaults for Claude AI Music Skills
+# Use this file as the policy source for V6-related skills.
+
+suno_v6:
+  default_model: v6
+  output_language: en
+  revision_log: true
+
+  model_selection:
+    v6_mini:
+      use_when:
+        - Rapid ideation
+        - Testing hooks, moods, BPMs, and genre combinations
+        - Generating disposable draft variations
+    v6:
+      use_when:
+        - Creating final release candidates
+        - Producing controlled long-form YouTube tracks
+        - A detailed brief must be followed closely
+    v6_wild:
+      use_when:
+        - Deliberately exploring unusual genre combinations
+        - Searching for a distinctive sound-design direction
+        - Creating exploratory variants before a final V6 pass
+
+  generation_requirements:
+    require_target_use_case: true
+    require_genre_and_subgenre: true
+    require_tempo_or_tempo_feel: true
+    require_arrangement_direction: true
+    require_instrument_palette: true
+    require_negative_constraints: true
+    require_originality_clause: true
+    prohibit_named_artist_imitation: true
+
+  edit_requirements:
+    require_target_section: true
+    require_single_primary_change: true
+    require_preservation_statement: true
+    preserve_best_versions: true
+
+  rights_policy:
+    allowed_sources:
+      - User-owned audio
+      - Properly licensed audio
+      - Royalty-cleared audio
+      - User-created Suno outputs
+    prohibited_requests:
+      - Reconstructing copyrighted songs
+      - Imitating named artists
+      - Using unlicensed commercial recordings for remixes or mashups
