@@ -15,7 +15,7 @@ Map your genre names to Suno-specific genre tags:
 
 Applied to all prompts unless overridden:
 
-- Model: V5
+- Model: v6
 - Always include in style: atmospheric, polished production
 - Default vocal style:
 

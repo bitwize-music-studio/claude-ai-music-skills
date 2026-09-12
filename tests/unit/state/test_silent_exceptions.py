@@ -41,10 +41,10 @@ if str(PROJECT_ROOT) not in sys.path:
 # ---------------------------------------------------------------------------
 
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     class _FakeFastMCP:
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 

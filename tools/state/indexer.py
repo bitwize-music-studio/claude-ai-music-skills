@@ -108,6 +108,29 @@ LOCK_FILE = CACHE_DIR / "state.lock"
 
 CONFIG_FILE = CONFIG_PATH
 
+# Track statuses that count toward an album's tracks_completed.
+_COMPLETED_TRACK_STATUSES = frozenset({'Final', 'Generated'})
+
+
+def _count_completed_tracks(tracks: dict[str, dict[str, Any]]) -> int:
+    """Count tracks whose status counts as completed.
+
+    Single source of truth for ``tracks_completed``, which
+    reference/state-schema.md defines as "Number of tracks with completed
+    status". It is always derived from the track files, never from the album
+    README's ``## Tracklist`` table: that table is a hand-maintained summary,
+    and ``update_track_field`` rewrites a track file without touching it, so
+    the two drift the moment a track's status changes. Deriving the count in
+    one place keeps the full-rebuild and incremental paths from disagreeing —
+    previously a rebuild reinstated the README's stale number and silently
+    regressed a count the incremental path had gotten right (#523).
+    """
+    return sum(
+        1 for t in tracks.values()
+        if t.get('status') in _COMPLETED_TRACK_STATUSES
+    )
+
+
 def _read_plugin_version(plugin_root: Path) -> str | None:
     """Read plugin version from .claude-plugin/plugin.json.
 
@@ -418,7 +441,7 @@ def scan_albums(
                 'mastering': album_data.get('mastering') or {},
                 'release_date': album_data.get('release_date'),
                 'track_count': album_data.get('track_count', len(tracks)),
-                'tracks_completed': album_data.get('tracks_completed', 0),
+                'tracks_completed': _count_completed_tracks(tracks),
                 'streaming_urls': album_data.get('streaming_urls', {}),
                 'readme_mtime': readme_mtime,
                 'tracks': tracks,
@@ -488,6 +511,7 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
             'explicit': track_data.get('explicit', False),
             'has_suno_link': track_data.get('has_suno_link', False),
             'sources_verified': track_data.get('sources_verified', 'N/A'),
+            'genre': track_data.get('genre', ''),
             'mtime': track_mtime,
         }
 
@@ -667,7 +691,14 @@ def incremental_update(
     # would crash the .get() lookups below — hand back None so the caller
     # falls back to a full rebuild, the same contract as migrate_state
     # (#393 family).
-    for section_key in ('config', 'albums'):
+    #
+    # Every section this function reaches into with .get() must be listed
+    # here. 'ideas' and 'skills' were missing, so a non-mapping value in
+    # either raised AttributeError straight past cmd_update's `is None`
+    # fallback and aborted the CLI with a traceback — the exact failure this
+    # guard exists to prevent. Both are re-derived from disk on a rebuild, so
+    # falling back loses nothing (#525).
+    for section_key in ('config', 'albums', 'ideas', 'skills'):
         section_value = existing_state.get(section_key, {})
         if not isinstance(section_value, dict):
             logger.warning(
@@ -799,7 +830,7 @@ def incremental_update(
                     'mastering': album_data.get('mastering') or {},
                     'release_date': album_data.get('release_date'),
                     'track_count': album_data.get('track_count', len(tracks)),
-                    'tracks_completed': album_data.get('tracks_completed', 0),
+                    'tracks_completed': _count_completed_tracks(tracks),
                     'streaming_urls': album_data.get('streaming_urls', {}),
                     'readme_mtime': readme_mtime,
                     'tracks': tracks,
@@ -905,6 +936,7 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
                 'explicit': track_data.get('explicit', False),
                 'has_suno_link': track_data.get('has_suno_link', False),
                 'sources_verified': track_data.get('sources_verified', 'N/A'),
+                'genre': track_data.get('genre', ''),
                 'mtime': current_mtime,
             }
 
@@ -916,11 +948,7 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
     album['tracks'] = existing_tracks
 
     # Recompute completed count
-    completed_statuses = {'Final', 'Generated'}
-    album['tracks_completed'] = sum(
-        1 for t in existing_tracks.values()
-        if t.get('status') in completed_statuses
-    )
+    album['tracks_completed'] = _count_completed_tracks(existing_tracks)
 
 
 def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT_SECONDS) -> None:
@@ -955,7 +983,14 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
                 f"Lock file: {LOCK_FILE}"
             )
 
-        time.sleep(min(wait, deadline - time.monotonic()))
+        # max(0.0, ...) is not defensive padding: the guard above and this line
+        # read the clock separately, so the deadline can pass in between (a
+        # descheduled process, a GC pause, a loaded runner). The remaining
+        # budget is then negative and time.sleep() rejects it with ValueError —
+        # which would escape read_state/write_state as a bug report instead of
+        # the TimeoutError every caller is written to handle. Clamping to 0
+        # makes the iteration a no-op and lets the next guard raise properly.
+        time.sleep(max(0.0, min(wait, deadline - time.monotonic())))
         wait = min(wait * 2, 1.0)  # Cap at 1 second
 
 

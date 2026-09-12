@@ -77,6 +77,7 @@ Map of album slug (string) → album data object.
 | `explicit` | boolean | Whether track contains explicit content |
 | `has_suno_link` | boolean | Whether a Suno generation link exists |
 | `sources_verified` | string | Verification status: `"N/A"`, `"Pending"`, or `"Verified (DATE)"` |
+| `genre` | string | Track's own genre from frontmatter `genre:`, or `""` when it declares none. A musical descriptor, not a path segment — unlike the album's `genre`, nothing resolves a directory from it. Consumed by `get_lyrics_stats` to pick the word-count target per track, falling back to the album's genre then the default. |
 | `mtime` | float | Last modification time of track file |
 
 ### Valid Track Statuses

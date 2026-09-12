@@ -251,6 +251,12 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     tracklist = _parse_tracklist_table(text)
     result['tracklist'] = tracklist
 
+    # What the README's hand-maintained tracklist table CLAIMS is complete.
+    # This is not the album's tracks_completed and must not be used as it:
+    # the table lags the track files (update_track_field rewrites a track file
+    # without touching it), so feeding this into state made a full rebuild
+    # regress a count the incremental path had right. The state field is
+    # derived from the track files by indexer._count_completed_tracks (#523).
     completed_statuses = {'Final', 'Generated'}
     result['tracks_completed'] = sum(
         1 for t in tracklist if t.get('status') in completed_statuses
@@ -357,6 +363,7 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     Extracts:
         - Track Details table (status, explicit, suno link, sources verified)
         - Title from heading or table
+        - Optional frontmatter genre (overrides the album's for this track)
 
     Args:
         path: Path to track .md file
@@ -406,6 +413,13 @@ def parse_track_file(path: Path) -> dict[str, Any]:
         result['has_suno_link'] = True
     else:
         result['has_suno_link'] = False
+
+    # Genre from frontmatter (optional). Absent on most tracks — the album's
+    # genre is the fallback. Set it per track when an album deliberately spans
+    # several, so the word-count target follows the track rather than the album.
+    fm_genre = fm.get('genre', '')
+    if fm_genre and str(fm_genre).strip():
+        result['genre'] = str(fm_genre).strip()
 
     # Suno URL from frontmatter (not in table)
     fm_suno_url = fm.get('suno_url', '')

@@ -7,7 +7,8 @@ import pytest
 pytestmark = pytest.mark.plugin
 
 REQUIRED_SUNO_REFS = [
-    'v5-best-practices.md',
+    'best-practices.md',
+    'models.md',
     'pronunciation-guide.md',
     'tips-and-tricks.md',
     'structure-tags.md',

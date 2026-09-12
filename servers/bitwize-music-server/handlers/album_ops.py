@@ -14,11 +14,14 @@ from handlers._shared import (
     _SECTION_NAMES,
     STATUS_UNKNOWN,
     TRACK_COMPLETED_STATUSES,
+    _album_dir,
+    _albums_dir,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
     _find_slug_dirs,
     _find_wav_source_dir,
+    _genre_dir,
     _get_valid_genres,
     _is_path_confined,
     _normalize_slug,
@@ -202,7 +205,18 @@ async def validate_album_structure(
     artist = config.get("artist_name", "")
     album_path = album.get("path", "")
     genre = album.get("genre", "")
-    audio_path = str(Path(audio_root) / "artists" / artist / "albums" / genre / normalized)
+    # confine=False: an album's audio directory is allowed to be a symlink
+    # pointing outside audio_root (test_symlinked_audio_dir_passes). This is a
+    # read-only existence check, and the lexical traversal guard still applies.
+    #
+    # Caught rather than raised: this handler returns a JSON report, and a raise
+    # would discard the checks already accumulated.
+    try:
+        audio_path = str(_album_dir(
+            audio_root, artist=artist, genre=genre, album=normalized, confine=False,
+        ))
+    except ValueError as exc:
+        return _safe_json({"error": str(exc)})
 
     passed = 0
     failed = 0
@@ -375,7 +389,7 @@ async def create_album_structure(
                     "generation.additional_genres in config.",
         })
 
-    albums_base = Path(content_root) / "artists" / artist / "albums" / genre_slug
+    albums_base = _genre_dir(content_root, artist=artist, genre=genre_slug)
     # Defense-in-depth: verify slug stays within the genre directory
     if not _is_path_confined(albums_base, normalized):
         return _safe_json({"error": "Invalid album slug: would escape album directory"})
@@ -386,7 +400,7 @@ async def create_album_structure(
 
     # Album slugs are globally unique across genres (#392) — sweep the
     # filesystem (cache may be stale) for the slug under every genre.
-    albums_root = Path(content_root) / "artists" / artist / "albums"
+    albums_root = _albums_dir(content_root, artist=artist)
     collisions = _find_slug_dirs(albums_root, normalized)
     if collisions:
         existing = collisions[0]

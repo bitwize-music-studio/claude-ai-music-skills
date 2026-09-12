@@ -3,6 +3,11 @@ title: "[Track Title]"
 track_number: 0
 instrumental: false
 explicit: false
+# Optional. Set only when this track's genre differs from the album's — it gives
+# the track its own lyrics word-count target (e.g. "hip-hop" on a pop album).
+# Omit and the track uses the album's. A musical descriptor, not a filing
+# location: unlike the album's genre it never forms part of a path.
+# genre: ""
 suno_url: ""
 sheet_music:
   pdf: ""
@@ -145,12 +150,12 @@ Space is not a constraint. Thoroughness is the priority.]
 
 <!-- SERVICE: suno -->
 <!-- COVER TRACKS: Include this block ONLY if this track is a Suno Cover (reimagines an existing
-     song or uploaded audio in a new style) and/or is built on a saved Persona (Pro/Premier).
-     Delete the entire block for standard original-generation tracks — it is optional and does
-     not affect the normal writing flow. Full workflow and decision guidance:
+     song or uploaded audio in a new style) and/or uses a saved Voice (Suno renamed Personas to
+     Voices; Pro/Premier). Delete the entire block for standard original-generation tracks — it is
+     optional and does not affect the normal writing flow. Full workflow and decision guidance:
      reference/workflows/covers-and-personas.md -->
 
-## Cover / Persona Setup
+## Cover / Voice Setup
 
 ### Original Song Reference
 
@@ -164,19 +169,17 @@ Space is not a constraint. Thoroughness is the priority.]
 | **Reimagines** | [The new target genre/style the Cover shifts it into] |
 | **Audio Influence** | [Slider setting — higher hews closer to the source; shown only when audio is uploaded] |
 
-### Persona Selection
+### Voice Selection
 
-*The saved vocal identity applied to this track. Delete this subsection if no Persona is used.*
+*The saved Voice applied to this track. Delete this subsection if no Voice is used. Upgrade older Voices with "Upgrade Voice to v6" before generating.*
 
 | Attribute | Detail |
 |-----------|--------|
-| **Persona** | [Saved Persona name, or —] |
+| **Voice** | [Saved Voice name, or —] |
 | **Vocal identity** | [What it locks in, e.g. male baritone, gravelly, folk storyteller] |
-| **Saved from** | [The generation this Persona was captured from] |
+| **Saved from** | [The generation or recording this Voice was captured from] |
 
-When a Persona is applied, keep the Style Box below simple (one or two genres) and drop detailed
-vocal descriptors — the Persona carries the voice. Personas run dominant in the mix; if the result
-sounds overprocessed, simplify the Style Box or lower Style Influence.
+When a Voice is applied, keep the Style Box below simple (one or two genres) and drop detailed vocal descriptors — the Voice carries the voice. Set **Max Mode On** (Suno's recommendation for Voices) and keep Audio Influence fairly high. Voices cannot be used on instrumental tracks.
 
 ### Cover-Specific Style Guidance
 
@@ -201,11 +204,30 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
 ```
 
 ### Exclude Styles
-*Negative prompts — append to Style Box when pasting into Suno (e.g. "no drums, no electric guitar"):*
+*Paste into Suno's **Exclude Styles** field (Advanced Mode → More Options), not the Style Box. Bare elements, comma-separated — `drums, electric guitar` — never "no drums":*
 
 ```
 [exclusions, if any]
 ```
+
+### Generation Settings
+*Set these in Suno's Advanced Mode → More Options. Keep Variety Off so the Style Box above is used verbatim.*
+
+<!-- Allowed values — Model: v6 | v6-wild | v6-mini | Custom: <name>  (catalog: reference/suno/models.md)
+     Variety: Off | Normal | High | Extra | Max   (Off = "Exact style"; anything higher rewrites the Style Box)
+     Max Mode: On | Off   (2× credits; On for tracks over ~2:00, covers, Voices)
+     Vocal Gender: Male | Female | —   Duration: Auto | m:ss (10 s–6:00)   Weirdness / Style Influence: 0–100
+     Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached). -->
+
+| Setting | Value |
+|---------|-------|
+| **Model** | v6 |
+| **Variety** | Off |
+| **Max Mode** | On |
+| **Vocal Gender** | — |
+| **Duration** | Auto |
+| **Weirdness** | 50 |
+| **Style Influence** | 50 |
 
 ### Lyrics Box
 *Copy this into Suno's "Lyrics" field:*
@@ -259,7 +281,7 @@ Blank lines between sections only]
 - [Vocal delivery notes]
 - [Sample ideas]
 <!-- SERVICE: suno -->
-- [V5 optimization tips if applicable]
+- [Model-specific tips if applicable — see reference/suno/models.md]
 <!-- /SERVICE: suno -->
 
 <!-- VOCAL TRACKS ONLY: Remove these sections for instrumental tracks -->

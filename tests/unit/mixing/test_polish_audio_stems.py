@@ -232,6 +232,53 @@ class TestPolishAudioAnalyzerCoupling:
         assert entry["applied"] == pytest.approx(0.0)
         assert entry["reason"] == "already_dark"
 
+    def test_polish_audio_surfaces_blocked_recommendations(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """#553: a recommendation the polish whitelist drops is reported
+        under summary.blocked_recommendations rather than vanishing."""
+        import asyncio
+        import json
+
+        self._setup_audio_dir(tmp_path, monkeypatch)
+        from handlers.processing import mixing as mixing_mod
+
+        pre_analyzed = {
+            "tracks": [
+                {
+                    "track": "01-dark",
+                    "stems": {
+                        "vocals": {
+                            "filename": "vocals.wav",
+                            "issues": ["elevated_noise_floor"],
+                            "recommendations": {"noise_reduction": 0.8},
+                        },
+                    },
+                    "issues": ["elevated_noise_floor"],
+                },
+            ],
+            "album_summary": {
+                "tracks_analyzed": 1,
+                "common_issues": ["elevated_noise_floor"],
+                "source_mode": "stems",
+            },
+        }
+
+        result_json = asyncio.run(mixing_mod.polish_audio(
+            album_slug="test-album", genre="electronic",
+            use_stems=True, dry_run=True,
+            analyzer_results=pre_analyzed,
+        ))
+        result = json.loads(result_json)
+
+        assert result["summary"]["overrides_applied"] == []
+        blocked = result["summary"]["blocked_recommendations"]
+        assert len(blocked) == 1, blocked
+        assert blocked[0]["track"] == "01-dark"
+        assert blocked[0]["stem"] == "vocals"
+        assert blocked[0]["parameter"] == "noise_reduction"
+        assert "mix-presets.yaml" in blocked[0]["reason"]
+
     def test_polish_album_surfaces_overrides_in_stage_output(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:

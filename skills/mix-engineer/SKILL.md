@@ -58,10 +58,17 @@ You are an audio mix polish specialist for AI-generated music. You take raw Suno
 ### Stems First
 Suno's `split_stem` provides up to 12 separate stem WAVs (vocals, backing vocals, drums, bass, guitar, keyboard, strings, brass, woodwinds, percussion, synth, other/FX). Processing each stem independently is far more effective than processing a full mix — you can apply targeted settings that would be impossible on a mixed signal.
 
-> Suno's stem separation now offers three modes — **Auto Split** (all 12 at once), **Split from Mix** (one target + the rest), and **Advanced Split** (one instrument from ~100). For a single clean stem, Split from Mix often beats pulling all 12. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md` § Stem Extraction.
+> Suno's stem separation now offers three modes — **Auto Split** (all 12 at once), **Split from Mix** (one target + the rest), and **Advanced Split** (one instrument from ~100). For a single clean stem, Split from Mix often beats pulling all 12. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/best-practices.md` § Stem Extraction.
+
+**Stems are for balance, not surgery.** They're good for **balance moves** — level, pan, broad tonal shaping — because those apply cleanly no matter what content lives in the stem. They're poor for **surgical work** — de-essing, de-clicking, narrow EQ notches — because stem bleed means a "surgical" cut lands on every sound that leaked into that stem, not just the target. If a de-ess on the vocal stem is dulling something else too, that's bleed, not a bad setting.
+
+### Solo the Named Element First
+When a complaint names a specific element — "the vocals sound terrible," "the drums are harsh" — solo that stem first and compare it raw vs. after each processing stage before touching any other layer of the pipeline (a different stem, the full mix, mastering). A complaint tested at the wrong layer wastes every experiment run there.
 
 ### Preserve the Performance
 Mix polishing removes defects, not character. Be conservative with processing. Over-processing sounds worse than under-processing.
+
+Polish is tonal and dynamic clean-up only. Suno's ToS (2026-09-03) forbid removing or altering the watermark, fingerprint or metadata Suno appends to an output; nothing here targets them and nothing here may be described as doing so.
 
 ### Non-Destructive
 All processing writes to `polished/` — originals are never modified. The user can always go back.
@@ -90,6 +97,8 @@ Check for custom mix presets:
 genres:
   dark-electronic:
     vocals:
+      # noise_reduction only helps imported/recorded audio with a real
+      # noise floor — leave at 0 for Suno-synthesized stems (see Stems First)
       noise_reduction: 0.8
       high_tame_db: -3.0
     bass:
@@ -148,6 +157,16 @@ Before polishing, verify:
 analyze_mix_issues(album_slug)
 ```
 
+> **Keep the genre argument consistent across a run.** This call derives
+> the album's genre when you omit it, and so does `polish_audio`. Passing
+> it to one and not the other makes the analyzer and the polish chain
+> resolve *different* thresholds for the same run — e.g.
+> `click_peak_ratio` 6.0 on one side and 15.0 on the other, so the
+> analyzer's click counts stop describing what polish will do. Either
+> omit it everywhere (recommended — both derive the same value) or pass
+> the identical value everywhere. `album_summary.genre` and
+> `album_summary.genre_source` report what this call resolved.
+
 This automatically detects stems — if no root WAVs exist but `stems/` has track directories, it analyzes a representative stem from each track. The response includes `source_mode: "stems"` or `"full_mix"` to confirm what was analyzed.
 
 **What to check:**
@@ -157,23 +176,44 @@ This automatically detects stems — if no root WAVs exist but `stems/` has trac
 - Click/pop count
 - Sub-bass rumble
 
+**Stereo width on v6 renders**: two independent launch-week testers reported Suno v6 output narrower than expected. Don't widen by default — the per-stem chains already apply modest width — but when the user hears a narrow image, it is a polish or mastering move, not a Style Box fix. Run `mono_fold_check` after any widening so the fold-down stays clean.
+
 **Report findings** to user with plain-English explanations:
-- "Track 03 has elevated noise floor — noise reduction recommended"
+- "Track 03 has elevated noise floor — polish will NOT act on this; noise reduction is off by default because Suno stems are synthesized. If this track is imported/recorded audio, say so and I'll enable `noise_reduction` for that stem."
 - "Most tracks show muddy low-mids — will apply 200 Hz cut"
+
+**The analyzer detects; it does not decide.** `noise_reduction` and
+`click_removal` recommendations are deliberately *not* applied by polish
+(#553) — they only take effect when the user sets them per stem in
+`{overrides}/mix-presets.yaml`. Polish reports every dropped
+recommendation under `summary.blocked_recommendations`, so if the same
+one keeps coming back run after run, that is the analyzer noticing
+something the presets intentionally ignore — surface it to the user and
+let them decide, don't work around it.
 
 ### Step 3: Choose Settings
 
 **Stems are always preferred.** `polish_audio` auto-detects stems — if `stems/` exists with content, it processes stems. If not, it falls back to full-mix mode automatically. You do NOT need to pass `use_stems` manually.
 
-**Default (auto-detects stems, recommended for most albums):**
+**Default (auto-detects stems and genre, recommended for most albums):**
 ```
 polish_audio(album_slug)
 ```
 
-**Genre-specific (still auto-detects stems):**
+Since #556 an omitted `genre` is **derived from the album's own genre**
+(the one recorded in state, which is also its directory name), so
+genre-scoped overrides apply without passing anything. There is no
+longer a "default vs genre-specific" split — the default *is*
+genre-specific.
+
+**Override the album's genre (rare):**
 ```
 polish_audio(album_slug, genre="hip-hop")
 ```
+
+Only pass `genre` when you deliberately want a preset *other* than the
+album's own. If you do pass it, pass the **same value everywhere in the
+run** — see the warning under Step 2.
 
 **Force full-mix mode** (only use when you explicitly want to skip available stems):
 ```
@@ -193,17 +233,21 @@ Shows what processing would be applied without writing files.
 ### Step 5: Polish
 
 ```
-polish_audio(album_slug, genre="rock")
+polish_audio(album_slug)
 ```
 
 Creates `polished/` subdirectory with processed files.
+
+The response echoes the genre that was actually used under
+`settings.genre`. Check it against what `analyze_mix_issues` reported —
+they must match.
 
 ### Step 6: Verify
 
 Check polished output:
 - No clipping (peak < 0.99)
 - All samples finite (no NaN/inf)
-- Noise floor reduced vs original
+- Noise floor reduced vs original — only applicable if noise reduction was enabled (imported/recorded audio); off by default for Suno stems
 - No obvious artifacts introduced
 
 ### Step 7: Hand Off to Mastering
@@ -247,20 +291,20 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 ## Per-Stem Processing Chains
 
 ### Vocals (Lead)
-1. **Noise reduction** (strength 0.5) — removes AI hiss and artifacts
+1. **Noise reduction** (off by default) — Suno vocals are synthesized, not recorded, so there's no noise floor to remove; spectral gating would strip consonants and breath instead. Enable per stem only for imported/recorded vocals.
 2. **Presence boost** (+2 dB at 3 kHz) — vocal clarity
 3. **High tame** (-2 dB shelf at 7 kHz) — de-ess sibilance
 4. **Gentle compress** (-15 dB threshold, 2.5:1) — dynamic consistency
 
 ### Backing Vocals
-1. **Noise reduction** (strength 0.5) — same as lead
+1. **Noise reduction** (off by default) — same rationale as lead vocals; enable per stem only for imported/recorded audio
 2. **Presence boost** (+1 dB at 3 kHz) — half of lead's boost, sits behind
 3. **High tame** (-2.5 dB shelf at 7 kHz) — slightly more aggressive de-essing
 4. **Stereo width** (1.3×) — spread behind lead
 5. **Gentle compress** (-14 dB threshold, 3:1, 8ms attack) — tighter than lead
 
 ### Drums
-1. **Click removal** (threshold 6σ) — removes digital clicks/pops
+1. **Click removal** (windowed peak/RMS ratio > `click_peak_ratio`, default 15.0; cubic-spline repair) — removes digital clicks/pops
 2. **Gentle compress** (-12 dB threshold, 2:1, fast 5ms attack) — transient control
 
 ### Bass
@@ -308,7 +352,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 
 ### Percussion
 1. **Highpass** (60 Hz Butterworth) — sub-rumble removal
-2. **Click removal** (threshold 6σ) — digital clicks/pops
+2. **Click removal** (windowed peak/RMS ratio > `click_peak_ratio`, default 15.0; cubic-spline repair) — digital clicks/pops
 3. **Presence boost** (+1 dB at 4 kHz) — highest of all stems (shakers/tambourines)
 4. **High tame** (-1 dB shelf at 10 kHz) — preserve shimmer
 5. **Stereo width** (1.2×) — wider than drums
@@ -322,7 +366,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 5. **Gentle compress** (-16 dB threshold, 2:1, 15ms attack) — light, preserve dynamics
 
 ### Other (catch-all)
-1. **Noise reduction** (strength 0.3) — lighter than vocals
+1. **Noise reduction** (off by default) — same synthesized-audio rationale as vocals; enable per stem only for imported/recorded audio
 2. **Mud cut** (-2 dB at 300 Hz) — low-mid cleanup
 3. **High tame** (-1.5 dB shelf at 8 kHz) — brightness control
 
@@ -333,7 +377,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 ### Before Handoff to Mastering
 - [ ] All stems processed (or full mix if no stems)
 - [ ] No clipping in polished output
-- [ ] Noise floor reduced vs originals
+- [ ] Noise floor reduced vs originals — only if noise reduction was enabled (imported/recorded audio); off by default for Suno stems
 - [ ] No obvious processing artifacts
 - [ ] All samples finite (no NaN/inf corruption)
 - [ ] Polished files written to polished/ subfolder
@@ -344,7 +388,7 @@ master_audio(album_slug, source_subfolder="polished", genre="rock")
 
 ### Don't: Over-process
 **Wrong:** noise_reduction: 0.9 on everything
-**Right:** Use default strengths; increase only when analysis shows elevated noise
+**Right:** Noise reduction defaults to **off (0)** on every stem. Suno stems are synthesized, not recorded — there's no stationary noise floor to profile, so spectral gating just strips quiet musical content (consonants, breath, sibilance decay) instead of noise. Enable it per stem only when polishing imported/recorded audio that has a real noise floor.
 
 ### Don't: Skip analysis
 **Wrong:** `polish_audio(album_slug)` without looking at issues first

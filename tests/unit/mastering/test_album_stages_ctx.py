@@ -22,7 +22,7 @@ def _make_ctx(**kwargs) -> MasterAlbumCtx:
     loop = asyncio.new_event_loop()
     defaults = dict(
         album_slug="test-album", genre="", target_lufs=-14.0,
-        ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+        ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
         source_subfolder="", freeze_signature=False, new_anchor=False,
         loop=loop,
     )

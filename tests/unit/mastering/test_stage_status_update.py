@@ -41,10 +41,10 @@ if str(SERVER_DIR) not in sys.path:
     sys.path.insert(0, str(SERVER_DIR))
 
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     class _FakeFastMCP:
-        def __init__(self, name: str = "") -> None:
+        def __init__(self, name: str = "", **kwargs: object) -> None:
             self.name = name
             self._tools: dict = {}
 
@@ -181,7 +181,7 @@ def _make_ctx(album_slug: str, audio_dir: Path) -> MasterAlbumCtx:
     loop = asyncio.new_event_loop()
     ctx = MasterAlbumCtx(
         album_slug=album_slug, genre="electronic",
-        target_lufs=-14.0, ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+        target_lufs=-14.0, ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
         source_subfolder="", freeze_signature=False, new_anchor=False,
         loop=loop,
     )

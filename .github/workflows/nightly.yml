@@ -25,6 +25,26 @@ concurrency:
   group: nightly
   cancel-in-progress: true
 
+# apt hardening options, defined ONCE per workflow file. Retries + http::Timeout
+# ride out a transient mirror stall; DPkg::Lock::Timeout rides out
+# unattended-upgrades holding the dpkg lock on a freshly booted runner. This
+# lived as a hand-pasted shell assignment inside each apt step across three
+# workflow files, and those copies had already drifted in the flags they were
+# paired with — one `update -qq` and one not, one install with
+# --no-install-recommends and one without.
+#
+# Hoisting is safe here in a way it is NOT for PYTHONUTF8 (see the job-level
+# notes below): APT_OPTS is inert everywhere except an apt command line — a
+# step that never runs apt never expands it, and nothing branches on it —
+# whereas PYTHONUTF8 changes how every Python process decodes text, so hoisting
+# THAT would silently rewrite the behaviour of the jobs that must run without
+# it. The rule is about the variable, not about workflow-level env.
+#
+# The WSL2 job below keeps its own inline copy: workflow env does not cross the
+# WSL boundary.
+env:
+  APT_OPTS: "-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+
 jobs:
   deep-test:
     name: Deep Tests (${{ matrix.os }} / py${{ matrix.python }})
@@ -33,6 +53,14 @@ jobs:
     # Experimental legs (3.12/3.13) prove wheel availability for the
     # scipy/numpy pins ahead of adopting them as a supported floor/ceiling —
     # promote to non-experimental once they've proven stable over time.
+    #
+    # ADVISORY BY DESIGN, and that is the whole point of the flag: an
+    # experimental leg must never page. continue-on-error reports the JOB as
+    # successful, so BOTH failures AND timeouts (a timed-out step is just a
+    # failed step here) are reported to notify-failure as 'success' and can
+    # never open a nightly-failure issue. Their only signal is the "Record leg
+    # outcome in job summary" line further down. Removing continue-on-error is
+    # the deliberate act that promotes a leg to supported and makes it page.
     continue-on-error: ${{ matrix.experimental || false }}
     strategy:
       fail-fast: false
@@ -54,24 +82,39 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: ${{ matrix.python }}
         # No pip cache — a from-scratch install is part of what nightly proves.
 
+    # timeout-minutes + $APT_OPTS (workflow env, top of file): on 2026-08-19 two
+    # ubuntu legs hung inside `apt-get update` with zero output (mirror stall)
+    # and burned the full 90-minute job budget. The step timeout converts that
+    # into a fast, clearly-attributed failure; the apt opts ride out transient
+    # mirror and dpkg-lock contention (unattended-upgrades) on the runner.
+    #
+    # No -qq on `update`, on purpose: -qq suppresses the per-mirror Get:/Hit:
+    # lines, which are the only evidence of WHICH mirror a timeout-killed step
+    # was stalled on. Quiet output is worth less than an attributable hang.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
+      timeout-minutes: 10
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends ffmpeg
+        sudo apt-get $APT_OPTS update
+        sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
 
+    # Same hazard as the apt step above, different package manager: brew and
+    # choco both hit third-party mirrors that can stall with no output, and a
+    # stalled install burns the whole 90-minute job budget. The apt step was
+    # hardened first only because apt is what happened to hang on 2026-08-19.
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
+      timeout-minutes: 10
       run: |
         brew install ffmpeg
 
@@ -79,6 +122,7 @@ jobs:
     # run everywhere; AnthemScore/MuseScore remain WSL-recommended externals.
     - name: Install system dependencies (Windows)
       if: runner.os == 'Windows'
+      timeout-minutes: 10
       run: choco install ffmpeg -y --no-progress
 
     # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
@@ -92,7 +136,11 @@ jobs:
         ffmpeg -version
         ffprobe -version
 
+    # Deliberately uncached (see setup-python above), so every byte comes off
+    # PyPI on every run — the same network-stall class as the apt/brew/choco
+    # steps, and the one that moves the most data.
     - name: Install test dependencies
+      timeout-minutes: 15
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
@@ -107,11 +155,13 @@ jobs:
         python -m pytest tests/ --tb=short -n auto
 
     # Experimental legs run under continue-on-error, which reports the JOB as
-    # successful — so notify-failure's `if: failure()` never fires for them and
-    # a broken 3.12/3.13 leg is invisible unless a human opens the run. Publish
-    # the real step outcome to the run's summary page so every leg is legible
-    # at a glance. `if: always()` is required: a failed step otherwise skips
-    # the rest of the job even under continue-on-error.
+    # successful — so `needs.deep-test.result` reads 'success' and
+    # notify-failure's needs-result gate never fires for them; a broken
+    # 3.12/3.13 leg is invisible unless a human opens the run. Publish the real
+    # step outcome to the run's summary page so every leg is legible at a
+    # glance — for an experimental leg this line is the ONLY signal there is.
+    # `if: always()` is required: a failed step otherwise skips the rest of the
+    # job even under continue-on-error.
     - name: Record leg outcome in job summary
       if: always()
       shell: bash
@@ -141,12 +191,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -224,16 +274,19 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: '3.11'
 
+    # Uncached pip (no `cache: 'pip'` above) — same network-stall class as the
+    # deep-test job's install step.
     - name: Install dependencies
+      timeout-minutes: 15
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
@@ -241,7 +294,14 @@ jobs:
 
     # --with-deps pulls the system libraries chromium needs on Linux; it is a
     # no-op on macOS/Windows.
+    #
+    # The single least-bounded step in the workflow: a ~150MB browser download
+    # from Microsoft's CDN, plus an apt transaction run INSIDE playwright on
+    # Linux that this file cannot pass Acquire::Retries/Timeout options to. A
+    # step timeout is the only lever available here, and without it a CDN or
+    # mirror stall silently eats the job's whole 25-minute budget.
     - name: Install Chromium
+      timeout-minutes: 10
       run: python -m playwright install --with-deps chromium
 
     - name: Run the Chromium smoke test
@@ -255,11 +315,14 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: develop
 
+    # Downloads and registers a full distro image on a cache miss — network
+    # work this file has no other lever over, inside a 45-minute job.
     - name: Set up WSL2 (Ubuntu-24.04)
+      timeout-minutes: 15
       uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
       with:
         # Ubuntu-24.04 ships Python 3.12, which the pinned requirements
@@ -275,12 +338,24 @@ jobs:
     # inside WSL — ffmpeg-gated tests skip via shutil.which fixtures, matching
     # the probe benchmark (the native legs install ffmpeg since #484, but the
     # Windows-side choco install is invisible inside the distro).
+    #
+    # The apt options are spelled out INLINE here rather than read from the
+    # workflow-level APT_OPTS: this script runs inside the WSL distro through
+    # the wsl-bash wrapper, and workflow/job env does not cross that boundary
+    # (same reason PYTHONUTF8 is re-exported below). This is the fifth apt site
+    # in CI and it was the last one still unhardened — a mirror stall here hangs
+    # exactly like the 2026-08-19 ubuntu legs did.
+    #
+    # No step-level timeout on purpose: this one step both installs AND runs the
+    # full suite (~11.5 min), so any cap tight enough to catch an install stall
+    # would kill legitimate test runs. The job's 45-minute cap governs instead.
     - name: Install pinned requirements and run full suite inside WSL2
       shell: wsl-bash {0}
       run: |
         uname -a
-        apt-get update -qq
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv python3-pip
+        APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+        apt-get $APT_OPTS update
+        DEBIAN_FRONTEND=noninteractive apt-get $APT_OPTS install -y --no-install-recommends python3 python3-venv python3-pip
         python3 -m venv /tmp/wsl-venv
         /tmp/wsl-venv/bin/pip install --upgrade pip -q
         /tmp/wsl-venv/bin/pip install -q -r requirements-test.txt -r requirements.txt
@@ -300,12 +375,12 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: ${{ inputs.check-python-floor }}
 
@@ -313,14 +388,34 @@ jobs:
     # install the pins (e.g. dispatch with 3.10). No tests are run — this
     # job exists purely to prove `pip install` succeeds on the floor version.
     - name: Install pinned requirements
+      timeout-minutes: 15
       run: |
         pip install -r requirements.txt -r requirements-test.txt
 
   notify-failure:
     name: Notify on Failure
-    needs: [deep-test, mcp-e2e, wsl2-suite]
-    if: failure()
+    needs: [deep-test, mcp-e2e, wsl2-suite, playwright-smoke]
+    # Checks needs.*.result explicitly ON PURPOSE: a job killed by its
+    # timeout-minutes (e.g. the 2026-08-19 apt-mirror hang) concludes
+    # "cancelled", not "failed" — with bare failure() such a night files no
+    # issue and goes unnoticed.
+    #
+    # `!cancelled()` (which needs the ${{ }} wrapper for the `!`) rather than
+    # always(), and the difference is exactly the two senses of "cancelled":
+    #   - a JOB killed by its own timeout-minutes concludes 'cancelled' without
+    #     the RUN being cancelled, so cancelled() stays false and this gate
+    #     still fires — the hang case keeps paging, which is the point;
+    #   - a RUN-level cancellation (a human hitting cancel, or concurrency
+    #     cancel-in-progress superseding this nightly with a newer one) makes
+    #     cancelled() true and suppresses the notification. Under always()
+    #     those filed a bogus issue — and because the title is the dedupe key,
+    #     that bogus issue then occupied the slot and turned every subsequent
+    #     REAL failure into a comment on a phantom.
+    # Skipped jobs are ignored either way: 'skipped' matches neither string,
+    # so floor-check (and any conditionally-skipped leg) never pages.
+    if: ${{ !cancelled() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       issues: write
 
@@ -328,14 +423,29 @@ jobs:
     - name: Open or update nightly-failure issue
       env:
         GH_TOKEN: ${{ github.token }}
+        # Per-job attribution in the body. The gate fires on 'failure' OR
+        # 'cancelled' across four jobs, so "the nightly failed" alone does not
+        # say which job, nor whether it failed or was killed by its timeout —
+        # the reader had to open the run to find out. Interpolated through env
+        # rather than straight into the script: these are a fixed vocabulary
+        # today, but a needs context in a shell body is the injection shape.
+        JOB_RESULTS: >-
+          deep-test: ${{ needs.deep-test.result }},
+          mcp-e2e: ${{ needs.mcp-e2e.result }},
+          wsl2-suite: ${{ needs.wsl2-suite.result }},
+          playwright-smoke: ${{ needs.playwright-smoke.result }}
       run: |
         # `// empty` keeps $existing blank when no issue matches — a bare
         # `.[0].number` would yield the literal string "null" and route the
         # first-ever failure to `gh issue comment null`.
         existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label nightly-failure --state open --json number -q '.[0].number // empty')
         url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        # "concluded abnormally", not "failed": a 'cancelled' result is a job
+        # killed by its timeout-minutes, which is a hang and not a test failure.
+        body=$(printf 'Nightly run concluded abnormally — one or more jobs reported `failure` or `cancelled` (a job killed by its `timeout-minutes` concludes `cancelled`, not `failure`).\n\nPer-job results: %s\n\nRun: %s\n' "$JOB_RESULTS" "$url")
+        # The title is the dedupe key — keep it stable, put the detail in the body.
         if [ -n "$existing" ]; then
-          gh issue comment "$existing" -R "$GITHUB_REPOSITORY" -b "Nightly failed again: $url"
+          gh issue comment "$existing" -R "$GITHUB_REPOSITORY" -b "$body"
         else
-          gh issue create -R "$GITHUB_REPOSITORY" -t "Nightly deep test failure" -b "Run: $url" -l nightly-failure
+          gh issue create -R "$GITHUB_REPOSITORY" -t "Nightly deep test failure" -b "$body" -l nightly-failure
         fi

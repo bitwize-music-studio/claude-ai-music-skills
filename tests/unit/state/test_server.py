@@ -42,13 +42,13 @@ SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 # Check if the real MCP SDK is available; if not, create a minimal mock.
 _mcp_was_mocked = False
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     _mcp_was_mocked = True
 
     class _FakeFastMCP:
         """Minimal stand-in for FastMCP that records tool registrations."""
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 
@@ -2103,7 +2103,7 @@ class TestListTrackFiles:
 # =============================================================================
 
 # Sample track markdown content for testing
-_SAMPLE_EXCLUDE_CONTENT = "no acoustic guitar, no autotune"
+_SAMPLE_EXCLUDE_CONTENT = "acoustic guitar, autotune"
 
 _SAMPLE_TRACK_MD = """\
 # Test Track
@@ -2139,10 +2139,10 @@ electronic, 120 BPM, energetic, male vocals, synth-driven
 ```
 
 ### Exclude Styles
-*Negative prompts — append to Style Box when pasting into Suno:*
+*Paste into Suno's Exclude Styles field:*
 
 ```
-no acoustic guitar, no autotune
+acoustic guitar, autotune
 ```
 
 ### Lyrics Box
@@ -2522,6 +2522,59 @@ class TestUpdateTrackField:
         assert result["success"] is True
         content = track_file.read_text()
         assert "✅ Verified (2026-02-06)" in content
+
+    _SETTINGS_TRACK_MD = _SAMPLE_TRACK_MD + """
+## Suno Inputs
+
+### Generation Settings
+
+| Setting | Value |
+|---------|-------|
+| **Model** | v6 |
+| **Variety** | Normal |
+| **Max Mode** | Off |
+
+## Generation Log
+
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| — | — | — | — | — | — |
+"""
+
+    def _make_cache_with_settings_file(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        track_file.write_text(self._SETTINGS_TRACK_MD)
+        return mock_cache, track_file
+
+    @pytest.mark.parametrize("field,table_key,value", [
+        ("model", "Model", "v6-wild"),
+        ("variety", "Variety", "Off"),
+        ("max-mode", "Max Mode", "On"),
+        ("max_mode", "Max Mode", "On"),
+    ])
+    def test_update_generation_settings(self, tmp_path, field, table_key, value):
+        mock_cache, track_file = self._make_cache_with_settings_file(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", field, value
+            )))
+        assert result["success"] is True
+        assert result["field"] == table_key
+        content = track_file.read_text()
+        assert f"| **{table_key}** | {value} |" in content
+        # The Generation Log header is a multi-column table and must be untouched
+        assert "| # | Date | Model | Result | Notes | Rating |" in content
+
+    def test_update_generation_setting_without_section_errors(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)  # _SAMPLE_TRACK_MD has no section
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "variety", "Off"
+            )))
+        assert "error" in result
+        assert "Generation Settings" in result["error"]
 
     def test_update_with_prefix_match(self, tmp_path):
         """Track number prefix works for updates too."""
@@ -4699,7 +4752,8 @@ class TestRunPreGenerationGates:
         assert "Lyric Length" in gate_names
         assert "Style Box Descriptor Count" in gate_names
         assert "Performance Cues" in gate_names
-        assert len(gates) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
 
     def test_track_no_file_path(self):
         """Track with no file path gets SKIP for file-dependent gates."""
@@ -4830,8 +4884,9 @@ class TestRunPreGenerationGates:
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-unreadable")))
         assert result["found"] is True
         track = result["tracks"][0]
-        # Should still produce gates (file-dependent ones SKIP or FAIL)
-        assert len(track["gates"]) == 10
+        # Should still produce gates (file-dependent ones SKIP or FAIL).
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(track["gates"]) == 11
 
     @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
@@ -4853,7 +4908,8 @@ class TestRunPreGenerationGates:
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
-            assert len(track["gates"]) == 10
+            # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+            assert len(track["gates"]) == 11
         finally:
             track_file.chmod(0o644)
 
@@ -5782,7 +5838,7 @@ def _skills_state(**overrides):
                 "mtime": 1700000000.0,
             },
             "suno-engineer": {
-                "description": "Constructs technical Suno V5 style prompts.",
+                "description": "Constructs technical Suno style prompts.",
                 "model": "claude-sonnet-4-5-20250929",
                 "model_tier": "sonnet",
                 "user_invocable": True,
@@ -10907,7 +10963,7 @@ class TestFormatForClipboardSuno:
     def test_suno_exclude_styles_empty_when_missing(self, tmp_path):
         """When Exclude Styles section is absent, exclude_styles is empty string."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"
@@ -10941,7 +10997,7 @@ class TestFormatForClipboardSuno:
     def test_all_content_type_omits_exclude_when_empty(self, tmp_path):
         """'all' content_type omits Exclude section when not present."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"
@@ -11023,20 +11079,21 @@ class TestFormatForClipboardSuno:
         payload = json.loads(result["content"])
         assert payload["title"] == "Tëst Träck café"
 
-    def test_style_auto_appends_exclude_styles(self, tmp_path):
-        """'style' content_type auto-appends Exclude Styles to Style Box."""
+    def test_style_does_not_append_exclude_styles(self, tmp_path):
+        """'style' returns the Style Box alone — Exclude Styles is a separate Suno field of bare elements."""
         mock_cache = self._make_cache_with_file(tmp_path)
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
         assert result["found"] is True
         assert result["content_type"] == "style"
-        assert _SAMPLE_EXCLUDE_CONTENT in result["content"]
-        assert result["content"].endswith(_SAMPLE_EXCLUDE_CONTENT)
+        assert result["content"].endswith("synth-driven")
+        assert _SAMPLE_EXCLUDE_CONTENT not in result["content"]
+        assert "autotune" not in result["content"]
 
     def test_style_without_exclude_returns_style_only(self, tmp_path):
         """'style' content_type returns just Style Box when no Exclude Styles."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"

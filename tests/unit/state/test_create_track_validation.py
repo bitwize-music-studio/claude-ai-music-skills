@@ -39,10 +39,10 @@ SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 # ---------------------------------------------------------------------------
 
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
     class _FakeFastMCP:
-        def __init__(self, name: str = "") -> None:
+        def __init__(self, name: str = "", **kwargs: object) -> None:
             self.name = name
             self._tools: dict = {}
 

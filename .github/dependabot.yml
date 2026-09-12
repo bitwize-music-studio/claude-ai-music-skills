@@ -1,3 +1,11 @@
+# NOTE: GitHub reads this file from the repository's DEFAULT branch (main).
+# `target-branch: develop` below only decides which branch's manifests are
+# scanned and which branch the PRs are opened against — it does NOT move where
+# this config is read from. An `ignore` rule added on develop therefore has no
+# effect until a release merges it to main. That is not hypothetical: the
+# librosa rule below landed on develop on 2026-08-15 and Dependabot still
+# proposed librosa 1.0.0 on 2026-08-19, reddening 12 jobs, because main's copy
+# did not have it yet.
 version: 2
 updates:
   - package-ecosystem: "pip"
@@ -11,12 +19,17 @@ updates:
       - "dependencies"
     open-pull-requests-limit: 10
     # Plugin runs in the user's venv and supports Python 3.11 (see requirements.txt).
-    # scipy 1.18+ and numpy 2.5+ require Python >=3.12, so block those upgrades here.
+    # scipy 1.18+, numpy 2.5+ and librosa 1.0+ require Python >=3.12, so block those
+    # upgrades here. They do not merely fail tests — pip cannot resolve them at all
+    # ("No matching distribution found"), which takes down every job that installs
+    # requirements.txt, pip-audit included.
     ignore:
       - dependency-name: "scipy"
         versions: [">=1.18.0"]
       - dependency-name: "numpy"
         versions: [">=2.5.0"]
+      - dependency-name: "librosa"
+        versions: [">=1.0.0"]
     groups:
       pip-all:
         patterns:

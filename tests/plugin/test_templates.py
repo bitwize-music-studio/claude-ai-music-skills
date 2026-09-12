@@ -218,6 +218,7 @@ TRACK_REQUIRED_SECTIONS = [
     'Suno Inputs',
     'Style Box',
     'Exclude Styles',
+    'Generation Settings',
     'Lyrics Box',
     'Streaming Lyrics',
     'Production Notes',
@@ -354,3 +355,27 @@ class TestTrackTemplateInstrumental:
         assert comment in content, (
             f"track.md missing expected comment marker: {comment}"
         )
+
+
+class TestTrackTemplateGenerationSettings:
+    """The Generation Settings table ships with the v6 defaults the gate expects."""
+
+    @pytest.mark.parametrize("row", [
+        '| **Model** | v6 |',
+        '| **Variety** | Off |',
+        '| **Max Mode** | On |',
+        '| **Duration** | Auto |',
+        '| **Weirdness** | 50 |',
+        '| **Style Influence** | 50 |',
+    ])
+    def test_default_rows(self, templates_dir, row):
+        content = (templates_dir / "track.md").read_text()
+        assert row in content, f"track.md Generation Settings missing default row: {row}"
+
+    def test_vocal_gender_row_present(self, templates_dir):
+        content = (templates_dir / "track.md").read_text()
+        assert '| **Vocal Gender** |' in content
+
+    def test_no_v5_optimization_placeholder(self, templates_dir):
+        content = (templates_dir / "track.md").read_text()
+        assert 'V5 optimization tips' not in content

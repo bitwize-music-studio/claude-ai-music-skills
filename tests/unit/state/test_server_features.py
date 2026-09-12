@@ -38,11 +38,11 @@ if str(PROJECT_ROOT) not in sys.path:
 SERVER_PATH = PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py"
 
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
 
     class _FakeFastMCP:
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 
@@ -479,8 +479,8 @@ class TestInstrumentalGateSkipping:
         track = result["tracks"][0]
         gates = track["gates"]
         gate_names = [g["gate"] for g in gates]
-        # 8 core gates + 2 advisory
-        assert len(gates) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
         assert "Sources Verified" in gate_names
         assert "Lyrics Reviewed" in gate_names
         assert "Pronunciation Resolved" in gate_names
@@ -509,8 +509,9 @@ class TestInstrumentalGateSkipping:
         assert result["found"] is True
         track = result["tracks"][0]
         gates = track["gates"]
-        # All gates still run; Performance Cues SKIPs for instrumental tracks
-        assert len(gates) == 10
+        # All gates still run; Performance Cues SKIPs for instrumental tracks.
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
 
     def test_instrumental_track_style_gate_still_runs(self, tmp_path):
         """Gate 5 (Style Prompt) still runs for instrumental tracks."""

@@ -16,6 +16,13 @@ concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
+# apt hardening options, defined ONCE per workflow file — see nightly.yml's copy
+# for the full rationale. Retries + http::Timeout ride out a transient mirror
+# stall; DPkg::Lock::Timeout rides out unattended-upgrades holding the dpkg
+# lock. Safe to hoist because the variable is inert outside an apt command line.
+env:
+  APT_OPTS: "-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o DPkg::Lock::Timeout=300"
+
 jobs:
   integration:
     name: Integration (Postgres + SeaweedFS)
@@ -63,10 +70,10 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -115,7 +122,13 @@ jobs:
     # Same fork-PR guard as the other jobs — untrusted code could modify
     # requirements/test files.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
-    timeout-minutes: 20
+    # 30, not 20: the apt step below is allowed 15 of its own, and a step cap
+    # that close to the job cap cannot do its job — the step would be killed at
+    # 15 but the job has only 5 minutes left to run the diagnostics, install
+    # requirements and execute the test, so a slow-but-recovering install still
+    # fails the leg with a job-level timeout, which is precisely the
+    # unattributable failure the step cap exists to replace.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -142,26 +155,40 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: '3.11'
         cache: 'pip'
 
+    # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
+    # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
+    # update`) — see nightly.yml. 15 min, not 10: musescore3 pulls a large
+    # dependency tree. No -qq here either, for the same attribution reason.
+    #
+    # This install deliberately does NOT carry --no-install-recommends, unlike
+    # the ffmpeg sites: musescore3 is a Qt GUI application whose recommends pull
+    # its soundfont and Qt plugin set, and this job's whole purpose is to prove
+    # a real PDF export works. Trimming here to match the other copies would be
+    # cosmetic consistency bought with a plausible test failure.
     - name: Install MuseScore (musescore3) + xvfb
       if: runner.os == 'Linux'
+      timeout-minutes: 15
       run: |
-        sudo apt-get update
+        sudo apt-get $APT_OPTS update
         # xvfb is a headless fallback if the offscreen plugin misbehaves on the
         # runner; the primary path is QT_QPA_PLATFORM=offscreen.
-        sudo apt-get install -y musescore3 xvfb
+        sudo apt-get $APT_OPTS install -y musescore3 xvfb
         echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
         ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
 
+    # Same hazard class and same size as the Linux apt install above (MuseScore
+    # is a large download), just a different package manager.
     - name: Install MuseScore (Chocolatey)
       if: runner.os == 'Windows'
+      timeout-minutes: 15
       run: choco install musescore -y --no-progress
 
     - name: MuseScore diagnostics
@@ -237,16 +264,19 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
     - name: Set up Python
-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
       with:
         python-version: '3.11'
         cache: 'pip'
 
     - name: Install ffmpeg (Homebrew)
       # ffmpeg generates the WAV fixture (lavfi) and decodes afconvert's m4a.
+      # Capped like every other brew/choco/apt site — a stalled mirror here
+      # would otherwise burn the job's whole budget with no attribution.
+      timeout-minutes: 10
       run: brew install ffmpeg
 
     - name: afconvert diagnostics

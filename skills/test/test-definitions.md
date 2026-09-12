@@ -433,7 +433,8 @@ Glob: reference/suno/
 
 ### TEST: Required Suno reference files exist
 These must exist:
-- `reference/suno/v5-best-practices.md`
+- `reference/suno/best-practices.md`
+- `reference/suno/models.md`
 - `reference/suno/pronunciation-guide.md`
 - `reference/suno/tips-and-tricks.md`
 - `reference/suno/structure-tags.md`
@@ -466,13 +467,13 @@ Verify "## Related Skills" section exists with:
 - /bitwize-music:lyric-writer reference
 - /bitwize-music:lyric-reviewer reference
 Verify "## See Also" section exists with:
-- ${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md reference
+- ${CLAUDE_PLUGIN_ROOT}/reference/suno/best-practices.md reference
 - ${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md reference
 - ${CLAUDE_PLUGIN_ROOT}/skills/lyric-writer/SKILL.md reference
 - ${CLAUDE_PLUGIN_ROOT}/skills/pronunciation-specialist/SKILL.md reference
 
-### TEST: Suno v5-best-practices has cross-references (quick win #10)
-Read reference/suno/v5-best-practices.md.
+### TEST: Suno best-practices has cross-references (quick win #10)
+Read reference/suno/best-practices.md.
 Verify "## Related Skills" section exists with:
 - /bitwize-music:suno-engineer reference
 - /bitwize-music:lyric-writer reference
@@ -485,6 +486,11 @@ Verify "## See Also" section exists with:
 - ${CLAUDE_PLUGIN_ROOT}/reference/suno/tips-and-tricks.md reference
 - ${CLAUDE_PLUGIN_ROOT}/skills/suno-engineer/SKILL.md reference
 
+### TEST: Suno model catalog covers every template model
+Read reference/suno/models.md and templates/track.md.
+For each model named in the track template's Generation Settings allowed-values comment (v6, v6-wild, v6-mini, Custom Models), verify models.md has a `## ` heading for it.
+Verify models.md has a "## Made before v6" section (songs, Voices, Custom Models).
+
 ### TEST: Suno structure-tags has cross-references (quick win #10)
 Read reference/suno/structure-tags.md.
 Verify "## Related Skills" section exists with:
@@ -492,7 +498,7 @@ Verify "## Related Skills" section exists with:
 - /bitwize-music:suno-engineer reference
 - /bitwize-music:lyric-reviewer reference
 Verify "## See Also" section exists with:
-- ${CLAUDE_PLUGIN_ROOT}/reference/suno/v5-best-practices.md reference
+- ${CLAUDE_PLUGIN_ROOT}/reference/suno/best-practices.md reference
 - ${CLAUDE_PLUGIN_ROOT}/reference/suno/pronunciation-guide.md reference
 - ${CLAUDE_PLUGIN_ROOT}/reference/suno/voice-tags.md reference
 - ${CLAUDE_PLUGIN_ROOT}/skills/lyric-writer/SKILL.md reference

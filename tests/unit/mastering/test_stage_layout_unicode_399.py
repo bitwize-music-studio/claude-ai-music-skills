@@ -31,7 +31,7 @@ def _run_layout_stage(audio_dir: Path, mastered_names: list[str]):
     asyncio.set_event_loop(loop)
     ctx = MasterAlbumCtx(
         album_slug="test", genre="pop", target_lufs=-14.0, ceiling_db=-1.0,
-        cut_highmid=0.0, cut_highs=0.0, source_subfolder="",
+        cut_highmid=None, cut_highs=None, source_subfolder="",
         freeze_signature=False, new_anchor=False, loop=loop,
         audio_dir=audio_dir,
         mastered_files=[Path(name) for name in mastered_names],

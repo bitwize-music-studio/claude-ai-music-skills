@@ -44,22 +44,26 @@ def test_sentinel_zero_overrides_negative_default():
     assert merged["high_tame_db"] == pytest.approx(0.0)
 
 
-def test_mud_cut_and_highpass_and_noise_reduction_also_overridden():
-    """All four EQ whitelist keys apply when present in analyzer_rec."""
+def test_every_whitelisted_eq_key_is_overridden():
+    """All EQ whitelist keys apply when present in analyzer_rec.
+
+    `noise_reduction` used to be on this list and is deliberately not
+    any more (#553) — see TestAnalyzerNeverAutoAppliesNoiseReduction.
+    """
     from tools.mixing.mix_tracks import _get_stem_settings
     merged = _get_stem_settings(
         "vocals", genre="electronic",
         analyzer_rec={
             "mud_cut_db": -5.0,
             "high_tame_db": -3.0,
-            "noise_reduction": 0.4,
             "highpass_cutoff": 80,
+            "excitation_db": 2.5,
         },
     )
     assert merged["mud_cut_db"] == pytest.approx(-5.0)
     assert merged["high_tame_db"] == pytest.approx(-3.0)
-    assert merged["noise_reduction"] == pytest.approx(0.4)
     assert merged["highpass_cutoff"] == 80
+    assert merged["excitation_db"] == pytest.approx(2.5)
 
 
 def test_non_eq_analyzer_rec_ignored():
@@ -192,3 +196,146 @@ class TestMixTrackStemsAnalyzerRecs:
         by_param = {e["parameter"]: e for e in result["overrides_applied"]}
         assert by_param["mud_cut_db"]["reason"] == "muddy_low_mids"
         assert by_param["high_tame_db"]["reason"] == "harsh_highmids"
+
+
+class TestAnalyzerNeverAutoAppliesNoiseReduction:
+    """#553: `noise_reduction` was on the analyzer override whitelist, and
+
+    that whitelist merges LAST in `_get_stem_settings`. The analyzer's
+    `elevated_noise_floor` heuristic (quietest-10% mean > 0.005) fires on
+    ordinary sustained content and recommends 0.5-0.8, and `polish_audio`
+    auto-runs the analyzer — so the #553 default of `noise_reduction: 0`,
+    *and* an explicit user `noise_reduction: 0`, were both overwritten on
+    every polish run. The analyzer may still detect and report an
+    elevated noise floor; applying noise reduction is the user's call.
+    """
+
+    def test_analyzer_noise_reduction_does_not_change_settings(self):
+        from tools.mixing.mix_tracks import _get_stem_settings
+        baseline = _get_stem_settings("vocals", genre="electronic")
+        merged = _get_stem_settings(
+            "vocals", genre="electronic",
+            analyzer_rec={"noise_reduction": 0.8},
+        )
+        assert merged == baseline
+        assert merged["noise_reduction"] == 0
+
+    def test_analyzer_cannot_override_an_explicit_user_zero(self, tmp_path, monkeypatch):
+        import tools.mixing.mix_tracks as mt
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mix-presets.yaml").write_text(
+            "defaults:\n  vocals:\n    noise_reduction: 0\n"
+        )
+        monkeypatch.setattr(mt, "_get_overrides_path", lambda: override_dir)
+        monkeypatch.setattr(mt, "MIX_PRESETS", mt.load_mix_presets())
+
+        merged = mt._get_stem_settings(
+            "vocals", genre="electronic", analyzer_rec={"noise_reduction": 0.8},
+        )
+        assert merged["noise_reduction"] == 0
+
+    def test_explicit_user_noise_reduction_still_wins(self, tmp_path, monkeypatch):
+        """The inverse direction — removing the analyzer key must not
+        break the documented way to turn noise reduction back on."""
+        import tools.mixing.mix_tracks as mt
+
+        override_dir = tmp_path / "overrides"
+        override_dir.mkdir()
+        (override_dir / "mix-presets.yaml").write_text(
+            "defaults:\n  vocals:\n    noise_reduction: 0.5\n"
+        )
+        monkeypatch.setattr(mt, "_get_overrides_path", lambda: override_dir)
+        monkeypatch.setattr(mt, "MIX_PRESETS", mt.load_mix_presets())
+
+        merged = mt._get_stem_settings(
+            "vocals", genre="electronic", analyzer_rec={"noise_reduction": 0.8},
+        )
+        assert merged["noise_reduction"] == pytest.approx(0.5)
+
+    def test_noise_reduction_is_off_the_whitelist_and_the_reason_map(self):
+        from tools.mixing.mix_tracks import (
+            _ANALYZER_EQ_OVERRIDE_KEYS,
+            _ANALYZER_PARAM_REASONS,
+        )
+        assert "noise_reduction" not in _ANALYZER_EQ_OVERRIDE_KEYS
+        assert "noise_reduction" not in _ANALYZER_PARAM_REASONS
+
+
+class TestBlockedAnalyzerRecommendationsAreSurfaced:
+    """#553/#336: a recommendation the whitelist drops used to vanish
+
+    silently — the analyzer keeps recommending it on every run and polish
+    keeps never applying it, with nothing in the report to show the loop.
+    Dropped recommendations are now reported alongside `overrides_applied`.
+    """
+
+    @staticmethod
+    def _one_stem(tmp_path):
+        import numpy as np
+        import soundfile as sf
+
+        rate = 44100
+        t = np.linspace(0, 0.5, rate // 2, endpoint=False)
+        mono = (0.2 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        path = tmp_path / "vocals.wav"
+        sf.write(str(path), np.column_stack([mono, mono]), rate, subtype="PCM_16")
+        return path
+
+    def test_blocked_noise_reduction_is_reported(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        stem = self._one_stem(tmp_path)
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"),
+            analyzer_recs={"vocals": {
+                "recommendations": {"noise_reduction": 0.8},
+                "issues": ["elevated_noise_floor"],
+            }},
+        )
+
+        assert not [e for e in result["overrides_applied"]
+                    if e["parameter"] == "noise_reduction"]
+        blocked = result["blocked"]
+        assert [(e["stem"], e["parameter"]) for e in blocked] == [
+            ("vocals", "noise_reduction"),
+        ]
+        assert blocked[0]["analyzer_rec"] == pytest.approx(0.8)
+        assert blocked[0]["reason"]
+
+    def test_blocked_click_removal_is_reported(self, tmp_path):
+        """`click_removal` has always been off the whitelist — it is
+        wired through `_resolve_analyzer_peak_ratio`, not merged."""
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        stem = self._one_stem(tmp_path)
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"),
+            analyzer_recs={"vocals": {
+                "recommendations": {"click_removal": True},
+                "issues": ["clicks_detected"],
+            }},
+        )
+        assert [e["parameter"] for e in result["blocked"]] == ["click_removal"]
+
+    def test_applied_recommendation_is_not_reported_as_blocked(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        stem = self._one_stem(tmp_path)
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"),
+            analyzer_recs={"vocals": {
+                "recommendations": {"high_tame_db": -3.0},
+                "issues": ["harsh_highmids"],
+            }},
+        )
+        assert [e["parameter"] for e in result["overrides_applied"]] == ["high_tame_db"]
+        assert result["blocked"] == []
+
+    def test_blocked_list_is_present_and_empty_without_recommendations(self, tmp_path):
+        from tools.mixing.mix_tracks import mix_track_stems
+
+        stem = self._one_stem(tmp_path)
+        result = mix_track_stems({"vocals": str(stem)}, str(tmp_path / "out.wav"))
+        assert result["blocked"] == []

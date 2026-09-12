@@ -85,3 +85,77 @@ def test_analyzer_matches_full_mix_processor_peak_ratio(genre: str) -> None:
         f"Full-mix peak_ratio mismatch for genre={genre!r}: "
         f"analyzer={analyzer_ratio}, processor={processor_ratio}"
     )
+
+
+class TestParityHoldsForUnreadableThresholds:
+    """#553: polish reads `click_peak_ratio` through `_setting_float` —
+
+    warn-and-default on anything it can't parse — while the analyzer
+    still used a bare `float(raw)`. A quoted `click_peak_ratio: "20"`
+    therefore split the two apart (analyzer 20.0, polish 15.0) and a
+    non-numeric string raised ValueError out of the analyzer instead of
+    warning. Both sides read the key the same way now.
+    """
+
+    @staticmethod
+    def _resolved(monkeypatch, tmp_path, yaml_text, stem="keyboard", genre="electronic"):
+        from tests.unit.mixing._presets import install_override
+
+        install_override(tmp_path, monkeypatch, yaml_text)
+
+        from handlers.processing.mixing import _resolve_analyzer_peak_ratio
+        from tools.mixing.mix_tracks import _apply_click_removal, _get_stem_settings
+
+        settings = _get_stem_settings(stem, genre)
+        # Read the processor's effective value through the same path the
+        # de-clicker takes, by capturing what it hands `remove_clicks`.
+        seen: dict[str, float] = {}
+
+        def _spy(data, rate, *, peak_ratio, repair="linear", detect_only=False, **kw):
+            seen["peak_ratio"] = peak_ratio
+            return data, 0
+
+        import tools.mixing.mix_tracks as mt
+        monkeypatch.setattr(mt, "remove_clicks", _spy)
+        _apply_click_removal(
+            object(), 44100, {**settings, "click_removal": True}, {},
+        )
+        return _resolve_analyzer_peak_ratio(stem, genre), seen["peak_ratio"]
+
+    def test_quoted_threshold_resolves_the_same_on_both_sides(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            analyzer, processor = self._resolved(monkeypatch, tmp_path, (
+                'genres:\n'
+                '  electronic:\n'
+                '    keyboard:\n'
+                '      click_peak_ratio: "20"\n'
+            ))
+        assert analyzer == pytest.approx(processor)
+        assert analyzer == pytest.approx(15.0)
+        assert any('click_peak_ratio' in r.message for r in caplog.records)
+
+    def test_non_numeric_threshold_does_not_raise_in_the_analyzer(
+        self, tmp_path, monkeypatch,
+    ):
+        analyzer, processor = self._resolved(monkeypatch, tmp_path, (
+            'genres:\n'
+            '  electronic:\n'
+            '    keyboard:\n'
+            '      click_peak_ratio: aggressive\n'
+        ))
+        assert analyzer == pytest.approx(processor) == pytest.approx(15.0)
+
+    def test_real_numeric_threshold_still_reaches_both_sides(
+        self, tmp_path, monkeypatch,
+    ):
+        analyzer, processor = self._resolved(monkeypatch, tmp_path, (
+            'genres:\n'
+            '  electronic:\n'
+            '    keyboard:\n'
+            '      click_peak_ratio: 22.5\n'
+        ))
+        assert analyzer == pytest.approx(processor) == pytest.approx(22.5)

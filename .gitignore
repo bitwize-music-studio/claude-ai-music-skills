@@ -34,7 +34,6 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
-TESTING.md
 .coverage
 .coverage.*
 coverage-html/

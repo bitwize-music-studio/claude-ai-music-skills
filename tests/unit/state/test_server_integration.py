@@ -40,11 +40,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 # Mock MCP SDK if not installed (same strategy as test_server.py)
 try:
-    import mcp  # noqa: F401
+    import mcp.server.fastmcp  # noqa: F401
 except ImportError:
 
     class _FakeFastMCP:
-        def __init__(self, name=""):
+        def __init__(self, name="", **kwargs):
             self.name = name
             self._tools = {}
 
@@ -324,7 +324,7 @@ allowed-tools:
 SKILL_SONNET = """\
 ---
 name: suno-engineer
-description: Constructs technical Suno V5 style prompts and optimizes generation settings.
+description: Constructs technical Suno style prompts for the current model family and optimizes generation settings.
 argument-hint: <track-file-path>
 model: claude-sonnet-4-5-20250929
 prerequisites:
@@ -1591,8 +1591,8 @@ class TestRunPreGenerationGatesExtended:
                 "integration-test-album", "01"
             )))
         track = result["tracks"][0]
-        # 8 core gates + 2 advisory (Style Box Descriptor Count, Performance Cues)
-        assert len(track["gates"]) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(track["gates"]) == 11
 
 
 @pytest.mark.integration

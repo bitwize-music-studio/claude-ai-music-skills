@@ -27,7 +27,7 @@ Claude: Dispatches legal, financial, and security researchers in parallel
 You:    "Sources look good. Let's write track 1"
 Claude: Drafts lyrics, checks prosody and rhyme schemes
         Scans for pronunciation risks, suggests phonetic fixes
-        Builds Suno V5 style prompt with genre tags and vocal direction
+        Builds the Suno style prompt and generation settings (model, Variety, Max Mode)
 
 You:    "Track sounds great, here are the stems"
 Claude: Imports stems from Suno, polishes per-stem
@@ -68,11 +68,13 @@ See [docs/skills.md](docs/skills.md) for the full reference.
 
 Skills declare which Claude model they need. Creative work that directly impacts music quality runs on Opus. Coordination and reasoning tasks use Sonnet. Mechanical operations (imports, validation, clipboard) run on Haiku.
 
-| Tier | Model | Skills | Rationale |
-|------|-------|--------|-----------|
-| Creative | Opus 4.8 | 7 | Lyrics, Suno prompts, album concepts, legal/verification research — output quality defines the music |
-| Reasoning | Sonnet 4.6 | 30 | Research coordination, pronunciation analysis, most workflows |
-| Mechanical | Haiku 4.5 | 16 | Imports, validation, clipboard, help — speed over creativity |
+| Tier | `model:` | Skills | Rationale |
+|------|----------|--------|-----------|
+| Creative | `opus` | 7 | Lyrics, Suno prompts, album concepts, legal/verification research — output quality defines the music |
+| Reasoning | `sonnet` | 30 | Research coordination, pronunciation analysis, most workflows |
+| Mechanical | `haiku` | 16 | Imports, validation, clipboard, help — speed over creativity |
+
+Skills declare the tier alias, not a pinned version, so each one tracks the current frontier model in its tier automatically — no per-skill edit when a new Claude generation ships.
 
 This project pushes Claude Code hard — multi-agent research, real-time audio analysis, sub-agent orchestration across model tiers. It works best on the Max subscription. The standard Pro subscription will hit rate limits during multi-track sessions.
 
@@ -140,7 +142,8 @@ config/              Example config and setup docs
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Model strategy | [reference/model-strategy.md](reference/model-strategy.md) |
 | Skill decision tree | [reference/SKILL_INDEX.md](reference/SKILL_INDEX.md) |
-| Suno V5 best practices | [reference/suno/v5-best-practices.md](reference/suno/v5-best-practices.md) |
+| Suno best practices | [reference/suno/best-practices.md](reference/suno/best-practices.md) |
+| Suno model catalog | [reference/suno/models.md](reference/suno/models.md) |
 | The story behind bitwize-music | [bitwizemusic.com/behind-the-music](https://www.bitwizemusic.com/behind-the-music/) |
 
 ---
@@ -154,14 +157,11 @@ config/              Example config and setup docs
 <a href="https://github.com/DaveMatNat"><img src="https://images.weserv.nl/?url=github.com/DaveMatNat.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@DaveMatNat"></a>
 <a href="https://github.com/thejesh23"><img src="https://images.weserv.nl/?url=github.com/thejesh23.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@thejesh23"></a>
 <a href="https://github.com/tgh612"><img src="https://images.weserv.nl/?url=github.com/tgh612.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@tgh612"></a>
+<a href="https://github.com/MrReasonable"><img src="https://images.weserv.nl/?url=github.com/MrReasonable.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@MrReasonable"></a>
+<a href="https://github.com/medinabestari"><img src="https://images.weserv.nl/?url=github.com/medinabestari.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@medinabestari"></a>
+<a href="https://github.com/cbrahms"><img src="https://images.weserv.nl/?url=github.com/cbrahms.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@cbrahms"></a>
 
 If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X, [join the Discord](https://discord.gg/dMURByGF), or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=bitwize-music-studio/claude-ai-music-skills&type=Date)](https://star-history.com/#bitwize-music-studio/claude-ai-music-skills&Date)
 
 ---
 
