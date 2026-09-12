@@ -326,7 +326,7 @@ generation:
   # Default (if omitted): suno
   #
   # Currently supported:
-  #   suno    - Suno V5 (default, recommended)
+  #   suno    - Suno, v6 model family (default, recommended)
   #
   # Future support planned:
   #   udio    - Udio
@@ -354,7 +354,7 @@ generation:
   # max_lyric_words [optional]
   # ---------------------------
   # Maximum word count for lyrics before generation is blocked.
-  # Suno V5 has a practical limit of ~800 words — lyrics beyond this
+  # Suno has a practical limit of ~800 words — lyrics beyond this
   # are compressed or skipped during generation.
   #
   # Default (if omitted): 800
@@ -785,14 +785,14 @@ sheet_music:
 #   # ---------------------------
 #   # Output sample rate in Hz.
 #   #
-#   # Upsampled from the 44.1 kHz Suno source when >44100. This satisfies
+#   # Upsampled from the source rate (44.1 kHz Create-page WAVs, 48 kHz Studio exports) when higher. This satisfies
 #   # the sample-rate gate for Apple Hi-Res Lossless (>48 kHz strict) and
 #   # Tidal Max (>44.1 kHz strict). It does NOT add audio information —
 #   # the extra bandwidth above ~22 kHz is empty. See
 #   # reference/streaming-mastering-specs.md for the full tradeoff.
 #   #
 #   # Common values:
-#   #   44100 — match Suno source; no badge eligibility.
+#   #   44100 — match Create-page source; no badge eligibility.
 #   #   48000 — broadcast standard; still below Apple Hi-Res threshold.
 #   #   96000 — unlocks Apple Hi-Res Lossless + Tidal Max badges.
 #   #

@@ -3,13 +3,13 @@
 Suno's text-to-speech engine can mispronounce words, especially homographs (same spelling, different pronunciation) and technical terms. This guide helps identify problem words and provides solutions.
 
 > **Related skill**: `/bitwize-music:pronunciation-specialist` (automated scanning for pronunciation risks)
-> **Related docs**: [v5-best-practices.md](v5-best-practices.md)
+> **Related docs**: [best-practices.md](best-practices.md)
 
 ## Why This Matters
 
 Suno reads lyrics literally. It doesn't understand context the way humans do. When it sees "live," it picks one pronunciation — and it might be wrong for your meaning.
 
-**V5 Note**: V5 improved context sensitivity for pronunciation, but our rule stands: **never trust context for homographs**. The improvement is incremental, not reliable enough to skip phonetic spelling.
+**Note**: Suno's context sensitivity for pronunciation is limited, so the rule stands: **never trust context for homographs**. Context sensitivity alone is not reliable enough to skip phonetic spelling.
 
 **IPA Note**: IPA (International Phonetic Alphabet) is **not natively supported** by Suno despite community requests. Use the phonetic spelling approaches documented below instead.
 
@@ -313,7 +313,7 @@ For songs with lyrics in multiple languages:
 
 - **Use one language per section** — mixing languages within a section causes pronunciation drift
 - Add `all lyrics in [language], no English` to the style prompt for non-English sections to prevent the model reverting to English
-- V5 improved multilingual fluency, but section isolation remains the most reliable approach
+- Section isolation remains the most reliable approach for multilingual tracks
 
 **Example**:
 ```
@@ -447,7 +447,7 @@ When in doubt:
 
 ## See Also
 
-- **`/reference/suno/v5-best-practices.md`** - Overall Suno V5 prompting guide, style box construction
+- **`/reference/suno/best-practices.md`** - Overall Suno prompting guide, style box construction
 - **`/reference/suno/structure-tags.md`** - Section tags for organizing lyrics ([Verse], [Chorus], etc.)
 - **`/skills/lyric-writer/SKILL.md`** - Complete lyric writing workflow and quality standards
 - **`/skills/pronunciation-specialist/SKILL.md`** - Detailed pronunciation specialist skill documentation

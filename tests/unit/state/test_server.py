@@ -2523,6 +2523,59 @@ class TestUpdateTrackField:
         content = track_file.read_text()
         assert "✅ Verified (2026-02-06)" in content
 
+    _SETTINGS_TRACK_MD = _SAMPLE_TRACK_MD + """
+## Suno Inputs
+
+### Generation Settings
+
+| Setting | Value |
+|---------|-------|
+| **Model** | v6 |
+| **Variety** | Normal |
+| **Max Mode** | Off |
+
+## Generation Log
+
+| # | Date | Model | Result | Notes | Rating |
+|---|------|-------|--------|-------|--------|
+| — | — | — | — | — | — |
+"""
+
+    def _make_cache_with_settings_file(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)
+        track_file.write_text(self._SETTINGS_TRACK_MD)
+        return mock_cache, track_file
+
+    @pytest.mark.parametrize("field,table_key,value", [
+        ("model", "Model", "v6-wild"),
+        ("variety", "Variety", "Off"),
+        ("max-mode", "Max Mode", "On"),
+        ("max_mode", "Max Mode", "On"),
+    ])
+    def test_update_generation_settings(self, tmp_path, field, table_key, value):
+        mock_cache, track_file = self._make_cache_with_settings_file(tmp_path)
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", field, value
+            )))
+        assert result["success"] is True
+        assert result["field"] == table_key
+        content = track_file.read_text()
+        assert f"| **{table_key}** | {value} |" in content
+        # The Generation Log header is a multi-column table and must be untouched
+        assert "| # | Date | Model | Result | Notes | Rating |" in content
+
+    def test_update_generation_setting_without_section_errors(self, tmp_path):
+        mock_cache, track_file = self._make_cache_with_file(tmp_path)  # _SAMPLE_TRACK_MD has no section
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(server, "write_state", MagicMock()):
+            result = json.loads(_run(server.update_track_field(
+                "test-album", "01-test-track", "variety", "Off"
+            )))
+        assert "error" in result
+        assert "Generation Settings" in result["error"]
+
     def test_update_with_prefix_match(self, tmp_path):
         """Track number prefix works for updates too."""
         track_file = tmp_path / "05-unique-track.md"
@@ -4699,7 +4752,8 @@ class TestRunPreGenerationGates:
         assert "Lyric Length" in gate_names
         assert "Style Box Descriptor Count" in gate_names
         assert "Performance Cues" in gate_names
-        assert len(gates) == 10
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(gates) == 11
 
     def test_track_no_file_path(self):
         """Track with no file path gets SKIP for file-dependent gates."""
@@ -4830,8 +4884,9 @@ class TestRunPreGenerationGates:
             result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-unreadable")))
         assert result["found"] is True
         track = result["tracks"][0]
-        # Should still produce gates (file-dependent ones SKIP or FAIL)
-        assert len(track["gates"]) == 10
+        # Should still produce gates (file-dependent ones SKIP or FAIL).
+        # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+        assert len(track["gates"]) == 11
 
     @requires_chmod_denial
     def test_permission_error_track_file(self, tmp_path):
@@ -4853,7 +4908,8 @@ class TestRunPreGenerationGates:
                 result = json.loads(_run(server.run_pre_generation_gates("test-album", "05-denied")))
             assert result["found"] is True
             track = result["tracks"][0]
-            assert len(track["gates"]) == 10
+            # 8 core gates + 3 advisory (Style Box Descriptor Count, Performance Cues, Generation Settings)
+            assert len(track["gates"]) == 11
         finally:
             track_file.chmod(0o644)
 
@@ -5782,7 +5838,7 @@ def _skills_state(**overrides):
                 "mtime": 1700000000.0,
             },
             "suno-engineer": {
-                "description": "Constructs technical Suno V5 style prompts.",
+                "description": "Constructs technical Suno style prompts.",
                 "model": "claude-sonnet-4-5-20250929",
                 "model_tier": "sonnet",
                 "user_invocable": True,

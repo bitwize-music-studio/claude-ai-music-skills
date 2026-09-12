@@ -117,10 +117,11 @@ This document covers edge cases and recovery procedures for common workflow issu
 **Recovery Steps**:
 1. Document what went wrong in Generation Log
 2. Analyze: Was it the style prompt, lyrics structure, or Suno interpretation?
-3. Revise style prompt (see `/reference/suno/v5-best-practices.md`)
-4. Test new prompt on a single track
-5. Once working, regenerate affected tracks
-6. Save both old and new style prompts for reference
+3. Check Generation Settings: Variety must be Off (otherwise Suno rewrote your Style Box); for rock/metal or "safe"-sounding results, regenerate once on v6-wild and Cover the keeper on v6 (see /reference/suno/models.md)
+4. Revise style prompt (see `/reference/suno/best-practices.md`)
+5. Test new prompt on a single track
+6. Once working, regenerate affected tracks
+7. Save both old and new style prompts for reference
 
 **When to Delete vs Revert**: Keep failed generations in log for learning. Only regenerate audio, don't delete documentation.
 

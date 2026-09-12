@@ -1,6 +1,6 @@
 # Suno Tips & Tricks
 
-Operational techniques and troubleshooting for Suno. For prompting guidance, see [v5-best-practices.md](v5-best-practices.md).
+Operational techniques and troubleshooting for Suno. For prompting guidance, see [best-practices.md](best-practices.md).
 
 ---
 
@@ -29,7 +29,7 @@ Operational techniques and troubleshooting for Suno. For prompting guidance, see
 **Fix:**
 1. Replace the age adjective with a specific vocal range: `alto`, `contralto`, `low register` (female) or `baritone`, `bass-baritone` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that connote maturity/experience rather than youth: `smoky`, `weathered`, `resonant`, `gravelly` — avoid `breathy`, `whispered`, `delicate`, `intimate` if you want an older-sounding voice, since those skew young in Suno's training data
-3. Add an explicit exclude: `no youthful or breathy vocals` appended to the Style Box (see [Negative Prompting](v5-best-practices.md#negative-prompting) — Suno excludes via "no X" phrasing in the prompt text, not a separate bare-terms field)
+3. Add an explicit exclude: `youthful or breathy vocals` in Suno's dedicated **Exclude Styles** field (Advanced Mode → More Options) — prompt-level `no X` is ignored on v6 (see [Negative Prompting](best-practices.md#negative-prompting))
 4. Still expect 2–3 regenerations — vocal-age control is inconsistent even with well-chosen tags, this narrows the odds rather than guaranteeing the result
 
 **Example fix:**
@@ -41,7 +41,7 @@ Operational techniques and troubleshooting for Suno. For prompting guidance, see
 1. **Inline lyrical metatags** — place a vocal descriptor directly in the Lyrics Box before each section, not just in the Style Box: `[Verse 1: Raspy older female vocal, husky contralto]`, `[Chorus: Raspy older female vocal, husky contralto]`, etc. This is a different mechanism from the Style Box and Suno may weight it independently — repeat the tag on every section, not just the first.
 2. **Check whether the genre tag itself is fighting you.** "Pop" as a genre descriptor can carry a bright/youthful bias that no amount of vocal adjectives fully cancels. Swap genre-of-record words that skew young/bright (`pop`, `bright`, `modern electronic`) for genre words that are inherently mature-vocal-coded: `torch song`, `vintage soul`, `cabaret`, `1940s jazz`, `vintage country`. Keep other identity-defining tags (mode, instrumentation) unchanged.
 
-If all of the above still fails, the underlying genre/instrumentation combo may carry a strong young-vocalist bias in Suno's training data that text prompting can't fully overcome. At that point, [Personas](#personas-for-vocal-consistency) (Pro/Premier, for a consistent vocal identity) or [Voices/voice cloning](#voices--custom-models-v55) (Pro/Premier, referencing a real vocal sample) are more reliable than any further style-box iteration.
+If all of the above still fails, the underlying genre/instrumentation combo may carry a strong young-vocalist bias in Suno's training data that text prompting can't fully overcome. At that point, a saved [Voice](#voices-for-vocal-consistency) (Pro/Premier, a vocal identity captured from a generation you liked) or [voice cloning](#voices--custom-models) (Pro/Premier, your own real vocal sample) is more reliable than any further style-box iteration.
 
 ---
 
@@ -54,7 +54,7 @@ If all of the above still fails, the underlying genre/instrumentation combo may 
 **Fix:** Same principle as the age issue — replace or supplement emotion/character words with concrete vocal range and texture tags:
 1. Add a specific vocal range: `mezzo-soprano`, `alto`, `contralto` (female) or `baritone`, `tenor` (male) — see [voice-tags.md](voice-tags.md)
 2. Add texture tags that are actually audible qualities, not moods: `gritty`, `raspy`, `rasp on the belted notes`, `raw chest voice`, `commanding`, `weathered` — these describe grain and register, which Suno can render; "defiant" and "powerful" describe intent, which it can't
-3. Add an explicit exclude: `no generic or polished studio pop vocal` appended to the Style Box (see [Negative Prompting](v5-best-practices.md#negative-prompting))
+3. Add an explicit exclude: `generic or polished studio pop vocal` in Suno's dedicated **Exclude Styles** field (Advanced Mode → More Options) — prompt-level `no X` is ignored on v6 (see [Negative Prompting](best-practices.md#negative-prompting))
 4. Keep one or two emotion words if they help set the performance arc (e.g. "controlled and low in the verses, breaking open into a full-throated belt on the chorus") — the fix isn't to strip emotion language entirely, it's to make sure concrete texture/range tags are doing the actual work
 
 **Example fix:**
@@ -117,6 +117,8 @@ Useful for:
 - Fine-tuning specific lyrics
 - Adding guitar solos or breaks
 - Fixing small mistakes without regenerating
+
+**One change per edit.** Before you replace or extend a section, write down the single thing you are changing and the list of what must survive it (tempo, key feel, bassline, drum groove, the vocal, section timing). If the feedback names several problems, queue them and fix the highest-impact one first; a bundled edit that comes back wrong tells you nothing about which change caused it. Log each pass in the Generation Log with its parent take so a bad edit is reversible. (Habit adapted from [#564](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/564) by @medinabestari.) Launch-week reports say Studio's regenerate-section can garble vocals, so listen to the seam before judging the edit.
 
 ---
 
@@ -187,43 +189,51 @@ As part of the Warner Music Group partnership, download policies changed:
 
 ---
 
-## Voices & Custom Models (V5.5)
+## Songs Made Before v6
 
-V5.5 (March 26, 2026) adds three personalization features. None of them change prompt syntax — V5 prompts still work identically.
+Suno retired every pre-v6 model on 2026-09-09. To bring a song made before v6 forward, Suno's own guidance (transition video): **Remaster** when you like the song and only want better audio quality; **Cover** when you want v6 to reinterpret it while following the original melody. Both render on v6; the original is never modified. Use Max Mode and Variety Off on a Cover you want to stay close to the source — with Variety on, melodies drift. Custom Voices were migrated with the wording "converted for v6"; test a migrated Voice on a short generation before an album run.
 
-- **Voices** (Pro/Premier, 4 credits/creation): upload 15s–4min of singing (clean acapella best), pass a spoken-phrase consent check, then generate with your own voice. Activation requires checking a broad training-consent box — not optional. 18+. When prompting with a Voice, drop gender/register descriptors from the style box.
-- **Custom Models** (Pro/Premier, up to 3/account): fine-tune a private V5.5 on ≥6 of your own tracks. Build takes 2–5 minutes. Drop generic production language when prompting — the model encodes your aesthetic.
-- **My Taste** (all tiers, free included): passive background learning that shapes the style autogenerate feature. Not prompt-facing.
+## Download Budget
 
-See [v5-best-practices.md](v5-best-practices.md#voices--custom-models) for the full breakdown.
+Since 2026-09-03 downloads are capped per plan (Free 7 lifetime and personal-use only, Pro 20/month, Premier 60/month). One song is one download whatever the format, and its stems are included — so download the WAV once and pull stems later at no extra cost; re-downloads are free. Studio exports (Premier) do not count. Some recent older-model users received 500 non-expiring transition credits; it was not a universal grant.
+
+## Voices & Custom Models
+
+All three carried over to v6 (the models were auto-upgraded; Voices offer a one-click "Upgrade Voice to v6"). None change prompt syntax.
+
+- **Voices** (Pro/Premier; free trial): 15 s–4 min of your own singing plus a spoken-phrase consent check. 18+. Not usable on instrumentals. When prompting with a Voice, drop gender/register descriptors from the style box and turn **Max Mode On**.
+- **Custom Models** (Pro/Premier, up to 3/account, 100 credits): fine-tune on ≥6 of your own tracks ("24+ for best results"). Build takes 2–5 minutes. Drop generic production language when prompting.
+- **My Taste** (all tiers): feeds the Personalize toggle next to Variety; inert while Variety is Off.
+
+See [best-practices.md](best-practices.md#voices-custom-models--my-taste) for the full breakdown.
 
 ---
 
-## Personas for Vocal Consistency
+## Voices for Vocal Consistency
 
-Personas (Pro/Premier) save a song's vocal identity for reuse across tracks — the most reliable way to maintain a consistent voice across an album.
+Voices (Pro/Premier; Suno's former name for them was Personas) save a song's vocal identity for reuse across tracks — the most reliable way to keep one voice across an album.
 
-### Creating and Using Personas
+### Creating and Using Voices
 
 1. **Generate** a track with the vocal style you want
-2. **Save as Persona** from the song's menu
-3. **Apply** the Persona when generating new songs — it carries the vocal character
-4. Keep style prompts **simple** (1–2 genres) when using Personas; the Persona handles vocal identity
+2. **Save the vocal as a Voice** from the song's menu
+3. **Apply** the Voice when generating new songs — it carries the vocal character
+4. Keep style prompts **simple** (1–2 genres) when using a Voice; the Voice handles vocal identity. Turn **Max Mode On** — Suno's recommendation for voice consistency
 
-### Combining Personas with Covers
+### Combining Voices with Covers
 
 A powerful technique for remixing:
 
-1. Generate a song with a Persona
-2. Use **Cover** to transform into a different genre
-3. The Persona's vocal identity carries through the genre shift
+1. Generate a song with a Voice
+2. Use **Cover** to transform into a different genre — Variety **Off** and Max Mode **On**, or the melody drifts from the source
+3. The Voice's vocal identity carries through the genre shift
 4. Layer multiple Covers for complex genre-bending results
 
-**Note**: December 2025 update made Personas more dominant in the mix. If results sound overprocessed, simplify your style prompt or lower Style Influence.
+**Note**: If a Voice comes back overprocessed or too dominant in the mix, simplify your style prompt or lower Style Influence.
 
 ---
 
-## Song Editor (V5)
+## Song Editor
 
 Edit individual sections without regenerating the entire track:
 
@@ -240,13 +250,13 @@ Edit individual sections without regenerating the entire track:
 - Keep total extensions to 2–3 times max per song to avoid quality degradation
 - Section rewrite preserves the role/intent while changing content
 
-See [v5-best-practices.md](v5-best-practices.md) for the full Song Editor workflow.
+See [best-practices.md](best-practices.md) for the full Song Editor workflow.
 
 ---
 
 ## Creative Sliders
 
-Quick reference for V5's generation sliders:
+Quick reference for Suno's generation sliders:
 
 - **Weirdness**: Higher = more experimental. Lower = predictable hooks.
 - **Style Influence**: Higher = tighter genre adherence. Lower = looser fusion.

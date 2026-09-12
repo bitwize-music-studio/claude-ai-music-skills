@@ -6,7 +6,8 @@ Reference guides for Suno AI music generation.
 
 | Guide | Description |
 |-------|-------------|
-| [V5 Best Practices](v5-best-practices.md) | Comprehensive prompting guide for V5 |
+| [Best Practices](best-practices.md) | Comprehensive prompting guide for the current model family |
+| [Model Catalog](models.md) | v6 / v6-wild / v6-mini / Custom Models — tiers, defaults, when to use which |
 | [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
@@ -16,19 +17,19 @@ Reference guides for Suno AI music generation.
 | [Genre List](genre-list.md) | 500+ music genres |
 | [Workspace Management](workspace-management.md) | Manual workspace organization |
 | [CHANGELOG](CHANGELOG.md) | Chronological log of Suno updates and doc changes |
-| [Version History](version-history/) | Migration guides between Suno versions |
 
 ## When to Use Which Guide
 
 | Task | Start Here |
 |------|-----------|
-| Writing a style prompt from scratch | [V5 Best Practices](v5-best-practices.md) |
+| Writing a style prompt from scratch | [Best Practices](best-practices.md) |
 | Checking lyrics for mispronunciation risks | [Pronunciation Guide](pronunciation-guide.md) |
 | Adding section markers (`[Verse]`, `[Chorus]`, etc.) | [Structure Tags](structure-tags.md) |
 | Controlling vocal style or vocal effects | [Voice Tags](voice-tags.md) |
 | Adding specific instruments | [Instrumental Tags](instrumental-tags.md) |
 | Finding the right genre/subgenre tag | [Genre List](genre-list.md) |
 | Debugging a failed generation | [Tips & Tricks](tips-and-tricks.md) |
+| Picking a model or Generation Settings | [Model Catalog](models.md) |
 
 > **Related skill**: `/bitwize-music:suno-engineer` provides interactive guidance using these references.
 
@@ -51,6 +52,8 @@ Structure tags are mandatory in every section; the other three are optional acce
 - [How To Prompt Suno](https://howtopromptsuno.com)
 
 ## API Parameters
+
+> These parameters come from **third-party API resellers**, not Suno — there is no official Suno API, and no reseller exposes v6 (identifiers such as `V6` / `V6_WILD` / `V6_MINI` do not exist). Treat this table as historical.
 
 | Parameter | Description | Range |
 |-----------|-------------|-------|

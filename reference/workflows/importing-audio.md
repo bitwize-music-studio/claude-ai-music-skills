@@ -11,6 +11,8 @@ This document covers procedures for importing audio files (WAV, MP3) from Suno t
 - Multiple keeper tracks ready for mastering
 - Re-downloaded track after regeneration
 
+> Download budget: one song = one download including WAV + stems; Pro 20/month, Premier 60/month, Studio exports uncapped (Premier). See skills/import-audio/SKILL.md § MP3 Files.
+
 ## Required Path Structure
 
 Audio files MUST go to:

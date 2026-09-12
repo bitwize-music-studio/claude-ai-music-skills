@@ -26,7 +26,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **7 Planning Phases** | Structured planning process required before writing lyrics: Foundation, Concept Deep Dive, Sonic Direction, Structure Planning, Album Art, Practical Details, Confirmation. | "Phase 3: What are the sonic inspirations?" |
 | **Album Completion Checklist** | Final checklist before release covering all tracks Final, album art, mastering, metadata, and platform uploads. | See CLAUDE.md "Album Completion Checklist" |
 | **Album Status** | Lifecycle state of an album: Concept, Research Complete, Sources Verified, In Progress, Complete, Released. | `Status: In Progress` in album README |
-| **Generation Log** | Table in each track file logging Suno generation attempts with date, model, result URL, notes, and keeper rating. | `| 2 | 2025-12-03 | V5 | [Listen](url) | Boosted vocals | ✓ |` |
+| **Generation Log** | Table in each track file logging Suno generation attempts with date, model, result URL, notes, and keeper rating. | `| 2 | 2025-12-03 | v6 | [Listen](url) | Boosted vocals | ✓ |` |
 | **Human Verification** | Required manual review confirming captured sources are accurate before using them in lyrics. For true-story albums only. | Status changes from `Pending` to `Verified (2025-01-15)` |
 | **Keeper** | A generated track that meets quality standards and is marked for use. Indicated with checkmark in Generation Log. | `✓` in Rating column |
 | **Source Verification** | The process of confirming research sources are accurate and properly cited. Required before production. | `Status: Sources Verified` |
@@ -45,18 +45,21 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **Extend** | Suno feature to continue a generated clip by adding ~1 minute of new content. Creates 2 versions per extension. | Click EXTEND to add verse 2 |
 | **Extend From Timestamp** | Ability to continue generation from an earlier point in the clip rather than the end. | Go back to 1:30 and regenerate |
 | **Lyrics Box** | Text field in Suno where lyrics with section tags are entered. Accepts structure tags and vocal directions. | The input field for `[Verse 1]\nLyrics here...` |
-| **Negative Prompting** | Using exclusions in style prompts to remove unwanted elements. V5 handles reliably. | `"no drums, no electric guitar"` |
+| **Negative Prompting** | Telling Suno what to leave out. Use the dedicated Exclude Styles field; prompt-level "no X" is ignored on v6. | `Exclude Styles: drums, electric guitar` |
 | **Persona** | Description of the vocalist to maintain consistency across an album. Stored in album README. | `Male baritone, gravelly, introspective, folk storyteller` |
 | **Replace Section** | Suno Pro/Premier feature to edit lyrics or insert instrumental sections within a 10-30 second segment. | Fix one verse without regenerating entire track |
 | **Reroll** | Generating new variations of a track using the same prompts. Each reroll produces different results. | Generate 3 variations, pick the best |
 | **Section Tags** | Markers in lyrics that tell Suno how to structure the song. | `[Verse]`, `[Chorus]`, `[Bridge]`, `[End]` |
-| **Stem Extraction** | Suno V5 feature to separate a track into 12 individual stems (vocals, drums, bass, etc.). | Extract vocals for a cappella version |
+| **Stem Extraction** | Suno feature to separate a track into stems: Auto Split (up to 12, 50 credits), Split from Mix (one target + the rest, 10/stem), Advanced Split (~100 instruments, Premier, 10/stem). | Extract vocals for a cappella version |
 | **Style Box** | Text field in Suno for describing musical style. Contains genre, vocal style, instrumentation, mood. | `"dark industrial electronic, aggressive male vocals"` |
 | **Style Prompt** | The text written for the Style Box. Same as Style Box content. | `"nerdcore hip-hop, lo-fi, nostalgic, 85 BPM"` |
+| **Variety** | v6 control that rewrites/expands the style prompt at any setting above Off. Off = "Exact style". | Set Off so the Style Box is used verbatim |
+| **Max Mode** | v6 toggle: more compute for consistency through the song; 2× credits. | On for tracks over ~2:00, covers, Voices |
+| **Generation Settings** | Track-file table recording Model, Variety, Max Mode, Vocal Gender, Duration, Weirdness, Style Influence. | `templates/track.md` § Generation Settings |
 | **Suno Link** | URL to a generated track on Suno. Stored in track files after generation. | `https://suno.com/song/abc123` |
 | **Suno Studio** | Generative audio workstation (Premier plan) with multitrack editing, stem controls, MIDI export, and Sample to Song. | Timeline-based editing with AI generation |
 | **Top-Anchor Approach** | Starting Suno prompts with vocal description before lyrics for better voice consistency. | Put `"Female pop vocalist, breathy"` first |
-| **V5** | Current Suno generation model with improved vocals, 12-stem extraction, and up to 8-minute tracks. | `Model: V5` in Generation Log |
+| **v6 (model family)** | The current Suno model generation — v6, v6-wild, v6-mini, plus Custom Models. Earlier generations were retired on 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
 | **Voice Tags** | Descriptors in style prompts that control vocal delivery. | `breathy, raspy, powerful, intimate, gravelly` |
 
 ---
@@ -168,7 +171,7 @@ Variables used in documentation that resolve from config:
 | **EQ** | Equalization | Adjusting frequency balance |
 | **LUFS** | Loudness Units Full Scale | Perceived loudness measurement |
 | **QA** | Quality Assurance | Review process before release |
-| **V5** | Version 5 | Current Suno model |
+| **v6** | The current Suno model generation (v6, v6-wild, v6-mini). Earlier generations retired 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
 | **WAV** | Waveform Audio File | Uncompressed audio format |
 
 ---
@@ -177,5 +180,6 @@ Variables used in documentation that resolve from config:
 
 - [CLAUDE.md](/CLAUDE.md) - Main workflow instructions
 - [skills/help/SKILL_GLOSSARY.md](/skills/help/SKILL_GLOSSARY.md) - Quick glossary in help skill
-- [reference/suno/v5-best-practices.md](/reference/suno/v5-best-practices.md) - Suno prompting guide
+- [reference/suno/best-practices.md](/reference/suno/best-practices.md) - Suno prompting guide
+- [reference/suno/models.md](/reference/suno/models.md) - Suno model catalog
 - [reference/mastering/mastering-workflow.md](/reference/mastering/mastering-workflow.md) - Audio mastering details
