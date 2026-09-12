@@ -55,7 +55,7 @@ def test_adm_validation_pass_writes_sidecar(
     async def _run():
         ctx = album_stages_mod.MasterAlbumCtx(
             album_slug="my-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -92,7 +92,7 @@ def test_adm_validation_halt_on_clips(
     async def _run():
         ctx = album_stages_mod.MasterAlbumCtx(
             album_slug="my-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )
@@ -127,7 +127,7 @@ def test_adm_validation_encoder_error_warns_not_halts(
     async def _run():
         ctx = album_stages_mod.MasterAlbumCtx(
             album_slug="my-album", genre="", target_lufs=-14.0,
-            ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
             source_subfolder="", freeze_signature=False, new_anchor=False,
             loop=asyncio.get_running_loop(),
         )

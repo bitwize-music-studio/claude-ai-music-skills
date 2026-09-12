@@ -45,7 +45,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from tools.mixing.excitation import apply_harmonic_excitation
-from tools.shared.config import coerce_yaml_bool, coerce_yaml_float
+from tools.shared.config import _should_warn, coerce_yaml_bool, coerce_yaml_float
 from tools.shared.logging_config import setup_logging
 from tools.shared.progress import ProgressBar
 
@@ -198,6 +198,19 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return merged
 
 
+# Private marker stamped into every resolved settings dict by
+# `_get_stem_settings`/`_get_full_mix_settings` so a warning about an
+# unreadable value can name WHICH block it came from (#556 round 3).
+# Nothing iterates a settings dict's keys, so an extra private entry is
+# inert; `_setting_float` is the only reader.
+_SCOPE_KEY = "__preset_scope__"
+
+
+def _scope_label(stem_name: str, genre: str | None) -> str:
+    """Human-readable name for the preset block a setting was resolved from."""
+    return f"{genre.lower()}.{stem_name}" if genre else f"defaults.{stem_name}"
+
+
 def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     """Read a numeric preset value with a warn-and-default fallback (#553).
 
@@ -220,7 +233,15 @@ def _setting_float(settings: dict[str, Any], key: str, default: float) -> float:
     """
     if key not in settings:
         return default
-    return coerce_yaml_float(settings[key], default=default, context=key)
+    # #556 round 3: qualify the context with the block the value came
+    # from. `context=key` alone produced "Cannot interpret
+    # noise_reduction='0.5' as a number" with no indication of which stem
+    # or genre section to go fix — and since the warn-once dedup keys on
+    # the context, a second broken block with the same key and value was
+    # suppressed entirely rather than reported.
+    scope = settings.get(_SCOPE_KEY)
+    context = f"{scope}.{key}" if scope else key
+    return coerce_yaml_float(settings[key], default=default, context=context)
 
 
 def resolve_silence_gate_dbfs(settings: dict[str, Any] | None = None) -> float:
@@ -284,10 +305,32 @@ def load_mix_presets() -> dict[str, Any]:
         override_defaults = override_data.get('defaults')
         if isinstance(override_defaults, dict) and override_defaults:
             defaults = _deep_merge(defaults, _lower_section_keys(override_defaults))
+        seen_genre_keys: dict[str, str] = {}
         for raw_genre_name, raw_genre_overrides in override_data.get('genres', {}).items():
             if not isinstance(raw_genre_overrides, dict):
                 continue
             genre_name = str(raw_genre_name).lower()
+            # Two override keys that only differ in case (`Electronic:` and
+            # `electronic:`) are both legal YAML siblings and collide once
+            # lowered. They still merge in document order (unchanged
+            # behavior) but now warn, naming both keys, so the collision
+            # isn't silent (#556).
+            if (
+                genre_name in seen_genre_keys
+                and seen_genre_keys[genre_name] != str(raw_genre_name)
+                # #556 round 3: route through the same warn-once dedup
+                # the rest of this round added. load_mix_presets() is
+                # re-read per track (_refresh_mix_presets), so a single
+                # colliding pair otherwise logged the identical line once
+                # per track plus once per validation/forwarding check.
+                and _should_warn("override_genre_key_collision:mix", genre_name)
+            ):
+                logger.warning(
+                    "Override genre keys %r and %r both lowercase to %r in "
+                    "mix-presets.yaml; merging in document order",
+                    seen_genre_keys[genre_name], raw_genre_name, genre_name,
+                )
+            seen_genre_keys[genre_name] = str(raw_genre_name)
             genre_overrides = _lower_section_keys(raw_genre_overrides)
             if genre_name in genres:
                 genres[genre_name] = _deep_merge(genres[genre_name], genre_overrides)
@@ -822,6 +865,8 @@ def _apply_click_removal(
             mastering overlay.
         click_repair (str): "linear" (safer on dense mixes, vocals) or
             "cubic" (better spectral reconstruction on isolated stems).
+            Anything else warns and falls back to `default_repair` (#556)
+            rather than raising out of `remove_clicks` mid-stem.
 
     `report` is accumulated (`report["clicks_detected"] += n`, plus
     `report["clicks_removed"] += n` when repair actually ran) so the
@@ -856,10 +901,38 @@ def _apply_click_removal(
             report['click_note'] = CLICKS_DETECTED_NOTE
         return data
 
+    repair = settings.get('click_repair', default_repair)
+    if repair not in ('linear', 'cubic'):
+        # `remove_clicks` used to raise ValueError straight out of a typo'd
+        # preset (`click_repair: "linar"`), taking the whole polish run
+        # down mid-stem (#556). Every other unreadable setting gets a
+        # warn-and-default fallback; this one now does too — falling back
+        # to the chain's own default_repair, not a hardcoded "linear".
+        # Gated through the same warn-once dedup as coerce_yaml_bool/
+        # coerce_yaml_float (#556 fix round): this runs once per stem per
+        # track, so an album-wide bad override otherwise logs the same
+        # line dozens of times.
+        # #556 round 3: the dedup key includes default_repair because the
+        # message prints it and it differs per stem — drums and
+        # percussion pass "cubic", the other eleven chains "linear". With
+        # the key keyed on the bad value alone, whichever stem ran first
+        # consumed the single slot, so a run that logged "using default
+        # 'linear'" could silently repair drums with cubic spline
+        # interpolation, and the operator debugging spline artefacts read
+        # a line contradicting what actually ran.
+        if _should_warn(f'click_repair:{default_repair}', repair):
+            logger.warning(
+                "Cannot interpret click_repair=%r — using default %r. Use "
+                "'linear' or 'cubic'.",
+                repair,
+                default_repair,
+            )
+        repair = default_repair
+
     data, n_clicks = remove_clicks(
         data, rate,
         peak_ratio=peak_ratio,
-        repair=settings.get('click_repair', default_repair),
+        repair=repair,
     )
     if report is not None:
         report['clicks_detected'] = report.get('clicks_detected', 0) + int(n_clicks)
@@ -1331,6 +1404,7 @@ def _get_stem_settings(
             if key in _ANALYZER_EQ_OVERRIDE_KEYS:
                 result[key] = value
 
+    result[_SCOPE_KEY] = _scope_label(stem_name, genre)
     return result
 
 
@@ -1360,6 +1434,7 @@ def _get_full_mix_settings(genre: str | None = None) -> dict[str, Any]:
         result['click_peak_ratio'] = peak_ratio
     if fail_count is not None and 'click_fail_count' not in result:
         result['click_fail_count'] = fail_count
+    result[_SCOPE_KEY] = _scope_label('full_mix', genre)
     return result
 
 

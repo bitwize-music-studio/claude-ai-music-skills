@@ -328,7 +328,6 @@ def test_build_effective_preset_edm_gets_opus_safe_ceiling() -> None:
     from tools.mastering.config import build_effective_preset
     bundle = build_effective_preset(
         genre="edm",
-        cut_highmid_arg=0.0, cut_highs_arg=0.0,
         target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
     )
     assert bundle["error"] is None

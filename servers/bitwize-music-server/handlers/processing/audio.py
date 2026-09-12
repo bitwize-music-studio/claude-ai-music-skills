@@ -293,14 +293,8 @@ async def master_audio(
 
     bundle = build_effective_preset(
         genre=genre,
-        # build_effective_preset's own arg sentinel is "0.0 == not
-        # supplied" and can't tell an omitted cut_highmid/cut_highs apart
-        # from an explicit 0 meant to disable the genre preset's cut
-        # (#553). Feed it the pre-#553 sentinel value for both cases, then
-        # correct the resolution below using the caller's real
-        # None-vs-explicit-0 value.
-        cut_highmid_arg=cut_highmid if cut_highmid is not None else 0.0,
-        cut_highs_arg=cut_highs if cut_highs is not None else 0.0,
+        cut_highmid_arg=cut_highmid,
+        cut_highs_arg=cut_highs,
         target_lufs_arg=target_lufs,
         ceiling_db_arg=ceiling_db,
     )
@@ -310,25 +304,13 @@ async def master_audio(
             "available_genres": bundle["error"]["available_genres"],
         })
     targets = bundle["targets"]
-    effective_preset = dict(bundle["effective_preset"])
+    effective_preset = bundle["effective_preset"]
     effective_lufs = targets["target_lufs"]
     effective_ceiling = targets["ceiling_db"]
     effective_highmid = bundle["settings"]["cut_highmid"]
     effective_highs = bundle["settings"]["cut_highs"]
     effective_compress = effective_preset["compress_ratio"]
     genre_applied = bundle["genre_applied"]
-
-    # An explicit 0/0.0 disables the cut outright, overriding whatever
-    # build_effective_preset resolved it to above (see comment on the
-    # build_effective_preset call). Correct both the preset handed to
-    # master_track and the values echoed in the response settings block
-    # so they reflect what's actually applied, not the genre preset.
-    if cut_highmid == 0.0:
-        effective_highmid = 0.0
-        effective_preset["cut_highmid"] = 0.0
-    if cut_highs == 0.0:
-        effective_highs = 0.0
-        effective_preset["cut_highs"] = 0.0
 
     # EQ is applied inside master_track from preset.cut_highmid / cut_highs
     # below; no need to pre-build an eq_settings tuple list here.
@@ -672,8 +654,8 @@ async def master_album(
     genre: str = "",
     target_lufs: float = -14.0,
     ceiling_db: float = -1.0,
-    cut_highmid: float = 0.0,
-    cut_highs: float = 0.0,
+    cut_highmid: float | None = None,
+    cut_highs: float | None = None,
     source_subfolder: str = "",
     freeze_signature: bool = False,
     new_anchor: bool = False,
@@ -732,16 +714,12 @@ async def master_album(
         genre: Genre preset to apply (EQ/LUFS/QC tolerances).
         target_lufs: Target integrated loudness (default: -14.0).
         ceiling_db: True peak ceiling in dB (default: -1.0).
-        cut_highmid: High-mid EQ cut in dB at 3.5kHz. **0 means "use the
-            genre preset" here** — it is this parameter's default and
-            `build_effective_preset` cannot tell it from an omitted
-            argument, so there is no way to disable a genre's high-mid
-            cut through this tool. That differs from `master_audio`,
-            where the default is None and an explicit 0 disables the cut
-            (#553); migrating the shared mastering plumbing is a
-            follow-up. To master without the cut, use `master_audio`.
-        cut_highs: High shelf cut in dB at 8kHz. Same semantics as
-            `cut_highmid` above: 0 means "use the genre preset".
+        cut_highmid: High-mid EQ cut in dB at 3.5kHz (e.g., -2.0). Omit
+            (None) to use the genre preset's cut; pass 0 or 0.0
+            explicitly to disable the cut regardless of genre.
+        cut_highs: High shelf cut in dB at 8kHz. Same omit-vs-explicit-0
+            semantics as cut_highmid: None uses the genre preset, an
+            explicit 0/0.0 disables it.
         source_subfolder: Read WAV files from this subfolder (e.g.
             "polished" to master from mix-engineer output).
         freeze_signature: Reuse the stored album signature instead of
@@ -1594,8 +1572,8 @@ async def measure_album_signature(
         from tools.mastering.config import build_effective_preset
         bundle = build_effective_preset(
             genre=genre,
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
+            # Only preset_dict is consumed here; the cut arguments are
+            # left at their "use the preset" default (#556).
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -1757,8 +1735,8 @@ async def album_coherence_check(
         from tools.mastering.config import build_effective_preset
         bundle = build_effective_preset(
             genre=genre,
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
+            # Only preset_dict is consumed here; the cut arguments are
+            # left at their "use the preset" default (#556).
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -1889,8 +1867,8 @@ async def album_coherence_correct(
     check_subfolder: str = "mastered",
     target_lufs: float = -14.0,
     ceiling_db: float = -1.0,
-    cut_highmid: float = 0.0,
-    cut_highs: float = 0.0,
+    cut_highmid: float | None = None,
+    cut_highs: float | None = None,
     anchor_track: int | None = None,
     dry_run: bool = False,
 ) -> str:
@@ -1916,14 +1894,10 @@ async def album_coherence_correct(
         target_lufs / ceiling_db: Mastering overrides used only as the
             initial preset; per-track target_lufs is overridden with the
             anchor's measured LUFS during correction.
-        cut_highmid / cut_highs: EQ cuts in dB (3.5kHz / 8kHz). **0
-            means "use the genre preset" here** — 0 is also each
-            parameter's default and `build_effective_preset` cannot tell
-            the two apart, so neither cut can be disabled through this
-            tool. Same as `master_album`, and unlike `master_audio`,
-            where the default is None and an explicit 0 disables the cut
-            (#553). Migrating the shared mastering plumbing is a
-            follow-up.
+        cut_highmid / cut_highs: EQ cuts in dB (3.5kHz / 8kHz). Omit
+            (None) to use the genre preset's cut; pass 0 or 0.0
+            explicitly to disable that cut regardless of genre. The
+            resolved values are echoed in the response's settings block.
         anchor_track: Optional explicit anchor.
         dry_run: When True, build the correction plan and return it
             without writing any files.
@@ -2004,15 +1978,34 @@ async def album_coherence_correct(
             "pre_correction": pre,
         })
 
-    # Resolve the preset so the tilt clamp honors coherence_tilt_max_db
-    # (parity with master_album's _stage_coherence_correct — without this,
-    # preset overrides of the ±0.5 dB default silently do nothing here).
+    import soundfile as _sf
+
+    from tools.mastering.analyze_tracks import analyze_track
+    from tools.mastering.master_tracks import master_track
+    loop = asyncio.get_running_loop()
+    mastered_wavs = sorted([
+        f for f in mastered_dir.iterdir()
+        if f.suffix.lower() == ".wav" and "venv" not in str(f)
+    ])
+    try:
+        source_sample_rate = int(_sf.info(str(mastered_wavs[0])).samplerate)
+    except Exception:
+        source_sample_rate = None
+
+    # One preset resolution serves three consumers: the tilt clamp's
+    # coherence_tilt_max_db (parity with master_album's
+    # _stage_coherence_correct — without it, preset overrides of the
+    # ±0.5 dB default silently do nothing here), the settings echo, and
+    # the preset handed to master_track below. Resolving it twice with
+    # different cut arguments is what let the echo drift from what was
+    # actually applied (#556).
     bundle = build_effective_preset(
         genre=genre,
-        cut_highmid_arg=0.0,
-        cut_highs_arg=0.0,
-        target_lufs_arg=-14.0,
-        ceiling_db_arg=-1.0,
+        cut_highmid_arg=cut_highmid,
+        cut_highs_arg=cut_highs,
+        target_lufs_arg=target_lufs,
+        ceiling_db_arg=ceiling_db,
+        source_sample_rate=source_sample_rate,
     )
     if bundle["error"] is not None:
         return _safe_json({
@@ -2020,13 +2013,8 @@ async def album_coherence_correct(
             "available_genres": bundle["error"].get("available_genres", []),
         })
     tolerances = load_tolerances(bundle["preset_dict"])
+    effective_preset = bundle["effective_preset"]
 
-    from tools.mastering.analyze_tracks import analyze_track
-    loop = asyncio.get_running_loop()
-    mastered_wavs = sorted([
-        f for f in mastered_dir.iterdir()
-        if f.suffix.lower() == ".wav" and "venv" not in str(f)
-    ])
     pre_analysis: list[dict[str, Any]] = []
     for wav in mastered_wavs:
         result = await loop.run_in_executor(None, analyze_track, str(wav))
@@ -2045,6 +2033,9 @@ async def album_coherence_correct(
             "genre":             genre,
             "source_subfolder":  source_subfolder,
             "check_subfolder":   check_subfolder,
+            # Effective (post-resolution) cuts, not the raw arguments.
+            "cut_highmid":       bundle["settings"]["cut_highmid"],
+            "cut_highs":         bundle["settings"]["cut_highs"],
         },
         "pre_correction": pre,
         "plan":           plan,
@@ -2061,30 +2052,6 @@ async def album_coherence_correct(
             "outliers_after":  pre["summary"]["outlier_count"],
         }
         return _safe_json(response)
-
-    import soundfile as _sf
-
-    from tools.mastering.config import build_effective_preset
-    from tools.mastering.master_tracks import master_track
-    try:
-        source_sample_rate = int(_sf.info(str(mastered_wavs[0])).samplerate)
-    except Exception:
-        source_sample_rate = None
-
-    bundle = build_effective_preset(
-        genre=genre,
-        cut_highmid_arg=cut_highmid,
-        cut_highs_arg=cut_highs,
-        target_lufs_arg=target_lufs,
-        ceiling_db_arg=ceiling_db,
-        source_sample_rate=source_sample_rate,
-    )
-    if bundle["error"] is not None:
-        return _safe_json({
-            "error": bundle["error"]["reason"],
-            "available_genres": bundle["error"].get("available_genres", []),
-        })
-    effective_preset = bundle["effective_preset"]
 
     staging_dir = mastered_dir.parent / ".coherence_staging"
     staging_dir.mkdir(exist_ok=True)

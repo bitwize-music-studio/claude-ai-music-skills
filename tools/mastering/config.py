@@ -236,8 +236,8 @@ resolve_mastering_targets = build_delivery_targets
 def build_effective_preset(
     *,
     genre: str,
-    cut_highmid_arg: float,
-    cut_highs_arg: float,
+    cut_highmid_arg: float | None = None,
+    cut_highs_arg: float | None = None,
     target_lufs_arg: float,
     ceiling_db_arg: float,
     source_sample_rate: int | None = None,
@@ -247,6 +247,17 @@ def build_effective_preset(
 
     Consolidates the duplicated preset-construction block that used to live in
     both master_audio() and master_album() handlers (D1 review item from #304).
+
+    ``cut_highmid_arg`` / ``cut_highs_arg`` use a None sentinel (#556):
+
+      * ``None`` (or omitted) — use the genre preset's cut; with no genre,
+        no cut is applied (0.0), which is exactly what the pre-#556 ``0.0``
+        default resolved to.
+      * ``0`` / ``0.0`` — disable the cut, whatever the genre preset says.
+      * any other value — use it verbatim, overriding the preset.
+
+    The resolved (effective) values are reported in both ``effective_preset``
+    and ``settings``, so callers echo what was actually applied.
 
     ``album_mastering`` is the per-album ``mastering:`` frontmatter block
     (from the album's cached state). Forwarded unchanged to
@@ -270,8 +281,12 @@ def build_effective_preset(
     # startup. Keep the disk I/O off the startup path.
     from tools.mastering.master_tracks import load_genre_presets
 
-    effective_highmid = cut_highmid_arg
-    effective_highs = cut_highs_arg
+    # Baseline: an explicit value is used verbatim, and "not supplied" with
+    # no genre to fall back on means no cut — the same 0.0 the old
+    # float-only signature defaulted to. The genre branch below is the only
+    # place a None is replaced by the preset's cut.
+    effective_highmid = 0.0 if cut_highmid_arg is None else cut_highmid_arg
+    effective_highs = 0.0 if cut_highs_arg is None else cut_highs_arg
     effective_compress = 1.5
     genre_applied: str | None = None
     preset_dict: dict[str, Any] | None = None
@@ -292,9 +307,9 @@ def build_effective_preset(
                 },
             }
         preset_dict = dict(presets[genre_key])
-        if cut_highmid_arg == 0.0:
+        if cut_highmid_arg is None:
             effective_highmid = preset_dict["cut_highmid"]
-        if cut_highs_arg == 0.0:
+        if cut_highs_arg is None:
             effective_highs = preset_dict["cut_highs"]
         effective_compress = preset_dict["compress_ratio"]
         genre_applied = genre_key

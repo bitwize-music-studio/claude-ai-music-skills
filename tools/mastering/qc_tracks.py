@@ -497,6 +497,18 @@ def qc_track(
     basename = os.path.basename(filepath)
     active_checks = checks or ALL_CHECKS
 
+    # #556 round 3: refresh the mastering-preset snapshot at this entry
+    # point, mirroring `_refresh_mix_presets()` on the mix side (#553).
+    # Both resolvers below read `master_tracks.GENRE_PRESETS`, which was
+    # an import-time snapshot in a long-lived server: a genre added to
+    # `{overrides}/mastering-presets.yaml` mid-session was visible to
+    # every `load_genre_presets()` caller but not here, so a caller that
+    # validated the genre against the fresh loader would pass it in and
+    # then trip the `ValueError` raised below. Refreshing here keeps the
+    # validating and raising sides reading the same data.
+    from tools.mastering.master_tracks import refresh_genre_presets
+    refresh_genre_presets()
+
     click_peak_ratio, click_fail_count = _resolve_click_thresholds(genre)
     silence_leading_max_s, silence_trailing_max_s = _resolve_silence_thresholds(genre)
 

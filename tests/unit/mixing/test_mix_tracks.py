@@ -1489,6 +1489,123 @@ class TestClickDetectionIsReportedWhenDeclickIsOff:
         assert "click_note" not in result
 
 
+class TestClickRepairWarnAndDefault:
+    """An unknown `click_repair` value used to raise ValueError mid-run,
+
+    straight out of `remove_clicks` — a typo'd preset (`"linar"`) took a
+    whole polish run down instead of falling back like every other
+    unreadable setting (#556). `_apply_click_removal` now validates
+    against the known set before calling `remove_clicks` and warns +
+    falls back to the chain's `default_repair` on anything else.
+    """
+
+    @staticmethod
+    def _spy_repair(monkeypatch, settings, default_repair="linear"):
+        """Run `_apply_click_removal` with clicky audio and capture the
+        `repair` value it actually hands `remove_clicks`."""
+        from tools.mixing.mix_tracks import _apply_click_removal
+
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(35):
+            mono[2000 + i * 1000] = 0.9
+        data = np.column_stack([mono, mono])
+
+        seen = {}
+
+        def _spy(data, rate, *, peak_ratio, repair="linear", **kw):
+            seen["repair"] = repair
+            return data, 0
+
+        import tools.mixing.mix_tracks as mt
+        monkeypatch.setattr(mt, "remove_clicks", _spy)
+        _apply_click_removal(
+            data, rate, {**settings, "click_removal": True}, {},
+            default_repair=default_repair,
+        )
+        return seen["repair"]
+
+    def test_unknown_click_repair_falls_back_and_warns(self, monkeypatch, caplog):
+        with caplog.at_level(logging.WARNING):
+            repair = self._spy_repair(
+                monkeypatch, {"click_repair": "linar"}, default_repair="linear",
+            )
+        assert repair == "linear"
+        assert any("click_repair" in r.message for r in caplog.records)
+
+    def test_unknown_click_repair_falls_back_to_chains_default(self, monkeypatch, caplog):
+        """The fallback is the *chain's* default_repair, not a hardcoded
+        "linear" — a stem whose chain defaults to "cubic" should fall
+        back to "cubic"."""
+        with caplog.at_level(logging.WARNING):
+            repair = self._spy_repair(
+                monkeypatch, {"click_repair": "bogus"}, default_repair="cubic",
+            )
+        assert repair == "cubic"
+
+    def test_known_repair_values_pass_through_without_warning(self, monkeypatch, caplog):
+        with caplog.at_level(logging.WARNING):
+            linear = self._spy_repair(monkeypatch, {"click_repair": "linear"})
+            cubic = self._spy_repair(monkeypatch, {"click_repair": "cubic"})
+        assert linear == "linear"
+        assert cubic == "cubic"
+        assert not any("click_repair" in r.message for r in caplog.records)
+
+    def test_missing_click_repair_uses_default_without_warning(self, monkeypatch, caplog):
+        with caplog.at_level(logging.WARNING):
+            repair = self._spy_repair(monkeypatch, {}, default_repair="cubic")
+        assert repair == "cubic"
+        assert not any("click_repair" in r.message for r in caplog.records)
+
+    def test_repeated_same_bad_value_warns_once(self, monkeypatch, caplog):
+        """#556 fix round: this warning used to log directly, once per
+        stem per track — the exact per-run noise the shared warn-once
+        dedup (`tools.shared.config._should_warn`) exists to collapse
+        for every other unreadable setting. It now goes through the same
+        mechanism, so a persistently bad `click_repair` (one preset
+        value, many stems/tracks reading it in one run) warns once."""
+        with caplog.at_level(logging.WARNING):
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+        matches = [r for r in caplog.records if "click_repair" in r.message]
+        assert len(matches) == 1
+
+    def test_different_bad_value_still_warns(self, monkeypatch, caplog):
+        """A *different* bad value for the same setting is new
+        information and still warns, even after an earlier bad value on
+        the same key has already been logged."""
+        with caplog.at_level(logging.WARNING):
+            self._spy_repair(monkeypatch, {"click_repair": "linar"})
+            self._spy_repair(monkeypatch, {"click_repair": "cubik"})
+        matches = [r for r in caplog.records if "click_repair" in r.message]
+        assert len(matches) == 2
+
+    def test_end_to_end_unknown_repair_does_not_crash_the_stem(self, tmp_path, monkeypatch):
+        """Before the fix this raised ValueError out of remove_clicks and
+        took the whole mix_track_stems call down with it."""
+        _install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+            "      click_repair: nonsense\n"
+        ))
+        stem = tmp_path / "vocals.wav"
+        rate = 44100
+        t = np.linspace(0, 1.0, rate, endpoint=False)
+        mono = (0.02 * np.sin(2 * np.pi * 440 * t)).astype(np.float64)
+        for i in range(35):
+            mono[2000 + i * 1000] = 0.9
+        _write_wav(stem, np.column_stack([mono, mono]), rate)
+
+        result = mix_track_stems(
+            {"vocals": str(stem)}, str(tmp_path / "out.wav"), genre="electronic",
+        )
+        report = result["stems_processed"][0]
+        assert report["clicks_detected"] >= 1
+
+
 class TestSilenceGateIsConfigurable:
     """#553 follow-up: the gate threshold was a bare module constant read
 
@@ -2124,6 +2241,54 @@ class TestPresetLoading:
         bad.write_text(": : : not valid [[[")
         result = _load_yaml_file(bad)
         assert result == {}
+
+
+class TestDuplicateGenreKeyCollapseWarns:
+    """When lowercasing an override's genre keys makes two of them collide
+
+    (`Electronic:` and `electronic:` both present in the same override
+    file — legal YAML, since the raw keys differ), the merge already
+    happened silently in document order. #556 adds a warning naming both
+    colliding keys so the user notices the file has two blocks that got
+    folded into one, without changing the deterministic merge itself.
+    """
+
+    _install_override = staticmethod(_install_override)
+
+    def test_colliding_genre_keys_merge_and_warn(self, tmp_path, monkeypatch, caplog):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  Electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+            "  electronic:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        with caplog.at_level(logging.WARNING):
+            presets = load_mix_presets()
+        # Document-order merge is unchanged: both blocks land under
+        # 'electronic'.
+        assert presets['genres']['electronic']['vocals']['click_removal'] is True
+        assert presets['genres']['electronic']['drums']['click_removal'] is False
+        assert any(
+            'Electronic' in r.message and 'electronic' in r.message
+            for r in caplog.records
+        )
+
+    def test_non_colliding_genres_do_not_warn(self, tmp_path, monkeypatch, caplog):
+        self._install_override(tmp_path, monkeypatch, (
+            "genres:\n"
+            "  electronic:\n"
+            "    vocals:\n"
+            "      click_removal: true\n"
+            "  rock:\n"
+            "    drums:\n"
+            "      click_removal: false\n"
+        ))
+        with caplog.at_level(logging.WARNING):
+            load_mix_presets()
+        assert not any('lowercase' in r.message for r in caplog.records)
 
 
 class TestSyntheticAudioDefaults:

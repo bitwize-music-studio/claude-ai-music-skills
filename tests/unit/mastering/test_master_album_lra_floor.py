@@ -54,7 +54,7 @@ def test_lra_floor_fail_halts_pipeline(
         async def _run():
             ctx = album_stages_mod.MasterAlbumCtx(
                 album_slug="lra-test", genre="", target_lufs=-14.0,
-                ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+                ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
                 source_subfolder="", freeze_signature=False, new_anchor=False,
                 loop=asyncio.get_running_loop(),
             )
@@ -91,7 +91,7 @@ def test_lra_floor_pass_does_not_halt(
         async def _run():
             ctx = album_stages_mod.MasterAlbumCtx(
                 album_slug="lra-test", genre="", target_lufs=-14.0,
-                ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+                ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
                 source_subfolder="", freeze_signature=False, new_anchor=False,
                 loop=asyncio.get_running_loop(),
             )
@@ -120,7 +120,7 @@ def test_lra_floor_skipped_when_no_preset(
         async def _run():
             ctx = album_stages_mod.MasterAlbumCtx(
                 album_slug="lra-test", genre="", target_lufs=-14.0,
-                ceiling_db=-1.0, cut_highmid=0.0, cut_highs=0.0,
+                ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
                 source_subfolder="", freeze_signature=False, new_anchor=False,
                 loop=asyncio.get_running_loop(),
             )

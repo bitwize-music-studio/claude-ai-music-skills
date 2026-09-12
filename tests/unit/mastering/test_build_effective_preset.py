@@ -17,8 +17,6 @@ class TestBuildEffectivePreset:
     def test_pop_genre_happy_path(self):
         result = build_effective_preset(
             genre="pop",
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
             source_sample_rate=44100,
@@ -44,8 +42,6 @@ class TestBuildEffectivePreset:
     def test_empty_genre_no_preset(self):
         result = build_effective_preset(
             genre="",
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -69,8 +65,6 @@ class TestBuildEffectivePreset:
         """
         result = build_effective_preset(
             genre="",
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -86,8 +80,6 @@ class TestBuildEffectivePreset:
         consistent with output_bits (genre-presets.yaml sets dither_bits=24)."""
         result = build_effective_preset(
             genre="pop",
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -97,8 +89,6 @@ class TestBuildEffectivePreset:
     def test_unknown_genre_returns_error(self):
         result = build_effective_preset(
             genre="not-a-real-genre",
-            cut_highmid_arg=0.0,
-            cut_highs_arg=0.0,
             target_lufs_arg=-14.0,
             ceiling_db_arg=-1.0,
         )
@@ -122,3 +112,71 @@ class TestBuildEffectivePreset:
         assert ep["target_lufs"] == -16.0
         s = result["settings"]
         assert s["ceiling_db"] == -1.5
+
+
+class TestCutEqNoneSentinel:
+    """#556: None means "use the genre preset", an explicit 0 disables the cut.
+
+    black-metal is the fixture genre because it ships a non-zero value for
+    BOTH cuts, so "explicit 0 disables" is a real assertion either way.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _shipped_presets_only(self, monkeypatch):
+        """Resolve from the presets this repo ships, not from the developer's
+        ``{overrides}/mastering-presets.yaml`` — an override that zeroed
+        black-metal's cuts would otherwise make these assertions vacuous."""
+        from tools.mastering import master_tracks as master_tracks_mod
+        monkeypatch.setattr(master_tracks_mod, "_get_overrides_path", lambda: None)
+
+    def _preset(self) -> dict:
+        from tools.mastering.master_tracks import load_genre_presets
+        return load_genre_presets()["black-metal"]
+
+    def test_omitted_uses_preset_cuts(self):
+        preset = self._preset()
+        result = build_effective_preset(
+            genre="black-metal", target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        )
+        assert result["effective_preset"]["cut_highmid"] == preset["cut_highmid"]
+        assert result["effective_preset"]["cut_highs"] == preset["cut_highs"]
+        assert result["settings"]["cut_highmid"] == preset["cut_highmid"]
+        assert result["settings"]["cut_highs"] == preset["cut_highs"]
+
+    def test_explicit_none_matches_omitted(self):
+        preset = self._preset()
+        result = build_effective_preset(
+            genre="black-metal", cut_highmid_arg=None, cut_highs_arg=None,
+            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        )
+        assert result["settings"]["cut_highmid"] == preset["cut_highmid"]
+        assert result["settings"]["cut_highs"] == preset["cut_highs"]
+
+    def test_explicit_zero_disables_and_is_echoed(self):
+        preset = self._preset()
+        assert preset["cut_highmid"] != 0, "fixture genre must ship a cut"
+        result = build_effective_preset(
+            genre="black-metal", cut_highmid_arg=0.0, cut_highs_arg=0.0,
+            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        )
+        assert result["effective_preset"]["cut_highmid"] == 0.0
+        assert result["effective_preset"]["cut_highs"] == 0.0
+        assert result["settings"]["cut_highmid"] == 0.0
+        assert result["settings"]["cut_highs"] == 0.0
+
+    def test_each_cut_resolves_independently(self):
+        preset = self._preset()
+        result = build_effective_preset(
+            genre="black-metal", cut_highmid_arg=0.0,
+            target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        )
+        assert result["settings"]["cut_highmid"] == 0.0
+        assert result["settings"]["cut_highs"] == preset["cut_highs"]
+
+    def test_genreless_omitted_still_resolves_to_no_cut(self):
+        """Byte-identical to the pre-#556 float-only default of 0.0."""
+        result = build_effective_preset(
+            genre="", target_lufs_arg=-14.0, ceiling_db_arg=-1.0,
+        )
+        assert result["effective_preset"]["cut_highmid"] == 0.0
+        assert result["effective_preset"]["cut_highs"] == 0.0

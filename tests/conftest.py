@@ -80,6 +80,26 @@ def _isolate_state_cache(monkeypatch, tmp_path):
         monkeypatch.setattr(module, "CONFIG_FILE", cache_dir / "config.yaml")
 
 
+@pytest.fixture(autouse=True)
+def _reset_warned_bad_values():
+    """Reset the shared coercers' once-per-process warn dedup (#556).
+
+    `tools.shared.config.coerce_yaml_bool`/`coerce_yaml_float` now warn on
+    a given (setting, bad value) pair only once per process, to stop a
+    persistently bad override from logging identical text once per stem
+    per track. That is a real process-lifetime cache — exactly the kind
+    of global state that makes test order matter: two tests in different
+    files asserting "this bad value warns" for the *same* (context,
+    value) pair would see only the first one actually log, since the
+    dedup set is shared across the whole pytest session. Clearing it
+    before every test keeps each test's warning assertions independent of
+    what ran before it, while still exercising the real dedup logic
+    within any single test.
+    """
+    import tools.shared.config as shared_config
+    shared_config._WARNED_BAD_VALUES.clear()
+
+
 @pytest.fixture(scope="session")
 def project_root() -> Path:
     """Path to the repository root."""
