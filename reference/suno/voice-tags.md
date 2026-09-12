@@ -69,7 +69,7 @@ Style Box prose describing how the vocal is processed (not bracket tags — comm
 | `Reverb` / `spacious reverb` | Echoing, roomy sound — ballads, ambient |
 | `Delay` / `slapback delay` | Repeated echoes — dub, experimental |
 | `Auto-tuned` | Pitch-corrected, modern pop/trap effect |
-| `No autotune` / `natural pitch` | Organic, unprocessed vocal — see [Negative Prompting](best-practices.md#negative-prompting) |
+| `natural pitch` (Style Box) + `autotune` in Exclude Styles | Organic, unprocessed vocal — see [Negative Prompting](best-practices.md#negative-prompting) |
 | `Vocoded` / `vocoder` | Robotic, electronic processing |
 | `Distorted vocals` | Gritty, overdriven — rock, industrial |
 | `Filtered` / `telephone effect` | Narrow-band, lo-fi/vintage transition sound |

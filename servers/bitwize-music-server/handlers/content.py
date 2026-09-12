@@ -152,9 +152,10 @@ async def format_for_clipboard(
         track_slug: Track slug or number (e.g., "01-track-name" or "01")
         content_type: What to extract:
             "lyrics" — Suno Lyrics Box content
-            "style" — Suno Style Box content
+            "style" — Suno Style Box content only (Exclude Styles is its own field)
+            "exclude" — Suno Exclude Styles field content (bare elements, comma-separated)
             "streaming" or "streaming-lyrics" — Streaming platform lyrics
-            "all" — Style Box + separator + Lyrics Box
+            "all" — Style Box, "Exclude: …" and Lyrics Box separated by ---
             "suno" — JSON object with title, style, and lyrics for Suno auto-fill
 
     Returns:
@@ -197,12 +198,10 @@ async def format_for_clipboard(
 
     content: str | None = None
     if content_type == "style":
-        style = _get_section_content("Style Box")
-        exclude = _get_section_content("Exclude Styles")
-        if style and exclude:
-            content = f"{style}, {exclude}"
-        else:
-            content = style
+        # Style Box only. Exclude Styles is a separate Suno field holding bare
+        # elements ("drums", not "no drums"), so appending it here would ask
+        # *for* the excluded things. Use content_type="exclude" for that field.
+        content = _get_section_content("Style Box")
     elif content_type == "exclude":
         content = _get_section_content("Exclude Styles")
     elif content_type == "lyrics":

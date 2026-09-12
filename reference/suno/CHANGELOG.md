@@ -4,6 +4,13 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-09-12 - Exclude Styles Format
+
+### Changes
+- Exclude Styles values are bare elements (`drums`, not `no drums`) everywhere: suno-engineer skill and genre tables, track template, clipboard skill, the voice-tags autotune row; `best-practices.md` § Negative Prompting now states the rule. The `style` clipboard type no longer appends the section to the Style Box (it would have asked for the excluded elements).
+
+---
+
 ## 2026-09-11 - v6 Follow-up Sweep
 
 Second pass two days after launch: official sources re-checked (all six v6 help articles still dated Sep 9; no new release notes, posts or pricing changes), fifteen post-launch creator videos transcribed and read, four web passes (official, v6, v6-wild, v6-mini). Reddit was unreachable for this pass.

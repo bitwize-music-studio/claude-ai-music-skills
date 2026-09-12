@@ -60,8 +60,8 @@ Expected format: `<content-type> <album-name> <track-number>`
 
 **Content types:**
 - `lyrics` - Suno Lyrics Box
-- `style` - Suno Style Box (auto-appends Exclude Styles if present)
-- `exclude` - Exclude Styles only (negative prompts)
+- `style` - Suno Style Box only
+- `exclude` - Suno Exclude Styles field (bare elements, comma-separated — `drums, autotune`, never "no drums")
 - `streaming-lyrics` - Streaming Lyrics (for distributors)
 - `all` - All Suno inputs (Style + Exclude + Lyrics combined)
 - `suno` - JSON object (title, style, exclude_styles, lyrics) for Suno auto-fill via Tampermonkey
@@ -183,7 +183,8 @@ Output:
   Track: 01-intro.md
 
 Contents:
-- Style Box (with Exclude Styles if present)
+- Style Box
+- `Exclude: …` (if the track has Exclude Styles)
 - Lyrics Box
 ```
 

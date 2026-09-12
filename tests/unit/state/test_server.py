@@ -2103,7 +2103,7 @@ class TestListTrackFiles:
 # =============================================================================
 
 # Sample track markdown content for testing
-_SAMPLE_EXCLUDE_CONTENT = "no acoustic guitar, no autotune"
+_SAMPLE_EXCLUDE_CONTENT = "acoustic guitar, autotune"
 
 _SAMPLE_TRACK_MD = """\
 # Test Track
@@ -2139,10 +2139,10 @@ electronic, 120 BPM, energetic, male vocals, synth-driven
 ```
 
 ### Exclude Styles
-*Negative prompts — append to Style Box when pasting into Suno:*
+*Paste into Suno's Exclude Styles field:*
 
 ```
-no acoustic guitar, no autotune
+acoustic guitar, autotune
 ```
 
 ### Lyrics Box
@@ -10963,7 +10963,7 @@ class TestFormatForClipboardSuno:
     def test_suno_exclude_styles_empty_when_missing(self, tmp_path):
         """When Exclude Styles section is absent, exclude_styles is empty string."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"
@@ -10997,7 +10997,7 @@ class TestFormatForClipboardSuno:
     def test_all_content_type_omits_exclude_when_empty(self, tmp_path):
         """'all' content_type omits Exclude section when not present."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"
@@ -11079,20 +11079,21 @@ class TestFormatForClipboardSuno:
         payload = json.loads(result["content"])
         assert payload["title"] == "Tëst Träck café"
 
-    def test_style_auto_appends_exclude_styles(self, tmp_path):
-        """'style' content_type auto-appends Exclude Styles to Style Box."""
+    def test_style_does_not_append_exclude_styles(self, tmp_path):
+        """'style' returns the Style Box alone — Exclude Styles is a separate Suno field of bare elements."""
         mock_cache = self._make_cache_with_file(tmp_path)
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.format_for_clipboard("test-album", "01-test-track", "style")))
         assert result["found"] is True
         assert result["content_type"] == "style"
-        assert _SAMPLE_EXCLUDE_CONTENT in result["content"]
-        assert result["content"].endswith(_SAMPLE_EXCLUDE_CONTENT)
+        assert result["content"].endswith("synth-driven")
+        assert _SAMPLE_EXCLUDE_CONTENT not in result["content"]
+        assert "autotune" not in result["content"]
 
     def test_style_without_exclude_returns_style_only(self, tmp_path):
         """'style' content_type returns just Style Box when no Exclude Styles."""
         track_md = _SAMPLE_TRACK_MD.replace(
-            "### Exclude Styles\n*Negative prompts — append to Style Box when pasting into Suno:*\n\n```\nno acoustic guitar, no autotune\n```\n\n",
+            "### Exclude Styles\n*Paste into Suno's Exclude Styles field:*\n\n```\nacoustic guitar, autotune\n```\n\n",
             "",
         )
         track_file = tmp_path / "05-no-exclude.md"

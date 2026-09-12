@@ -204,7 +204,7 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
 ```
 
 ### Exclude Styles
-*Negative prompts — append to Style Box when pasting into Suno (e.g. "no drums, no electric guitar"):*
+*Paste into Suno's **Exclude Styles** field (Advanced Mode → More Options), not the Style Box. Bare elements, comma-separated — `drums, electric guitar` — never "no drums":*
 
 ```
 [exclusions, if any]
