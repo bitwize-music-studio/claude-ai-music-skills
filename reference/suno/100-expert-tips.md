@@ -1,8 +1,8 @@
 # Suno AI Music Creation — 100 Words of Advice
 
-A compilation of hard-won wisdom from artists, producers, sound designers, and video makers who work in Suno every day. Distilled into 100 tips, tricks, hacks, workflows, blueprints, and templates. For fun or for profit.
+A compilation of community craft advice for working in Suno, distilled into 100 tips, tricks, workflows, blueprints, and templates. For fun or for profit. Contributed by [@cbrahms](https://github.com/cbrahms) ([#561](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/561)).
 
-Companion to [v5-best-practices.md](v5-best-practices.md) (the how) and [tips-and-tricks.md](tips-and-tricks.md) (the troubleshooting). This doc is the *why* and the *craft*.
+Companion to [best-practices.md](best-practices.md) (the how), [models.md](models.md) (which model, which settings) and [tips-and-tricks.md](tips-and-tricks.md) (the troubleshooting). This doc is the *why* and the *craft*. Where a tip here differs from those three, they win: they are kept against Suno's own documentation and tagged **(unverified)** where first-hand confirmation is still missing. Tips carrying that tag below are craft opinions, not tested behaviour.
 
 ---
 
@@ -36,7 +36,7 @@ Companion to [v5-best-practices.md](v5-best-practices.md) (the how) and [tips-an
 
 **12. Two or three genres max.** `Country trap jazz fusion` is a coin flip. Pick a primary genre and one modifier: `Country, trap-influenced drums`.
 
-**13. Describe the sound, not the artist.** Named artists are blocked and get silently dropped, taking your intent with them. See [artist-blocklist.md](artist-blocklist.md). Say what they *sound like* instead (tip 41).
+**13. Describe the sound, not the artist.** Named artists are rewritten automatically — Suno shows "Artist name '…' replaced" and your intent goes with the name. See [artist-blocklist.md](artist-blocklist.md). Say what they *sound like* instead (tips 47–48).
 
 **14. Use production language.** `Tape saturation, wide stereo, dry vocal, punchy compressed drums` moves the needle more than `good quality, professional`.
 
@@ -46,11 +46,11 @@ Companion to [v5-best-practices.md](v5-best-practices.md) (the how) and [tips-an
 
 **17. Name the instruments you want to hear.** Suno defaults to genre clichés. `Fretless bass, Rhodes, brushed snare` steers away from them. See [instrumental-tags.md](instrumental-tags.md).
 
-**18. Say what you don't want.** Use the negative/exclude field. `no autotune, no EDM drop, no rap verse` prevents the most common hijacks.
+**18. Say what you don't want — in the Exclude Styles field.** Inline "no X" in the Style Box is ignored on v6; the dedicated field (Advanced Mode, Pro/Premier) is the only path. Two to four items — `autotune, EDM drops, rap verse` — cover the most common hijacks. See [best-practices.md § Negative Prompting](best-practices.md#negative-prompting).
 
-**19. Under 200 characters is a sweet spot.** Long Style Boxes dilute. If you need a paragraph, you're probably describing two songs.
+**19. Every descriptor has to earn its place.** The field takes 1,000 characters, and focused boxes of around ten descriptors work well — what dilutes is synonym piles, not length. If you need a paragraph, you're probably describing two songs. See [best-practices.md § Keep It Simple](best-practices.md#keep-it-simple--avoid-prompt-fatigue).
 
-**20. Punctuation is structure.** Commas separate descriptors. Periods signal a new thought. Avoid semicolons, slashes, and quotes, which the parser handles inconsistently.
+**20. Punctuation is structure.** Commas separate descriptors; periods separate blocks (`[Vocal]. [Genre]. [Production]`). Semicolons, slashes and quotes are reported to parse inconsistently **(unverified)** — nothing is lost by avoiding them.
 
 **21. Keep a "house sound" suffix.** Ten to fifteen words you append to every prompt for a project: `warm analog mix, slight vinyl crackle, intimate vocal, no reverb wash`. This is how albums sound like albums.
 
@@ -68,7 +68,7 @@ Companion to [v5-best-practices.md](v5-best-practices.md) (the how) and [tips-an
 
 **26. Make every verse different.** Twin verses (same shape, same images) are the number one sign of AI-written lyrics. Verse two should advance time, perspective, or stakes.
 
-**27. Repeat the chorus verbatim.** Suno sings the exact text. Small variations between choruses produce different melodies, and the song loses its anchor.
+**27. Repeat the chorus verbatim.** Suno sings the exact text. Small variations between choruses can come back as different melodies **(unverified)**, and the song loses its anchor.
 
 **28. Use parentheses for backing vocals.** `Take me home (take me home)` produces a call-and-response layer. Overuse it and everything becomes a gang chant.
 
@@ -100,11 +100,11 @@ Companion to [v5-best-practices.md](v5-best-practices.md) (the how) and [tips-an
 
 **40. Spell brand names and acronyms as sounds.** `A.P.I.` becomes `ay pee eye`. `Kubernetes` becomes `koo-ber-NET-eez`. Keep clean spellings in your published lyric sheet.
 
-**41. Hyphenate for stress.** `re-COR-ded` forces the emphasis you want. Use sparingly; it's a scalpel.
+**41. Hyphenate for syllables.** `Deb-Ian`, `lo-ove` — hyphens guide syllable count and sustained vowels; capitalising one syllable to force stress (`re-COR-ded`) is reported to work **(unverified)**. Use sparingly; it's a scalpel. See [pronunciation-guide.md](pronunciation-guide.md).
 
-**42. All caps means shouted.** Suno reads capitalization as intensity. Use it for one line, not a verse.
+**42. All caps means shouted — usually.** Suno tends to read capitalization as intensity, but it is unpredictable; test on a short generation. Use it for one line, not a verse.
 
-**43. Duets need explicit handoffs.** `[Verse 1: Male vocal]` / `[Verse 2: Female vocal]` / `[Chorus: Both, harmony]`. Without labels you get one singer.
+**43. Duets need explicit handoffs.** Alternate section tags per character (`[Verse - Character A]` / `[Verse - Character B]`) and say it in the Style Box too: `Dual vocalists, male and female, trading verses`. Without both you get one singer. See [voice-tags.md § Duet](voice-tags.md#duet--call-and-response).
 
 **44. Whisper and spoken tags work when paired with dynamics.** `[Whispered, intimate]` at the start of a verse, then `[Full voice]` at the pre-chorus. Contrast is what sells it.
 
@@ -134,35 +134,35 @@ Example: `Indie folk, chamber-pop touches, soft male tenor with cracked falsetto
 
 **52. Vocal texture words are your strongest lever.** Nasal, chesty, airy, smoky, glassy, throaty, sibilant, boyish, matronly. Pick two.
 
-**53. Build a Persona from your best take, then iterate around it.** Personas lock vocal identity across an album. Generate the definitive vocal first, save it, then write the other songs to it.
+**53. Save a Voice from your best take, then iterate around it.** A Voice (Suno's current name for a Persona) locks vocal identity across an album. Generate the definitive vocal first, save it, then write the other songs to it with Max Mode On. See [tips-and-tricks.md § Voices](tips-and-tricks.md#voices-for-vocal-consistency).
 
 **54. Blend two blueprints for something new.** Take the rhythm block from one and the vocal block from another. That's where original sounds live and where you stop chasing imitation.
 
 ---
 
-## VI. Sliders, Personas, Covers & the Editor (55–66)
+## VI. Sliders, Voices, Covers & the Editor (55–66)
 
-**55. Style Influence high, Weirdness low for commercial work.** Start around 70/20. Push Weirdness up only when the results are boring, not when they're wrong.
+**55. Style Influence up, Weirdness down for commercial work.** Start at the defaults (50/50) and raise Style Influence before blaming the prompt; a 70/20 split is a common commercial setting. Push Weirdness up only when the results are boring, not when they're wrong. Genre starting ranges: [creative-sliders.md](creative-sliders.md#recommended-starting-ranges-by-genre).
 
 **56. Weirdness above 60 is an experimental tool.** Expect tempo shifts, odd instrumentation, and structure drift. Great for noise and ambient. Terrible for a wedding song. See [creative-sliders.md](creative-sliders.md).
 
-**57. Audio Influence works best between 30 and 60.** Below that, your upload is ignored. Above it, you get a near-copy with artifacts.
+**57. Set Audio Influence by what the upload is for.** Low (0.00–0.40) treats it as a loose seed, mid (0.40–0.65) balances it against the prompt, high (0.65–1.00) hews to its melody and arrangement — the safe zone for faithful covers, and ~0.70–0.85 for a Voice. See [creative-sliders.md § Audio Influence](creative-sliders.md#audio-influence).
 
 **58. Upload a hummed melody, not a full demo.** A clean vocal or a single instrument gives the model a spine without confusing it with your bad mix.
 
-**59. Cover mode is a re-arrangement tool.** Generate the song once, then cover it into three genres. The one that surprises you is often the release.
+**59. Cover mode is a re-arrangement tool.** Generate the song once, then cover it into three genres with Variety Off and Max Mode On so the melody holds. The one that surprises you is often the release.
 
 **60. Extend from a specific timestamp, not the end.** Trim the tail to the last good bar, then extend. You avoid building on a weak ending.
 
-**61. Crop before extend, extend before replace.** Get the skeleton right, then use Replace Section to surgically fix a bad line or a flubbed word.
+**61. Crop before extend, extend before replace.** Get the skeleton right, then use Replace Section to surgically fix a bad line or a flubbed word — one change per edit, with a list of what must survive it ([tips-and-tricks.md § Replace Section](tips-and-tricks.md#replace-section-feature-propremier)).
 
 **62. Replace Section with identical lyrics to fix pronunciation.** Keep the text, only respell the problem word. The surrounding audio stays intact.
 
-**63. Personas need 4+ strong references.** Build one from several keeper generations with the same vocal, not from a single lucky take.
+**63. A Voice is only as good as the take you save it from.** It is captured from one song, so pick the keeper whose vocal you would happily hear across the album, test it on a short generation, and upgrade older Voices with "Upgrade Voice to v6" before an album run.
 
 **64. Seed ideas with short generations.** A 30-second instrumental test costs less and tells you whether the palette is right before you commit to full lyrics.
 
-**65. Regenerate the section, not the song.** When 90 percent is right, editing tools cost fewer credits and preserve the magic of the take you already love.
+**65. Regenerate the section, not the song.** When 90 percent is right, an edit preserves the take you already love instead of rolling the dice again. Listen to the seam: launch-week reports say Studio's regenerate-section can garble vocals.
 
 **66. Save keepers to a workspace immediately.** Liked tracks get buried under new generations within a day. See [workspace-management.md](workspace-management.md).
 
@@ -198,19 +198,19 @@ Example: `Indie folk, chamber-pop touches, soft male tenor with cracked falsetto
 
 ## VIII. Post-Production & Mastering (79–86)
 
-**79. Suno output is not mastered.** Expect around -14 to -12 LUFS with a soft top end. Every release needs at least a limiter pass. See [v5-best-practices.md](v5-best-practices.md#suno-output-loudness-pre-mastering).
+**79. Suno output is not mastered.** It already comes in loud — around -9 to -7 LUFS on pop and EDM, -12 to -11 on lo-fi — which is not the same as finished. Master to -14 LUFS / -1.0 dBTP for streaming. See [best-practices.md § Suno Output Loudness](best-practices.md#suno-output-loudness-pre-mastering).
 
 **80. Download WAV, not MP3.** Master from the highest quality source available. MP3 artifacts compound at every step.
 
-**81. Stem-split before you polish.** Separate vocals, drums, bass, and other. Fix the vocal's harshness without dulling the cymbals.
+**81. Stem-split before you polish.** Separate vocals, drums, bass, and other, then make balance moves — level, pan, broad tone — per stem. Suno stems are synthesized and bleed into each other, so they suit balance, not surgery. See `/bitwize-music:mix-engineer`.
 
-**82. High-pass everything except bass and kick.** Suno mixes carry low-end mud below 80 Hz on pads and vocals. Cut it and the mix opens up.
+**82. High-pass everything except bass and kick.** Low-end build-up on pads and vocals is common; the plugin's polish presets apply a per-stem high-pass for exactly this, with the bass stem kept low (20–35 Hz) to protect the sub.
 
-**83. Tame the 2–5 kHz shelf on vocals.** Suno vocals often have a sizzle that fatigues at volume. A gentle dynamic EQ cut fixes it without losing presence.
+**83. Tame the 2–5 kHz sizzle on vocals — gently.** Suno vocals can fatigue at volume, but surgical moves on a synthesized stem eat consonants; a broad, shallow cut is the ceiling. Let the mix-engineer analysis tell you whether the harshness is really there before you touch it.
 
 **84. Check mono compatibility.** Wide Suno stereo can cancel on phone speakers. Fold to mono and confirm the vocal and kick survive.
 
-**85. Target -14 LUFS for streaming, -9 to -8 for club and video.** Different destinations, different masters. Don't upload the club master to Spotify.
+**85. Target -14 LUFS / -1.0 dBTP for streaming.** Genre informs the rest: rock and pop sit around -12 to -14, EDM and hip-hop -8 to -12, classical and jazz -16 to -18. Different destinations, different masters; don't upload the club master to Spotify. See `/bitwize-music:mastering-engineer`.
 
 **86. Master the album as a set.** Match tonal balance and loudness across tracks so the listener isn't reaching for the volume knob. Reference-track matching to your best song works well.
 
@@ -238,7 +238,7 @@ Example: `Indie folk, chamber-pop touches, soft male tenor with cracked falsetto
 
 ## X. Rights, Release & Profit (95–100)
 
-**95. Know your plan's license.** Free-tier output is non-commercial. Paid plans grant commercial rights to what you generate on them. Check the current terms before releasing; they've changed more than once.
+**95. Know your plan's license.** Free-tier output is personal and non-commercial (7 lifetime trial downloads). On Pro and Premier, commercial use requires a permitted download on the paid plan — Pro 20 and Premier 60 a month, stems included — and Remixes of other people's songs are never commercial. Never remove the in-audio watermark. The Terms changed on 2026-09-03 and will again; see [best-practices.md § Ownership](best-practices.md#ownership-rights--downloads-terms-effective-september-3-2026).
 
 **96. Register your songs.** Writers of lyrics and arrangement decisions have a claim. Register with a PRO and use a distributor that accepts AI-assisted work and disclose per their policy.
 
@@ -303,24 +303,26 @@ Example: `Indie folk, chamber-pop touches, soft male tenor with cracked falsetto
 
 ---
 
-## V6 Addendum (launched September 9, 2026)
+## v6 Addendum (launched September 9, 2026)
 
-Suno V6 shipped the day before this doc was written, so the community consensus is thin. What is confirmed from Suno's own launch notes and early coverage:
+Suno shipped the v6 family the day before this doc was first written and retired every earlier model the same day, so nothing above runs on anything but v6. What is settled, from Suno's own documentation and the first two weeks of hands-on reports (full catalog: [models.md](models.md)):
 
-- **Three models, pick on purpose.** `v6` is the precise, reliable flagship (Pro and Premier). `v6-wild` is deliberately less predictable and more textured, built for exploration. `v6-mini` is the faster free-tier model. Draft in wild, then bring the idea back into v6 for the keeper.
-- **Single-lyric edits are real now.** You can change one word or one line by natural-language prompt without regenerating the track. This replaces most Replace Section workarounds in tips 61 and 62.
-- **Advanced Mode controls.** Vocal Gender, Duration (Custom or Auto), Max Mode on/off, and three sliders: Weirdness and Style Influence both default to 50, plus a new Variety slider defaulting to Normal. Treat Variety as your batch-diversity knob (tip 2).
-- **Personas did not go away.** They moved into a larger identity system alongside Voices, Lyricist, Custom Models, and My Taste. Tips 53 and 63 still apply.
-- **Photos, video, and voice memos as input.** V6 accepts media as a seed, which extends tip 58 beyond audio uploads.
-- **Early community advice is the same as V5.5.** Shorter Style Box, concrete instrument names over adjectives, tempo as a number, one variable per iteration, and the Exclude field to stop unrequested guitar solos and EDM drops. The word `Duet` must appear in the Style Box itself for two-voice tracks.
+- **Three models, pick on purpose.** `v6` is the precise flagship (Pro/Premier) and the default for finished tracks. `v6-wild` is deliberately less predictable, for exploration and for genres where v6 plays it safe — draft in wild, then Cover the keeper on v6. `v6-mini` is the faster, lighter model on every plan and the only one on Free; Free output is non-commercial.
+- **Variety is not a diversity knob.** At any setting above Off it rewrites and expands your Style Box. If you engineered the box, set Variety **Off** (v6 and v6-mini default to Normal; wild defaults to Off). Tip 2's batches come from generating again, not from Variety.
+- **Max Mode** doubles the credit cost (20 per generation) for consistency across the song; Suno recommends it over two minutes, on Covers, and with Voices.
+- **Advanced Mode is where the controls are**: Vocal Gender, Duration (Auto or Custom 10 s–6:00), Weirdness and Style Influence (both default 50), Exclude Styles. Suno's plain-language edits, single-lyric swaps, mashups and image / video / voice-memo inputs live in **Simple Mode**, which treats typed lyrics as a seed — so tips 61–62 still stand for engineered lyrics.
+- **Personas are now Voices.** Same feature, new name, with a one-click "Upgrade Voice to v6" on older ones. Custom Models were upgraded automatically. Tips 53 and 63 are written for the new name.
+- **Older songs**: Remaster when you only want better audio, Cover when you want v6 to reinterpret it following the melody — both render on v6.
+- **Craft advice carried over unchanged**: focused Style Box, concrete instrument names over adjectives, tempo as a number, one variable per iteration, and the Exclude Styles field rather than inline "no X". One report says the word `Duet` must appear in the Style Box for two-voice tracks **(unverified)** — the pattern in tip 43 works without it.
 
-Revisit this section after a few weeks of r/SunoAI threads. Model-specific quirks usually surface in the first month.
+Model-specific quirks (genre-dependent quality, stereo width, wild's unpredictable length) are tracked in [models.md](models.md) and `CHANGELOG.md`; revisit this section when they move.
 
 ---
 
 ## See Also
 
-- [v5-best-practices.md](v5-best-practices.md) — full prompting guide
+- [best-practices.md](best-practices.md) — full prompting guide
+- [models.md](models.md) — model catalog and generation settings
 - [tips-and-tricks.md](tips-and-tricks.md) — troubleshooting
 - [creative-sliders.md](creative-sliders.md) — slider deep dive
 - [pronunciation-guide.md](pronunciation-guide.md) — homographs and phonetic fixes
