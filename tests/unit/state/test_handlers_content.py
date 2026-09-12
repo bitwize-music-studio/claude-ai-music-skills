@@ -325,14 +325,15 @@ class TestFormatForClipboard:
         assert result["content_type"] == "lyrics"
         assert "Neon rain on the boulevard" in result["content"]
 
-    def test_style_includes_exclude(self, clipboard_env):
+    def test_style_excludes_exclude_styles(self, clipboard_env):
         result = json.loads(
             _run(_content_mod.format_for_clipboard("test-album", "01-first-track", "style"))
         )
         assert result["found"] is True
-        # Style Box + Exclude Styles are joined when both are present.
+        # Style Box only: Exclude Styles is a separate Suno field of bare elements,
+        # so appending it here would ask *for* the excluded things.
         assert "synthwave" in result["content"]
-        assert "country" in result["content"]
+        assert "country" not in result["content"]
 
     def test_all_combines_sections(self, clipboard_env):
         result = json.loads(
