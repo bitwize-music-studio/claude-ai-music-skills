@@ -15,8 +15,6 @@ REQUIRED_SUNO_REFS = [
     'voice-tags.md',
     'instrumental-tags.md',
     'genre-list.md',
-    'version-history/v5-best-practices.md',
-    'version-history/v6-changes.md',
 ]
 
 

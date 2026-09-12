@@ -4,6 +4,35 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-09-11 - v6 Follow-up Sweep
+
+Second pass two days after launch: official sources re-checked (all six v6 help articles still dated Sep 9; no new release notes, posts or pricing changes), fifteen post-launch creator videos transcribed and read, four web passes (official, v6, v6-wild, v6-mini). Reddit was unreachable for this pass.
+
+### Changes
+- **v6 quality is genre-dependent**: independent testers (including a professional mixer) flag grunge, metal, alt-country and synth-pop vocals as weak while pop, drum & bass and UK garage were praised — added to `models.md` and `best-practices.md`.
+- **Narrower stereo image** than testers expected (two independent reports) — noted.
+- **Covers**: melody and structure hold with Variety Off and drift with Variety on; Max Mode is the other fix — added to `creative-sliders.md`, `best-practices.md`, `tips-and-tricks.md`.
+- **v6-wild**: output length is unpredictable (~50 s to ~7 min observed), not "usually short"; in a seven-genre A/B v6 won fidelity and adherence 7/7 while wild won on character in three genres; the Cover-on-v6 step did not clearly preserve wild's character in one attempt; Exclude Styles confirmed working on wild; Max Mode and Variety on wild untested — `models.md` reworded accordingly.
+- **v6-mini**: shares the 8-minute cap; the app's "keep one of two" flow confirmed in strings (trigger unknown); Advanced Mode / Voices / Custom Models on Free reported available by a single source — noted as unconfirmed.
+- **Ownership section rewritten** for the Sep 3 Terms (paid-download commercial rights, Remixes never commercial, in-audio watermark, distribution) — it still described the pre-launch WMG plan.
+- **Studio**: "regenerate section" garbled vocals for two creators; single-instrument generation no longer adds extra parts — noted in `best-practices.md` § Suno Studio.
+- Voices migrated with the wording "converted for v6" — advise a short test before an album run.
+- **suno-engineer skill folded in**: the Model row lists the genres where v6 is reported weak (grunge, metal, alt-country, synth-pop, generic rock/soul vocals) as v6-wild first-pass candidates and marks the wild-to-Cover step experimental; the Generate step budgets two or three wild takes; Max Mode on wild flagged untested; four Common Issues entries added (slow/sparse/long output, generic vocal timbre, Cover melody drift, narrow stereo image).
+- `creative-sliders.md` troubleshooting: "Cover doesn't resemble the source" now checks Variety Off and Max Mode before Audio Influence. `covers-and-personas.md` carries the same rule in its plan note and Cover checklist.
+- `tips-and-tricks.md` § Personas renamed to **Voices** (Suno: "Personas are now Voices"); links in `covers-and-personas.md` updated; the dated December 2025 Persona-dominance notes dropped in both files (undated advice kept).
+- `skills/mix-engineer/SKILL.md`: narrow-stereo note — a polish/mastering move, not a prompt fix; check `mono_fold_check` after widening.
+- `tips-and-tricks.md` § Replace Section: "one change per edit, with a preserve list" habit (adapted from the closed #564), plus the launch-week Studio regenerate-section caveat.
+
+### Refuted / Not Adopted
+- "Non-English output degraded on v6" — one scripted video, no example; not adopted.
+- "Variety is just the prompt-enhancement wand" — Suno's FAQ says Variety works "by adjusting and updating your style prompts" and the rewritten text was shown on camera; kept.
+- "Max Mode cost unconfirmed" — Suno's own tooltip reads "Costs 2x credits per song"; kept.
+- Watermark-removal tools (one video is an advertisement for one) — never cite; Terms forbid.
+
+**Sources** (in addition to the 2026-09-10 list): youtu.be/eMi7worlN0Y (Busy Works Beats, wild), youtu.be/LR4af6Gr6Xg (Spasciz, v6 vs wild), youtu.be/8xNVN-KM77k (Jeremiah The Stranger), youtu.be/qIMdlBRpnZk (Busy Works Beats deep test), youtu.be/petSvYWvnIs · youtu.be/5SDKgk5QW5E · youtu.be/R3my_3sXk6A · youtu.be/2XT__Z2jCo8 · youtu.be/8915qrCDKtc (Music Tech Info), youtu.be/7QLHGYEEwhw (The Mix University), youtu.be/gyQVxjkBoy8 (Greg Kocis), youtu.be/Npd4_uGG0iI (Marcus Bell), youtu.be/SGeenRrSsBc (Greg Kocis), suno.com/locales/en/create.json (forcedChoiceModal strings), help.suno.com articles 13924481/13924737/13924801/13924929/13924993/13925185 (re-checked, unchanged).
+
+---
+
 ## 2026-09-10 - v6 Launch Sweep
 
 Suno shipped the v6 family (`v6`, `v6-wild`, `v6-mini`) on 2026-09-09 and retired every earlier model the same day. Sweep sources: Suno's blog, release notes, the six new help articles, the live app's UI strings, both official launch videos, the Billboard CEO interview, 37 press pieces, 14 launch-day video transcripts and ~75 r/SunoAI posts (full dossier on #562). Headline: **prompt syntax and limits unchanged; two new controls (Variety, Max Mode) and the Sep 3 download/ToS regime change the workflow.**
@@ -15,7 +44,7 @@ Suno shipped the v6 family (`v6`, `v6-wild`, `v6-mini`) on 2026-09-09 and retire
 - Simple Mode gained plain-language edits, lyric swaps, mashups, sample/isolate and image/video/voice-memo inputs; it expands supplied lyrics, so the plugin stays in Advanced Mode.
 
 ### Changes
-- Docs restructured: `v5-best-practices.md` archived to `version-history/`; version-agnostic `best-practices.md` with a "v6 Update" section; `models.md`; `version-history/v6-changes.md`.
+- Docs restructured to cover only the models Suno currently offers: `v5-best-practices.md` and the `version-history/` migration guides removed (git history keeps them); version-agnostic `best-practices.md` opens with "The Current Models"; `models.md` catalog with a "Made before v6" note for older songs, Voices and Custom Models.
 - Track template gained `### Generation Settings` (Model, Variety, Max Mode, Vocal Gender, Duration, Weirdness, Style Influence); Cover/Persona block renamed Cover/Voice.
 - New advisory pre-generation gate "Generation Settings" (WARN on Variety above Off or an unknown model; note when Max Mode is Off on a ≥2:30 target). `update_track_field` accepts `model`, `variety`, `max-mode`.
 - Downloads (since 2026-09-03): Free 7 lifetime, Pro 20/month, Premier 60/month; one song = one download including stems; Studio exports uncapped (32-bit float / 48 kHz). ToS: commercial rights need a paid-plan download; Remixes never commercial; watermark/fingerprint removal prohibited. Believe/TuneCore accept only new-model tracks.
@@ -41,9 +70,12 @@ Suno shipped the v6 family (`v6`, `v6-wild`, `v6-mini`) on 2026-09-09 and retire
 8. v6-mini vs v6 on a nerdcore and a rock track.
 9. Single-lyric swap and a chorus-only edit (Simple Mode) — scope bleed.
 10. Bar-count tags `[VERSE 1 8]`.
+11. Max Mode on v6-wild; Variety above Off on v6-wild.
+12. Structure tags and Exclude Styles parity on v6-wild and v6-mini.
+13. Studio "regenerate section" garbled-vocal reports — reproducible?
 
 ### Documentation
-- best-practices.md (new, from v5 guide) · models.md (new) · version-history/v6-changes.md (new) · version-history/v5-best-practices.md (archived) · creative-sliders.md (Variety, Personalize, Max Mode) · tips-and-tricks.md · structure-tags.md · voice-tags.md · workflows/covers-and-personas.md · README.md · terminology.md · suno-engineer/SKILL.md · pre-generation-check/SKILL.md · templates/track.md, album.md · import-audio, mastering-engineer, mix-engineer, release-director docs · config.example.yaml comments.
+- best-practices.md (new, from v5 guide) · models.md (new) · version-history/ (removed) · creative-sliders.md (Variety, Personalize, Max Mode) · tips-and-tricks.md · structure-tags.md · voice-tags.md · workflows/covers-and-personas.md · README.md · terminology.md · suno-engineer/SKILL.md · pre-generation-check/SKILL.md · templates/track.md, album.md · import-audio, mastering-engineer, mix-engineer, release-director docs · config.example.yaml comments.
 
 **Sources**:
 - https://suno.com/blog/introducing-v6 (official — launch)

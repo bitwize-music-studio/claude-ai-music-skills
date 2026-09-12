@@ -166,6 +166,8 @@ This automatically detects stems — if no root WAVs exist but `stems/` has trac
 - Click/pop count
 - Sub-bass rumble
 
+**Stereo width on v6 renders**: two independent launch-week testers reported Suno v6 output narrower than expected. Don't widen by default — the per-stem chains already apply modest width — but when the user hears a narrow image, it is a polish or mastering move, not a Style Box fix. Run `mono_fold_check` after any widening so the fold-down stays clean.
+
 **Report findings** to user with plain-English explanations:
 - "Track 03 has elevated noise floor — polish will NOT act on this; noise reduction is off by default because Suno stems are synthesized. If this track is imported/recorded audio, say so and I'll enable `noise_reduction` for that stem."
 - "Most tracks show muddy low-mids — will apply 200 Hz cut"

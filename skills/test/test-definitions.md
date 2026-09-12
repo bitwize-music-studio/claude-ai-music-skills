@@ -489,7 +489,7 @@ Verify "## See Also" section exists with:
 ### TEST: Suno model catalog covers every template model
 Read reference/suno/models.md and templates/track.md.
 For each model named in the track template's Generation Settings allowed-values comment (v6, v6-wild, v6-mini, Custom Models), verify models.md has a `## ` heading for it.
-Verify models.md has a "## Retired" section naming v5.5.
+Verify models.md has a "## Made before v6" section (songs, Voices, Custom Models).
 
 ### TEST: Suno structure-tags has cross-references (quick win #10)
 Read reference/suno/structure-tags.md.

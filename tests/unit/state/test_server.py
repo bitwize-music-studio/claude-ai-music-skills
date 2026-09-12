@@ -5838,7 +5838,7 @@ def _skills_state(**overrides):
                 "mtime": 1700000000.0,
             },
             "suno-engineer": {
-                "description": "Constructs technical Suno V5 style prompts.",
+                "description": "Constructs technical Suno style prompts.",
                 "model": "claude-sonnet-4-5-20250929",
                 "model_tier": "sonnet",
                 "user_invocable": True,

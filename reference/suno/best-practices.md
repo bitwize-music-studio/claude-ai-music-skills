@@ -1,42 +1,40 @@
 # Suno Best Practices
 
-Comprehensive guide for getting the best results with Suno's current model family. Per-model detail lives in [models.md](models.md); older generations are archived under [version-history/](version-history/).
+Comprehensive guide for getting the best results with Suno. Per-model detail (v6, v6-wild, v6-mini, Custom Models) lives in [models.md](models.md).
 
 > **Related skills**: `/bitwize-music:suno-engineer` (interactive prompting), `/bitwize-music:pronunciation-specialist` (phonetic review)
 > **Related docs**: [pronunciation-guide.md](pronunciation-guide.md), [structure-tags.md](structure-tags.md), [voice-tags.md](voice-tags.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 ---
 
-## v6 Update (September 9, 2026)
+## The Current Models
 
-Suno replaced its whole model line on September 9, 2026 with the **v6 family** — `v6` (Pro/Premier), `v6-wild` (Pro/Premier) and `v6-mini` (everyone) — and **retired every earlier model the same day**. Old songs stay in your library, but any Extend, Cover or Remaster of them now renders on v6. Per-model positioning, tiers, defaults and when to use each: [models.md](models.md).
+Suno's models are the **v6 family**: `v6` (flagship; Pro/Premier), `v6-wild` (exploration; Pro/Premier) and `v6-mini` (everyone), plus private **Custom Models**. Which to pick, and each model's defaults and quirks: [models.md](models.md).
 
-**What did not change.** The prompt surface is the same as v5.5:
+**The prompt surface:**
 
 | Field / limit | Value | Notes |
 |---|---|---|
-| Style box | 1,000 chars | unchanged |
-| Lyrics box | 5,000 chars | unchanged |
-| Exclude Styles | 1,000 chars | unchanged; still the only reliable negative path |
+| Style box | 1,000 chars | |
+| Lyrics box | 5,000 chars | |
+| Exclude Styles | 1,000 chars | the only reliable negative path |
 | Simple-mode prompt | 3,000 chars | Simple Mode is not the plugin's path (see below) |
 | Maximum length | 8 minutes | Auto and Extend; the Duration slider's Custom range is 10 s–6:00 |
-| Structure tags, Performance Cues | unchanged | bracket tags still shape arrangement; per-section cues are read **(unverified on v6 — see CHANGELOG open verification)** |
-| Weirdness / Style Influence / Audio Influence | unchanged, defaults 50 / 50 / 25 | see [creative-sliders.md](creative-sliders.md) |
-| Vocal Gender, Exclude Styles, Duration (Auto / Custom) | unchanged | all under More Options in Advanced Mode |
+| Structure tags, Performance Cues | bracket tags shape arrangement; per-section cues are read **(unverified — see CHANGELOG open verification)** | |
+| Weirdness / Style Influence / Audio Influence | defaults 50 / 50 / 25 | see [creative-sliders.md](creative-sliders.md) |
+| Vocal Gender, Exclude Styles, Duration (Auto / Custom) | under More Options in Advanced Mode | |
 | Credits | 10 per generation (two songs) | same on all three models |
 
-**What changed — two new controls.**
+**Two controls decide whether your prompt is used as written.**
 
-- **Variety** (More Options; default *Normal* on v6 and v6-mini, *Off* on v6-wild). At any setting above Off, Suno **rewrites and expands your style prompt** and diverges the two takes. Suno's own FAQ: "If you'd like to retain full control of your style tags, reduce the Variety slider to 0." **This plugin's rule: Variety Off whenever the Style Box was engineered.** The five stops and the mechanism are in [creative-sliders.md § Variety](creative-sliders.md#variety-v6).
+- **Variety** (More Options; default *Normal* on v6 and v6-mini, *Off* on v6-wild). At any setting above Off, Suno **rewrites and expands your style prompt** and diverges the two takes. Suno's own FAQ: "If you'd like to retain full control of your style tags, reduce the Variety slider to 0." **This plugin's rule: Variety Off whenever the Style Box was engineered.** The five stops and the mechanism are in [creative-sliders.md § Variety](creative-sliders.md#variety).
 - **Max Mode** (toggle). Suno's copy: "Uses more compute to maximize consistency throughout the song. Costs 2x credits per song." — so a generation costs 20 credits. Suno recommends it for songs longer than two minutes, covers that should stay close to the source, style transfer, and keeping vocals consistent. Several users report the mix going muffled after roughly 2:30 on standard mode **(unverified)**; for album tracks the plugin defaults Max Mode On.
 
-**Simple Mode vs Advanced Mode.** v6's headline features (plain-language section edits, single-lyric swaps, multi-source mashups, sample-and-isolate, image / video / voice-memo inputs) live in **Simple Mode**. Simple Mode treats typed lyrics as a seed and writes extra lines, and switching to Advanced does not carry the prompt across. **The plugin's workflow is Advanced Mode only**: finished lyrics in the Lyrics Box, an engineered Style Box, settings from the track's Generation Settings table.
+**Simple Mode vs Advanced Mode.** Suno's headline features (plain-language section edits, single-lyric swaps, multi-source mashups, sample-and-isolate, image / video / voice-memo inputs) live in **Simple Mode**. Simple Mode treats typed lyrics as a seed and writes extra lines, and switching to Advanced does not carry the prompt across; its single-word lyric replacement is reported unreliable and syllable-sensitive (single source). **The plugin's workflow is Advanced Mode only**: finished lyrics in the Lyrics Box, an engineered Style Box, settings from the track's Generation Settings table.
 
-**Re-prompting, not re-syntaxing.** The same v5.5 prompt does not reproduce the same result on v6: reports converge on slower tempos, sparser arrangements and longer outputs on Duration Auto. Suno's own advice for the transition: start with the default settings, and "if you want imperfect vocals, write that directly into your prompt … describe the instrumentation, the recording quality, or maybe the performance." Rock, metal and blues-rock remain the weakest genres (vocals drift to a generic post-grunge timbre); `v6-wild` is the better first pass there, then Cover the keeper on `v6`.
+**Prompting posture.** Suno's own advice: start with the default settings, and "if you want imperfect vocals, write that directly into your prompt … describe the instrumentation, the recording quality, or maybe the performance." On Duration Auto, outputs often run slower, sparser and longer than the prompt implies — state tempo and density explicitly. Output quality is genre-dependent: rock, metal, grunge, blues-rock and alt-country are the weakest (vocals drift to a generic or artifact-laden timbre — reported independently by several testers, including a professional mixer), while pop, drum & bass and UK garage were praised; `v6-wild` is the better first pass on the weak genres, then Cover the keeper on `v6`. Two testers report a narrower stereo image than they expected. Covers hold the source melody and structure well when Variety is Off; with Variety on, melodies drift (Max Mode also counters it). Prompts written for earlier Suno generations do not transfer — re-prompt, don't rerun (see [models.md § Made before v6](models.md#made-before-v6)).
 
-**Artist names** are still rewritten, now with a visible notice ("Artist name '…' replaced"). v6 does not unlock artist names; the label deals fund future opt-in artist products, not prompt targets.
-
-**Everything else in this guide** — prompt construction, genre tips, vocal control, lyric formatting, negative prompting, sliders, stems, Studio — still applies. Where a section says "V5", read it as "the current model family".
+**Artist names** are rewritten with a visible notice ("Artist name '…' replaced"). The label deals fund future opt-in artist products, not prompt targets.
 
 ## Quick Start Formula
 
@@ -57,21 +55,12 @@ nostalgic, melancholic, 85 BPM, male vocals, gravelly voice, introspective
 | Feature | Description |
 |---------|-------------|
 | Intelligent Composition | Coherent structure from 30-second hooks to 8-minute epics |
-| Studio-Grade Audio | 44.1 kHz output with fuller, more balanced mixes |
+| Studio-Grade Audio | 44.1 kHz output with a full, balanced mix |
 | Vocal Engine | Human-like vocals with breath, emotion, vibrato control |
-| 10x Faster | Seconds instead of minutes for generation |
 | Stem Separation (3 modes) | Auto Split (12 stems), Split from Mix (target + the rest), Advanced Split (~100 instruments) — Auto Split output shows bleed/shared reverb in practice; see § Stem Extraction |
 | Extended Length | Up to 8 minutes per generation (Auto/Extend; Custom Duration caps at 6:00) |
 | Persistent Memory | Vocal characters and instruments remain stable across project generations |
 | Granular Controls | Tempo, key, dynamics, arrangement with optional automation |
-
-## Critical Rule: Don't Reuse Old Prompts
-
-**Suno CTO's #1 recommendation**: Don't rerun old V4/V4.5 prompts on Suno.
-
-Suno listens differently and needs less instruction. Write new prompts and experiment. The same holds for v5.5 → v6: re-prompt, don't rerun.
-
----
 
 ## Prompt Construction
 
@@ -167,7 +156,7 @@ K-pop presents unique challenges for Suno due to its maximalist production, mult
 - Separate rap verses with `[Rap Verse]` tags to signal a different vocal character
 
 **Korean-English code-switching:**
-- Suno handles Korean (Hangul) better than earlier versions, but romanized Korean with hyphens remains more reliable for pronunciation control
+- Suno handles Korean (Hangul), but romanized Korean with hyphens remains more reliable for pronunciation control
 - Format: `Sa-rang-hae` not `Saranghae`
 - Add `[Clear Vocals]` or `[High Fidelity Vocals]` when mixing languages
 - Keep English hooks and Korean verses as separate sections when possible
@@ -441,16 +430,16 @@ Suno includes sliders in the generation interface that affect output:
 
 Upload a clean acapella, a full track with background music, or sing directly into a mic (15 seconds to 4 minutes; the cleaner the source, the less needed). Suno then has you read a spoken phrase aloud and matches it to the upload as a consent check. Own voice only; 18+.
 
-- **Upgrade Voice to v6.** Voices made on v5.5 keep working, and the Create form offers a one-click upgrade ("Upgrade your Voice for better vocal consistency. You will still be able to use it the old way if you wish."). The picker distinguishes **Voice (new) — better vocal consistency** from **Style Voice (legacy) — the old method**. Upgrade before an album run so every track uses the same engine. Which v6 models accept a Voice without the upgrade is **(unverified)**.
+- **Upgrade Voice to v6.** Voices made before v6 keep working, and the Create form offers a one-click upgrade ("Upgrade your Voice for better vocal consistency. You will still be able to use it the old way if you wish."). The picker distinguishes **Voice (new) — better vocal consistency** from **Style Voice (legacy) — the old method**. Upgrade before an album run so every track uses the same engine. Which v6 models accept a Voice without the upgrade is **(unverified)**.
 - **Not on instrumentals.** "Songs with Voices cannot be instrumental."
 - **Max Mode On** when a Voice is attached — Suno's own recommendation for voice consistency; keep Audio Influence fairly high (~0.70–0.85, see [creative-sliders.md](creative-sliders.md)).
 - **Prompting with a Voice**: drop gender/register descriptors from the style box — the Voice carries them. Keep the style prompt to 1–2 genres plus instrumentation.
 - Reported, not verified: likeness is "bent rather than reproduced" on big choruses, and a Custom Model beat a Voice for vocal consistency in one launch-day test. If a Voice keeps drifting, try a Custom Model.
-- Suno's Voices FAQ still says "confirm that model v5.5 is selected" — that page is stale; the model picker only offers v6 models.
+- Suno's Voices FAQ is stale — it still tells you to select a retired model; the picker only offers v6 models.
 
 ### Custom Models (fine-tuning)
 
-Upload **at least 6 original tracks** (Suno: "Upload 24+ songs for best results"); creation costs **100 credits**; build time 2–5 minutes; up to **3 models per account**; private. Models trained on v5.5 were **automatically upgraded** so v6 powers them — nothing to rebuild.
+Upload **at least 6 original tracks** (Suno: "Upload 24+ songs for best results"); creation costs **100 credits**; build time 2–5 minutes; up to **3 models per account**; private. Custom Models created before v6 were **upgraded automatically** — nothing to rebuild.
 
 **Prompting with a Custom Model**:
 - Drop generic production language ("glossy", "modern pop production") — the model already encodes your aesthetic.
@@ -606,6 +595,8 @@ Suno Studio is a generative audio workstation that combines AI music generation 
 - Capture vocal ideas and develop into complete songs
 - Import samples and integrate into AI-generated tracks
 
+**Reported (launch week)**: asking Studio to "regenerate section" produced garbled or invented-language vocals for two creators; generating a single instrument no longer adds extra parts (an improvement); one creator saw an imported-keys timing offset on multitrack export. Verify Studio output by ear before exporting.
+
 ### Pitch Transposition
 
 **Access**: Remix → Suno Studio (Premier plan)
@@ -626,23 +617,21 @@ Suno Studio is a generative audio workstation that combines AI music generation 
 - Niche subgenres (metalcore, extreme styles) may miss hallmarks
 - Extreme cross-style fusions → muddy results
 - Quality may degrade past 6-7 minutes
-- Heavy genres (metal, hardcore, blues-rock) remain the weakest; v6-wild is the better first pass, then Cover on v6. (V4.5, the old fallback for these genres, was retired on 2026-09-09.)
+- Heavy genres (metal, hardcore, blues-rock) remain the weakest; v6-wild is the better first pass, then Cover on v6.
 - Prompt-level "no drums" / "monotone vocals" requests are ignored — use Exclude Styles (v6 hands-on, The Verge, Sep 2026)
 - Rock/metal vocals drift toward a generic post-grunge timbre; try v6-wild, then Cover on v6, or a Custom Model
 
 ---
 
-## Ownership & Licensing (Post-November 2025)
+## Ownership, Rights & Downloads (Terms effective September 3, 2026)
 
-Following the Warner Music Group partnership (November 2025):
+- **Pro and Premier**: Suno assigns you its rights in your outputs, but **commercial use requires a permitted download on a paid plan** (Pro 20 / Premier 60 per month; Studio exports uncapped). Suno "makes no representation or warranty … that any copyright will vest in any Output", and rights holders "may also have the right to collect revenue related to distribution of Outputs on third party platforms."
+- **Free**: personal, non-commercial use only; up to 7 lifetime trial downloads.
+- **Remixes** of other people's songs are never commercial.
+- **Watermark and fingerprint**: the watermark is embedded in the audio itself, not just metadata (reported live by users), and outputs are fingerprinted; the Terms forbid removing, altering or circumventing either. Tools advertised as "watermark removers" violate the Terms — none of this plugin's polish or mastering steps touch the watermark.
+- **Distribution**: Believe/TuneCore distribute only tracks made on the current model family; check other distributors' policies.
 
-- Subscribers get **"commercial use rights"** but are **"generally not considered the owner"** of generated content
-- Suno will **not take a revenue share** from monetization
-- Artists/songwriters retain full control over name/image/likeness/voice use
-- New models trained on **licensed WMG catalog** are planned for 2026
-- Current models will be **deprecated** when licensed models launch — download your catalog
-
-**Action item**: Download all important generations now. Current-model content may become inaccessible when licensed models roll out.
+**Action item**: download the WAV of every keeper while the monthly allowance is open — one song is one download, stems included.
 
 ---
 
@@ -699,7 +688,6 @@ crisp, warm, bright, deep, spacious
 - **`/reference/suno/voice-tags.md`** - Vocal style descriptors and tags
 - **`/reference/suno/tips-and-tricks.md`** - Troubleshooting, extending tracks, operational tips
 - **`/skills/suno-engineer/SKILL.md`** - Complete Suno engineer skill documentation
-- **`/reference/suno/version-history/v6-changes.md`** - v5.5 → v6 migration notes
 
 ---
 

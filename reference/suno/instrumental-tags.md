@@ -188,7 +188,7 @@ EDM build-up, increasing tension, white noise sweep, pitch-rising synth
 Suno responds better to **narrative-style descriptions** than flat tag lists. Describe the arrangement like you're talking to a session musician:
 
 ```
-❌ Tag soup (V3/V4 style):
+❌ Tag soup:
 [Genre: Southern Rock], [Tempo: 110 BPM], [Instrumentation: Slide Guitar, Heavy Drums]
 
 ✅ Producer's Prompt (narrative style):

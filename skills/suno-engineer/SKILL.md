@@ -60,7 +60,7 @@ The current models follow instructions closely. Don't overthink it.
 - Say what you want directly
 - Trust the model to understand
 
-**v6 (September 2026)** replaced every earlier model. The prompt surface is unchanged — 1,000-char style box, 5,000-char lyrics box, 1,000-char Exclude Styles, the same structure tags and sliders — but two new controls decide whether your prompt is even used as written: **Variety** (set **Off**, or Suno rewrites the Style Box) and **Max Mode** (2× credits; On for tracks over ~2:00, covers and Voices). Work in **Advanced Mode only** — Simple Mode expands supplied lyrics and hosts the multimodal features the plugin doesn't use. Model choice: [models.md](../../reference/suno/models.md); full detail: [best-practices.md § v6 Update](../../reference/suno/best-practices.md#v6-update-september-9-2026). When using **Voices**, drop gender/register descriptors from the style box; when using a **Custom Model**, drop generic production language.
+**Suno's models are the v6 family** (v6, v6-wild, v6-mini, Custom Models). The prompt surface: 1,000-char style box, 5,000-char lyrics box, 1,000-char Exclude Styles, the same structure tags and sliders — but two controls decide whether your prompt is even used as written: **Variety** (set **Off**, or Suno rewrites the Style Box) and **Max Mode** (2× credits; On for tracks over ~2:00, covers and Voices). Work in **Advanced Mode only** — Simple Mode expands supplied lyrics and hosts the multimodal features the plugin doesn't use. Model choice: [models.md](../../reference/suno/models.md); full detail: [best-practices.md § The Current Models](../../reference/suno/best-practices.md#the-current-models). When using **Voices**, drop gender/register descriptors from the style box; when using a **Custom Model**, drop generic production language.
 
 ### Section Tags are Critical
 Structure your songs with explicit section markers:
@@ -205,9 +205,9 @@ Fill the track's `### Generation Settings` table (Advanced Mode → More Options
 
 | Setting | Rule |
 |---|---|
-| **Model** | `v6` for finished tracks. `v6-wild` for a first pass on an undecided sound or an "attitude" genre (rock, metal, era soul) — then Cover the keeper on `v6`, two Generation Log rows. `Custom: <name>` for album-wide consistency. `v6-mini` only on a Free account (its output is not releasable). |
+| **Model** | `v6` for finished tracks. `v6-wild` for a first pass on an undecided sound, or on the genres where v6 is reported weak or generic — grunge, metal, alt-country, synth-pop, and any rock or era-soul vocal that keeps drifting to a stock timbre (in a seven-genre A/B, wild won on character in indie rock, R&B/soul and metal; v6 won fidelity everywhere). Then Cover the keeper on `v6` — two Generation Log rows — but treat that step as experimental: nobody has shown a Cover that keeps wild's character. `Custom: <name>` for album-wide consistency. `v6-mini` only on a Free account (its output is not releasable). |
 | **Variety** | **Off**, always, when the Style Box was engineered. Normal (the default on v6/v6-mini) lets Suno rewrite the box. State the reason in Production Notes if you ever raise it. |
-| **Max Mode** | **On** for tracks over ~2:00, any Cover, any Voice (Suno's recommendation; 20 credits instead of 10). Off for short ideas and sketches. |
+| **Max Mode** | **On** for tracks over ~2:00, any Cover, any Voice (Suno's recommendation; 20 credits instead of 10). Off for short ideas and sketches. Untested on `v6-wild` — log the result if you try it. |
 | **Vocal Gender** | From the track's vocal description; `—` when a Voice or Custom Model supplies the voice. |
 | **Duration** | `Auto` unless the track or album sets a Target Duration; Custom accepts 10 s–6:00 and hard-cuts at the value, so the lyric load must fit **(unverified on v6)**. |
 | **Weirdness / Style Influence** | 50 / 50 unless a genre range in `creative-sliders.md` says otherwise. Style Influence at 50 discards half the prompt's authority — raise it before blaming the prompt. |
@@ -259,6 +259,18 @@ Combine up to 3 genres for unique sound:
 
 ### Unwanted Elements in Mix
 **Fix**: Add exclusions to the Exclude Styles section (max 2–4 items, "no [element]" format)
+
+### Slower, Sparser or Longer Than Intended
+**Fix**: State tempo (a BPM or "uptempo" / "driving"), density ("busy", "layered" / "sparse") and length in the Style Box — on Duration Auto, v6 is reported to lean slow, sparse and long whenever the brief leaves them open
+
+### Vocal Drifts to a Generic Timbre (rock, metal, grunge, alt-country)
+**Fix**: Sharpen the vocal texture descriptor (`voice-tags.md`) and keep it first; if it still drifts, run the first pass on `v6-wild` or use a Custom Model — see § Generation Settings
+
+### Cover Drifts From the Source Melody
+**Fix**: Confirm Variety is **Off** and Max Mode **On** before touching Audio Influence — with Variety above Off the melody and structure drift; only then raise Audio Influence
+
+### Narrow Stereo Image
+**Fix**: Two independent testers report v6 renders narrower than expected. Prompting for width is unverified; hand it to `/bitwize-music:mix-engineer`, whose per-stem chains carry stereo-width moves
 
 ---
 
@@ -333,8 +345,8 @@ As the Suno engineer, you:
 8. **Add Performance Cues** - Append a brief cue phrase (a word or two) to each structure tag in the Lyrics Box (`[Verse 1 - cold regal]`, `[Bridge - raw breaking]`) so the emotional arc plays out section-by-section, per `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` § Performance Cues — do this by default, not only when a track "seems to need it"
 9. **Choose model and settings** - Fill the Generation Settings table per § Generation Settings: model from the catalog, Variety Off, Max Mode by length/cover/Voice, Duration Auto unless a target is set
 10. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed, then review the descriptor mix — collapse synonym-piles so every term adds distinct info (a focused ~10 is fine; trim only real bloat; see § Style Prompt above)
-11. **Generate in Suno** - Create track with assembled inputs
-12. **Iterate if needed** - Refine based on output quality
+11. **Generate in Suno** - Create track with assembled inputs. On `v6-wild`, budget two or three generations before judging: its output length is unpredictable (~50 s to ~7 min observed on similar prompts) and the brief does not control it
+12. **Iterate if needed** - Refine based on output quality, one change per pass — see § Common Issues & Fixes
 13. **Log results** - Document in Generation Log with rating
 
 ---

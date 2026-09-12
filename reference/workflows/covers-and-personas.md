@@ -5,9 +5,9 @@ Two Suno features let you carry work forward instead of starting every track fro
 - **Voices** (Suno renamed Personas to Voices in March 2026 — "Personas are now Voices"; a Legacy option remains) save a vocal identity so the *same singer* can appear across many songs, and can now be your own cloned voice.
 - **Covers** reimagine an *existing* song or sample in a new style or genre, keeping the underlying song while changing the production.
 
-This is the workflow companion. For the underlying feature reference — creation steps, best practices, and limits — see [Personas (now Voices)](../suno/best-practices.md#personas-now-voices) and [Personas for Vocal Consistency](../suno/tips-and-tricks.md#personas-for-vocal-consistency); this guide points to that material rather than repeating it.
+This is the workflow companion. For the underlying feature reference — creation steps, best practices, and limits — see [Personas (now Voices)](../suno/best-practices.md#personas-now-voices) and [Voices for Vocal Consistency](../suno/tips-and-tricks.md#voices-for-vocal-consistency); this guide points to that material rather than repeating it.
 
-> **Plan note**: Voices are **Pro/Premier** (limited free trial). Turn **Max Mode On** when a Voice is attached — Suno's recommendation for voice consistency (20 credits per generation). Upgrade older Voices with the one-click "Upgrade Voice to v6" before an album run.
+> **Plan note**: Voices are **Pro/Premier** (limited free trial). Turn **Max Mode On** when a Voice is attached — Suno's recommendation for voice consistency (20 credits per generation). Upgrade older Voices with the one-click "Upgrade Voice to v6" before an album run. For a **Cover**, set Variety **Off** and Max Mode **On** — with Variety above Off the melody and structure drift from the source.
 
 ---
 
@@ -41,7 +41,7 @@ A Persona is the most reliable way to keep one voice consistent across an album.
 - A Persona locks a specific AI singer **independent of musical style** — you can move it across genres (the same singer doing a folk track and an electronic track).
 - Personas run **dominant** in the mix. If the Style Box fights the Persona, the Persona usually wins — work with it, not against it.
 - **Limits**: 200 songs with Personas are included per billing cycle, then 10 credits per song.
-- The December 2025 update made Personas more dominant. If a result sounds overprocessed, simplify the Style Box or lower Style Influence.
+- If a result sounds overprocessed or the voice dominates the mix, simplify the Style Box or lower Style Influence.
 
 ### Persona (feature) vs the README "persona" field
 
@@ -87,14 +87,14 @@ A Cover reinterprets an existing track in a different style or genre (see [termi
 
 ## Covers + Personas: Genre-Bending with One Voice
 
-Combining the two is a powerful remixing technique — full notes at [Combining Personas with Covers](../suno/tips-and-tricks.md#combining-personas-with-covers).
+Combining the two is a powerful remixing technique — full notes at [Combining Voices with Covers](../suno/tips-and-tricks.md#combining-voices-with-covers).
 
 1. Generate a song with a Persona applied.
 2. Use **Cover** to transform it into a different genre.
 3. The Persona's vocal identity carries through the genre shift.
 4. Layer multiple Covers for complex genre-bending results.
 
-**Caveat**: Because the December 2025 update made Personas more dominant, a Cover built on a Persona can come back overprocessed. If it does, simplify the Style Box or lower Style Influence.
+**Caveat**: A Cover built on a Voice can come back overprocessed, the voice dominating the mix. If it does, simplify the Style Box or lower Style Influence.
 
 ---
 
@@ -123,6 +123,7 @@ The track template has an optional **Cover / Voice Setup** block (in `templates/
 
 - [ ] The source audio is something you have the rights to (your own generation or a cleared sample)
 - [ ] The Style Box describes the NEW target style, not the original
+- [ ] Variety **Off** and Max Mode **On** — the melody lock
 - [ ] Audio Influence is set intentionally (higher hews closer to the source)
 - [ ] If a Persona is also applied, the Style Box is kept simple so the Persona isn't fighting the prompt
 
@@ -131,8 +132,8 @@ The track template has an optional **Cover / Voice Setup** block (in `templates/
 ## See Also
 
 - [Personas (now Voices) — best-practices.md](../suno/best-practices.md#personas-now-voices) — feature reference, best practices, limits
-- [Personas for Vocal Consistency — tips-and-tricks.md](../suno/tips-and-tricks.md#personas-for-vocal-consistency) — quick workflow and the Covers combo
-- [Combining Personas with Covers — tips-and-tricks.md](../suno/tips-and-tricks.md#combining-personas-with-covers)
+- [Voices for Vocal Consistency — tips-and-tricks.md](../suno/tips-and-tricks.md#voices-for-vocal-consistency) — quick workflow and the Covers combo
+- [Combining Voices with Covers — tips-and-tricks.md](../suno/tips-and-tricks.md#combining-voices-with-covers)
 - [Working with Splice Samples — tips-and-tricks.md](../suno/tips-and-tricks.md#working-with-splice-samples) — Cover vs Extend on uploads
 - [Voices, Custom Models & My Taste — best-practices.md](../suno/best-practices.md#voices-custom-models--my-taste) — voice cloning, the alternative to a Persona
 - [Creative Sliders — best-practices.md](../suno/best-practices.md#creative-sliders) — Audio Influence and Style Influence

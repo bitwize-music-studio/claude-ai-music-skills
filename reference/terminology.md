@@ -59,7 +59,7 @@ Comprehensive reference for terms used in the bitwize-music plugin. Alphabetized
 | **Suno Link** | URL to a generated track on Suno. Stored in track files after generation. | `https://suno.com/song/abc123` |
 | **Suno Studio** | Generative audio workstation (Premier plan) with multitrack editing, stem controls, MIDI export, and Sample to Song. | Timeline-based editing with AI generation |
 | **Top-Anchor Approach** | Starting Suno prompts with vocal description before lyrics for better voice consistency. | Put `"Female pop vocalist, breathy"` first |
-| **v6 (model family)** | The current Suno model generation — v6, v6-wild, v6-mini, plus Custom Models. All earlier models (v5.5, v5, v4.5) were retired on 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
+| **v6 (model family)** | The current Suno model generation — v6, v6-wild, v6-mini, plus Custom Models. Earlier generations were retired on 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
 | **Voice Tags** | Descriptors in style prompts that control vocal delivery. | `breathy, raspy, powerful, intimate, gravelly` |
 
 ---
@@ -171,7 +171,7 @@ Variables used in documentation that resolve from config:
 | **EQ** | Equalization | Adjusting frequency balance |
 | **LUFS** | Loudness Units Full Scale | Perceived loudness measurement |
 | **QA** | Quality Assurance | Review process before release |
-| **v6** | The current Suno model generation (v6, v6-wild, v6-mini). Earlier models retired 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
+| **v6** | The current Suno model generation (v6, v6-wild, v6-mini). Earlier generations retired 2026-09-09. | See [reference/suno/models.md](/reference/suno/models.md) |
 | **WAV** | Waveform Audio File | Uncompressed audio format |
 
 ---

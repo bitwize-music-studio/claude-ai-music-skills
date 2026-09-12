@@ -1,6 +1,6 @@
 # Suno Creative Sliders Reference
 
-Deep-dive guide to Suno's Creative Sliders — **Weirdness**, **Style Influence**, **Audio Influence**, and (v6) **Variety** with its **Personalize** toggle — including per-slider behavior, genre starting points, interaction effects, and when to reach for a slider vs. rewrite the style prompt. **Max Mode** is a toggle, not a slider, and is covered at the end.
+Deep-dive guide to Suno's Creative Sliders — **Weirdness**, **Style Influence**, **Audio Influence**, and **Variety** with its **Personalize** toggle — including per-slider behavior, genre starting points, interaction effects, and when to reach for a slider vs. rewrite the style prompt. **Max Mode** is a toggle, not a slider, and is covered at the end.
 
 > **Related skills**: `/bitwize-music:suno-engineer` (constructs prompts and picks slider settings)
 > **Related docs**: [best-practices.md](best-practices.md#creative-sliders) (this file expands the brief Creative Sliders table there), [tips-and-tricks.md](tips-and-tricks.md), [genre-list.md](genre-list.md)
@@ -45,7 +45,7 @@ Controls how tightly the output adheres to your style prompt — genre hallmarks
 | **Mid** (`0.40–0.60`) | Balanced adherence. Honors the prompt while leaving room to breathe. |
 | **High** (`0.60–1.00`) | Tight. Strong genre purity; the prompt's tags are enforced hard. Best when the genre must be unmistakable. |
 
-**Raise it** for genre purity — when the result is drifting off-genre or ignoring your tags. **Lower it** when you want the AI to surprise you, blend styles, or when a dominant Persona is over-processing the mix (per [tips-and-tricks.md](tips-and-tricks.md#personas-for-vocal-consistency), lowering Style Influence can rebalance an overpowering Persona).
+**Raise it** for genre purity — when the result is drifting off-genre or ignoring your tags. **Lower it** when you want the AI to surprise you, blend styles, or when a dominant Voice is over-processing the mix (per [tips-and-tricks.md](tips-and-tricks.md#voices-for-vocal-consistency), lowering Style Influence can rebalance an overpowering Voice).
 
 **Caution**: Very high Style Influence on a thin or contradictory prompt can produce a rigid, wooden result — the engine is enforcing tags that fight each other. If that happens, fix the prompt before pushing the slider higher (see [Sliders vs. Style Prompt](#sliders-vs-style-prompt)).
 
@@ -67,7 +67,7 @@ Controls how much a piece of **uploaded reference audio** shapes the output. Thi
 
 ---
 
-## Variety (v6)
+## Variety
 
 Variety is not a "how weird" dial — it is a **prompt-rewriting** dial. Suno's FAQ: "The Variety slider is designed to introduce variety in your outputs by adjusting and updating your style prompts. If you'd like to retain full control of your style tags, reduce the Variety slider to 0." At any setting above Off, Suno expands your style text server-side, differently for each of the two takes; a tester with a style box reading only "R&B" at High got two different multi-line style prompts back.
 
@@ -83,10 +83,11 @@ Variety is not a "how weird" dial — it is a **prompt-rewriting** dial. Suno's 
 - **Personalize** ("Make Variety match your taste") sits next to it, off by default, and only acts when Variety is above Off. With Variety Off it is inert; leave it off.
 - **A/B testing a prompt edit?** Variety Off, or take-to-take variance will swamp the effect of your change (HookGenius, day one).
 - **Interaction with Style Influence**: Style Influence governs how hard Suno commits to the *prompt it has*; Variety changes *which prompt it has*. Set Variety first.
+- **Covers**: with Variety above Off, a Cover of your own upload drifts in melody (reported; Max Mode is the other fix). Keep Variety Off on Covers.
 
-## Max Mode (v6)
+## Max Mode
 
-A toggle under More Options, not a slider. Suno's copy: "Uses more compute to maximize consistency throughout the song. Costs 2x credits per song." Recommended by Suno for songs longer than two minutes, covers that should stay close to the source, style transfer, and keeping vocals and style consistent through the track — which is why the plugin defaults it **On** for album tracks and for anything using a Voice. Its measured effect on the reported late-song muffling is **(unverified)**.
+A toggle under More Options, not a slider. Suno's copy: "Uses more compute to maximize consistency throughout the song. Costs 2x credits per song." Recommended by Suno for songs longer than two minutes, covers that should stay close to the source, style transfer, and keeping vocals and style consistent through the track — which is why the plugin defaults it **On** for album tracks and for anything using a Voice. Its measured effect on the reported late-song muffling is **(unverified)**. One creator reported two weak or broken outputs with Max Mode on during launch day (single source), and nobody has yet combined Max Mode with v6-wild.
 
 ---
 
@@ -151,7 +152,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 | Result feels rigid / wooden | Lower Style Influence slightly, **or** simplify the prompt |
 | Wrong instruments, mood, or tempo | Change the prompt — not a slider issue |
 | Mispronunciation / wrong words | Fix lyrics + pronunciation — not a slider issue |
-| Cover doesn't resemble the source | Raise Audio Influence |
+| Cover doesn't resemble the source | First confirm Variety is **Off** and Max Mode **On** — melody and structure drift with Variety on; then raise Audio Influence |
 | Cover too close, want more transformation | Lower Audio Influence and/or raise Weirdness |
 
 **Golden rule — change one thing at a time.** Adjusting a slider *and* rewriting the prompt in the same pass makes it impossible to know which move helped (this mirrors the "adjust one element at a time" advice in [Iteration Tips](best-practices.md#iteration-tips)).

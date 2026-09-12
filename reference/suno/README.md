@@ -17,7 +17,6 @@ Reference guides for Suno AI music generation.
 | [Genre List](genre-list.md) | 500+ music genres |
 | [Workspace Management](workspace-management.md) | Manual workspace organization |
 | [CHANGELOG](CHANGELOG.md) | Chronological log of Suno updates and doc changes |
-| [Version History](version-history/) | Migration guides between Suno versions |
 
 ## When to Use Which Guide
 
