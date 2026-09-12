@@ -186,14 +186,14 @@ Exclusions **shift the odds** against an element — probabilistic, not a hard f
 
 **Rules:**
 - **Max 2–4 items** — over-specification dilutes the effect
-- **Simple "no [element]" format**: `no drums`, `no electric guitar`, `no autotune`
-- **Suppressing unwanted group vocals** (a common Suno over-add): `no choir`, `no crowd vocals`, `no backing vocals`, `no gang vocals`, `no call-and-response`, `no vocal harmonies`, `no layered vocals` — still probabilistic; pair with a leaner style prompt
+- **Bare elements, never "no"**: `drums`, `electric guitar`, `autotune`. The field is the negation; `no drums` in it is redundant at best, and if the value ever lands in the Style Box it asks *for* drums
+- **Suppressing unwanted group vocals** (a common Suno over-add): `choir`, `crowd vocals`, `backing vocals`, `gang vocals`, `call-and-response`, `vocal harmonies`, `layered vocals` — still probabilistic; pair with a leaner style prompt
 - **Always record them in the track file's Exclude Styles section, even when none apply** — write `### Exclude Styles` followed by `(none)` so downstream tools can confirm the field was considered, not silently skipped. Most tracks land here.
 
 **Auto-populate guidance:** Consider whether genre/instrumentation context implies exclusions:
-- Acoustic folk → `no electric instruments, no drums`
-- A cappella → `no instruments`
-- Lo-fi chill → `no aggressive vocals`
+- Acoustic folk → `electric instruments, drums`
+- A cappella → `instruments`
+- Lo-fi chill → `aggressive vocals`
 
 Only add exclusions when there is a clear reason.
 
@@ -258,7 +258,7 @@ Combine up to 3 genres for unique sound:
 - See `${CLAUDE_PLUGIN_ROOT}/reference/suno/pronunciation-guide.md`
 
 ### Unwanted Elements in Mix
-**Fix**: Add exclusions to the Exclude Styles section (max 2–4 items, "no [element]" format)
+**Fix**: Add exclusions to the Exclude Styles section (max 2–4 items, bare elements — `drums`, not `no drums`)
 
 ### Slower, Sparser or Longer Than Intended
 **Fix**: State tempo (a BPM or "uptempo" / "driving"), density ("busy", "layered" / "sparse") and length in the Style Box — on Duration Auto, v6 is reported to lean slow, sparse and long whenever the brief leaves them open

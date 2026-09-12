@@ -4,6 +4,13 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-09-12 - Exclude Styles Format
+
+### Changes
+- Exclude Styles values are bare elements (`drums`, not `no drums`) everywhere: suno-engineer skill and genre tables, track template, clipboard skill, the voice-tags autotune row; `best-practices.md` § Negative Prompting now states the rule. The `style` clipboard type no longer appends the section to the Style Box (it would have asked for the excluded elements).
+
+---
+
 ## 2026-09-12 - Community Tips Guide (#561)
 
 New `100-expert-tips.md`, contributed by @cbrahms in [#561](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/561) (their commits preserved) and aligned with the v6 docs before landing.

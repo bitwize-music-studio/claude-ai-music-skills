@@ -26,9 +26,9 @@ Male rapper, clear delivery, storytelling flow. Boom-bap hip-hop,
 
 | Arrangement | Exclusions |
 |-------------|------------|
-| Boom-bap | `no autotune, no synths` |
-| Lo-fi | `no live drums, no electric guitar` |
-| Trap | `no live instruments, no acoustic guitar` |
+| Boom-bap | `autotune, synths` |
+| Lo-fi | `live drums, electric guitar` |
+| Trap | `live instruments, acoustic guitar` |
 
 ---
 
@@ -55,9 +55,9 @@ Modern production with live energy.
 
 | Arrangement | Exclusions |
 |-------------|------------|
-| Acoustic version | `no electric guitar, no drums` |
-| Stripped-down | `no synths, no backing vocals` |
-| Unplugged | `no electric instruments, no programmed drums` |
+| Acoustic version | `electric guitar, drums` |
+| Stripped-down | `synths, backing vocals` |
+| Unplugged | `electric instruments, programmed drums` |
 
 ---
 
@@ -84,9 +84,9 @@ Atmospheric production, spacious reverb.
 
 | Arrangement | Exclusions |
 |-------------|------------|
-| Ambient | `no drums, no vocals` |
-| Minimal | `no vocals, no acoustic instruments` |
-| Downtempo | `no live drums, no electric guitar` |
+| Ambient | `drums, vocals` |
+| Minimal | `vocals, acoustic instruments` |
+| Downtempo | `live drums, electric guitar` |
 
 ---
 
@@ -113,9 +113,9 @@ Natural room sound, minimal production.
 
 | Arrangement | Exclusions |
 |-------------|------------|
-| Sparse/intimate | `no drums, no electric instruments` |
-| Solo acoustic | `no drums, no electric instruments, no harmony vocals` |
-| Full band | `no synths, no electric guitar` |
+| Sparse/intimate | `drums, electric instruments` |
+| Solo acoustic | `drums, electric instruments, harmony vocals` |
+| Full band | `synths, electric guitar` |
 
 ---
 
@@ -141,9 +141,9 @@ steel guitar, acoustic rhythm, walking bass. Classic Nashville production.
 
 | Arrangement | Exclusions |
 |-------------|------------|
-| Traditional | `no electric instruments, no synths` |
-| Acoustic | `no drums, no electric instruments` |
-| Bluegrass | `no drums, no electric guitar, no synths` |
+| Traditional | `electric instruments, synths` |
+| Acoustic | `drums, electric instruments` |
+| Bluegrass | `drums, electric guitar, synths` |
 
 ---
 

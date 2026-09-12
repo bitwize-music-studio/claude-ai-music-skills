@@ -365,6 +365,8 @@ Exclusions **shift the odds** against an element — they're probabilistic, not 
 
 Keep it to **2–4 items** — over-specifying dilutes the effect.
 
+**Bare elements, never "no"**: write `drums`, not `no drums`. The field is the negation, and the plugin's clipboard `exclude` type and the auto-fill userscript paste the track's Exclude Styles section into that field verbatim.
+
 ### Typical Exclude Styles values (enter the element, not "no element"):
 - Instruments: "drums", "electric guitar"
 - Vocal effects: "autotune", "heavy reverb"
