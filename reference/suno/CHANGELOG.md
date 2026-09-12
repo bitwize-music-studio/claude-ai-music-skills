@@ -11,6 +11,18 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-09-12 - Community Tips Guide (#561)
+
+New `100-expert-tips.md`, contributed by @cbrahms in [#561](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/561) (their commits preserved) and aligned with the v6 docs before landing.
+
+### Changes
+- Intro now names the contributor and states the precedence rule: `best-practices.md`, `models.md` and `tips-and-tricks.md` win where a tip differs; craft opinions without first-hand confirmation carry **(unverified)**.
+- Corrected to match the landed docs: artist names are replaced with a notice (tip 13); Exclude Styles field, not inline "no X" (18); descriptor discipline instead of a 200-character cap (19); duet pattern from `voice-tags.md` (43); Personas → Voices, saved from one song, Max Mode On (53, 63, section VI); slider start at defaults with genre ranges (55); Audio Influence bands from `creative-sliders.md` (57); Variety Off + Max Mode On on Covers (59); Replace Section one-change habit (61); Studio seam caveat (65); Suno's real output loudness and the -14 LUFS / -1.0 dBTP target (79, 85); stems for balance not surgery per #553 (81–83); Sep 3 Terms (95).
+- v6 addendum rewritten: three models per `models.md`; Variety rewrites the Style Box (not a batch-diversity knob); Max Mode 2× credits; Simple vs Advanced Mode; Personas are now Voices; Remaster/Cover for older songs; the `Duet`-in-Style-Box claim tagged unverified.
+- Tagged **(unverified)**: punctuation parsing (20), chorus-variation melodies (27), capitalised-syllable stress (41).
+
+---
+
 ## 2026-09-11 - v6 Follow-up Sweep
 
 Second pass two days after launch: official sources re-checked (all six v6 help articles still dated Sep 9; no new release notes, posts or pricing changes), fifteen post-launch creator videos transcribed and read, four web passes (official, v6, v6-wild, v6-mini). Reddit was unreachable for this pass.
