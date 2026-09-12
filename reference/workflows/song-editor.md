@@ -2,9 +2,9 @@
 
 The Song Editor lets you fix a generated track section by section — remake, rewrite, extend, reorder, or delete individual parts — without throwing away the whole take. This guide covers *when* to reach for it (versus full regeneration or the mix-engineer polish pass), what each operation is good for, and how section edits fit the download → polish → master pipeline.
 
-> **Related docs**: [v5-best-practices.md#song-editor](../suno/v5-best-practices.md#song-editor) (capability table), [error-recovery.md](error-recovery.md), [importing-audio.md](importing-audio.md), [mastering-workflow.md](../mastering/mastering-workflow.md)
+> **Related docs**: [best-practices.md#song-editor](../suno/best-practices.md#song-editor) (capability table), [error-recovery.md](error-recovery.md), [importing-audio.md](importing-audio.md), [mastering-workflow.md](../mastering/mastering-workflow.md)
 
-*This guide intentionally does not repeat the operation-by-operation capability table — see [v5-best-practices.md#song-editor](../suno/v5-best-practices.md#song-editor) for that. Here we cover when and why.*
+*This guide intentionally does not repeat the operation-by-operation capability table — see [best-practices.md#song-editor](../suno/best-practices.md#song-editor) for that. Here we cover when and why.*
 
 ---
 
@@ -43,7 +43,7 @@ Two rules of thumb:
 
 ## Section Operations & When to Use Them
 
-Definitions live in the [capability table](../suno/v5-best-practices.md#song-editor). Below is *when each operation earns its place* and what to watch for.
+Definitions live in the [capability table](../suno/best-practices.md#song-editor). Below is *when each operation earns its place* and what to watch for.
 
 ### Remake — same prompt, new take of one section
 
@@ -73,7 +73,7 @@ Definitions live in the [capability table](../suno/v5-best-practices.md#song-edi
 
 ### Delete — remove a weak section
 
-**Use it when** the song is stronger without a part: a redundant "twin verse," a dead instrumental stretch, a second bridge that adds nothing, or trimming length (Suno quality [degrades past ~6–7 minutes](../suno/v5-best-practices.md#known-v5-limitations)). The engine smooths the transition.
+**Use it when** the song is stronger without a part: a redundant "twin verse," a dead instrumental stretch, a second bridge that adds nothing, or trimming length (Suno quality [degrades past ~6–7 minutes](../suno/best-practices.md#known-limitations)). The engine smooths the transition.
 
 **Watch for**: two things. Deleting can pull the track under its **Target Duration** — check against the album/track duration target. And on documentary tracks, deleting a verse may drop a *sourced* fact — make sure nothing load-bearing (or cited) leaves with it.
 
@@ -92,7 +92,7 @@ Everything downstream of Suno — stem extraction, [mix polish](../../skills/mix
 Why it matters:
 
 - **Any section edit changes the source audio.** Extend appends bars (longer track, new tail); Rewrite and Remake replace audio inside a section; Reorder and Delete change what's where. Once you've downloaded and started polishing or mastering, going back into Song Editor produces a *new* WAV — the stems you extracted are stale, and the polish/master you ran no longer applies. You re-run the whole downstream pipeline for that track.
-- **Master the finished track as one unit — never section by section.** Mastering normalizes the full track to **-14 LUFS / -1.0 dBTP** with under 1 dB of variation across the album (see [mastering-workflow.md](../mastering/mastering-workflow.md)). A remade or extended section is still raw Suno output at Suno's [pre-mastering loudness](../suno/v5-best-practices.md#suno-output-loudness-pre-mastering) (e.g., pop/EDM around -9 to -7 LUFS) — it is *not* mastered just because the surrounding track was. Send the whole, arrangement-locked track through mastering once so loudness and limiting stay consistent across the seams.
+- **Master the finished track as one unit — never section by section.** Mastering normalizes the full track to **-14 LUFS / -1.0 dBTP** with under 1 dB of variation across the album (see [mastering-workflow.md](../mastering/mastering-workflow.md)). A remade or extended section is still raw Suno output at Suno's [pre-mastering loudness](../suno/best-practices.md#suno-output-loudness-pre-mastering) (e.g., pop/EDM around -9 to -7 LUFS) — it is *not* mastered just because the surrounding track was. Send the whole, arrangement-locked track through mastering once so loudness and limiting stay consistent across the seams.
 - **Fix gross seams in Suno, not in the master.** The mix-engineer's per-stem processing and mastering's whole-track normalization blend *minor* level/timbre differences between an edited section and its neighbors. A jarring mismatch, though, should be re-rolled with another Remake before download — mastering evens loudness, it doesn't rebuild a performance.
 
 Practical gate: a track isn't ready for `import-audio` until its arrangement is locked. Add **"all Song Editor edits final?"** to your pre-download check alongside the "Before Mastering" list in [error-recovery.md](error-recovery.md#prevention-checklist).
@@ -144,8 +144,8 @@ After a Song Editor pass:
 
 ## See Also
 
-- [v5-best-practices.md#song-editor](../suno/v5-best-practices.md#song-editor) — capability table (Remake / Rewrite / Extend / Reorder / Delete)
-- [tips-and-tricks.md#song-editor-v5](../suno/tips-and-tricks.md#song-editor-v5) — quick-reference tips
+- [best-practices.md#song-editor](../suno/best-practices.md#song-editor) — capability table (Remake / Rewrite / Extend / Reorder / Delete)
+- [tips-and-tricks.md#song-editor](../suno/tips-and-tricks.md#song-editor) — quick-reference tips
 - [CLAUDE.md#regeneration-workflow](../../CLAUDE.md#regeneration-workflow) — rejected-track decision spine
 - [mix-engineer skill](../../skills/mix-engineer/SKILL.md) — stem polish (the audio-quality path)
 - [mastering-workflow.md](../mastering/mastering-workflow.md) — loudness normalization and limiting

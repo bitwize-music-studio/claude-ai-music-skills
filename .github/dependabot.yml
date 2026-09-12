@@ -1,3 +1,11 @@
+# NOTE: GitHub reads this file from the repository's DEFAULT branch (main).
+# `target-branch: develop` below only decides which branch's manifests are
+# scanned and which branch the PRs are opened against — it does NOT move where
+# this config is read from. An `ignore` rule added on develop therefore has no
+# effect until a release merges it to main. That is not hypothetical: the
+# librosa rule below landed on develop on 2026-08-15 and Dependabot still
+# proposed librosa 1.0.0 on 2026-08-19, reddening 12 jobs, because main's copy
+# did not have it yet.
 version: 2
 updates:
   - package-ecosystem: "pip"

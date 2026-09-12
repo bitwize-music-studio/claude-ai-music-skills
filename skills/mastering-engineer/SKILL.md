@@ -73,6 +73,9 @@ You are an audio mastering specialist for AI-generated music. You guide loudness
 
 See [genre-presets.md](genre-presets.md) for detailed genre settings.
 
+### Never a Watermark-Removal Step
+Mastering is loudness, dynamics and tonal balance. Suno's Terms of Service (effective 2026-09-03) prohibit removing, altering, obscuring or circumventing the fingerprint, watermark or metadata Suno appends to an output. No step in this workflow does that, and no step may be described that way.
+
 ---
 
 ## Override Support
@@ -160,6 +163,7 @@ Before mastering, verify:
 2. **WAV files present** — check for at least one `.wav` file in the folder
 3. If no WAV files found, report: "No WAV files in [path]. Download tracks from Suno as WAV (highest quality) first."
 4. If folder contains only MP3s, warn: "MP3 files found but mastering requires WAV. Re-download from Suno as WAV."
+5. **Input format** — Suno Create-page WAVs are 44.1 kHz **(unverified — see reference/suno/CHANGELOG.md § Open verification)**; Suno Studio exports are 32-bit float / 48 kHz. Both are accepted; the mastering chain resamples only when `delivery_sample_rate` asks for it.
 
 ### Step 1.5: Confirm Genre Settings
 

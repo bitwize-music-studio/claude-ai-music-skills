@@ -1,15 +1,15 @@
 # Suno Creative Sliders Reference
 
-Deep-dive guide to Suno V5's three Creative Sliders — **Weirdness**, **Style Influence**, and **Audio Influence** — including per-slider behavior, genre starting points, interaction effects, and when to reach for a slider vs. rewrite the style prompt.
+Deep-dive guide to Suno's Creative Sliders — **Weirdness**, **Style Influence**, **Audio Influence**, and **Variety** with its **Personalize** toggle — including per-slider behavior, genre starting points, interaction effects, and when to reach for a slider vs. rewrite the style prompt. **Max Mode** is a toggle, not a slider, and is covered at the end.
 
 > **Related skills**: `/bitwize-music:suno-engineer` (constructs prompts and picks slider settings)
-> **Related docs**: [v5-best-practices.md](v5-best-practices.md#creative-sliders) (this file expands the brief Creative Sliders table there), [tips-and-tricks.md](tips-and-tricks.md), [genre-list.md](genre-list.md)
+> **Related docs**: [best-practices.md](best-practices.md#creative-sliders) (this file expands the brief Creative Sliders table there), [tips-and-tricks.md](tips-and-tricks.md), [genre-list.md](genre-list.md)
 
 ---
 
 ## What the Sliders Do
 
-The sliders live in the V5 generation interface and sit *on top of* your style prompt. They don't change **what** Suno makes — the prompt does that. They change **how hard Suno commits to the prompt** and **how far it's allowed to wander**.
+The sliders live under More Options in Advanced Mode and sit *on top of* your style prompt. They don't change **what** Suno makes — the prompt does that. They change **how hard Suno commits to the prompt** and **how far it's allowed to wander**.
 
 - **Weirdness** — how experimental vs. predictable the result is.
 - **Style Influence** — how tightly the output hugs your style prompt.
@@ -45,7 +45,7 @@ Controls how tightly the output adheres to your style prompt — genre hallmarks
 | **Mid** (`0.40–0.60`) | Balanced adherence. Honors the prompt while leaving room to breathe. |
 | **High** (`0.60–1.00`) | Tight. Strong genre purity; the prompt's tags are enforced hard. Best when the genre must be unmistakable. |
 
-**Raise it** for genre purity — when the result is drifting off-genre or ignoring your tags. **Lower it** when you want the AI to surprise you, blend styles, or when a dominant Persona is over-processing the mix (per [tips-and-tricks.md](tips-and-tricks.md#personas-for-vocal-consistency), lowering Style Influence can rebalance an overpowering Persona).
+**Raise it** for genre purity — when the result is drifting off-genre or ignoring your tags. **Lower it** when you want the AI to surprise you, blend styles, or when a dominant Voice is over-processing the mix (per [tips-and-tricks.md](tips-and-tricks.md#voices-for-vocal-consistency), lowering Style Influence can rebalance an overpowering Voice).
 
 **Caution**: Very high Style Influence on a thin or contradictory prompt can produce a rigid, wooden result — the engine is enforcing tags that fight each other. If that happens, fix the prompt before pushing the slider higher (see [Sliders vs. Style Prompt](#sliders-vs-style-prompt)).
 
@@ -63,13 +63,37 @@ Controls how much a piece of **uploaded reference audio** shapes the output. Thi
 
 **Raise it** when a cover or reworked upload isn't resembling the source enough. **Lower it** when you want more transformation and less of the original bleeding through.
 
-**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](v5-best-practices.md#voices--custom-models).
+**With Voices (voice cloning):** keep Audio Influence **fairly high (~0.70–0.85)** so the result resembles the cloned voice — too low and Suno drifts toward a generic vocal. See [Voices & Custom Models](best-practices.md#voices-custom-models--my-taste). Suno's own tip in the Voices article is simply "have the Audio Influence slider up fairly high". Defaults are Weirdness 50 / Style Influence 50 / Audio Influence 25; "Reset sliders" restores them.
+
+---
+
+## Variety
+
+Variety is not a "how weird" dial — it is a **prompt-rewriting** dial. Suno's FAQ: "The Variety slider is designed to introduce variety in your outputs by adjusting and updating your style prompts. If you'd like to retain full control of your style tags, reduce the Variety slider to 0." At any setting above Off, Suno expands your style text server-side, differently for each of the two takes; a tester with a style box reading only "R&B" at High got two different multi-line style prompts back.
+
+| Stop | Suno's label | What happens |
+|---|---|---|
+| **Off** | "Exact style" — clips use the same style | Your Style Box is used verbatim. **The plugin's setting.** |
+| **Normal** | "Balanced variety" — slight style variation | Default on v6, v6-mini and Custom Models |
+| **High** | "Distinct styles" | Two clearly different reads of the prompt |
+| **Extra** | "Bold exploration" | |
+| **Max** | "Unreasonably varied" — clips may differ significantly from your style input | |
+
+- **Default differs by model**: Normal on v6 / v6-mini / Custom, **Off on v6-wild**. Check it every session — the default reasserts when you switch models.
+- **Personalize** ("Make Variety match your taste") sits next to it, off by default, and only acts when Variety is above Off. With Variety Off it is inert; leave it off.
+- **A/B testing a prompt edit?** Variety Off, or take-to-take variance will swamp the effect of your change (HookGenius, day one).
+- **Interaction with Style Influence**: Style Influence governs how hard Suno commits to the *prompt it has*; Variety changes *which prompt it has*. Set Variety first.
+- **Covers**: with Variety above Off, a Cover of your own upload drifts in melody (reported; Max Mode is the other fix). Keep Variety Off on Covers.
+
+## Max Mode
+
+A toggle under More Options, not a slider. Suno's copy: "Uses more compute to maximize consistency throughout the song. Costs 2x credits per song." Recommended by Suno for songs longer than two minutes, covers that should stay close to the source, style transfer, and keeping vocals and style consistent through the track — which is why the plugin defaults it **On** for album tracks and for anything using a Voice. Its measured effect on the reported late-song muffling is **(unverified)**. One creator reported two weak or broken outputs with Max Mode on during launch day (single source), and nobody has yet combined Max Mode with v6-wild.
 
 ---
 
 ## Recommended Starting Ranges by Genre
 
-Starting points only — generate, listen, then adjust. Weirdness and Style Influence are always available; Audio Influence applies only to upload/cover workflows. See [Genre-Specific Tips](v5-best-practices.md#genre-specific-tips) for the matching prompt guidance.
+Starting points only — generate, listen, then adjust. Weirdness and Style Influence are always available; Audio Influence applies only to upload/cover workflows. See [Genre-Specific Tips](best-practices.md#genre-specific-tips) for the matching prompt guidance.
 
 | Genre category | Weirdness | Style Influence | Why |
 |----------------|-----------|-----------------|-----|
@@ -82,7 +106,7 @@ Starting points only — generate, listen, then adjust. Weirdness and Style Infl
 | Cinematic / Orchestral | `0.15–0.40` | `0.55–0.75` | Mood and coherence carry the piece. |
 | Jazz / Improv | `0.40–0.65` | `0.40–0.60` | An improvisational feel benefits from deviation. |
 | Ambient / Experimental / IDM | `0.55–0.85` | `0.25–0.50` | The unexpected is the point; loosen the leash. |
-| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known V5 Limitations](v5-best-practices.md#known-v5-limitations); consider testing V4.5). |
+| Metal / Heavy | `0.10–0.30` | `0.65–0.85` | Suno struggles with heavy genres — lock hard on-genre and minimize deviation (see [Known Limitations](best-practices.md#known-limitations); consider a v6-wild first pass, then Cover on v6). |
 | Documentary / narrative | `0.10–0.30` | `0.55–0.75` | The story carries the track — favor clear vocals and predictable structure so the lyric lands. |
 
 ---
@@ -116,7 +140,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 - The **style prompt** decides *what* the track is — genre, instruments, mood, tempo, vocal identity. A slider can't add a banjo, fix a mispronunciation, or change the tempo.
 - The **sliders** decide *how strictly* Suno commits to that prompt and *how far* it may wander. They're fine-tuning, not a rescue for a vague or wrong prompt.
 
-**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt focused — every descriptor doing distinct work; a bloated synonym-pile won't be rescued by sliders either; see [Keep It Simple](v5-best-practices.md#prompt-construction).)
+**Change the prompt when** the output has the wrong genre, wrong instruments, wrong mood or tempo, a missing element, or the vocal character is off. No slider fixes content. (Keep the prompt focused — every descriptor doing distinct work; a bloated synonym-pile won't be rescued by sliders either; see [Keep It Simple](best-practices.md#prompt-construction).)
 
 **Adjust a slider when** the prompt is already right but the *interpretation* is off:
 
@@ -128,10 +152,10 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 | Result feels rigid / wooden | Lower Style Influence slightly, **or** simplify the prompt |
 | Wrong instruments, mood, or tempo | Change the prompt — not a slider issue |
 | Mispronunciation / wrong words | Fix lyrics + pronunciation — not a slider issue |
-| Cover doesn't resemble the source | Raise Audio Influence |
+| Cover doesn't resemble the source | First confirm Variety is **Off** and Max Mode **On** — melody and structure drift with Variety on; then raise Audio Influence |
 | Cover too close, want more transformation | Lower Audio Influence and/or raise Weirdness |
 
-**Golden rule — change one thing at a time.** Adjusting a slider *and* rewriting the prompt in the same pass makes it impossible to know which move helped (this mirrors the "adjust one element at a time" advice in [Iteration Tips](v5-best-practices.md#iteration-tips)).
+**Golden rule — change one thing at a time.** Adjusting a slider *and* rewriting the prompt in the same pass makes it impossible to know which move helped (this mirrors the "adjust one element at a time" advice in [Iteration Tips](best-practices.md#iteration-tips)).
 
 ---
 
@@ -147,7 +171,7 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 
 ## Related Skills
 
-- **`/bitwize-music:suno-engineer`** — Technical Suno V5 prompting expert
+- **`/bitwize-music:suno-engineer`** — Technical Suno prompting expert (v6 family)
   - Chooses slider settings alongside the style prompt
   - Diagnoses prompt-vs-slider issues on regeneration
   - Uses this guide as reference
@@ -157,7 +181,8 @@ The single most useful habit: diagnose whether a bad result is a **prompt proble
 
 ## See Also
 
-- **`/reference/suno/v5-best-practices.md`** — Full V5 prompting guide; the [Creative Sliders](v5-best-practices.md#creative-sliders) section this file expands, plus [Genre-Specific Tips](v5-best-practices.md#genre-specific-tips) and [Known V5 Limitations](v5-best-practices.md#known-v5-limitations)
+- **`/reference/suno/best-practices.md`** — Full prompting guide; the [Creative Sliders](best-practices.md#creative-sliders) section this file expands, plus [Genre-Specific Tips](best-practices.md#genre-specific-tips) and [Known Limitations](best-practices.md#known-limitations)
 - **`/reference/suno/tips-and-tricks.md`** — Operational troubleshooting; Personas and Style Influence interaction
 - **`/reference/suno/genre-list.md`** — 500+ genre tags to pin down the genre before tuning sliders
+- **`/reference/suno/models.md`** — per-model Variety defaults and when Max Mode is worth 2× credits
 - **`/reference/suno/README.md`** — API parameter table (`styleWeight`, `weirdnessConstraint`)

@@ -77,6 +77,7 @@ Ensure all items in Album Completion Checklist are done:
 - Album art generated and saved
 - Audio mastered
 - Streaming Lyrics filled in each track (if using distributor — see [distribution.md](../distribution.md) for format rules)
+- Rights: audio was a permitted paid-plan download (Suno ToS 2026-09-03); Believe/TuneCore only distribute tracks made on the current model family
 
 ### 2. Update Album README
 

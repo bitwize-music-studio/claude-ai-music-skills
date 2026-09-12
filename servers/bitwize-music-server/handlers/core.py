@@ -51,7 +51,22 @@ _UPDATABLE_FIELDS = {
     "sources_verified": "Sources Verified",
     "stems": "Stems",
     "pov": "POV",
+    # Generation Settings table (templates/track.md § Generation Settings, v6)
+    "model": "Model",
+    "variety": "Variety",
+    "max-mode": "Max Mode",
+    "max_mode": "Max Mode",
 }
+
+# Rows that live in the `### Generation Settings` table rather than Track Details.
+# The row rewrite is scoped to that section so the Generation Log's multi-column
+# "Model" header can never be matched.
+_GENERATION_SETTINGS_FIELDS = frozenset({"Model", "Variety", "Max Mode"})
+# Note: the gate (handlers/gates.py) locates this section with _extract_markdown_section,
+# which bounds the section at the next heading; here we only need the start offset because
+# the row regex matches a single bold-key table row, which cannot occur in the Generation
+# Log's multi-column table.
+_GENERATION_SETTINGS_HEADING_RE = re.compile(r"(?m)^#{1,3}\s+Generation Settings\s*$")
 
 
 # =============================================================================
@@ -951,6 +966,9 @@ async def update_track_field(
             "sources-verified" or "sources_verified" — Verification status
             "stems" — Stems available (Yes, No)
             "pov" — Point of view
+            "model" — Generation Settings model (v6, v6-wild, v6-mini, Custom: <name>)
+            "variety" — Generation Settings Variety (Off, Normal, High, Extra, Max)
+            "max-mode" or "max_mode" — Generation Settings Max Mode (On, Off)
         value: New value for the field
         force: Override transition validation (for recovery/correction only)
 
@@ -1089,7 +1107,17 @@ async def update_track_field(
         r'^(\|\s*\*\*' + re.escape(table_key) + r'\*\*\s*\|)\s*.*?\s*\|',
         re.MULTILINE,
     )
-    match = pattern.search(text)
+    search_from = 0
+    if table_key in _GENERATION_SETTINGS_FIELDS:
+        heading = _GENERATION_SETTINGS_HEADING_RE.search(text)
+        if not heading:
+            return _safe_json({
+                "error": "Track file has no Generation Settings section — add one "
+                         "(see templates/track.md § Generation Settings)",
+                "track_slug": matched_slug,
+            })
+        search_from = heading.end()
+    match = pattern.search(text, search_from)
     if not match:
         return _safe_json({
             "error": f"Field '{table_key}' not found in track file table",

@@ -63,11 +63,11 @@ Chronological narrative from early computing to modern open source.
 ## Production Notes
 
 <!-- SERVICE: suno -->
-**Suno Persona** (optional):
+**Suno Voice** (optional; Suno renamed Personas to Voices):
 | Attribute | Value |
 |-----------|-------|
-| **Persona Name** | — |
-| **Persona Link** | — |
+| **Voice Name** | — |
+| **Voice Link** | — |
 
 **Style Prompt Base**:
 ```

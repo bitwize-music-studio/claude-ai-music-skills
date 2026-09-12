@@ -60,6 +60,35 @@ def _resolve_explicit_decision(file_text: str | None) -> tuple[bool, bool]:
     return False, False
 
 
+# Catalog model names accepted by the Generation Settings gate
+# (reference/suno/models.md). "Custom: <name>" is accepted by prefix.
+_KNOWN_MODELS = frozenset({"v6", "v6-wild", "v6-mini"})
+_DURATION_RE = re.compile(r"(\d{1,2}):(\d{2})")
+
+
+def _is_known_model(value: str) -> bool:
+    """True for a v6-family catalog name or a non-empty ``Custom: <name>``."""
+    v = value.strip().lower()
+    if v in _KNOWN_MODELS:
+        return True
+    return v.startswith("custom:") and bool(v[len("custom:"):].strip())
+
+
+def _is_variety_off(value: str) -> bool:
+    """Variety is Off when the cell says Off or 0 (Suno: 'reduce the Variety slider to 0')."""
+    return value.strip().lower() in {"off", "0"}
+
+
+def _parse_duration_seconds(value: str | None) -> int | None:
+    """Parse the first ``m:ss`` in a Target Duration cell; None if absent."""
+    if not value:
+        return None
+    m = _DURATION_RE.search(value)
+    if not m:
+        return None
+    return int(m.group(1)) * 60 + int(m.group(2))
+
+
 def _check_pre_gen_gates_for_track(
     t_data: dict[str, Any], file_text: str | None, blocklist: list[dict[str, str]],
     max_lyric_words: int = 800,
@@ -182,6 +211,44 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Style Box Descriptor Count", "status": "SKIP",
                       "detail": "No style prompt to check"})
 
+    # Gate 5c: Generation Settings (advisory, v6). Variety above Off makes Suno
+    # rewrite the Style Box server-side (v6 FAQ: "reduce the Variety slider to
+    # 0" to keep your style tags), so an engineered Style Box is only used
+    # verbatim at Off. Model must be a catalog name (reference/suno/models.md).
+    # Parsing is scoped to the section so Track Details rows (e.g. Target
+    # Duration) and the Generation Log's Model column are never matched.
+    from tools.state.parsers import _extract_table_value
+
+    settings_section = _extract_markdown_section(file_text, "Generation Settings") if file_text else None
+    if not settings_section:
+        gates.append({"gate": "Generation Settings", "status": "SKIP",
+                      "detail": "No Generation Settings section — add one "
+                                "(see templates/track.md § Generation Settings)"})
+    else:
+        model_val = (_extract_table_value(settings_section, "Model") or "").strip()
+        variety_val = (_extract_table_value(settings_section, "Variety") or "").strip()
+        max_mode_val = (_extract_table_value(settings_section, "Max Mode") or "").strip()
+        problems: list[str] = []
+        if not _is_known_model(model_val):
+            problems.append(f"Model '{model_val or '—'}' not recognized — use v6, v6-wild, "
+                            "v6-mini or Custom: <name>")
+        if not _is_variety_off(variety_val):
+            problems.append(f"Variety is '{variety_val or '—'}' — Suno rewrites the Style Box "
+                            "at any setting above Off; set Off to use it verbatim")
+        if problems:
+            gates.append({"gate": "Generation Settings", "status": "WARN", "severity": "WARNING",
+                          "detail": "; ".join(problems)})
+            warning_count += 1
+        else:
+            detail = f"Model {model_val}, Variety Off, Max Mode {max_mode_val or '—'}"
+            if max_mode_val.lower() == "off":
+                assert file_text is not None
+                target_secs = _parse_duration_seconds(_extract_table_value(file_text, "Target Duration"))
+                if target_secs is not None and target_secs >= 150:
+                    detail += (f" — Max Mode off on a {target_secs // 60}:{target_secs % 60:02d} target; "
+                               "Suno recommends it for songs over two minutes (2x credits)")
+            gates.append({"gate": "Generation Settings", "status": "PASS", "detail": detail})
+
     # Gate 6: Artist Names Cleared (uses pre-compiled patterns)
     if style_content:
         found_artists = []
@@ -274,7 +341,7 @@ async def run_pre_generation_gates(
     album_slug: str,
     track_slug: str = "",
 ) -> str:
-    """Run all 8 pre-generation validation gates on a track or album.
+    """Run the pre-generation validation gates (8 blocking + 3 advisory) on a track or album.
 
     Gates:
         1. Sources Verified — sources_verified is not "Pending"
@@ -285,6 +352,9 @@ async def run_pre_generation_gates(
         6. Artist Names Cleared — No real artist names in Style Box
         7. Homograph Check — No unresolved homographs in lyrics
         8. Lyric Length — Lyrics under 800-word Suno limit
+
+        Advisory (WARN, never block): Style Box Descriptor Count, Performance Cues,
+        Generation Settings (v6: Variety must be Off, Model must be a catalog name)
 
     Args:
         album_slug: Album slug (e.g., "my-album")

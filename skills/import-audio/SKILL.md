@@ -142,7 +142,9 @@ Overwrite? (The original was not moved)
 
 ## MP3 Files
 
-Suno allows downloading in both WAV and MP3 formats. **Always prefer WAV** for mastering quality.
+Suno allows downloading in both WAV and MP3 formats (WAV on Pro/Premier, web only). **Always prefer WAV** for mastering quality.
+
+**Downloads are metered since 2026-09-03.** Free accounts get 7 lifetime trial downloads (personal use only — never releasable); Pro 20 a month; Premier 60 a month; the count resets on the billing date and does not roll over. **One song is one download whatever the format, and its stems are included** — download the WAV first, then pull stems later at no extra cost; re-downloading the same song is free. Premier's **Suno Studio exports are uncapped** and arrive as 32-bit float / 48 kHz WAV — the practical route for a full album in one month. Commercial rights attach only to a permitted download made on a paid plan.
 
 **If the user provides an MP3 file:**
 

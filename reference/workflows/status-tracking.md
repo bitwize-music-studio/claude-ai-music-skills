@@ -50,8 +50,8 @@ Every track file includes a generation log table:
 
 | # | Date | Model | Result | Notes | Rating |
 |---|------|-------|--------|-------|--------|
-| 1 | 2025-12-03 | V5 | [Listen](url) | First attempt | — |
-| 2 | 2025-12-03 | V5 | [Listen](url) | Boosted vocals | ✓ |
+| 1 | 2025-12-03 | v6 | [Listen](url) | First attempt | — |
+| 2 | 2025-12-03 | v6 | [Listen](url) | Boosted vocals | ✓ |
 
 **When you find a keeper**: Set Status to `Generated`, add Suno Link.
 
