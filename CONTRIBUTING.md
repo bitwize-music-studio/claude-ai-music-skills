@@ -189,6 +189,7 @@ When `develop` is ready to release:
 **Files that must stay in sync:**
 - `.claude-plugin/plugin.json` — plugin version
 - `.claude-plugin/marketplace.json` — marketplace version
+- `.codex-plugin/plugin.json` — Codex plugin version
 
 ## Testing
 

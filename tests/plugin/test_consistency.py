@@ -35,23 +35,28 @@ class TestSkillCount:
 
 
 class TestVersionSync:
-    """plugin.json and marketplace.json versions must match."""
+    """Claude plugin, marketplace, and Codex plugin versions must match."""
 
     def test_version_files_match(self, project_root):
         plugin_json = project_root / ".claude-plugin" / "plugin.json"
         marketplace_json = project_root / ".claude-plugin" / "marketplace.json"
+        codex_plugin_json = project_root / ".codex-plugin" / "plugin.json"
 
         assert plugin_json.exists(), "Required file missing: .claude-plugin/plugin.json"
         assert marketplace_json.exists(), "Required file missing: .claude-plugin/marketplace.json"
+        assert codex_plugin_json.exists(), "Required file missing: .codex-plugin/plugin.json"
 
         with open(plugin_json, encoding="utf-8") as f:
             plugin_version = json.load(f).get('version', 'unknown')
         with open(marketplace_json, encoding="utf-8") as f:
             marketplace_data = json.load(f)
             marketplace_version = marketplace_data.get('plugins', [{}])[0].get('version', 'unknown')
+        with open(codex_plugin_json, encoding="utf-8") as f:
+            codex_version = json.load(f).get('version', 'unknown')
 
-        assert plugin_version == marketplace_version, (
-            f"plugin.json: {plugin_version}, marketplace.json: {marketplace_version}"
+        assert plugin_version == marketplace_version == codex_version, (
+            f"plugin.json: {plugin_version}, marketplace.json: {marketplace_version}, "
+            f".codex-plugin/plugin.json: {codex_version}"
         )
 
 

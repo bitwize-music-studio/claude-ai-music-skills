@@ -126,8 +126,9 @@ jobs:
         # Update version files
         jq ".version = \"$DEV_VERSION\"" .claude-plugin/plugin.json > /tmp/plugin.json && mv /tmp/plugin.json .claude-plugin/plugin.json
         jq ".plugins[0].version = \"$DEV_VERSION\"" .claude-plugin/marketplace.json > /tmp/marketplace.json && mv /tmp/marketplace.json .claude-plugin/marketplace.json
+        jq ".version = \"$DEV_VERSION\"" .codex-plugin/plugin.json > /tmp/codex-plugin.json && mv /tmp/codex-plugin.json .codex-plugin/plugin.json
 
-        git add .claude-plugin/plugin.json .claude-plugin/marketplace.json
+        git add .claude-plugin/plugin.json .claude-plugin/marketplace.json .codex-plugin/plugin.json
         git diff --cached --quiet && { echo "No version change needed, skipping"; exit 0; }
         git commit -m "chore: bump develop to $DEV_VERSION"
         git push origin develop

@@ -281,9 +281,9 @@ Currently supports **Suno** (default). Service-specific template sections marked
 
 **Co-author line**: use the model actually running the session, e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`
 
-**Version files (must stay in sync)**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+**Version files (must stay in sync)**: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `.codex-plugin/plugin.json`
 
-**Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in both plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
+**Release process**: Update CHANGELOG.md `[Unreleased]` → `[0.x.0 - DATE]`, update version in all three plugin files, update README "What's New" table if notable. Commit: `chore: release 0.x.0`
 
 **Development workflow**: Feature branch off `develop` → Conventional Commits → `/bitwize-music:test all` → PR into `develop` → Release: merge `develop` → `main`. See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 

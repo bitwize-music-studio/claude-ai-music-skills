@@ -46,6 +46,14 @@ except Exception as e:
     print(f'      ✗ marketplace.json invalid: {e}')
     sys.exit(1)
 
+# Validate the additive Codex plugin.json
+try:
+    with open('.codex-plugin/plugin.json') as f:
+        json.load(f)
+except Exception as e:
+    print(f'      ✗ .codex-plugin/plugin.json invalid: {e}')
+    sys.exit(1)
+
 # Validate config.example.yaml
 if has_yaml:
     try:
@@ -85,10 +93,14 @@ with open('.claude-plugin/plugin.json') as f:
 with open('.claude-plugin/marketplace.json') as f:
     marketplace_version = json.load(f)['plugins'][0]['version']
 
-if plugin_version != marketplace_version:
+with open('.codex-plugin/plugin.json') as f:
+    codex_version = json.load(f)['version']
+
+if plugin_version != marketplace_version or plugin_version != codex_version:
     print(f'      ✗ Version mismatch!')
     print(f'        plugin.json:      {plugin_version}')
     print(f'        marketplace.json: {marketplace_version}')
+    print(f'        .codex-plugin/plugin.json: {codex_version}')
     sys.exit(1)
 
 print(f'      ✓ Versions match ({plugin_version})')
