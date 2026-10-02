@@ -7872,6 +7872,53 @@ class TestCheckSkillRegistration:
 class TestHealthCheck:
     """Tests for the health_check() MCP tool."""
 
+    @pytest.mark.parametrize("venv_status,collisions,expected", [
+        ("ok", [], "ok"),
+        ("stale", [], "warn"),
+        ("no_venv", [], "fail"),
+        ("ok", [{"slug": "duplicate"}], "warn"),
+    ])
+    def test_codex_checks_health_without_claiming_registration(
+        self, tmp_path, venv_status, collisions, expected,
+    ):
+        plugin_root = tmp_path / "installed plugin"
+        skill = plugin_root / "skills" / "resume" / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        skill.write_text("---\nname: resume\n---\n", encoding="utf-8")
+        state = _fresh_state()
+        state["album_collisions"] = collisions
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_health_mod, "check_venv_health", return_value=json.dumps({
+                 "status": venv_status, "checked": 1,
+             })), \
+             patch.object(_health_mod, "_find_plugin_cache_dir",
+                          side_effect=AssertionError("Codex must not inspect Claude cache")):
+            result = json.loads(_run(_health_mod.health_check(runtime="codex")))
+        assert result["status"] == expected
+        assert result["venv"]["status"] == venv_status
+        assert result["skills"]["status"] == "not_checked"
+        assert result["skills"]["source_count"] == 1
+        assert "ok_count" not in result["skills"]
+        assert "fix_message" not in result["skills"]
+        assert result["checks"][1]["status"] == "info"
+        assert result["collisions"]["status"] == ("collision" if collisions else "ok")
+
+    def test_codex_missing_source_skills_fails(self, tmp_path):
+        with patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
+             patch.object(_shared_mod, "cache", MockStateCache()), \
+             patch.object(_health_mod, "check_venv_health",
+                          return_value=json.dumps({"status": "ok"})):
+            result = json.loads(_run(_health_mod.health_check(runtime="codex")))
+        assert result["status"] == "fail"
+        assert result["skills"]["source_count"] == 0
+
+    def test_unknown_runtime_rejected_before_checks(self):
+        with patch.object(_health_mod, "check_venv_health") as venv_check:
+            with pytest.raises(ValueError, match="runtime must"):
+                _run(_health_mod.health_check(runtime="unknown"))
+            venv_check.assert_not_called()
+
     def test_all_ok(self, tmp_path):
         """Both venv and skills ok returns overall ok."""
         # Set up matching skills

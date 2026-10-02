@@ -1864,7 +1864,17 @@
   },
   {
     "inputSchema": {
-      "properties": {},
+      "properties": {
+        "runtime": {
+          "default": "claude",
+          "enum": [
+            "claude",
+            "codex"
+          ],
+          "title": "Runtime",
+          "type": "string"
+        }
+      },
       "title": "health_checkArguments",
       "type": "object"
     },
