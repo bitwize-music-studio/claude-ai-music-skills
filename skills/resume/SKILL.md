@@ -28,6 +28,16 @@ allowed-tools:
 
 ## Instructions
 
+Read [the shared runtime rules](../../reference/runtime-compatibility.md).
+In Codex, read the resolved plugin root's `CLAUDE.md` as shared workflow
+guidance, use the album name supplied in the user's request, and render skill
+recommendations with the installed skill's advertised name.
+
+Use the current configuration and MCP state to resolve albums. If configuration
+is missing, recommend the installed `configure` skill and stop. If MCP is
+unavailable, report the unavailable query and follow the configured-workspace
+fallback in the shared workflow guide; never infer album progress from cwd.
+
 When this skill is invoked with an album name:
 
 ### Step 1: Find the Album via MCP
@@ -87,9 +97,7 @@ Present a clear status report:
    - [List completed items]
 
 ⏭️ Next Steps:
-   1. [Specific action 1]
-   2. [Specific action 2]
-   3. [Specific action 3]
+   1. [Single best next action, with prerequisites and the host's skill syntax]
 
 Ready to continue? Tell me what you'd like to work on.
 ```

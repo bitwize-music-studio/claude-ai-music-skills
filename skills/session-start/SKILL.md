@@ -15,6 +15,11 @@ allowed-tools:
 
 ## Your Task
 
+Read [the shared runtime rules](../../reference/runtime-compatibility.md).
+In Codex, resolve the root from this loaded skill and read the plugin's
+`CLAUDE.md` as the shared workflow guide before starting. Apply the runtime
+translations below rather than assuming Claude's session startup ran.
+
 Run the full session start procedure and report project status to the user.
 
 ---
@@ -42,6 +47,10 @@ Quick dependency check:
 
 Use the `health_check` MCP tool (checks venv packages + skill registration + album slug collisions in one call):
 
+- Claude Code: `health_check()` (the existing default).
+- Codex: `health_check(runtime="codex")`. Do not infer the calling host from
+  the MCP process's `CLAUDE_PLUGIN_ROOT`; the launcher sets it in both hosts.
+
 **Venv results** (from `result.venv`):
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn with mismatches and fix command, continue session
@@ -52,6 +61,13 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn: list missing and ghost skill names, show fix message
 - `status: "no_cache"` → warn that plugin cache not found, continue
+- `status: "not_checked"` → Codex source files exist, but MCP has not verified
+  host registration. State this distinction briefly; use the host's skill
+  picker or `skills/list` to investigate missing skills. Do not suggest a
+  Claude plugin update for this result.
+- `status: "error"` → **stop**: the installed plugin has no canonical skill
+  files. Report the installation problem and suggest reinstalling the plugin
+  in the active host.
 
 **Album slug collision results** (from `result.collisions`):
 - `status: "ok"` → continue silently
@@ -62,12 +78,16 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 Read `~/.bitwize-music/config.yaml`.
 
 If missing, tell user to run `/bitwize-music:configure`.
+In Codex, render that recommendation using the installed skill's advertised
+name. Do not continue until the required workspace paths are configured.
 
 ## Step 3: Load Overrides
 
 Read `paths.overrides` from config (default: `{content_root}/overrides`):
 
 - Check for `{overrides}/CLAUDE.md` — incorporate instructions if found
+- This is the shared customization file in both hosts; use the configured
+  overrides directory rather than searching the current working directory
 - Check for `{overrides}/pronunciation-guide.md` — note if found
 - Skip silently if missing (overrides are optional)
 
