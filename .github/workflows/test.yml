@@ -825,3 +825,10 @@ jobs:
         if [ "$RUNNER_OS" = "Windows" ]; then CODEX="$CODEX.cmd"; fi
         "$CODEX" --version
         python tests/e2e/codex_plugin_discovery_check.py --root "$GITHUB_WORKSPACE" --codex "$CODEX"
+
+    - name: Check startup and resume from a foreign music workspace
+      run: |
+        CODEX="$GITHUB_WORKSPACE/tests/e2e/codex/node_modules/.bin/codex"
+        if [ "$RUNNER_OS" = "Windows" ]; then CODEX="$CODEX.cmd"; fi
+        BITWIZE_VENV="$(python -c "import pathlib; print((pathlib.Path.home() / '.bitwize-music' / 'venv').as_posix())")"
+        python tests/e2e/codex_session_resume_check.py --root "$GITHUB_WORKSPACE" --codex "$CODEX" --venv "$BITWIZE_VENV"

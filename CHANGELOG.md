@@ -7,6 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- **Codex startup/resume now has a foreign-workspace host probe** — isolated synthetic config and state verify album lookup, source-verification state, and session persistence; an optional authenticated model check exercises the four shared skills and their recommendation syntax.
 - **Codex session startup and album resume reuse the shared workflow guide** — explicitly load the installed plugin's instructions, preserve configured overrides and verification gates, select Codex health diagnostics, and render recommendations with the host's skill names.
 - **`health_check(runtime="codex")` separates source presence from host registration** — Codex sessions keep venv and album-collision checks without inspecting Claude's cache or claiming that on-disk skills prove host loading. Calls without a runtime retain the Claude diagnostics.
 - **Shared setup and configuration now include Codex runtime guidance** — resolve plugin resources from the loaded skill, quote dependency paths, and use the host's skill and question interfaces while preserving the single skills tree and shared venv.

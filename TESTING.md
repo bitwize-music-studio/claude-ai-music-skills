@@ -2,6 +2,39 @@
 
 Comprehensive testing checklist before marketplace release.
 
+## Codex startup and resume
+
+With Codex CLI and a dependency venv installed, run:
+
+```bash
+python3 tests/e2e/codex_plugin_discovery_check.py
+python3 tests/e2e/codex_session_resume_check.py --venv "$HOME/.bitwize-music/venv"
+```
+
+The second probe uses temporary `HOME` and `CODEX_HOME` directories and an
+unrelated music-project cwd. It verifies all 53 skills through Codex's host API,
+then exercises configuration, Codex health diagnostics, source-verification
+state, album lookup/progress, and persisted session updates through MCP. It
+asserts that the synthetic album and track files remain unchanged. CI runs this
+without starting a model turn. Use `--venv .venv` for a developer environment or
+`--codex /path/to/codex` to check a particular CLI version.
+
+To additionally exercise the installed setup, configure, startup, and resume
+skills with authenticated startup and resume model turns:
+
+```bash
+python3 tests/e2e/codex_session_resume_check.py --venv .venv --model-check
+```
+
+This uses account usage. The optional check copies existing `auth.json` into
+the temporary Codex home with private permissions, leaves normal Codex settings
+unchanged, and checks actual MCP calls and the source-verification recommendation.
+The isolated invocation preapproves only synthetic state queries and session
+updates so the noninteractive `never` approval policy can run the workflow.
+It performs dependency inspection and `configure show`; it does not install
+packages or exercise every interactive configuration response. These checks
+cover the startup/resume slice, not the full downstream music-production pipeline.
+
 ---
 
 ## Prerequisites
