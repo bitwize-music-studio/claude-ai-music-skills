@@ -156,6 +156,41 @@ def check_workflow(probe: SessionProbe, home: Path) -> None:
     require(saved["session"]["last_album"] == ALBUM, "Session was not persisted")
 
 
+def check_model_turn(events: list[dict[str, Any]], *, resume: bool) -> int:
+    """Require each turn to supply its own workflow evidence."""
+    calls = [e["item"] for e in events if e.get("type") == "item.completed"
+             and e.get("item", {}).get("type") == "mcp_tool_call"]
+    failures = [{"tool": c.get("tool"), "status": c.get("status"), "error": c.get("error")}
+                for c in calls if c.get("status") == "failed" or c.get("error")]
+    require(not failures, f"Model workflow included failed MCP calls: {failures}")
+    if not resume:
+        require(any(c.get("tool") == "health_check" and c.get("arguments", {}).get("runtime") == "codex"
+                    for c in calls), "Startup did not select Codex health diagnostics")
+        return len(calls)
+
+    tools = {c.get("tool") for c in calls}
+    messages = [e["item"].get("text", "") for e in events if e.get("type") == "item.completed"
+                and e.get("item", {}).get("type") == "agent_message"]
+    answer = "\n".join(messages)
+    require({"get_session", "find_album", "get_album_progress", "list_tracks", "update_session"} <= tools,
+            f"Resume missed workflow tools: {sorted(tools)}; answer: {answer[-2000:]}")
+    require(any(c.get("tool") == "update_session"
+                and c.get("arguments", {}).get("album") == ALBUM
+                and c.get("arguments", {}).get("phase") == "Source Verification"
+                and not c.get("arguments", {}).get("clear", False)
+                for c in calls), "Resume did not update the expected album and phase")
+    require("Probe Album" in answer and "verify-sources" in answer, "Resume missed album/source gate")
+    require("$bitwize-music:verify-sources" in answer, "Resume used the wrong invocation syntax")
+    return len(calls)
+
+
+def read_saved_session(home: Path) -> dict[str, Any]:
+    state = json.loads((home / ".bitwize-music/cache/state.json").read_text(encoding="utf-8"))
+    session = state["session"]
+    require(isinstance(session, dict), "Saved session is not an object")
+    return session
+
+
 def check_model(codex: str, workspace: Path, env: dict[str, str], auth_home: Path) -> None:
     """Exercise real skill loading and inspect structured tool events."""
     auth = auth_home / "auth.json"
@@ -176,7 +211,7 @@ def check_model(codex: str, workspace: Path, env: dict[str, str], auth_home: Pat
         "verification gate. Do not generate music or edit album/track files. "
         "Complete the resume skill's session-context update."
     )]
-    events = []
+    call_count = 0
     # The never policy makes unapproved MCP calls fail. Preapprove only fixture
     # queries/session updates, in this invocation's isolated plugin config.
     tool_policy = []
@@ -187,6 +222,8 @@ def check_model(codex: str, workspace: Path, env: dict[str, str], auth_home: Pat
                f"{EXPECTED_MCP_SERVER}.tools.{tool}.approval_mode")
         tool_policy.extend(["-c", f'{key}="approve"'])
     for number, prompt in enumerate(prompts, 1):
+        resume = number == 2
+        previous_session = read_saved_session(Path(env["HOME"])) if resume else None
         command = (
             [codex, "exec", "--json", "--ephemeral", "--skip-git-repo-check",
              "--sandbox", "workspace-write", "--add-dir", env["HOME"],
@@ -207,24 +244,16 @@ def check_model(codex: str, workspace: Path, env: dict[str, str], auth_home: Pat
                     process.kill()
                 process.wait()
         require(process.returncode == 0, f"Model probe failed (exit {process.returncode}): {stderr[-2000:]}")
-        events.extend(json.loads(line) for line in stdout.splitlines() if line.strip())
+        events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
+        call_count += check_model_turn(events, resume=resume)
+        if resume:
+            saved = read_saved_session(Path(env["HOME"]))
+            require(saved.get("last_album") == ALBUM and saved.get("last_phase") == "Source Verification",
+                    "Resume persisted the wrong album or phase")
+            require(saved.get("updated_at") and saved["updated_at"] != previous_session.get("updated_at"),
+                    "Resume session update was not persisted")
         print(f"Model workflow: phase {number}/{len(prompts)} completed", flush=True)
-    calls = [e["item"] for e in events if e.get("type") == "item.completed"
-             and e.get("item", {}).get("type") == "mcp_tool_call"]
-    failures = [{"tool": c.get("tool"), "status": c.get("status"), "error": c.get("error")}
-                for c in calls if c.get("status") == "failed" or c.get("error")]
-    require(not failures, f"Model workflow included failed MCP calls: {failures}")
-    tools = {c.get("tool") for c in calls}
-    messages = [e["item"].get("text", "") for e in events if e.get("type") == "item.completed"
-                and e.get("item", {}).get("type") == "agent_message"]
-    answer = "\n".join(messages)
-    require({"health_check", "find_album", "get_album_progress", "list_tracks", "update_session"} <= tools,
-            f"Model missed workflow tools: {sorted(tools)}; answer: {answer[-2000:]}")
-    require(any(c.get("tool") == "health_check" and c.get("arguments", {}).get("runtime") == "codex"
-                for c in calls), "Model did not select Codex health diagnostics")
-    require("Probe Album" in answer and "verify-sources" in answer, "Model missed album/source gate")
-    require("$bitwize-music:verify-sources" in answer, "Model used the wrong invocation syntax")
-    print(f"Model workflow: {len(calls)} MCP calls; album and source-verification recommendation verified", flush=True)
+    print(f"Model workflow: {call_count} MCP calls; resume recommendation and saved session verified", flush=True)
 
 
 def main() -> int:

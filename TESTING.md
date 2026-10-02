@@ -29,6 +29,9 @@ python3 tests/e2e/codex_session_resume_check.py --venv .venv --model-check
 This uses account usage. The optional check copies existing `auth.json` into
 the temporary Codex home with private permissions, leaves normal Codex settings
 unchanged, and checks actual MCP calls and the source-verification recommendation.
+Startup and resume must each supply their own evidence. Resume must query session
+context, update the expected album and phase, and persist a fresh session timestamp;
+startup calls or recommendations cannot satisfy the resume checks.
 The isolated invocation preapproves only synthetic state queries and session
 updates so the noninteractive `never` approval policy can run the workflow.
 It performs dependency inspection and `configure show`; it does not install
