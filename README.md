@@ -48,6 +48,20 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
+### Codex: local checkout
+
+Register this checkout and install the same plugin:
+
+```bash
+codex plugin marketplace add /absolute/path/to/this/checkout
+codex plugin add bitwize-music@bitwize-music
+```
+
+In a new Codex session, select the installed skills or invoke
+`$bitwize-music:setup`, then `$bitwize-music:configure`. Both hosts share the
+configuration and dependency venv. See the [shared runtime rules](reference/runtime-compatibility.md)
+for plugin paths and skill invocation.
+
 **Platform**: macOS, Linux, WSL2, and native Windows are all fully supported. The full test suite runs on windows-latest in CI (plus dedicated Windows legs for the MCP boot check and MuseScore PDF export) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run natively there. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet music works natively too: MuseScore PDF export is CI-verified on windows-latest, and AnthemScore transcription runs against a licensed install (its free trial exposes no CLI on any OS, so that caveat isn't Windows-specific). Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
 ### OpenAI Codex (experimental)

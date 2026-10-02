@@ -7,6 +7,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 ## [Unreleased]
 
 ### Added
+- **Shared setup and configuration now include Codex runtime guidance** — resolve plugin resources from the loaded skill, quote dependency paths, and use the host's skill and question interfaces while preserving the single skills tree and shared venv.
 - **The README documents installing the plugin in OpenAI Codex** ([#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548)) — a new "OpenAI Codex (experimental)" section under Install gives `codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills`, then `codex plugin add bitwize-music@bitwize-music`. It also shows how to create the venv by hand for anyone who hasn't set the plugin up in Claude Code, because the `setup` skill still assumes Claude Code. Every earlier Codex test installed from a local checkout. This path was verified against the released 0.103.0 in an isolated Codex 0.162.1: all 53 skills loaded, and `health_check` answered from the installed copy.
 
 ### Changed

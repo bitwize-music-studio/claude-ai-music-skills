@@ -14,6 +14,11 @@ allowed-tools:
 
 ## Your Task
 
+Read [the shared runtime rules](../../reference/runtime-compatibility.md).
+Use the user's supplied arguments when the host does not inject `$ARGUMENTS`.
+Ask configuration questions with the host's available tools or conversation,
+and wait for the answers before writing those settings.
+
 **Input**: $ARGUMENTS
 
 Route based on argument:
