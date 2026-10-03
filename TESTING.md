@@ -38,6 +38,38 @@ It performs dependency inspection and `configure show`; it does not install
 packages or exercise every interactive configuration response. These checks
 cover the startup/resume slice, not the full downstream music-production pipeline.
 
+### Minimal configuration and overrides acceptance — 2026-10-03
+
+An authenticated, one-off acceptance run passed on macOS arm64, Python 3.11.5,
+and Codex CLI 0.160.0, using plugin version 0.102.0-dev at commit
+`7bd0509fb53cf8e7610365f95f0869bb2f1f9f09`. It reused the synthetic workspace
+and local plugin installation helpers above, with temporary `HOME` and
+`CODEX_HOME`, the project `.venv`, and a cwd outside the installed plugin.
+This was separate from the automated `--model-check` probe.
+
+| Case | Procedure and observed evidence |
+|---|---|
+| Initial configuration | Remove the fixture config and invoke `$bitwize-music:configure setup` without settings. The model requested artist/content/audio/documents settings, and the config file remained absent until answers were supplied. |
+| Save after answers | Supply values through `codex exec resume` in the same conversation. Read the saved YAML: artist casing `probeArtist` and all supplied paths matched exactly, including paths containing spaces and an overrides directory outside the content root. |
+| Specified edit | Invoke `$bitwize-music:configure edit` to change only `paths.audio_root`. Read the YAML and compare all remaining values against the previous config: only the requested path changed. |
+| Configured overrides | Put a unique startup-report marker in the configured overrides `CLAUDE.md`, a pronunciation guide alongside it, and a different marker in the foreign cwd's `CLAUDE.md`. Invoke `$bitwize-music:session-start` in a fresh conversation without disclosing either marker. The configured marker appeared, the cwd marker did not, the configured album was reported, and the actual health call selected `runtime="codex"`. |
+| Missing overrides | Rename the configured overrides directory away and start another fresh conversation. Startup still reported the configured album and optional override files as absent, selected Codex health diagnostics, and included neither marker. |
+
+No failed MCP calls occurred. Synthetic album/track bytes remained unchanged,
+and the temporary authentication copy was explicitly removed. The successful
+configuration and overrides cases required no additional product changes or
+regression tests. This covers conversational setup, a specified edit, and the
+two override cases; it does not establish every optional/reset/overwrite branch
+or a native question-widget interaction.
+
+The same source revision also passed `make check` (exit 0): Ruff, the scoped
+encoding check, Bandit, mypy (72 source files), and pytest (4683 passed,
+13 skipped, coverage 90.05%). The optional `numba` import now has type
+`ModuleType | None`, resolving both existing mypy errors without changing the
+compression algorithm. All six existing compressor tests passed separately;
+a one-off forced-missing-numba check selected the fallback and matched the JIT
+envelope and stereo compression results within `rtol=atol=1e-12`.
+
 ---
 
 ## Prerequisites
