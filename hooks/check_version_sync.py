@@ -113,9 +113,22 @@ def _same_path(left: Path, right: Path) -> bool:
 
 
 def _modified_files(root: Path) -> set[str]:
+    # This runs in every user's session, inside whatever repo holds the edited
+    # manifest. Repo-local config such as core.fsmonitor can make git run
+    # commands, and safe.bareRepository=explicit stops git from discovering a
+    # bare repository planted inside a project. Command-line -c settings take
+    # precedence over repo config and count as protected configuration.
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only"],
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "safe.bareRepository=explicit",
+                "diff",
+                "--name-only",
+            ],
             capture_output=True,
             text=True,
             timeout=5,

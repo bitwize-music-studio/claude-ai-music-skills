@@ -529,12 +529,15 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
 
-    codex = shutil.which(args.codex) or (
+    found = shutil.which(args.codex) or (
         args.codex if Path(args.codex).is_file() else None
     )
-    if codex is None:
+    if found is None:
         print("codex CLI not found", file=sys.stderr)
         return 2
+    # Absolute: Codex runs from a temporary project directory, and a relative
+    # executable path would be resolved against that directory instead.
+    codex = os.path.abspath(found)
     if not (root / ".codex-plugin" / "plugin.json").is_file():
         print(f"Codex plugin manifest not found under {root}", file=sys.stderr)
         return 1

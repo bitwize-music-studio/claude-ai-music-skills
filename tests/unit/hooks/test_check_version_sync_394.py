@@ -197,6 +197,33 @@ def test_codex_drift_reported_without_marketplace(tmp_path, monkeypatch):
     assert "9.9.9" in issues[0]
 
 
+def test_git_call_ignores_repo_local_command_settings(tmp_path, monkeypatch):
+    """The hook runs git inside whatever repo holds the edited manifest.
+
+    It must override the repo-local settings that can make git run commands
+    (core.fsmonitor) and refuse bare repositories planted inside a project.
+    """
+    seen = {}
+
+    def _fake_run(cmd, *args, **kwargs):
+        seen["cmd"] = cmd
+        return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(check_version_sync.subprocess, "run", _fake_run)
+
+    check_version_sync._modified_files(tmp_path)
+
+    assert seen["cmd"] == [
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "safe.bareRepository=explicit",
+        "diff",
+        "--name-only",
+    ]
+
+
 def test_hook_main_does_not_crash_on_non_utf8_manifest(tmp_path):
     """End-to-end: the hook process exits 0 with no traceback, not a crash."""
     d = _manifest_dir(tmp_path)
