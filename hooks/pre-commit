@@ -21,6 +21,7 @@ echo ""
 echo "[2/11] Validating JSON/YAML configs..."
 python3 -c "
 import json
+import os
 import sys
 
 try:
@@ -46,13 +47,15 @@ except Exception as e:
     print(f'      ✗ marketplace.json invalid: {e}')
     sys.exit(1)
 
-# Validate the additive Codex plugin.json
-try:
-    with open('.codex-plugin/plugin.json') as f:
-        json.load(f)
-except Exception as e:
-    print(f'      ✗ .codex-plugin/plugin.json invalid: {e}')
-    sys.exit(1)
+# Validate the additive Codex plugin.json. Optional: the installed hook is shared
+# by every branch, and older branches (and main until a release) lack the file.
+if os.path.exists('.codex-plugin/plugin.json'):
+    try:
+        with open('.codex-plugin/plugin.json') as f:
+            json.load(f)
+    except Exception as e:
+        print(f'      ✗ .codex-plugin/plugin.json invalid: {e}')
+        sys.exit(1)
 
 # Validate config.example.yaml
 if has_yaml:
@@ -85,6 +88,7 @@ echo ""
 echo "[4/11] Checking version sync..."
 python3 -c "
 import json
+import os
 import sys
 
 with open('.claude-plugin/plugin.json') as f:
@@ -93,14 +97,18 @@ with open('.claude-plugin/plugin.json') as f:
 with open('.claude-plugin/marketplace.json') as f:
     marketplace_version = json.load(f)['plugins'][0]['version']
 
-with open('.codex-plugin/plugin.json') as f:
-    codex_version = json.load(f)['version']
+# Optional, for the same shared-hook reason as the JSON check above.
+codex_version = None
+if os.path.exists('.codex-plugin/plugin.json'):
+    with open('.codex-plugin/plugin.json') as f:
+        codex_version = json.load(f)['version']
 
-if plugin_version != marketplace_version or plugin_version != codex_version:
+if plugin_version != marketplace_version or codex_version not in (None, plugin_version):
     print(f'      ✗ Version mismatch!')
     print(f'        plugin.json:      {plugin_version}')
     print(f'        marketplace.json: {marketplace_version}')
-    print(f'        .codex-plugin/plugin.json: {codex_version}')
+    if codex_version is not None:
+        print(f'        .codex-plugin/plugin.json: {codex_version}')
     sys.exit(1)
 
 print(f'      ✓ Versions match ({plugin_version})')

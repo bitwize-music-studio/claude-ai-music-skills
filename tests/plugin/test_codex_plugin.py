@@ -100,9 +100,10 @@ class TestCodexPluginManifest:
         """The MCP spawn is defined twice on purpose; this keeps the copies in step.
 
         Claude needs ``${CLAUDE_PLUGIN_ROOT}`` (it resolves a relative command
-        against the session cwd); Codex needs a plugin-relative ``./`` command (it
-        expands no variables). So every server Claude launches must also be
-        declared for Codex, with the same launcher, arguments and environment.
+        against the session cwd); Codex expands no variables, so it needs a
+        relative ``./`` command plus ``"cwd": "."``, which it joins onto the plugin
+        root. So every server Claude launches must also be declared for Codex,
+        with the same launcher, arguments and environment.
         """
         with (project_root / ".mcp.json").open(encoding="utf-8") as f:
             claude_servers = json.load(f)["mcpServers"]
@@ -115,6 +116,32 @@ class TestCodexPluginManifest:
             claude = claude_servers[name]
             assert claude["command"].startswith(prefix), name
             assert codex["command"] == "./" + claude["command"].removeprefix(prefix), name
+            # Without it the relative command only resolves when Codex happens to
+            # run from the plugin root; from a project directory it is ENOENT.
+            assert codex.get("cwd") == ".", name
             assert codex.get("type") == claude.get("type"), name
             assert codex.get("args", []) == claude.get("args", []), name
             assert codex.get("env", {}) == claude.get("env", {}), name
+
+    def test_codex_mcp_timeout_covers_long_mastering_runs(self, project_root):
+        """Codex cuts a tool call off at 300 s unless the server sets a timeout.
+
+        master_album documents 3-5 min per track, plus 10-12 min per ADM retry
+        cycle. At the default, a two-track album times out while the server keeps
+        writing masters, and a retry can start a second run on the same album.
+        """
+        with (project_root / ".codex-plugin" / "plugin.json").open(encoding="utf-8") as f:
+            server = json.load(f)["mcpServers"]["bitwize-music-mcp"]
+
+        assert server.get("tool_timeout_sec", 0) >= 4 * 60 * 60
+
+    def test_codex_manifest_opts_out_of_claude_hooks(self, project_root):
+        """Without a ``hooks`` key Codex falls back to the Claude-format hooks.json.
+
+        Every Codex user would then be asked to trust two PostToolUse hooks that
+        cannot work there: Codex edit payloads carry no ``file_path``.
+        """
+        with (project_root / ".codex-plugin" / "plugin.json").open(encoding="utf-8") as f:
+            manifest = json.load(f)
+
+        assert manifest.get("hooks") == {}

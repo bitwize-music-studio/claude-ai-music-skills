@@ -2,9 +2,11 @@
 """PostToolUse hook: keep the Claude and Codex plugin versions in sync.
 
 The Claude manifest and marketplace entry are the canonical pair.  When the
-Codex manifest exists, its version must match the Claude plugin manifest too.
-Malformed or partially-written manifests are ignored so an editor's transient
-state does not turn this advisory hook into a hard failure.
+Codex manifest exists, its version must match the Claude plugin manifest too,
+but only for this plugin: the hook ships to every user and runs on every
+Write/Edit, and other dual-host plugins may version their Codex adapter
+separately.  Malformed or partially-written manifests are ignored so an
+editor's transient state does not turn this advisory hook into a hard failure.
 """
 
 import json
@@ -15,6 +17,9 @@ from pathlib import Path
 
 MANIFEST_FILES = {"plugin.json", "marketplace.json"}
 PLUGIN_DIRS = {".claude-plugin", ".codex-plugin"}
+# The Codex-equals-Claude version rule is this plugin's release policy, not a
+# general one; see the module docstring.
+CODEX_SYNC_PLUGIN_NAME = "bitwize-music"
 
 
 def _manifest_context(file_path: str):
@@ -63,13 +68,14 @@ def _version_pairs(root: Path):
     marketplace_path = root / ".claude-plugin" / "marketplace.json"
 
     claude_plugin = _read_json(claude_plugin_path)
-    marketplace = _read_json(marketplace_path)
-    if claude_plugin is None or marketplace is None:
+    if not isinstance(claude_plugin, dict):
         return []
 
     pairs = []
     claude_version = _plugin_version(claude_plugin)
-    marketplace_version = _marketplace_version(marketplace)
+    # A missing or half-written marketplace.json drops only its own pair; it
+    # must not also skip the independent Claude-vs-Codex comparison below.
+    marketplace_version = _marketplace_version(_read_json(marketplace_path))
     if claude_version and marketplace_version:
         pairs.append(
             (
@@ -83,9 +89,8 @@ def _version_pairs(root: Path):
         )
 
     codex_plugin_path = root / ".codex-plugin" / "plugin.json"
-    if codex_plugin_path.exists():
-        codex_plugin = _read_json(codex_plugin_path)
-        codex_version = _plugin_version(codex_plugin)
+    if claude_plugin.get("name") == CODEX_SYNC_PLUGIN_NAME and codex_plugin_path.exists():
+        codex_version = _plugin_version(_read_json(codex_plugin_path))
         if claude_version and codex_version:
             pairs.append(
                 (

@@ -148,7 +148,7 @@ Then create a PR targeting **`develop`** (not `main`).
 
 **Automated checks (run on GitHub Actions):**
 - JSON/YAML validation
-- Version sync check (plugin.json vs marketplace.json)
+- Version sync check (`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json`)
 - SKILL.md structure validation
 
 **Required before merge to `develop`:**
