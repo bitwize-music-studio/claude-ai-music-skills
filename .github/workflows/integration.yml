@@ -186,10 +186,29 @@ jobs:
 
     # Same hazard class and same size as the Linux apt install above (MuseScore
     # is a large download), just a different package manager.
+    #
+    # choco can also "succeed" without installing anything: when its community
+    # feed returns 504s it prints "Chocolatey installed 0/0 packages" and exits
+    # 0, and the job only failed at the warm-up step on a missing
+    # MuseScore4.exe. Retry until the binary the later steps run actually exists.
     - name: Install MuseScore (Chocolatey)
       if: runner.os == 'Windows'
       timeout-minutes: 15
-      run: choco install musescore -y --no-progress
+      shell: pwsh
+      run: |
+        $bin = "C:\Program Files\MuseScore 4\bin\MuseScore4.exe"
+        $attempts = 3
+        for ($i = 1; $i -le $attempts; $i++) {
+          choco install musescore -y --no-progress
+          if (Test-Path -LiteralPath $bin) {
+            Write-Host "MuseScore installed on attempt $i"
+            exit 0
+          }
+          Write-Host "attempt ${i}: choco exited $LASTEXITCODE but $bin is missing (feed outage?)"
+          if ($i -lt $attempts) { Start-Sleep -Seconds 60 }
+        }
+        Write-Host "::error::choco did not install MuseScore after $attempts attempts"
+        exit 1
 
     - name: MuseScore diagnostics
       shell: bash

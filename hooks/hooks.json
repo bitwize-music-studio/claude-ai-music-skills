@@ -1,5 +1,5 @@
 {
-  "description": "Bitwize Music plugin hooks for quality enforcement",
+  "description": "bitwize-music plugin hooks for quality enforcement",
   "hooks": {
     "PostToolUse": [
       {

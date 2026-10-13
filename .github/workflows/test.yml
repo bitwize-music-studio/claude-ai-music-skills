@@ -265,10 +265,28 @@ jobs:
 
     # ffmpeg is installed on all three OSes so the ffmpeg-gated audio tests
     # run everywhere; AnthemScore/MuseScore remain WSL-recommended externals.
+    #
+    # choco can "succeed" without installing anything: when its community feed
+    # returns 504s it prints "Chocolatey installed 0/0 packages" and exits 0,
+    # and the verify step below then fails on a missing ffmpeg. Retry until
+    # both binaries resolve, so a short feed outage doesn't fail the leg.
     - name: Install system dependencies (Windows)
       if: runner.os == 'Windows'
       timeout-minutes: 10
-      run: choco install ffmpeg -y --no-progress
+      shell: pwsh
+      run: |
+        $attempts = 3
+        for ($i = 1; $i -le $attempts; $i++) {
+          choco install ffmpeg -y --no-progress
+          if ((Get-Command ffmpeg -ErrorAction SilentlyContinue) -and (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            Write-Host "ffmpeg installed on attempt $i"
+            exit 0
+          }
+          Write-Host "attempt ${i}: choco exited $LASTEXITCODE but ffmpeg/ffprobe are not on PATH (feed outage?)"
+          if ($i -lt $attempts) { Start-Sleep -Seconds 60 }
+        }
+        Write-Host "::error::choco did not install ffmpeg after $attempts attempts"
+        exit 1
 
     # Every ffmpeg test gates on a module-level shutil.which("ffmpeg") skipif,
     # so a half-succeeded install (or a PATH the shim never reached) would let
