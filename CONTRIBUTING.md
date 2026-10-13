@@ -148,7 +148,7 @@ Then create a PR targeting **`develop`** (not `main`).
 
 **Automated checks (run on GitHub Actions):**
 - JSON/YAML validation
-- Version sync check (plugin.json vs marketplace.json)
+- Version sync check (`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json`)
 - SKILL.md structure validation
 
 **Required before merge to `develop`:**
@@ -177,6 +177,7 @@ When `develop` is ready to release:
 2. Update version files (drop `-dev` suffix):
    - `.claude-plugin/plugin.json`
    - `.claude-plugin/marketplace.json`
+   - `.codex-plugin/plugin.json`
 3. Move CHANGELOG.md entries from "Unreleased" to a versioned heading
 4. Merge PR to `main` **with a merge commit — never squash or rebase** (squashing diverges `develop` from `main`, conflicting the next release)
 5. After merge, bump `develop` to the next `-dev` version (e.g., `0.63.0-dev`)
@@ -189,6 +190,7 @@ When `develop` is ready to release:
 **Files that must stay in sync:**
 - `.claude-plugin/plugin.json` — plugin version
 - `.claude-plugin/marketplace.json` — marketplace version
+- `.codex-plugin/plugin.json` — Codex plugin version
 
 ## Testing
 

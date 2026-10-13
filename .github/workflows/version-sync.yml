@@ -5,6 +5,7 @@ on:
     paths:
       - '.claude-plugin/plugin.json'
       - '.claude-plugin/marketplace.json'
+      - '.codex-plugin/plugin.json'
       - 'skills/*/SKILL.md'
       - 'tests/**'
 
@@ -24,17 +25,20 @@ jobs:
       run: |
         PLUGIN_VERSION=$(jq -r '.version' .claude-plugin/plugin.json)
         MARKETPLACE_VERSION=$(jq -r '.plugins[0].version' .claude-plugin/marketplace.json)
+        CODEX_VERSION=$(jq -r '.version' .codex-plugin/plugin.json)
 
         echo "plugin.json version:      $PLUGIN_VERSION"
         echo "marketplace.json version: $MARKETPLACE_VERSION"
+        echo "codex plugin version:     $CODEX_VERSION"
 
-        if [ "$PLUGIN_VERSION" != "$MARKETPLACE_VERSION" ]; then
+        if [ "$PLUGIN_VERSION" != "$MARKETPLACE_VERSION" ] || [ "$PLUGIN_VERSION" != "$CODEX_VERSION" ]; then
           echo ""
           echo "[FAIL] ERROR: Version files are out of sync!"
           echo ""
-          echo "Please update both:"
+          echo "Please update all three version files:"
           echo "  - .claude-plugin/plugin.json"
           echo "  - .claude-plugin/marketplace.json"
+          echo "  - .codex-plugin/plugin.json"
           echo ""
           echo "to the same version number."
           exit 1
@@ -42,4 +46,3 @@ jobs:
 
         echo ""
         echo "[OK] Version files are in sync: $PLUGIN_VERSION"
-

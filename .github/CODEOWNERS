@@ -10,6 +10,7 @@
 # Plugin manifest files (version changes trigger releases)
 .claude-plugin/plugin.json @bitwize-music
 .claude-plugin/marketplace.json @bitwize-music
+.codex-plugin/plugin.json @bitwize-music
 
 # Core documentation that defines workflow behavior
 CLAUDE.md @bitwize-music

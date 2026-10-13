@@ -21,6 +21,7 @@ echo ""
 echo "[2/11] Validating JSON/YAML configs..."
 python3 -c "
 import json
+import os
 import sys
 
 try:
@@ -45,6 +46,16 @@ try:
 except Exception as e:
     print(f'      ✗ marketplace.json invalid: {e}')
     sys.exit(1)
+
+# Validate the additive Codex plugin.json. Optional: the installed hook is shared
+# by every branch, and older branches (and main until a release) lack the file.
+if os.path.exists('.codex-plugin/plugin.json'):
+    try:
+        with open('.codex-plugin/plugin.json') as f:
+            json.load(f)
+    except Exception as e:
+        print(f'      ✗ .codex-plugin/plugin.json invalid: {e}')
+        sys.exit(1)
 
 # Validate config.example.yaml
 if has_yaml:
@@ -77,6 +88,7 @@ echo ""
 echo "[4/11] Checking version sync..."
 python3 -c "
 import json
+import os
 import sys
 
 with open('.claude-plugin/plugin.json') as f:
@@ -85,10 +97,18 @@ with open('.claude-plugin/plugin.json') as f:
 with open('.claude-plugin/marketplace.json') as f:
     marketplace_version = json.load(f)['plugins'][0]['version']
 
-if plugin_version != marketplace_version:
+# Optional, for the same shared-hook reason as the JSON check above.
+codex_version = None
+if os.path.exists('.codex-plugin/plugin.json'):
+    with open('.codex-plugin/plugin.json') as f:
+        codex_version = json.load(f)['version']
+
+if plugin_version != marketplace_version or codex_version not in (None, plugin_version):
     print(f'      ✗ Version mismatch!')
     print(f'        plugin.json:      {plugin_version}')
     print(f'        marketplace.json: {marketplace_version}')
+    if codex_version is not None:
+        print(f'        .codex-plugin/plugin.json: {codex_version}')
     sys.exit(1)
 
 print(f'      ✓ Versions match ({plugin_version})')
@@ -109,8 +129,9 @@ except ImportError:
     sys.exit(0)
 
 REQUIRED_FIELDS = ['name', 'description', 'model']
-# Pattern: claude-{tier}-{major}-{minor}[-{date}] e.g. claude-opus-4-6 or claude-opus-4-5-20251101
-MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+(-\d+)?(-\d{8})?$'
+# Tier aliases (auto-track the frontier model of that tier) or inherit/default,
+# the same rule as tests/plugin/test_skills.py. Pinned model IDs are rejected.
+MODEL_PATTERN = r'^(opus|sonnet|haiku|inherit|default)$'
 
 errors = []
 skill_count = 0
@@ -260,8 +281,11 @@ echo ""
 # 11. Test count badge sync
 echo "[11/11] Checking test count badge..."
 if command -v pytest &> /dev/null || python3 -c "import pytest" 2>/dev/null; then
-    ACTUAL_COUNT=$(python3 -m pytest tests/ --co -q 2>/dev/null | tail -1 | grep -oP '^\d+')
-    BADGE_COUNT=$(grep -oP 'badge/tests-\K\d+' README.md 2>/dev/null)
+    # sed, not grep: under set -e a grep with no match (the README currently
+    # has no tests badge) exits non-zero and aborts the hook, and \K is not
+    # supported by every grep. sed exits 0 with empty output, which skips below.
+    ACTUAL_COUNT=$(python3 -m pytest tests/ --co -q 2>/dev/null | tail -1 | sed -n 's/^\([0-9][0-9]*\).*/\1/p')
+    BADGE_COUNT=$(sed -n 's/.*badge\/tests-\([0-9][0-9]*\).*/\1/p' README.md 2>/dev/null | head -1)
 
     if [ -z "$ACTUAL_COUNT" ] || [ -z "$BADGE_COUNT" ]; then
         echo "      ⚠ Could not determine test count or badge, skipping"
