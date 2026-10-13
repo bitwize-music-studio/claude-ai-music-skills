@@ -5,7 +5,11 @@ The check uses a temporary ``CODEX_HOME`` so a developer's installed plugins
 cannot shadow the checkout under test.  It installs the local plugin into that
 isolated home, asks Codex to enumerate the skills, verifies the MCP server is
 attributed to the same plugin, and calls ``health_check`` through Codex's MCP
-bridge.  No model turn is started and no user configuration is changed.
+bridge.  Codex runs from a temporary project directory, never the checkout,
+and the probe confirms that both the skills and the running server come from
+the copy Codex installed: from the checkout, a broken relative launcher or
+``cwd`` would still connect.  No model turn is started and no user
+configuration is changed.
 
 This is deliberately stdlib-only.  The CI job installs the pinned Codex CLI;
 the script itself only needs the CLI and the Python standard library.
@@ -37,7 +41,10 @@ EXPECTED_MARKETPLACE = "bitwize-music"
 EXPECTED_PLUGIN_ID = f"{EXPECTED_NAME}@{EXPECTED_MARKETPLACE}"
 EXPECTED_MCP_SERVER = "bitwize-music-mcp"
 EXPECTED_TOOL = "health_check"
-EXPECTED_SKILL_COUNT = 53
+
+# Windows has no SIGKILL. There, _signal_process_group maps SIGTERM to
+# terminate(), which is the same TerminateProcess call as kill().
+_SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 CLI_TIMEOUT_SECONDS = 60
 APP_SERVER_TIMEOUT_SECONDS = 30
@@ -59,7 +66,7 @@ def _run_cli(
     codex: str,
     args: list[str],
     *,
-    root: Path,
+    cwd: Path,
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     """Run a Codex CLI command and convert spawn/time failures to ProbeError."""
@@ -71,7 +78,7 @@ def _run_cli(
             text=True,
             encoding="utf-8",
             errors="replace",
-            cwd=root,
+            cwd=cwd,
             env=env,
             timeout=CLI_TIMEOUT_SECONDS,
         )
@@ -104,7 +111,7 @@ class AppServer:
     Windows, where ``select`` cannot wait on anonymous pipe handles.
     """
 
-    def __init__(self, codex: str, *, root: Path, env: dict[str, str]) -> None:
+    def __init__(self, codex: str, *, cwd: Path, env: dict[str, str]) -> None:
         self._stdout: queue.Queue[str | None] = queue.Queue()
         self._stderr_tail: deque[str] = deque(maxlen=100)
         popen_kwargs: dict[str, Any] = {
@@ -115,7 +122,7 @@ class AppServer:
             "encoding": "utf-8",
             "errors": "replace",
             "bufsize": 1,
-            "cwd": root,
+            "cwd": cwd,
             "env": env,
         }
         if sys.platform == "win32":
@@ -223,11 +230,11 @@ class AppServer:
             try:
                 self._process.wait(timeout=APP_SERVER_CLOSE_SECONDS)
             except subprocess.TimeoutExpired:
-                self._signal_process_group(signal.SIGKILL)
+                self._signal_process_group(_SIGKILL)
                 self._process.wait(timeout=APP_SERVER_CLOSE_SECONDS)
         # MCP children can outlive the app-server and keep writing under
         # CODEX_HOME/plugins, which then fails TemporaryDirectory cleanup.
-        self._signal_process_group(signal.SIGKILL)
+        self._signal_process_group(_SIGKILL)
         self._stdout_thread.join(timeout=1)
         self._stderr_thread.join(timeout=1)
 
@@ -238,9 +245,9 @@ class AppServer:
                     self._process.terminate()
                 else:
                     self._process.kill()
-            return
-        with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
-            os.killpg(self._process.pid, posix_signal)
+        else:
+            with contextlib.suppress(ProcessLookupError, PermissionError, OSError):
+                os.killpg(self._process.pid, posix_signal)
 
 
 def _canonical_skill_names(root: Path) -> set[str]:
@@ -253,21 +260,21 @@ def _canonical_skill_names(root: Path) -> set[str]:
         path for path in skills_root.iterdir() if path.is_dir() and not path.name.startswith(".")
     )
     missing = [path.name for path in skill_dirs if not (path / "SKILL.md").is_file()]
-    if missing or len(skill_dirs) != EXPECTED_SKILL_COUNT:
+    if missing or not skill_dirs:
         raise ProbeError(
             f"Canonical skill tree is invalid: {len(skill_dirs)} directories, missing {missing}"
         )
     return {f"{EXPECTED_NAME}:{path.name}" for path in skill_dirs}
 
 
-def _install_local_plugin(codex: str, *, root: Path, env: dict[str, str]) -> str:
+def _install_local_plugin(codex: str, *, root: Path, cwd: Path, env: dict[str, str]) -> str:
     """Register and install only the current checkout in the isolated home."""
 
     marketplace = _json_stdout(
         _run_cli(
             codex,
             ["plugin", "marketplace", "add", str(root), "--json"],
-            root=root,
+            cwd=cwd,
             env=env,
         ),
         "Codex marketplace add",
@@ -292,7 +299,7 @@ def _install_local_plugin(codex: str, *, root: Path, env: dict[str, str]) -> str
         _run_cli(
             codex,
             ["plugin", "add", EXPECTED_PLUGIN_ID, "--json"],
-            root=root,
+            cwd=cwd,
             env=env,
         ),
         "Codex plugin add",
@@ -318,11 +325,18 @@ def _path_for_cwd(value: Any) -> Path | None:
         return None
 
 
-def _check_skills(app: AppServer, *, root: Path, expected_names: set[str]) -> int:
+def _is_under(value: Any, base: Path) -> bool:
+    path = _path_for_cwd(value)
+    return path is not None and path.is_relative_to(base.resolve())
+
+
+def _check_skills(
+    app: AppServer, *, cwd: Path, codex_home: Path, expected_names: set[str]
+) -> int:
     result = app.request(
         3,
         "skills/list",
-        {"cwds": [str(root)], "forceReload": True},
+        {"cwds": [str(cwd)], "forceReload": True},
     )
     entries = result.get("data")
     if not isinstance(entries, list):
@@ -332,15 +346,27 @@ def _check_skills(app: AppServer, *, root: Path, expected_names: set[str]) -> in
         (
             candidate
             for candidate in entries
-            if isinstance(candidate, dict) and _path_for_cwd(candidate.get("cwd")) == root
+            if isinstance(candidate, dict) and _path_for_cwd(candidate.get("cwd")) == cwd.resolve()
         ),
         None,
     )
     if entry is None:
-        raise ProbeError(f"Codex skills/list returned no entry for checkout {root}")
-    errors = entry.get("errors")
-    if errors:
-        raise ProbeError(f"Codex reported skill loading errors: {errors}")
+        raise ProbeError(f"Codex skills/list returned no entry for {cwd}")
+    # Codex also reports skills it finds outside this plugin, such as a
+    # developer's personal ~/.agents/skills (resolved from $HOME, not
+    # CODEX_HOME). Only errors from this plugin fail the probe.
+    markers = (str(codex_home), str(codex_home.resolve()), f"{EXPECTED_NAME}:")
+    errors = entry.get("errors") or []
+    plugin_errors = [error for error in errors if any(m in json.dumps(error) for m in markers)]
+    other_errors = [error for error in errors if error not in plugin_errors]
+    if other_errors:
+        print(
+            f"Ignoring {len(other_errors)} skill loading error(s) outside this plugin: "
+            f"{other_errors}",
+            file=sys.stderr,
+        )
+    if plugin_errors:
+        raise ProbeError(f"Codex reported skill loading errors: {plugin_errors}")
     skills = entry.get("skills")
     if not isinstance(skills, list):
         raise ProbeError(f"Codex skills/list returned invalid skills data: {entry!r}")
@@ -367,15 +393,65 @@ def _check_skills(app: AppServer, *, root: Path, expected_names: set[str]) -> in
             )
     if invalid:
         raise ProbeError(f"Codex returned unloaded skill metadata: {invalid}")
+    outside = sorted(
+        str(skill.get("name"))
+        for skill in target_skills
+        if not _is_under(skill.get("path"), codex_home)
+    )
+    if outside:
+        raise ProbeError(
+            f"Codex loaded skills from outside the plugin copy it installed: {outside[:5]}"
+        )
     return len(target_skills)
 
 
-def _check_mcp(app: AppServer, *, root: Path) -> None:
+def _call_tool_json(app: AppServer, request_id: int, thread_id: str, tool: str) -> dict[str, Any]:
+    """Call one of the plugin's MCP tools through Codex and parse its JSON payload."""
+
+    call = app.request(
+        request_id,
+        "mcpServer/tool/call",
+        {
+            "server": EXPECTED_MCP_SERVER,
+            "threadId": thread_id,
+            "tool": tool,
+            "arguments": {},
+        },
+    )
+    if call.get("isError") is True:
+        raise ProbeError(f"Codex MCP tool call {tool!r} returned an error: {call!r}")
+    content = call.get("content")
+    if not isinstance(content, list):
+        raise ProbeError(f"Codex MCP tool call {tool!r} returned no content: {call!r}")
+    text_payload = next(
+        (
+            block["text"]
+            for block in content
+            if isinstance(block, dict)
+            and block.get("type") == "text"
+            and isinstance(block.get("text"), str)
+        ),
+        None,
+    )
+    if text_payload is None:
+        raise ProbeError(f"Codex MCP tool call {tool!r} returned no text payload: {call!r}")
+    try:
+        payload = json.loads(text_payload)
+    except json.JSONDecodeError as exc:
+        raise ProbeError(f"{tool} returned invalid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ProbeError(f"{tool} returned a non-object payload: {payload!r}")
+    return payload
+
+
+def _check_mcp(
+    app: AppServer, *, cwd: Path, codex_home: Path, expected_skill_count: int
+) -> None:
     thread_result = app.request(
         2,
         "thread/start",
         {
-            "cwd": str(root),
+            "cwd": str(cwd),
             "ephemeral": True,
             "approvalPolicy": "never",
             "sandbox": "read-only",
@@ -411,43 +487,29 @@ def _check_mcp(app: AppServer, *, root: Path) -> None:
         )
     tools = server.get("tools")
     if not isinstance(tools, dict) or EXPECTED_TOOL not in tools:
-        raise ProbeError(f"MCP server {EXPECTED_MCP_SERVER!r} has no {EXPECTED_TOOL!r} tool")
+        raise ProbeError(
+            f"MCP server {EXPECTED_MCP_SERVER!r} has no {EXPECTED_TOOL!r} tool "
+            f"(runtimeStatus={server.get('runtimeStatus')!r}, "
+            f"toolsError={server.get('toolsError')!r})"
+        )
 
-    call = app.request(
-        5,
-        "mcpServer/tool/call",
-        {
-            "server": EXPECTED_MCP_SERVER,
-            "threadId": thread_id,
-            "tool": EXPECTED_TOOL,
-            "arguments": {},
-        },
-    )
-    if call.get("isError") is True:
-        raise ProbeError(f"Codex MCP tool call returned an error: {call!r}")
-    content = call.get("content")
-    if not isinstance(content, list):
-        raise ProbeError(f"Codex MCP tool call returned no content: {call!r}")
-    text_payload: str | None = None
-    for block in content:
-        if not isinstance(block, dict):
-            continue
-        block_text = block.get("text")
-        if block.get("type") == "text" and isinstance(block_text, str):
-            text_payload = block_text
-            break
-    if text_payload is None:
-        raise ProbeError(f"Codex MCP tool call returned no text payload: {call!r}")
-    try:
-        health = json.loads(text_payload)
-    except json.JSONDecodeError as exc:
-        raise ProbeError(f"health_check returned invalid JSON: {exc}") from exc
-    health_skills = health.get("skills") if isinstance(health, dict) else None
+    health = _call_tool_json(app, 5, thread_id, EXPECTED_TOOL)
+    health_skills = health.get("skills")
     source_count = health_skills.get("source_count") if isinstance(health_skills, dict) else None
-    if source_count != EXPECTED_SKILL_COUNT:
+    if source_count != expected_skill_count:
         raise ProbeError(
             f"health_check reported source_count={source_count!r}; "
-            f"expected {EXPECTED_SKILL_COUNT}"
+            f"expected {expected_skill_count}"
+        )
+
+    # Connecting is not enough: a broken relative command or cwd still
+    # connects whenever Codex happens to run from the checkout. The server must
+    # be running from the copy Codex installed under CODEX_HOME.
+    plugin_root = _call_tool_json(app, 6, thread_id, "get_plugin_version").get("plugin_root")
+    if not _is_under(plugin_root, codex_home):
+        raise ProbeError(
+            f"MCP server runs from {plugin_root!r}, not from the plugin copy Codex "
+            f"installed under {codex_home}"
         )
 
 
@@ -467,12 +529,15 @@ def main() -> int:
     args = parser.parse_args()
     root = args.root.resolve()
 
-    codex = shutil.which(args.codex) or (
+    found = shutil.which(args.codex) or (
         args.codex if Path(args.codex).is_file() else None
     )
-    if codex is None:
+    if found is None:
         print("codex CLI not found", file=sys.stderr)
         return 2
+    # Absolute: Codex runs from a temporary project directory, and a relative
+    # executable path would be resolved against that directory instead.
+    codex = os.path.abspath(found)
     if not (root / ".codex-plugin" / "plugin.json").is_file():
         print(f"Codex plugin manifest not found under {root}", file=sys.stderr)
         return 1
@@ -485,11 +550,21 @@ def main() -> int:
         with tempfile.TemporaryDirectory(
             prefix="bitwize-music-codex-",
             ignore_cleanup_errors=True,
-        ) as codex_home:
+        ) as scratch:
+            codex_home = Path(scratch) / "codex-home"
+            # Codex runs from a project directory that is not the checkout. From
+            # the checkout, a broken relative command or cwd would still connect,
+            # which is exactly the failure this probe exists to catch.
+            project = Path(scratch) / "project"
+            codex_home.mkdir()
+            project.mkdir()
             env = os.environ.copy()
-            env["CODEX_HOME"] = codex_home
-            version = _install_local_plugin(codex, root=root, env=env)
-            app = AppServer(codex, root=root, env=env)
+            env["CODEX_HOME"] = str(codex_home)
+            # The server must derive its root from where Codex actually started it.
+            env.pop("CLAUDE_PLUGIN_ROOT", None)
+            env.pop("PLUGIN_ROOT", None)
+            version = _install_local_plugin(codex, root=root, cwd=project, env=env)
+            app = AppServer(codex, cwd=project, env=env)
             try:
                 app.request(
                     1,
@@ -503,13 +578,21 @@ def main() -> int:
                     },
                 )
                 app.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
-                loaded_count = _check_skills(app, root=root, expected_names=expected_names)
-                _check_mcp(app, root=root)
+                loaded_count = _check_skills(
+                    app, cwd=project, codex_home=codex_home, expected_names=expected_names
+                )
+                _check_mcp(
+                    app,
+                    cwd=project,
+                    codex_home=codex_home,
+                    expected_skill_count=len(expected_names),
+                )
             finally:
                 app.close()
             print(
-                f"Codex {version} loaded {loaded_count} canonical skills and called "
-                f"{EXPECTED_MCP_SERVER}/{EXPECTED_TOOL} successfully",
+                f"Codex installed {EXPECTED_NAME} {version}, loaded {loaded_count} canonical "
+                f"skills, and {EXPECTED_MCP_SERVER}/{EXPECTED_TOOL} answered from the "
+                "installed copy",
                 flush=True,
             )
         return 0

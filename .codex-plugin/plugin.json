@@ -10,11 +10,13 @@
   "homepage": "https://github.com/bitwize-music-studio/claude-ai-music-skills#readme",
   "license": "CC0-1.0",
   "skills": "./skills/",
+  "hooks": {},
   "mcpServers": {
     "bitwize-music-mcp": {
       "type": "stdio",
       "command": "./servers/bitwize-music-server/mcp-launch",
-      "cwd": "."
+      "cwd": ".",
+      "tool_timeout_sec": 14400
     }
   },
   "keywords": [
@@ -39,7 +41,7 @@
     "codex"
   ],
   "interface": {
-    "displayName": "Bitwize Music",
+    "displayName": "bitwize-music",
     "shortDescription": "AI music production workflows for Suno",
     "longDescription": "Human and AI music production workflows for Suno, including album concepts, lyrics, prompts, mastering, and release preparation.",
     "developerName": "bitwize-music-studio",
