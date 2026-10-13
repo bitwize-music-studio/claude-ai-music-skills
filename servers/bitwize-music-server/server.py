@@ -96,7 +96,15 @@ try:
     _MCP_ACCEPTS_VERSION = True
 except ImportError:
     try:
-        from mcp.server.fastmcp import FastMCP
+        # mcp >= 2.1.1 ships `mcp/server/fastmcp.py` as a migration hint that raises
+        # ModuleNotFoundError on import, so at runtime this behaves exactly as if the
+        # module were absent. mypy reads that stub, though, and finds no `FastMCP`.
+        # The ignore is needed only where 2.1.1+ is installed; `unused-ignore` keeps it
+        # legal under warn_unused_ignores on 1.x, 2.0.0-2.1.0, and CI's lint venv (no mcp).
+        # It must stay on the `from` line: mypy reports the error there, not on the name.
+        from mcp.server.fastmcp import (  # type: ignore[attr-defined, unused-ignore]
+            FastMCP,
+        )
 
         _MCPServer = FastMCP
     except ImportError:
