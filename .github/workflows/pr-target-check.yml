@@ -67,3 +67,15 @@ jobs:
           fi
 
           echo "✓ Marketplace version $VERSION is a release version"
+
+      - name: Check .codex-plugin/plugin.json for -dev version
+        run: |
+          VERSION=$(python3 -c "import json; print(json.load(open('.codex-plugin/plugin.json'))['version'])")
+          echo "Codex plugin version: $VERSION"
+
+          if echo "$VERSION" | grep -q '\-dev'; then
+            echo "::error::.codex-plugin/plugin.json has dev version '$VERSION'. Release versions only on main."
+            exit 1
+          fi
+
+          echo "✓ Codex plugin version $VERSION is a release version"
