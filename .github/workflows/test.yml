@@ -735,12 +735,21 @@ jobs:
         echo "[OK] plugin MCP connected from $PROBE"
 
   codex-plugin-e2e:
-    name: Codex Plugin E2E
-    runs-on: ubuntu-latest
+    name: Codex Plugin E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     # The checker launches code from the checkout through the Codex MCP bridge;
     # keep the same trust boundary as the existing plugin and MCP smoke jobs.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows: the manifest's extensionless ./servers/.../mcp-launch has to
+        # reach mcp-launch.cmd there, which only a real Windows run shows.
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
 
     steps:
     - name: Checkout code
@@ -754,21 +763,27 @@ jobs:
     # The installed plugin's launcher uses this user-style venv when it exists.
     # The server imports processing handlers during startup, so use the full
     # pinned runtime requirements rather than allowing optional imports to fail
-    # after Codex has already discovered the MCP server.
+    # after Codex has already discovered the MCP server. Path.home() matches
+    # both launchers: mcp-launch reads $HOME, mcp-launch.cmd %USERPROFILE%.
     - name: Create user-style venv and install runtime requirements
       run: |
-        python -m venv "$HOME/.bitwize-music/venv"
-        "$HOME/.bitwize-music/venv/bin/python" -m pip install --upgrade pip
-        "$HOME/.bitwize-music/venv/bin/python" -m pip install -r requirements.txt
+        python -c "import pathlib, venv; venv.create(pathlib.Path.home() / '.bitwize-music' / 'venv', with_pip=True)"
+        VENV_PY="$(python -c "import pathlib, sys; d = pathlib.Path.home() / '.bitwize-music' / 'venv'; print((d / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python3')).as_posix())")"
+        "$VENV_PY" -m pip install --upgrade pip
+        "$VENV_PY" -m pip install -r requirements.txt
 
     # The version is pinned because the app-server plugin/MCP protocol is the
-    # behavior under test. The checker creates its own temporary CODEX_HOME,
-    # so no runner/user plugin state is read or mutated.
+    # behavior under test. It lives in tests/e2e/codex/package.json so that
+    # Dependabot proposes bumps. The checker creates its own temporary
+    # CODEX_HOME, so no runner/user plugin state is read or mutated.
     - name: Install pinned Codex CLI
-      run: |
-        npm install --global @openai/codex@0.153.4
-        codex --version
+      run: npm ci --prefix tests/e2e/codex --no-audit --no-fund
 
+    # On Windows, npm's shim is codex.cmd: Python 3.11's shutil.which() does
+    # not try PATHEXT for a path with a directory part, so name it exactly.
     - name: Discover all skills and call target MCP through Codex
       run: |
-        python3 tests/e2e/codex_plugin_discovery_check.py --root "$GITHUB_WORKSPACE"
+        CODEX="$GITHUB_WORKSPACE/tests/e2e/codex/node_modules/.bin/codex"
+        if [ "$RUNNER_OS" = "Windows" ]; then CODEX="$CODEX.cmd"; fi
+        "$CODEX" --version
+        python tests/e2e/codex_plugin_discovery_check.py --root "$GITHUB_WORKSPACE" --codex "$CODEX"
