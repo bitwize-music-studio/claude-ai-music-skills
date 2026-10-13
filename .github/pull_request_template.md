@@ -24,7 +24,8 @@
 
 - [ ] I have updated `.claude-plugin/plugin.json` version
 - [ ] I have updated `.claude-plugin/marketplace.json` version
-- [ ] Both version files match
+- [ ] I have updated `.codex-plugin/plugin.json` version
+- [ ] All three version files match
 
 ### Documentation
 

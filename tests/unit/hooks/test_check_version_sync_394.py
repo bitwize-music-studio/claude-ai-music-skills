@@ -43,6 +43,12 @@ def _manifest_dir(tmp_path: Path) -> Path:
     return d
 
 
+def _codex_manifest_dir(tmp_path: Path) -> Path:
+    d = tmp_path / ".codex-plugin"
+    d.mkdir()
+    return d
+
+
 def _event(file_path: Path) -> dict:
     return {"tool_input": {"file_path": str(file_path)}}
 
@@ -56,6 +62,12 @@ def _write_plugin(d: Path, version: str) -> Path:
 def _write_marketplace(d: Path, version: str) -> Path:
     p = d / "marketplace.json"
     p.write_text(json.dumps({"plugins": [{"version": version}]}), encoding="utf-8")
+    return p
+
+
+def _write_codex_plugin(d: Path, version: str) -> Path:
+    p = d / "plugin.json"
+    p.write_text(json.dumps({"version": version}), encoding="utf-8")
     return p
 
 
@@ -118,6 +130,35 @@ def test_valid_mismatched_versions_reports(tmp_path, monkeypatch):
     assert len(issues) == 1
     assert "0.94.0" in issues[0]
     assert "0.93.0" in issues[0]
+
+
+def test_matching_codex_version_returns_empty(tmp_path):
+    """The optional Codex manifest participates in the canonical version pair."""
+    d = _manifest_dir(tmp_path)
+    plugin = _write_plugin(d, "0.102.0-dev")
+    _write_marketplace(d, "0.102.0-dev")
+    _write_codex_plugin(_codex_manifest_dir(tmp_path), "0.102.0-dev")
+
+    assert check_version_sync.check_sync(_event(plugin)) == []
+
+
+def test_mismatched_codex_version_reports(tmp_path, monkeypatch):
+    """A Codex manifest drift is reported with both manifest paths."""
+    _write_plugin(_manifest_dir(tmp_path), "0.102.0-dev")
+    _write_marketplace(tmp_path / ".claude-plugin", "0.102.0-dev")
+    codex_plugin = _write_codex_plugin(_codex_manifest_dir(tmp_path), "0.101.0-dev")
+
+    def _fake_run(*args, **kwargs):
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(check_version_sync.subprocess, "run", _fake_run)
+
+    issues = check_version_sync.check_sync(_event(codex_plugin))
+    assert len(issues) == 1
+    assert ".claude-plugin/plugin.json" in issues[0]
+    assert ".codex-plugin/plugin.json" in issues[0]
+    assert "0.102.0-dev" in issues[0]
+    assert "0.101.0-dev" in issues[0]
 
 
 def test_hook_main_does_not_crash_on_non_utf8_manifest(tmp_path):

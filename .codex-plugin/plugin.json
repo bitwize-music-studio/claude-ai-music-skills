@@ -1,0 +1,59 @@
+{
+  "name": "bitwize-music",
+  "description": "AI music generation workflow for Suno - album concepts, lyrics, prompts, mastering, release",
+  "version": "0.103.0-dev",
+  "author": {
+    "name": "bitwize-music-studio",
+    "url": "https://github.com/bitwize-music-studio"
+  },
+  "repository": "https://github.com/bitwize-music-studio/claude-ai-music-skills",
+  "homepage": "https://github.com/bitwize-music-studio/claude-ai-music-skills#readme",
+  "license": "CC0-1.0",
+  "skills": "./skills/",
+  "mcpServers": {
+    "bitwize-music-mcp": {
+      "type": "stdio",
+      "command": "./servers/bitwize-music-server/mcp-launch",
+      "cwd": "."
+    }
+  },
+  "keywords": [
+    "music",
+    "suno",
+    "lyrics",
+    "album",
+    "mastering",
+    "ai-music",
+    "music-production",
+    "songwriting",
+    "audio-mastering",
+    "music-generation",
+    "suno-ai",
+    "lyric-writing",
+    "album-release",
+    "music-workflow",
+    "promo-videos",
+    "social-media",
+    "video-generation",
+    "agent-skills",
+    "codex"
+  ],
+  "interface": {
+    "displayName": "Bitwize Music",
+    "shortDescription": "AI music production workflows for Suno",
+    "longDescription": "Human and AI music production workflows for Suno, including album concepts, lyrics, prompts, mastering, and release preparation.",
+    "developerName": "bitwize-music-studio",
+    "category": "Music",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/bitwize-music-studio/claude-ai-music-skills",
+    "defaultPrompt": [
+      "Resume my current album and recommend one next action.",
+      "Write and review lyrics for this track.",
+      "Prepare this track for a Suno generation attempt."
+    ],
+    "brandColor": "#7C3AED"
+  }
+}
