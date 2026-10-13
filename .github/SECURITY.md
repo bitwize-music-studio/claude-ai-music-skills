@@ -20,7 +20,7 @@ Security considerations:
 
 ### Plugin Manifest Files
 
-Changes to `.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json`:
+Changes to `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` or `.codex-plugin/plugin.json`:
 - Trigger automated releases when merged to main
 - Must be reviewed by maintainer
 - Version changes should match CHANGELOG.md

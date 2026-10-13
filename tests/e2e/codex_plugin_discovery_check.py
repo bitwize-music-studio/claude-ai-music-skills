@@ -37,7 +37,10 @@ EXPECTED_MARKETPLACE = "bitwize-music"
 EXPECTED_PLUGIN_ID = f"{EXPECTED_NAME}@{EXPECTED_MARKETPLACE}"
 EXPECTED_MCP_SERVER = "bitwize-music-mcp"
 EXPECTED_TOOL = "health_check"
-EXPECTED_SKILL_COUNT = 53
+
+# Windows has no SIGKILL. There, _signal_process_group maps SIGTERM to
+# terminate(), which is the same TerminateProcess call as kill().
+_SIGKILL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 CLI_TIMEOUT_SECONDS = 60
 APP_SERVER_TIMEOUT_SECONDS = 30
@@ -223,11 +226,11 @@ class AppServer:
             try:
                 self._process.wait(timeout=APP_SERVER_CLOSE_SECONDS)
             except subprocess.TimeoutExpired:
-                self._signal_process_group(signal.SIGKILL)
+                self._signal_process_group(_SIGKILL)
                 self._process.wait(timeout=APP_SERVER_CLOSE_SECONDS)
         # MCP children can outlive the app-server and keep writing under
         # CODEX_HOME/plugins, which then fails TemporaryDirectory cleanup.
-        self._signal_process_group(signal.SIGKILL)
+        self._signal_process_group(_SIGKILL)
         self._stdout_thread.join(timeout=1)
         self._stderr_thread.join(timeout=1)
 
@@ -253,7 +256,7 @@ def _canonical_skill_names(root: Path) -> set[str]:
         path for path in skills_root.iterdir() if path.is_dir() and not path.name.startswith(".")
     )
     missing = [path.name for path in skill_dirs if not (path / "SKILL.md").is_file()]
-    if missing or len(skill_dirs) != EXPECTED_SKILL_COUNT:
+    if missing or not skill_dirs:
         raise ProbeError(
             f"Canonical skill tree is invalid: {len(skill_dirs)} directories, missing {missing}"
         )
@@ -370,7 +373,7 @@ def _check_skills(app: AppServer, *, root: Path, expected_names: set[str]) -> in
     return len(target_skills)
 
 
-def _check_mcp(app: AppServer, *, root: Path) -> None:
+def _check_mcp(app: AppServer, *, root: Path, expected_skill_count: int) -> None:
     thread_result = app.request(
         2,
         "thread/start",
@@ -444,10 +447,10 @@ def _check_mcp(app: AppServer, *, root: Path) -> None:
         raise ProbeError(f"health_check returned invalid JSON: {exc}") from exc
     health_skills = health.get("skills") if isinstance(health, dict) else None
     source_count = health_skills.get("source_count") if isinstance(health_skills, dict) else None
-    if source_count != EXPECTED_SKILL_COUNT:
+    if source_count != expected_skill_count:
         raise ProbeError(
             f"health_check reported source_count={source_count!r}; "
-            f"expected {EXPECTED_SKILL_COUNT}"
+            f"expected {expected_skill_count}"
         )
 
 
@@ -504,7 +507,7 @@ def main() -> int:
                 )
                 app.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
                 loaded_count = _check_skills(app, root=root, expected_names=expected_names)
-                _check_mcp(app, root=root)
+                _check_mcp(app, root=root, expected_skill_count=len(expected_names))
             finally:
                 app.close()
             print(

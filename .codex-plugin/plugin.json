@@ -39,7 +39,7 @@
     "codex"
   ],
   "interface": {
-    "displayName": "Bitwize Music",
+    "displayName": "bitwize-music",
     "shortDescription": "AI music production workflows for Suno",
     "longDescription": "Human and AI music production workflows for Suno, including album concepts, lyrics, prompts, mastering, and release preparation.",
     "developerName": "bitwize-music-studio",

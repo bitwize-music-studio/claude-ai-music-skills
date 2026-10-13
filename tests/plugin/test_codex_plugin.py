@@ -6,7 +6,9 @@ import pytest
 
 pytestmark = pytest.mark.plugin
 
-EXPECTED_SKILL_COUNT = 53
+# Servers deliberately left out of the Codex manifest. Keep this empty unless a
+# server genuinely cannot run under Codex, and record why next to its name.
+CLAUDE_ONLY_MCP_SERVERS: frozenset[str] = frozenset()
 
 
 class TestCodexPluginManifest:
@@ -58,7 +60,9 @@ class TestCodexPluginManifest:
         assert all(len(prompt) <= 128 for prompt in interface["defaultPrompt"])
 
     def test_all_canonical_skills_are_present(self, skills_dir, all_skill_frontmatter):
-        assert len(all_skill_frontmatter) == EXPECTED_SKILL_COUNT
+        # One entry per skill directory (with `_error` for a missing SKILL.md),
+        # so completeness needs no hard-coded count that every new skill breaks.
+        assert all_skill_frontmatter
         missing = [
             skill_dir.name
             for skill_dir in sorted(skills_dir.iterdir())
@@ -91,3 +95,26 @@ class TestCodexPluginManifest:
         assert "${" not in command
         launcher = project_root / command.removeprefix("./")
         assert launcher.is_file()
+
+    def test_codex_mcp_servers_mirror_claude_mcp_json(self, project_root):
+        """The MCP spawn is defined twice on purpose; this keeps the copies in step.
+
+        Claude needs ``${CLAUDE_PLUGIN_ROOT}`` (it resolves a relative command
+        against the session cwd); Codex needs a plugin-relative ``./`` command (it
+        expands no variables). So every server Claude launches must also be
+        declared for Codex, with the same launcher, arguments and environment.
+        """
+        with (project_root / ".mcp.json").open(encoding="utf-8") as f:
+            claude_servers = json.load(f)["mcpServers"]
+        with (project_root / ".codex-plugin" / "plugin.json").open(encoding="utf-8") as f:
+            codex_servers = json.load(f)["mcpServers"]
+
+        assert set(codex_servers) == set(claude_servers) - CLAUDE_ONLY_MCP_SERVERS
+        prefix = "${CLAUDE_PLUGIN_ROOT}/"
+        for name, codex in codex_servers.items():
+            claude = claude_servers[name]
+            assert claude["command"].startswith(prefix), name
+            assert codex["command"] == "./" + claude["command"].removeprefix(prefix), name
+            assert codex.get("type") == claude.get("type"), name
+            assert codex.get("args", []) == claude.get("args", []), name
+            assert codex.get("env", {}) == claude.get("env", {}), name
