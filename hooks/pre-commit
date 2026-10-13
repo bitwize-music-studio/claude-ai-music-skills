@@ -121,8 +121,9 @@ except ImportError:
     sys.exit(0)
 
 REQUIRED_FIELDS = ['name', 'description', 'model']
-# Pattern: claude-{tier}-{major}-{minor}[-{date}] e.g. claude-opus-4-6 or claude-opus-4-5-20251101
-MODEL_PATTERN = r'^claude-(opus|sonnet|haiku)-\d+(-\d+)?(-\d{8})?$'
+# Tier aliases (auto-track the frontier model of that tier) or inherit/default,
+# the same rule as tests/plugin/test_skills.py. Pinned model IDs are rejected.
+MODEL_PATTERN = r'^(opus|sonnet|haiku|inherit|default)$'
 
 errors = []
 skill_count = 0
@@ -272,8 +273,11 @@ echo ""
 # 11. Test count badge sync
 echo "[11/11] Checking test count badge..."
 if command -v pytest &> /dev/null || python3 -c "import pytest" 2>/dev/null; then
-    ACTUAL_COUNT=$(python3 -m pytest tests/ --co -q 2>/dev/null | tail -1 | grep -oP '^\d+')
-    BADGE_COUNT=$(grep -oP 'badge/tests-\K\d+' README.md 2>/dev/null)
+    # sed, not grep: under set -e a grep with no match (the README currently
+    # has no tests badge) exits non-zero and aborts the hook, and \K is not
+    # supported by every grep. sed exits 0 with empty output, which skips below.
+    ACTUAL_COUNT=$(python3 -m pytest tests/ --co -q 2>/dev/null | tail -1 | sed -n 's/^\([0-9][0-9]*\).*/\1/p')
+    BADGE_COUNT=$(sed -n 's/.*badge\/tests-\([0-9][0-9]*\).*/\1/p' README.md 2>/dev/null | head -1)
 
     if [ -z "$ACTUAL_COUNT" ] || [ -z "$BADGE_COUNT" ]; then
         echo "      ⚠ Could not determine test count or badge, skipping"

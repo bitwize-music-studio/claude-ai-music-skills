@@ -26,6 +26,16 @@ warn_unreachable = true
 disallow_any_generics = true
 follow_imports = "silent"
 
+# numba is optional at runtime and comes only from requirements.txt. Without it
+# (CI's Lint job installs requirements-test.txt alone) mypy treats it as Any;
+# with it (`make check`) mypy reads numba's real types and flags the
+# `numba = None` import fallback in tools/mixing/mix_tracks.py ([assignment]) and
+# the pure-Python branch it guards ([unreachable]). Not following the import
+# keeps the local gate and CI in agreement.
+[[tool.mypy.overrides]]
+module = "numba"
+follow_imports = "skip"
+
 [tool.coverage.run]
 omit = [
     "servers/bitwize-music-server/run.py",   # uvicorn entry point
