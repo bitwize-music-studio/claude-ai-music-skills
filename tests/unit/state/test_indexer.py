@@ -51,6 +51,7 @@ from tools.state.indexer import (
     validate_state,
     write_state,
 )
+from tools.state.parsers import parse_ideas_file
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -3833,26 +3834,20 @@ class TestScanIdeasTOCTOU:
 
         config = {'paths': {}}
 
-        # Patch Path.stat to raise OSError on IDEAS.md on the second call,
-        # simulating file deletion between exists() check and stat() call.
-        # On Python 3.12+, exists() calls self.stat() internally, so we
-        # must let the first call through (exists) and fail on the second
-        # (the explicit stat in scan_ideas).
-        original_stat = Path.stat
+        # Delete IDEAS.md for real once it has been parsed, so the explicit
+        # stat() in scan_ideas hits a missing file. Counting Path.stat calls
+        # instead ties the test to pathlib internals: exists() calls stat()
+        # through Python 3.13 but not on 3.14.
+        def parse_then_delete(path):
+            parsed = parse_ideas_file(path)
+            path.unlink()
+            return parsed
 
-        call_count = [0]
-
-        def stat_that_fails_on_ideas(self, *args, **kwargs):
-            if self.name == "IDEAS.md":
-                call_count[0] += 1
-                if call_count[0] > 1:
-                    raise OSError("File was deleted")
-            return original_stat(self, *args, **kwargs)
-
-        with patch.object(Path, 'stat', stat_that_fails_on_ideas):
+        with patch('tools.state.indexer.parse_ideas_file', side_effect=parse_then_delete):
             result = scan_ideas(config, content_root)
 
         # Should gracefully handle the missing file
+        assert not ideas_file.exists()
         assert result['file_mtime'] == 0.0
         assert len(result['items']) == 1
 
