@@ -1,0 +1,8 @@
+{
+  "name": "bitwize-music-codex-e2e",
+  "private": true,
+  "description": "The Codex CLI version the Codex Plugin E2E job tests against. Dependabot proposes bumps.",
+  "devDependencies": {
+    "@openai/codex": "0.162.1"
+  }
+}

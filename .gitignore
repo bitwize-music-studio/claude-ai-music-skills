@@ -11,6 +11,7 @@ IDEAS.md
 __pycache__/
 .venv/
 venv/
+node_modules/
 mastered/
 *.wav
 *.mp3
