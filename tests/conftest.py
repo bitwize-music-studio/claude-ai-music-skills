@@ -1,5 +1,6 @@
 """Shared pytest fixtures for plugin and unit tests."""
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -11,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests import sharding
 from tests.fixtures.audio import (
     make_bass,
     make_bright,
@@ -26,6 +28,26 @@ from tests.fixtures.audio import (
     write_wav,
 )
 from tools.state.parsers import parse_frontmatter
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """Keep only this CI shard's tests when PYTEST_SHARD="i/n" is set.
+
+    trylast: shard positions are taken after -k/-m deselection, so every
+    shard of a run splits the same final list. See tests/sharding.py.
+    """
+    spec = os.environ.get(sharding.ENV_VAR)
+    if not spec:
+        return
+    try:
+        index, total = sharding.parse_shard(spec)
+    except ValueError as exc:
+        raise pytest.UsageError(str(exc)) from exc
+    kept, dropped = sharding.split(items, index, total)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
 
 
 @pytest.fixture(autouse=True)
