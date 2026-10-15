@@ -11,8 +11,8 @@ lived (a hardcoded ``venv/bin/python3``, ``os.fsync`` on a read-only handle,
 POSIX-only slug sanitisation, an unconditional ``import fcntl``, a bare
 ``os.replace`` with no Windows retry).
 
-All three legs now measure coverage and upload their raw data. This script
-merges them into one picture.
+All three OSes now measure coverage, each as two test shards that upload
+their raw data. This script merges them into one picture.
 
 Why the assertions matter
 -------------------------
@@ -79,7 +79,7 @@ def main() -> int:
     parser.add_argument(
         "data_dir",
         type=Path,
-        help="directory holding the per-OS coverage-<os>.dat files",
+        help="directory holding the coverage-<os>-<shard>.dat files",
     )
     parser.add_argument(
         "--fail-under",
@@ -91,12 +91,12 @@ def main() -> int:
         "--expect-legs",
         type=int,
         default=3,
-        help="number of per-OS data files that must be present",
+        help="number of data files (one per OS and test shard) that must be present",
     )
     args = parser.parse_args()
 
     legs = sorted(args.data_dir.rglob("coverage-*.dat"))
-    print(f"Found {len(legs)} per-OS coverage data file(s):")
+    print(f"Found {len(legs)} coverage data file(s):")
     for leg in legs:
         print(f"  {leg.name}  ({leg.stat().st_size} bytes)")
 
