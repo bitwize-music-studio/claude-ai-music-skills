@@ -999,6 +999,8 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
 # STATE_FILE raises PermissionError with winerror 5 (ERROR_ACCESS_DENIED) or 32
 # (ERROR_SHARING_VIOLATION) whenever another process holds the target open: a
 # lock-free read_state, a second Claude session, or a transient antivirus scan.
+# The reader's open() hits the same contention but reports it without a
+# winerror; see _is_windows_sharing_violation.
 # POSIX rename-over-open-file is atomic and never hits this, so retrying is
 # Windows-only. Budget: 10 attempts with a 10ms backoff doubling to a 100ms
 # cap keeps the total retry window under ~1s (9 sleeps sum to 650ms) — long
@@ -1012,6 +1014,26 @@ _WINDOWS_SHARING_VIOLATION_ERRNOS = (5, 32)
 _T = TypeVar("_T")
 
 
+def _is_windows_sharing_violation(e: OSError) -> bool:
+    """Whether ``e`` is the transient error a concurrent handle causes on Windows.
+
+    The two calls retried here report it differently. ``os.replace`` calls the
+    Win32 API, so its error carries ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
+    (ERROR_SHARING_VIOLATION). ``open`` goes through the C runtime, which maps
+    both codes to errno EACCES and sets no ``winerror``, so the reader sees
+    ``PermissionError(13, 'Permission denied')``. A ``winerror``, when present,
+    decides; errno EACCES counts only without one. A genuine permission fault
+    from ``open`` looks the same, so it spends the retry budget before it
+    propagates: the trade the writer already makes for winerror 5.
+    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only exists
+    on Windows OSErrors.
+    """
+    winerror = getattr(e, "winerror", None)
+    if winerror is not None:
+        return winerror in _WINDOWS_SHARING_VIOLATION_ERRNOS
+    return e.errno == errno.EACCES
+
+
 def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
     """Run ``operation``, retrying transient Windows sharing violations.
 
@@ -1020,14 +1042,12 @@ def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
     an atomic rename never fails on an open target, and ``open`` never fails
     mid-rename, so there is nothing transient to retry. On Windows, a
     concurrent open handle on ``STATE_FILE`` — a lock-free ``read_state``,
-    another session, or an AV scan — makes the operation raise
-    ``PermissionError`` with ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
-    (ERROR_SHARING_VIOLATION) until that handle closes. Only those transient
-    errors are retried, with a bounded backoff; every other error (and the
-    final attempt) propagates immediately so a genuinely stuck file still
-    fails loudly rather than being silently swallowed or misclassified.
-    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only
-    exists on Windows OSErrors.
+    another session, or an AV scan — makes the operation raise a sharing
+    violation (see :func:`_is_windows_sharing_violation`) until that handle
+    closes. Only those transient errors are retried, with a bounded backoff;
+    every other error (and the final attempt) propagates immediately so a
+    genuinely stuck file still fails loudly rather than being silently
+    swallowed or misclassified.
     """
     if sys.platform == "win32":
         wait = _REPLACE_RETRY_INITIAL_WAIT
@@ -1035,10 +1055,10 @@ def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
             try:
                 return operation()
             except OSError as e:
-                transient = (
-                    getattr(e, "winerror", None) in _WINDOWS_SHARING_VIOLATION_ERRNOS
-                )
-                if not transient or attempt == _REPLACE_RETRY_ATTEMPTS - 1:
+                if (
+                    not _is_windows_sharing_violation(e)
+                    or attempt == _REPLACE_RETRY_ATTEMPTS - 1
+                ):
                     raise
                 time.sleep(wait)
                 wait = min(wait * 2, _REPLACE_RETRY_MAX_WAIT)
@@ -1137,13 +1157,14 @@ def read_state() -> dict[str, Any] | None:
     Quarantine (back up + return empty) is reserved for *genuine corruption* —
     the bytes are present but are not valid state: malformed JSON, or JSON that
     decodes to the wrong shape (list/str/number). An ``OSError`` from the open
-    is never corruption. On Windows a transient sharing violation (winerror
-    5/32) from a concurrent ``write_state`` mid-``os.replace`` is retried with
-    the same budget as the writer; any ``OSError`` that survives the retry
-    (persistent contention, a real permission/disk fault) re-raises so the
-    caller sees a genuinely-unreadable file rather than a wiped, quarantined
-    view of good state (#487). POSIX ``open`` never fails mid-rename, so an
-    ``OSError`` there re-raises immediately.
+    is never corruption. On Windows a transient sharing violation from a
+    concurrent ``write_state`` mid-``os.replace`` (errno EACCES with no
+    ``winerror``, as ``open`` reports it) is retried with the same budget as
+    the writer; any ``OSError`` that survives the retry (persistent
+    contention, a real permission/disk fault) re-raises so the caller sees a
+    genuinely-unreadable file rather than a wiped, quarantined view of good
+    state (#489). POSIX ``open`` never fails mid-rename, so an ``OSError``
+    there re-raises immediately.
 
     Returns:
         Parsed state dict, empty dict if corrupted or not a JSON object

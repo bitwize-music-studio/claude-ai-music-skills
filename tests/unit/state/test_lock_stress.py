@@ -41,12 +41,13 @@ read_state() contract (pinned from tools/state/indexer.py, do not invent one):
     * corrupt / partial JSON,
       or a JSON non-object    -> copies the file to ``state.<ts>.corrupt`` and
                                  returns ``{}``
-    * a transient Windows sharing violation (winerror 5/32) that outlives
-      read_state's bounded retry budget -> RE-RAISES the ``OSError`` (#489):
-      it is cross-process contention, not corruption, so it is deliberately
-      never quarantined. The reader worker catches and tolerates this rare
-      case (see MODE=="reader") — under this test's pathological write burst a
-      reader can, occasionally, exhaust the budget on one iteration.
+    * a transient Windows sharing violation (errno EACCES from ``open``)
+      that outlives read_state's bounded retry budget -> RE-RAISES the
+      ``OSError`` (#489): it is cross-process contention, not corruption, so
+      it is deliberately never quarantined. The reader worker catches and
+      tolerates this rare case (see MODE=="reader") — under this test's
+      pathological write burst a reader can, occasionally, exhaust the budget
+      on one iteration.
     * a valid JSON object     -> returns it
 The reader's ``None`` / ``{}`` / marker-less branches assert this contract as
 live documentation, but they are UNREACHABLE-BY-DESIGN while the atomic-replace
@@ -139,9 +140,9 @@ elif MODE == "reader":
             state = indexer.read_state()
         except OSError as exc:
             # Post-#489 contract: read_state RE-RAISES a transient Windows
-            # sharing violation (winerror 5/32) that outlived its bounded retry
-            # budget. Under this test's deliberately pathological multi-writer
-            # burst the reader can, rarely, exhaust that budget on one
+            # sharing violation (errno EACCES from open) that outlived its
+            # bounded retry budget. Under this test's deliberately pathological
+            # multi-writer burst the reader can, rarely, exhaust that budget on one
             # iteration -- that is contention, not a torn read or corruption, so
             # tolerate it and move on. On POSIX read_state never raises here
             # (open cannot fail mid-rename), so os_errors stays 0 and this
