@@ -212,8 +212,12 @@ jobs:
         print('[OK] CLAUDE.md size within limit')
         "
 
-  test:
-    name: Tests (${{ matrix.os }})
+  # Each OS's suite runs as two parallel shards (tests/sharding.py). As one job
+  # per OS, a leg took up to 21 min, nearly all of it test execution, and
+  # runners cost nothing for a public repository. The `test` job below keeps
+  # the three check names that main's branch protection requires.
+  test-shard:
+    name: Tests (${{ matrix.os }}, shard ${{ matrix.shard }}/2)
     runs-on: ${{ matrix.os }}
     # Skip for fork PRs — untrusted code could modify requirements/test files
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -221,6 +225,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        shard: [1, 2]
         include:
           - os: ubuntu-latest
             timeout: 30
@@ -233,6 +239,7 @@ jobs:
       # text I/O, so it needs UTF-8 mode on cp1252 Windows runners. Do NOT hoist
       # to workflow level: mcp-boot must stay WITHOUT it (see that job's note).
       PYTHONUTF8: "1"
+      PYTEST_SHARD: ${{ matrix.shard }}/2
 
     steps:
     - name: Checkout code
@@ -311,20 +318,15 @@ jobs:
       run: |
         python -c "import tools.state.indexer; print('[OK] tools.state.indexer imports on Windows')"
 
-    # All three legs measure coverage. The gate itself lives in the `coverage`
-    # job, which merges the three data files — see that job's note for why a
-    # Linux-only measurement was actively misleading.
-    - name: Run tests with coverage (Linux)
-      if: runner.os == 'Linux'
+    # Every shard on every OS measures coverage. The gate itself lives in the
+    # `coverage` job, which merges all six data files — see that job's note for
+    # why a Linux-only measurement was actively misleading. -n auto runs the
+    # shard across the runner's cores (Linux used to run serially, its slowest
+    # leg at 19 min), and pytest-cov merges the xdist workers into one data
+    # file itself. --durations names the slowest tests for future tuning.
+    - name: Run tests with coverage
       run: |
-        python -m pytest tests/ -v --tb=short --cov=tools --cov=servers --cov-report=term-missing --cov-report=html:coverage-html
-
-    - name: Run tests with coverage (macOS/Windows)
-      # Stays parallel: -n auto is what keeps these legs inside their timeouts,
-      # and pytest-cov aggregates the xdist workers into one data file itself.
-      if: runner.os != 'Linux'
-      run: |
-        python -m pytest tests/ --tb=short -n auto --cov=tools --cov=servers --cov-report=term
+        python -m pytest tests/ --tb=short -n auto --cov=tools --cov=servers --cov-report=term --durations=15
 
     # The raw .coverage SQLite file is what the combine job needs — the HTML
     # report is a rendering and cannot be merged. Named WITHOUT a leading dot on
@@ -336,23 +338,58 @@ jobs:
       run: |
         test -f .coverage
         mkdir -p coverage-data
-        cp .coverage "coverage-data/coverage-${{ matrix.os }}.dat"
+        cp .coverage "coverage-data/coverage-${{ matrix.os }}-${{ matrix.shard }}.dat"
 
-    - name: Upload raw coverage data (${{ matrix.os }})
+    # The combined HTML report comes from the `coverage` job. A per-shard HTML
+    # report would show only half the suite.
+    - name: Upload raw coverage data (${{ matrix.os }}, shard ${{ matrix.shard }})
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
       with:
-        name: coverage-data-${{ matrix.os }}
+        name: coverage-data-${{ matrix.os }}-${{ matrix.shard }}
         path: coverage-data/
         retention-days: 14
         if-no-files-found: error
 
-    - name: Upload coverage report
-      if: runner.os == 'Linux'
-      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-      with:
-        name: coverage-report
-        path: coverage-html/
-        retention-days: 14
+  # Main's branch protection requires "Tests (ubuntu-latest)", "Tests
+  # (macos-latest)" and "Tests (windows-latest)". These jobs keep those names and
+  # pass only when both shards of their OS passed, so sharding did not need a
+  # protection change. They read the shard results from the API because
+  # `needs.test-shard.result` only reports the whole matrix: a failed Windows
+  # shard would otherwise turn all three OS checks red.
+  test:
+    name: Tests (${{ matrix.os }})
+    needs: test-shard
+    # !cancelled(), not always(): report a failed shard, but don't start after
+    # a superseded run is cancelled.
+    if: ${{ !cancelled() && !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+    - name: Both shards of ${{ matrix.os }} passed
+      env:
+        GH_TOKEN: ${{ github.token }}
+        OS: ${{ matrix.os }}
+      run: |
+        for attempt in 1 2 3; do
+          if results=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+              --jq '.jobs[] | select(.name | startswith("Tests (" + env.OS + ", shard ")) | "\(.conclusion) \(.name)"'); then
+            break
+          fi
+          echo "jobs API call $attempt failed; retrying"
+          results=""
+          sleep 10
+        done
+        echo "$results"
+        if [ "$(grep -c '^success ' <<<"$results")" -ne 2 ]; then
+          echo "::error::expected 2 successful shards for $OS"
+          exit 1
+        fi
 
   # The coverage gate used to run on ubuntu only, with an explicit note that it
   # avoided "cross-platform variance from win32/darwin platform branches". That
@@ -366,7 +403,7 @@ jobs:
   coverage:
     name: Combined Coverage Gate
     runs-on: ubuntu-latest
-    needs: test
+    needs: test-shard
     # Same guard as `test`: on fork PRs that job does not run, so there is no
     # data to combine.
     if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository) }}
@@ -394,19 +431,20 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements-test.txt
 
-    - name: Download per-OS coverage data
+    - name: Download per-shard coverage data
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
       with:
         pattern: coverage-data-*
         path: coverage-parts
 
-    # Combines the three legs, then proves the merge actually happened before
-    # trusting the number: a mis-specified [paths] section makes `coverage
-    # combine` print "Combined 3 files" and still report the Linux-only total.
+    # Combines the six data files (two shards per OS), then proves the merge
+    # actually happened before trusting the number: a mis-specified [paths]
+    # section makes `coverage combine` report success and still give the
+    # Linux-only total.
     - name: Combine coverage and enforce the gate
       run: |
         python .github/scripts/assert_cross_os_coverage.py coverage-parts \
-          --expect-legs 3 --fail-under 80
+          --expect-legs 6 --fail-under 80
 
     - name: Upload combined coverage report
       if: always()
