@@ -323,7 +323,7 @@ jobs:
     # work this file has no other lever over, inside a 45-minute job.
     - name: Set up WSL2 (Ubuntu-24.04)
       timeout-minutes: 15
-      uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
+      uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4  # v7.2.0
       with:
         # Ubuntu-24.04 ships Python 3.12, which the pinned requirements
         # support; 22.04's Python 3.10 is below scipy==1.17.1's >=3.11 floor.
