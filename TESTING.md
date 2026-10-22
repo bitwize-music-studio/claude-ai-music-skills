@@ -4,26 +4,32 @@ Comprehensive testing checklist before marketplace release.
 
 ## Codex startup and resume
 
-With Codex CLI and a dependency venv installed, run:
+Install the pinned Codex CLI and use an existing dependency venv:
 
 ```bash
-python3 tests/e2e/codex_plugin_discovery_check.py
-python3 tests/e2e/codex_session_resume_check.py --venv "$HOME/.bitwize-music/venv"
+npm ci --prefix tests/e2e/codex --no-audit --no-fund
+python3 tests/e2e/codex_plugin_discovery_check.py --codex tests/e2e/codex/node_modules/.bin/codex
+python3 tests/e2e/codex_session_resume_check.py --codex tests/e2e/codex/node_modules/.bin/codex --venv .venv
 ```
 
 The second probe uses temporary `HOME` and `CODEX_HOME` directories and an
-unrelated music-project cwd. It verifies all 53 skills through Codex's host API,
+unrelated music-project cwd. It derives the skill set from the canonical tree
+and verifies it through Codex's host API. Both the skills and the MCP server
+must come from the plugin copy installed under the temporary `CODEX_HOME`. It
 then exercises configuration, Codex health diagnostics, source-verification
 state, album lookup/progress, and persisted session updates through MCP. It
 asserts that the synthetic album and track files remain unchanged. CI runs this
-without starting a model turn. Use `--venv .venv` for a developer environment or
-`--codex /path/to/codex` to check a particular CLI version.
+without starting a model turn on Linux and Windows. The dependency venv is
+linked into the isolated home (a directory junction on Windows, which needs no
+symlink privileges). Fixture cleanup preserves the source venv. On Windows,
+use `python` and append `.cmd` to the Codex executable path above. Use
+`--venv /path/to/venv` or `--codex /path/to/codex` for another installation.
 
 To additionally exercise the installed setup, configure, startup, and resume
 skills with authenticated startup and resume model turns:
 
 ```bash
-python3 tests/e2e/codex_session_resume_check.py --venv .venv --model-check
+python3 tests/e2e/codex_session_resume_check.py --codex tests/e2e/codex/node_modules/.bin/codex --venv .venv --model-check
 ```
 
 This uses account usage. The optional check copies existing `auth.json` into
@@ -37,6 +43,28 @@ updates so the noninteractive `never` approval policy can run the workflow.
 It performs dependency inspection and `configure show`; it does not install
 packages or exercise every interactive configuration response. These checks
 cover the startup/resume slice, not the full downstream music-production pipeline.
+
+### Upstream integration verification — 2026-10-22
+
+Verified locally on macOS arm64, Python 3.11.5, and the pinned Codex CLI 0.162.1,
+with plugin version 0.104.0-dev based on upstream `develop` at `c5a2db5`.
+These checks used isolated synthetic workspaces without model turns or an
+authentication copy:
+
+| Check | Result |
+|---|---|
+| Discovery | All 53 current canonical skills loaded; MCP answered from the installed copy. |
+| Session probe | Configuration, Codex health, source-verification state, album progress, and persisted session updates passed from a foreign cwd, using a relative `--codex` path. Creative fixture files remained unchanged. |
+| Missing `cwd` | Removing the manifest's `cwd` in a temporary copy made the session probe fail with Codex's `runtimeStatus='failed'` and launcher startup error. |
+| Dynamic skill count | Adding a synthetic skill to that copy passed registration and MCP source-count checks with 54 skills. |
+| Script checks | Ruff passed; mypy passed for Linux, Windows, and macOS. |
+| Full local gate | `make check` passed: Ruff, the scoped encoding check, Bandit, mypy (72 source files), and pytest (4861 passed, 13 skipped, 1 warning; coverage 90.22%). |
+
+The CI workflow runs both probes on Linux and Windows with the same locked
+Codex executable. The new session step and Windows junction cleanup still need
+their native Windows CI run; local type checking does not establish that result.
+The authenticated configuration/override acceptance below is historical and was
+not repeated for this integration.
 
 ### Minimal configuration and overrides acceptance — 2026-10-03
 
@@ -64,11 +92,10 @@ or a native question-widget interaction.
 
 The same source revision also passed `make check` (exit 0): Ruff, the scoped
 encoding check, Bandit, mypy (72 source files), and pytest (4683 passed,
-13 skipped, coverage 90.05%). The optional `numba` import now has type
-`ModuleType | None`, resolving both existing mypy errors without changing the
-compression algorithm. All six existing compressor tests passed separately;
-a one-off forced-missing-numba check selected the fallback and matched the JIT
-envelope and stereo compression results within `rtol=atol=1e-12`.
+13 skipped, coverage 90.05%). That historical revision included an optional
+`numba` typing fix and separate compressor checks. This upstream slice omits
+that change: upstream #579 already resolved the local/CI mypy difference with
+a `numba` override.
 
 ---
 

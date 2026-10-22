@@ -25,12 +25,12 @@ from typing import Any
 from codex_plugin_discovery_check import (
     EXPECTED_MCP_SERVER,
     EXPECTED_PLUGIN_ID,
-    EXPECTED_SKILL_COUNT,
     AppServer,
     ProbeError,
     _canonical_skill_names,
     _check_skills,
     _install_local_plugin,
+    _is_under,
 )
 
 ALBUM = "probe-album"
@@ -56,7 +56,7 @@ def initialize(app: AppServer) -> None:
 
 
 class SessionProbe:
-    def __init__(self, app: AppServer, workspace: Path) -> None:
+    def __init__(self, app: AppServer, workspace: Path, *, codex_home: Path) -> None:
         self.app = app
         self.request_id = 10
         result = app.request(2, "thread/start", {
@@ -71,8 +71,16 @@ class SessionProbe:
         except ProbeError as exc:
             raise ProbeError(f"{exc}; MCP startup stderr: {app.stderr[-2000:]}") from exc
         server = next((s for s in status["data"] if s["name"] == EXPECTED_MCP_SERVER), None)
-        require(server is not None, "Plugin MCP missing in foreign workspace")
+        if server is None:
+            raise ProbeError("Plugin MCP missing in foreign workspace")
         require(server["pluginId"] == EXPECTED_PLUGIN_ID, "Wrong MCP owner")
+        tools = server.get("tools")
+        require(isinstance(tools, dict) and "health_check" in tools,
+                f"Plugin MCP did not start: runtimeStatus={server.get('runtimeStatus')!r}, "
+                f"toolsError={server.get('toolsError')!r}")
+        plugin_root = self.call("get_plugin_version").get("plugin_root")
+        require(_is_under(plugin_root, codex_home),
+                f"MCP server runs from {plugin_root!r}, not the copy installed under {codex_home}")
 
     def call(self, tool: str, **arguments: Any) -> dict[str, Any]:
         self.request_id += 1
@@ -84,7 +92,8 @@ class SessionProbe:
         blocks = [c["text"] for c in result.get("content", []) if c.get("type") == "text"]
         require(bool(blocks), f"MCP {tool} returned no text")
         payload = json.loads(blocks[0])
-        require(isinstance(payload, dict) and "error" not in payload, f"MCP {tool}: {payload}")
+        if not isinstance(payload, dict) or "error" in payload:
+            raise ProbeError(f"MCP {tool}: {payload}")
         return payload
 
 
@@ -128,7 +137,7 @@ def make_workspace(home: Path) -> tuple[Path, list[Path]]:
     return workspace, files
 
 
-def check_workflow(probe: SessionProbe, home: Path) -> None:
+def check_workflow(probe: SessionProbe, home: Path, *, expected_skill_count: int) -> None:
     rebuilt = probe.call("rebuild_state")
     require(rebuilt["albums"] == 1 and rebuilt["tracks"] == 2, "Wrong fixture state")
     config = probe.call("get_config")["config"]
@@ -136,12 +145,12 @@ def check_workflow(probe: SessionProbe, home: Path) -> None:
     require(Path(config["content_root"]) == home / "creative content", "Wrong content root")
     health = probe.call("health_check", runtime="codex")
     require(health["status"] != "fail", f"Startup health failed: {health}")
-    require(health["skills"]["source_count"] == EXPECTED_SKILL_COUNT, "Wrong source skill count")
+    require(health["skills"]["source_count"] == expected_skill_count, "Wrong source skill count")
     require(health["skills"]["status"] == "not_checked", "Overclaimed host registration")
     require("fix_message" not in health["skills"], "Codex was given a Claude cache repair")
     require(probe.call("get_pending_migrations")["count"] == 0, "Fresh state has pending migrations")
     album = probe.call("find_album", name="Probe Album")
-    require(album.get("found") and album["slug"] == ALBUM, "Album lookup failed")
+    require(bool(album.get("found")) and album["slug"] == ALBUM, "Album lookup failed")
     progress = probe.call("get_album_progress", album_slug=ALBUM)
     require(progress["track_count"] == 2 and progress["sources_pending"] == 1, "Wrong progress")
     require(progress["phase"] == "Source Verification", f"Wrong phase: {progress['phase']}")
@@ -187,7 +196,8 @@ def check_model_turn(events: list[dict[str, Any]], *, resume: bool) -> int:
 def read_saved_session(home: Path) -> dict[str, Any]:
     state = json.loads((home / ".bitwize-music/cache/state.json").read_text(encoding="utf-8"))
     session = state["session"]
-    require(isinstance(session, dict), "Saved session is not an object")
+    if not isinstance(session, dict):
+        raise ProbeError("Saved session is not an object")
     return session
 
 
@@ -247,13 +257,28 @@ def check_model(codex: str, workspace: Path, env: dict[str, str], auth_home: Pat
         events = [json.loads(line) for line in stdout.splitlines() if line.strip()]
         call_count += check_model_turn(events, resume=resume)
         if resume:
+            assert previous_session is not None
             saved = read_saved_session(Path(env["HOME"]))
             require(saved.get("last_album") == ALBUM and saved.get("last_phase") == "Source Verification",
                     "Resume persisted the wrong album or phase")
-            require(saved.get("updated_at") and saved["updated_at"] != previous_session.get("updated_at"),
+            require(bool(saved.get("updated_at")) and saved["updated_at"] != previous_session.get("updated_at"),
                     "Resume session update was not persisted")
         print(f"Model workflow: phase {number}/{len(prompts)} completed", flush=True)
     print(f"Model workflow: {call_count} MCP calls; resume recommendation and saved session verified", flush=True)
+
+
+def link_venv(source: Path, target: Path) -> None:
+    """Reuse dependencies without requiring Windows symlink privileges."""
+    source = source.resolve()
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["cmd", "/d", "/c", "mklink", "/J", str(target), str(source)],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+        require(result.returncode == 0,
+                f"Could not create venv junction: {result.stderr or result.stdout}")
+    else:
+        target.symlink_to(source, target_is_directory=True)
 
 
 def main() -> int:
@@ -264,28 +289,32 @@ def main() -> int:
     parser.add_argument("--model-check", action="store_true", help="Start real model turns (uses account usage)")
     args = parser.parse_args()
     root = args.root.resolve()
-    codex = shutil.which(args.codex)
-    if codex is None or not args.venv.is_dir():
+    found = shutil.which(args.codex) or (args.codex if Path(args.codex).is_file() else None)
+    if found is None or not args.venv.is_dir():
         print("A Codex executable and an installed dependency venv are required", file=sys.stderr)
         return 2
+    codex = os.path.abspath(found)
     original_auth_home = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
     try:
+        expected_names = _canonical_skill_names(root)
         with tempfile.TemporaryDirectory(prefix="bitwize-session-", ignore_cleanup_errors=True) as tmp:
             home = Path(tmp).resolve()
             workspace, files = make_workspace(home)
             originals = {p: p.read_bytes() for p in files}
-            (home / ".bitwize-music/venv").symlink_to(args.venv.resolve(), target_is_directory=True)
+            link_venv(args.venv, home / ".bitwize-music/venv")
             env = os.environ.copy()
             env.update(HOME=str(home), USERPROFILE=str(home), CODEX_HOME=str(home / "codex"))
             Path(env["CODEX_HOME"]).mkdir()
             env.pop("CLAUDE_PLUGIN_ROOT", None)
             env.pop("PLUGIN_ROOT", None)
-            version = _install_local_plugin(codex, root=root, env=env)
-            app = AppServer(codex, root=workspace, env=env)
+            codex_home = Path(env["CODEX_HOME"])
+            version = _install_local_plugin(codex, root=root, cwd=workspace, env=env)
+            app = AppServer(codex, cwd=workspace, env=env)
             try:
                 initialize(app)
-                _check_skills(app, root=workspace, expected_names=_canonical_skill_names(root))
-                check_workflow(SessionProbe(app, workspace), home)
+                _check_skills(app, cwd=workspace, codex_home=codex_home, expected_names=expected_names)
+                check_workflow(SessionProbe(app, workspace, codex_home=codex_home), home,
+                               expected_skill_count=len(expected_names))
             finally:
                 app.close()
             if args.model_check:

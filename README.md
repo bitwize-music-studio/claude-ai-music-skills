@@ -48,30 +48,6 @@ Concept to released album. You generate on Suno, everything else happens in the 
 
 Then run `/bitwize-music:setup` to detect your environment and install dependencies. Run `/bitwize-music:configure` to set your artist name and workspace paths.
 
-### Codex: local checkout
-
-Register this checkout and install the same plugin:
-
-```bash
-codex plugin marketplace add /absolute/path/to/this/checkout
-codex plugin add bitwize-music@bitwize-music
-```
-
-In a new Codex session, select the installed skills or invoke
-`$bitwize-music:setup`, then `$bitwize-music:configure`. Both hosts share the
-configuration and dependency venv. See the [shared runtime rules](reference/runtime-compatibility.md)
-for plugin paths and skill invocation.
-
-Start each music session with `$bitwize-music:session-start`, then resume an album
-with `$bitwize-music:resume my-album` (or omit the album to use session context).
-Startup and resume read the shared workflow guide, preserve source-verification
-gates, and recommend the next action using Codex skill names. Codex health checks
-report on-disk skill presence separately from host registration.
-
-This compatibility slice covers `setup`, `configure`, `session-start`, and
-`resume`. All 53 skills remain discoverable; discovery alone does not establish
-that every downstream creative workflow has been validated in Codex.
-
 **Platform**: macOS, Linux, WSL2, and native Windows are all fully supported. The full test suite runs on windows-latest in CI (plus dedicated Windows legs for the MCP boot check and MuseScore PDF export) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run natively there. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet music works natively too: MuseScore PDF export is CI-verified on windows-latest, and AnthemScore transcription runs against a licensed install (its free trial exposes no CLI on any OS, so that caveat isn't Windows-specific). Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
 ### OpenAI Codex (experimental)
@@ -83,16 +59,30 @@ codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-All 53 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+For local development, register your checkout instead:
 
 ```bash
-python3 -m venv ~/.bitwize-music/venv
-~/.bitwize-music/venv/bin/python -m pip install -r https://raw.githubusercontent.com/bitwize-music-studio/claude-ai-music-skills/main/requirements.txt
+codex plugin marketplace add /absolute/path/to/this/checkout
+codex plugin add bitwize-music@bitwize-music
 ```
 
-On Windows (cmd), run `python -m venv %USERPROFILE%\.bitwize-music\venv`, then `%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe -m pip install -r` with the same URL.
+In a new Codex session, select the installed skills or invoke
+`$bitwize-music:setup`, then `$bitwize-music:configure`. Both hosts share the
+configuration and `~/.bitwize-music/venv` (Python 3.11+). Setup resolves its
+dependencies from the installed plugin, even when your music project is elsewhere.
 
-So far Codex support covers discovery and the MCP tools, and many skills still assume Claude Code. [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548) tracks the rest.
+Start each music session with `$bitwize-music:session-start`, then resume an album
+with `$bitwize-music:resume my-album` (or omit the album to use session context).
+These skills read the shared workflow guide and configured overrides, preserve
+source-verification gates, and recommend the next action using Codex skill names.
+See the [shared runtime rules](reference/runtime-compatibility.md) for plugin
+paths and skill invocation. Codex health checks distinguish files on disk from
+skills actually registered by the host.
+
+This compatibility slice covers discovery, MCP, `setup`, `configure`,
+`session-start`, and `resume`. Loading the canonical skills does not establish
+that every downstream creative workflow has been validated in Codex.
+[#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548) tracks the rest.
 
 ---
 
