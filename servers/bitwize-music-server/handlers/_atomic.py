@@ -21,6 +21,9 @@ from pathlib import Path
 # tools/mastering/signature_persistence.py, which injects only the server dir on
 # sys.path. Importing tools.state.indexer here would invert that layering and pull
 # a ~110-module transitive graph into every atomic write. Keep the two in sync.
+# One deliberate difference: the indexer's helper also wraps the state reader's
+# open(), which reports a sharing violation as errno EACCES with no winerror.
+# This module only wraps os.replace, whose errors always carry a winerror.
 #
 # Windows enforces mandatory locking on open file handles, so os.replace over a
 # target raises PermissionError with winerror 5 (ERROR_ACCESS_DENIED) or 32
