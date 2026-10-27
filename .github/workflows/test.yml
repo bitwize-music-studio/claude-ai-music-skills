@@ -253,14 +253,14 @@ jobs:
 
     # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
     # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
-    # update`) — see nightly.yml. No -qq: it hides the Get:/Hit: lines that name
-    # which mirror a timeout-killed step was stalled on.
+    # update`) — see nightly.yml. apt-install.sh covers a mirror that is slow
+    # rather than stalled (#595): after 4 minutes it fetches the rest from
+    # archive.ubuntu.com. No -qq: it hides the Get:/Hit: lines that name which
+    # mirror a slow or timeout-killed step was waiting on.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       timeout-minutes: 10
-      run: |
-        sudo apt-get $APT_OPTS update
-        sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
+      run: bash .github/scripts/apt-install.sh --no-install-recommends ffmpeg
 
     # Same hazard as the apt step above, different package manager — brew and
     # choco hit third-party mirrors that can stall with no output.
