@@ -98,15 +98,18 @@ jobs:
     # into a fast, clearly-attributed failure; the apt opts ride out transient
     # mirror and dpkg-lock contention (unattended-upgrades) on the runner.
     #
+    # Neither helps when the mirror is slow rather than stalled: from 2026-10-22
+    # it trickled at 30-40 KB/s and four legs hit this step's timeout (#595).
+    # apt-install.sh gives the runner's mirror 4 minutes, then fetches the rest
+    # from archive.ubuntu.com. The script comes from the develop checkout above.
+    #
     # No -qq on `update`, on purpose: -qq suppresses the per-mirror Get:/Hit:
     # lines, which are the only evidence of WHICH mirror a timeout-killed step
     # was stalled on. Quiet output is worth less than an attributable hang.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       timeout-minutes: 10
-      run: |
-        sudo apt-get $APT_OPTS update
-        sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
+      run: bash .github/scripts/apt-install.sh --no-install-recommends ffmpeg
 
     # Same hazard as the apt step above, different package manager: brew and
     # choco both hit third-party mirrors that can stall with no output, and a

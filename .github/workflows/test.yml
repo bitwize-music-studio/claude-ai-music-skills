@@ -253,14 +253,14 @@ jobs:
 
     # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
     # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
-    # update`) — see nightly.yml. No -qq: it hides the Get:/Hit: lines that name
-    # which mirror a timeout-killed step was stalled on.
+    # update`) — see nightly.yml. apt-install.sh covers a mirror that is slow
+    # rather than stalled (#595): after 4 minutes it fetches the rest from
+    # archive.ubuntu.com. No -qq: it hides the Get:/Hit: lines that name which
+    # mirror a slow or timeout-killed step was waiting on.
     - name: Install system dependencies (Linux)
       if: runner.os == 'Linux'
       timeout-minutes: 10
-      run: |
-        sudo apt-get $APT_OPTS update
-        sudo apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
+      run: bash .github/scripts/apt-install.sh --no-install-recommends ffmpeg
 
     # Same hazard as the apt step above, different package manager — brew and
     # choco hit third-party mirrors that can stall with no output.
@@ -353,9 +353,14 @@ jobs:
   # Main's branch protection requires "Tests (ubuntu-latest)", "Tests
   # (macos-latest)" and "Tests (windows-latest)". These jobs keep those names and
   # pass only when both shards of their OS passed, so sharding did not need a
-  # protection change. They read the shard results from the API because
-  # `needs.test-shard.result` only reports the whole matrix: a failed Windows
-  # shard would otherwise turn all three OS checks red.
+  # protection change. `needs.test-shard.result` only reports the whole matrix,
+  # so all it can settle is "every shard passed", which needs no lookup.
+  # Otherwise each job reads its own OS's shard results from the API, because a
+  # failed Windows shard must not turn all three OS checks red. The API can lag
+  # behind `needs`: on 2026-10-22 it still showed shards that had finished
+  # minutes earlier with no conclusion, and all three checks failed a run whose
+  # shards had all passed. A missing conclusion is waited for, not read as a
+  # failure.
   test:
     name: Tests (${{ matrix.os }})
     needs: test-shard
@@ -375,15 +380,27 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         OS: ${{ matrix.os }}
+        ALL_SHARDS: ${{ needs.test-shard.result }}
       run: |
-        for attempt in 1 2 3; do
+        if [ "$ALL_SHARDS" = success ]; then
+          echo "Every shard of every OS passed."
+          exit 0
+        fi
+        # Some shard did not pass. Wait (about 3 minutes at most) until the API
+        # gives both of this OS's shards a conclusion.
+        results=""
+        for attempt in $(seq 1 12); do
           if results=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
               --jq '.jobs[] | select(.name | startswith("Tests (" + env.OS + ", shard ")) | "\(.conclusion) \(.name)"'); then
-            break
+            if [ "$(grep -c . <<<"$results")" -eq 2 ] && ! grep -q '^null ' <<<"$results"; then
+              break
+            fi
+            echo "attempt $attempt: the jobs API has not settled both shards yet"
+          else
+            echo "attempt $attempt: jobs API call failed"
+            results=""
           fi
-          echo "jobs API call $attempt failed; retrying"
-          results=""
-          sleep 10
+          if [ "$attempt" -lt 12 ]; then sleep 15; fi
         done
         echo "$results"
         if [ "$(grep -c '^success ' <<<"$results")" -ne 2 ]; then
