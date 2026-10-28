@@ -70,16 +70,29 @@ codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-All 61 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+For local development, register your checkout instead:
 
 ```bash
-python3 -m venv ~/.bitwize-music/venv
-~/.bitwize-music/venv/bin/python -m pip install -r https://raw.githubusercontent.com/bitwize-music-studio/claude-ai-music-skills/main/requirements.txt
+codex plugin marketplace add /absolute/path/to/this/checkout
+codex plugin add bitwize-music@bitwize-music
 ```
 
-On Windows (cmd), run `python -m venv %USERPROFILE%\.bitwize-music\venv`, then `%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe -m pip install -r` with the same URL.
+In a new Codex session, select the installed skills or invoke
+`$bitwize-music:setup`, then `$bitwize-music:configure`. Both hosts share the
+configuration and `~/.bitwize-music/venv` (Python 3.11+). Setup resolves its
+dependencies from the installed plugin, even when your music project is elsewhere.
 
-So far Codex support covers discovery and the MCP tools, and many skills still assume Claude Code. [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548) tracks the rest.
+Start each music session with `$bitwize-music:session-start`, then resume an album
+with `$bitwize-music:resume my-album` (or omit the album to use session context).
+These skills read the shared workflow guide and configured overrides, preserve
+source-verification gates, and recommend the next action using Codex skill names.
+See the [shared runtime rules](reference/runtime-compatibility.md) for plugin
+paths and skill invocation. During Codex session startup, the health check
+reports skill files on disk without claiming to verify host registration.
+
+Codex support is experimental. Setup, configuration, session startup, and
+resume are adapted for Codex; [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548)
+tracks compatibility for the remaining creative workflows.
 
 ---
 

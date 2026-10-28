@@ -28,6 +28,22 @@ allowed-tools:
 
 ## Instructions
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+using the loaded skill's path, then read the installed plugin's `CLAUDE.md`.
+Read the current `~/.bitwize-music/config.yaml` and load `CLAUDE.md` from
+`paths.overrides` (default: `{content_root}/overrides`) if present. If config is
+missing, recommend the installed `configure` skill and stop. Use the user's
+album argument and the installed skill names in recommendations.
+
+If the plugin's MCP server is unavailable in Codex, resolve the requested album
+under `{content_root}/artists/{artist}/albums/`. For a request without a name,
+use `session.last_album` from `~/.bitwize-music/cache/state.json` if the cached
+artist and content root match the current configuration. Ask for the album name
+if no album matches, or ask the user to choose among multiple matches. Read the
+selected album's README and tracks for current status and source verification,
+then report progress and the recommendation in read-only mode, starting at
+Step 4. Explain that saving session context requires the MCP connection.
+
 When this skill is invoked with an album name:
 
 ### Step 1: Find the Album via MCP
@@ -67,7 +83,8 @@ Based on album and track statuses, identify the workflow phase:
 
 ### Step 5: Report to User
 
-Present a clear status report:
+In Claude Code, include the three next steps shown below. In Codex, use the
+single recommendation from Step 6 as the next-action section of the report.
 
 ```
 📁 Album: [Album Title]
@@ -94,9 +111,11 @@ Present a clear status report:
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 6: Recommend the Single Best Next Action
+### Step 6: Choose the Priority Action
 
-Pick ONE clear recommendation from the decision tree below. Don't list 5 options — pick the best one, include the skill name, and be specific about which track.
+Use the decision tree to choose the first next step in Claude Code or the
+recommended action in Codex. Include the skill name and the specific track when
+applicable.
 
 **Decision Tree** (evaluate top-to-bottom, first match wins):
 
