@@ -87,7 +87,7 @@ jobs:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: ${{ matrix.python }}
         # No pip cache — a from-scratch install is part of what nightly proves.
@@ -196,7 +196,7 @@ jobs:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: '3.11'
         cache: 'pip'
@@ -279,7 +279,7 @@ jobs:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: '3.11'
 
@@ -323,7 +323,7 @@ jobs:
     # work this file has no other lever over, inside a 45-minute job.
     - name: Set up WSL2 (Ubuntu-24.04)
       timeout-minutes: 15
-      uses: Vampire/setup-wsl@d1da7f2c0322a5ee4f24975344f67fc0f5baf364  # v7.0.0
+      uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4  # v7.2.0
       with:
         # Ubuntu-24.04 ships Python 3.12, which the pinned requirements
         # support; 22.04's Python 3.10 is below scipy==1.17.1's >=3.11 floor.
@@ -380,7 +380,7 @@ jobs:
         ref: develop
 
     - name: Set up Python
-      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: ${{ inputs.check-python-floor }}
 
