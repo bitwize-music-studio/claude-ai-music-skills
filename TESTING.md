@@ -2,12 +2,76 @@
 
 Comprehensive testing checklist before marketplace release.
 
+## Codex discovery and MCP session state
+
+Activate a Python 3.11+ venv with the requirements installed (for example,
+`make venv` and `source .venv/bin/activate` on macOS/Linux/WSL). If
+`~/.bitwize-music/venv` exists, the discovery probe uses it instead, so it must
+also have the requirements installed:
+
+```bash
+npm ci --prefix tests/e2e/codex --no-audit --no-fund
+python3 tests/e2e/codex_plugin_discovery_check.py --codex tests/e2e/codex/node_modules/.bin/codex
+python3 tests/e2e/codex_session_resume_check.py --codex tests/e2e/codex/node_modules/.bin/codex --venv .venv
+```
+
+The session probe creates temporary `HOME` and `CODEX_HOME` directories and a
+music-project directory outside the plugin. It links the dependency venv into
+that home; on Windows it uses a directory junction. On Windows, activate
+`.venv\Scripts\activate.bat` (cmd) or `.venv\Scripts\Activate.ps1` (PowerShell),
+use `python`, and append `.cmd` to the Codex executable path above.
+
+**Expected:** Both probes exit 0. Codex discovers the canonical skill set and
+starts the MCP server from the isolated installed copy. Through MCP, the session
+probe checks configuration, Codex health, source-verification state, album
+progress, and persisted session updates; synthetic album and track files remain
+unchanged. CI runs these checks without model turns on Linux and Windows.
+
+### Manual conversational acceptance
+
+Use a separate temporary `HOME` and `CODEX_HOME` (`USERPROFILE` as well on
+Windows), an installed copy of the plugin, and a music workspace outside the
+plugin. Sign in with a dedicated test login in that Codex home and start a new
+Codex/MCP process there.
+
+1. With no config in the isolated home, invoke `setup` to inspect dependencies,
+   then invoke `configure setup` without supplying settings. Expect questions
+   for the required fields and no config file until answers are supplied.
+   On native Windows, verify the displayed PowerShell installation commands
+   with an installed plugin path containing spaces.
+2. Provide an artist and content, audio, documents, and overrides paths. Use a
+   path containing spaces and an overrides directory outside the content root.
+   Expect the saved YAML to preserve the supplied values and artist casing.
+   Change only the audio path with `configure edit` and compare the other fields.
+3. Give the configured overrides `CLAUDE.md` and the music workspace's
+   `CLAUDE.md` instructions to include different markers in status reports.
+   Invoke `session-start` in a fresh session without revealing the markers.
+   Expect the configured marker, a `health_check(runtime="codex")` call, and
+   no cwd marker. With the overrides directory absent, startup should continue.
+4. Create two synthetic albums. Set the first to `Research Complete` with a
+   track awaiting source verification. Give the second `In Progress` status
+   and more completed tracks. In a fresh Codex session, invoke `resume` by
+   name for the first album and look for the configured marker from step 3.
+   In another fresh session, invoke `resume` without a name. Confirm the
+   lookup follows `get_session().session.last_album`
+   and that source verification for the first album is the final recommendation.
+   Check that `~/.bitwize-music/cache/state.json` records the first album as
+   `last_album`, `Source Verification` as `last_phase`, and a fresh `updated_at`.
+5. With the plugin's MCP server disconnected, resume the first album by name
+   and from the saved context in separate sessions. Confirm the read-only
+   result identifies the verification step and leaves the saved context intact.
+   With missing config, expect a `configure` recommendation. With an unknown
+   album, expect a lookup failure and intact session context.
+6. Verify album and track files have the same contents after startup and
+   resume. Record the commit, host, CLI and model settings, and observed tool
+   results.
+
 ---
 
 ## Prerequisites
 
 - Claude Code installed and working
-- Python 3.8+ installed
+- Python 3.11+ installed
 - Git configured
 - A test directory outside the plugin repo (e.g., `~/test-music-plugin/`)
 
