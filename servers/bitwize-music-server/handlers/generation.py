@@ -23,7 +23,9 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _lyrics_placeholder_in,
     _safe_json,
+    _template_style_tokens_in,
 )
 from handlers.gates import _KNOWN_MODELS, _parse_duration_seconds
 from tools.playback.player import find_track_audio
@@ -64,12 +66,11 @@ _VARIETY_LEVELS = {
 # Table cells and code blocks that mean "nothing set".
 _UNSET = frozenset({"", "—", "\u2013", "-", "n/a", "none", "(none)", "auto"})
 
-# Untouched placeholders from templates/track.md — never worth sending to Suno.
-_TEMPLATE_STYLE = (
-    "[genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]"
-)
+# The Exclude Styles placeholder from templates/track.md — never worth sending
+# to Suno. The Style Box and Lyrics Box placeholders are recognised by the
+# helpers in _shared, the same ones the pre-generation gates use, so the gates
+# and this request cannot disagree about what "not written yet" means.
 _TEMPLATE_EXCLUDE = "[exclusions, if any]"
-_TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
 
 _SLIDER_RE = re.compile(r"(\d{1,3})\s*%?")
 # Audio Influence is written as a percentage ("70", "70%") or as a fraction ("0.7").
@@ -538,7 +539,7 @@ async def get_generation_request(
             "style_missing", "blocking",
             "Style Box is empty — run /bitwize-music:suno-engineer",
         ))
-    elif style == _TEMPLATE_STYLE:
+    elif _template_style_tokens_in(style):
         problems.append(_problem(
             "style_placeholder", "blocking",
             "Style Box still holds the template placeholder — run /bitwize-music:suno-engineer",
@@ -552,7 +553,7 @@ async def get_generation_request(
             ))
 
     lyrics = _section_code(text, "Lyrics Box")
-    placeholder = lyrics is not None and _TEMPLATE_LYRICS_MARKER in lyrics
+    placeholder = lyrics is not None and _lyrics_placeholder_in(lyrics) is not None
     if "lyrics" in lacks:
         if lyrics is not None and not placeholder:
             leave_out("Lyrics Box", f"{len(lyrics)} characters", why["lyrics"])

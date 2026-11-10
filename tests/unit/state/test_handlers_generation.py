@@ -437,6 +437,24 @@ class TestGetGenerationRequest:
         album(lyrics="[Verse 1 - calm reflective]\n[Lyrics here...]")
         assert "lyrics_placeholder" in _codes(_request(), "blocking")
 
+    def test_the_older_placeholder_wording_blocks_too(self, album):
+        """The gates treat `[Lyrics to be written]` as unwritten; so does the request."""
+        album(lyrics="[Verse 1 - calm reflective]\n[Lyrics to be written]")
+        assert "lyrics_placeholder" in _codes(_request(), "blocking")
+
+    def test_a_half_filled_template_style_blocks(self, album):
+        """One leftover template token would be sent to Suno as a style word."""
+        album(style="synthwave, 118 BPM, [mood], [vocal description]")
+        result = _request()
+        assert "style_placeholder" in _codes(result, "blocking")
+        assert "style" not in result["request"]
+
+    def test_other_bracketed_text_in_a_style_is_sent(self, album):
+        album(style="dream pop, 92 BPM, [soft female vocals]")
+        result = _request()
+        assert "style_placeholder" not in _codes(result)
+        assert result["request"]["style"] == "dream pop, 92 BPM, [soft female vocals]"
+
     def test_over_long_fields_block(self, album):
         album(lyrics="la " * 2000, style="x" * 1001)
         codes = _codes(_request(), "blocking")
