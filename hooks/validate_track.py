@@ -2,7 +2,15 @@
 """PostToolUse hook: Validate track file YAML frontmatter after Write/Edit.
 
 Only activates for files matching */tracks/*.md pattern.
-Checks required frontmatter fields and valid status values.
+Checks that the frontmatter block exists and carries its required fields.
+
+``status`` is deliberately not one of them. A track's status lives in the
+``| **Status** |`` row of its Track Details table: that is what the parser, the
+state cache and ``update_track_field`` read and write, and ``templates/track.md``
+has never had a frontmatter copy. This hook used to require one anyway, so the
+first whole-file Write of any track failed, and the way to quiet it was to add
+a second status that nothing keeps up to date. A frontmatter ``status`` left
+over from then is ignored, whatever it says.
 """
 from __future__ import annotations
 
@@ -10,15 +18,7 @@ import json
 import re
 import sys
 
-REQUIRED_FIELDS = ["title", "track_number", "status"]
-VALID_STATUSES = [
-    "Not Started",
-    "Sources Pending",
-    "Sources Verified",
-    "In Progress",
-    "Generated",
-    "Final",
-]
+REQUIRED_FIELDS = ["title", "track_number"]
 
 
 def is_track_file(file_path: str) -> bool:
@@ -85,12 +85,6 @@ def validate(data: dict) -> list[str]:
     for field in REQUIRED_FIELDS:
         if field not in fm or not fm[field]:
             issues.append(f"Missing required frontmatter field: {field}")
-
-    status = fm.get("status", "")
-    if status and status not in VALID_STATUSES:
-        issues.append(
-            f"Invalid status '{status}'. Must be one of: {', '.join(VALID_STATUSES)}"
-        )
 
     return issues
 

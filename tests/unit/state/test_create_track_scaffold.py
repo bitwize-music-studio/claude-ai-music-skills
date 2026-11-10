@@ -332,3 +332,22 @@ class TestANewTrackAtTheGates:
         make_album(sources=True)
         gates = self._gates(_create(documentary=True))
         assert gates["Sources Verified"] == "FAIL"
+
+
+class TestANewTrackAtTheHook:
+    """Writing the file back unchanged must not trip the plugin's own hook."""
+
+    def test_a_verbatim_write_passes_validate_track(self, make_album):
+        hook_path = PROJECT_ROOT / "hooks" / "validate_track.py"
+        spec = importlib.util.spec_from_file_location("validate_track_hook_scaffold", hook_path)
+        hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook)
+
+        make_album()
+        result = _create("It's a Bicycle", number=4)
+        event = {
+            "tool_name": "Write",
+            "tool_input": {"file_path": result["path"], "content": _created_text(result)},
+        }
+        assert hook.is_track_file(result["path"]) is True
+        assert hook.validate(event) == []

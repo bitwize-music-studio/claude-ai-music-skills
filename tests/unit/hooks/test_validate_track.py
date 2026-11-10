@@ -46,7 +46,7 @@ def _frontmatter(**fields: str) -> str:
 
 
 def _valid_content() -> str:
-    return _frontmatter(title="Opener", track_number="1", status="In Progress")
+    return _frontmatter(title="Opener", track_number="1")
 
 
 def _write_event(file_path: str, content: str) -> dict:
@@ -78,9 +78,34 @@ class TestValidTrack:
     def test_valid_track_reports_no_issues(self):
         assert validate_track.validate(_write_event(_TRACK_PATH, _valid_content())) == []
 
-    @pytest.mark.parametrize("status", validate_track.VALID_STATUSES)
-    def test_every_documented_status_is_accepted(self, status):
-        """All six workflow statuses must pass — the hook is not a bottleneck."""
+    def test_a_track_straight_from_the_template_passes(self):
+        """The template has no frontmatter ``status`` and never has had one.
+
+        A track's status lives in its Track Details table: that is what the
+        parser, the state cache and ``update_track_field`` read and write. The
+        hook used to demand a frontmatter copy as well, so the first whole-file
+        Write of any track failed, and the way to quiet it was to add a field
+        that nothing keeps up to date.
+        """
+        template = (_PROJECT_ROOT / "templates" / "track.md").read_text(encoding="utf-8")
+        frontmatter = template.split("---")[1]
+        assert not any(line.startswith("status:") for line in frontmatter.splitlines())
+        assert validate_track.validate(_write_event(_TRACK_PATH, template)) == []
+
+    def test_a_track_straight_from_the_template_exits_zero(self):
+        template = (_PROJECT_ROOT / "templates" / "track.md").read_text(encoding="utf-8")
+        result = _run_hook(json.dumps(_write_event(_TRACK_PATH, template)))
+        assert result.returncode == 0, (result.returncode, result.stderr)
+        assert result.stderr == ""
+
+    @pytest.mark.parametrize("status", ["In Progress", "Final", "Ready", "Almost Done", ""])
+    def test_a_frontmatter_status_is_ignored(self, status):
+        """Nothing reads it, so the hook has no opinion on it.
+
+        Tracks written while the hook asked for the field still carry one —
+        current, stale, a legacy value such as ``Ready``, or blank. Rewriting
+        such a track must not fail over a field that is dead.
+        """
         content = _frontmatter(title="Opener", track_number="1", status=status)
         assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
 
@@ -102,42 +127,34 @@ class TestValidTrack:
 
 @pytest.mark.unit
 class TestInvalidTrack:
-    def test_invalid_status_is_reported(self):
-        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
-        issues = validate_track.validate(_write_event(_TRACK_PATH, content))
-        assert len(issues) == 1
-        assert "Almost Done" in issues[0]
-        # The message must tell the user what the legal values are.
-        assert "In Progress" in issues[0]
-
-    def test_invalid_status_exits_two(self):
+    def test_missing_title_exits_two(self):
         """Exit code 2 is what makes Claude Code surface the failure."""
-        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
+        content = _frontmatter(track_number="1")
         result = _run_hook(json.dumps(_write_event(_TRACK_PATH, content)))
         assert result.returncode == 2, (result.returncode, result.stderr)
         assert "Track frontmatter validation failed" in result.stderr
-        assert "Almost Done" in result.stderr
+        assert "title" in result.stderr
 
-    @pytest.mark.parametrize("missing", ["title", "track_number", "status"])
+    @pytest.mark.parametrize("missing", ["title", "track_number"])
     def test_each_missing_required_field_is_reported(self, missing):
-        fields = {"title": "Opener", "track_number": "1", "status": "Final"}
+        fields = {"title": "Opener", "track_number": "1"}
         del fields[missing]
         issues = validate_track.validate(_write_event(_TRACK_PATH, _frontmatter(**fields)))
         assert issues == [f"Missing required frontmatter field: {missing}"]
 
-    @pytest.mark.parametrize("empty", ["title", "track_number", "status"])
+    @pytest.mark.parametrize("empty", ["title", "track_number"])
     def test_present_but_empty_required_field_is_reported(self, empty):
-        """``status:`` with nothing after it is as broken as an absent key."""
-        fields = {"title": "Opener", "track_number": "1", "status": "Final"}
+        """``title:`` with nothing after it is as broken as an absent key."""
+        fields = {"title": "Opener", "track_number": "1"}
         fields[empty] = ""
         issues = validate_track.validate(_write_event(_TRACK_PATH, _frontmatter(**fields)))
         assert issues == [f"Missing required frontmatter field: {empty}"]
 
-    def test_all_fields_missing_reports_all_three(self):
+    def test_all_fields_missing_reports_both(self):
         content = "---\nfoo: bar\n---\n"
         issues = validate_track.validate(_write_event(_TRACK_PATH, content))
-        assert len(issues) == 3
-        for field in ("title", "track_number", "status"):
+        assert len(issues) == 2
+        for field in ("title", "track_number"):
             assert any(field in i for i in issues)
 
     def test_missing_frontmatter_block_is_reported(self):
@@ -225,16 +242,15 @@ class TestWindowsPathSeparators:
 
     def test_windows_track_path_is_actually_validated(self):
         """The whole point: bad frontmatter on a Windows path must be caught."""
-        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
+        content = _frontmatter(track_number="1")
         issues = validate_track.validate(_write_event(_WIN_TRACK_PATH, content))
-        assert len(issues) == 1
-        assert "Almost Done" in issues[0]
+        assert issues == ["Missing required frontmatter field: title"]
 
     def test_windows_track_path_exits_two_end_to_end(self):
-        content = _frontmatter(title="Opener", track_number="1", status="Almost Done")
+        content = _frontmatter(track_number="1")
         result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, content)))
         assert result.returncode == 2, (result.returncode, result.stderr)
-        assert "Almost Done" in result.stderr
+        assert "title" in result.stderr
 
     def test_valid_windows_track_exits_zero(self):
         result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, _valid_content())))
@@ -371,6 +387,6 @@ class TestOldPythonCompatibility:
 
     def test_module_compiles_and_defines_the_hook_entrypoints(self):
         """A module that fails to import is a hook that silently never runs."""
-        for name in ("main", "validate", "REQUIRED_FIELDS", "VALID_STATUSES"):
+        for name in ("main", "validate", "REQUIRED_FIELDS"):
             assert hasattr(validate_track, name), name
-        assert validate_track.REQUIRED_FIELDS == ["title", "track_number", "status"]
+        assert validate_track.REQUIRED_FIELDS == ["title", "track_number"]
