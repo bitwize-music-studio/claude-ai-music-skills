@@ -2038,6 +2038,35 @@
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_suno_release_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_release_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_release_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
         },
         "track_slug": {
           "title": "Track Slug",
@@ -3436,6 +3465,45 @@
         "result"
       ],
       "title": "searchOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "playlist_id": {
+          "title": "Playlist Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "playlist_id",
+        "name"
+      ],
+      "title": "set_album_playlistArguments",
+      "type": "object"
+    },
+    "name": "set_album_playlist",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "set_album_playlistOutput",
       "type": "object"
     }
   },

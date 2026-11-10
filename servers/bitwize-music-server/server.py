@@ -489,6 +489,7 @@ from handlers import (
     skills,
     status,
     streaming,
+    suno_release,
     take_check,
     text_analysis,
 )
@@ -506,6 +507,7 @@ album_ops.register(mcp)
 gates.register(mcp)
 generation.register(mcp)
 take_check.register(mcp)
+suno_release.register(mcp)
 playback.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
@@ -734,6 +736,10 @@ from handlers.streaming import (  # noqa: F401
 )
 
 # Take-check tools
+from handlers.suno_release import (  # noqa: F401
+    get_suno_release_plan,
+    set_album_playlist,
+)
 from handlers.take_check import (  # noqa: F401
     evaluate_take_check,
     get_take_check_plan,

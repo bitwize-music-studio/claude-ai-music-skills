@@ -1675,6 +1675,33 @@ suno_workspace:
         assert result["workspace-album"]["suno_workspace"] == {
             "id": "be7f57b5-0cef-4769-ab0e-44b4861bd895", "name": "Workspace Album",
         }
+        assert result["workspace-album"]["suno_playlist"] is None
+
+    def test_suno_playlist_propagated_from_frontmatter(self, tmp_path):
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Playlist Album"
+genres: ["folk"]
+suno_playlist:
+  id: "dfb303aa-74b1-41f3-9771-48a69bdd43ed"
+  name: "Playlist Album"
+---
+
+# Playlist Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Complete |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "folk", "playlist-album",
+                         readme_text=readme_text)
+        result = scan_albums(content_root, "testartist")
+        assert result["playlist-album"]["suno_playlist"] == {
+            "id": "dfb303aa-74b1-41f3-9771-48a69bdd43ed", "name": "Playlist Album",
+        }
 
     def test_suno_workspace_none_when_not_in_frontmatter(self, tmp_path):
         content_root = tmp_path / "content"

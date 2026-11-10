@@ -134,6 +134,23 @@ class TestParseAlbumReadme:
         assert '_error' not in result
         assert result['suno_workspace'] is None
 
+    def test_suno_playlist_block(self, tmp_path):
+        """The album's playlist of approved takes is recorded the same way as its workspace."""
+        path = tmp_path / "README.md"
+        path.write_text(
+            '---\ntitle: "Album"\nsuno_playlist:\n'
+            '  id: "dfb303aa-74b1-41f3-9771-48a69bdd43ed"\n  name: "Album"\n---\n\n# Album\n',
+            encoding='utf-8',
+        )
+        result = parse_album_readme(path)
+        assert result['suno_playlist'] == {'id': 'dfb303aa-74b1-41f3-9771-48a69bdd43ed', 'name': 'Album'}
+        assert result['suno_workspace'] is None
+
+    def test_suno_playlist_absent_is_none(self, tmp_path):
+        path = tmp_path / "README.md"
+        path.write_text('---\ntitle: "Album"\n---\n\n# Album\n', encoding='utf-8')
+        assert parse_album_readme(path)['suno_playlist'] is None
+
     def test_suno_workspace_id_without_name(self, tmp_path):
         path = tmp_path / "README.md"
         path.write_text(

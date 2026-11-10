@@ -735,6 +735,46 @@ def album_audio_dir(
 # =============================================================================
 
 
+def keeper_clip(
+    text: str,
+) -> tuple[str | None, str | None, str | None, dict[str, str] | None]:
+    """The approved take of a track file: ``(clip_id, source, link_url, problem)``.
+
+    The Suno Link names the keeper; when it is unset, the one Generation Log
+    row marked ✓ does. ``source`` is ``suno_link`` or ``generation_log``. When
+    no clip id can be given, ``problem`` says why: ``legacy_link`` (a share link
+    from before MCP generation), ``keeper_ambiguous`` or ``no_keeper``.
+    """
+    link_url = _first_url((_extract_table_value(text, "Suno Link") or "").strip())
+    clip_id = clip_id_from_url(link_url) if link_url else None
+    if clip_id:
+        return clip_id, "suno_link", link_url, None
+    if link_url is not None:
+        return None, None, link_url, _problem(
+            "legacy_link", "blocking",
+            "The Suno Link is a share link from before MCP generation and carries no clip "
+            "id — download the file on suno.com and import it with "
+            "/bitwize-music:import-audio <file> <album>",
+        )
+    approved = [
+        take for take in parse_generation_log(text) if take["approved"] and take["clip_id"]
+    ]
+    if len(approved) == 1:
+        return approved[0]["clip_id"], "generation_log", None, None
+    if approved:
+        rows = ", ".join(str(take["row"]) for take in approved)
+        return None, None, None, _problem(
+            "keeper_ambiguous", "blocking",
+            f"Generation Log rows {rows} are all marked as keepers — set the Suno "
+            "Link to the one to import",
+        )
+    return None, None, None, _problem(
+        "no_keeper", "blocking",
+        "No approved take — mark the keeper ✓ in the Generation Log and set "
+        "the Suno Link first",
+    )
+
+
 async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
     """Say which Suno clip is a track's keeper and where its audio should be saved.
 
@@ -767,38 +807,9 @@ async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
     track_slug_resolved: str = ctx["track_slug"]
 
     problems: list[dict[str, str]] = []
-    link_url = _first_url((_extract_table_value(text, "Suno Link") or "").strip())
-    clip_id = clip_id_from_url(link_url) if link_url else None
-    clip_source = "suno_link" if clip_id else None
-
-    if clip_id is None and link_url is not None:
-        problems.append(_problem(
-            "legacy_link", "blocking",
-            "The Suno Link is a share link from before MCP generation and carries no clip "
-            "id — download the file on suno.com and import it with "
-            "/bitwize-music:import-audio <file> <album>",
-        ))
-    elif clip_id is None:
-        approved = [
-            take for take in parse_generation_log(text)
-            if take["approved"] and take["clip_id"]
-        ]
-        if len(approved) == 1:
-            clip_id = approved[0]["clip_id"]
-            clip_source = "generation_log"
-        elif approved:
-            rows = ", ".join(str(take["row"]) for take in approved)
-            problems.append(_problem(
-                "keeper_ambiguous", "blocking",
-                f"Generation Log rows {rows} are all marked as keepers — set the Suno "
-                "Link to the one to import",
-            ))
-        else:
-            problems.append(_problem(
-                "no_keeper", "blocking",
-                "No approved take — mark the keeper ✓ in the Generation Log and set "
-                "the Suno Link first",
-            ))
+    clip_id, clip_source, link_url, problem = keeper_clip(text)
+    if problem:
+        problems.append(problem)
 
     audio_dir, error = album_audio_dir(ctx["album_slug"], ctx["album"])
     if error:
@@ -932,31 +943,88 @@ def _frontmatter_bounds(lines: list[str]) -> int | None:
     return None
 
 
-def _write_workspace_block(text: str, workspace_id: str, name: str) -> str | None:
-    """*text* with its ``suno_workspace`` frontmatter block set, or None without frontmatter.
+def _write_frontmatter_block(
+    text: str, key: str, comment: str, fields: dict[str, str],
+) -> str | None:
+    """*text* with the ``key:`` block of its frontmatter set, or None without frontmatter.
 
     Edits lines rather than re-dumping the YAML, so the comments in the album
     README survive. An existing block is replaced; otherwise one is added just
-    before the closing ``---``.
+    before the closing ``---``. Values are written as double-quoted scalars.
     """
     lines = text.split("\n")
     end = _frontmatter_bounds(lines)
     if end is None:
         return None
-    block = [
-        f"{_WORKSPACE_KEY}:  {_WORKSPACE_COMMENT}",
-        f"  id: {json.dumps(workspace_id)}",
-        f"  name: {json.dumps(name, ensure_ascii=False)}",
+    block = [f"{key}:  {comment}"] + [
+        f"  {name}: {json.dumps(value, ensure_ascii=False)}" for name, value in fields.items()
     ]
-    start = next(
-        (i for i in range(1, end) if lines[i].startswith(f"{_WORKSPACE_KEY}:")), None,
-    )
+    start = next((i for i in range(1, end) if lines[i].startswith(f"{key}:")), None)
     if start is None:
         return "\n".join(lines[:end] + block + lines[end:])
     stop = start + 1
     while stop < end and (lines[stop].startswith((" ", "\t")) or not lines[stop].strip()):
         stop += 1
     return "\n".join(lines[:start] + block + lines[stop:])
+
+
+def record_album_ref(
+    album_slug: str, ref_id: str, name: str, *, key: str, comment: str, noun: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Record a Suno ``{id, name}`` reference in an album README's frontmatter.
+
+    The shared body of set_album_workspace and set_album_playlist: validates the
+    id and name, writes the ``key:`` block (keeping the file's comments), checks
+    that the result still parses, and refreshes the album's cache entry.
+
+    Returns ``({"path", "ref": {"id", "name"}}, None)`` or ``(None, error_json)``.
+    """
+    album_slug, album, error = _find_album_or_error(album_slug)
+    if error:
+        return None, error
+    assert album is not None
+
+    ref_id = ref_id.strip().lower()
+    name = name.strip()
+    if not _WORKSPACE_ID_RE.match(ref_id):
+        return None, _safe_json({"error": f"Not a Suno {noun} id: '{ref_id}'"})
+    if not name:
+        return None, _safe_json({"error": f"The {noun} needs a name"})
+
+    readme = Path(album.get("path") or "") / "README.md"
+    if not album.get("path") or not readme.is_file():
+        return None, _safe_json({"error": f"README.md not found for album '{album_slug}'"})
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return None, _safe_json({"error": f"Cannot read {readme}: {e}"})
+
+    updated = _write_frontmatter_block(text, key, comment, {"id": ref_id, "name": name})
+    if updated is None:
+        return None, _safe_json({"error": f"{readme} has no YAML frontmatter"})
+    check = parse_frontmatter(updated)
+    recorded = check.get(key) if isinstance(check, dict) else None
+    if "_error" in check or not isinstance(recorded, dict) or recorded.get("id") != ref_id:
+        return None, _safe_json({
+            "error": "The frontmatter would not parse after the change; nothing written",
+        })
+
+    try:
+        atomic_write_text(readme, updated)
+    except OSError as e:
+        return None, _safe_json({"error": f"Cannot write {readme}: {e}"})
+
+    ref = {"id": ref_id, "name": name}
+    # The file is written either way; a failed cache refresh self-heals on rebuild.
+    try:
+        album[key] = ref
+        album["readme_mtime"] = readme.stat().st_mtime
+        write_state(_shared.cache.get_state())
+    except Exception as e:
+        logger.warning("%s recorded for %s but cache update failed: %s", noun, album_slug, e)
+
+    logger.info("Album %s: Suno %s %s (%s)", album_slug, noun, name, ref_id)
+    return {"path": str(readme), "ref": ref}, None
 
 
 async def set_album_workspace(album_slug: str, workspace_id: str, name: str) -> str:
@@ -976,50 +1044,14 @@ async def set_album_workspace(album_slug: str, workspace_id: str, name: str) -> 
     Returns:
         JSON with updated, path and workspace, or an error
     """
-    album_slug, album, error = _find_album_or_error(album_slug)
+    recorded, error = record_album_ref(
+        album_slug, workspace_id, name,
+        key=_WORKSPACE_KEY, comment=_WORKSPACE_COMMENT, noun="workspace",
+    )
     if error:
         return error
-    assert album is not None
-
-    workspace_id = workspace_id.strip().lower()
-    name = name.strip()
-    if not _WORKSPACE_ID_RE.match(workspace_id):
-        return _safe_json({"error": f"Not a Suno workspace id: '{workspace_id}'"})
-    if not name:
-        return _safe_json({"error": "The workspace needs a name"})
-
-    readme = Path(album.get("path") or "") / "README.md"
-    if not album.get("path") or not readme.is_file():
-        return _safe_json({"error": f"README.md not found for album '{album_slug}'"})
-    try:
-        text = readme.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        return _safe_json({"error": f"Cannot read {readme}: {e}"})
-
-    updated = _write_workspace_block(text, workspace_id, name)
-    if updated is None:
-        return _safe_json({"error": f"{readme} has no YAML frontmatter"})
-    check = parse_frontmatter(updated)
-    recorded = check.get(_WORKSPACE_KEY) if isinstance(check, dict) else None
-    if "_error" in check or not isinstance(recorded, dict) or recorded.get("id") != workspace_id:
-        return _safe_json({"error": "The frontmatter would not parse after the change; nothing written"})
-
-    try:
-        atomic_write_text(readme, updated)
-    except OSError as e:
-        return _safe_json({"error": f"Cannot write {readme}: {e}"})
-
-    workspace = {"id": workspace_id, "name": name}
-    # The file is written either way; a failed cache refresh self-heals on rebuild.
-    try:
-        album[_WORKSPACE_KEY] = workspace
-        album["readme_mtime"] = readme.stat().st_mtime
-        write_state(_shared.cache.get_state())
-    except Exception as e:
-        logger.warning("Workspace recorded for %s but cache update failed: %s", album_slug, e)
-
-    logger.info("Album %s filed in Suno workspace %s (%s)", album_slug, name, workspace_id)
-    return _safe_json({"updated": True, "path": str(readme), "workspace": workspace})
+    assert recorded is not None
+    return _safe_json({"updated": True, "path": recorded["path"], "workspace": recorded["ref"]})
 
 
 def register(mcp: Any) -> None:

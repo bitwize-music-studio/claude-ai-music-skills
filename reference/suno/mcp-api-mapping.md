@@ -55,6 +55,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | `workspaces-create`, `workspaces-update-clips`, `workspaces-list` | 0 *(measured)* | 0 *(measured)* |
 | `audio-listen` question, `audio-lyrics-alignment`, `audio-analysis` | 0 *(measured)* | 0 *(measured)* |
 | `audio-like`, `audio-unlike` | 0 *(measured)* | 0 *(measured)* |
+| `playlists-create`, `playlists-add-clips`, `playlists-list-clips` | 0 *(measured)* | 0 *(measured)* |
 
 A `duration` of 60 seconds cost the same 10 credits as an open-ended song.
 
@@ -112,7 +113,12 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - Approving a take likes it on suno.com (`audio-like`), so keepers collect under Liked Songs; a keeper that is replaced is un-liked (`audio-unlike`). `generation.like_keeper: false` turns this off.
 - The plugin never sends `dislike: true`. On suno.com a thumbs-down moves the song to the Trash.
 
-**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`, playlists, `audio-settings`.
+**Playlists and publishing** (`/bitwize-music:release-director`, only on request)
+- `get_suno_release_plan` lists each track's approved take in track order and what is missing; `set_album_playlist` records the playlist in the album README (`suno_playlist`), so a later run updates it instead of making another.
+- `playlists-create` answers `{id, name, playlist_url, visibility, clip_count}`. `playlists-add-clips` takes 100 ids per call and keeps the order given *(measured)*; re-adding is the only way to reorder. Visibility is fixed at creation; no tool renames or deletes a playlist.
+- `audio-settings(visibility: "public")` publishes a song. The plugin calls it only when the user asks to publish, one confirmed list at a time; Suno allows 100 publishes a day.
+
+**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`.
 
 **Not offered by the server**: deleting a song; Custom Models.
 
