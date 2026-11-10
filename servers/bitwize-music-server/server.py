@@ -605,6 +605,7 @@ from handlers.maintenance import (  # noqa: F401
 
 # Auditioning tools
 from handlers.playback import (  # noqa: F401
+    close_song_panes,
     get_listen_plan,
     open_song_page,
     play_audio,

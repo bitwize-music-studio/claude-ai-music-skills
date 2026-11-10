@@ -2,7 +2,8 @@
 
 Playback is local only: these tools play files that are already on disk (album
 audio, or an audition copy a skill saved to the takes cache) and open Suno song
-pages in the browser. They never fetch audio themselves and never call Suno.
+pages — in the default browser, or in iTerm2 panes beside the session. They
+never fetch audio themselves and never call Suno.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from handlers.generation import (
     clip_id_from_url,
     parse_generation_log,
 )
+from tools.playback import iterm as _iterm
 from tools.playback import player as _player
 from tools.state.parsers import _extract_table_value
 
@@ -33,6 +35,9 @@ _SONG_PAGE_RE = re.compile(
     r"|s/[A-Za-z0-9]+)"
 )
 _MAX_PAGES = 4
+
+# Where open_song_page can put a page.
+_DESTINATIONS = ("browser", "iterm2_browser")
 
 # Newest first: what a finished track should play by default.
 _STAGES = ("mastered", "polished", "original")
@@ -76,8 +81,10 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
             default: {"kind": "takes", "rows": [...]} for takes awaiting a
                 decision (the newest two), {"kind": "local", "stage", "path"} for
                 an approved track's newest file, or {"kind": "none"}
-            mode: "browser" (the default — the song page is free) or "terminal"
-                (config generation.listen_mode)
+            mode: "browser" (the default — the song page is free), "terminal" or
+                "iterm2_browser" (config generation.listen_mode)
+            iterm2: {available, reason} — whether song pages can open in iTerm2
+                panes beside this session, and if not, why
             confirm_download: whether to ask before a terminal audition spends a
                 Suno download credit (config generation.listen_confirm_download)
             player: the installed audio player, or null
@@ -132,6 +139,7 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
         default = {"kind": "none"}
 
     generation = _shared.cache.get_state().get("config", {}).get("generation", {})
+    iterm_reason = _iterm.unavailable_reason()
     return _safe_json({
         "found": True,
         "album_slug": ctx["album_slug"],
@@ -144,6 +152,7 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
         "mode": generation.get("listen_mode", "browser"),
         "confirm_download": generation.get("listen_confirm_download", True),
         "player": _player.find_player(),
+        "iterm2": {"available": iterm_reason is None, "reason": iterm_reason},
     })
 
 
@@ -194,8 +203,8 @@ async def stop_audio() -> str:
     return _safe_json(_player.stop())
 
 
-async def open_song_page(urls: list[str]) -> str:
-    """Open Suno song pages in the default web browser, one tab each.
+async def open_song_page(urls: list[str], where: str = "browser") -> str:
+    """Open Suno song pages, in the default web browser or in iTerm2 panes.
 
     Listening on the song page is free and unlimited. Accepts only
     https://suno.com/song/<clip id> and https://suno.com/s/<share id> links;
@@ -203,10 +212,18 @@ async def open_song_page(urls: list[str]) -> str:
 
     Args:
         urls: One to four Suno song page URLs
+        where: "browser" opens one tab each in the default browser.
+            "iterm2_browser" opens Suno's compact player for each take in an
+            iTerm2 pane beside this session — the first to the right, the rest
+            stacked under it — closing any panes from an earlier call. When
+            iTerm2 panes cannot be used here, the pages open in the browser
+            instead and the result says why.
 
     Returns:
         JSON with opened and failed URL lists (failed when no browser could be
-        launched — give those links to the user instead), or an error
+        launched — give those links to the user instead), where (the place the
+        pages actually went), panes (iTerm2 pane ids) or note (why iTerm2 was
+        not used), or an error
     """
     if not urls:
         return _safe_json({"error": "No URLs given"})
@@ -216,6 +233,25 @@ async def open_song_page(urls: list[str]) -> str:
         if not _SONG_PAGE_RE.fullmatch(str(url)):
             return _safe_json({
                 "error": f"Not a Suno song page: '{url}' — nothing was opened",
+            })
+    if where not in _DESTINATIONS:
+        return _safe_json({
+            "error": f"Unknown destination '{where}'. Options: {', '.join(_DESTINATIONS)}",
+        })
+
+    note = ""
+    if where == "iterm2_browser":
+        try:
+            panes = _iterm.open_in_panes([str(url) for url in urls])
+        except _iterm.ItermError as e:
+            note = f"iTerm2 panes are not available here ({e}) — opened in the browser instead"
+            logger.info("Falling back to the browser: %s", e)
+        else:
+            return _safe_json({
+                "opened": urls,
+                "failed": [],
+                "where": "iterm2_browser",
+                "panes": panes["panes"],
             })
 
     opened: list[str] = []
@@ -228,10 +264,24 @@ async def open_song_page(urls: list[str]) -> str:
             launched = False
         (opened if launched else failed).append(url)
 
-    result: dict[str, Any] = {"opened": opened, "failed": failed}
+    result: dict[str, Any] = {"opened": opened, "failed": failed, "where": "browser"}
+    if note:
+        result["note"] = note
     if failed:
         result["hint"] = "No browser could be launched here — open these links by hand"
     return _safe_json(result)
+
+
+async def close_song_panes() -> str:
+    """Close the iTerm2 panes opened by open_song_page(where="iterm2_browser").
+
+    Call it once the user has picked a take (or rejected them all). Safe to call
+    when no panes are open, and outside iTerm2.
+
+    Returns:
+        JSON with closed (how many panes were closed)
+    """
+    return _safe_json(_iterm.close_panes())
 
 
 def register(mcp: Any) -> None:
@@ -240,3 +290,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(play_audio)
     mcp.tool()(stop_audio)
     mcp.tool()(open_song_page)
+    mcp.tool()(close_song_panes)

@@ -169,6 +169,18 @@ class TestGetListenPlan:
         assert [t["row"] for t in plan["takes"]] == [1]
         assert plan["local"] == {"original": None, "polished": None, "mastered": None}
 
+    def test_iterm_mode_from_config(self, album):  # noqa: F811
+        album.state["config"]["generation"] = {"listen_mode": "iterm2_browser"}
+        assert _listen_plan()["mode"] == "iterm2_browser"
+
+    def test_reports_whether_iterm_panes_can_be_used(self, album, monkeypatch):  # noqa: F811
+        monkeypatch.setattr(_playback_mod._iterm, "unavailable_reason", lambda: None)
+        assert _listen_plan()["iterm2"] == {"available": True, "reason": None}
+
+        reason = "this session is not running inside iTerm2"
+        monkeypatch.setattr(_playback_mod._iterm, "unavailable_reason", lambda: reason)
+        assert _listen_plan()["iterm2"] == {"available": False, "reason": reason}
+
     def test_unknown_track(self, album):  # noqa: F811
         assert _listen_plan(track_slug="99-missing")["found"] is False
 
@@ -252,14 +264,24 @@ def browser(monkeypatch):
     return opened
 
 
-def _open(urls):
-    return json.loads(_run(_playback_mod.open_song_page(urls)))
+@pytest.fixture(autouse=True)
+def not_in_iterm(monkeypatch):
+    """The same answers on every machine: by default iTerm2 panes are not on offer."""
+    monkeypatch.setattr(
+        _playback_mod._iterm, "unavailable_reason", lambda: "iTerm2 panes need macOS"
+    )
+
+
+def _open(urls, where=None):
+    if where is None:
+        return json.loads(_run(_playback_mod.open_song_page(urls)))
+    return json.loads(_run(_playback_mod.open_song_page(urls, where)))
 
 
 class TestOpenSongPage:
     def test_opens_each_song_page(self, browser):
         urls = [f"https://suno.com/song/{CLIP_A}", f"https://suno.com/song/{CLIP_B}"]
-        assert _open(urls) == {"opened": urls, "failed": []}
+        assert _open(urls) == {"opened": urls, "failed": [], "where": "browser"}
         assert browser == urls
 
     def test_legacy_share_link_is_allowed(self, browser):
@@ -308,3 +330,52 @@ class TestOpenSongPage:
         assert _open([f"https://suno.com/song/{CLIP_A}"])["failed"] == [
             f"https://suno.com/song/{CLIP_A}",
         ]
+
+
+class TestOpenSongPageInIterm:
+    def test_opens_panes_instead_of_the_browser(self, browser, monkeypatch):
+        seen = {}
+
+        def fake_open(urls):
+            seen["urls"] = urls
+            return {"panes": ["PANE-1", "PANE-2"], "pages": ["player-1", "player-2"]}
+
+        monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", fake_open)
+        urls = [f"https://suno.com/song/{CLIP_A}", f"https://suno.com/song/{CLIP_B}"]
+        assert _open(urls, "iterm2_browser") == {
+            "opened": urls, "failed": [], "where": "iterm2_browser", "panes": ["PANE-1", "PANE-2"],
+        }
+        assert seen["urls"] == urls
+        assert browser == []
+
+    def test_falls_back_to_the_browser_and_says_why(self, browser, monkeypatch):
+        def unavailable(urls):
+            raise _playback_mod._iterm.ItermError("this session is not running inside iTerm2")
+
+        monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", unavailable)
+        url = f"https://suno.com/song/{CLIP_A}"
+        result = _open([url], "iterm2_browser")
+        assert result["where"] == "browser"
+        assert result["opened"] == [url]
+        assert "not running inside iTerm2" in result["note"]
+        assert browser == [url]
+
+    def test_urls_are_checked_before_iterm_is_touched(self, browser, monkeypatch):
+        def must_not_run(urls):
+            raise AssertionError("open_in_panes must not be called for a bad URL")
+
+        monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", must_not_run)
+        result = _open(["https://evil.example/song/4ef71736-b95e-489b-b5ac-1a41badceb08"], "iterm2_browser")
+        assert "error" in result
+        assert browser == []
+
+    def test_unknown_destination(self, browser):
+        result = _open([f"https://suno.com/song/{CLIP_A}"], "hologram")
+        assert "error" in result
+        assert browser == []
+
+
+class TestCloseSongPanes:
+    def test_closes_the_panes(self, monkeypatch):
+        monkeypatch.setattr(_playback_mod._iterm, "close_panes", lambda: {"closed": 2})
+        assert json.loads(_run(_playback_mod.close_song_panes())) == {"closed": 2}

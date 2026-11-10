@@ -4681,6 +4681,10 @@ class TestBuildConfigSectionListen:
         gen = self._generation({'listen_mode': 'browser'}, monkeypatch)
         assert gen['listen_mode'] == 'browser'
 
+    def test_iterm2_browser_mode(self, monkeypatch):
+        gen = self._generation({'listen_mode': 'iTerm2_Browser'}, monkeypatch)
+        assert gen['listen_mode'] == 'iterm2_browser'
+
     def test_unknown_mode_falls_back_to_browser(self, monkeypatch, caplog):
         gen = self._generation({'listen_mode': 'speakers'}, monkeypatch)
         assert gen['listen_mode'] == 'browser'

@@ -77,7 +77,7 @@ Call `get_generation_request(album_slug, track_slug)`.
 | A key in `needs_grant` while `features` lacks `controls.advanced` | Remove that key from the request and remember to say so in the summary |
 | Warnings in `problems` | Show them and continue |
 
-Also call `get_listen_plan(album_slug, track_slug)` and keep `mode`, `confirm_download` and `player` for the summary.
+Also call `get_listen_plan(album_slug, track_slug)` and keep `mode`, `confirm_download`, `player` and `iterm2` for the summary.
 
 ## Step 5: Show the Summary and Get a Go-Ahead
 
@@ -109,6 +109,8 @@ Rules for the summary:
 - **Then** follows the listen plan:
   - `--no-listen` → leave the line out.
   - `mode` is `browser` (the default) → the browser line above. Drop the "playing them here" note, and the "play here instead" answer, when `player` is null or fewer than 2 download credits are left.
+  - `mode` is `iterm2_browser` and the plan's `iterm2.available` is true → the same line with "beside this session, in iTerm2 panes" in place of "in your browser". The note and the "play here instead" answer follow the browser rule.
+  - `mode` is `iterm2_browser` but `iterm2.available` is false → the browser line above, with the plan's `iterm2.reason` in a clause.
   - `mode` is `terminal` → "play both takes here: 2 download credits. You have N. (Opening them in the browser instead is free.)", with "browser instead" among the answers.
   - `mode` is `terminal` but `player` is null → "open both takes in your browser (free) — no audio player is installed; install mpv to play here".
   - `mode` is `terminal` and fewer than 2 download credits are left → "open both takes in your browser (free) — you have N download credits left".

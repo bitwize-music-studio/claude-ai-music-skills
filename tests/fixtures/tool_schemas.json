@@ -518,6 +518,27 @@
   },
   {
     "inputSchema": {
+      "properties": {},
+      "title": "close_song_panesArguments",
+      "type": "object"
+    },
+    "name": "close_song_panes",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "close_song_panesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
       "properties": {
         "text": {
           "title": "Text",
@@ -2520,6 +2541,11 @@
           },
           "title": "Urls",
           "type": "array"
+        },
+        "where": {
+          "default": "browser",
+          "title": "Where",
+          "type": "string"
         }
       },
       "required": [

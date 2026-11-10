@@ -407,13 +407,21 @@ generation:
   # Default (if omitted): browser
   #
   # Options:
-  #   browser  - Open the song's suno.com page. Free and unlimited.
-  #   terminal - Play the take in the terminal. Suno offers no free audio feed
-  #              for this, so the first play of a song downloads it and uses
-  #              one Suno download credit. Later plays, and the WAV import of
-  #              that song, are free.
+  #   browser        - Open the song's suno.com page in your web browser. Free
+  #                    and unlimited.
+  #   iterm2_browser - Open Suno's compact player for each take in iTerm2 panes
+  #                    beside the session, so you never leave the terminal
+  #                    window. Free and unlimited. Needs macOS, iTerm2 3.6 or
+  #                    later and iTerm2's Browser Plugin
+  #                    (https://iterm2.com/browser-plugin.html). Anywhere else
+  #                    the takes open in your web browser instead.
+  #   terminal       - Play the take in the terminal. Suno offers no free audio
+  #                    feed for this, so the first play of a song downloads it
+  #                    and uses one Suno download credit. Later plays, and the
+  #                    WAV import of that song, are free.
   #
-  # Either can be chosen per run: /bitwize-music:listen <album> <track> --terminal
+  # Any of them can be chosen for one run:
+  #   /bitwize-music:listen <album> <track> --browser | --iterm2 | --terminal
   #
   # listen_mode: browser
 
