@@ -427,6 +427,7 @@ from handlers import (
     core,
     database,
     gates,
+    generation,
     health,
     ideas,
     lyrics_analysis,
@@ -451,6 +452,7 @@ text_analysis.register(mcp)
 lyrics_analysis.register(mcp)
 album_ops.register(mcp)
 gates.register(mcp)
+generation.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
 status.register(mcp)
@@ -557,6 +559,11 @@ from handlers.database import (  # noqa: F401
 from handlers.gates import (  # noqa: F401
     check_streaming_lyrics,
     run_pre_generation_gates,
+)
+
+# Suno generation bridge tools
+from handlers.generation import (  # noqa: F401
+    get_generation_request,
 )
 
 # Health tools
