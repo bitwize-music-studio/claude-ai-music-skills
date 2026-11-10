@@ -4247,6 +4247,22 @@ class TestValidateAlbumStructure:
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("tracks/ directory" in m for m in failed_msgs)
 
+    def test_missing_tracks_dir_on_an_album_with_no_tracks_yet_is_a_warning(self, tmp_path):
+        """Git keeps no empty folder, so an album without tracks loses tracks/.
+
+        That is the same state as an empty tracks/ (no tracks written yet), and
+        create_track makes the folder when the first track is written. It used
+        to FAIL, on 11 albums of one catalogue.
+        """
+        mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
+        shutil.rmtree(str(album_dir / "tracks"))
+        mock_cache.get_state()["albums"]["test-album"]["tracks"] = {}
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
+        assert not [c for c in result["checks"] if c["status"] == "FAIL"]
+        warned = [c["message"] for c in result["checks"] if c["status"] == "WARN"]
+        assert any("No track files" in m for m in warned)
+
     def test_audio_wrong_location(self, tmp_path):
         mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
         # Move audio to old flat structure (wrong location)
@@ -6717,17 +6733,18 @@ class TestCreateTrack:
         assert result["found"] is False
 
     def test_no_tracks_dir(self, tmp_path):
-        """Returns error when tracks/ directory is missing."""
+        """A missing tracks/ folder is made: git does not keep an empty one."""
         album_dir = tmp_path / "album"
         album_dir.mkdir()
         # No tracks/ subdirectory
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(_shared_mod, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", PROJECT_ROOT):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
-        assert "error" in result
-        assert "tracks/" in result["error"]
+        assert result.get("created") is True, result
+        assert (album_dir / "tracks" / "01-track.md").is_file()
 
     def test_zero_pads_number(self, tmp_path):
         """Track number is zero-padded to two digits."""

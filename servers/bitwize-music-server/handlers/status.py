@@ -500,9 +500,13 @@ async def create_track(
     if not album_path:
         return _safe_json({"error": f"No path stored for album '{normalized}'"})
 
-    tracks_dir = Path(album_path) / "tracks"
-    if not tracks_dir.is_dir():
-        return _safe_json({"error": f"tracks/ directory not found in {album_path}"})
+    album_dir = Path(album_path)
+    if not album_dir.is_dir():
+        return _safe_json({"error": f"Album folder not found: {album_path}"})
+    # Git keeps no empty folder, so an album committed before its first track
+    # comes back without tracks/. It is made just before the track is written,
+    # rather than the album being refused.
+    tracks_dir = album_dir / "tracks"
 
     # Validate track_number: must be a positive integer, as an int or a
     # numeric string (#372). Check bool explicitly — it is an int subclass,
@@ -631,6 +635,7 @@ async def create_track(
 
     # Write file
     try:
+        tracks_dir.mkdir(exist_ok=True)
         atomic_write_text(track_path, content)
     except OSError as e:
         return _safe_json({"error": f"Cannot write track file: {e}"})
