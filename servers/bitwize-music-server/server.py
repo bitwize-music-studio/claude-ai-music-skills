@@ -564,6 +564,7 @@ from handlers.gates import (  # noqa: F401
 # Suno generation bridge tools
 from handlers.generation import (  # noqa: F401
     get_generation_request,
+    get_suno_import_plan,
     log_generation,
 )
 

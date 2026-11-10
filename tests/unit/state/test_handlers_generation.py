@@ -538,3 +538,182 @@ class TestLogGeneration:
 
     def test_unknown_track(self, album):
         assert _log(_two_clips(), track_slug="99-missing")["found"] is False
+
+
+# ===========================================================================
+# parse_generation_log
+# ===========================================================================
+
+
+def _row(number, clip_id, rating="—", notes="via MCP"):
+    return (
+        f"| {number} | 2026-06-15 | v6 | [Listen](https://suno.com/song/{clip_id}) "
+        f"| {notes} | {rating} |"
+    )
+
+
+LEGACY_KEEPER_ROW = (
+    "| 1 | 2026-02-12 | V5 | [Keeper](https://suno.com/s/4hZKwZySCc8Lc63Q) | solo piano | ✓ |"
+)
+
+
+class TestParseGenerationLog:
+    def test_rows_with_song_urls_carry_clip_ids(self):
+        text = track_md(log_rows=(_row(1, CLIP_A, notes="1:03, via MCP"), _row(2, CLIP_B, "✓")))
+        takes = _gen_mod.parse_generation_log(text)
+        assert [(t["row"], t["clip_id"], t["approved"]) for t in takes] == [
+            (1, CLIP_A, False), (2, CLIP_B, True),
+        ]
+        assert takes[0] == {
+            "row": 1,
+            "date": "2026-06-15",
+            "model": "v6",
+            "url": f"https://suno.com/song/{CLIP_A}",
+            "clip_id": CLIP_A,
+            "notes": "1:03, via MCP",
+            "rating": "—",
+            "approved": False,
+        }
+
+    def test_legacy_share_links_have_no_clip_id(self):
+        take = _gen_mod.parse_generation_log(track_md(log_rows=(LEGACY_KEEPER_ROW,)))[0]
+        assert take["url"] == "https://suno.com/s/4hZKwZySCc8Lc63Q"
+        assert take["clip_id"] is None
+        assert take["approved"] is True
+
+    def test_rows_without_a_link_are_kept(self):
+        rows = (
+            "| 1 | 2026-09-30 | v6 | Kept | user: legit awesome | ✓ |",
+            "| 2 | 2026-06-15 | v6 | Failed | error: moderation | — |",
+        )
+        takes = _gen_mod.parse_generation_log(track_md(log_rows=rows))
+        assert [(t["row"], t["url"], t["approved"]) for t in takes] == [
+            (1, None, True), (2, None, False),
+        ]
+
+    def test_bare_url_in_the_result_cell(self):
+        row = f"| 1 | 2026-06-15 | v6 | https://suno.com/song/{CLIP_A} | first | — |"
+        assert _gen_mod.parse_generation_log(track_md(log_rows=(row,)))[0]["clip_id"] == CLIP_A
+
+    def test_header_separator_and_placeholder_are_not_takes(self):
+        assert _gen_mod.parse_generation_log(track_md()) == []
+
+    def test_no_generation_log_section(self):
+        assert _gen_mod.parse_generation_log(track_md(log_rows=None)) == []
+
+    def test_older_five_column_table(self):
+        text = (
+            "# Old Track\n\n## Generation Log\n\n"
+            "| # | Date | Result | Notes | Rating |\n|---|------|--------|-------|--------|\n"
+            "| 1 | 2025-12-27 | [Listen](https://suno.com/s/Cae0VZjtvVTOrnBy) | First gen | ✓ |\n"
+        )
+        take = _gen_mod.parse_generation_log(text)[0]
+        assert take["url"] == "https://suno.com/s/Cae0VZjtvVTOrnBy"
+        assert take["model"] == ""
+        assert take["notes"] == "First gen"
+        assert take["approved"] is True
+
+
+# ===========================================================================
+# get_suno_import_plan
+# ===========================================================================
+
+
+def _plan(track_slug="01-first-track"):
+    return json.loads(_run(_gen_mod.get_suno_import_plan("test-album", track_slug)))
+
+
+class TestGetSunoImportPlan:
+    def test_clip_id_comes_from_the_suno_link(self, album):
+        album(suno_link=f"[Listen](https://suno.com/song/{CLIP_A})", status="Final")
+        plan = _plan()
+        assert plan["found"] is True
+        assert plan["clip_id"] == CLIP_A
+        assert plan["clip_source"] == "suno_link"
+        assert plan["song_url"] == f"https://suno.com/song/{CLIP_A}"
+        assert plan["problems"] == []
+        assert plan["wav"] == {
+            "path": str(album.audio_dir / "01-first-track.wav"),
+            "existing": None,
+        }
+        stems_dir = album.audio_dir / "stems" / "01-first-track"
+        assert plan["stems"]["dir"] == str(stems_dir)
+        assert plan["stems"]["exists"] is False
+        assert len(plan["stems"]["files"]) == 12
+        assert plan["stems"]["files"]["vocals"] == str(stems_dir / "0 Lead Vocals.wav")
+        assert plan["stems"]["files"]["fx"] == str(stems_dir / "9 FX.wav")
+
+    def test_bare_url_suno_link(self, album):
+        album(suno_link=f"https://suno.com/song/{CLIP_B}")
+        assert _plan()["clip_id"] == CLIP_B
+
+    def test_originals_directory_is_the_import_target_when_present(self, album):
+        album(suno_link=f"https://suno.com/song/{CLIP_A}")
+        (album.audio_dir / "originals").mkdir(parents=True)
+        assert _plan()["wav"]["path"] == str(
+            album.audio_dir / "originals" / "01-first-track.wav"
+        )
+
+    def test_an_already_imported_file_is_reported(self, album):
+        album(suno_link=f"https://suno.com/song/{CLIP_A}")
+        album.audio_dir.mkdir(parents=True)
+        hand_named = album.audio_dir / "01 - First Track.wav"
+        hand_named.write_bytes(b"RIFF")
+        assert _plan()["wav"]["existing"] == str(hand_named)
+
+    def test_falls_back_to_the_single_approved_take(self, album):
+        album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B, "✓")))
+        plan = _plan()
+        assert plan["clip_id"] == CLIP_B
+        assert plan["clip_source"] == "generation_log"
+        assert plan["problems"] == []
+
+    def test_two_approved_takes_and_no_link_is_ambiguous(self, album):
+        album(log_rows=(_row(1, CLIP_A, "✓"), _row(2, CLIP_B, "✓")))
+        plan = _plan()
+        assert plan["clip_id"] is None
+        assert _codes(plan, "blocking") == ["keeper_ambiguous"]
+
+    def test_no_approved_take(self, album):
+        album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B)))
+        plan = _plan()
+        assert plan["clip_id"] is None
+        assert _codes(plan, "blocking") == ["no_keeper"]
+
+    def test_legacy_share_link_carries_no_clip_id(self, album):
+        album(suno_link="https://suno.com/s/4hZKwZySCc8Lc63Q", log_rows=(LEGACY_KEEPER_ROW,))
+        plan = _plan()
+        assert plan["clip_id"] is None
+        assert plan["song_url"] == "https://suno.com/s/4hZKwZySCc8Lc63Q"
+        assert _codes(plan, "blocking") == ["legacy_link"]
+
+    def test_stem_filenames_route_to_the_right_mix_buckets(self, tmp_path):
+        """The names written for Suno's 12 stems must land in the processing
+        bucket discover_stems gives each instrument — 'fx' has no bucket of its
+        own and belongs in 'other'."""
+        from tools.mixing.mix_tracks import discover_stems
+
+        for filename in _gen_mod.SUNO_STEM_FILENAMES.values():
+            (tmp_path / filename).write_bytes(b"")
+        routed = {bucket: Path(str(path)).name for bucket, path in discover_stems(tmp_path).items()}
+        assert routed == {
+            "vocals": "0 Lead Vocals.wav",
+            "backing_vocals": "1 Backing Vocals.wav",
+            "drums": "2 Drums.wav",
+            "bass": "3 Bass.wav",
+            "guitar": "4 Guitar.wav",
+            "keyboard": "5 Keyboard.wav",
+            "percussion": "6 Percussion.wav",
+            "strings": "7 Strings.wav",
+            "synth": "8 Synth.wav",
+            "other": "9 FX.wav",
+            "brass": "10 Brass.wav",
+            "woodwinds": "11 Woodwinds.wav",
+        }
+
+    def test_audio_root_not_configured(self, album):
+        album.state["config"]["audio_root"] = ""
+        assert "error" in _plan()
+
+    def test_unknown_track(self, album):
+        assert _plan(track_slug="99-missing")["found"] is False

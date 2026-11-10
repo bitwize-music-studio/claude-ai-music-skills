@@ -1878,6 +1878,40 @@
         "album_slug",
         "track_slug"
       ],
+      "title": "get_suno_import_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_import_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_import_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
       "title": "get_trackArguments",
       "type": "object"
     },

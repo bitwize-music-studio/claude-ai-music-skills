@@ -17,6 +17,7 @@ from typing import Any
 from handlers import _shared
 from handlers._atomic import atomic_write_text
 from handlers._shared import (
+    _album_dir,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
@@ -24,6 +25,7 @@ from handlers._shared import (
     _safe_json,
 )
 from handlers.gates import _KNOWN_MODELS, _parse_duration_seconds
+from tools.playback.player import find_track_audio
 from tools.state.indexer import write_state
 from tools.state.parsers import _extract_table_value, parse_frontmatter
 
@@ -65,6 +67,31 @@ _ROW_NUMBER_RE = re.compile(r"\|\s*(\d+)\s*\|")
 _PLACEHOLDER_ROW_RE = re.compile(r"\|(?:\s*[—\u2013-]\s*\|){2,}")
 _LOG_TABLE_HEADER = "| # | Date | Model | Result | Notes | Rating |"
 _LOG_TABLE_SEPARATOR = "|---|------|-------|--------|-------|--------|"
+_SONG_URL_RE = re.compile(
+    r"https://suno\.com/song/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})"
+)
+_MARKDOWN_URL_RE = re.compile(r"\[[^\]]*\]\((https?://[^)\s]+)\)")
+_BARE_URL_RE = re.compile(r"https?://[^\s|)]+")
+_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+_APPROVED_MARKS = ("✓", "✔", "✅")
+
+# Suno stem part (audio-stems-create, mode "twelve") -> filename. The names follow
+# Suno's own stems zip, so tools/mixing/mix_tracks.discover_stems routes each to
+# its processing bucket by keyword; "fx" has no keyword and lands in "other".
+SUNO_STEM_FILENAMES: dict[str, str] = {
+    "vocals": "0 Lead Vocals.wav",
+    "backing_vocals": "1 Backing Vocals.wav",
+    "drums": "2 Drums.wav",
+    "bass": "3 Bass.wav",
+    "guitar": "4 Guitar.wav",
+    "keyboard": "5 Keyboard.wav",
+    "percussion": "6 Percussion.wav",
+    "strings": "7 Strings.wav",
+    "synth": "8 Synth.wav",
+    "fx": "9 FX.wav",
+    "brass": "10 Brass.wav",
+    "woodwinds": "11 Woodwinds.wav",
+}
 
 
 # =============================================================================
@@ -555,7 +582,201 @@ async def log_generation(
     })
 
 
+# =============================================================================
+# Reading the Generation Log back
+# =============================================================================
+
+
+def _first_url(cell: str) -> str | None:
+    """The first URL in a table cell — a markdown link's target, or a bare URL."""
+    link = _MARKDOWN_URL_RE.search(cell)
+    if link:
+        return link.group(1)
+    bare = _BARE_URL_RE.search(cell)
+    return bare.group(0) if bare else None
+
+
+def clip_id_from_url(url: str) -> str | None:
+    """The Suno clip id in a ``https://suno.com/song/<uuid>`` URL, or None.
+
+    Older logs hold ``https://suno.com/s/<short>`` share links, which carry no
+    clip id.
+    """
+    match = _SONG_URL_RE.search(url)
+    return match.group(1).lower() if match else None
+
+
+def _split_row(line: str) -> list[str]:
+    """Cells of a markdown table row (escaped pipes stay inside their cell)."""
+    inner = line.strip()
+    if inner.startswith("|"):
+        inner = inner[1:]
+    if inner.endswith("|") and not inner.endswith("\\|"):
+        inner = inner[:-1]
+    return [cell.strip() for cell in _UNESCAPED_PIPE_RE.split(inner)]
+
+
+def parse_generation_log(text: str) -> list[dict[str, Any]]:
+    """The takes recorded in a track file's Generation Log, in table order.
+
+    Each take: ``row``, ``date``, ``model``, ``url`` (None when the Result cell
+    has no link), ``clip_id`` (None for a legacy share link), ``notes``,
+    ``rating`` and ``approved`` (the Rating cell carries a check mark). Handles
+    the current six-column table and the older five-column one without Model.
+    """
+    lines = text.split("\n")
+    bounds = _generation_log_bounds(lines)
+    if bounds is None:
+        return []
+    start, end = bounds
+
+    takes: list[dict[str, Any]] = []
+    for i in range(start + 1, end):
+        stripped = lines[i].strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = _split_row(stripped)
+        if len(cells) < 3 or not cells[0].isdigit():
+            continue  # header, separator or the template's placeholder row
+        url = next((found for found in map(_first_url, cells[1:]) if found), None)
+        takes.append({
+            "row": int(cells[0]),
+            "date": cells[1],
+            "model": cells[2] if len(cells) >= 6 else "",
+            "url": url,
+            "clip_id": clip_id_from_url(url) if url else None,
+            "notes": cells[-2] if len(cells) >= 4 else "",
+            "rating": cells[-1],
+            "approved": any(mark in cells[-1] for mark in _APPROVED_MARKS),
+        })
+    return takes
+
+
+def album_audio_dir(
+    album_slug: str, album: dict[str, Any],
+) -> tuple[Path | None, str | None]:
+    """An album's audio directory — it need not exist yet — or an error JSON."""
+    config = _shared.cache.get_state().get("config", {})
+    audio_root = config.get("audio_root", "")
+    artist = config.get("artist_name", "")
+    if not audio_root or not artist:
+        return None, _safe_json({"error": "audio_root or artist_name not configured"})
+    genre = album.get("genre", "")
+    if not genre:
+        return None, _safe_json({"error": f"Genre not found for album '{album_slug}'"})
+    try:
+        return _album_dir(
+            audio_root, artist=artist, genre=genre, album=album_slug, confine=False,
+        ), None
+    except ValueError as exc:
+        return None, _safe_json({"error": str(exc)})
+
+
+# =============================================================================
+# get_suno_import_plan
+# =============================================================================
+
+
+async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
+    """Say which Suno clip is a track's keeper and where its audio should be saved.
+
+    Read-only, and it never calls Suno. The keeper is the clip in the track's
+    Suno Link; with no link set, the one take marked with a check mark in the
+    Generation Log. Paths follow the album's audio layout: the WAV goes to
+    originals/ when that directory exists, else the album audio root; stems go
+    to stems/<track-slug>/ under names the mix tools route by instrument.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Track slug or number (e.g., "01-track-name" or "01")
+
+    Returns:
+        JSON with:
+            clip_id: the keeper's Suno clip id, or null (see problems)
+            clip_source: "suno_link" or "generation_log"
+            song_url: the keeper's suno.com page
+            wav: {path: where to save the WAV, existing: a file already
+                imported for this track, or null}
+            stems: {dir, exists, files: {suno part name: file path}}
+            problems: [{code, severity, detail}] — no_keeper, keeper_ambiguous
+                or legacy_link when there is no clip id to import
+    """
+    ctx, error = _load_track(album_slug, track_slug)
+    if error:
+        return error
+    assert ctx is not None
+    text: str = ctx["text"]
+    track_slug_resolved: str = ctx["track_slug"]
+
+    problems: list[dict[str, str]] = []
+    link_url = _first_url((_extract_table_value(text, "Suno Link") or "").strip())
+    clip_id = clip_id_from_url(link_url) if link_url else None
+    clip_source = "suno_link" if clip_id else None
+
+    if clip_id is None and link_url is not None:
+        problems.append(_problem(
+            "legacy_link", "blocking",
+            "The Suno Link is a share link from before MCP generation and carries no clip "
+            "id — download the file on suno.com and import it with "
+            "/bitwize-music:import-audio <file> <album>",
+        ))
+    elif clip_id is None:
+        approved = [
+            take for take in parse_generation_log(text)
+            if take["approved"] and take["clip_id"]
+        ]
+        if len(approved) == 1:
+            clip_id = approved[0]["clip_id"]
+            clip_source = "generation_log"
+        elif approved:
+            rows = ", ".join(str(take["row"]) for take in approved)
+            problems.append(_problem(
+                "keeper_ambiguous", "blocking",
+                f"Generation Log rows {rows} are all marked as keepers — set the Suno "
+                "Link to the one to import",
+            ))
+        else:
+            problems.append(_problem(
+                "no_keeper", "blocking",
+                "No approved take — mark the keeper ✓ in the Generation Log and set "
+                "the Suno Link first",
+            ))
+
+    audio_dir, error = album_audio_dir(ctx["album_slug"], ctx["album"])
+    if error:
+        return error
+    assert audio_dir is not None
+
+    originals = audio_dir / "originals"
+    wav_dir = originals if originals.is_dir() else audio_dir
+    existing = find_track_audio(wav_dir, track_slug_resolved)
+    stems_dir = audio_dir / "stems" / track_slug_resolved
+
+    return _safe_json({
+        "found": True,
+        "album_slug": ctx["album_slug"],
+        "track_slug": track_slug_resolved,
+        "clip_id": clip_id,
+        "clip_source": clip_source,
+        "song_url": f"https://suno.com/song/{clip_id}" if clip_id else link_url,
+        "wav": {
+            "path": str(wav_dir / f"{track_slug_resolved}.wav"),
+            "existing": str(existing) if existing else None,
+        },
+        "stems": {
+            "dir": str(stems_dir),
+            "exists": stems_dir.is_dir(),
+            "files": {
+                part: str(stems_dir / filename)
+                for part, filename in SUNO_STEM_FILENAMES.items()
+            },
+        },
+        "problems": problems,
+    })
+
+
 def register(mcp: Any) -> None:
     """Register Suno generation bridge tools with the MCP server."""
     mcp.tool()(get_generation_request)
     mcp.tool()(log_generation)
+    mcp.tool()(get_suno_import_plan)
