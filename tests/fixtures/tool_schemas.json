@@ -1565,6 +1565,40 @@
           "type": "string"
         },
         "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_listen_planArguments",
+      "type": "object"
+    },
+    "name": "get_listen_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_listen_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
           "default": "",
           "title": "Track Slug",
           "type": "string"
@@ -2480,6 +2514,77 @@
   {
     "inputSchema": {
       "properties": {
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Urls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "urls"
+      ],
+      "title": "open_song_pageArguments",
+      "type": "object"
+    },
+    "name": "open_song_page",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "open_song_pageOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "length_s": {
+          "default": 0.0,
+          "title": "Length S",
+          "type": "number"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "start_s": {
+          "default": 0.0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "play_audioArguments",
+      "type": "object"
+    },
+    "name": "play_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "play_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
@@ -3190,6 +3295,27 @@
         "result"
       ],
       "title": "searchOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "stop_audioArguments",
+      "type": "object"
+    },
+    "name": "stop_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "stop_audioOutput",
       "type": "object"
     }
   },

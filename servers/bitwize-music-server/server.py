@@ -432,6 +432,7 @@ from handlers import (
     ideas,
     lyrics_analysis,
     maintenance,
+    playback,
     processing,
     promo,
     rename,
@@ -453,6 +454,7 @@ lyrics_analysis.register(mcp)
 album_ops.register(mcp)
 gates.register(mcp)
 generation.register(mcp)
+playback.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
 status.register(mcp)
@@ -599,6 +601,14 @@ from handlers.maintenance import (  # noqa: F401
     cleanup_legacy_venvs,
     migrate_audio_layout,
     reset_mastering,
+)
+
+# Auditioning tools
+from handlers.playback import (  # noqa: F401
+    get_listen_plan,
+    open_song_page,
+    play_audio,
+    stop_audio,
 )
 
 # Processing tools
