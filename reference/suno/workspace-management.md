@@ -62,6 +62,6 @@ When an album is finished:
 ## Tips
 
 - **Thumbs up/down**: Use immediately during review
-  - Thumbs down moves clips to Trash (Library → Trash → Delete Permanently)
+  - Thumbs down on suno.com moves clips to Trash (Library → Trash → Delete Permanently). A dislike sent through the MCP server does not: the song stays in the library *(measured)*
   - Thumbs up marks keepers
 - **Track correspondence**: Track title in Suno should match track title in markdown file

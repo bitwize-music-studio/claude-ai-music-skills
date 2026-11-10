@@ -186,7 +186,7 @@ Approval is the user's call and is not part of generating. When they name the ke
 1. In the track file, change that Generation Log row's Rating from `—` to `✓`.
 2. `update_track_field(album_slug, track_slug, "suno-link", "<that take's URL>")`
 3. `update_track_field(album_slug, track_slug, "status", "Final")`
-4. If the listen plan's `like_keeper` is true and the take has a `clip_id`, call `audio-like(id: <clip_id>)` so the keeper shows as liked on suno.com. If a different take of this track carried the ✓ before, clear its like with `audio-unlike`. Never dislike a rejected take: on suno.com a thumbs-down moves the song to the Trash.
+4. If the listen plan's `like_keeper` is true and the take has a `clip_id`, call `audio-like(id: <clip_id>)` so the keeper shows as liked on suno.com. If a different take of this track carried the ✓ before, clear its like with `audio-unlike`. Never dislike a rejected take: a dislike is a rating only the user gives, it feeds Suno's taste profile, and it deletes nothing.
 5. Offer `/bitwize-music:import-audio --from-suno <album> <track>`. It is free for a take that was played in the terminal.
 
 When they reject both takes, add the reason to the Notes of those rows, then follow the Regeneration Workflow in CLAUDE.md: a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, and plain bad luck is another `/generate`.
