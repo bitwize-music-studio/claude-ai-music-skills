@@ -35,6 +35,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:suno-engineer` - Technical Suno prompting and genre selection
 - `/bitwize-music:generate` - Generate a track through Suno's MCP server (gates, cost, two takes, logging)
 - `/bitwize-music:listen` - Play takes or local audio in the terminal, or open the song page in the browser
+- `/bitwize-music:check-take` - Check takes against the track file with Suno's listening agent (free, advisory)
 - `/bitwize-music:genre-creator` - Add new genre documentation to the library
 
 **Research & Sources**

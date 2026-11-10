@@ -159,7 +159,7 @@ Pass on anything in `warnings` (for example, `afplay` cannot start mid-song).
 
 ## Step 7: After Listening
 
-When the user has heard the takes, ask which one to keep, or whether to regenerate. Do not recommend one.
+When the user has heard the takes, ask which one to keep, or whether to regenerate. Do not recommend one. If they wonder whether a take sang every line or hit the tempo, `/bitwize-music:check-take` asks Suno's listening agent for free.
 
 **They name a keeper:**
 

@@ -1094,6 +1094,58 @@
   {
     "inputSchema": {
       "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "answers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Answers",
+          "type": "array"
+        },
+        "clip_id": {
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "clip_id",
+        "answers"
+      ],
+      "title": "evaluate_take_checkArguments",
+      "type": "object"
+    },
+    "name": "evaluate_take_check",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "evaluate_take_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "include_raw_lines": {
           "default": true,
           "title": "Include Raw Lines",
@@ -1977,6 +2029,40 @@
         "result"
       ],
       "title": "get_suno_import_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_take_check_planArguments",
+      "type": "object"
+    },
+    "name": "get_take_check_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_take_check_planOutput",
       "type": "object"
     }
   },

@@ -40,7 +40,7 @@ Per-skill effort assignments:
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
 | `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
-| `low` | `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
+| `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
 | *(none)* | All 15 Haiku skills — effort unsupported |
 
 ---
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 33 skills)
+## Sonnet Skills (`model: sonnet`, 34 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -125,6 +125,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### album-ideas
 **Why Sonnet**: Brainstorming and organizing album concepts. Requires creativity to suggest ideas but follows a simple status workflow. Not generating final output - just capturing and organizing possibilities.
+
+### check-take
+**Why Sonnet**: Puts fixed questions to Suno's listening agent and relays the evaluation. Mechanical, but it must pace five questions at a time, pass answers on word for word, and report flags without ranking or picking a take — discipline Haiku is less reliable at.
 
 ### cloud-uploader
 **Why Sonnet**: Coordinates file uploads to R2/S3 with correct paths and metadata. Requires understanding the folder structure and naming conventions. Technical but not complex enough for Opus, not simple enough for Haiku.

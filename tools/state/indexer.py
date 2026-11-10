@@ -386,6 +386,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
         # Whether /bitwize-music:generate files each album's takes in a Suno workspace of its own
         'suno_workspaces': _cfg_bool(gen_config, 'suno_workspaces', True),
+        # Whether /bitwize-music:generate checks new takes with Suno's listening agent
+        'take_check': _cfg_bool(gen_config, 'take_check', True),
     }
 
     return {

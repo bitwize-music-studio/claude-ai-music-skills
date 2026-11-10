@@ -1,7 +1,7 @@
 ---
 name: generate
 description: Generates a track on Suno through Suno's official MCP server. Runs the pre-generation gates, shows the cost, waits for a go-ahead, makes two takes, logs them and hands off to listening. Use when the user says "generate track N", "regenerate", or is ready to make audio. Falls back to the clipboard flow when the Suno server is not connected.
-argument-hint: <album-name> <track-number-or-slug> [--no-listen]
+argument-hint: <album-name> <track-number-or-slug> [--no-listen] [--no-check]
 model: sonnet
 effort: medium
 prerequisites:
@@ -37,12 +37,12 @@ Setup, costs, the track-file mapping and the tool notes are in `${CLAUDE_PLUGIN_
 
 ## Step 1: Resolve the Track
 
-Expected format: `<album-name> <track-number-or-slug> [--no-listen]`
+Expected format: `<album-name> <track-number-or-slug> [--no-listen] [--no-check]`
 
 If arguments are missing, show:
 
 ```
-Usage: /generate <album-name> <track> [--no-listen]
+Usage: /generate <album-name> <track> [--no-listen] [--no-check]
 
 Example: /generate sample-album 03
 ```
@@ -176,6 +176,8 @@ Leave the workspace line out when none was used; drop the parenthesis when the w
 Then continue straight into `/bitwize-music:listen` for those two rows, in the way chosen in Step 5. If that was the terminal, the download credits were approved there — do not ask again.
 
 Skip the hand-off when the user passed `--no-listen` or answered "generate only".
+
+**Take check.** Once the takes are open, run `/bitwize-music:check-take <album> <track>` for those two rows and show its report. It asks Suno's listening agent whether each take sings the lyrics as written and matches the tempo, voice and exclusions; it is free and takes about a minute, so the user reads it while listening. Skip it when the user passed `--no-check` or its plan says `enabled: false` (`generation.take_check: false`). Then ask which take to keep. The report informs that choice; it never makes it.
 
 ## Approving a Take
 

@@ -463,6 +463,19 @@ generation:
   #
   # suno_workspaces: true
 
+  # ---------------------------
+  # take_check [optional]
+  # ---------------------------
+  # After /bitwize-music:generate makes two takes, ask Suno's listening agent
+  # whether each one sings the lyrics as written and matches the tempo, voice
+  # and exclusions, and show a short report while you listen. Free; takes
+  # about a minute; advisory only. Set to false to skip it; you can still run
+  # /bitwize-music:check-take yourself.
+  #
+  # Default (if omitted): true
+  #
+  # take_check: true
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]

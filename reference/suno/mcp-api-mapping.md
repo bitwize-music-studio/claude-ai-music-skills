@@ -53,6 +53,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | Downloading the stems of a song that has been downloaded | 0 | 0 *(measured)* |
 | Playing a file already on disk | 0 | 0 |
 | `workspaces-create`, `workspaces-update-clips`, `workspaces-list` | 0 *(measured)* | 0 *(measured)* |
+| `audio-listen` question, `audio-lyrics-alignment`, `audio-analysis` | 0 *(measured)* | 0 *(measured)* |
 
 A `duration` of 60 seconds cost the same 10 credits as an open-ended song.
 
@@ -106,7 +107,7 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - `audio-create` takes `workspace_id`; the two new songs are filed there at creation. `/bitwize-music:generate` gets the id from `get_album_workspace` (the album README's `suno_workspace` block) and creates the workspace, named after the album, the first time.
 - `workspaces-update-clips(id, add, remove)` files up to 50 songs per call and answers `skipped` for any it could not move; a song is in at most one workspace, so adding moves it. `workspaces-list(query)` finds a workspace by name. Nothing deletes or renames a workspace. See [workspace-management.md](workspace-management.md).
 
-**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-listen`, `audio-analysis`, playlists, `audio-settings`.
+**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`, playlists, `audio-settings`.
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -129,6 +130,25 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - A browser pane takes its page only from a profile's Initial URL — a URL given as the pane's command closes the pane at once. So `open_song_page` writes one small profile per take to `~/Library/Application Support/iTerm2/DynamicProfiles/bitwize-music-listen.json` and waits the second or so iTerm2 needs to load it. `close_song_panes` closes the panes and removes that file; so does the next listen.
 - There is one set of player panes per machine: listening from a second session closes the first session's panes.
 - The pane is iTerm2's own browser, with its own Suno sign-in. If a player says the song is not available, sign in to Suno in that pane once, or use `--browser`.
+
+---
+
+## Take Check
+
+`/bitwize-music:check-take` holds a take against its track file, and `/bitwize-music:generate` runs it on the two new takes while you listen. It reports; it never picks a take.
+
+- **How**: `get_take_check_plan` numbers the lyric lines and writes the questions; the skill puts them to Suno's listening agent (`audio-listen`, read with `audio-listen-wait`); `evaluate_take_check` reads the JSON block the agent ends its answer with. A question holds 2,000 characters, so long lyrics are split across questions; only the first asks about the sound.
+- **What it checks**: lyric lines not sung, sung with different words or hard to understand, with what was heard instead; tempo against the BPM in the Style Box (a tempo measured at double or half the one asked for counts as a match — a relaxed 96 BPM song is often measured at 190); the voice against Vocal Gender; Exclude Styles items that turn up among the instruments; problems the agent names; a clean ending; length against the track's Target Duration.
+- **Limits**: five unanswered questions at a time, 200 a day. An answer arrives in under a minute.
+- `generation.take_check: false` stops `/generate` from running it; the skill still runs on request.
+
+**Why the listening agent** *(measured on a 52-second test song)*:
+
+- `audio-lyrics-alignment` returned a transcript that left out the first two sung lines and stretched the third across their place, with every word marked `success` and `p_align: 1`. A local Whisper transcription of the same audio heard all four lines. A check built on alignment would have raised a false "two lines missing".
+- The agent placed all four lines correctly, noticed "Kettle" sounding like "Cattle" (the local transcription heard the same) and, on the other take, "all lined up" for "are lined up".
+- `audio-analysis` has the same tempo and key, but it returns every beat of the song — 164 entries for 52 seconds — which is too much to pass through a model for a check. It is the right tool for cutting video to the beat.
+
+The agent is not infallible: asked twice about one take, it agreed with itself on the changed line and differed on whether the chorus repeats. One of its answers closed its JSON block with a stray backtick; the evaluator reads that too. Treat a flag as a place to listen.
 
 ---
 

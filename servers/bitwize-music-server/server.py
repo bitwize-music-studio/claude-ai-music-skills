@@ -439,6 +439,7 @@ from handlers import (
     skills,
     status,
     streaming,
+    take_check,
     text_analysis,
 )
 
@@ -454,6 +455,7 @@ lyrics_analysis.register(mcp)
 album_ops.register(mcp)
 gates.register(mcp)
 generation.register(mcp)
+take_check.register(mcp)
 playback.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
@@ -679,6 +681,12 @@ from handlers.streaming import (  # noqa: F401
     get_streaming_urls,
     update_streaming_url,
     verify_streaming_urls,
+)
+
+# Take-check tools
+from handlers.take_check import (  # noqa: F401
+    evaluate_take_check,
+    get_take_check_plan,
 )
 
 # Text analysis tools
