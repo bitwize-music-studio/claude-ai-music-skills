@@ -39,7 +39,7 @@ Per-skill effort assignments:
 |--------|--------|
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
-| `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
+| `medium` | `album-art-director`, `album-ideas`, `edit-take`, `explicit-checker`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
 | `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
 | *(none)* | All 15 Haiku skills — effort unsupported |
 
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 34 skills)
+## Sonnet Skills (`model: sonnet`, 35 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -137,6 +137,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### document-hunter
 **Why Sonnet**: Automates searching public archives for documents. Requires judgment about search strategies and evaluating results. Technical automation with decision-making, not pure pattern matching.
+
+### edit-take
+**Why Sonnet**: Edits one take in place through Suno's MCP server. Like `generate` it spends credits, so it has to show the cost, wait for a go-ahead, send exactly what the tool built, and recover from a failed call without paying twice; it also has to notice when an edit is wide enough that Suno will re-sing the whole song.
 
 ### explicit-checker
 **Why Sonnet**: Scans lyrics for explicit content. Moved from Haiku because context matters - "ass" in "bass guitar" isn't explicit, "ass" alone might be. Needs judgment about artistic intent and platform standards.

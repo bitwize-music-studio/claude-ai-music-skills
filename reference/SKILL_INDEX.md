@@ -50,6 +50,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...hear a take, compare takes, or play a mix | `/listen` (opens the song page in the browser by default; `--iterm2` shows it beside the session; `--terminal` plays it here) |
 | ...know whether a take sang every line, hit the tempo or broke an exclusion | `/check-take` (asks Suno's listening agent; free and advisory) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
+| ...fix one word, line or section of a take I otherwise like | `/edit-take` (keeps the rest of the take's audio; 10 Suno credits for two edited takes) |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
@@ -123,6 +124,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`cloud-uploader`](/skills/cloud-uploader/SKILL.md) | Upload promo videos to Cloudflare R2 or AWS S3 | Hosting promo videos for social sharing |
 | [`configure`](/skills/configure/SKILL.md) | Set up or edit plugin configuration | First-time setup of ~/.bitwize-music/config.yaml |
 | [`document-hunter`](/skills/document-hunter/SKILL.md) | Automated browser-based document search from free archives | Finding court docs for true-story albums |
+| [`edit-take`](/skills/edit-take/SKILL.md) | Edit part of a Suno take in place through the MCP server | A good take with one flaw: a word, a line, a section, an instrument |
 | [`explicit-checker`](/skills/explicit-checker/SKILL.md) | Scan lyrics for explicit content, verify flags | Ensuring explicit flags match actual content |
 | [`generate`](/skills/generate/SKILL.md) | Generate a track through Suno's MCP server: gates, cost, go-ahead, two takes, logging | Making audio without leaving the terminal |
 | [`genre-creator`](/skills/genre-creator/SKILL.md) | Create new genre documentation with consistent structure | Adding a new genre to the genre library |
@@ -189,6 +191,7 @@ What to have ready before using each skill:
 | `/generate` | Pre-generation gates pass; Suno MCP server connected (otherwise it points to `/clipboard`) |
 | `/listen` | A generated take or local audio for the track; an audio player (`mpv` recommended) for terminal playback |
 | `/check-take` | A take generated through the Suno MCP server (it needs a clip id); Suno MCP server connected |
+| `/edit-take` | A take generated through the Suno MCP server; Suno MCP server connected; song credits |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
@@ -218,6 +221,7 @@ What to have ready before using each skill:
     -> /generate (per track — or generate on suno.com via /clipboard)
     -> /listen (hear the takes, pick the keeper)
     -> /check-take (runs with /generate: what each take sings and how it sounds, against the track file)
+    -> /edit-take (optional: fix one flaw in a take worth keeping, instead of re-rolling)
     -> /import-audio --from-suno (the keeper's WAV; --stems for stems)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
@@ -375,6 +379,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/cloud-uploader` - Cloud storage coordination
 - `/configure` - Interactive config setup
 - `/document-hunter` - Automated searching
+- `/edit-take` - Cost, go-ahead and logging for an in-place edit
 - `/explicit-checker` - Context-dependent content scanning
 - `/generate` - Suno generation through the MCP server
 - `/import-audio` - File imports, including WAV and stems from Suno

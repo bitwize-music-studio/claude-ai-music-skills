@@ -45,6 +45,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 |---|---|---|
 | `audio-create` — one call makes **two** songs | 10 *(measured)* | 0 |
 | `audio-create` with Max Mode | a multiple of that (2× on suno.com) | 0 |
+| `audio-create` editing a take (`reference_audio_ids`) — two edited takes | 10 *(measured)* | 0 |
 | `audio-stems-create`, `twelve` (two takes of 12 stems) | 50 *(measured)* | 0 |
 | `audio-stems-create`, `two` (vocals + instrumental) | 10 | 0 |
 | Listen on the song's suno.com page | 0 | 0 |
@@ -118,7 +119,7 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - `playlists-create` answers `{id, name, playlist_url, visibility, clip_count}`. `playlists-add-clips` takes 100 ids per call and keeps the order given *(measured)*; re-adding is the only way to reorder. Visibility is fixed at creation; no tool renames or deletes a playlist.
 - `audio-settings(visibility: "public")` publishes a song. The plugin calls it only when the user asks to publish, one confirmed list at a time; Suno allows 100 publishes a day.
 
-**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`.
+**Not used by the plugin yet**: covers, extensions, mashups, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering, pulling a stem).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -141,6 +142,18 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - A browser pane takes its page only from a profile's Initial URL — a URL given as the pane's command closes the pane at once. So `open_song_page` writes one small profile per take to `~/Library/Application Support/iTerm2/DynamicProfiles/bitwize-music-listen.json` and waits the second or so iTerm2 needs to load it. `close_song_panes` closes the panes and removes that file; so does the next listen.
 - There is one set of player panes per machine: listening from a second session closes the first session's panes.
 - The pane is iTerm2's own browser, with its own Suno sign-in. If a player says the song is not available, sign in to Suno in that pane once, or use `--browser`.
+
+---
+
+## Editing a Take
+
+`/bitwize-music:edit-take` changes part of a take and keeps the rest: a word or a line, a cut or added line, a redone time range, an instrument added or dropped. It is the cheap fix for a take that is nearly right.
+
+- **The call**: `audio-create` with the take in `reference_audio_ids`, a `description` that names the song by title ("In Paper Boats, change "…" to "…"."), and optionally `model` and `workspace_id`. `get_edit_request` builds it. Nothing else may go along: `duration`, `instrumental` and `vocal_gender` make Suno regenerate the whole song, `lyrics` and `style` are refused next to a `description`, and an id or link in the description is not allowed.
+- **Two ways to say what changes**: the user's words, or the difference between the lyrics the take was made with (`audio-retrieve` → `metadata.lyrics`) and the track's Lyrics Box now — the way a pronunciation or wording fix made in the track file reaches a take.
+- **More than five changed places** and Suno re-sings the whole song as a cover. The tool warns; regenerate instead.
+
+*Measured, one word changed in a 55-second take:* one call made **two** edited takes for **10 song credits** in under a minute. Both kept the source's title and its length to the hundredth of a second, came back with `metadata.lyrics` updated and `metadata.description` holding the instruction, and were filed in the `workspace_id` given. The listening agent heard the new word in both; one of them also kept a quirk of the source take ("all lined up" for "are lined up"), which is what keeping the audio means.
 
 ---
 

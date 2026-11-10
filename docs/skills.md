@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 56 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 57 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 
@@ -15,6 +15,7 @@ All 56 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `generate` | Generate a track through Suno's MCP server — gates, cost, two takes, logging |
 | `listen` | Play takes or local audio in the terminal, or open the song page in the browser |
 | `check-take` | Check takes against the track file with Suno's listening agent — lyrics sung, tempo, voice, problems |
+| `edit-take` | Fix one thing in a take (a word, a line, a section, an instrument) and keep the rest of its audio |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
 | `album-art-director` | Album artwork concepts and multi-platform AI art prompts |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |

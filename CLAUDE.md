@@ -65,7 +65,7 @@ The `bitwize-music-mcp` server is the **preferred way to query project state**. 
 
 ### Suno MCP Server (optional)
 
-Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
+Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
 
 - **Never spend Suno credits without a go-ahead.** Generating, splitting stems, and a download that answers `requires_credit` each need the user's yes first, with the cost stated. Reading the library and the account is free.
 - **Never pick a take, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens first.
@@ -164,6 +164,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Generating a track** → `/bitwize-music:generate` (runs the gates, shows the cost, generates through the Suno MCP server and logs the takes; without the server it points to `/bitwize-music:clipboard`)
 - **Hearing a take or a mix** → `/bitwize-music:listen` (opens a take's song page in the browser by default, which is free; `--iterm2` shows it in a pane beside the session, also free; `--terminal` plays it here for one download credit; local mixes always play here)
+- **Fixing one thing in a take** → `/bitwize-music:edit-take` (changes a word, a line, a section or an instrument and keeps the rest of the take's audio; 10 Suno credits for two edited takes, after a go-ahead)
 - **Checking a take against the track file** → `/bitwize-music:check-take` (asks Suno's listening agent which lines are sung, the tempo, the voice; free and advisory, and `/bitwize-music:generate` runs it on new takes)
 - **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems)
 - **Research needed** → apply `/bitwize-music:researcher` standards
@@ -236,6 +237,7 @@ When a user rejects a generated track (doesn't like the result, wrong style, pro
    - **Style issue** (wrong genre, tempo, mood) → Revise Style Box via `/bitwize-music:suno-engineer`, then regenerate
    - **Lyrics issue** (wrong words, pronunciation) → Fix lyrics via `/bitwize-music:lyric-writer`, re-run `/bitwize-music:pronunciation-specialist`, then regenerate
    - **Suno interpretation** (right prompt, wrong result) → Regenerate with the same settings (Suno is non-deterministic)
+   - **One flaw in a take worth keeping** (a wrong or mispronounced word, a weak section, an unwanted instrument) → `/bitwize-music:edit-take` changes that part and keeps the rest of the take. Past five changed places Suno re-sings the whole song, so regenerate instead
 3. **Regenerate**: `/bitwize-music:generate` again — it logs the new takes itself. On suno.com instead, generate and log the new attempt by hand
 4. **When satisfied**: Mark the keeper with ✓ in the Generation Log Rating column, then advance Status to `Final`
 

@@ -491,6 +491,7 @@ from handlers import (
     streaming,
     suno_release,
     take_check,
+    take_edit,
     text_analysis,
 )
 
@@ -507,6 +508,7 @@ album_ops.register(mcp)
 gates.register(mcp)
 generation.register(mcp)
 take_check.register(mcp)
+take_edit.register(mcp)
 suno_release.register(mcp)
 playback.register(mcp)
 streaming.register(mcp)
@@ -744,6 +746,7 @@ from handlers.take_check import (  # noqa: F401
     evaluate_take_check,
     get_take_check_plan,
 )
+from handlers.take_edit import get_edit_request  # noqa: F401
 
 # Text analysis tools
 from handlers.text_analysis import (  # noqa: F401
