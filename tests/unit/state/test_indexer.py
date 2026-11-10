@@ -4666,21 +4666,26 @@ class TestBuildConfigSectionListen:
         return build_config_section(config)['generation']
 
     def test_defaults(self, monkeypatch):
+        """The browser is the default: listening on the song page is free."""
         gen = self._generation({}, monkeypatch)
-        assert gen['listen_mode'] == 'terminal'
+        assert gen['listen_mode'] == 'browser'
         assert gen['listen_confirm_download'] is True
 
-    def test_browser_mode_and_standing_approval(self, monkeypatch):
+    def test_terminal_mode_and_standing_approval(self, monkeypatch):
         gen = self._generation(
-            {'listen_mode': 'Browser', 'listen_confirm_download': 'false'}, monkeypatch)
-        assert gen['listen_mode'] == 'browser'
+            {'listen_mode': 'Terminal', 'listen_confirm_download': 'false'}, monkeypatch)
+        assert gen['listen_mode'] == 'terminal'
         assert gen['listen_confirm_download'] is False
 
-    def test_unknown_mode_falls_back_to_terminal(self, monkeypatch, caplog):
+    def test_explicit_browser_mode(self, monkeypatch):
+        gen = self._generation({'listen_mode': 'browser'}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'
+
+    def test_unknown_mode_falls_back_to_browser(self, monkeypatch, caplog):
         gen = self._generation({'listen_mode': 'speakers'}, monkeypatch)
-        assert gen['listen_mode'] == 'terminal'
+        assert gen['listen_mode'] == 'browser'
         assert 'listen_mode' in caplog.text
 
-    def test_non_string_mode_falls_back_to_terminal(self, monkeypatch):
+    def test_non_string_mode_falls_back_to_browser(self, monkeypatch):
         gen = self._generation({'listen_mode': 3}, monkeypatch)
-        assert gen['listen_mode'] == 'terminal'
+        assert gen['listen_mode'] == 'browser'

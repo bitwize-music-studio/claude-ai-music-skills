@@ -163,7 +163,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Planning album** → apply `/bitwize-music:album-conceptualizer` (7 planning phases required)
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
 - **Generating a track** → `/bitwize-music:generate` (runs the gates, shows the cost, generates through the Suno MCP server and logs the takes; without the server it points to `/bitwize-music:clipboard`)
-- **Hearing a take or a mix** → `/bitwize-music:listen` (terminal by default; `--browser` opens the song page)
+- **Hearing a take or a mix** → `/bitwize-music:listen` (opens a take's song page in the browser by default, which is free; `--terminal` plays it here for one download credit; local mixes always play here)
 - **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems)
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise

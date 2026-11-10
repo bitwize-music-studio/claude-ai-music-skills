@@ -76,7 +76,8 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
             default: {"kind": "takes", "rows": [...]} for takes awaiting a
                 decision (the newest two), {"kind": "local", "stage", "path"} for
                 an approved track's newest file, or {"kind": "none"}
-            mode: "terminal" or "browser" (config generation.listen_mode)
+            mode: "browser" (the default — the song page is free) or "terminal"
+                (config generation.listen_mode)
             confirm_download: whether to ask before a terminal audition spends a
                 Suno download credit (config generation.listen_confirm_download)
             player: the installed audio player, or null
@@ -140,7 +141,7 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
         "takes": takes,
         "local": local,
         "default": default,
-        "mode": generation.get("listen_mode", "terminal"),
+        "mode": generation.get("listen_mode", "browser"),
         "confirm_download": generation.get("listen_confirm_download", True),
         "player": _player.find_player(),
     })

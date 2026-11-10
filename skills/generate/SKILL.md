@@ -96,10 +96,10 @@ READY TO GENERATE — [NN] [Title]  ([album])
   Dropped    vocal_gender — your plan lacks advanced controls
 
   Cost       about 10 song credits (20 with Max Mode). You have 9,935.
-  Then       play both takes here: 2 download credits. You have 66.
-             (Opening them in the browser instead is free.)
+  Then       open both takes in your browser (free).
+             (Playing them here instead uses 2 download credits. You have 66.)
 
-Go ahead?   yes · generate only · browser instead · without Max Mode · cancel
+Go ahead?   yes · generate only · play here instead · without Max Mode · cancel
 ```
 
 Rules for the summary:
@@ -108,10 +108,11 @@ Rules for the summary:
 - **Max Mode** appears only when the request holds `max_mode: true`. Suno asks that Max Mode be turned on only at the user's request, so the user's yes to a summary that names it *is* that request. If they answer "without Max Mode", remove `max_mode` and proceed.
 - **Then** follows the listen plan:
   - `--no-listen` → leave the line out.
-  - `mode` is `browser` → "open both takes in your browser (free)".
+  - `mode` is `browser` (the default) → the browser line above. Drop the "playing them here" note, and the "play here instead" answer, when `player` is null or fewer than 2 download credits are left.
+  - `mode` is `terminal` → "play both takes here: 2 download credits. You have N. (Opening them in the browser instead is free.)", with "browser instead" among the answers.
   - `mode` is `terminal` but `player` is null → "open both takes in your browser (free) — no audio player is installed; install mpv to play here".
   - `mode` is `terminal` and fewer than 2 download credits are left → "open both takes in your browser (free) — you have N download credits left".
-  - Otherwise the terminal line above.
+- A yes covers exactly what the **Then** line says. Terminal playback spends download credits only when the summary said so or the user answered "play here instead".
 - Wait for an explicit answer. Silence is not a yes.
 
 ## Step 6: Generate
@@ -154,7 +155,7 @@ GENERATED — [NN] [Title]
   Spent 10 song credits. 9,925 left.
 ```
 
-Then continue straight into `/bitwize-music:listen` for those two rows, in the way chosen in Step 5. The download credits were approved there — do not ask again.
+Then continue straight into `/bitwize-music:listen` for those two rows, in the way chosen in Step 5. If that was the terminal, the download credits were approved there — do not ask again.
 
 Skip the hand-off when the user passed `--no-listen` or answered "generate only".
 

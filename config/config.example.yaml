@@ -404,23 +404,25 @@ generation:
   # ---------------------------
   # How /bitwize-music:listen auditions Suno takes by default.
   #
-  # Default (if omitted): terminal
+  # Default (if omitted): browser
   #
   # Options:
+  #   browser  - Open the song's suno.com page. Free and unlimited.
   #   terminal - Play the take in the terminal. Suno offers no free audio feed
   #              for this, so the first play of a song downloads it and uses
   #              one Suno download credit. Later plays, and the WAV import of
   #              that song, are free.
-  #   browser  - Open the song's suno.com page. Free and unlimited.
   #
-  # Either can be chosen per run: /bitwize-music:listen <album> <track> --browser
+  # Either can be chosen per run: /bitwize-music:listen <album> <track> --terminal
   #
-  # listen_mode: terminal
+  # listen_mode: browser
 
   # ---------------------------
   # listen_confirm_download [optional]
   # ---------------------------
   # Whether to ask before a terminal audition spends a download credit.
+  # Only matters when takes are played in the terminal (listen_mode: terminal,
+  # or --terminal on a single run).
   #
   # Default (if omitted): true
   #

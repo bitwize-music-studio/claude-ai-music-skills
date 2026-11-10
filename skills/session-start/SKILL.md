@@ -162,7 +162,7 @@ Also show one random general tip (rotate through these):
 - "The researcher skill coordinates 10 specialized sub-skills for deep research"
 - "Check pronunciation before generating — Suno can't infer from context"
 - "Use `/bitwize-music:clipboard` to copy lyrics/prompts for Suno"
-- "With Suno's MCP server connected, `/bitwize-music:generate` makes the track and `/bitwize-music:listen` plays the takes — no trip to suno.com"
+- "With Suno's MCP server connected, `/bitwize-music:generate` makes the track from here and `/bitwize-music:listen` opens the takes for you"
 - "Master your audio with `/bitwize-music:mastering-engineer` for professional results"
 
 ## Step 8: Ask

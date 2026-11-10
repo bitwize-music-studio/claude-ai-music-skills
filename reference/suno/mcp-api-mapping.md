@@ -53,7 +53,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 
 A `duration` of 60 seconds cost the same 10 credits as an open-ended song.
 
-A terminal audition **is** a download. The take you keep costs one download credit either way; each rejected take you play in the terminal costs one more. The browser is free.
+A terminal audition **is** a download. The take you keep costs one download credit either way; each rejected take you play in the terminal costs one more. The browser is free, which is why it is the default.
 
 ---
 
@@ -107,11 +107,11 @@ A terminal audition **is** a download. The take you keep costs one download cred
 
 ## Listening
 
-`/bitwize-music:listen` plays takes in the terminal by default and opens the song page with `--browser`.
+`/bitwize-music:listen` opens a take's song page in your browser by default, because that is free. `--terminal` plays the take through your speakers instead.
 
 - Terminal copies are saved as `~/.bitwize-music/cache/takes/<clip_id>.mp3` and replayed from there at no cost. The folder is a cache and safe to delete.
 - Playback needs `mpv` (recommended — it can start mid-song), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`.
-- `generation.listen_mode` sets the default (`terminal` or `browser`); `generation.listen_confirm_download: false` stops the question before a download credit is spent. See [config/README.md](../../config/README.md).
+- `generation.listen_mode` sets the default (`browser` or `terminal`); `generation.listen_confirm_download: false` stops the question before a download credit is spent. See [config/README.md](../../config/README.md).
 
 ---
 

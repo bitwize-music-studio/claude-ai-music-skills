@@ -66,7 +66,7 @@ class TestGetListenPlan:
         assert plan["found"] is True
         assert plan["track_slug"] == "01-first-track"
         assert plan["title"] == "First Track"
-        assert plan["mode"] == "terminal"
+        assert plan["mode"] == "browser"
         assert plan["confirm_download"] is True
         assert plan["player"] == "mpv"
         assert plan["default"] == {"kind": "takes", "rows": [1, 2]}
@@ -152,10 +152,10 @@ class TestGetListenPlan:
 
     def test_config_overrides(self, album):  # noqa: F811
         album.state["config"]["generation"] = {
-            "listen_mode": "browser", "listen_confirm_download": False,
+            "listen_mode": "terminal", "listen_confirm_download": False,
         }
         plan = _listen_plan()
-        assert plan["mode"] == "browser"
+        assert plan["mode"] == "terminal"
         assert plan["confirm_download"] is False
 
     def test_no_player_installed(self, album, monkeypatch):  # noqa: F811

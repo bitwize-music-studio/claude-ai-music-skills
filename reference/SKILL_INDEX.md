@@ -47,7 +47,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...create Suno prompts and settings | `/suno-engineer` |
 | ...create a Style Box for an instrumental track | `/suno-engineer` (entry point for instrumental tracks — skips lyric-writer) |
 | ...generate a track without leaving the terminal | `/generate` (needs the Suno MCP server; falls back to `/clipboard`) |
-| ...hear a take, compare takes, or play a mix | `/listen` (terminal by default; `--browser` opens the song page) |
+| ...hear a take, compare takes, or play a mix | `/listen` (opens the song page in the browser by default; `--terminal` plays it here) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |

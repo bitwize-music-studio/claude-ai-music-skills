@@ -94,8 +94,8 @@ Yes — with Suno's official MCP server, which arrived in beta in October 2026.
 Connect it once (`claude mcp add --transport http suno https://api.suno.com/mcp`,
 then `/mcp` to sign in) and `/bitwize-music:generate` runs the pre-generation
 gates, shows what it will cost, generates on your own Suno account and logs
-the takes. `/bitwize-music:listen` plays them in the terminal or opens them in
-your browser, and `/bitwize-music:import-audio --from-suno` pulls the keeper's
+the takes. `/bitwize-music:listen` opens them in your browser or plays them in
+the terminal, and `/bitwize-music:import-audio --from-suno` pulls the keeper's
 WAV and stems into the album. Without the server, the clipboard flow works as
 it always has. Setup, costs and the fine print are in
 [reference/suno/mcp-api-mapping.md](reference/suno/mcp-api-mapping.md).

@@ -379,7 +379,7 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
         # How /bitwize-music:listen auditions Suno takes (reference/suno/mcp-api-mapping.md)
-        'listen_mode': _cfg_choice(gen_config, 'listen_mode', ('terminal', 'browser'), 'terminal'),
+        'listen_mode': _cfg_choice(gen_config, 'listen_mode', ('browser', 'terminal'), 'browser'),
         'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
     }
 

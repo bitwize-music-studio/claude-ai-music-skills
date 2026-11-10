@@ -1,6 +1,6 @@
 ---
 name: listen
-description: Plays a track's Suno takes or local audio in the terminal, or opens the song page in the browser. Use when the user wants to hear a take, compare takes, audition a generation, or says "play it" or "let me hear it". Playing a new Suno take in the terminal uses one download credit; the browser is free.
+description: Opens a track's Suno takes in the browser, or plays takes and local audio in the terminal. Use when the user wants to hear a take, compare takes, audition a generation, or says "play it" or "let me hear it". Opening the song page is the default and is free; playing a new Suno take in the terminal uses one download credit.
 argument-hint: <album-name> <track> [take N | all] [--browser | --terminal] [--from m:ss] [--stage original|polished|mastered]
 model: sonnet
 effort: medium
@@ -16,7 +16,7 @@ allowed-tools:
 
 **Input**: $ARGUMENTS
 
-Let the user hear a track: play its Suno takes or its local audio through the computer's speakers, or open the takes in the browser. Then ask which take they want to keep.
+Let the user hear a track: open its Suno takes in the browser, or play takes and local audio through the computer's speakers. Then ask which take they want to keep.
 
 You never choose a take. Audio never passes through you — you start a player and report what is playing.
 
@@ -24,7 +24,7 @@ You never choose a take. Audio never passes through you — you start a player a
 
 # Listen Skill
 
-The terminal is the default. The browser is the alternative the user can ask for, and the fallback when the terminal cannot be used.
+For Suno takes the browser is the default, because listening on the song page is free. The terminal is what the user can ask for — `--terminal` on one run, or `generation.listen_mode: terminal` in their config — and it falls back to the browser whenever it cannot be used. Local files always play in the terminal.
 
 ## What Listening Costs
 
@@ -54,7 +54,7 @@ Call `get_listen_plan(album_slug, track_slug)`.
   - `kind: "none"` → "Nothing to play yet — generate the track first with `/bitwize-music:generate`." Stop.
 
 **How**
-- `--browser` or `--terminal` wins; otherwise use `mode` from the plan.
+- `--browser` or `--terminal` wins; otherwise use `mode` from the plan (`browser` unless the user's config says `terminal`).
 - Local files always play in the terminal.
 - A take whose `clip_id` is null is a share link from before MCP generation: it can only be opened in the browser.
 - Terminal mode with `player: null` → say no audio player is installed (`brew install mpv`, or see the reference doc), then use the browser for takes.
@@ -171,7 +171,7 @@ Nothing to play for [track] yet. Generate it first: /bitwize-music:generate [alb
 
 ## Remember
 
-1. **Terminal first, browser on request** — and the browser is the fallback whenever the terminal cannot be used.
+1. **Browser first for takes, terminal on request** — and the terminal falls back to the browser whenever it cannot be used.
 2. **One credit question per batch.** Never send `confirm: true` without a yes, a go-ahead from `/generate`, or `confirm_download: false`.
 3. **A cached take replays free** — no Suno call, no question.
 4. **Space out download calls** by about two seconds; Suno refuses bursts.
