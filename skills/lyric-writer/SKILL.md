@@ -79,10 +79,10 @@ Report any violations found. Don't wait to be asked.
 
 **Start with the tool.** `check_album_lyrics(album_slug, track_slug)` runs the mechanical half of this list in one call. It reads the Lyrics Box itself, for one track or (with `track_slug` left empty) the whole album, and returns only what is wrong:
 
-- a word that ends two lines of the same section (check 1)
+- a word that ends two different lines of the same section (check 1)
 - homographs (part of check 3a)
 - an empty verse or chorus, lopsided verses, doubled tags (part of check 6)
-- sections whose lines swing widely in syllable count (part of check 7)
+- a verse line far longer or shorter than the rest of its verse (part of check 7)
 - explicit words on a track that is not flagged explicit
 
 For word count, `get_lyrics_stats` applies the Target Duration lookup in check 8 and says which target it used.
@@ -92,7 +92,7 @@ Everything else on the list is yours to judge by reading: prosody, POV and tense
 - **A homograph is a question, not a fix.** When the tool lists one, ask the user which pronunciation is meant.
 - **The rhyme scheme is matched by spelling.** The scheme `check_album_lyrics` shows with `verbose` misses rhymes that are spelled differently (signed/mind) and pairs words that only look alike (love/move). Check a scheme by ear before calling it wrong.
 
-Write section tags for Suno, not for the checker. A chorus keeps the same tag every time it repeats, and an instrumental `[Intro]`, `[Break]` or `[End]` stays empty; neither is reported.
+Write section tags for Suno, not for the checker. A chorus keeps the same tag every time it repeats, a hook line can repeat inside its chorus, and an instrumental `[Intro]`, `[Break]`, `[Bridge]` or `[End]` stays empty; none of that is reported.
 
 ### Iterative Refinement Passes
 

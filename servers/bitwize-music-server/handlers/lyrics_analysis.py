@@ -143,10 +143,14 @@ _SECTION_TYPE_RE = re.compile(
 # The dash needs spaces round it, so "Pre-Chorus" stays one name.
 _SECTION_CUE_SPLIT_RE = re.compile(r"\s+[-\u2013\u2014]\s+|[:|(]")
 
-# Sections with nothing sung in them. Suno sings whatever is written under a
-# tag, so these are left empty on purpose and an empty one is not a mistake.
-_INSTRUMENTAL_SECTION_TYPES = frozenset({
-    "intro", "outro", "interlude", "instrumental", "solo", "break", "drop", "fade", "end",
+# Sections that are sung. Suno improvises words for one left blank, so an empty
+# one is reported. Everything else may be empty, because Suno sings whatever is
+# written under a tag: an instrumental passage or an ending has to be left
+# empty, and a tag that names no section at all ("[Crash]", "[Main Theme]") is
+# a direction. A bridge is deliberately not in this list. It is as often played
+# as sung, and "[Bridge - 8 bars]" is how that is written.
+_MUST_HAVE_LYRICS = frozenset({
+    "verse", "chorus", "pre-chorus", "post-chorus", "hook", "refrain",
 })
 _INSTRUMENTAL_WORD_RE = re.compile(r"\binstrumental\b")
 
@@ -156,25 +160,31 @@ def _section_name(tag_text: str) -> str:
     return _SECTION_CUE_SPLIT_RE.split(tag_text, maxsplit=1)[0].strip()
 
 
-def _section_type(tag_text: str) -> str:
-    """Type of the section a tag names; ``"verse"`` when it names none we know.
+def _named_section_type(tag_text: str) -> str | None:
+    """Type of the section a tag names, or None when it names none we know.
 
     *tag_text* is the text inside the brackets. Only its name is read, so a cue
     cannot change the type: ``Outro - chorus reprise`` is an outro.
     """
     words = _SECTION_TYPE_RE.findall(_section_name(tag_text).lower())
-    return _SECTION_TYPE_WORDS[words[-1]] if words else "verse"
+    return _SECTION_TYPE_WORDS[words[-1]] if words else None
 
 
-def _may_be_empty(tag_text: str, section_type: str) -> bool:
-    """True for a section that is instrumental by design when left empty.
+def _section_type(tag_text: str) -> str:
+    """Like ``_named_section_type``, with ``"verse"`` for a tag that names none."""
+    return _named_section_type(tag_text) or "verse"
 
-    Covers the instrumental and ending types, and any section the name itself
-    calls instrumental, such as ``[Instrumental Chorus]``.
+
+def _may_be_empty(tag_text: str) -> bool:
+    """True for a tag that is allowed to have nothing under it.
+
+    Only a section named as sung has to carry lyrics. A sung section is also
+    let off when the tag itself says "instrumental", in its name or in its cue:
+    ``[Instrumental Chorus]``, ``[Chorus - instrumental, no vocals]``.
     """
-    if section_type in _INSTRUMENTAL_SECTION_TYPES:
+    if _named_section_type(tag_text) not in _MUST_HAVE_LYRICS:
         return True
-    return bool(_INSTRUMENTAL_WORD_RE.search(_section_name(tag_text).lower()))
+    return bool(_INSTRUMENTAL_WORD_RE.search(tag_text.lower()))
 
 
 def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
@@ -719,9 +729,10 @@ async def analyze_rhyme_scheme(text: str) -> str:
     """Analyze rhyme scheme of lyrics with section awareness.
 
     Parses by section, extracts end words, builds rhyme groups (A/B/C letters),
-    and detects self-rhymes: a word used to end more than one line of the same
-    section. Every tag starts a section of its own, so a chorus that is sung
-    twice is analysed twice and is not a self-rhyme.
+    and detects self-rhymes: a word used to end two different lines of the same
+    section. Repetition is not a self-rhyme. Every tag starts a section of its
+    own, so a chorus sung twice is analysed twice, and a line repeated inside a
+    section (a refrain) counts once.
 
     The scheme is APPROXIMATE. Rhymes are matched by spelling, so pairs that
     rhyme but are spelled differently (signed/mind, four/more) get different
@@ -788,6 +799,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
 
         # Extract end words
         end_words = []
+        line_text: dict[int, str] = {}  # line number -> its words, for telling repeats apart
         for entry in entries:
             if entry["words"]:
                 end_words.append({
@@ -795,6 +807,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
                     "end_word": entry["words"][-1],
                     "rhyme_tail": _get_rhyme_tail(entry["words"][-1]),
                 })
+                line_text[entry["line_number"]] = " ".join(entry["words"])
 
         # Build rhyme groups
         rhyme_labels: dict[str, str] = {}  # rhyme_tail -> label letter
@@ -832,7 +845,10 @@ async def analyze_rhyme_scheme(text: str) -> str:
         # Detect issues within this section
         section_issues = []
 
-        # Self-rhymes: same word used as end word in multiple lines
+        # Self-rhymes: the same word ending two DIFFERENT lines. A line that is
+        # simply sung again is a refrain, which is how hooks are written; it is
+        # compared on its words, so case, punctuation and the parentheses round
+        # a backing vocal do not make it a new line.
         word_lines: dict[str, list[int]] = {}
         for ld in lines_data:
             w = ld["end_word"].lower()
@@ -841,7 +857,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
             word_lines[w].append(ld["line_number"])
 
         for w, lnums in word_lines.items():
-            if len(lnums) > 1:
+            if len({line_text[n] for n in lnums}) > 1:
                 issue = {
                     "type": "self_rhyme",
                     "section": sec_name,
@@ -888,13 +904,16 @@ async def validate_section_structure(text: str) -> str:
     "[Outro - chorus reprise]" is an outro. Known types: verse, chorus, hook,
     refrain, pre-chorus, post-chorus, bridge, intro, outro, interlude,
     instrumental, solo, break, drop, fade, end. A tag that names none of them
-    is treated as a verse.
+    ("[Spoken]", "[Male lead]") is given the type verse, but only sections
+    named as verses are compared with each other for balance.
 
-    Instrumental and ending sections (intro, outro, interlude, instrumental,
-    solo, break, drop, fade, end, or any tag whose name says "instrumental")
-    are meant to be empty, because Suno sings whatever is written under a tag;
-    an empty one is not reported. An empty verse, chorus, bridge or other sung
-    section is. Empty sections are left out of the verse balance.
+    An empty section is reported only when it is named as sung: a verse,
+    chorus, pre-chorus, post-chorus, hook or refrain, for which Suno improvises
+    words. Everything else may be empty, because Suno sings whatever is written
+    under a tag: instrumental and ending sections, a bridge (as often played as
+    sung), a sung section whose tag says "instrumental", and tags that name no
+    section at all ("[Crash]", "[Main Theme]"), which are directions. Empty
+    sections are left out of the verse balance.
 
     Args:
         text: Lyrics text to validate (with [Section] tags)
@@ -930,12 +949,13 @@ async def validate_section_structure(text: str) -> str:
     current_tag_line = 0
     content_line_count = 0
     prev_tag = None
+    named_verses: list[dict[str, Any]] = []
 
     def close_section(tag: str, tag_line: int, line_count: int) -> None:
         """Record a finished section, and report it if it is empty by mistake."""
         tag_name = tag[1:-1].strip()
         section_type = _section_type(tag_name)
-        if line_count == 0 and not _may_be_empty(tag_name, section_type):
+        if line_count == 0 and not _may_be_empty(tag_name):
             issues.append({
                 "type": "empty_section",
                 "tag": tag,
@@ -948,6 +968,11 @@ async def validate_section_structure(text: str) -> str:
             "content_lines": line_count,
             "section_type": section_type,
         })
+        # Only a section NAMED a verse is measured against the other verses.
+        # A tag that names no section ("[Spoken]", "[Male lead]", "[Build]")
+        # still gets the type "verse", but one line under it is not a short verse.
+        if line_count > 0 and _named_section_type(tag_name) == "verse":
+            named_verses.append(sections[-1])
 
     lines = text.split("\n")
 
@@ -1018,12 +1043,10 @@ async def validate_section_structure(text: str) -> str:
             "severity": "info",
         })
 
-    # Check section balance — compare verse lengths. An empty section is
-    # either instrumental or already reported as empty; counting it as a
-    # zero-line verse would report the same thing a second time.
-    verse_sections = [
-        s for s in sections if s["section_type"] == "verse" and s["content_lines"] > 0
-    ]
+    # Check section balance — compare the lengths of the named verses. An
+    # empty one is left out: it is already reported as empty, and counting it
+    # as a zero-line verse would report the same thing a second time.
+    verse_sections = named_verses
     section_balance = "BALANCED"
     if len(verse_sections) >= 2:
         lengths = [s["content_lines"] for s in verse_sections]
@@ -1057,15 +1080,18 @@ async def validate_section_structure(text: str) -> str:
 # Every lyric check, across an album
 # =============================================================================
 
-# A section's lines are "uneven" past the same spread count_syllables uses for
-# a whole song. Two-line sections are left alone: a short answer to a long call
-# is a choice, not a slip.
-_SYLLABLE_SPREAD_LIMIT = 3
-_MIN_LINES_FOR_SPREAD = 3
+# Line-length tolerance in syllables, from the Line Length table in
+# skills/lyric-writer/craft-reference.md: two for most genres, three for
+# hip-hop. Metal and electronic are "flexible" there and get the looser figure.
+_LOOSE_LINE_GENRES = frozenset({"hip-hop", "rap", "electronic", "edm", "synthwave"})
+# A verse needs this many lines before one of them can be the odd one out.
+_MIN_LINES_FOR_OUTLIERS = 3
 
 _INSTRUMENTAL_FRONTMATTER_RE = re.compile(r"(?mi)^instrumental:\s*true\b")
 
-_LYRIC_CHECKS = ("syllables", "rhyme", "structure", "homographs", "explicit", "readability")
+# The checks whose results count as findings. Readability is reported in
+# verbose only: dense vocabulary is a property of the writing, not a mistake.
+_LYRIC_CHECKS = ("syllables", "rhyme", "structure", "homographs", "explicit")
 
 
 def _is_instrumental_track(track_text: str) -> bool:
@@ -1078,43 +1104,44 @@ def _is_instrumental_track(track_text: str) -> bool:
     return cell in ("yes", "true")
 
 
-def _uneven_sections(syllables: dict[str, Any]) -> list[dict[str, Any]]:
-    """Sections whose lines swing widely in length, from count_syllables output.
+def _line_tolerance(genre: str) -> int:
+    """Syllables a line may differ by in *genre*, per the craft reference."""
+    genre = genre.lower()
+    return 3 if genre in _LOOSE_LINE_GENRES or "metal" in genre else 2
 
-    A section repeated word for word (a chorus) is reported once.
+
+def _syllable_outliers(syllables: dict[str, Any], tolerance: int) -> list[dict[str, Any]]:
+    """Verse lines far longer or shorter than the rest of their verse.
+
+    Works from count_syllables output. A line is reported when it sits more
+    than twice the genre's tolerance from its verse's median. Only verses are
+    measured: the craft reference asks for consistency within verses, and
+    choruses and outros vary by design. Looser rules (the whole-song verdict,
+    or any uneven section) fired on four tracks in ten of a real catalogue.
     """
-    uneven: list[dict[str, Any]] = []
-    seen: set[tuple[str, tuple[str, ...]]] = set()
+    outliers: list[dict[str, Any]] = []
     for section in syllables.get("sections", []):
+        if _named_section_type(section["section"]) != "verse":
+            continue
         lines = section["lines"]
-        counts = [line["syllable_count"] for line in lines]
-        if len(counts) < _MIN_LINES_FOR_SPREAD:
+        if len(lines) < _MIN_LINES_FOR_OUTLIERS:
             continue
-        if statistics.stdev(counts) <= _SYLLABLE_SPREAD_LIMIT:
-            continue
-        key = (section["section"], tuple(line["text"] for line in lines))
-        if key in seen:
-            continue
-        seen.add(key)
-        uneven.append({
-            "section": section["section"],
-            "line_count": len(counts),
-            "avg_syllables_per_line": section["avg_syllables_per_line"],
-            "min_line": min(counts),
-            "max_line": max(counts),
-            "lines": [
-                {
+        median = statistics.median(line["syllable_count"] for line in lines)
+        for line in lines:
+            if abs(line["syllable_count"] - median) > 2 * tolerance:
+                outliers.append({
+                    "section": section["section"],
                     "line_number": line["line_number"],
                     "syllable_count": line["syllable_count"],
+                    "verse_median": median,
                     "text": line["text"],
-                }
-                for line in lines
-            ],
-        })
-    return uneven
+                })
+    return outliers
 
 
-async def _check_lyrics(lyrics: str, flagged_explicit: bool, verbose: bool) -> dict[str, Any]:
+async def _check_lyrics(
+    lyrics: str, flagged_explicit: bool, verbose: bool, genre: str = "",
+) -> dict[str, Any]:
     """Run the six lyric checks on one sheet and keep what is worth reading.
 
     Returns the per-track blocks plus ``findings`` (how many things are wrong)
@@ -1137,19 +1164,21 @@ async def _check_lyrics(lyrics: str, flagged_explicit: bool, verbose: bool) -> d
     fired: list[str] = []
     findings = 0
 
-    uneven = _uneven_sections(results["syllables"])
-    if uneven:
+    tolerance = _line_tolerance(genre)
+    outliers = _syllable_outliers(results["syllables"], tolerance)
+    if outliers:
         fired.append("syllables")
-        findings += len(uneven)
-    if uneven or verbose:
-        summary = results["syllables"]["summary"]
-        blocks["syllables"] = {
-            "consistency": summary["consistency"],
-            "avg_syllables_per_line": summary["avg_syllables_per_line"],
-            "min_line": summary["min_line"],
-            "max_line": summary["max_line"],
-            "uneven_sections": uneven,
-        }
+        findings += len(outliers)
+    if outliers or verbose:
+        blocks["syllables"] = {"tolerance": tolerance, "outliers": outliers}
+        if verbose:
+            summary = results["syllables"]["summary"]
+            blocks["syllables"].update({
+                "consistency": summary["consistency"],
+                "avg_syllables_per_line": summary["avg_syllables_per_line"],
+                "min_line": summary["min_line"],
+                "max_line": summary["max_line"],
+            })
 
     rhyme_issues = results["rhyme"]["issues"]
     if rhyme_issues:
@@ -1213,13 +1242,8 @@ async def _check_lyrics(lyrics: str, flagged_explicit: bool, verbose: bool) -> d
         if flagged_explicit and not explicit_words:
             blocks["explicit"]["note"] = "Flagged explicit, but no explicit words were found"
 
-    readability = results["readability"]["readability"]
-    complex_words = readability["grade_level"] == "Complex"
-    if complex_words:
-        fired.append("readability")
-        findings += 1
-    if complex_words or verbose:
-        blocks["readability"] = readability
+    if verbose:
+        blocks["readability"] = results["readability"]["readability"]
 
     return {"blocks": blocks, "findings": findings, "fired": fired}
 
@@ -1239,14 +1263,15 @@ async def check_album_lyrics(
 
     By default a track's entry holds only what is wrong, and a track with
     nothing wrong is just ``clean: true``:
-        syllables   — sections whose lines swing widely in syllable count
-        rhyme       — a word that ends two lines of the same section
+        syllables   — a verse line far longer or shorter than the rest of its
+                      verse: more than twice the genre's line tolerance (2
+                      syllables, 3 for hip-hop) from the verse's median
+        rhyme       — a word that ends two different lines of one section
         structure   — an empty verse or chorus, lopsided verses, doubled tags
         homographs  — words Suno cannot pronounce from context (live, read,
                       lead ...). Ask the user which pronunciation is meant;
                       never choose one yourself.
         explicit    — explicit words on a track that is not flagged explicit
-        readability — vocabulary dense enough to be hard to follow by ear
 
     Instrumental tracks and tracks with no lyrics yet are listed as skipped.
     Line numbers count from the first line of the Lyrics Box.
@@ -1267,9 +1292,8 @@ async def check_album_lyrics(
     Returns:
         JSON with {found, album_slug, tracks: [{track_slug, title, checked,
         clean, findings, syllables?, rhyme?, structure?, homographs?,
-        explicit?, readability?} or {track_slug, title, checked: false,
-        skipped}], summary: {tracks, checked, skipped, clean, with_findings,
-        by_check}}
+        explicit?} or {track_slug, title, checked: false, skipped}],
+        summary: {tracks, checked, skipped, clean, with_findings, by_check}}
     """
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
@@ -1286,6 +1310,7 @@ async def check_album_lyrics(
     else:
         tracks_to_check = all_tracks
 
+    album_genre = str(album.get("genre") or "")
     track_results: list[dict[str, Any]] = []
     by_check = dict.fromkeys(_LYRIC_CHECKS, 0)
 
@@ -1314,7 +1339,10 @@ async def check_album_lyrics(
             entry.update({"checked": False, "skipped": "no lyrics"})
             continue
 
-        checked = await _check_lyrics(lyrics, bool(t_data.get("explicit")), verbose)
+        checked = await _check_lyrics(
+            lyrics, bool(t_data.get("explicit")), verbose,
+            genre=str(t_data.get("genre") or album_genre),
+        )
         if "error" in checked:
             entry.update({"checked": False, "skipped": "could not be checked",
                           "error": checked["error"]})

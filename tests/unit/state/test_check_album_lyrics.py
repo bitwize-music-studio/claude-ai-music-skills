@@ -122,8 +122,9 @@ We have only just begun
 [End]"""
 
 # One of everything: a homograph (live), a word rhymed with itself (night), an
-# explicit word on a track flagged clean, a verse whose lines swing from one
-# syllable to twenty, an empty chorus, and verses of four lines and one.
+# explicit word on a track flagged clean, a verse with one line of twenty
+# syllables and one of a single syllable among lines of eight, an empty chorus,
+# and verses of four lines and one.
 PROBLEM_LYRICS = """\
 [Verse 1]
 I want to live inside the night
@@ -169,7 +170,7 @@ def album(tmp_path: Path):
     """
     orig_cache = _shared_mod.cache
 
-    def build(tracks: dict[str, tuple[str, dict]]) -> None:
+    def build(tracks: dict[str, tuple[str, dict]], genre: str = "pop") -> None:
         tracks_dir = tmp_path / "album" / "tracks"
         tracks_dir.mkdir(parents=True, exist_ok=True)
         state_tracks = {}
@@ -186,7 +187,7 @@ def album(tmp_path: Path):
             "version": 2,
             "config": {"content_root": str(tmp_path), "artist_name": "test-artist"},
             "albums": {"test-album": {
-                "title": "Test Album", "status": "In Progress", "genre": "pop",
+                "title": "Test Album", "status": "In Progress", "genre": genre,
                 "path": str(tmp_path / "album"), "tracks": state_tracks,
             }},
             "session": {},
@@ -325,20 +326,123 @@ class TestAProblemTrack:
         assert [w["word"] for w in explicit["words"]] == ["shit"]
         assert explicit["words"][0]["lines"][0]["line_number"] == 4
 
-    def test_the_uneven_verse_is_reported_with_its_lines(self, problem):
-        uneven = problem["syllables"]["uneven_sections"]
-        assert [s["section"] for s in uneven] == ["Verse 1"]
-        counts = [line["syllable_count"] for line in uneven[0]["lines"]]
-        assert len(counts) == 4
-        assert max(counts) - min(counts) > 10
+    def test_the_lines_far_from_the_rest_of_their_verse_are_named(self, problem):
+        syllables = problem["syllables"]
+        assert syllables["tolerance"] == 2
+        outliers = syllables["outliers"]
+        assert [(o["section"], o["line_number"]) for o in outliers] == [("Verse 1", 4), ("Verse 1", 5)]
+        assert outliers[0]["syllable_count"] == 20
+        assert outliers[1]["syllable_count"] == 1
+        assert outliers[0]["verse_median"] == 8
+        assert outliers[1]["text"] == "Go"
 
     def test_the_summary_says_which_checks_fired(self, album):
         album(THREE_TRACKS)
         by_check = _run(_lyrics_mod.check_album_lyrics("test-album"))["summary"]["by_check"]
         assert by_check == {
-            "syllables": 1, "rhyme": 1, "structure": 1,
-            "homographs": 1, "explicit": 1, "readability": 0,
+            "syllables": 1, "rhyme": 1, "structure": 1, "homographs": 1, "explicit": 1,
         }
+
+
+VERSE_WITH_ONE_LONG_LINE = """\
+[Verse 1]
+Counting every step along the avenue
+Watching all the neon signs turn blue
+Every single stranger passing by has got a story
+Nothing here is ever really new
+
+[Chorus]
+Go
+We are running to the morning sun and we will never ever stop
+"""
+
+
+class TestSyllableOutliers:
+    """A verse line far longer or shorter than the rest of its verse.
+
+    The craft reference gives a line-length tolerance by genre: two syllables
+    for most, three for hip-hop. A line is reported when it sits more than
+    twice that from its verse's median. Anything looser fired on four tracks in
+    ten of a real catalogue.
+    """
+
+    def _syllables(self, album, genre: str):
+        album({"01-song": (VERSE_WITH_ONE_LONG_LINE, {})}, genre=genre)
+        return _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+
+    def test_a_long_line_in_a_pop_verse_is_reported(self, album):
+        track = self._syllables(album, "pop")
+        assert [o["line_number"] for o in track["syllables"]["outliers"]] == [4]
+        assert track["syllables"]["tolerance"] == 2
+
+    def test_hip_hop_allows_more(self, album):
+        """The same verse on a hip-hop album is within its looser tolerance."""
+        track = self._syllables(album, "hip-hop")
+        assert "syllables" not in track
+        assert track["clean"] is True
+
+    def test_a_chorus_is_not_measured(self, album):
+        """The reference asks for consistency within verses; hooks vary by design."""
+        track = self._syllables(album, "pop")
+        assert all(o["section"] == "Verse 1" for o in track["syllables"]["outliers"])
+
+    def test_a_short_verse_has_no_outliers(self, album):
+        album({"01-song": ("[Verse 1]\nGo\nWe are running to the morning sun and never stop\n", {})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert "syllables" not in track
+
+
+class TestLineToleranceComesFromTheCraftReference:
+    """The tolerance is the reference's Line Length table, not a number of its own."""
+
+    def _rows(self) -> list[tuple[list[str], str]]:
+        text = (PROJECT_ROOT / "skills" / "lyric-writer" / "craft-reference.md").read_text(encoding="utf-8")
+        table = text.split("| Genre | Syllables/Line | Tolerance |", 1)[1]
+        rows = []
+        for line in table.splitlines()[2:]:
+            if not line.startswith("|"):
+                break
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            rows.append(([g.strip().lower() for g in cells[0].split("/")], cells[2]))
+        return rows
+
+    def test_the_table_is_found(self):
+        assert len(self._rows()) == 4
+
+    def test_each_genre_gets_its_rows_tolerance(self):
+        for genres, tolerance in self._rows():
+            expected = 3 if tolerance == "Flexible" else int(tolerance.lstrip("\u00b1"))
+            for genre in genres:
+                assert _lyrics_mod._line_tolerance(genre) == expected, (genre, tolerance)
+
+    def test_an_unlisted_genre_gets_the_common_tolerance(self):
+        assert _lyrics_mod._line_tolerance("cinematic") == 2
+        assert _lyrics_mod._line_tolerance("") == 2
+
+    def test_metal_subgenres_are_flexible(self):
+        assert _lyrics_mod._line_tolerance("death-metal") == 3
+
+
+class TestReadabilityIsNotAFinding:
+    DENSE = (
+        "[Verse 1]\n"
+        "Cryptographic vulnerabilities proliferate internationally\n"
+        "Institutional accountability deteriorates systematically\n"
+        "Infrastructure administrators deliberate unsuccessfully\n"
+        "Extraordinary complications materialize simultaneously\n"
+    )
+
+    def test_dense_vocabulary_alone_leaves_a_track_clean(self, album):
+        album({"01-dense": (self.DENSE, {})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert track["clean"] is True
+        assert "readability" not in track
+
+    def test_verbose_reports_it(self, album):
+        album({"01-dense": (self.DENSE, {})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album", verbose=True))["tracks"][0]
+        assert track["readability"]["grade_level"] == "Complex"
+        assert track["clean"] is True
 
 
 class TestExplicitWordsAndTheFlag:

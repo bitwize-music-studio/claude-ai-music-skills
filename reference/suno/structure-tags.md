@@ -231,7 +231,7 @@ Suno accepts far more tags than the plugin's own checks know by name. `validate_
 
 - **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|` or `(`. `[Outro - chorus reprise]` is an outro.
 - **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude.
-- **Anything else is treated as a verse.** That includes a delivery tag such as `[Whispered]` on a line of its own, and custom names such as `[Main Theme]`.
+- **A tag that names no section is not held to a section's rules.** A voice or delivery tag (`[Spoken]`, `[Male lead]`, `[Whispered]`), a direction (`[Crash]`, `[Silence]`) or a custom name (`[Main Theme]`) is listed with the type `verse` for want of a better one, but it may be empty and it is not compared with the real verses.
 
 | Type | Example tags | Left empty |
 |------|--------------|------------|
@@ -241,7 +241,7 @@ Suno accepts far more tags than the plugin's own checks know by name. `validate_
 | refrain | `[Refrain]` | Reported |
 | pre-chorus | `[Pre-Chorus]`, `[PRE 4]` | Reported |
 | post-chorus | `[Post-Chorus]` | Reported |
-| bridge | `[Bridge]` | Reported |
+| bridge | `[Bridge]`, `[Bridge - 8 bars]` | Fine |
 | intro | `[Intro]`, `[Short Instrumental Intro]` | Fine |
 | outro | `[Outro]` | Fine |
 | interlude | `[Interlude]`, `[melodic interlude]` | Fine |
@@ -252,9 +252,11 @@ Suno accepts far more tags than the plugin's own checks know by name. `validate_
 | fade | `[Fade Out]`, `[Fade In]` | Fine |
 | end | `[End]`, `[Fade to End]`, `[Big Finish]` | Fine |
 
-An empty sung section is reported because Suno improvises words for it. An empty instrumental or ending section is how you ask for one: Suno sings anything written under a tag, so `[Break - sax]` has to be followed by nothing. A tag whose name says "instrumental", such as `[Instrumental Chorus]`, may also be empty. Empty sections are left out of the verse-length comparison.
+An empty sung section is reported because Suno improvises words for it. An empty instrumental or ending section is how you ask for one: Suno sings anything written under a tag, so `[Break - sax]` has to be followed by nothing. A bridge may be empty because it is as often played as sung. A sung section whose tag says "instrumental", in its name or its cue (`[Instrumental Chorus]`, `[Chorus - instrumental]`), may also be empty.
 
-A section that repeats, such as a chorus sung three times under the same tag, is checked once per pass. Repeating it is not a self-rhyme.
+Only sections named as verses are compared with each other for length, and an empty one is left out of that comparison.
+
+Repetition is not a self-rhyme. A chorus sung three times under the same tag is checked once per pass, and a line repeated inside a section is a refrain. A self-rhyme is the same word ending two different lines of one section.
 
 ---
 

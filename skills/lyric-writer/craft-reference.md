@@ -100,6 +100,8 @@ Before finalizing any lyrics, verify:
 
 **Critical**: Verse 1 line lengths must match Verse 2 line lengths.
 
+`check_album_lyrics` uses the Tolerance column to find the odd line out: it reports a verse line that sits more than twice the tolerance from its verse's median (more than 4 syllables for most genres, more than 6 for hip-hop). It treats "Flexible" as ±3. Anything tighter flags four finished songs in ten, so parallel lines within the tolerance are still yours to check by reading.
+
 ---
 
 ## Song Length
