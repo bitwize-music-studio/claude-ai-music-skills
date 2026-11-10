@@ -7863,6 +7863,76 @@ class TestCheckSkillRegistration:
         assert "fix_message" in result
         assert "claude plugin update" in result["fix_message"]
 
+    # --- a marketplace that points at a local folder ---------------------------
+    #
+    # Claude Code loads a plugin from a `directory` marketplace straight from
+    # that folder: its skills and MCP server come from the working tree, and the
+    # copy in the plugin cache is a leftover from whenever it was first
+    # installed. Comparing the folder with that copy reported a maintainer's
+    # newest skills as "missing" at every session start, and told them to run
+    # `claude plugin update`.
+
+    def _write_marketplaces(self, home, source):
+        plugins = home / ".claude" / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "known_marketplaces.json").write_text(json.dumps({
+            "bitwize-music": {"source": source, "installLocation": source.get("path", "")},
+        }))
+
+    def test_a_directory_marketplace_at_the_plugin_root_is_ok(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "listen", "resume"], ["resume", "old-skill"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(plugin_root)})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+        assert result["source"] == "directory"
+        assert result["missing"] == []
+        assert result["ghost"] == []
+        assert "fix_message" not in result
+        assert str(plugin_root) in result["message"]
+
+    def test_a_trailing_slash_or_tilde_in_the_path_still_matches(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(plugin_root) + "/"})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+
+    def test_a_directory_marketplace_somewhere_else_is_still_compared(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(tmp_path / "elsewhere")})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["missing"] == ["generate"]
+
+    def test_a_github_marketplace_is_still_compared(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "github", "repo": "bitwize-music-studio/claude-ai-music-skills"})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+
+    @pytest.mark.parametrize("content", ["not json", "[]", '{"bitwize-music": "directory"}', '{"bitwize-music": {"source": null}}'])
+    def test_an_unreadable_marketplace_file_falls_back_to_the_comparison(self, tmp_path, content):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        plugins = tmp_path / "fakehome" / ".claude" / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "known_marketplaces.json").write_text(content)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+
 
 # =============================================================================
 # Tests for health_check
