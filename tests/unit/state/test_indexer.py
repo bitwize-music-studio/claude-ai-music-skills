@@ -4649,3 +4649,38 @@ class TestScanIdeasEdgeCases:
         assert result['items'] == []
         assert result['counts'] == {}
         assert result['file_mtime'] == 0.0
+
+
+@pytest.mark.unit
+class TestBuildConfigSectionListen:
+    """generation.listen_mode / listen_confirm_download — how Suno takes are auditioned."""
+
+    def _generation(self, generation, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'generation': generation,
+        }
+        return build_config_section(config)['generation']
+
+    def test_defaults(self, monkeypatch):
+        gen = self._generation({}, monkeypatch)
+        assert gen['listen_mode'] == 'terminal'
+        assert gen['listen_confirm_download'] is True
+
+    def test_browser_mode_and_standing_approval(self, monkeypatch):
+        gen = self._generation(
+            {'listen_mode': 'Browser', 'listen_confirm_download': 'false'}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'
+        assert gen['listen_confirm_download'] is False
+
+    def test_unknown_mode_falls_back_to_terminal(self, monkeypatch, caplog):
+        gen = self._generation({'listen_mode': 'speakers'}, monkeypatch)
+        assert gen['listen_mode'] == 'terminal'
+        assert 'listen_mode' in caplog.text
+
+    def test_non_string_mode_falls_back_to_terminal(self, monkeypatch):
+        gen = self._generation({'listen_mode': 3}, monkeypatch)
+        assert gen['listen_mode'] == 'terminal'

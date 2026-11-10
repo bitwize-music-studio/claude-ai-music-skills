@@ -338,6 +338,19 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             return default
         return value
 
+    def _cfg_choice(section: dict[str, Any], key: str,
+                    choices: tuple[str, ...], default: str) -> str:
+        # Enumerated settings: anything outside the list (or a non-string) is a
+        # typo, so warn and keep the default instead of passing it downstream.
+        value = _cfg_str(section, key, default).strip().lower()
+        if value not in choices:
+            logger.warning(
+                "Config %s is not one of %s — using %r",
+                key, ", ".join(choices), default,
+            )
+            return default
+        return value
+
     content_root_raw = _cfg_str(paths, 'content_root', '.')
     content_root = str(resolve_path(content_root_raw))
 
@@ -365,6 +378,9 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
+        # How /bitwize-music:listen auditions Suno takes (reference/suno/mcp-api-mapping.md)
+        'listen_mode': _cfg_choice(gen_config, 'listen_mode', ('terminal', 'browser'), 'terminal'),
+        'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
     }
 
     return {
