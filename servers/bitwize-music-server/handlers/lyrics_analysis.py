@@ -2,17 +2,28 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 import statistics
+from pathlib import Path
 from typing import Any
 
+from handlers import text_analysis as _text_analysis
 from handlers._shared import (
     _CROSS_TRACK_STOPWORDS,
     _SECTION_TAG_RE,
+    _TEMPLATE_LYRICS_MARKER,
     _WORD_TOKEN_RE,
     _check_text_length,
+    _extract_code_block,
+    _extract_markdown_section,
+    _find_album_or_error,
+    _find_track_or_error,
     _safe_json,
 )
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # Plagiarism / Distinctive Phrase Extraction
@@ -1042,6 +1053,298 @@ async def validate_section_structure(text: str) -> str:
     })
 
 
+# =============================================================================
+# Every lyric check, across an album
+# =============================================================================
+
+# A section's lines are "uneven" past the same spread count_syllables uses for
+# a whole song. Two-line sections are left alone: a short answer to a long call
+# is a choice, not a slip.
+_SYLLABLE_SPREAD_LIMIT = 3
+_MIN_LINES_FOR_SPREAD = 3
+
+_INSTRUMENTAL_FRONTMATTER_RE = re.compile(r"(?mi)^instrumental:\s*true\b")
+
+_LYRIC_CHECKS = ("syllables", "rhyme", "structure", "homographs", "explicit", "readability")
+
+
+def _is_instrumental_track(track_text: str) -> bool:
+    """True when a track file says it is instrumental, in frontmatter or table."""
+    if _INSTRUMENTAL_FRONTMATTER_RE.search(track_text):
+        return True
+    from tools.state.parsers import _extract_table_value
+
+    cell = (_extract_table_value(track_text, "Instrumental") or "").strip().lower()
+    return cell in ("yes", "true")
+
+
+def _uneven_sections(syllables: dict[str, Any]) -> list[dict[str, Any]]:
+    """Sections whose lines swing widely in length, from count_syllables output.
+
+    A section repeated word for word (a chorus) is reported once.
+    """
+    uneven: list[dict[str, Any]] = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for section in syllables.get("sections", []):
+        lines = section["lines"]
+        counts = [line["syllable_count"] for line in lines]
+        if len(counts) < _MIN_LINES_FOR_SPREAD:
+            continue
+        if statistics.stdev(counts) <= _SYLLABLE_SPREAD_LIMIT:
+            continue
+        key = (section["section"], tuple(line["text"] for line in lines))
+        if key in seen:
+            continue
+        seen.add(key)
+        uneven.append({
+            "section": section["section"],
+            "line_count": len(counts),
+            "avg_syllables_per_line": section["avg_syllables_per_line"],
+            "min_line": min(counts),
+            "max_line": max(counts),
+            "lines": [
+                {
+                    "line_number": line["line_number"],
+                    "syllable_count": line["syllable_count"],
+                    "text": line["text"],
+                }
+                for line in lines
+            ],
+        })
+    return uneven
+
+
+async def _check_lyrics(lyrics: str, flagged_explicit: bool, verbose: bool) -> dict[str, Any]:
+    """Run the six lyric checks on one sheet and keep what is worth reading.
+
+    Returns the per-track blocks plus ``findings`` (how many things are wrong)
+    and ``fired`` (which checks found something), or ``{"error": ...}`` when a
+    check refused the text.
+    """
+    results = {
+        "syllables": json.loads(await count_syllables(lyrics)),
+        "rhyme": json.loads(await analyze_rhyme_scheme(lyrics)),
+        "structure": json.loads(await validate_section_structure(lyrics)),
+        "readability": json.loads(await analyze_readability(lyrics)),
+        "homographs": json.loads(await _text_analysis.check_homographs(lyrics)),
+        "explicit": json.loads(await _text_analysis.check_explicit_content(lyrics)),
+    }
+    for result in results.values():
+        if "error" in result:
+            return {"error": result["error"]}
+
+    blocks: dict[str, Any] = {}
+    fired: list[str] = []
+    findings = 0
+
+    uneven = _uneven_sections(results["syllables"])
+    if uneven:
+        fired.append("syllables")
+        findings += len(uneven)
+    if uneven or verbose:
+        summary = results["syllables"]["summary"]
+        blocks["syllables"] = {
+            "consistency": summary["consistency"],
+            "avg_syllables_per_line": summary["avg_syllables_per_line"],
+            "min_line": summary["min_line"],
+            "max_line": summary["max_line"],
+            "uneven_sections": uneven,
+        }
+
+    rhyme_issues = results["rhyme"]["issues"]
+    if rhyme_issues:
+        fired.append("rhyme")
+        findings += len(rhyme_issues)
+    if rhyme_issues or verbose:
+        blocks["rhyme"] = {"issues": rhyme_issues}
+        if verbose:
+            blocks["rhyme"].update({
+                "schemes": [
+                    {
+                        "section": section["section"],
+                        "occurrence": section["occurrence"],
+                        "scheme": section["scheme"],
+                    }
+                    for section in results["rhyme"]["sections"]
+                ],
+                "method": results["rhyme"]["method"],
+                "approximate": results["rhyme"]["approximate"],
+                "note": results["rhyme"]["note"],
+            })
+
+    # "No chorus" and "no verse" are notes about the song's form, not mistakes.
+    all_structure = results["structure"]["issues"]
+    structure_issues = [i for i in all_structure if i.get("severity") != "info"]
+    if structure_issues:
+        fired.append("structure")
+        findings += len(structure_issues)
+    if structure_issues or (verbose and all_structure):
+        blocks["structure"] = {
+            "issues": all_structure if verbose else structure_issues,
+            "section_balance": results["structure"]["summary"]["section_balance"],
+        }
+
+    homographs = [
+        {
+            "word": match["word"],
+            "line_number": match["line_number"],
+            "line": match["line"],
+            "options": match["options"],
+        }
+        for match in results["homographs"]["matches"]
+    ]
+    if homographs:
+        fired.append("homographs")
+        findings += len(homographs)
+    if homographs or verbose:
+        blocks["homographs"] = homographs
+
+    explicit_words = results["explicit"]["matches"]
+    mismatch = bool(explicit_words) and not flagged_explicit
+    if mismatch:
+        fired.append("explicit")
+        findings += len(explicit_words)
+    if mismatch or verbose:
+        blocks["explicit"] = {
+            "flagged": flagged_explicit,
+            "mismatch": mismatch,
+            "words": explicit_words,
+        }
+        if flagged_explicit and not explicit_words:
+            blocks["explicit"]["note"] = "Flagged explicit, but no explicit words were found"
+
+    readability = results["readability"]["readability"]
+    complex_words = readability["grade_level"] == "Complex"
+    if complex_words:
+        fired.append("readability")
+        findings += 1
+    if complex_words or verbose:
+        blocks["readability"] = readability
+
+    return {"blocks": blocks, "findings": findings, "fired": fired}
+
+
+async def check_album_lyrics(
+    album_slug: str,
+    track_slug: str = "",
+    verbose: bool = False,
+) -> str:
+    """Run every lyric check across an album's tracks in one call.
+
+    Reads each track's Lyrics Box and runs count_syllables,
+    analyze_rhyme_scheme, validate_section_structure, analyze_readability,
+    check_homographs and check_explicit_content on it, so a whole album is one
+    call instead of six per track. Use it after writing or revising lyrics, and
+    after each refinement pass.
+
+    By default a track's entry holds only what is wrong, and a track with
+    nothing wrong is just ``clean: true``:
+        syllables   — sections whose lines swing widely in syllable count
+        rhyme       — a word that ends two lines of the same section
+        structure   — an empty verse or chorus, lopsided verses, doubled tags
+        homographs  — words Suno cannot pronounce from context (live, read,
+                      lead ...). Ask the user which pronunciation is meant;
+                      never choose one yourself.
+        explicit    — explicit words on a track that is not flagged explicit
+        readability — vocabulary dense enough to be hard to follow by ear
+
+    Instrumental tracks and tracks with no lyrics yet are listed as skipped.
+    Line numbers count from the first line of the Lyrics Box.
+
+    This covers the mechanical part of the lyric checks. It does not judge
+    prosody, point of view, tense, whether verse two develops verse one, or
+    whether a rhyme scheme suits the genre. The rhyme scheme it can show
+    (verbose) is a spelling match and approximate: read lines aloud before
+    calling a scheme wrong.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        track_slug: Specific track slug/number (empty = all tracks)
+        verbose: Also return each check's full readout for every track: rhyme
+            schemes, syllable summary, readability, and notes that are not
+            problems (default: only what is wrong)
+
+    Returns:
+        JSON with {found, album_slug, tracks: [{track_slug, title, checked,
+        clean, findings, syllables?, rhyme?, structure?, homographs?,
+        explicit?, readability?} or {track_slug, title, checked: false,
+        skipped}], summary: {tracks, checked, skipped, clean, with_findings,
+        by_check}}
+    """
+    normalized_album, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+    assert album is not None
+
+    all_tracks = album.get("tracks", {})
+    if track_slug:
+        matched_slug, track_data, error = _find_track_or_error(all_tracks, track_slug, album_slug)
+        if error:
+            return error
+        assert track_data is not None
+        tracks_to_check: dict[str, Any] = {matched_slug: track_data}
+    else:
+        tracks_to_check = all_tracks
+
+    track_results: list[dict[str, Any]] = []
+    by_check = dict.fromkeys(_LYRIC_CHECKS, 0)
+
+    for t_slug, t_data in sorted(tracks_to_check.items()):
+        entry: dict[str, Any] = {"track_slug": t_slug, "title": t_data.get("title", t_slug)}
+        track_results.append(entry)
+
+        try:
+            track_text = Path(t_data.get("path", "")).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning("Cannot read track file for lyric checks %s: %s", t_data.get("path"), e)
+            entry.update({"checked": False, "skipped": "track file not readable"})
+            continue
+
+        if _is_instrumental_track(track_text):
+            entry.update({"checked": False, "skipped": "instrumental"})
+            continue
+
+        section = _extract_markdown_section(track_text, "Lyrics Box")
+        lyrics = (_extract_code_block(section) if section else None) or ""
+        has_words = any(
+            line.strip() and not _SECTION_TAG_RE.match(line.strip())
+            for line in lyrics.split("\n")
+        )
+        if not has_words or _TEMPLATE_LYRICS_MARKER.lower() in lyrics.lower():
+            entry.update({"checked": False, "skipped": "no lyrics"})
+            continue
+
+        checked = await _check_lyrics(lyrics, bool(t_data.get("explicit")), verbose)
+        if "error" in checked:
+            entry.update({"checked": False, "skipped": "could not be checked",
+                          "error": checked["error"]})
+            continue
+
+        entry.update({
+            "checked": True,
+            "clean": checked["findings"] == 0,
+            "findings": checked["findings"],
+            **checked["blocks"],
+        })
+        for name in checked["fired"]:
+            by_check[name] += 1
+
+    checked_tracks = [t for t in track_results if t["checked"]]
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized_album,
+        "tracks": track_results,
+        "summary": {
+            "tracks": len(track_results),
+            "checked": len(checked_tracks),
+            "skipped": len(track_results) - len(checked_tracks),
+            "clean": sum(1 for t in checked_tracks if t["clean"]),
+            "with_findings": sum(1 for t in checked_tracks if not t["clean"]),
+            "by_check": by_check,
+        },
+    })
+
+
 def register(mcp: Any) -> None:
     """Register lyrics analysis tools with the MCP server."""
     mcp.tool()(extract_distinctive_phrases)
@@ -1049,3 +1352,4 @@ def register(mcp: Any) -> None:
     mcp.tool()(analyze_readability)
     mcp.tool()(analyze_rhyme_scheme)
     mcp.tool()(validate_section_structure)
+    mcp.tool()(check_album_lyrics)

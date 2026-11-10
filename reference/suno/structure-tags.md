@@ -227,7 +227,7 @@ Structure tags are reliable when every section carries one — but reliability s
 
 ## How the Plugin's Checks Read Tags
 
-Suno accepts far more tags than the plugin's own checks know by name. `validate_section_structure` and `analyze_rhyme_scheme` sort every tag into a section type, and this is how:
+Suno accepts far more tags than the plugin's own checks know by name. `validate_section_structure`, `analyze_rhyme_scheme` and `check_album_lyrics` (which runs both across an album) sort every tag into a section type, and this is how:
 
 - **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|` or `(`. `[Outro - chorus reprise]` is an outro.
 - **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude.

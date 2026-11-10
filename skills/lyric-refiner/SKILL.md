@@ -155,7 +155,7 @@ If the user requests more than 3 passes:
 
 Every pass must follow these rules:
 
-1. **Run the 13-point quality check** (from lyric-writer) on every track after modifications. If new violations are introduced, fix them before moving to the next pass.
+1. **Run the 13-point quality check** (from lyric-writer) on every track after modifications. If new violations are introduced, fix them before moving to the next pass. Call `check_album_lyrics(album_slug)` once per pass for the mechanical half of it: one call covers every track and returns only what is wrong (a word rhymed with itself, uneven or empty sections, homographs, explicit words). Call `get_lyrics_stats(album_slug)` for rule 4. Read each track for the rest.
 2. **Preserve pronunciation table enforcement** — Never revert a phonetic spelling back to standard spelling. If editing a line with phonetic words, keep them phonetic.
 3. **Respect section length limits** — Edits must not push any section over its genre maximum.
 4. **Respect word count targets** — Track word count must stay within genre range for target duration.
