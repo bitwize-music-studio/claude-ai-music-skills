@@ -47,6 +47,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...create Suno prompts and settings | `/suno-engineer` |
 | ...create a Style Box for an instrumental track | `/suno-engineer` (entry point for instrumental tracks — skips lyric-writer) |
 | ...generate a track without leaving the terminal | `/generate` (needs the Suno MCP server; falls back to `/clipboard`) |
+| ...hear a take, compare takes, or play a mix | `/listen` (terminal by default; `--browser` opens the song page) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
@@ -127,6 +128,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
 | [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
+| [`listen`](/skills/listen/SKILL.md) | Play Suno takes or local audio in the terminal, or open the song page in the browser | Auditioning takes before picking the keeper |
 | [`lyric-refiner`](/skills/lyric-refiner/SKILL.md) | Multi-pass lyric refinement for tightening, cohesion, and album unity | Polishing lyrics after writing, before QC |
 | [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
@@ -182,6 +184,7 @@ What to have ready before using each skill:
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created (instrumental: only Style Box needed) |
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer). For instrumental tracks: invoked directly as entry point |
 | `/generate` | Pre-generation gates pass; Suno MCP server connected (otherwise it points to `/clipboard`) |
+| `/listen` | A generated take or local audio for the track; an audio player (`mpv` recommended) for terminal playback |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
@@ -209,6 +212,7 @@ What to have ready before using each skill:
     -> /voice-checker (advisory: flag AI-sounding patterns)
     -> /pre-generation-check (validate all gates)
     -> /generate (per track — or generate on suno.com via /clipboard)
+    -> /listen (hear the takes, pick the keeper)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -229,7 +233,7 @@ What to have ready before using each skill:
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
     -> /pre-generation-check (validate all gates)
-    -> /generate (or suno.com) -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
+    -> /generate (or suno.com) -> /listen -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
 ```
 
 ### OST / Mixed Album (Vocal + Instrumental)
@@ -359,7 +363,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 31 skills)
+### `sonnet` (Reasoning & Coordination — 32 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -367,6 +371,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/document-hunter` - Automated searching
 - `/explicit-checker` - Context-dependent content scanning
 - `/generate` - Suno generation through the MCP server
+- `/listen` - Terminal and browser auditioning
 - `/mastering-engineer` - Audio guidance
 - `/mix-engineer` - Stem processing guidance
 - `/plagiarism-checker` - Lyrics plagiarism scanning
