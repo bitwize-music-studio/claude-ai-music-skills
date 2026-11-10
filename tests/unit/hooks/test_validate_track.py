@@ -98,6 +98,34 @@ class TestValidTrack:
         assert result.returncode == 0, (result.returncode, result.stderr)
         assert result.stderr == ""
 
+    def test_a_track_with_no_frontmatter_passes(self):
+        """901 older tracks have none; the parser reads them from the table.
+
+        The hook used to reject every whole-file rewrite of such a track,
+        which pushed Claude to bolt on a block of fields nothing reads.
+        """
+        content = "# Opener\n\n## Track Details\n\n| **Status** | Final |\n"
+        assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
+
+    @pytest.mark.parametrize("fields", [
+        {"track_number": "1"},
+        {"title": "Opener"},
+        {"sheet_music": ""},                  # an older template's block
+        {"streaming": ""},
+    ])
+    def test_a_block_without_title_or_track_number_passes(self, fields):
+        """216 tracks carry a block from an older template with neither field."""
+        content = _frontmatter(**fields)
+        assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
+
+    def test_an_empty_block_passes(self):
+        assert validate_track.validate(_write_event(_TRACK_PATH, "---\n---\n\n# Opener\n")) == []
+
+    def test_a_rule_further_down_is_not_frontmatter(self):
+        """A ``---`` rule below the heading neither opens nor closes a block."""
+        content = "# Opener\n\n---\n\nSome notes\n"
+        assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
+
     @pytest.mark.parametrize("status", ["In Progress", "Final", "Ready", "Almost Done", ""])
     def test_a_frontmatter_status_is_ignored(self, status):
         """Nothing reads it, so the hook has no opinion on it.
@@ -127,46 +155,38 @@ class TestValidTrack:
 
 @pytest.mark.unit
 class TestInvalidTrack:
-    def test_missing_title_exits_two(self):
+    """The one thing the hook still reports: a frontmatter block left open.
+
+    A block that opens on the first line and never closes swallows the whole
+    file into it, and every frontmatter reader then drops every field at once
+    (title, explicit, genre, suno_url). That is worth stopping a write for.
+    """
+
+    UNCLOSED = "---\ntitle: Opener\ntrack_number: 1\n\n# Opener\n\nsome words\n"
+
+    def test_an_unclosed_block_is_reported(self):
+        issues = validate_track.validate(_write_event(_TRACK_PATH, self.UNCLOSED))
+        assert len(issues) == 1
+        assert "never closed" in issues[0]
+
+    def test_an_unclosed_block_exits_two(self):
         """Exit code 2 is what makes Claude Code surface the failure."""
-        content = _frontmatter(track_number="1")
-        result = _run_hook(json.dumps(_write_event(_TRACK_PATH, content)))
+        result = _run_hook(json.dumps(_write_event(_TRACK_PATH, self.UNCLOSED)))
         assert result.returncode == 2, (result.returncode, result.stderr)
         assert "Track frontmatter validation failed" in result.stderr
-        assert "title" in result.stderr
+        assert "never closed" in result.stderr
 
-    @pytest.mark.parametrize("missing", ["title", "track_number"])
-    def test_each_missing_required_field_is_reported(self, missing):
-        fields = {"title": "Opener", "track_number": "1"}
-        del fields[missing]
-        issues = validate_track.validate(_write_event(_TRACK_PATH, _frontmatter(**fields)))
-        assert issues == [f"Missing required frontmatter field: {missing}"]
+    @pytest.mark.parametrize("closing", ["---", "--- ", "---\t"])
+    def test_a_closing_line_with_trailing_space_still_closes(self, closing):
+        content = f"---\ntitle: Opener\n{closing}\n\n# Opener\n"
+        assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
 
-    @pytest.mark.parametrize("empty", ["title", "track_number"])
-    def test_present_but_empty_required_field_is_reported(self, empty):
-        """``title:`` with nothing after it is as broken as an absent key."""
-        fields = {"title": "Opener", "track_number": "1"}
-        fields[empty] = ""
-        issues = validate_track.validate(_write_event(_TRACK_PATH, _frontmatter(**fields)))
-        assert issues == [f"Missing required frontmatter field: {empty}"]
+    def test_windows_line_endings_close_too(self):
+        content = "---\r\ntitle: Opener\r\n---\r\n\r\n# Opener\r\n"
+        assert validate_track.validate(_write_event(_TRACK_PATH, content)) == []
 
-    def test_all_fields_missing_reports_both(self):
-        content = "---\nfoo: bar\n---\n"
-        issues = validate_track.validate(_write_event(_TRACK_PATH, content))
-        assert len(issues) == 2
-        for field in ("title", "track_number"):
-            assert any(field in i for i in issues)
-
-    def test_missing_frontmatter_block_is_reported(self):
-        content = "# Opener\n\nJust a markdown file with no YAML header.\n"
-        issues = validate_track.validate(_write_event(_TRACK_PATH, content))
-        assert issues == ["Track file is missing YAML frontmatter (--- block)."]
-
-    def test_frontmatter_must_be_at_the_top(self):
-        """A ``---`` rule further down the file is not frontmatter."""
-        content = "# Opener\n\n---\ntitle: Opener\nstatus: Final\n---\n"
-        issues = validate_track.validate(_write_event(_TRACK_PATH, content))
-        assert issues == ["Track file is missing YAML frontmatter (--- block)."]
+    def test_a_block_that_is_only_an_opening_line(self):
+        assert validate_track.validate(_write_event(_TRACK_PATH, "---\n")) != []
 
 
 # ---------------------------------------------------------------------------
@@ -242,15 +262,15 @@ class TestWindowsPathSeparators:
 
     def test_windows_track_path_is_actually_validated(self):
         """The whole point: bad frontmatter on a Windows path must be caught."""
-        content = _frontmatter(track_number="1")
+        content = "---\ntitle: Opener\n\n# Opener\n"
         issues = validate_track.validate(_write_event(_WIN_TRACK_PATH, content))
-        assert issues == ["Missing required frontmatter field: title"]
+        assert len(issues) == 1 and "never closed" in issues[0]
 
     def test_windows_track_path_exits_two_end_to_end(self):
-        content = _frontmatter(track_number="1")
+        content = "---\ntitle: Opener\n\n# Opener\n"
         result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, content)))
         assert result.returncode == 2, (result.returncode, result.stderr)
-        assert "title" in result.stderr
+        assert "never closed" in result.stderr
 
     def test_valid_windows_track_exits_zero(self):
         result = _run_hook(json.dumps(_write_event(_WIN_TRACK_PATH, _valid_content())))
@@ -367,7 +387,7 @@ class TestOldPythonCompatibility:
     def test_annotations_are_lazily_evaluated(self):
         """No function annotation may be a live object — all must be strings."""
         offenders = []
-        for name in ("is_track_file", "extract_frontmatter", "get_file_content", "validate"):
+        for name in ("is_track_file", "frontmatter_problem", "get_file_content", "validate"):
             fn = getattr(validate_track, name)
             for param, annotation in fn.__annotations__.items():
                 if not isinstance(annotation, str):
@@ -387,6 +407,5 @@ class TestOldPythonCompatibility:
 
     def test_module_compiles_and_defines_the_hook_entrypoints(self):
         """A module that fails to import is a hook that silently never runs."""
-        for name in ("main", "validate", "REQUIRED_FIELDS"):
+        for name in ("main", "validate", "frontmatter_problem"):
             assert hasattr(validate_track, name), name
-        assert validate_track.REQUIRED_FIELDS == ["title", "track_number"]
