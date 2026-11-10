@@ -12,6 +12,7 @@ import json
 import math
 import re
 import sys
+import unicodedata
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -157,6 +158,43 @@ def _normalize_slug(name: str) -> str:
     if name and not slug:
         raise ValueError(f"Invalid name: normalizes to an empty slug: {name!r}")
     return slug
+
+
+# Apostrophes and quotation marks, straight and typographic. Dropped rather than
+# hyphenated when a title becomes a filename, so "It's" gives "its", not "it-s".
+_TITLE_SLUG_DROPPED = frozenset({
+    "'", '"', "`",
+    "\u00b4",  # acute accent, typed for an apostrophe
+    "\u02bc",  # modifier letter apostrophe
+    "\u2018", "\u2019", "\u201a", "\u201b",  # single typographic quotes
+    "\u201c", "\u201d", "\u201e", "\u201f",  # double typographic quotes
+})
+
+
+def _slug_from_title(title: str) -> str:
+    """Filename slug for a *new* file made from a human title.
+
+    ``_normalize_slug`` only lowercases and hyphenates spaces, because it also
+    resolves names that already exist, and those must keep resolving. A title
+    is different: it is prose, and its punctuation has no business in a
+    filename. ``It's a Bicycle`` used to give ``it's-a-bicycle``, and
+    ``Part 2: The Return`` kept its colon.
+
+    Apostrophes and quotation marks are dropped. Letters, digits and combining
+    marks of any script are kept, so ``Café del Mar`` and a Korean title come
+    through intact. Everything else becomes a hyphen, and runs of hyphens
+    collapse. Returns ``""`` when nothing usable is left; the caller decides
+    what to do about that. The result never contains a path separator or a dot,
+    so it cannot leave the directory it is joined to.
+    """
+    out: list[str] = []
+    for ch in unicodedata.normalize("NFC", title).lower():
+        if ch in _TITLE_SLUG_DROPPED:
+            continue
+        # L = letter, N = number, M = combining mark (keeps Indic vowel signs
+        # and decomposed accents attached to their letter).
+        out.append(ch if unicodedata.category(ch)[0] in "LNM" else "-")
+    return re.sub(r"-{2,}", "-", "".join(out)).strip("-")
 
 
 # The album directory shape, written down once. Every album mirrors this same

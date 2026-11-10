@@ -31,8 +31,8 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_wav_source_dir,
-    _normalize_slug,
     _safe_json,
+    _slug_from_title,
 )
 
 logger = logging.getLogger(__name__)
@@ -449,18 +449,28 @@ async def create_track(
 ) -> str:
     """Create a new track file in an album from the track template.
 
-    Copies the track template, fills in track number and title placeholders,
-    and optionally keeps documentary sections (Source, Original Quote).
+    Copies the track template and fills in what is already known: the track
+    number and title, the album link, and the Explicit flag from the album.
+    On an album with no SOURCES.md a non-documentary track gets
+    ``Sources Verified: N/A``; otherwise it stays ``❌ Pending`` for a human.
+    The Lyrics Box and Style Box keep the template's placeholders, which the
+    pre-generation gates treat as unwritten.
+
+    The filename is made from the title with its punctuation removed:
+    "It's a Bicycle" becomes ``04-its-a-bicycle.md``. Use the returned
+    ``track_slug`` to refer to the track afterwards.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
         track_number: Positive track number as a numeric string or int
             (e.g., "01", "2", 7). Anything else returns a structured error.
-        title: Track title (e.g., "My New Track")
-        documentary: Keep source/quote sections (default: strip them)
+        title: Track title (e.g., "My New Track"). Needs at least one letter
+            or digit.
+        documentary: Keep source/quote sections and leave Sources Verified
+            pending (default: strip the sections)
 
     Returns:
-        JSON with created file path or error
+        JSON with created file path, track_slug and filename, or error
     """
     normalized, album, error = _find_album_or_error(album_slug)
     if error:
@@ -499,8 +509,17 @@ async def create_track(
     # Normalize track number to zero-padded two digits
     padded = str(number).zfill(2)
 
-    # Build slug from number and title
-    title_slug = _normalize_slug(title)
+    # Build the filename from the number and the title. A title is prose, so its
+    # punctuation is cleaned out here ("It's a Bicycle" -> "its-a-bicycle").
+    # Names that already exist are still resolved with _normalize_slug.
+    title_slug = _slug_from_title(title)
+    if not title_slug:
+        return _safe_json({
+            "error": (
+                f"Invalid title {title!r}: a track title needs at least one "
+                "letter or digit to make a filename from"
+            ),
+        })
     filename = f"{padded}-{title_slug}.md"
     track_path = tracks_dir / filename
 
@@ -522,8 +541,12 @@ async def create_track(
     except (OSError, UnicodeDecodeError) as e:
         return _safe_json({"error": f"Cannot read track template: {e}"})
 
-    # Fill in placeholders
-    album_title = album.get("title", normalized)
+    # Fill in placeholders. An album whose README is still templates/album.md has
+    # the title "[Album Title]"; linking that gave "[[Album Title]](../README.md)".
+    # Until the album is named, the slug is the honest label.
+    album_title = str(album.get("title") or "").strip()
+    if not album_title or album_title.startswith("["):
+        album_title = normalized
     # The frontmatter title is a quoted YAML scalar (title: "[Track Title]"),
     # so it must receive a properly escaped value — a raw replace of a title
     # containing a double quote would break the YAML and silently drop every
@@ -541,11 +564,27 @@ async def create_track(
     content = content.replace("[Track's role in the album narrative]", "—")
 
     # Fill frontmatter placeholders
+    album_explicit = bool(album.get("explicit", False))
     content = content.replace("track_number: 0", f"track_number: {number}")
     content = content.replace(
         "explicit: false",
-        f"explicit: {'true' if album.get('explicit', False) else 'false'}",
+        f"explicit: {'true' if album_explicit else 'false'}",
     )
+    # The Explicit row says what the frontmatter two lines above it already
+    # does, instead of staying a "Yes / No" placeholder beside a set value.
+    content = content.replace(
+        "| **Explicit** | Yes / No |",
+        f"| **Explicit** | {'Yes' if album_explicit else 'No'} |",
+    )
+
+    # A track with no source material has nothing for a human to verify. The
+    # template's "❌ Pending" stays only where there may be sources: on a
+    # documentary track, or on an album that keeps a SOURCES.md.
+    if not documentary and not (Path(album_path) / "SOURCES.md").exists():
+        content = content.replace(
+            "| **Sources Verified** | ❌ Pending |",
+            "| **Sources Verified** | N/A |",
+        )
 
     # Strip documentary sections if not needed
     if not documentary:
