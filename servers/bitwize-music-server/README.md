@@ -97,7 +97,7 @@ After installing, **restart Claude Code** to reload the plugin.
 | `check_explicit_content(text)` | Scan lyrics for explicit/profane words with override support |
 | `check_pronunciation_enforcement(album_slug, track_slug)` | Verify pronunciation notes applied in lyrics |
 | `get_lyrics_stats(album_slug, track_slug?)` | Word/char counts against the target for the track's duration or genre |
-| `check_album_lyrics(album_slug, track_slug?, verbose?)` | Every lyric check (syllables, rhyme, structure, homographs, explicit) across an album; returns only what is wrong |
+| `check_album_lyrics(album_slug, track_slug?, verbose?)` | Every lyric check (syllables, rhyme, structure, homographs, explicit) across an album; returns only what needs a look |
 
 ### Validation & Structure
 | Tool | Description |

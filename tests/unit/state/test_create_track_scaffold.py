@@ -114,7 +114,7 @@ def make_album(tmp_path: Path):
     orig_plugin_root = _shared_mod.PLUGIN_ROOT
 
     def factory(*, title: str = "Test Album", explicit: bool = False,
-                sources: bool = False) -> Path:
+                sources: bool = False, extra: tuple[str, ...] = ()) -> Path:
         album_dir = (
             tmp_path / "content" / "artists" / "test-artist" / "albums" / "pop" / "test-album"
         )
@@ -123,6 +123,11 @@ def make_album(tmp_path: Path):
         (album_dir / "README.md").write_text(f"# {title}\n", encoding="utf-8")
         if sources:
             (album_dir / "SOURCES.md").write_text("# Sources\n", encoding="utf-8")
+        for name in extra:  # a name with a suffix is a file, without one a folder
+            if Path(name).suffix:
+                (album_dir / name).write_text("notes\n", encoding="utf-8")
+            else:
+                (album_dir / name).mkdir()
         state = {
             "version": 2,
             "config": {
@@ -196,6 +201,26 @@ class TestSourcesVerifiedRow:
         make_album(sources=False)
         content = _created_text(_create(documentary=True))
         assert _row(content, "Sources Verified") == "| **Sources Verified** | ❌ Pending |"
+
+    @pytest.mark.parametrize("kept", [
+        "RESEARCH.md", "research", "primary-sources", "marriott-breach-sources.md",
+        "DEFENDANTS-RESEARCH.md", "Sources.md",
+    ])
+    def test_pending_when_the_album_keeps_research_under_another_name(self, make_album, kept):
+        """Most research-backed albums have a RESEARCH.md or research/ and no SOURCES.md.
+
+        Writing N/A there would let a new track through the source-verification
+        gate, and keep it off the list of pending verifications, without a human
+        ever looking at it.
+        """
+        make_album(extra=(kept,))
+        content = _created_text(_create(documentary=False))
+        assert _row(content, "Sources Verified") == "| **Sources Verified** | ❌ Pending |"
+
+    def test_other_files_in_the_album_do_not_count_as_research(self, make_album):
+        make_album(extra=("promo", "notes.md", "album-art.png"))
+        content = _created_text(_create(documentary=False))
+        assert _row(content, "Sources Verified") == "| **Sources Verified** | N/A |"
 
 
 # ===========================================================================
@@ -299,6 +324,22 @@ class TestFilenameFromTitle:
         assert "error" in result
         assert "title" in result["error"].lower()
         assert list(tracks_dir.iterdir()) == []
+
+    def test_a_track_filed_under_the_old_spelling_still_counts_as_existing(self, make_album):
+        """Tracks made before this change kept their punctuation in the name."""
+        tracks_dir = make_album()
+        (tracks_dir / "04-it's-a-bicycle.md").write_text("stub", encoding="utf-8")
+        result = _create("It's a Bicycle", number=4)
+        assert result["created"] is False
+        assert "already exists" in result["error"]
+        assert sorted(p.name for p in tracks_dir.iterdir()) == ["04-it's-a-bicycle.md"]
+
+    def test_invisible_joiners_do_not_split_a_word(self, make_album):
+        """A Persian title's zero-width non-joiner is dropped, not hyphenated."""
+        make_album()
+        result = _create("\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645", number=2)
+        assert result.get("created") is True, result
+        assert result["filename"] == "02-\u0645\u06cc\u062e\u0648\u0627\u0647\u0645.md"
 
     def test_a_traversal_attempt_cannot_leave_the_tracks_folder(self, make_album):
         tracks_dir = make_album()

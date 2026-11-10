@@ -180,20 +180,23 @@ def _slug_from_title(title: str) -> str:
     filename. ``It's a Bicycle`` used to give ``it's-a-bicycle``, and
     ``Part 2: The Return`` kept its colon.
 
-    Apostrophes and quotation marks are dropped. Letters, digits and combining
-    marks of any script are kept, so ``Café del Mar`` and a Korean title come
-    through intact. Everything else becomes a hyphen, and runs of hyphens
-    collapse. Returns ``""`` when nothing usable is left; the caller decides
+    Apostrophes and quotation marks are dropped, and so are invisible format
+    marks such as a zero-width joiner, which would otherwise split a word.
+    Letters, digits and combining marks of any script are kept, so
+    ``Café del Mar`` and a Korean title come through intact. Everything else
+    becomes a hyphen, and runs of hyphens collapse. Returns ``""`` when nothing usable is left; the caller decides
     what to do about that. The result never contains a path separator or a dot,
     so it cannot leave the directory it is joined to.
     """
     out: list[str] = []
     for ch in unicodedata.normalize("NFC", title).lower():
-        if ch in _TITLE_SLUG_DROPPED:
+        category = unicodedata.category(ch)
+        # Cf = invisible format marks (zero-width joiner and non-joiner).
+        if ch in _TITLE_SLUG_DROPPED or category == "Cf":
             continue
         # L = letter, N = number, M = combining mark (keeps Indic vowel signs
         # and decomposed accents attached to their letter).
-        out.append(ch if unicodedata.category(ch)[0] in "LNM" else "-")
+        out.append(ch if category[0] in "LNM" else "-")
     return re.sub(r"-{2,}", "-", "".join(out)).strip("-")
 
 
@@ -852,10 +855,22 @@ _STREAMING_PLACEHOLDER_MARKERS = [
 # has not been written: the lyrics line reads as a section tag (so the box is
 # non-empty with zero words) and the style line is 84 characters of brackets.
 _TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
+# Lines that mean the lyrics have not been written: the template's own, and the
+# wording older track stubs were left with.
+_LYRICS_PLACEHOLDERS = (_TEMPLATE_LYRICS_MARKER, "[Lyrics to be written]")
 _TEMPLATE_STYLE = (
     "[genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]"
 )
 _TEMPLATE_STYLE_TOKENS = tuple(token.strip() for token in _TEMPLATE_STYLE.split(","))
+
+
+def _lyrics_placeholder_in(lyrics: str) -> str | None:
+    """The placeholder line still present in *lyrics*, or None when there is none."""
+    lowered = lyrics.lower()
+    for marker in _LYRICS_PLACEHOLDERS:
+        if marker.lower() in lowered:
+            return marker
+    return None
 
 
 def _template_style_tokens_in(style: str) -> list[str]:

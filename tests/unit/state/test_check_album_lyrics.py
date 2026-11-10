@@ -143,21 +143,26 @@ TEMPLATE_LYRICS = "[Verse 1 - calm reflective]\n[Lyrics here...]\n\n[Chorus - bi
 
 
 def _track_file(title: str, lyrics: str, *, instrumental: bool = False,
-                frontmatter: bool = True) -> str:
+                frontmatter: bool = True, explicit: bool = False,
+                lyrics_section: str | None = None) -> str:
+    """A track file. *lyrics_section* replaces the whole Lyrics Box section."""
     head = ""
     if frontmatter:
         head = (
             f'---\ntitle: "{title}"\ntrack_number: 1\n'
-            f'instrumental: {"true" if instrumental else "false"}\nexplicit: false\n---\n\n'
+            f'instrumental: {"true" if instrumental else "false"}\n'
+            f'explicit: {"true" if explicit else "false"}\n---\n\n'
         )
+    if lyrics_section is None:
+        lyrics_section = f"### Lyrics Box\n\n```\n{lyrics}\n```\n"
     return (
         f"{head}# {title}\n\n## Track Details\n\n"
         "| Attribute | Detail |\n|-----------|--------|\n"
         "| **Status** | In Progress |\n"
         f"| **Instrumental** | {'Yes' if instrumental else 'No'} |\n"
-        "| **Explicit** | No |\n\n"
+        f"| **Explicit** | {'Yes' if explicit else 'No'} |\n\n"
         "## Suno Inputs\n\n### Style Box\n\n```\nbright pop, 110 BPM\n```\n\n"
-        f"### Lyrics Box\n\n```\n{lyrics}\n```\n"
+        + lyrics_section
     )
 
 
@@ -166,7 +171,9 @@ def album(tmp_path: Path):
     """Write tracks to disk and install a cache that knows them.
 
     Call it with ``{slug: (lyrics, options)}``; options are passed to
-    ``_track_file`` except ``explicit``, which sets the cached flag.
+    ``_track_file``. ``explicit`` sets the flag in the file and in the cache;
+    ``cached_explicit`` makes the cache disagree with the file, and
+    ``path=None`` leaves the track without a file.
     """
     orig_cache = _shared_mod.cache
 
@@ -176,12 +183,15 @@ def album(tmp_path: Path):
         state_tracks = {}
         for slug, (lyrics, options) in tracks.items():
             options = dict(options)
-            explicit = options.pop("explicit", False)
+            cached = options.pop("cached_explicit", options.get("explicit", False))
+            has_file = options.pop("path", "file") is not None
             path = tracks_dir / f"{slug}.md"
-            path.write_text(_track_file(slug, lyrics, **options), encoding="utf-8")
+            if has_file:
+                path.write_text(_track_file(slug, lyrics, **options), encoding="utf-8")
             state_tracks[slug] = {
-                "path": str(path), "title": slug.split("-", 1)[1].replace("-", " ").title(),
-                "status": "In Progress", "explicit": explicit,
+                "path": str(path) if has_file else None,
+                "title": slug.split("-", 1)[1].replace("-", " ").title(),
+                "status": "In Progress", "explicit": cached,
             }
         state = {
             "version": 2,
@@ -242,7 +252,7 @@ class TestOneCallCoversTheAlbum:
         album({"01-new": (TEMPLATE_LYRICS, {})})
         track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
         assert track["checked"] is False
-        assert track["skipped"] == "no lyrics"
+        assert track["skipped"] == "template placeholder still in the Lyrics Box"
 
     def test_the_summary_counts_them(self, album):
         album(THREE_TRACKS)
@@ -357,6 +367,61 @@ We are running to the morning sun and we will never ever stop
 """
 
 
+class TestWhyATrackWasSkipped:
+    """Each way of having nothing to check says which way it was.
+
+    They all used to read "no lyrics", including ten finished tracks whose
+    lyrics sit under an older heading.
+    """
+
+    def _skipped(self, album, lyrics: str = "", **options) -> str:
+        album({"01-song": (lyrics, options)})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert track["checked"] is False, track
+        return track["skipped"]
+
+    def test_lyrics_under_an_older_heading(self, album):
+        reason = self._skipped(album, lyrics_section="### Suno Lyrics\n\n```\n" + CLEAN_LYRICS + "\n```\n")
+        assert reason == "no Lyrics Box section"
+
+    def test_a_code_fence_that_never_closes(self, album):
+        reason = self._skipped(album, lyrics_section="### Lyrics Box\n\n```\n" + CLEAN_LYRICS + "\n")
+        assert reason == "Lyrics Box has no closed code block"
+
+    def test_tags_and_nothing_else(self, album):
+        assert self._skipped(album, "[Verse 1]\n\n[Chorus]\n\n[End]") == "no lyrics"
+
+    def test_an_empty_box(self, album):
+        assert self._skipped(album, "") == "no lyrics"
+
+    @pytest.mark.parametrize("placeholder", ["[Lyrics here...]", "[Lyrics to be written]"])
+    def test_a_half_written_sheet_still_holding_a_placeholder(self, album, placeholder):
+        lyrics = "[Verse 1]\nMorning light across the floor\n\n[Chorus]\n" + placeholder
+        assert self._skipped(album, lyrics) == "template placeholder still in the Lyrics Box"
+
+    def test_lyrics_in_a_script_the_checks_cannot_read(self, album):
+        """Nothing was tokenized, so calling the track clean would be a guess."""
+        korean = "[Verse 1]\n\ub098\ub294 \ubc24\uc744 \uac77\ub294\ub2e4\n\ubcc4\uc774 \ube5b\ub09c\ub2e4\n"
+        assert self._skipped(album, korean) == "no words these checks can read"
+
+    def test_a_track_with_no_file(self, album):
+        album({
+            "01-lost": ("", {"path": None}),
+            "02-clean-song": (CLEAN_LYRICS, {}),
+        })
+        result = _run(_lyrics_mod.check_album_lyrics("test-album"))
+        by = _by_slug(result)
+        assert by["01-lost"]["skipped"] == "track file not readable"
+        assert by["02-clean-song"]["clean"] is True
+
+    def test_an_album_with_no_tracks(self, album):
+        album({})
+        _shared_mod.cache.get_state()["albums"]["test-album"]["tracks"] = None
+        result = _run(_lyrics_mod.check_album_lyrics("test-album"))
+        assert result["tracks"] == []
+        assert result["summary"]["tracks"] == 0
+
+
 class TestSyllableOutliers:
     """A verse line far longer or shorter than the rest of its verse.
 
@@ -385,6 +450,22 @@ class TestSyllableOutliers:
         """The reference asks for consistency within verses; hooks vary by design."""
         track = self._syllables(album, "pop")
         assert all(o["section"] == "Verse 1" for o in track["syllables"]["outliers"])
+
+    def test_a_line_with_nothing_countable_is_left_out(self, album):
+        """A verse that alternates Korean and English is not four outliers."""
+        lyrics = (
+            "[Verse 1]\n"
+            "\ub098\ub294 \ubc24\uc744 \uac77\ub294\ub2e4\n"
+            "Walking through the city in the night\n"
+            "\ubcc4\uc774 \ube5b\ub09c\ub2e4\n"
+            "Watching all the neon signs turn blue\n"
+            "\ub108\ub97c \uae30\ub2e4\ub9b0\ub2e4\n"
+            "Nothing here is ever really new\n"
+        )
+        album({"01-song": (lyrics, {})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert track["checked"] is True
+        assert "syllables" not in track
 
     def test_a_short_verse_has_no_outliers(self, album):
         album({"01-song": ("[Verse 1]\nGo\nWe are running to the morning sun and never stop\n", {})})
@@ -446,6 +527,21 @@ class TestReadabilityIsNotAFinding:
 
 
 class TestExplicitWordsAndTheFlag:
+    LOUD = CLEAN_LYRICS.replace("Coffee waiting", "Shit is waiting")
+
+    def test_the_track_file_decides_when_the_cache_is_stale(self, album):
+        """The lyrics are read from disk, so the flag is too."""
+        album({"01-loud": (self.LOUD, {"explicit": True, "cached_explicit": False})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert track["clean"] is True
+        assert "explicit" not in track
+
+    def test_a_stale_cache_cannot_hide_a_mismatch_either(self, album):
+        album({"01-loud": (self.LOUD, {"explicit": False, "cached_explicit": True})})
+        track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]
+        assert track["explicit"]["mismatch"] is True
+        assert track["explicit"]["flagged"] is False
+
     def test_explicit_words_on_an_explicit_track_are_not_a_finding(self, album):
         album({"01-loud": (CLEAN_LYRICS.replace("Coffee waiting", "Shit is waiting"), {"explicit": True})})
         track = _run(_lyrics_mod.check_album_lyrics("test-album"))["tracks"][0]

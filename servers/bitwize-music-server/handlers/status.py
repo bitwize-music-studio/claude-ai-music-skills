@@ -31,6 +31,7 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_wav_source_dir,
+    _normalize_slug,
     _safe_json,
     _slug_from_title,
 )
@@ -441,6 +442,22 @@ async def update_album_status(album_slug: str, status: str, force: bool = False)
     })
 
 
+def _album_keeps_research(album_dir: Path) -> bool:
+    """True when the album folder holds source or research material, under any name.
+
+    ``SOURCES.md`` is only one spelling. Most research-backed albums keep a
+    ``RESEARCH.md`` or a ``research/`` folder and no ``SOURCES.md`` at all, and
+    a few use names such as ``primary-sources/``. Anything named for sources or
+    research counts. A folder that cannot be listed counts too: the doubt
+    should leave a track waiting for a human, not wave it through.
+    """
+    try:
+        names = [entry.name.lower() for entry in album_dir.iterdir()]
+    except OSError:
+        return True
+    return any("source" in name or "research" in name for name in names)
+
+
 async def create_track(
     album_slug: str,
     track_number: str | int,
@@ -451,8 +468,10 @@ async def create_track(
 
     Copies the track template and fills in what is already known: the track
     number and title, the album link, and the Explicit flag from the album.
-    On an album with no SOURCES.md a non-documentary track gets
-    ``Sources Verified: N/A``; otherwise it stays ``❌ Pending`` for a human.
+    A non-documentary track gets ``Sources Verified: N/A`` only on an album
+    that keeps no source or research material (no SOURCES.md, RESEARCH.md,
+    research/ folder or the like); otherwise it stays ``❌ Pending`` for a
+    human.
     The Lyrics Box and Style Box keep the template's placeholders, which the
     pre-generation gates treat as unwritten.
 
@@ -523,12 +542,22 @@ async def create_track(
     filename = f"{padded}-{title_slug}.md"
     track_path = tracks_dir / filename
 
-    if track_path.exists():
-        return _safe_json({
-            "created": False,
-            "error": f"Track file already exists: {track_path}",
-            "path": str(track_path),
-        })
+    # A track made before filenames were cleaned may sit under the old spelling
+    # ("04-it's-a-bicycle.md"). It is the same track: do not make a second one.
+    existing_names = [track_path]
+    try:
+        old_spelling = tracks_dir / f"{padded}-{_normalize_slug(title)}.md"
+    except ValueError:
+        old_spelling = track_path  # the old rule refused this title outright
+    if old_spelling != track_path:
+        existing_names.append(old_spelling)
+    for existing in existing_names:
+        if existing.exists():
+            return _safe_json({
+                "created": False,
+                "error": f"Track file already exists: {existing}",
+                "path": str(existing),
+            })
 
     # Read template
     assert _shared.PLUGIN_ROOT is not None
@@ -578,9 +607,9 @@ async def create_track(
     )
 
     # A track with no source material has nothing for a human to verify. The
-    # template's "❌ Pending" stays only where there may be sources: on a
-    # documentary track, or on an album that keeps a SOURCES.md.
-    if not documentary and not (Path(album_path) / "SOURCES.md").exists():
+    # template's "❌ Pending" stays wherever there may be sources: on a
+    # documentary track, and on any album that keeps research of its own.
+    if not documentary and not _album_keeps_research(Path(album_path)):
         content = content.replace(
             "| **Sources Verified** | ❌ Pending |",
             "| **Sources Verified** | N/A |",

@@ -150,7 +150,7 @@ These targets produce tracks in the 3:30–5:00 range on Suno. The previous lowe
 | Punk / Pop-Punk | 2:30–3:30 | 150–250 | 2 verses + chorus + bridge (punk is short by design) |
 | Ambient / Lo-Fi | any | 50–150 | Sparse or wordless by design. Keeps this range whatever the Target Duration, because the duration mapping assumes a song sung throughout |
 
-A genre with no row here uses the default duration's range: 220–400 words (400–600 for hip-hop styles).
+A genre with no row here uses the default duration's range: 220–400 words.
 
 ### Instrumental Tags Count as Runtime
 

@@ -229,8 +229,9 @@ Structure tags are reliable when every section carries one — but reliability s
 
 Suno accepts far more tags than the plugin's own checks know by name. `validate_section_structure`, `analyze_rhyme_scheme` and `check_album_lyrics` (which runs both across an album) sort every tag into a section type, and this is how:
 
-- **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|` or `(`. `[Outro - chorus reprise]` is an outro.
-- **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude.
+- **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|`, `(` or a comma. `[Outro - chorus reprise]` is an outro.
+- **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude. A number written against the word still counts: `[Chorus2]` is a chorus.
+- **A singer named first does not hide the section.** In `[Female - Chorus]` or `[Full choir - Chorus - full SATB]` the first part names no section, so the next part that is a section name and nothing more is used. A cue that only mentions a section, as in `[Spoken - over the verse riff]`, names nothing.
 - **A tag that names no section is not held to a section's rules.** A voice or delivery tag (`[Spoken]`, `[Male lead]`, `[Whispered]`), a direction (`[Crash]`, `[Silence]`) or a custom name (`[Main Theme]`) is listed with the type `verse` for want of a better one, but it may be empty and it is not compared with the real verses.
 
 | Type | Example tags | Left empty |
@@ -256,7 +257,9 @@ An empty sung section is reported because Suno improvises words for it. An empty
 
 Only sections named as verses are compared with each other for length, and an empty one is left out of that comparison.
 
-Repetition is not a self-rhyme. A chorus sung three times under the same tag is checked once per pass, and a line repeated inside a section is a refrain. A self-rhyme is the same word ending two different lines of one section.
+Repetition is not a self-rhyme. A chorus sung three times under the same tag is three sections, a pass that is word for word the same as an earlier one is reported once, and a line repeated inside a section is a refrain. A self-rhyme is the same word ending two different lines of one section.
+
+The same tag twice in a row is a section sung again (a double chorus) when each has lines under it. It is reported only when nothing sits under the first tag, which means the tag was typed twice, or when the tag is numbered: `[Verse 1]` twice is a slip in the numbering.
 
 ---
 

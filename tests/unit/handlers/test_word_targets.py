@@ -79,16 +79,28 @@ class TestTheToolRestatesTheReference:
                 checked += 1
         assert checked >= 14
 
-    def test_every_duration_row_matches(self):
+    def test_every_duration_row_matches_from_edge_to_edge(self):
+        """Checked at each row's first second, middle and last second.
+
+        A midpoint alone would not notice a row whose edge was moved in the
+        reference (2:30-3:30 becoming 2:30-4:00, say).
+        """
         rows = _table_after("Duration → Word Count mapping")
         assert len(rows) == 4, "the reference's duration table was not found"
         for cells in rows:
             m1, s1, m2, s2 = map(int, re.search(_CLOCK_RANGE, cells[0]).groups())
-            midpoint = ((m1 * 60 + s1) + (m2 * 60 + s2)) // 2
+            start, end = m1 * 60 + s1, m2 * 60 + s2
             plain = dict(zip(("min", "max"), map(int, re.search(_RANGE, cells[1]).groups())))
             rap = dict(zip(("min", "max"), map(int, re.search(_RANGE, cells[2]).groups())))
-            assert text_analysis._words_for_duration(midpoint, hip_hop=False) == plain, cells[0]
-            assert text_analysis._words_for_duration(midpoint, hip_hop=True) == rap, cells[0]
+            for seconds in (start, (start + end) // 2, end - 1):
+                assert text_analysis._words_for_duration(seconds, hip_hop=False) == plain, (cells[0], seconds)
+                assert text_analysis._words_for_duration(seconds, hip_hop=True) == rap, (cells[0], seconds)
+
+    def test_the_rows_leave_no_gap_between_them(self):
+        rows = _table_after("Duration → Word Count mapping")
+        edges = [tuple(map(int, re.search(_CLOCK_RANGE, cells[0]).groups())) for cells in rows]
+        for (_, _, m2, s2), (m1, s1, _, _) in zip(edges, edges[1:]):
+            assert (m2, s2) == (m1, s1), "each row should start where the last one ends"
 
     def test_the_default_is_the_reference_default_duration(self):
         """An unknown genre gets the row for the default 3:30–5:00 target."""
@@ -286,6 +298,30 @@ class TestTargetDurationComesFirst:
     def test_hip_hop_uses_its_own_column(self, stats):
         row = stats(album_genre="hip-hop", words=600, duration="~5:00")["tracks"][0]
         assert row["target"] == {"min": 550, "max": 750}
+
+    def test_an_unlisted_track_genre_keeps_the_albums_column(self, stats):
+        """`genre: trap` on a hip-hop album is still counted as hip-hop.
+
+        With no duration the track already took the album's 400-600; with one it
+        used to drop to the non-hip-hop column under a hip-hop label.
+        """
+        row = stats(album_genre="hip-hop", words=450, duration="4:00", track_genre="trap")["tracks"][0]
+        assert row["target"] == {"min": 400, "max": 600}
+        assert row["genre"] == "hip-hop"
+
+    @pytest.mark.parametrize("bullet", [
+        "- **Target Duration:** 3:00-3:30",       # colon inside the bold
+        "* **Target Duration**: 3:00-3:30",
+        "- **Target Duration** : 3:00-3:30",
+    ])
+    def test_the_albums_bullet_is_read_however_it_is_punctuated(self, stats, tmp_path, bullet):
+        stats(album_genre="pop", words=230, album_duration="placeholder-line")
+        readme = tmp_path / "album" / "README.md"
+        readme.write_text(readme.read_text(encoding="utf-8").replace(
+            "- **Target Duration**: placeholder-line", bullet), encoding="utf-8")
+        result = json.loads(asyncio.run(text_analysis.get_lyrics_stats("a")))
+        assert result["target_basis"] == "album_duration"
+        assert result["target"] == {"min": 150, "max": 250}
 
     def test_a_tracks_own_genre_picks_the_column(self, stats):
         """A rap track on a pop album, with a duration, is still counted as rap."""

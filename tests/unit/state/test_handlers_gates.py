@@ -499,6 +499,20 @@ class TestGate2LyricsReviewed:
         lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
         assert lyrics_gate["status"] == "FAIL"
 
+    def test_the_older_placeholder_wording_fails_too(self):
+        """Track stubs written as `[Lyrics to be written]` are just as unwritten."""
+        text = TRACK_FILE_COMPLETE.replace(
+            "[Verse 1]\nWalking down the road tonight\nStars are shining bright\n"
+            "Every step I take\nKeeps me wide awake\n```\n\n## Style Box",
+            "[Lyrics to be written]\n```\n\n## Style Box",
+        )
+        assert "[Lyrics to be written]" in text
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, blocklist=[])
+        lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
+        assert lyrics_gate["status"] == "FAIL"
+        assert "placeholder" in lyrics_gate["detail"].lower()
+
     def test_instrumental_with_tags_only_still_passes(self):
         """An instrumental's Lyrics Box is section tags and nothing else."""
         text = (

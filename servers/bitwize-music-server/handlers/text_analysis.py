@@ -658,9 +658,10 @@ _SPARSE_GENRES = frozenset({"ambient", "lo-fi"})
 _TARGET_DURATION_RE = re.compile(
     r"(\d{1,2}):(\d{2})(?:\s*[-\u2013\u2014]\s*(\d{1,2}):(\d{2}))?"
 )
-# The album README's bullet under Suno Settings: "- **Target Duration**: 3:30-4:30"
+# The album README's bullet under Suno Settings: "- **Target Duration**: 3:30-4:30".
+# The colon is written inside the bold as often as after it.
 _ALBUM_TARGET_DURATION_RE = re.compile(
-    r"(?im)^\s*[-*]\s*\*\*Target Duration\*\*\s*:\s*(.+)$"
+    r"(?im)^\s*[-*]\s*\*\*Target Duration:?\*\*\s*:?\s*(.+)$"
 )
 
 
@@ -806,7 +807,9 @@ async def get_lyrics_stats(
         # says what was asked for rather than silently claiming the album's.
         label = known or track_genre or genre
         if known not in _SPARSE_GENRES:
-            hip_hop = (track_genre or genre) in _HIP_HOP_GENRES
+            # The column follows the genre the track is being counted as, so
+            # an unlisted track genre on a hip-hop album stays hip-hop.
+            hip_hop = known in _HIP_HOP_GENRES
             for basis, cell, phrase in (
                 ("track_duration", track_duration, "a {} track"),
                 ("album_duration", album_duration, "the album's {} target"),
