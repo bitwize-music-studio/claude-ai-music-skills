@@ -269,6 +269,11 @@ async def validate_album_structure(
                 _pass("structure", f"{len(track_files)} track files found")
             else:
                 _warn("structure", "No track files found in tracks/")
+        elif not album.get("tracks"):
+            # Git keeps no empty folder, so an album with no tracks yet loses
+            # tracks/ when it is cloned or checked out. That is the same state
+            # as an empty tracks/, and create_track makes the folder.
+            _warn("structure", "No track files yet (tracks/ is made with the first track)")
         else:
             _fail("structure", "tracks/ directory missing",
                   fix=f"mkdir -p {album_path}/tracks")

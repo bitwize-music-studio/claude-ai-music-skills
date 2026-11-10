@@ -354,6 +354,30 @@ class TestFilenameFromTitle:
 # ===========================================================================
 
 
+class TestAnAlbumWithoutATracksFolder:
+    """Git keeps no empty folder, so an album committed before its first track
+    has no tracks/ once it is cloned or checked out again. create_track used to
+    refuse such an album."""
+
+    def test_the_folder_is_made_and_the_track_written(self, make_album):
+        tracks_dir = make_album()
+        tracks_dir.rmdir()
+        result = _create("First Light", number=1)
+        assert result.get("created") is True, result
+        assert (tracks_dir / "01-first-light.md").is_file()
+
+    def test_a_missing_album_folder_is_still_an_error(self, make_album):
+        """Only tracks/ is made; an album folder that is not there is not invented."""
+        tracks_dir = make_album()
+        album_dir = tracks_dir.parent
+        tracks_dir.rmdir()
+        (album_dir / "README.md").unlink()
+        album_dir.rmdir()
+        result = _create("First Light", number=1)
+        assert "error" in result
+        assert not album_dir.exists()
+
+
 class TestANewTrackAtTheGates:
     def _gates(self, result: dict) -> dict:
         path = Path(result["path"])
