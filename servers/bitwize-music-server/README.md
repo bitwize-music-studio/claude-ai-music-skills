@@ -62,7 +62,7 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available (39)
+## Tools Available (42)
 
 ### Albums & Tracks
 | Tool | Description |
@@ -105,6 +105,13 @@ After installing, **restart Claude Code** to reload the plugin.
 | `validate_album_structure(album_slug, checks?)` | Structural validation of album directories and files |
 | `create_album_structure(album_slug, genre, documentary?)` | Create new album directory with templates |
 | `run_pre_generation_gates(album_slug, track_slug?)` | Run all 6 pre-generation validation gates |
+
+### Album Art
+| Tool | Description |
+|------|-------------|
+| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready, and the cost. Free |
+| `generate_album_art(album_slug, candidates?, open_viewer?)` | Have the Codex CLI make 1-4 cover candidates (one ChatGPT image each); never picks one |
+| `import_album_art(album_slug, source_path, replace?)` | File the chosen image as `album.png` (3000x3000) and `album-art.png` |
 
 ### Session & Config
 | Tool | Description |

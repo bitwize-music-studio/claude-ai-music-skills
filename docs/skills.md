@@ -19,7 +19,7 @@ All 59 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `extend-take` | Carry a take on from a point in its audio — more of a song that stopped early, or a new second half — and join the result into whole songs |
 | `sound-effects` | Make a sound effect, a one-shot or a loop for an album through Suno's MCP server |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
-| `album-art-director` | Album artwork concepts and multi-platform AI art prompts |
+| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI make the cover (`artwork.generator: codex`) |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
 | `mastering-engineer` | Audio mastering for streaming platforms (-14 LUFS) |
 

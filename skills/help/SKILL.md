@@ -66,7 +66,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:validate-album` - Validate album structure and paths
 
 **Production & Release**
-- `/bitwize-music:album-art-director` - Visual concepts and AI art prompts
+- `/bitwize-music:album-art-director` - Visual concepts and AI art prompts; makes the cover through Codex when `artwork.generator` is `codex`
 - `/bitwize-music:mix-engineer` - Per-stem audio polish before mastering
 - `/bitwize-music:mastering-engineer` - Audio mastering guidance
 - `/bitwize-music:promo-director` - Generate promo videos for social media
