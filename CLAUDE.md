@@ -119,7 +119,7 @@ At the beginning of a fresh session:
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications(summary_only=True)`)
    - Last session context (from `get_session`)
-   - Suno MCP: one line — connected, or not connected (optional; never a warning)
+   - Suno MCP: connected, or configured but not connected (run `/mcp` and sign in), or missing — then the add command and sign-in step from `health_check`'s `suno.fix`, unless `generation.suno_mcp_reminder` is false (optional; never a warning)
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`

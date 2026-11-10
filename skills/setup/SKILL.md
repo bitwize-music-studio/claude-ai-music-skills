@@ -134,13 +134,13 @@ py -3 -m venv ~/.bitwize-music/venv                                             
 
 Neither is needed for the plugin to work. Mention them once, after the required components are sorted.
 
-**Suno MCP server** — lets `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` reach the user's Suno account:
+**Suno MCP server** — lets `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` reach the user's Suno account. Check the `suno` section of the `health_check` result first: `configured` means it is already registered (say so, with its name and scope, and skip the command); `missing` means it is not:
 
 ```bash
 claude mcp add --transport http suno https://api.suno.com/mcp
 ```
 
-Then `/mcp` in a session to sign in. The plugin does not ship this server; without it those skills fall back to the clipboard flow.
+Then `/mcp` in a session to sign in. `--scope user` on the command makes it available in every project, not only this one. The plugin does not ship this server; without it those skills fall back to the clipboard flow, and session start shows these instructions until it is added (`generation.suno_mcp_reminder: false` in the config hides them).
 
 **Audio player** — lets `/bitwize-music:listen` play audio in the terminal. Any one of `mpv` (recommended), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`:
 

@@ -4685,6 +4685,15 @@ class TestBuildConfigSectionListen:
         gen = self._generation({'listen_mode': 'iTerm2_Browser'}, monkeypatch)
         assert gen['listen_mode'] == 'iterm2_browser'
 
+    def test_suno_mcp_reminder_defaults_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['suno_mcp_reminder'] is True
+
+    def test_suno_mcp_reminder_off(self, monkeypatch):
+        assert self._generation({'suno_mcp_reminder': False}, monkeypatch)['suno_mcp_reminder'] is False
+
+    def test_suno_mcp_reminder_garbage_falls_back(self, monkeypatch):
+        assert self._generation({'suno_mcp_reminder': 'maybe'}, monkeypatch)['suno_mcp_reminder'] is True
+
     def test_unknown_mode_falls_back_to_browser(self, monkeypatch, caplog):
         gen = self._generation({'listen_mode': 'speakers'}, monkeypatch)
         assert gen['listen_mode'] == 'browser'

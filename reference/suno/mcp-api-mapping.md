@@ -17,7 +17,9 @@ The plugin does not ship the Suno server; you add it to your own Claude Code onc
 claude mcp add --transport http suno https://api.suno.com/mcp
 ```
 
-Then run `/mcp` in a session and sign in to your Suno account. Name the server `suno` as above — the skills pre-approve tools under that name. Songs made this way use your plan's credits and land in your Suno library.
+Then run `/mcp` in a session and sign in to your Suno account. Name the server `suno` as above — the skills pre-approve tools under that name. Add `--scope user` to the command to have the server in every project; without it, it belongs to the project you ran the command in. Songs made this way use your plan's credits and land in your Suno library.
+
+Session start checks for the server (`health_check` reads Claude Code's and Codex's MCP registrations for any server on `api.suno.com`) and shows these steps while none is registered. `generation.suno_mcp_reminder: false` in your config turns that reminder off.
 
 Other assistants: see Suno's [connection guide](https://help.suno.com/en/articles/14551425).
 

@@ -59,10 +59,21 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 
 ## Step 1.6: Suno MCP (optional)
 
-Check whether a Suno MCP server is connected: look for a tool named `audio-create` on any connected MCP server. Report one line in the Setup block and move on — the server is optional, so its absence is never a warning and never stops the session.
+Two facts decide the Suno line: whether a Suno MCP server is **connected** (a tool named `audio-create` exists on any connected MCP server), and whether one is **registered** (the `suno` section of the `health_check` result from Step 1.5: `status` is `configured` or `missing`, with `servers[0].name`, `reminder` and `fix`). The server is optional, so none of this is a warning and none of it stops the session.
 
 - Connected → `Suno: connected`
-- Not connected → `Suno: not connected (optional — /bitwize-music:generate needs it; see reference/suno/mcp-api-mapping.md)`
+- Registered but not connected → `Suno: configured as "<servers[0].name>" but not connected — run /mcp and sign in`
+- Missing, `reminder: true` → show how to add it, as its own short block after the Setup lines:
+
+  ```
+  Suno: not connected. /bitwize-music:generate and /bitwize-music:listen need Suno's MCP server. Add it once:
+    claude mcp add --transport http suno https://api.suno.com/mcp
+  then run /mcp and sign in. Add --scope user to have it in every project.
+  (Hide this with generation.suno_mcp_reminder: false in your config.)
+  ```
+
+  Use the `fix` fields from the result rather than retyping them. In Codex, give the link in `fix.other_assistants` instead of the `claude` command.
+- Missing, `reminder: false` → `Suno: not connected (optional)`
 
 ## Step 2: Load Config
 

@@ -12,6 +12,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _safe_json
 from handlers._shared import get_plugin_version as _read_plugin_version
+from tools.shared import mcp_registrations as _mcp_registrations
 from tools.shared.venv import venv_python
 from tools.state import indexer
 
@@ -86,6 +87,39 @@ def _find_plugin_cache_dir() -> Path | None:
     # Sort by directory name descending (version-ish sort) and pick latest
     candidates.sort(key=lambda p: p.name, reverse=True)
     return candidates[0]
+
+
+# Suno's official MCP server. The plugin does not ship it; the user adds it once.
+SUNO_MCP_HOST = "api.suno.com"
+SUNO_MCP_URL = "https://api.suno.com/mcp"
+SUNO_MCP_FIX: dict[str, str] = {
+    "add": f"claude mcp add --transport http suno {SUNO_MCP_URL}",
+    "then": "Run /mcp and sign in to Suno",
+    "everywhere": "Add --scope user to the command to have it in every project",
+    "other_assistants": "https://help.suno.com/en/articles/14551425",
+}
+
+
+def _check_suno_mcp() -> dict[str, Any]:
+    """Whether a Suno MCP server is registered for this session, and how to add one.
+
+    Reads Claude Code's and Codex's MCP registrations (any server name counts
+    when its URL is on api.suno.com). Suno's server is optional, so the status
+    is "configured" or "missing" — never a warning. ``reminder`` says whether
+    session start should show the install instructions when it is missing
+    (config ``generation.suno_mcp_reminder``, default true).
+    """
+    servers = _mcp_registrations.find_servers(SUNO_MCP_HOST)
+    state = _shared.cache.get_state() if _shared.cache is not None else {}
+    generation = (state or {}).get("config", {}).get("generation", {}) or {}
+    result: dict[str, Any] = {
+        "status": "configured" if servers else "missing",
+        "servers": servers,
+        "reminder": bool(generation.get("suno_mcp_reminder", True)),
+    }
+    if not servers:
+        result["fix"] = dict(SUNO_MCP_FIX)
+    return result
 
 
 def _check_skill_registration() -> dict[str, Any]:
@@ -313,8 +347,13 @@ async def health_check() -> str:
 
     Returns:
         JSON with overall status ("ok", "warn", "fail"), per-check
-        summaries, raw results for venv and skills, and an album slug
-        collision section ("ok" or "collision" with details and fix).
+        summaries, raw results for venv and skills, an album slug
+        collision section ("ok" or "collision" with details and fix), and
+        a suno section: whether Suno's MCP server is registered
+        ("configured" with the server's name and scope, or "missing" with
+        the add command and sign-in step under fix) plus reminder, whether
+        session start should show those instructions. The suno check's
+        status is "ok" or "info"; "info" never lowers the overall status.
     """
     checks: list[dict[str, Any]] = []
 
@@ -382,7 +421,19 @@ async def health_check() -> str:
         checks.append({"name": "collisions", "status": "ok",
                         "detail": "No album slug collisions"})
 
-    # --- Overall status ---
+    # --- Suno MCP server (optional, so "info" rather than "warn" when missing) ---
+    suno_raw = _check_suno_mcp()
+    if suno_raw["status"] == "configured":
+        first = suno_raw["servers"][0]
+        checks.append({"name": "suno", "status": "ok",
+                        "detail": (f"Suno MCP server configured as "
+                                   f"'{first['name']}' ({first['scope']})")})
+    else:
+        checks.append({"name": "suno", "status": "info",
+                        "detail": "Suno MCP server not configured (optional)",
+                        "fix": SUNO_MCP_FIX["add"]})
+
+    # --- Overall status ("info" is neither a warning nor a failure) ---
     statuses = [c["status"] for c in checks]
     if "fail" in statuses:
         overall = "fail"
@@ -397,6 +448,7 @@ async def health_check() -> str:
         "venv": venv_raw,
         "skills": skills_raw,
         "collisions": collisions_raw,
+        "suno": suno_raw,
     })
 
 

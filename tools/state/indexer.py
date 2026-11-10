@@ -382,6 +382,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'listen_mode': _cfg_choice(
             gen_config, 'listen_mode', ('browser', 'terminal', 'iterm2_browser'), 'browser'),
         'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
+        # Whether session start shows how to add Suno's MCP server when none is registered
+        'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
     }
 
     return {

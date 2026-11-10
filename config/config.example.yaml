@@ -439,6 +439,18 @@ generation:
   #
   # listen_confirm_download: true
 
+  # ---------------------------
+  # suno_mcp_reminder [optional]
+  # ---------------------------
+  # When no Suno MCP server is registered, session start shows how to add one
+  # (claude mcp add --transport http suno https://api.suno.com/mcp, then /mcp
+  # to sign in). Set to false if you use the clipboard flow on purpose and do
+  # not want the reminder; session start then says only "Suno: not connected".
+  #
+  # Default (if omitted): true
+  #
+  # suno_mcp_reminder: true
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]

@@ -7872,6 +7872,12 @@ class TestCheckSkillRegistration:
 class TestHealthCheck:
     """Tests for the health_check() MCP tool."""
 
+    @pytest.fixture(autouse=True)
+    def no_suno_server(self, monkeypatch):
+        """By default no Suno MCP server is registered anywhere; tests that want one patch this."""
+        monkeypatch.setattr(_health_mod._mcp_registrations, "find_servers",
+                            lambda host, project=None: [])
+
     def test_all_ok(self, tmp_path):
         """Both venv and skills ok returns overall ok."""
         # Set up matching skills
@@ -7912,13 +7918,16 @@ class TestHealthCheck:
             result = json.loads(_run(_health_mod.health_check()))
 
         assert result["status"] == "ok"
-        assert len(result["checks"]) == 3
+        assert len(result["checks"]) == 4
         assert result["checks"][0]["name"] == "venv"
         assert result["checks"][0]["status"] == "ok"
         assert result["checks"][1]["name"] == "skills"
         assert result["checks"][1]["status"] == "ok"
         assert result["checks"][2]["name"] == "collisions"
         assert result["checks"][2]["status"] == "ok"
+        # Suno's server is optional: its absence is "info" and never lowers the overall status.
+        assert result["checks"][3]["name"] == "suno"
+        assert result["checks"][3]["status"] == "info"
 
     def test_stale_skills_returns_warn(self, tmp_path):
         """Stale skills with ok venv returns overall warn."""
@@ -7996,6 +8005,90 @@ class TestHealthCheck:
         assert "skills" in result
         assert "status" in result["venv"]
         assert "status" in result["skills"]
+
+    def test_suno_missing_shape(self, tmp_path):
+        """No Suno MCP server registered: status "missing" with the add command and the sign-in step."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(_fresh_state())):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        suno = result["suno"]
+        assert suno["status"] == "missing"
+        assert suno["servers"] == []
+        assert suno["reminder"] is True
+        assert suno["fix"]["add"] == "claude mcp add --transport http suno https://api.suno.com/mcp"
+        assert "/mcp" in suno["fix"]["then"]
+        assert "--scope user" in suno["fix"]["everywhere"]
+        check = next(c for c in result["checks"] if c["name"] == "suno")
+        assert check["status"] == "info"
+        assert check["fix"] == suno["fix"]["add"]
+        assert "optional" in check["detail"]
+
+    def test_suno_configured_shape(self, tmp_path):
+        """A registered Suno server, whatever its name, gives "configured" with name and scope."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        servers = [{"name": "music-api", "scope": "user", "url": "https://api.suno.com/mcp"}]
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(_fresh_state())), \
+             patch.object(_health_mod._mcp_registrations, "find_servers",
+                          return_value=servers) as find_servers:
+            result = json.loads(_run(_health_mod.health_check()))
+
+        find_servers.assert_called_once_with("api.suno.com")
+        assert result["suno"]["status"] == "configured"
+        assert result["suno"]["servers"] == servers
+        assert "fix" not in result["suno"]
+        check = next(c for c in result["checks"] if c["name"] == "suno")
+        assert check["status"] == "ok"
+        assert "'music-api'" in check["detail"]
+        assert "(user)" in check["detail"]
+        assert "fix" not in check
+
+    def test_suno_reminder_follows_the_config(self, tmp_path):
+        """generation.suno_mcp_reminder: false turns the reminder flag off; detection still runs."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        state = _fresh_state()
+        state.setdefault("config", {})["generation"] = {"suno_mcp_reminder": False}
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["suno"]["status"] == "missing"
+        assert result["suno"]["reminder"] is False
+        assert "fix" in result["suno"]
+
+    def test_suno_without_a_state_cache(self, tmp_path):
+        """No cache at all: detection still answers, and the reminder defaults to on."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", None):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["suno"] == {
+            "status": "missing", "servers": [], "reminder": True,
+            "fix": result["suno"]["fix"],
+        }
 
     def test_collisions_ok_shape(self, tmp_path):
         """Empty album_collisions yields the {"status": "ok"} section."""
