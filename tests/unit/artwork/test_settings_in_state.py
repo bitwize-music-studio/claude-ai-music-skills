@@ -35,13 +35,19 @@ class TestConfigSnapshot:
         assert section["artwork"]["generator"] == "manual"
 
 
+@pytest.fixture(scope="module")
+def example() -> dict:
+    """config/config.example.yaml, parsed once for the tests below.
+
+    A module-level function, not a method: pytest 9.2 deprecates a
+    class-scoped fixture written as an instance method.
+    """
+    text = (PROJECT_ROOT / "config" / "config.example.yaml").read_text(encoding="utf-8")
+    return yaml.safe_load(text)
+
+
 class TestTheShippedExample:
     """config/config.example.yaml is what a new user copies."""
-
-    @pytest.fixture(scope="class")
-    def example(self) -> dict:
-        text = (PROJECT_ROOT / "config" / "config.example.yaml").read_text(encoding="utf-8")
-        return yaml.safe_load(text)
 
     def test_it_has_the_section(self, example):
         assert isinstance(example.get("artwork"), dict)
