@@ -225,6 +225,39 @@ Structure tags are reliable when every section carries one — but reliability s
 
 ---
 
+## How the Plugin's Checks Read Tags
+
+Suno accepts far more tags than the plugin's own checks know by name. `validate_section_structure` and `analyze_rhyme_scheme` sort every tag into a section type, and this is how:
+
+- **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|` or `(`. `[Outro - chorus reprise]` is an outro.
+- **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude.
+- **Anything else is treated as a verse.** That includes a delivery tag such as `[Whispered]` on a line of its own, and custom names such as `[Main Theme]`.
+
+| Type | Example tags | Left empty |
+|------|--------------|------------|
+| verse | `[Verse]`, `[Verse 2]`, `[Soft Verse]` | Reported |
+| chorus | `[Chorus]`, `[Final Chorus]` | Reported |
+| hook | `[Hook]`, `[Catchy Hook]` | Reported |
+| refrain | `[Refrain]` | Reported |
+| pre-chorus | `[Pre-Chorus]`, `[PRE 4]` | Reported |
+| post-chorus | `[Post-Chorus]` | Reported |
+| bridge | `[Bridge]` | Reported |
+| intro | `[Intro]`, `[Short Instrumental Intro]` | Fine |
+| outro | `[Outro]` | Fine |
+| interlude | `[Interlude]`, `[melodic interlude]` | Fine |
+| instrumental | `[Instrumental]` | Fine |
+| solo | `[Guitar Solo]`, `[Synth Solo]` | Fine |
+| break | `[Break]`, `[Percussion Break]` | Fine |
+| drop | `[Drop]` | Fine |
+| fade | `[Fade Out]`, `[Fade In]` | Fine |
+| end | `[End]`, `[Fade to End]`, `[Big Finish]` | Fine |
+
+An empty sung section is reported because Suno improvises words for it. An empty instrumental or ending section is how you ask for one: Suno sings anything written under a tag, so `[Break - sax]` has to be followed by nothing. A tag whose name says "instrumental", such as `[Instrumental Chorus]`, may also be empty. Empty sections are left out of the verse-length comparison.
+
+A section that repeats, such as a chorus sung three times under the same tag, is checked once per pass. Repeating it is not a self-rhyme.
+
+---
+
 ## Per-Section Direction
 
 Two data points worth knowing: a launch-day test found v6's own description of an output naming details that existed only in a `[Bridge | Female — Whispered …]` cue, i.e. per-section direction is read; and Suno's redesigned lyrics editor now offers a "Melodic instructions" option that "adds one bracketed production note per section (e.g. [half-time drums])" — Suno itself now writes per-section bracketed cues, which is this guide's Performance Cues convention.

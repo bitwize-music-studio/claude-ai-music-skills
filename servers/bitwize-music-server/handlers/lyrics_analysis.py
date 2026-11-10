@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import statistics
 from typing import Any
 
@@ -80,6 +81,8 @@ _COMMON_SONG_PHRASES = frozenset({
 _SECTION_PRIORITY = {
     "chorus": 3,
     "hook": 3,
+    "post-chorus": 3,
+    "refrain": 3,
     "pre-chorus": 2,
     "bridge": 2,
     "outro": 2,
@@ -88,6 +91,80 @@ _SECTION_PRIORITY = {
     "end": 1,
 }
 
+# Words that name a section, and the type each one means. A tag's type is read
+# from its NAME only (the text before a performance cue) and on whole words, and
+# the last such word wins: "[Short Instrumental Intro]" is an intro,
+# "[Guitar Solo Interlude]" an interlude. Every multi-word example here is a tag
+# reference/suno/structure-tags.md suggests. A tag that names none of these is
+# treated as a verse.
+_SECTION_TYPE_WORDS = {
+    "pre-chorus": "pre-chorus",
+    "pre chorus": "pre-chorus",
+    "prechorus": "pre-chorus",
+    "pre": "pre-chorus",        # bar-count shorthand: [PRE 4]
+    "post-chorus": "post-chorus",
+    "post chorus": "post-chorus",
+    "postchorus": "post-chorus",
+    "chorus": "chorus",
+    "hook": "hook",
+    "refrain": "refrain",
+    "bridge": "bridge",
+    "verse": "verse",
+    "intro": "intro",
+    "outro": "outro",
+    "interlude": "interlude",
+    "instrumental": "instrumental",
+    "solo": "solo",
+    "break": "break",
+    "drop": "drop",
+    "fade": "fade",
+    "end": "end",
+    "finish": "end",            # [Big Finish]
+}
+# Longest first, so "pre-chorus" is taken whole rather than as "pre" + "chorus".
+_SECTION_TYPE_RE = re.compile(
+    r"\b(" + "|".join(
+        re.escape(word) for word in sorted(_SECTION_TYPE_WORDS, key=len, reverse=True)
+    ) + r")\b"
+)
+# Where a tag's name ends and its cue begins: "[Verse 1 - cold regal]",
+# "[Verse 1: raspy older vocal]", "[Bridge | whispered]", "[Chorus (x2)]".
+# The dash needs spaces round it, so "Pre-Chorus" stays one name.
+_SECTION_CUE_SPLIT_RE = re.compile(r"\s+[-\u2013\u2014]\s+|[:|(]")
+
+# Sections with nothing sung in them. Suno sings whatever is written under a
+# tag, so these are left empty on purpose and an empty one is not a mistake.
+_INSTRUMENTAL_SECTION_TYPES = frozenset({
+    "intro", "outro", "interlude", "instrumental", "solo", "break", "drop", "fade", "end",
+})
+_INSTRUMENTAL_WORD_RE = re.compile(r"\binstrumental\b")
+
+
+def _section_name(tag_text: str) -> str:
+    """The name of a section tag: its text before any performance cue."""
+    return _SECTION_CUE_SPLIT_RE.split(tag_text, maxsplit=1)[0].strip()
+
+
+def _section_type(tag_text: str) -> str:
+    """Type of the section a tag names; ``"verse"`` when it names none we know.
+
+    *tag_text* is the text inside the brackets. Only its name is read, so a cue
+    cannot change the type: ``Outro - chorus reprise`` is an outro.
+    """
+    words = _SECTION_TYPE_RE.findall(_section_name(tag_text).lower())
+    return _SECTION_TYPE_WORDS[words[-1]] if words else "verse"
+
+
+def _may_be_empty(tag_text: str, section_type: str) -> bool:
+    """True for a section that is instrumental by design when left empty.
+
+    Covers the instrumental and ending types, and any section the name itself
+    calls instrumental, such as ``[Instrumental Chorus]``.
+    """
+    if section_type in _INSTRUMENTAL_SECTION_TYPES:
+        return True
+    return bool(_INSTRUMENTAL_WORD_RE.search(_section_name(tag_text).lower()))
+
 
 def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
     """Split lyrics into per-line dicts tracking section context.
@@ -95,6 +172,9 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
     Returns a list of dicts, each with:
         section: str — current section name (e.g., "Chorus", "Verse 1")
         section_type: str — normalized type (e.g., "chorus", "verse")
+        section_index: int — which tag the line sits under, counting tags from
+            1 in the order they appear (0 for lines before the first tag). Two
+            passes of "[Chorus]" share a name and a type but not an index.
         line_number: int — 1-based line number in original text
         words: list[str] — lowercased, cleaned word tokens
         raw_line: str — original line text (stripped)
@@ -102,6 +182,7 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
     result = []
     current_section = "Unknown"
     current_section_type = "verse"  # default
+    current_section_index = 0
 
     for line_num, line in enumerate(lyrics.split("\n"), 1):
         stripped = line.strip()
@@ -112,15 +193,8 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
         if _SECTION_TAG_RE.match(stripped):
             # Extract section name from brackets
             current_section = stripped[1:-1].strip()
-            # Normalize section type (strip numbers: "Verse 2" -> "verse")
-            section_lower = current_section.lower()
-            # Check longest keys first so "pre-chorus" matches before "chorus"
-            for stype in sorted(_SECTION_PRIORITY, key=len, reverse=True):
-                if stype in section_lower:
-                    current_section_type = stype
-                    break
-            else:
-                current_section_type = "verse"  # default for unknown sections
+            current_section_type = _section_type(current_section)
+            current_section_index += 1
             continue
 
         # Tokenize the line
@@ -134,6 +208,7 @@ def _tokenize_lyrics_with_sections(lyrics: str) -> list[dict[str, Any]]:
             result.append({
                 "section": current_section,
                 "section_type": current_section_type,
+                "section_index": current_section_index,
                 "line_number": line_num,
                 "words": words,
                 "raw_line": stripped,
@@ -614,23 +689,49 @@ async def analyze_readability(text: str) -> str:
     })
 
 
+# How analyze_rhyme_scheme decides two words rhyme, said in its output so that
+# a scheme of "ABCD" is read as "check by ear" and not as "nothing rhymes".
+_RHYME_METHOD = {
+    "method": "spelling",
+    "approximate": True,
+    "note": (
+        "Rhymes are matched by spelling, so the scheme is approximate. Pairs "
+        "that rhyme but are spelled differently (signed/mind, four/more) get "
+        "different letters, and pairs spelled alike that do not rhyme "
+        "(love/move) share one. Read the lines aloud before calling a scheme "
+        "wrong. Self-rhyme issues do not depend on spelling."
+    ),
+}
+
+
 async def analyze_rhyme_scheme(text: str) -> str:
     """Analyze rhyme scheme of lyrics with section awareness.
 
     Parses by section, extracts end words, builds rhyme groups (A/B/C letters),
-    and detects self-rhymes.
+    and detects self-rhymes: a word used to end more than one line of the same
+    section. Every tag starts a section of its own, so a chorus that is sung
+    twice is analysed twice and is not a self-rhyme.
+
+    The scheme is APPROXIMATE. Rhymes are matched by spelling, so pairs that
+    rhyme but are spelled differently (signed/mind, four/more) get different
+    letters, and pairs that are spelled alike but do not rhyme (love/move)
+    share one. Use it to spot patterns, then read the lines aloud; do not
+    report a scheme as wrong on this output alone. Self-rhyme issues do not
+    depend on spelling and can be trusted.
 
     Args:
         text: Lyrics text to analyze (with [Section] tags)
 
     Returns:
-        JSON with {sections: [{section, section_type, scheme, lines: [{line_number,
+        JSON with {method: "spelling", approximate: true, note,
+        sections: [{section, occurrence, section_type, scheme, lines: [{line_number,
         end_word, rhyme_group, rhyme_tail}], issues: []}],
-        issues: [{type, section, line_numbers, word, severity}],
+        issues: [{type, section, occurrence, line_numbers, word, severity}],
         summary: {total_sections, sections_with_issues, self_rhymes}}
     """
     if not text or not text.strip():
         return _safe_json({
+            **_RHYME_METHOD,
             "sections": [],
             "issues": [],
             "summary": {
@@ -647,25 +748,30 @@ async def analyze_rhyme_scheme(text: str) -> str:
     # Parse into sections using _tokenize_lyrics_with_sections
     tokenized = _tokenize_lyrics_with_sections(text)
 
-    # Group by section
-    section_groups = {}
-    section_order = []
+    # Group by tag, not by tag text: two passes of "[Chorus]" are two sections.
+    # Grouping on the text merged them, and every end word of a repeated chorus
+    # then "rhymed with itself".
+    section_groups: dict[int, dict[str, Any]] = {}
+    times_seen: dict[str, int] = {}
     for entry in tokenized:
-        sec = entry["section"]
-        if sec not in section_groups:
-            section_groups[sec] = {
-                "section": sec,
+        index = entry["section_index"]
+        if index not in section_groups:
+            name = entry["section"]
+            times_seen[name] = times_seen.get(name, 0) + 1
+            section_groups[index] = {
+                "section": name,
+                "occurrence": times_seen[name],
                 "section_type": entry["section_type"],
                 "entries": [],
             }
-            section_order.append(sec)
-        section_groups[sec]["entries"].append(entry)
+        section_groups[index]["entries"].append(entry)
 
     all_issues = []
     result_sections = []
 
-    for sec_name in section_order:
-        group = section_groups[sec_name]
+    for group in section_groups.values():
+        sec_name = group["section"]
+        occurrence = group["occurrence"]
         entries = group["entries"]
         section_type = group["section_type"]
 
@@ -728,6 +834,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
                 issue = {
                     "type": "self_rhyme",
                     "section": sec_name,
+                    "occurrence": occurrence,
                     "line_numbers": lnums,
                     "word": w,
                     "severity": "warning",
@@ -737,6 +844,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
 
         result_sections.append({
             "section": sec_name,
+            "occurrence": occurrence,
             "section_type": section_type,
             "scheme": scheme,
             "lines": lines_data,
@@ -748,6 +856,7 @@ async def analyze_rhyme_scheme(text: str) -> str:
     sections_with_issues = sum(1 for s in result_sections if s["issues"])
 
     return _safe_json({
+        **_RHYME_METHOD,
         "sections": result_sections,
         "issues": all_issues,
         "summary": {
@@ -761,8 +870,20 @@ async def analyze_rhyme_scheme(text: str) -> str:
 async def validate_section_structure(text: str) -> str:
     """Validate section structure of lyrics.
 
-    Checks: valid tags present, balanced section lengths (V1 vs V2 diff > 2
+    Checks: valid tags present, balanced verse lengths (V1 vs V2 diff > 2
     lines flagged), empty sections, duplicate consecutive tags.
+
+    A section's type is read from the tag's name, not its performance cue:
+    "[Outro - chorus reprise]" is an outro. Known types: verse, chorus, hook,
+    refrain, pre-chorus, post-chorus, bridge, intro, outro, interlude,
+    instrumental, solo, break, drop, fade, end. A tag that names none of them
+    is treated as a verse.
+
+    Instrumental and ending sections (intro, outro, interlude, instrumental,
+    solo, break, drop, fade, end, or any tag whose name says "instrumental")
+    are meant to be empty, because Suno sings whatever is written under a tag;
+    an empty one is not reported. An empty verse, chorus, bridge or other sung
+    section is. Empty sections are left out of the verse balance.
 
     Args:
         text: Lyrics text to validate (with [Section] tags)
@@ -799,6 +920,24 @@ async def validate_section_structure(text: str) -> str:
     content_line_count = 0
     prev_tag = None
 
+    def close_section(tag: str, tag_line: int, line_count: int) -> None:
+        """Record a finished section, and report it if it is empty by mistake."""
+        tag_name = tag[1:-1].strip()
+        section_type = _section_type(tag_name)
+        if line_count == 0 and not _may_be_empty(tag_name, section_type):
+            issues.append({
+                "type": "empty_section",
+                "tag": tag,
+                "line_number": tag_line,
+                "severity": "warning",
+            })
+        sections.append({
+            "tag": tag,
+            "line_number": tag_line,
+            "content_lines": line_count,
+            "section_type": section_type,
+        })
+
     lines = text.split("\n")
 
     for line_num, line in enumerate(lines, 1):
@@ -814,27 +953,7 @@ async def validate_section_structure(text: str) -> str:
                     "severity": "warning",
                 })
             if current_tag is not None:
-                # Check for empty section
-                if content_line_count == 0:
-                    issues.append({
-                        "type": "empty_section",
-                        "tag": current_tag,
-                        "line_number": current_tag_line,
-                        "severity": "warning",
-                    })
-                tag_name = current_tag[1:-1].strip()
-                section_lower = tag_name.lower()
-                section_type = "verse"
-                for stype in sorted(_SECTION_PRIORITY, key=len, reverse=True):
-                    if stype in section_lower:
-                        section_type = stype
-                        break
-                sections.append({
-                    "tag": current_tag,
-                    "line_number": current_tag_line,
-                    "content_lines": content_line_count,
-                    "section_type": section_type,
-                })
+                close_section(current_tag, current_tag_line, content_line_count)
 
             # Check for duplicate consecutive tags
             if stripped == prev_tag:
@@ -855,26 +974,7 @@ async def validate_section_structure(text: str) -> str:
 
     # Save last section
     if current_tag is not None:
-        if content_line_count == 0:
-            issues.append({
-                "type": "empty_section",
-                "tag": current_tag,
-                "line_number": current_tag_line,
-                "severity": "warning",
-            })
-        tag_name = current_tag[1:-1].strip()
-        section_lower = tag_name.lower()
-        section_type = "verse"
-        for stype in sorted(_SECTION_PRIORITY, key=len, reverse=True):
-            if stype in section_lower:
-                section_type = stype
-                break
-        sections.append({
-            "tag": current_tag,
-            "line_number": current_tag_line,
-            "content_lines": content_line_count,
-            "section_type": section_type,
-        })
+        close_section(current_tag, current_tag_line, content_line_count)
 
     # Check for no section tags at all
     if not sections:
@@ -907,8 +1007,12 @@ async def validate_section_structure(text: str) -> str:
             "severity": "info",
         })
 
-    # Check section balance — compare verse lengths
-    verse_sections = [s for s in sections if s["section_type"] == "verse"]
+    # Check section balance — compare verse lengths. An empty section is
+    # either instrumental or already reported as empty; counting it as a
+    # zero-line verse would report the same thing a second time.
+    verse_sections = [
+        s for s in sections if s["section_type"] == "verse" and s["content_lines"] > 0
+    ]
     section_balance = "BALANCED"
     if len(verse_sections) >= 2:
         lengths = [s["content_lines"] for s in verse_sections]
