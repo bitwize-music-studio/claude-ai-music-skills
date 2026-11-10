@@ -156,7 +156,7 @@ Check for custom release preferences:
 4. **Lyrics Accuracy** - Match source material, pronunciation checked
 5. **Artwork Quality** - Resolution, format, specs met
 6. **File Organization** - Correct structure, naming conventions
-7. **Documentation** - README complete, generation logs filled
+7. **Documentation** - README complete, generation logs filled. Run `sync_album_tracklist(album_slug, dry_run: true)`: if it reports changes, the README's Tracklist has drifted from the track files — show them and, on a yes, run it for real
 8. **Explicit Content** - Flagged correctly
 9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
 10. **Rights** - every track's audio came from a permitted download on a paid plan (trial/free downloads carry no commercial rights); no Remix (Remixes are never commercial); distributor accepts Suno's current model family (Believe/TuneCore: new-model tracks only)
@@ -219,7 +219,7 @@ Never publish, unpublish or change remix settings as a side effect of anything e
   - [ ] Approval email received (after 3-7 days)
 
 - [ ] **Documentation updated**
-  - [ ] Release date added
+  - [ ] Release date added — `update_album_field(album_slug, "release-date", "YYYY-MM-DD")`
   - [ ] Platform links added — use `update_streaming_url` MCP tool for each platform
   - [ ] Run `verify_streaming_urls` MCP tool to confirm all platform links are live
   - [ ] `promo/` copy updated with final streaming links

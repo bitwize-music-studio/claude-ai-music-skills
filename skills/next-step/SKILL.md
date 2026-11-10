@@ -77,7 +77,7 @@ All tracks have lyrics (or Style Box for instrumentals), none generated
     NO (all instrumental) → "All Style Boxes ready! Run /bitwize-music:pre-generation-check to validate gates, then /bitwize-music:generate [album] [track] for each track."
 
 Some tracks generated, some not
-  → Any Generated tracks without ✓ in Generation Log Rating?
+  → Any Generated tracks without ✓ in Generation Log Rating? (`get_album_progress` lists them under `takes_pending_decision`)
     YES → "Track [name] needs review. Listen with /bitwize-music:listen [album] [track], then approve (mark ✓ in Generation Log) or regenerate.
            Style issue → /bitwize-music:suno-engineer to revise Style Box, then regenerate
            Lyrics issue → /bitwize-music:lyric-writer to fix lyrics, then regenerate
@@ -89,7 +89,7 @@ All tracks generated, none Final
      Mark keepers with ✓ in Generation Log, regenerate rejected ones.
      Once all approved, batch-approve:
      Use update_track_field(album_slug, track_slug, 'status', 'Final') for each.
-     Once all Final, album advances to Complete."
+     The tool advances the album to Complete itself when the last track goes Final."
 
 All tracks generated, some Final
   → Any Generated (non-Final) without ✓?

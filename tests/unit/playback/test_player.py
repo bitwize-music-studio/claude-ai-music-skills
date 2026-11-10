@@ -316,6 +316,67 @@ class TestPlay:
         assert FakePopen.instances == []
 
 
+class TestCompare:
+    @pytest.fixture
+    def two(self, rig):
+        other = rig.album / "02-second-track.wav"
+        other.write_bytes(b"RIFF")
+        return [rig.wav, other]
+
+    def test_command_plays_the_same_passage_of_each_file(self, monkeypatch):
+        monkeypatch.setattr(player.shutil, "which", lambda name: f"/bin/{name}")
+        cmd = player.build_compare_command([Path("/a/1.mp3"), Path("/a/2.mp3")], 45, 10)
+        assert cmd == [
+            "/bin/mpv", "--no-config", "--no-video", "--no-terminal", "--really-quiet",
+            "--start=45", "--length=10", "--", str(Path("/a/1.mp3")), str(Path("/a/2.mp3")),
+        ]
+
+    def test_from_the_top_sends_no_start(self, monkeypatch):
+        monkeypatch.setattr(player.shutil, "which", lambda name: f"/bin/{name}")
+        cmd = player.build_compare_command([Path("/a/1.mp3"), Path("/a/2.mp3")], 0, 15)
+        assert not any(arg.startswith("--start") for arg in cmd)
+        assert "--length=15" in cmd
+
+    def test_starts_one_player_for_all_files_and_records_state(self, rig, two):
+        result = player.compare(two, rig.roots, start_s=45, length_s=10)
+        (proc,) = FakePopen.instances
+        assert proc.command[-2:] == [str(two[0]), str(two[1])]
+        assert result["playing"] is True
+        assert result["player"] == "mpv"
+        assert result["paths"] == [str(two[0]), str(two[1])]
+        assert result["total_s"] == 20
+        state = json.loads(player.state_path().read_text(encoding="utf-8"))
+        assert state["pid"] == proc.pid
+        assert state["paths"] == [str(two[0]), str(two[1])]
+        assert state["path"] == str(two[0])
+
+    def test_stops_what_was_playing(self, rig, two):
+        first = player.play(rig.wav, rig.roots)
+        player.compare(two, rig.roots)
+        assert rig.terminated == [first["pid"]]
+
+    def test_needs_mpv(self, rig, two, monkeypatch):
+        monkeypatch.setattr(player.shutil, "which", lambda name: "/usr/bin/ffplay" if name == "ffplay" else None)
+        with pytest.raises(player.PlaybackError, match="mpv"):
+            player.compare(two, rig.roots)
+        assert FakePopen.instances == []
+
+    @pytest.mark.parametrize("count", [0, 1, 5])
+    def test_two_to_four_files(self, rig, count):
+        with pytest.raises(player.PlaybackError, match="two to four"):
+            player.compare([rig.wav] * count, rig.roots)
+
+    @pytest.mark.parametrize("start_s,length_s", [(-1, 10), (0, 0), (0, -5)])
+    def test_bad_times(self, rig, two, start_s, length_s):
+        with pytest.raises(player.PlaybackError):
+            player.compare(two, rig.roots, start_s=start_s, length_s=length_s)
+
+    def test_a_bad_path_starts_nothing(self, rig, two):
+        with pytest.raises(player.PlaybackError):
+            player.compare([two[0], "https://example.com/x.mp3"], rig.roots)
+        assert FakePopen.instances == []
+
+
 class TestStopAndStatus:
     def test_nothing_playing(self, rig):
         assert player.status() == {"playing": False}

@@ -93,6 +93,9 @@ _MARKDOWN_URL_RE = re.compile(r"\[[^\]]*\]\((https?://[^)\s]+)\)")
 _BARE_URL_RE = re.compile(r"https?://[^\s|)]+")
 _UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
 _APPROVED_MARKS = ("✓", "✔", "✅")
+# log_generation writes a take's Notes as "m:ss, ..., N credits".
+_NOTE_DURATION_RE = re.compile(r"\s*(\d{1,3}):([0-5]\d)(?!\d)")
+_NOTE_CREDITS_RE = re.compile(r"(\d+)\s+credits?\b", re.IGNORECASE)
 
 # Suno stem part (audio-stems-create, mode "twelve") -> filename. The names follow
 # Suno's own stems zip, so tools/mixing/mix_tracks.discover_stems routes each to
@@ -679,8 +682,10 @@ def parse_generation_log(text: str) -> list[dict[str, Any]]:
 
     Each take: ``row``, ``date``, ``model``, ``url`` (None when the Result cell
     has no link), ``clip_id`` (None for a legacy share link), ``notes``,
-    ``rating`` and ``approved`` (the Rating cell carries a check mark). Handles
-    the current six-column table and the older five-column one without Model.
+    ``rating``, ``approved`` (the Rating cell carries a check mark), and
+    ``duration_s`` and ``credits`` read from the Notes when log_generation
+    wrote them ("3:14, via MCP, 10 credits"), else None. Handles the current
+    six-column table and the older five-column one without Model.
     """
     lines = text.split("\n")
     bounds = _generation_log_bounds(lines)
@@ -697,15 +702,20 @@ def parse_generation_log(text: str) -> list[dict[str, Any]]:
         if len(cells) < 3 or not cells[0].isdigit():
             continue  # header, separator or the template's placeholder row
         url = next((found for found in map(_first_url, cells[1:]) if found), None)
+        notes = cells[-2] if len(cells) >= 4 else ""
+        length = _NOTE_DURATION_RE.match(notes)
+        cost = _NOTE_CREDITS_RE.search(notes)
         takes.append({
             "row": int(cells[0]),
             "date": cells[1],
             "model": cells[2] if len(cells) >= 6 else "",
             "url": url,
             "clip_id": clip_id_from_url(url) if url else None,
-            "notes": cells[-2] if len(cells) >= 4 else "",
+            "notes": notes,
             "rating": cells[-1],
             "approved": any(mark in cells[-1] for mark in _APPROVED_MARKS),
+            "duration_s": int(length.group(1)) * 60 + int(length.group(2)) if length else None,
+            "credits": int(cost.group(1)) if cost else None,
         })
     return takes
 

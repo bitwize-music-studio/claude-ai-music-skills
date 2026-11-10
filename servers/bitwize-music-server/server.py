@@ -472,6 +472,7 @@ _shared.PLUGIN_ROOT = PLUGIN_ROOT
 # ---------------------------------------------------------------------------
 
 from handlers import (
+    album_fields,
     album_ops,
     content,
     core,
@@ -505,6 +506,7 @@ content.register(mcp)
 text_analysis.register(mcp)
 lyrics_analysis.register(mcp)
 album_ops.register(mcp)
+album_fields.register(mcp)
 gates.register(mcp)
 generation.register(mcp)
 take_check.register(mcp)
@@ -566,6 +568,10 @@ from handlers._shared import (  # noqa: F401
 )
 
 # Album ops tools
+from handlers.album_fields import (  # noqa: F401
+    sync_album_tracklist,
+    update_album_field,
+)
 from handlers.album_ops import (  # noqa: F401
     create_album_structure,
     get_album_full,
@@ -664,9 +670,11 @@ from handlers.maintenance import (  # noqa: F401
 # Auditioning tools
 from handlers.playback import (  # noqa: F401
     close_song_panes,
+    compare_audio,
     get_listen_plan,
     open_song_page,
     play_audio,
+    prune_takes_cache,
     stop_audio,
 )
 

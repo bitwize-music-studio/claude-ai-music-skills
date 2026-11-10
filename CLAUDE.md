@@ -224,7 +224,7 @@ Album target duration set during Phase 3 (Sonic Direction). Tracks inherit unles
 
 **Auto-advancement**: Skills that complete a phase should advance the album status automatically:
 - `/bitwize-music:verify-sources` → when all tracks verified, advance album to `Sources Verified`
-- When all tracks are `Final` → album advances to `Complete`
+- When all tracks are `Final` → album advances to `Complete`. `update_track_field` does this itself when it sets the last track `Final`, and keeps the track's row in the README Tracklist current; `sync_album_tracklist` repairs the rest of that table from the track files
 
 **Batch operations**: To mark all Generated tracks as Final after QA, use `update_track_field(album_slug, track_slug, "status", "Final")` for each track via MCP, or ask Claude to batch-approve all tracks when all have ✓ in their Generation Logs.
 

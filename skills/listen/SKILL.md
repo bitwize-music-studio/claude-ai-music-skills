@@ -42,6 +42,7 @@ Suno has no free audio feed for a terminal player, so playing a take here means 
 | A take in the terminal, first time | 1 Suno download credit |
 | The same take again | Free (it is cached) |
 | A file already on disk (imported, polished, mastered) | Free |
+| Comparing files already on disk, passage by passage | Free |
 
 The take that is kept needs that download credit anyway — its WAV import is then free. Only rejected takes played in the terminal cost extra. Details: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`.
 
@@ -152,6 +153,7 @@ Pass on anything in `warnings` (for example, `afplay` cannot start mid-song).
 | "stop" | `stop_audio` |
 | "from 1:30" | `play_audio(path, start_s=90)` on what was playing |
 | "resume" | `stop_audio` reported `position_s` — `play_audio(path, start_s=<that>)` |
+| "compare", "compare from 0:45" | `compare_audio([<the paths, in take order>], start_s, length_s: 15)` — the same passage of each, back to back. Say what plays in which order. Needs the files on disk (cached takes or local stages) and `mpv` |
 | "browser" | `stop_audio`, then Browser Mode |
 | "beside me", "in iTerm2" | `stop_audio`, then iTerm2 Mode |
 | "close the players" | `close_song_panes` |
@@ -168,7 +170,8 @@ When the user has heard the takes, ask which one to keep, or whether to regenera
 3. `update_track_field(album_slug, track_slug, "suno-link", "<that take's URL>")`
 4. `update_track_field(album_slug, track_slug, "status", "Final")`
 5. If the listen plan's `like_keeper` is true and the take has a `clip_id`, call `audio-like(id: <clip_id>)` so the keeper shows as liked on suno.com. If a different take of this track carried the ✓ before, clear its like with `audio-unlike`. Never dislike a rejected take: a dislike is a rating only the user gives, it feeds Suno's taste profile, and it deletes nothing.
-6. Offer `/bitwize-music:import-audio --from-suno <album> <track>`. It is free for a take that was played in the terminal.
+6. `prune_takes_cache(dry_run: false)` — the audition copies of a track that now has a keeper are no longer needed. Skip it when nothing was played in the terminal.
+7. Offer `/bitwize-music:import-audio --from-suno <album> <track>`. It is free for a take that was played in the terminal.
 
 **They reject them all:** `close_song_panes` if the takes were opened in iTerm2 panes. Add the reason to the Notes of those rows, then follow the Regeneration Workflow in CLAUDE.md — a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, bad luck is another `/bitwize-music:generate`.
 

@@ -627,7 +627,24 @@ class TestParseGenerationLog:
             "notes": "1:03, via MCP",
             "rating": "—",
             "approved": False,
+            "duration_s": 63,
+            "credits": None,
         }
+
+    @pytest.mark.parametrize("notes,duration_s,credits", [
+        ("0:52, via MCP, 10 credits", 52, 10),
+        ("3:14, edit of take 2 (day to tide), via MCP, 10 credits", 194, 10),
+        ("12:05, long one", 725, None),
+        ("via MCP, 20 credits", None, 20),
+        ("1 credit", None, 1),
+        ("wrong tempo, vocal too high", None, None),
+        ("—", None, None),
+    ])
+    def test_length_and_cost_are_read_from_the_notes(self, notes, duration_s, credits):
+        """log_generation writes "m:ss, ..., N credits"; older hand-written notes carry neither."""
+        take = _gen_mod.parse_generation_log(track_md(log_rows=(_row(1, CLIP_A, notes=notes),)))[0]
+        assert take["duration_s"] == duration_s
+        assert take["credits"] == credits
 
     def test_legacy_share_links_have_no_clip_id(self):
         take = _gen_mod.parse_generation_log(track_md(log_rows=(LEGACY_KEEPER_ROW,)))[0]

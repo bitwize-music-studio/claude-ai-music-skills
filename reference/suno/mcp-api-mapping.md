@@ -131,6 +131,8 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 
 - Terminal copies are saved as `~/.bitwize-music/cache/takes/<clip_id>.mp3` and replayed from there at no cost. The folder is a cache and safe to delete.
 - Playback needs `mpv` (recommended — it can start mid-song), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`.
+- "Compare" plays the same passage of two to four files back to back (`compare_audio`): two takes, or a track's original, polished and mastered files. It needs `mpv`, the one player that takes several files with one start point and length.
+- `prune_takes_cache` clears audition copies once a track has a keeper; copies of takes still awaiting a decision are kept. `/bitwize-music:listen` runs it when a keeper is named.
 - `generation.listen_mode` sets the default (`browser`, `iterm2_browser` or `terminal`); `generation.listen_confirm_download: false` stops the question before a download credit is spent. See [config/README.md](../../config/README.md).
 
 **iTerm2 panes** (`iterm2_browser`; measured on iTerm2 3.6.6)

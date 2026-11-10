@@ -169,7 +169,10 @@ def _takes(text: str) -> tuple[list[dict[str, Any]], list[int]]:
     none is approved, the approved ones after that.
     """
     takes = [
-        {"take": take["row"], "clip_id": take["clip_id"], "keeper": take["approved"]}
+        {
+            "take": take["row"], "clip_id": take["clip_id"], "keeper": take["approved"],
+            "duration_s": take["duration_s"],
+        }
         for take in parse_generation_log(text) if take["clip_id"]
     ]
     keepers = [take["take"] for take in takes if take["keeper"]]
@@ -241,7 +244,7 @@ async def get_take_check_plan(album_slug: str, track_slug: str) -> str:
 
     Returns:
         JSON with found, album_slug, track_slug, title, instrumental,
-        takes ([{take, clip_id, keeper}] — takes with a Suno clip id),
+        takes ([{take, clip_id, keeper, duration_s}] — takes with a Suno clip id),
         default_takes (take numbers to check when the user names none: the
         newest two while none is approved, the approved ones after that),
         lines ([{n, section, text}] — the lyric lines, numbered),
@@ -434,8 +437,8 @@ async def evaluate_take_check(
         clip_id: The take's Suno clip id
         answers: The agent's answers, word for word, one per question and in
             the order of get_take_check_plan's questions
-        duration_s: The take's length in seconds, when known (0 skips the
-            duration check)
+        duration_s: The take's length in seconds; 0 uses the length recorded
+            in the Generation Log, if any
 
     Returns:
         JSON with found, clip_id, take (its Generation Log row, or null),
@@ -494,6 +497,9 @@ async def evaluate_take_check(
 
     # --- checks -----------------------------------------------------------------
     targets = _targets(text, instrumental)
+    logged = next(
+        (row for row in parse_generation_log(text) if row["clip_id"] == clip_id), None,
+    )
     checks: list[dict[str, str]] = []
     read_any = len(unread) < len(questions)
 
@@ -545,6 +551,9 @@ async def evaluate_take_check(
     if fields.get("ends_cleanly") is False:
         checks.append(_check("ending", "warn", "does not end cleanly"))
     target_s = targets["duration_s"]
+    if not duration_s or duration_s <= 0:
+        # Not given: use the length log_generation recorded for this take, if any.
+        duration_s = float(logged["duration_s"]) if logged and logged["duration_s"] else 0.0
     if target_s and duration_s and duration_s > 0:
         within = abs(duration_s - target_s) <= target_s * _DURATION_TOLERANCE
         checks.append(_check(
@@ -563,9 +572,7 @@ async def evaluate_take_check(
         ))
 
     warnings = sum(1 for check in checks if check["status"] == "warn")
-    take = next(
-        (row["row"] for row in parse_generation_log(text) if row["clip_id"] == clip_id), None,
-    )
+    take = logged["row"] if logged else None
     return _safe_json({
         "found": True,
         "album_slug": ctx["album_slug"],

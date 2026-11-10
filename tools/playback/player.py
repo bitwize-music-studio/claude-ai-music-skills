@@ -168,6 +168,21 @@ def build_command(
     raise PlaybackError(f"Unknown player '{player}'")
 
 
+def build_compare_command(paths: list[Path], start_s: float, length_s: float) -> list[str]:
+    """One mpv process that plays the same passage of each file, one after the other.
+
+    mpv applies ``--start`` and ``--length`` to every file it is given (measured:
+    two files with ``--length=2`` run for four seconds), which no other
+    supported player can do.
+    """
+    executable = shutil.which("mpv") or "mpv"
+    command = [executable, "--no-config", "--no-video", "--no-terminal", "--really-quiet"]
+    if start_s > 0:
+        command.append(f"--start={start_s:g}")
+    command.append(f"--length={length_s:g}")
+    return [*command, "--", *(str(path) for path in paths)]
+
+
 def validate_path(path: str | Path, allowed_roots: list[Path]) -> Path:
     """Check that *path* is a local audio file under one of *allowed_roots*.
 
@@ -320,6 +335,75 @@ def stop() -> dict[str, Any]:
     return {"stopped": True, "path": current["path"], "position_s": current["position_s"]}
 
 
+def _spawn(command: list[str]) -> subprocess.Popen[bytes]:
+    """Start a detached player that outlives this process's stdio."""
+    if _IS_WINDOWS:
+        child = subprocess.Popen(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True,
+            creationflags=_WINDOWS_DETACH_FLAGS,
+        )
+    else:
+        child = subprocess.Popen(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True,
+        )
+    _children[child.pid] = child
+    return child
+
+
+def compare(
+    paths: list[str | Path],
+    allowed_roots: list[Path],
+    start_s: float = 0.0,
+    length_s: float = 15.0,
+) -> dict[str, Any]:
+    """Play the same passage of two to four local files back to back, detached.
+
+    For hearing takes, or the stages of one track, against each other at the
+    same spot. Needs mpv. Stops whatever was playing first. Raises
+    PlaybackError for a bad path, bad times, a wrong number of files, or when
+    mpv is not installed.
+    """
+    if not 2 <= len(paths) <= 4:
+        raise PlaybackError("Give two to four files to compare")
+    targets = [validate_path(path, allowed_roots) for path in paths]
+    if start_s < 0:
+        raise PlaybackError("start_s cannot be negative")
+    if length_s <= 0:
+        raise PlaybackError("length_s must be greater than zero")
+    if shutil.which("mpv") is None:
+        raise PlaybackError(
+            f"Comparing passages needs mpv, which plays several files in one go. {INSTALL_HINT}"
+        )
+
+    stop()
+    _reap_finished()
+
+    command = build_compare_command(targets, start_s, length_s)
+    child = _spawn(command)
+    names = [str(target) for target in targets]
+    _write_state({
+        "pid": child.pid,
+        "player": "mpv",
+        "path": names[0],
+        "paths": names,
+        "started_at": time.time(),
+        "start_s": float(start_s),
+        "length_s": float(length_s),
+    })
+    return {
+        "playing": True,
+        "player": "mpv",
+        "pid": child.pid,
+        "paths": names,
+        "start_s": float(start_s),
+        "length_s": float(length_s),
+        "total_s": float(length_s) * len(names),
+        "command": subprocess.list2cmdline(command) if _IS_WINDOWS else shlex.join(command),
+    }
+
+
 def play(
     path: str | Path,
     allowed_roots: list[Path],
@@ -353,18 +437,7 @@ def play(
     _reap_finished()
 
     command = build_command(player, target, start_s, length_s)
-    if _IS_WINDOWS:
-        child = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, close_fds=True,
-            creationflags=_WINDOWS_DETACH_FLAGS,
-        )
-    else:
-        child = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True,
-        )
-    _children[child.pid] = child
+    child = _spawn(command)
     _write_state({
         "pid": child.pid,
         "player": player,

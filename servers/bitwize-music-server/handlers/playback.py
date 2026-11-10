@@ -120,6 +120,8 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
             "is_keeper": bool(
                 (clip_id and clip_id == keeper_clip) or (keeper_url and url == keeper_url)
             ),
+            "duration_s": take["duration_s"],
+            "credits": take["credits"],
             "cache_path": str(cache_path) if cache_path else None,
             "cached": bool(cache_path and cache_path.is_file()),
         })
@@ -176,16 +178,10 @@ async def play_audio(path: str, start_s: float = 0.0, length_s: float = 0.0) -> 
         or null) and command (to run the player by hand), or playing: false
         with an error
     """
-    config = _shared.cache.get_state().get("config", {})
-    roots: list[Path] = []
-    audio_root = config.get("audio_root", "")
-    if audio_root:
-        roots.append(Path(audio_root))
-    roots.append(_player.takes_cache_dir())
-
     try:
         result = _player.play(
-            path, roots, start_s=start_s, length_s=length_s if length_s > 0 else None,
+            path, _playback_roots(), start_s=start_s,
+            length_s=length_s if length_s > 0 else None,
         )
     except _player.PlaybackError as e:
         return _safe_json({"playing": False, "error": str(e)})
@@ -194,6 +190,112 @@ async def play_audio(path: str, start_s: float = 0.0, length_s: float = 0.0) -> 
 
     result["duration_s"] = _player.audio_duration(Path(str(result.get("path", path))))
     return _safe_json(result)
+
+
+def _playback_roots() -> list[Path]:
+    """The only places audio may be played from: the audio root and the takes cache."""
+    config = _shared.cache.get_state().get("config", {})
+    roots: list[Path] = []
+    audio_root = config.get("audio_root", "")
+    if audio_root:
+        roots.append(Path(audio_root))
+    roots.append(_player.takes_cache_dir())
+    return roots
+
+
+async def compare_audio(paths: list[str], start_s: float = 0.0, length_s: float = 15.0) -> str:
+    """Play the same passage of two to four local files back to back.
+
+    For hearing takes against each other, or a track's original, polished and
+    mastered files, at the same spot: the first file's passage plays, then the
+    next file's. Runs in the background like play_audio; stop_audio stops it.
+    Needs mpv. Only files under the audio root or the takes cache — never a URL.
+
+    Args:
+        paths: Two to four absolute paths to audio files, in the order to play
+        start_s: Where the passage starts in each file, in seconds
+        length_s: How long the passage is, in seconds
+
+    Returns:
+        JSON with playing, player, pid, paths, start_s, length_s, total_s (how
+        long the comparison runs) and command, or playing: false with an error
+    """
+    try:
+        result = _player.compare(
+            list(paths), _playback_roots(), start_s=start_s, length_s=length_s,
+        )
+    except _player.PlaybackError as e:
+        return _safe_json({"playing": False, "error": str(e)})
+    except OSError as e:
+        return _safe_json({"playing": False, "error": f"Could not start the player: {e}"})
+    return _safe_json(result)
+
+
+def _pending_clip_ids() -> set[str]:
+    """Clip ids of takes that still await the user's decision, across every album."""
+    pending: set[str] = set()
+    for album in _shared.cache.get_state().get("albums", {}).values():
+        for track in (album.get("tracks") or {}).values():
+            if track.get("status") != "Generated" or not track.get("path"):
+                continue
+            try:
+                text = Path(track["path"]).read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            takes = parse_generation_log(text)
+            if not any(take["approved"] for take in takes):
+                pending.update(take["clip_id"] for take in takes if take["clip_id"])
+    return pending
+
+
+async def prune_takes_cache(dry_run: bool = True) -> str:
+    """Clear audition copies that are no longer needed from the takes cache.
+
+    The cache (~/.bitwize-music/cache/takes) holds the MP3s that were
+    downloaded to audition takes in the terminal. A copy is kept while its
+    take still awaits a decision — its track is Generated and no take is
+    approved. Everything else goes: takes of tracks that have a keeper, copies
+    no track refers to, and unfinished downloads. Downloading a song again
+    costs nothing once it has been downloaded, so nothing is lost.
+
+    Args:
+        dry_run: Report what would be removed without deleting (the default)
+
+    Returns:
+        JSON with dry_run, removed ([{file, bytes, reason}]), kept (copies
+        still awaiting a decision) and freed_bytes
+    """
+    directory = _player.takes_cache_dir()
+    removed: list[dict[str, Any]] = []
+    kept = 0
+    if directory.is_dir():
+        pending = _pending_clip_ids()
+        for path in sorted(directory.iterdir()):
+            if not path.is_file():
+                continue
+            if path.name.endswith(".part"):
+                reason = "unfinished download"
+            elif path.suffix.lower() in _player.AUDIO_EXTENSIONS:
+                if path.stem.lower() in pending:
+                    kept += 1
+                    continue
+                reason = "not awaiting a decision"
+            else:
+                continue
+            try:
+                size = path.stat().st_size
+                if not dry_run:
+                    path.unlink()
+            except OSError as e:
+                logger.warning("Cannot remove %s from the takes cache: %s", path.name, e)
+                continue
+            removed.append({"file": path.name, "bytes": size, "reason": reason})
+    return _safe_json({
+        "dry_run": dry_run,
+        "removed": removed,
+        "kept": kept,
+        "freed_bytes": sum(item["bytes"] for item in removed),
+    })
 
 
 async def stop_audio() -> str:
@@ -292,5 +394,7 @@ def register(mcp: Any) -> None:
     mcp.tool()(get_listen_plan)
     mcp.tool()(play_audio)
     mcp.tool()(stop_audio)
+    mcp.tool()(compare_audio)
+    mcp.tool()(prune_takes_cache)
     mcp.tool()(open_song_page)
     mcp.tool()(close_song_panes)

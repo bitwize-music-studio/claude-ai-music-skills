@@ -79,9 +79,16 @@ class TestGetListenPlan:
             "rating": "—",
             "approved": False,
             "is_keeper": False,
+            "duration_s": None,
+            "credits": None,
             "cache_path": str(player.takes_cache_dir() / f"{CLIP_A}.mp3"),
             "cached": False,
         }
+
+    def test_takes_carry_their_logged_length_and_cost(self, album):  # noqa: F811
+        album(log_rows=(_row(1, CLIP_A, notes="0:52, via MCP, 10 credits"),))
+        take = _listen_plan()["takes"][0]
+        assert (take["duration_s"], take["credits"]) == (52, 10)
 
     def test_cached_take_is_flagged(self, album):  # noqa: F811
         album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B)))
@@ -384,3 +391,93 @@ class TestCloseSongPanes:
     def test_closes_the_panes(self, monkeypatch):
         monkeypatch.setattr(_playback_mod._iterm, "close_panes", lambda: {"closed": 2})
         assert json.loads(_run(_playback_mod.close_song_panes())) == {"closed": 2}
+
+
+# ===========================================================================
+# compare_audio
+# ===========================================================================
+
+
+class TestCompareAudio:
+    def test_plays_the_same_passage_of_each_file(self, album, monkeypatch):  # noqa: F811
+        calls = {}
+
+        def fake_compare(paths, roots, start_s=0.0, length_s=15.0):
+            calls.update(paths=paths, roots=roots, start_s=start_s, length_s=length_s)
+            return {"playing": True, "player": "mpv", "pid": 7, "paths": paths,
+                    "start_s": start_s, "length_s": length_s, "total_s": length_s * len(paths)}
+
+        monkeypatch.setattr(player, "compare", fake_compare)
+        result = json.loads(_run(_playback_mod.compare_audio(["/x/a.mp3", "/x/b.mp3"], 45, 10)))
+        assert result["playing"] is True
+        assert result["total_s"] == 20
+        assert calls["paths"] == ["/x/a.mp3", "/x/b.mp3"]
+        assert (calls["start_s"], calls["length_s"]) == (45, 10)
+        assert calls["roots"] == [
+            Path(album.state["config"]["audio_root"]), player.takes_cache_dir(),
+        ]
+
+    def test_a_player_error_is_reported_not_raised(self, album, monkeypatch):  # noqa: F811
+        def refuse(paths, roots, start_s=0.0, length_s=15.0):
+            raise player.PlaybackError("Comparing passages needs mpv")
+
+        monkeypatch.setattr(player, "compare", refuse)
+        result = json.loads(_run(_playback_mod.compare_audio(["/x/a.mp3", "/x/b.mp3"])))
+        assert result == {"playing": False, "error": "Comparing passages needs mpv"}
+
+
+# ===========================================================================
+# prune_takes_cache
+# ===========================================================================
+
+ORPHAN = "0f3c6c19-0c42-4d4f-9a37-7f5fd1bd2e01"
+
+
+@pytest.fixture
+def cache(album):  # noqa: F811
+    """Track 01 is Generated with two undecided takes (A, B); the cache also holds an orphan."""
+    album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B)), status="Generated")
+    album.state["albums"]["test-album"]["tracks"]["01-first-track"]["status"] = "Generated"
+    directory = player.takes_cache_dir()
+    directory.mkdir(parents=True)
+    for name, size in ((f"{CLIP_A}.mp3", 10), (f"{CLIP_B}.mp3", 20), (f"{ORPHAN}.mp3", 300),
+                       (f"{CLIP_C}.mp3.part", 4000), ("notes.txt", 5)):
+        (directory / name).write_bytes(b"x" * size)
+    return directory
+
+
+def _prune(dry_run=None):
+    call = _playback_mod.prune_takes_cache() if dry_run is None else _playback_mod.prune_takes_cache(dry_run)
+    return json.loads(_run(call))
+
+
+class TestPruneTakesCache:
+    def test_dry_run_is_the_default_and_deletes_nothing(self, cache):
+        result = _prune()
+        assert result["dry_run"] is True
+        assert sorted(item["file"] for item in result["removed"]) == sorted(
+            [f"{ORPHAN}.mp3", f"{CLIP_C}.mp3.part"])
+        assert result["freed_bytes"] == 4300
+        assert result["kept"] == 2
+        assert len(list(cache.iterdir())) == 5
+
+    def test_takes_awaiting_a_decision_are_kept(self, cache):
+        result = _prune(False)
+        assert result["dry_run"] is False
+        assert sorted(p.name for p in cache.iterdir()) == sorted(
+            [f"{CLIP_A}.mp3", f"{CLIP_B}.mp3", "notes.txt"])
+        reasons = {item["file"]: item["reason"] for item in result["removed"]}
+        assert reasons[f"{ORPHAN}.mp3"] == "not awaiting a decision"
+        assert reasons[f"{CLIP_C}.mp3.part"] == "unfinished download"
+
+    def test_once_a_keeper_is_chosen_the_takes_go(self, cache, album):  # noqa: F811
+        album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B, rating="✓")), status="Generated")
+        _prune(False)
+        assert sorted(p.name for p in cache.iterdir()) == ["notes.txt"]
+
+    def test_a_track_that_is_not_generated_keeps_nothing(self, cache, album):  # noqa: F811
+        album.state["albums"]["test-album"]["tracks"]["01-first-track"]["status"] = "Final"
+        assert _prune()["kept"] == 0
+
+    def test_no_cache_directory(self, album):  # noqa: F811
+        assert _prune(False) == {"dry_run": False, "removed": [], "kept": 0, "freed_bytes": 0}

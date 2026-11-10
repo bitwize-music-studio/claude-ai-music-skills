@@ -540,6 +540,48 @@
   {
     "inputSchema": {
       "properties": {
+        "length_s": {
+          "default": 15.0,
+          "title": "Length S",
+          "type": "number"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "start_s": {
+          "default": 0.0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "paths"
+      ],
+      "title": "compare_audioArguments",
+      "type": "object"
+    },
+    "name": "compare_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "compare_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "text": {
           "title": "Text",
           "type": "string"
@@ -3080,6 +3122,33 @@
   {
     "inputSchema": {
       "properties": {
+        "dry_run": {
+          "default": true,
+          "title": "Dry Run",
+          "type": "boolean"
+        }
+      },
+      "title": "prune_takes_cacheArguments",
+      "type": "object"
+    },
+    "name": "prune_takes_cache",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prune_takes_cacheOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
@@ -3627,6 +3696,40 @@
           "default": false,
           "title": "Dry Run",
           "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "sync_album_tracklistArguments",
+      "type": "object"
+    },
+    "name": "sync_album_tracklist",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "sync_album_tracklistOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
         },
         "formats": {
           "default": "pdf,xml,midi",
@@ -3657,6 +3760,45 @@
         "result"
       ],
       "title": "transcribe_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "field",
+        "value"
+      ],
+      "title": "update_album_fieldArguments",
+      "type": "object"
+    },
+    "name": "update_album_field",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_album_fieldOutput",
       "type": "object"
     }
   },

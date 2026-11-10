@@ -133,8 +133,8 @@ class TestGetTakeCheckPlan:
         assert plan["instrumental"] is False
         assert [line["n"] for line in plan["lines"]] == [1, 2, 3, 4, 5]
         assert plan["takes"] == [
-            {"take": 1, "clip_id": CLIP_A, "keeper": False},
-            {"take": 2, "clip_id": CLIP_B, "keeper": False},
+            {"take": 1, "clip_id": CLIP_A, "keeper": False, "duration_s": None},
+            {"take": 2, "clip_id": CLIP_B, "keeper": False, "duration_s": None},
         ]
         assert plan["default_takes"] == [1, 2]
         assert plan["targets"] == {

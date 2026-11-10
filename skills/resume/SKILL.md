@@ -130,7 +130,7 @@ All tracks have lyrics (or Style Box for instrumentals), none generated
     NO  → "All lyrics complete! Style prompts should be ready. Run /bitwize-music:pronunciation-specialist to check for pronunciation risks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates before generating on Suno."
 
 Some tracks generated, some not
-  → Any Generated tracks without ✓ in Generation Log Rating?
+  → Any Generated tracks without ✓ in Generation Log Rating? (`get_album_progress` lists them under `takes_pending_decision`, with how many takes each has)
     YES → "Track [name] was generated but not approved. Listen (/bitwize-music:listen [album] [track]) and decide:
            - Happy? Mark ✓ in Generation Log and set Status: Final
            - Not happy? Log the reason, then:
@@ -145,7 +145,8 @@ All tracks generated, none Final
      - Reject and regenerate any that don't meet quality standards
      - Once all have ✓, batch-approve:
        Use update_track_field(album_slug, track_slug, 'status', 'Final') for each approved track.
-       Once all Final, album advances to Complete automatically."
+       The tool advances the album to Complete itself when the last track goes Final,
+       and keeps each track's row in the README Tracklist current."
 
 All tracks generated, some Final
   → Any Generated (non-Final) tracks without ✓?
