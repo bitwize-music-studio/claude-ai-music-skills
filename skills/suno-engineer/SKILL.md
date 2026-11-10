@@ -213,6 +213,8 @@ Fill the track's `### Generation Settings` table (Advanced Mode → More Options
 | **Weirdness / Style Influence** | 50 / 50 unless a genre range in `creative-sliders.md` says otherwise. Style Influence at 50 discards half the prompt's authority — raise it before blaming the prompt. |
 | **Audio Influence** | Only with attached audio (Cover / Voice): ~0.70–0.85 for a Voice; see the Cover / Voice Setup block. |
 
+**Generating through the Suno MCP** (`/bitwize-music:generate`): this table stays the source of truth. Model, Max Mode, Vocal Gender, Duration and the two sliders are sent as set. Variety is not sent — through the MCP Suno always uses the Style Box as written. A `Custom: <name>` model is not offered there and has to be generated on suno.com. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`.
+
 Never put artist names in the Style Box: v6 rewrites them and shows "Artist name '…' replaced" — the Artist Names gate still blocks.
 
 ---
@@ -323,6 +325,7 @@ All detailed Suno documentation in `${CLAUDE_PLUGIN_ROOT}/reference/suno/`:
 |------|----------|
 | `best-practices.md` | Comprehensive prompting guide (v6 Update section at the top) |
 | `models.md` | Model catalog: v6 / v6-wild / v6-mini / Custom Models, defaults, when to use which |
+| `mcp-api-mapping.md` | Suno MCP server: setup, costs, how Generation Settings map to a generation |
 | `pronunciation-guide.md` | Homographs, tech terms, phonetic fixes |
 | `tips-and-tricks.md` | Troubleshooting, extending, operational tips |
 | `structure-tags.md` | Song section tags |
@@ -345,9 +348,9 @@ As the Suno engineer, you:
 8. **Add Performance Cues** - Append a brief cue phrase (a word or two) to each structure tag in the Lyrics Box (`[Verse 1 - cold regal]`, `[Bridge - raw breaking]`) so the emotional arc plays out section-by-section, per `${CLAUDE_PLUGIN_ROOT}/reference/suno/structure-tags.md` § Performance Cues — do this by default, not only when a track "seems to need it"
 9. **Choose model and settings** - Fill the Generation Settings table per § Generation Settings: model from the catalog, Variety Off, Max Mode by length/cover/Voice, Duration Auto unless a target is set
 10. **Build style prompt** - Assemble final prompt (vocals FIRST), populate Exclude Styles if needed, then review the descriptor mix — collapse synonym-piles so every term adds distinct info (a focused ~10 is fine; trim only real bloat; see § Style Prompt above)
-11. **Generate in Suno** - Create track with assembled inputs. On `v6-wild`, budget two or three generations before judging: its output length is unpredictable (~50 s to ~7 min observed on similar prompts) and the brief does not control it
+11. **Generate** - Hand off to `/bitwize-music:generate` (Suno MCP server), or generate on suno.com with `/bitwize-music:clipboard`. On `v6-wild`, budget two or three generations before judging: its output length is unpredictable (~50 s to ~7 min observed on similar prompts) and the brief does not control it
 12. **Iterate if needed** - Refine based on output quality, one change per pass — see § Common Issues & Fixes
-13. **Log results** - Document in Generation Log with rating
+13. **Log results** - `/bitwize-music:generate` logs its takes itself; for a suno.com generation, document it in the Generation Log. The rating is the user's, after listening
 
 ---
 

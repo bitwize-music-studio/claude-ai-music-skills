@@ -63,6 +63,14 @@ The `bitwize-music-mcp` server is the **preferred way to query project state**. 
 
 **Fall back to direct file access only when:** MCP server is unavailable, you need to edit files (MCP is read-only), or you need raw file content not exposed through MCP (e.g., full lyrics, research docs).
 
+### Suno MCP Server (optional)
+
+Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
+
+- **Never spend Suno credits without a go-ahead.** Generating, splitting stems, and a download that answers `requires_credit` each need the user's yes first, with the cost stated. Reading the library and the account is free.
+- **Never pick a take, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens first.
+- **Trust the live tool definitions.** The server is in beta and its arguments change. Setup, costs and the track-file mapping: `/reference/suno/mcp-api-mapping.md`.
+
 ---
 
 ## Session Start
@@ -111,6 +119,7 @@ At the beginning of a fresh session:
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications(summary_only=True)`)
    - Last session context (from `get_session`)
+   - Suno MCP: one line — connected, or not connected (optional; never a warning)
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`
@@ -153,6 +162,9 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Refining/polishing lyrics** → `/bitwize-music:lyric-refiner` (post-writing multi-pass refinement)
 - **Planning album** → apply `/bitwize-music:album-conceptualizer` (7 planning phases required)
 - **Suno prompts** → apply `/bitwize-music:suno-engineer` expertise (usually auto-invoked by lyric-writer; use directly only for re-prompting)
+- **Generating a track** → `/bitwize-music:generate` (runs the gates, shows the cost, generates through the Suno MCP server and logs the takes; without the server it points to `/bitwize-music:clipboard`)
+- **Hearing a take or a mix** → `/bitwize-music:listen` (terminal by default; `--browser` opens the song page)
+- **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems)
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise
 - **Mastering audio** → polish first via `/bitwize-music:mix-engineer`, then apply `/bitwize-music:mastering-engineer` standards. Skip polish only if: (a) user says "master only", "skip polish", or "already polished"; or (b) polished audio already exists at `{audio_root}/artists/[artist]/albums/[genre]/[album]/polished/`. Applies equally to single-track and whole-album mastering.
@@ -220,10 +232,10 @@ When a user rejects a generated track (doesn't like the result, wrong style, pro
 
 1. **Log the rejection**: Add a row in the Generation Log with the reason (e.g., "wrong tempo", "vocal too high", "mispronounced name")
 2. **Decide the fix path**:
-   - **Style issue** (wrong genre, tempo, mood) → Revise Style Box via `/bitwize-music:suno-engineer`, then regenerate on Suno
+   - **Style issue** (wrong genre, tempo, mood) → Revise Style Box via `/bitwize-music:suno-engineer`, then regenerate
    - **Lyrics issue** (wrong words, pronunciation) → Fix lyrics via `/bitwize-music:lyric-writer`, re-run `/bitwize-music:pronunciation-specialist`, then regenerate
-   - **Suno interpretation** (right prompt, wrong result) → Regenerate on Suno with same settings (Suno is non-deterministic)
-3. **Regenerate**: Generate again on Suno, log the new attempt
+   - **Suno interpretation** (right prompt, wrong result) → Regenerate with the same settings (Suno is non-deterministic)
+3. **Regenerate**: `/bitwize-music:generate` again — it logs the new takes itself. On suno.com instead, generate and log the new attempt by hand
 4. **When satisfied**: Mark the keeper with ✓ in the Generation Log Rating column, then advance Status to `Final`
 
 **Status stays `Generated`** during regeneration — no backward transition needed. The Generation Log tracks all attempts. A track is only `Final` when it has a ✓ in the Rating column.

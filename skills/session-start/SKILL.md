@@ -57,6 +57,13 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 - `status: "ok"` → continue silently
 - `status: "collision"` → warn: list each slug with its kept and shadowed genres, show the fix (rename one album with `/bitwize-music:rename` or move its directory, then run `rebuild_state`), continue session
 
+## Step 1.6: Suno MCP (optional)
+
+Check whether a Suno MCP server is connected: look for a tool named `audio-create` on any connected MCP server. Report one line in the Setup block and move on — the server is optional, so its absence is never a warning and never stops the session.
+
+- Connected → `Suno: connected`
+- Not connected → `Suno: not connected (optional — /bitwize-music:generate needs it; see reference/suno/mcp-api-mapping.md)`
+
 ## Step 2: Load Config
 
 Read `~/.bitwize-music/config.yaml`.
@@ -155,6 +162,7 @@ Also show one random general tip (rotate through these):
 - "The researcher skill coordinates 10 specialized sub-skills for deep research"
 - "Check pronunciation before generating — Suno can't infer from context"
 - "Use `/bitwize-music:clipboard` to copy lyrics/prompts for Suno"
+- "With Suno's MCP server connected, `/bitwize-music:generate` makes the track and `/bitwize-music:listen` plays the takes — no trip to suno.com"
 - "Master your audio with `/bitwize-music:mastering-engineer` for professional results"
 
 ## Step 8: Ask
@@ -171,6 +179,7 @@ SESSION START
 
 Setup: MCP ready, config loaded
 Health: [venv ok, skills ok, no collisions | warnings listed]
+Suno: [connected | not connected (optional)]
 Overrides: [loaded from {path} | not found (optional)]
 State: [loaded | rebuilt | error]
 

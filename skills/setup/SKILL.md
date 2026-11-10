@@ -130,6 +130,29 @@ py -3 -m venv ~/.bitwize-music/venv                                             
 
 ---
 
+## Step 3.5: Optional — Suno Server and Audio Player
+
+Neither is needed for the plugin to work. Mention them once, after the required components are sorted.
+
+**Suno MCP server** — lets `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` reach the user's Suno account:
+
+```bash
+claude mcp add --transport http suno https://api.suno.com/mcp
+```
+
+Then `/mcp` in a session to sign in. The plugin does not ship this server; without it those skills fall back to the clipboard flow.
+
+**Audio player** — lets `/bitwize-music:listen` play audio in the terminal. Any one of `mpv` (recommended), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`:
+
+```bash
+command -v mpv ffplay afplay   # shows which are installed
+brew install mpv               # macOS
+sudo apt install mpv           # Debian/Ubuntu/WSL
+winget install mpv             # Windows
+```
+
+---
+
 ## Step 4: Installation Guide
 
 Present a clear, simple installation guide:

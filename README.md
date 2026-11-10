@@ -35,7 +35,7 @@ Claude: Imports stems from Suno, polishes per-stem
         Generates promo video and social media copy
 ```
 
-Concept to released album. You generate on Suno, everything else happens in the terminal.
+Concept to released album, from the terminal. Connect Suno's own MCP server and generation happens there too — and you still listen to every take before it's approved.
 
 ---
 
