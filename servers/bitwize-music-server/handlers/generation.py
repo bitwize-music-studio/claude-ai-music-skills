@@ -59,6 +59,11 @@ _TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
 
 _SLIDER_RE = re.compile(r"(\d{1,3})\s*%?")
 
+# Exclude Styles written before 0.102.0 read "no drums, no autotune". The field is
+# already the negation, so the items go to Suno bare. "no wave" is a genre.
+_NO_PREFIX_RE = re.compile(r"^no\s+", re.IGNORECASE)
+_NO_PREFIX_KEEP = frozenset({"no wave"})
+
 # Generation Log (templates/track.md § Generation Log)
 _CLIP_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _GENERATION_LOG_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+Generation Log[ \t]*$")
@@ -189,6 +194,19 @@ def _instrumental_state(text: str) -> tuple[bool, dict[str, str] | None]:
     return bool(table_value), None
 
 
+def _bare_exclusions(exclude: str) -> tuple[str, bool]:
+    """Exclude Styles as bare, comma-separated elements.
+
+    Returns the cleaned value and whether any leading "no " was removed.
+    """
+    items = [item.strip() for item in re.split(r"[,\n]", exclude) if item.strip()]
+    cleaned = [
+        item if item.lower() in _NO_PREFIX_KEEP else _NO_PREFIX_RE.sub("", item)
+        for item in items
+    ]
+    return ", ".join(cleaned), cleaned != items
+
+
 def _slider(
     settings: str, key: str, problems: list[dict[str, str]],
 ) -> float | None:
@@ -307,11 +325,20 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
 
     exclude = _section_code(text, "Exclude Styles")
     if exclude is not None and exclude.lower() not in _UNSET and exclude != _TEMPLATE_EXCLUDE:
-        request["negative_style"] = exclude
-        if len(exclude) > _MAX_NEGATIVE_STYLE:
+        negative_style, stripped = _bare_exclusions(exclude)
+        request["negative_style"] = negative_style
+        if stripped:
+            problems.append(_problem(
+                "negative_style_no_prefix", "warning",
+                "Exclude Styles lists 'no ...' items, but the field is already the negation — "
+                f"sent as bare elements: {negative_style}. Fix the track file "
+                "(see migrations/0.102.0.md)",
+            ))
+        if len(negative_style) > _MAX_NEGATIVE_STYLE:
             problems.append(_problem(
                 "negative_style_too_long", "blocking",
-                f"Exclude Styles is {len(exclude)} characters; Suno accepts {_MAX_NEGATIVE_STYLE}",
+                f"Exclude Styles is {len(negative_style)} characters; "
+                f"Suno accepts {_MAX_NEGATIVE_STYLE}",
             ))
 
     settings = _extract_markdown_section(text, "Generation Settings")

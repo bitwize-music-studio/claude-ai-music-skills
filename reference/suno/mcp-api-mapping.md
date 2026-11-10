@@ -66,7 +66,7 @@ A terminal audition **is** a download. The take you keep costs one download cred
 | Title | `title` | ≤ 256 characters |
 | Lyrics Box | `lyrics` | ≤ 5000. Kept for instrumentals: tags-only lyrics were accepted and not sung *(measured)* |
 | Style Box | `style` | ≤ 1000. Used word for word — both takes came back with `metadata.style` identical to the input *(measured)* |
-| Exclude Styles | `negative_style` | ≤ 1000. `(none)` or an untouched placeholder sends nothing |
+| Exclude Styles | `negative_style` | ≤ 1000. `(none)` or an untouched placeholder sends nothing. Old-style `no drums` items are sent bare (`drums`), with a warning to fix the file |
 | `instrumental: true` | `instrumental` | Frontmatter and the Track Details row must agree |
 | Model `v6` / `v6-wild` / `v6-mini` | `model` | `Custom: <name>` is not offered — use suno.com |
 | Max Mode `On` | `max_mode: true` | `Off` sends nothing. Suno asks that Max Mode be turned on only at the user's request, so `/generate` names it and its cost before asking for the go-ahead |

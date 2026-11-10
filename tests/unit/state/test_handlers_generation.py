@@ -282,6 +282,25 @@ class TestGetGenerationRequest:
         assert "negative_style" not in result["request"]
         assert "negative_style" not in result["needs_grant"]
 
+    def test_no_prefixed_exclusions_are_sent_bare_with_a_warning(self, album):
+        """Tracks written before 0.102.0 list exclusions as 'no drums'. The field
+        is already the negation, so 'no drums' there asks for the opposite."""
+        album(exclude="no drums, No electric guitar,\nno autotune")
+        result = _request()
+        assert result["request"]["negative_style"] == "drums, electric guitar, autotune"
+        assert "negative_style_no_prefix" in _codes(result, "warning")
+        assert result["supported"] is True
+
+    def test_bare_exclusions_raise_no_warning(self, album):
+        result = _request()
+        assert result["request"]["negative_style"] == "choir, crowd vocals"
+        assert "negative_style_no_prefix" not in _codes(result)
+
+    def test_only_a_leading_no_is_a_negation(self, album):
+        """'no wave' is a genre, and 'no' inside a word is not a prefix."""
+        album(exclude="no wave, nose flute, piano solo, no drums")
+        assert _request()["request"]["negative_style"] == "no wave, nose flute, piano solo, drums"
+
     def test_instrumental_keeps_tag_lyrics_and_drops_vocal_gender(self, album):
         tags = "[Intro]\n\n[Main Theme]\n\n[Outro]\n\n[End]"
         album(instrumental_fm="true", instrumental_table="Yes", lyrics=tags)
