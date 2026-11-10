@@ -145,7 +145,7 @@ def test_golden_covers_every_tool_with_a_schema() -> None:
 
 # --- tool descriptions --------------------------------------------------------
 #
-# Descriptions are the highest-leverage field the server publishes: 82 of the 92
+# Descriptions are the highest-leverage field the server publishes: 83 of the 92
 # carry their handler's full `Args:` block, ~50k characters in total, and that
 # prose is what the model reads when choosing between 92 tools. A bad input schema
 # fails loudly at call time; a degraded description just causes quiet wrong-tool
