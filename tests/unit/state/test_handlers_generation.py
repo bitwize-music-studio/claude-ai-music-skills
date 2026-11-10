@@ -400,3 +400,141 @@ class TestGetGenerationRequest:
         result = _request(track_slug="02-no-path")
         assert result["found"] is False
         assert "path" in result["error"].lower()
+
+
+# ===========================================================================
+# log_generation
+# ===========================================================================
+
+
+def _log(clips, model="v6", notes="via MCP, 10 credits", track_slug="01-first-track"):
+    return json.loads(_run(_gen_mod.log_generation(
+        "test-album", track_slug, model, clips, notes,
+    )))
+
+
+def _two_clips():
+    return [
+        {"clip_id": CLIP_A, "status": "complete", "duration_s": 63.16},
+        {"clip_id": CLIP_B, "status": "complete", "duration_s": 193.56},
+    ]
+
+
+@pytest.fixture
+def fixed_today(monkeypatch):
+    monkeypatch.setattr(_gen_mod, "_today", lambda: "2026-06-15")
+
+
+class TestLogGeneration:
+    def test_replaces_placeholder_row(self, album, fixed_today):
+        result = _log(_two_clips())
+        assert result["success"] is True
+        text = album.path.read_text(encoding="utf-8")
+        assert PLACEHOLDER_ROW not in text
+        assert (
+            f"| 1 | 2026-06-15 | v6 | [Listen](https://suno.com/song/{CLIP_A}) "
+            "| 1:03, via MCP, 10 credits | — |\n"
+            f"| 2 | 2026-06-15 | v6 | [Listen](https://suno.com/song/{CLIP_B}) "
+            "| 3:14, via MCP, 10 credits | — |\n"
+        ) in text
+
+    def test_returns_rows_with_urls(self, album, fixed_today):
+        result = _log(_two_clips())
+        assert [r["row"] for r in result["rows"]] == [1, 2]
+        assert result["rows"][0]["url"] == f"https://suno.com/song/{CLIP_A}"
+        assert result["rows"][1]["clip_id"] == CLIP_B
+
+    def test_appends_after_existing_rows_and_continues_numbering(self, album, fixed_today):
+        existing = (
+            "| 1 | 2026-02-12 | V5 | [Keeper](https://suno.com/s/4hZKwZySCc8Lc63Q) | first | ✓ |",
+            "| 2 | 2026-02-12 | V5 | [Listen](https://suno.com/s/OLQGp22IPLbpsOdX) | dark | — |",
+        )
+        album(log_rows=existing)
+        result = _log(_two_clips())
+        assert [r["row"] for r in result["rows"]] == [3, 4]
+        lines = album.path.read_text(encoding="utf-8").split("\n")
+        start = lines.index(existing[0])
+        assert lines[start + 1] == existing[1]
+        assert lines[start + 2].startswith("| 3 | 2026-06-15 | v6 | [Listen](")
+        assert lines[start + 3].startswith("| 4 | 2026-06-15 | v6 | [Listen](")
+        assert lines[start + 4] == ""
+
+    def test_leaves_the_rest_of_the_file_alone(self, album, fixed_today):
+        before = album.path.read_text(encoding="utf-8")
+        _log(_two_clips())
+        after = album.path.read_text(encoding="utf-8")
+        head, tail = before.split(PLACEHOLDER_ROW)
+        assert after.startswith(head)
+        assert after.endswith(tail)
+        assert "| **Status** | In Progress |" in after
+
+    def test_failed_clip_is_logged_as_failed(self, album, fixed_today):
+        _log([{"clip_id": CLIP_A, "status": "error", "error": "moderation: lyrics rejected"}])
+        text = album.path.read_text(encoding="utf-8")
+        assert (
+            "| 1 | 2026-06-15 | v6 | Failed "
+            "| via MCP, 10 credits, error: moderation: lyrics rejected | — |"
+        ) in text
+
+    def test_notes_and_model_cannot_break_the_table(self, album, fixed_today):
+        _log(
+            [{"clip_id": CLIP_A, "status": "complete"}],
+            model="v6 | wild", notes="via | MCP\nsecond line",
+        )
+        text = album.path.read_text(encoding="utf-8")
+        assert (
+            f"| 1 | 2026-06-15 | v6 / wild | [Listen](https://suno.com/song/{CLIP_A}) "
+            "| via / MCP second line | — |"
+        ) in text
+
+    def test_empty_notes_leave_a_dash(self, album, fixed_today):
+        _log([{"clip_id": CLIP_A, "status": "complete"}], notes="")
+        assert "| — | — |\n" in album.path.read_text(encoding="utf-8")
+
+    def test_uppercase_clip_id_is_normalized(self, album, fixed_today):
+        result = _log([{"clip_id": CLIP_A.upper(), "status": "complete"}])
+        assert result["rows"][0]["clip_id"] == CLIP_A
+
+    @pytest.mark.parametrize("bad", ["", "not-a-uuid", "https://suno.com/song/x", "4ef71736"])
+    def test_invalid_clip_id_is_rejected_before_writing(self, album, fixed_today, bad):
+        before = album.path.read_text(encoding="utf-8")
+        result = _log([{"clip_id": bad, "status": "complete"}])
+        assert "error" in result
+        assert album.path.read_text(encoding="utf-8") == before
+
+    def test_no_clips_is_an_error(self, album):
+        assert "error" in _log([])
+
+    def test_missing_generation_log_section_is_an_error(self, album, fixed_today):
+        album(log_rows=None)
+        before = album.path.read_text(encoding="utf-8")
+        result = _log(_two_clips())
+        assert "Generation Log" in result["error"]
+        assert album.path.read_text(encoding="utf-8") == before
+
+    def test_section_without_a_table_gets_one(self, album, fixed_today):
+        text = track_md().replace(
+            "| # | Date | Model | Result | Notes | Rating |\n"
+            "|---|------|-------|--------|-------|--------|\n"
+            f"{PLACEHOLDER_ROW}\n\n",
+            "",
+        )
+        album.path.write_text(text, encoding="utf-8")
+        _log([{"clip_id": CLIP_A, "status": "complete"}])
+        after = album.path.read_text(encoding="utf-8")
+        assert (
+            "| # | Date | Model | Result | Notes | Rating |\n"
+            "|---|------|-------|--------|-------|--------|\n"
+            f"| 1 | 2026-06-15 | v6 | [Listen](https://suno.com/song/{CLIP_A}) "
+            "| via MCP, 10 credits | — |\n"
+        ) in after
+        assert after.index("| 1 | 2026-06-15") < after.index("## Waveform Art")
+
+    def test_refreshes_the_cache_entry(self, album, fixed_today):
+        _log(_two_clips())
+        entry = album.state["albums"]["test-album"]["tracks"]["01-first-track"]
+        assert entry["mtime"] == album.path.stat().st_mtime
+        _gen_mod.write_state.assert_called_once_with(album.state)
+
+    def test_unknown_track(self, album):
+        assert _log(_two_clips(), track_slug="99-missing")["found"] is False
