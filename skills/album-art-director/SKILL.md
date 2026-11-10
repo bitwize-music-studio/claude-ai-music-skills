@@ -1,6 +1,6 @@
 ---
 name: album-art-director
-description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation.
+description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation. With artwork.generator set to codex in config, it also has the user's Codex CLI make the image.
 argument-hint: <album-path or "create art concept for [album]">
 model: sonnet
 effort: medium
@@ -20,9 +20,10 @@ allowed-tools:
 When invoked:
 1. Read album concept, tracklist, and themes
 2. Design visual concept with color palette, composition, style
-3. Ask user which AI art platform they use (see [Platform Selection](#platform-selection))
+3. Find out who makes the image: call `get_album_art_plan(album_slug)`. If its `generator` is `codex`, the platform is Codex. Otherwise ask the user which AI art platform they use (see [Platform Selection](#platform-selection))
 4. Generate platform-specific AI art prompts
 5. Document in album's art section
+6. With `codex`: once the user approves the prompt and the cost, have Codex make the image (see [Generating the Image with Codex](#generating-the-image-with-codex))
 
 ---
 
@@ -137,7 +138,9 @@ Check for custom album art preferences:
 
 ### Step 2: Platform Selection
 
-**Before building prompts, ask the user which AI art platform they use.** Different platforms need fundamentally different prompt styles.
+**First call `get_album_art_plan(album_slug)`.** If its `generator` is `codex`, do not ask: the user has set `artwork.generator: codex` in config, so the platform is Codex's image tool. Use the Codex format below and set `**Platform**: Codex` in the album README.
+
+**Otherwise, before building prompts, ask the user which AI art platform they use.** Different platforms need fundamentally different prompt styles.
 
 Present this choice:
 
@@ -222,6 +225,16 @@ The style should be [artistic approach] with [mood/lighting].
 Use [color palette] colors. Frame the composition [composition details].
 ```
 
+#### Codex Format
+For `artwork.generator: codex`. Codex's image tool takes plain sentences, like DALL-E, and has no negative-prompt field. The plugin passes the album's Negative Prompt along as one short "Avoid:" line, so keep that section to a few words or delete it.
+```
+Create a square album cover showing [detailed scene description].
+The style is [artistic approach] with [mood/lighting].
+Use [color palette] colors. Frame the composition [composition details].
+Render the text "[exact text]" in [typeface style], [placement]. No other text.
+```
+Say what must not appear in the sentences themselves ("no watermark, no logos") instead of relying on the Avoid line. If the cover carries the artist name or the title, quote it exactly, in the casing the user uses. Drop the text line for a cover with no text.
+
 #### Stable Diffusion Format
 Tag-based with weighted tokens. Extensive negative prompt.
 ```
@@ -247,6 +260,25 @@ See [prompt-examples.md](prompt-examples.md) for complete examples per platform.
 - Fits genre without being cliché?
 
 **Typical iterations**: 3-5 rounds to final
+
+---
+
+## Generating the Image with Codex
+
+Only when `get_album_art_plan` reports `generator: codex`. With `manual`, stop at the prompt: the user makes the image and files it with `/bitwize-music:import-art`.
+
+1. **Save the prompt first.** Write it to the album README's `### Image Prompt` block and set `**Platform**: Codex`. The tools read the prompt from there.
+2. **Get the user's approval of the prompt.** Show it, and change it until they are happy with it.
+3. **Call `get_album_art_plan(album_slug)`.** If `ready` is false, tell the user each blocking problem (Codex not installed, not signed in, no prompt saved) and stop.
+4. **State the cost and wait.** Repeat what the plan's `cost` says: how many images, and that they come from the ChatGPT plan Codex is signed in to. Do not generate until the user says go.
+5. **Call `generate_album_art(album_slug)`.** Each candidate takes about a minute. The candidates are saved in the album's audio folder under `artwork-candidates/` and opened in the image viewer.
+6. **Let the user choose.** Give them the file names and ask which one to use, or what to change. Never pick for them, and never import an image they have not chosen. If nothing fits, revise the prompt in the README and go back to step 4: a new run is a new cost.
+7. **Call `import_album_art(album_slug, <chosen file>)`.** It writes `album.png` to the audio folder, enlarged to 3000x3000, and `album-art.png` to the album folder. If the album already has a cover it refuses; ask the user before passing `replace=true`.
+8. **Report** the two paths, and that the cover was enlarged.
+
+Two things to tell the user once:
+- **Codex returns a 1254x1254 image whatever size is asked for.** The import enlarges it to 3000x3000. That meets a distributor's size rule but adds no detail, so a cover with fine lettering is worth checking at full size.
+- **You can look at a candidate with the Read tool** to describe it or check its text, but which cover to use is the user's call.
 
 ---
 
@@ -355,7 +387,7 @@ As the album art director, you:
 - All tracks should be `Final` before generating actual artwork
 
 ### After This Skill
-- `import-art` - places generated artwork in correct album directories
+- `import-art` - places artwork the user made elsewhere in the correct album directories. Art made here through Codex is filed by `import_album_art` in step 7 above
 - `promo-director` - needs album art for promo video generation
 - `release-director` - requires artwork for distribution
 

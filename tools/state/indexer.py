@@ -86,6 +86,7 @@ except ImportError:
     print("Error: PyYAML is required. Install with: pip install pyyaml")
     sys.exit(1)
 
+from tools.artwork.codex import artwork_settings
 from tools.shared.colors import Colors
 from tools.shared.config import CONFIG_PATH, parse_yaml_bool
 from tools.shared.logging_config import setup_logging
@@ -406,6 +407,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'config_mtime': get_config_mtime(),
         'database': database_section,
         'generation': generation_section,
+        # Who makes the album cover: the user, or their Codex CLI.
+        'artwork': artwork_settings(config),
     }
 
 

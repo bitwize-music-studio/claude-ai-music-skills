@@ -33,6 +33,7 @@ Snapshot of resolved paths and artist info from `~/.bitwize-music/config.yaml`.
 | `overrides_dir` | string | Resolved absolute path to overrides directory |
 | `artist_name` | string | Artist name from config |
 | `config_mtime` | float | Last modification time of config.yaml (for staleness detection) |
+| `artwork` | object | Who makes the album cover: `{generator: "manual" \| "codex", candidates: 1-4, codex_path}`. The album-art tools read the config file itself, so a change takes effect at once |
 
 ---
 

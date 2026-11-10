@@ -68,6 +68,11 @@ sheet_music:
   page_size: "letter"           # letter, 9x12, 6x9
   section_headers: false
 
+# Album art (optional)
+artwork:
+  generator: manual             # manual (you make the image) or codex
+  candidates: 1                 # images per run with codex, 1-4
+
 # Cloud storage (optional)
 # cloud:
 #   enabled: true
@@ -147,6 +152,18 @@ Settings for `/bitwize-music:sheet-music-publisher` skill.
 |---------|----------|-------------|
 | `sheet_music.page_size` | No | Page size: `letter`, `9x12`, `6x9` (default: letter) |
 | `sheet_music.section_headers` | No | Include [Verse], [Chorus] labels (default: false) |
+
+### Album Art (`artwork:`)
+
+Settings for `/bitwize-music:album-art-director`. The art director always designs the cover and writes the prompt; this decides who makes the image.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `artwork.generator` | No | `manual`: you make the image and file it with `/bitwize-music:import-art`. `codex`: your installed Codex CLI makes it with its built-in image tool (default: manual) |
+| `artwork.candidates` | No | Images made per run with `codex`, 1 to 4 (default: 1) |
+| `artwork.codex_path` | No | Full path to the Codex CLI when it is not on the PATH the plugin sees |
+
+With `codex`, each candidate uses one image from the ChatGPT plan Codex is signed in to (`codex login`), and you are asked before any is made. Codex returns a 1254x1254 image; the one you choose is enlarged to 3000x3000.
 
 ### Cloud Storage (`cloud:`)
 
