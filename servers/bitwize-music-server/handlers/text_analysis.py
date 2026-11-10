@@ -605,28 +605,108 @@ async def extract_links(
 
 # --- Lyrics stats ---
 
-# Genre word-count targets from craft-reference.md
-_DEFAULT_WORD_TARGET = {"min": 150, "max": 350}
+# Word-count targets. skills/lyric-writer/craft-reference.md § Song Length is the
+# source; the tables below restate its "Duration → Word Count mapping" and
+# "Word Count Targets by Genre (Suno)". They once drifted (the reference was
+# revised upward and these were not), so tests/unit/handlers/test_word_targets.py
+# reads the reference and fails if they disagree. Change both together.
+
+# Duration rows as (upper bound in seconds, non-hip-hop, hip-hop). A duration
+# belongs to the first row whose bound it is under, so a boundary such as 3:30
+# goes to the longer row; the last row has no bound and takes everything else.
+_DURATION_WORD_TARGETS: tuple[tuple[int | None, dict[str, int], dict[str, int]], ...] = (
+    (150,  {"min": 120, "max": 180}, {"min": 200, "max": 300}),   # 2:00-2:30
+    (210,  {"min": 150, "max": 250}, {"min": 250, "max": 400}),   # 2:30-3:30
+    (300,  {"min": 220, "max": 400}, {"min": 400, "max": 600}),   # 3:30-5:00
+    (None, {"min": 350, "max": 500}, {"min": 550, "max": 750}),   # 5:00-7:00
+)
+
+# The reference's default target duration is 3:30-5:00, so a genre with no row
+# of its own gets that duration's non-hip-hop range.
+_DEFAULT_WORD_TARGET = {"min": 220, "max": 400}
 
 _GENRE_WORD_TARGETS = {
-    "pop":        {"min": 150, "max": 250},
-    "dance-pop":  {"min": 150, "max": 250},
-    "synth-pop":  {"min": 150, "max": 250},
+    "pop":        {"min": 250, "max": 350},
+    "dance-pop":  {"min": 250, "max": 350},
+    "synth-pop":  {"min": 250, "max": 350},
     "punk":       {"min": 150, "max": 250},
     "pop-punk":   {"min": 150, "max": 250},
-    "rock":       {"min": 200, "max": 350},
-    "alt-rock":   {"min": 200, "max": 350},
-    "folk":       {"min": 200, "max": 350},
-    "country":    {"min": 200, "max": 350},
-    "americana":  {"min": 200, "max": 350},
-    "hip-hop":    {"min": 300, "max": 500},
-    "rap":        {"min": 300, "max": 500},
+    "rock":       {"min": 250, "max": 400},
+    "alt-rock":   {"min": 250, "max": 400},
+    "folk":       {"min": 250, "max": 400},
+    "country":    {"min": 250, "max": 400},
+    "americana":  {"min": 250, "max": 400},
+    "hip-hop":    {"min": 400, "max": 600},
+    "rap":        {"min": 400, "max": 600},
     "ballad":     {"min": 200, "max": 300},
-    "electronic": {"min": 100, "max": 200},
-    "edm":        {"min": 100, "max": 200},
+    "electronic": {"min": 220, "max": 300},
+    "synthwave":  {"min": 220, "max": 300},
+    "edm":        {"min": 220, "max": 300},
     "ambient":    {"min": 50,  "max": 150},
     "lo-fi":      {"min": 50,  "max": 150},
 }
+
+# Genres that take the hip-hop column of the duration rows.
+_HIP_HOP_GENRES = frozenset({"hip-hop", "rap"})
+
+# Sparse or wordless by design. The duration rows assume a song that is sung
+# throughout, so these keep their own target whatever duration is asked for.
+_SPARSE_GENRES = frozenset({"ambient", "lo-fi"})
+
+# One time, or two joined by a dash ("3:00-3:30"). A second time elsewhere in
+# the cell ("1:40 — set on the slider, 2:00 at most") is not a range.
+_TARGET_DURATION_RE = re.compile(
+    r"(\d{1,2}):(\d{2})(?:\s*[-\u2013\u2014]\s*(\d{1,2}):(\d{2}))?"
+)
+# The album README's bullet under Suno Settings: "- **Target Duration**: 3:30-4:30"
+_ALBUM_TARGET_DURATION_RE = re.compile(
+    r"(?im)^\s*[-*]\s*\*\*Target Duration\*\*\s*:\s*(.+)$"
+)
+
+
+def _duration_match(cell: str | None) -> re.Match[str] | None:
+    """The time or time range in a Target Duration cell, or None when it has none."""
+    return _TARGET_DURATION_RE.search(cell) if cell else None
+
+
+def _duration_seconds(cell: str | None) -> int | None:
+    """Seconds a Target Duration asks for (the midpoint of a range); None if unset."""
+    match = _duration_match(cell)
+    if match is None:
+        return None
+    first = int(match.group(1)) * 60 + int(match.group(2))
+    if match.group(3) is None:
+        return first
+    second = int(match.group(3)) * 60 + int(match.group(4))
+    return (first + second) // 2
+
+
+def _words_for_duration(seconds: int, hip_hop: bool) -> dict[str, int]:
+    """The reference's word range for a song of *seconds*."""
+    for bound, plain, rap in _DURATION_WORD_TARGETS:
+        if bound is None or seconds < bound:
+            return rap if hip_hop else plain
+    raise AssertionError("unreachable: the last duration row has no bound")
+
+
+def _album_target_duration(album: dict[str, Any]) -> str:
+    """The album README's Target Duration, or "" when it has not been set.
+
+    templates/album.md ships the bullet as a bracketed range. Brackets mean nobody
+    has chosen yet, so that is treated as unset and the genre decides.
+    """
+    album_path = album.get("path", "")
+    if not album_path:
+        return ""
+    try:
+        readme = (Path(album_path) / "README.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    match = _ALBUM_TARGET_DURATION_RE.search(readme)
+    if match is None:
+        return ""
+    value = match.group(1).strip()
+    return "" if value.startswith("[") else value
 
 
 def _tokenize_lyrics_by_line(lyrics: str) -> list[list[str]]:
@@ -672,18 +752,22 @@ async def get_lyrics_stats(
     album_slug: str,
     track_slug: str = "",
 ) -> str:
-    """Get word count, character count, and genre target comparison for lyrics.
+    """Get word count, character count, and target comparison for lyrics.
 
-    Counts lyrics excluding section tags. Compares against genre-appropriate
-    word count targets from the craft reference. Flags tracks that are over
-    the 800-word danger zone (Suno rushes/compresses).
+    Counts lyrics excluding section tags and compares against the craft
+    reference's word-count target, chosen the way the lyric-writer chooses it:
+    the track's Target Duration when it has one, else the album README's, else
+    the genre's default range. ``target_basis`` on each track says which
+    ("track_duration", "album_duration", "genre" or "default"). Ambient and
+    lo-fi keep their own sparse range whatever the duration. Flags tracks that
+    are over the 800-word danger zone (Suno rushes/compresses).
 
     Args:
         album_slug: Album slug (e.g., "my-album")
         track_slug: Specific track slug/number (empty = all tracks)
 
     Returns:
-        JSON with per-track stats and genre targets
+        JSON with per-track stats, each track's target and what it is based on
     """
     normalized_album, album, error = _find_album_or_error(album_slug)
     if error:
@@ -703,24 +787,46 @@ async def get_lyrics_stats(
     else:
         tracks_to_check = all_tracks
 
-    # Genre target, resolved per track: a track's own genre wins over the
-    # album's, so an album that deliberately spans several still gets a
-    # sensible target for each. Falls back to the album genre, then the default.
-    def _resolve(track: dict[str, Any]) -> tuple[str, dict[str, int]]:
-        track_genre = str(track.get("genre", "")).strip().lower()
-        if track_genre in _GENRE_WORD_TARGETS:
-            return track_genre, _GENRE_WORD_TARGETS[track_genre]
-        if genre in _GENRE_WORD_TARGETS:
-            return genre, _GENRE_WORD_TARGETS[genre]
+    from tools.state.parsers import _extract_table_value
+
+    album_duration = _album_target_duration(album)
+
+    # The target, resolved per track in the craft reference's order: the track's
+    # Target Duration, then the album's, then the genre's default range. A
+    # track's own genre wins over the album's throughout, so an album that
+    # deliberately spans several still gets a sensible target for each.
+    # Returns (genre label, target, basis, duration text, what the note calls it).
+    def _resolve(
+        track_genre: str, track_duration: str | None,
+    ) -> tuple[str, dict[str, int], str, str, str]:
+        known = track_genre if track_genre in _GENRE_WORD_TARGETS else (
+            genre if genre in _GENRE_WORD_TARGETS else ""
+        )
         # Neither is a known genre — report whichever was declared, so the note
         # says what was asked for rather than silently claiming the album's.
-        return (track_genre or genre), _DEFAULT_WORD_TARGET
+        label = known or track_genre or genre
+        if known not in _SPARSE_GENRES:
+            hip_hop = (track_genre or genre) in _HIP_HOP_GENRES
+            for basis, cell, phrase in (
+                ("track_duration", track_duration, "a {} track"),
+                ("album_duration", album_duration, "the album's {} target"),
+            ):
+                match = _duration_match(cell)
+                seconds = _duration_seconds(cell)
+                if match is None or seconds is None:
+                    continue
+                shown = re.sub(r"\s+", "", match.group(0))
+                return (label, _words_for_duration(seconds, hip_hop), basis, shown,
+                        phrase.format(shown))
+        if known:
+            return label, _GENRE_WORD_TARGETS[known], "genre", "", label
+        return label, _DEFAULT_WORD_TARGET, "default", "", label
 
-    album_target = _GENRE_WORD_TARGETS.get(genre, _DEFAULT_WORD_TARGET)
+    _, album_target, album_basis, _, _ = _resolve("", None)
 
     track_results = []
     for t_slug, t_data in sorted(tracks_to_check.items()):
-        track_genre, target = _resolve(t_data)
+        declared_genre = str(t_data.get("genre", "")).strip().lower()
         track_path = t_data.get("path", "")
         if not track_path:
             track_results.append({
@@ -776,21 +882,25 @@ async def get_lyrics_stats(
         word_count = len(words)
         char_count = len(lyrics.strip())
 
+        track_genre, target, basis, duration, measured_for = _resolve(
+            declared_genre, _extract_table_value(text, "Target Duration"),
+        )
+
         # Determine status
         if word_count > 800:
             status = "DANGER"
             note = "Over 800 words — Suno will rush/compress/skip sections"
         elif word_count > target["max"]:
             status = "OVER"
-            note = f"Over target ({target['max']} max for {track_genre})"
+            note = f"Over target ({target['max']} max for {measured_for})"
         elif word_count < target["min"]:
             status = "UNDER"
-            note = f"Under target ({target['min']} min for {track_genre})"
+            note = f"Under target ({target['min']} min for {measured_for})"
         else:
             status = "OK"
-            note = f"Within target ({target['min']}\u2013{target['max']} for {track_genre})"
+            note = f"Within target ({target['min']}\u2013{target['max']} for {measured_for})"
 
-        track_results.append({
+        row = {
             "track_slug": t_slug,
             "title": t_data.get("title", t_slug),
             "word_count": word_count,
@@ -801,13 +911,18 @@ async def get_lyrics_stats(
             "note": note,
             "genre": track_genre,
             "target": target,
-        })
+            "target_basis": basis,
+        }
+        if duration:
+            row["target_duration"] = duration
+        track_results.append(row)
 
     return _safe_json({
         "found": True,
         "album_slug": normalized_album,
         "genre": genre,
         "target": album_target,
+        "target_basis": album_basis,
         "tracks": track_results,
     })
 

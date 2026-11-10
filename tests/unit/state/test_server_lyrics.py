@@ -2416,6 +2416,9 @@ class TestSectionTypeFromTagName:
         ("[Bridge - spoken intro]", "bridge"),
         ("[Verse 1: raspy older vocal, hook-heavy]", "verse"),
         ("[Bridge | Female, whispered chorus]", "bridge"),
+        ("[Verse 2 \u2013 chorus of angels]", "verse"),      # en dash
+        ("[Outro \u2014 chorus reprise]", "outro"),          # em dash
+        ("[Chorus (instrumental tail)]", "chorus"),
     ])
     def test_the_cue_does_not_change_the_type(self, tag, expected):
         assert _type_of(tag) == expected
