@@ -12,12 +12,14 @@ from handlers import text_analysis as _text_analysis
 from handlers._shared import (
     _SECTION_TAG_RE,
     _STREAMING_PLACEHOLDER_MARKERS,
+    _TEMPLATE_LYRICS_MARKER,
     _extract_code_block,
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
     _parse_pronunciation_table,
     _safe_json,
+    _template_style_tokens_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,11 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
                       "detail": "Lyrics contain [TODO] or [PLACEHOLDER] markers"})
         blocking += 1
+    elif _TEMPLATE_LYRICS_MARKER.lower() in lyrics_content.lower():
+        gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": f"Lyrics Box still holds the template placeholder "
+                                f"({_TEMPLATE_LYRICS_MARKER})"})
+        blocking += 1
     else:
         gates.append({"gate": "Lyrics Reviewed", "status": "PASS",
                       "detail": "Lyrics populated"})
@@ -178,9 +185,15 @@ def _check_pre_gen_gates_for_track(
         if style_section:
             style_content = _extract_code_block(style_section)
 
+    leftover_style = _template_style_tokens_in(style_content) if style_content else []
     if not style_content or not style_content.strip():
         gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
                       "detail": "Style Box is empty"})
+        blocking += 1
+    elif leftover_style:
+        gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Style Box still holds the template placeholder: "
+                                + ", ".join(leftover_style)})
         blocking += 1
     else:
         gates.append({"gate": "Style Prompt Complete", "status": "PASS",
@@ -345,10 +358,12 @@ async def run_pre_generation_gates(
 
     Gates:
         1. Sources Verified — sources_verified is not "Pending"
-        2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER]
+        2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER], and
+           not the template's "[Lyrics here...]" lines
         3. Pronunciation Resolved — All Pronunciation Notes entries applied
         4. Explicit Flag Set — Explicit field is "Yes" or "No"
-        5. Style Prompt Complete — Non-empty Style Box with content
+        5. Style Prompt Complete — Non-empty Style Box that is not the
+           template's bracketed placeholder
         6. Artist Names Cleared — No real artist names in Style Box
         7. Homograph Check — No unresolved homographs in lyrics
         8. Lyric Length — Lyrics under 800-word Suno limit

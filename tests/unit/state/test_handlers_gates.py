@@ -195,6 +195,19 @@ Keeps me wide awake
 ```
 """
 
+# The Lyrics Box and Style Box exactly as templates/track.md ships them.
+TRACK_FILE_TEMPLATE_LYRICS = TRACK_FILE_COMPLETE.replace(
+    "[Verse 1]\nWalking down the road tonight\nStars are shining bright\n"
+    "Every step I take\nKeeps me wide awake\n```\n\n## Style Box",
+    "[Verse 1 - calm reflective]\n[Lyrics here...]\n\n"
+    "[Chorus - big anthemic]\n[Lyrics here...]\n```\n\n## Style Box",
+)
+
+TRACK_FILE_TEMPLATE_STYLE = TRACK_FILE_COMPLETE.replace(
+    "upbeat electronic pop, synth-driven, 120 BPM",
+    "[genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]",
+)
+
 TRACK_FILE_EMPTY_LYRICS = """\
 ---
 title: Second Track
@@ -457,6 +470,47 @@ class TestGate2LyricsReviewed:
         lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
         assert lyrics_gate["status"] == "FAIL"
 
+    def test_template_placeholder_lyrics_fail(self):
+        """`[Lyrics here...]` is the template's placeholder, not a lyric.
+
+        It reads as a section tag, so the box is non-empty with zero words —
+        which used to report "Lyrics populated".
+        """
+        assert "[Lyrics here...]" in TRACK_FILE_TEMPLATE_LYRICS
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, TRACK_FILE_TEMPLATE_LYRICS, blocklist=[],
+        )
+        lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
+        assert lyrics_gate["status"] == "FAIL"
+        assert lyrics_gate["severity"] == "BLOCKING"
+        assert "placeholder" in lyrics_gate["detail"].lower()
+        assert blocking >= 1
+
+    def test_one_leftover_placeholder_line_fails(self):
+        """A half-written sheet still holding one placeholder line is not ready."""
+        text = TRACK_FILE_COMPLETE.replace(
+            "Keeps me wide awake\n```\n\n## Style Box",
+            "Keeps me wide awake\n\n[Chorus - big anthemic]\n[Lyrics here...]\n```\n\n## Style Box",
+        )
+        assert "[Lyrics here...]" in text
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, blocklist=[])
+        lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
+        assert lyrics_gate["status"] == "FAIL"
+
+    def test_instrumental_with_tags_only_still_passes(self):
+        """An instrumental's Lyrics Box is section tags and nothing else."""
+        text = (
+            "---\ntitle: Theme\ninstrumental: true\nexplicit: false\n---\n\n"
+            "## Lyrics Box\n\n```\n[Intro]\n\n[Main Theme]\n\n[End]\n```\n\n"
+            "## Style Box\n\n```\ncinematic orchestral, 90 BPM\n```\n"
+        )
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, blocklist=[])
+        lyrics_gate = next(g for g in gates if g["gate"] == "Lyrics Reviewed")
+        assert lyrics_gate["status"] == "PASS"
+
 
 class TestGate3PronunciationResolved:
     """Gate 3: Pronunciation Resolved."""
@@ -592,6 +646,63 @@ class TestGate5StylePromptComplete:
         )
         style_gate = next(g for g in gates if g["gate"] == "Style Prompt Complete")
         assert style_gate["status"] == "PASS"
+
+    def test_template_placeholder_style_fails(self):
+        """The template's bracketed line is 84 characters of nothing."""
+        assert "[tempo/BPM]" in TRACK_FILE_TEMPLATE_STYLE
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        blocking, warnings, gates = _gates_mod._check_pre_gen_gates_for_track(
+            t_data, TRACK_FILE_TEMPLATE_STYLE, blocklist=[],
+        )
+        style_gate = next(g for g in gates if g["gate"] == "Style Prompt Complete")
+        assert style_gate["status"] == "FAIL"
+        assert style_gate["severity"] == "BLOCKING"
+        assert "placeholder" in style_gate["detail"].lower()
+        assert blocking >= 1
+
+    def test_half_filled_template_style_fails(self):
+        """One leftover template token would be sent to Suno as a style word."""
+        text = TRACK_FILE_COMPLETE.replace(
+            "upbeat electronic pop, synth-driven, 120 BPM",
+            "synthwave, 118 BPM, [mood], [vocal description]",
+        )
+        assert "[mood]" in text
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, blocklist=[])
+        style_gate = next(g for g in gates if g["gate"] == "Style Prompt Complete")
+        assert style_gate["status"] == "FAIL"
+        assert "[mood]" in style_gate["detail"]
+
+    def test_other_bracketed_text_in_a_style_passes(self):
+        """Only the template's own tokens count as placeholders."""
+        text = TRACK_FILE_COMPLETE.replace(
+            "upbeat electronic pop, synth-driven, 120 BPM",
+            "dream pop, 92 BPM, [soft female vocals]",
+        )
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, text, blocklist=[])
+        style_gate = next(g for g in gates if g["gate"] == "Style Prompt Complete")
+        assert style_gate["status"] == "PASS"
+
+
+class TestTheShippedTemplate:
+    """A track that is still `templates/track.md` has not been written.
+
+    These read the real template, so they also fail if its placeholder text is
+    reworded without the gates learning the new wording.
+    """
+
+    def _gates(self):
+        template = (PROJECT_ROOT / "templates" / "track.md").read_text(encoding="utf-8")
+        t_data = {"sources_verified": "N/A", "explicit": False}
+        _, _, gates = _gates_mod._check_pre_gen_gates_for_track(t_data, template, blocklist=[])
+        return {g["gate"]: g for g in gates}
+
+    def test_its_lyrics_box_fails_the_lyrics_gate(self):
+        assert self._gates()["Lyrics Reviewed"]["status"] == "FAIL"
+
+    def test_its_style_box_fails_the_style_gate(self):
+        assert self._gates()["Style Prompt Complete"]["status"] == "FAIL"
 
 
 class TestGate6ArtistNamesCleared:

@@ -810,6 +810,22 @@ _STREAMING_PLACEHOLDER_MARKERS = [
     "Blank lines between sections only",
 ]
 
+# The Suno boxes as templates/track.md ships them. A track still holding either
+# has not been written: the lyrics line reads as a section tag (so the box is
+# non-empty with zero words) and the style line is 84 characters of brackets.
+_TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
+_TEMPLATE_STYLE = (
+    "[genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]"
+)
+_TEMPLATE_STYLE_TOKENS = tuple(token.strip() for token in _TEMPLATE_STYLE.split(","))
+
+
+def _template_style_tokens_in(style: str) -> list[str]:
+    """The template's bracketed style tokens still present in *style*, in order."""
+    lowered = style.lower()
+    return [token for token in _TEMPLATE_STYLE_TOKENS if token.lower() in lowered]
+
+
 # Sections whose markdown content should be extracted as a code block
 _CODE_BLOCK_SECTIONS = frozenset({"Style Box", "Exclude Styles", "Lyrics Box", "Streaming Lyrics", "Original Quote"})
 
