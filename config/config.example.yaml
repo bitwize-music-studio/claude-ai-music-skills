@@ -539,6 +539,65 @@ sheet_music:
 
 
 # =============================================================================
+# ALBUM ART [optional]
+# =============================================================================
+# Settings for /bitwize-music:album-art-director.
+# The art director always designs the cover and writes the image prompt.
+# This section decides who turns that prompt into a picture.
+#
+# Skip this section to keep making the image yourself.
+
+artwork:
+  # ---------------------------
+  # generator [optional]
+  # ---------------------------
+  # Who makes the cover image once you have approved the prompt.
+  #
+  # Options:
+  #   manual - You do. Take the prompt to the image tool you use (ChatGPT,
+  #            Midjourney, ...), download the result, and file it with
+  #            /bitwize-music:import-art.
+  #   codex  - Your installed Codex CLI does, with its built-in image tool.
+  #            The plugin saves the candidates beside the album's audio, opens
+  #            them for you to look at, and files the one you choose.
+  #
+  # REQUIREMENTS for codex:
+  #   - The Codex CLI on your PATH (or set codex_path below)
+  #   - `codex login` done with a ChatGPT account
+  #
+  # COST for codex: each candidate is one image from that ChatGPT plan's
+  # allowance, plus about a minute of Codex usage. You are told the cost and
+  # asked before any image is made.
+  #
+  # Codex returns a 1254x1254 image. The one you choose is enlarged to
+  # 3000x3000 for distribution, which adds size but no detail.
+  #
+  # Default (if omitted): manual
+  #
+  generator: manual
+
+  # ---------------------------
+  # candidates [optional]
+  # ---------------------------
+  # How many candidates one run makes (codex only), from 1 to 4.
+  # Each is a separate image.
+  #
+  # Default (if omitted): 1
+  #
+  candidates: 1
+
+  # ---------------------------
+  # codex_path [optional]
+  # ---------------------------
+  # Full path to the Codex CLI, for when it is not on the PATH the plugin
+  # sees.
+  #
+  # Default (if omitted): found on PATH, then in ~/.local/bin and the like
+  #
+  # codex_path: "~/.local/bin/codex"
+
+
+# =============================================================================
 # CLOUD STORAGE [optional]
 # =============================================================================
 # Settings for /bitwize-music:cloud-uploader skill.
