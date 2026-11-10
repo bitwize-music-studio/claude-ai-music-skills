@@ -1,6 +1,6 @@
 # Suno Workspace Management
 
-Suno workspaces organize generated clips into project folders. The API does not support workspace management, so this must be done manually.
+Suno workspaces organize generated clips into project folders. The plugin does not manage them for you yet, so the steps below are manual.
 
 ## What Are Workspaces?
 
@@ -72,3 +72,4 @@ When an album is finished:
 
 ## Why Manual?
 
+Suno's official MCP server can create workspaces and file songs in them (`workspaces-create`, `workspaces-update-clips`, and a `workspace_id` on generation), but the plugin's Suno integration covers generating, listening and importing only — see [mcp-api-mapping.md](mcp-api-mapping.md). Until workspace support lands, songs made through `/bitwize-music:generate` arrive in your library unfiled, exactly like songs made on suno.com.

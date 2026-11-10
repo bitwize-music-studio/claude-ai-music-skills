@@ -4,6 +4,34 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-10 - Official MCP Server
+
+Suno's own MCP server (`https://api.suno.com/mcp`, beta since October 2026) is the first sanctioned programmatic route to generation, and the plugin now uses it when it is connected. Tested on a Premier account. The server's tools changed twice while this was being written (nine tools added; `clip_count` removed and `max_mode` added), so the live tool definitions outrank anything recorded here.
+
+### Features
+- New [mcp-api-mapping.md](mcp-api-mapping.md): setup, the cost of each action, the track-file to `audio-create` mapping, tool notes, listening, and the clipboard fallback.
+
+### Measured
+- One `audio-create` call makes two songs for 10 credits; a 60-second `duration` cost the same.
+- `metadata.style` came back identical to the submitted Style Box on both takes: through the MCP the Style Box is used as written, and there is no Variety setting.
+- An instrumental with tags-only lyrics was accepted and came back with no voice.
+- A 12-part stem split cost 50 credits and returned 24 stems (two takes of 12). Stem and full-mix WAVs are 16-bit / 48 kHz.
+- One download credit covers a song in MP3 and WAV, and all of its stems. Clip data carries no audio link, so playing a take anywhere but suno.com needs that download.
+
+### Changes
+- "There is no official Suno API" removed from `models.md`, `README.md` § API Parameters, `workspace-management.md` and the project FAQ.
+- `README.md` § API Parameters lists the official parameters; the reseller names it used to list are called out as not Suno's.
+
+### Refuted / Not Adopted
+- Custom Models through the MCP: not offered (`allowed_models` lists `v6`, `v6-wild`, `v6-mini`).
+- Free terminal playback by reusing the Suno sign-in outside the MCP, or by fetching the web player's files: neither is a documented route, so neither is used.
+
+### Sources
+- https://suno.com/mcp · https://help.suno.com/en/articles/14551361 · https://help.suno.com/en/articles/14551425 · https://help.suno.com/en/articles/14486145 (official)
+- https://help.suno.com/en/articles/13614785 (official — downloads)
+
+---
+
 ## 2026-09-16 - v6 Hands-on Pass
 
 The maintainer ran the v6 setup on their own account before releasing 0.102.0: Advanced Mode, an engineered Style Box at Variety Off, structure tags and Performance Cues, Exclude Styles, Max Mode On. It behaved as the docs describe. This was a sanity pass, not the itemised list below, so the tags come off and community reports stay attributed as reports.

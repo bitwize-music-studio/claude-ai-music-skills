@@ -88,19 +88,29 @@ without a human signing off.
 
 ## Integrations & third-party services
 
-### Will you integrate with Suno's API or MCP server?
+### Does it integrate with Suno's API or MCP server?
 
-The moment an official one exists, yes — enthusiastically. Generate,
-regenerate, pull stems into the workspace, all without leaving the terminal.
-What won't change: you still listen to every track before it's approved. An
-API removes the busywork of the generation hop, not the listening gate —
-that gate is load-bearing.
+Yes — with Suno's official MCP server, which arrived in beta in October 2026.
+Connect it once (`claude mcp add --transport http suno https://api.suno.com/mcp`,
+then `/mcp` to sign in) and `/bitwize-music:generate` runs the pre-generation
+gates, shows what it will cost, generates on your own Suno account and logs
+the takes. `/bitwize-music:listen` plays them in the terminal or opens them in
+your browser, and `/bitwize-music:import-audio --from-suno` pulls the keeper's
+WAV and stems into the album. Without the server, the clipboard flow works as
+it always has. Setup, costs and the fine print are in
+[reference/suno/mcp-api-mapping.md](reference/suno/mcp-api-mapping.md).
+
+What hasn't changed: you still listen to every track before it's approved.
+The integration removes the busywork of the generation hop, not the listening
+gate — that gate is load-bearing. Nothing picks a take for you, marks a track
+Final or publishes a song.
 
 ### Why won't you integrate third-party Suno-wrapper APIs?
 
-Suno doesn't offer a public API, so services selling "Suno generation over
-REST" are accessing Suno programmatically without affiliation — some say so
-outright in their own terms. Shipping such an integration — even opt-in and
+Services selling "Suno generation over REST" reach Suno programmatically
+without affiliation — some say so outright in their own terms — and Suno now
+has a first-party route of its own (the MCP server above), so there is nothing
+to gain by going around it. Shipping such an integration — even opt-in and
 disabled by default — would make this project a distribution channel for
 access the platform hasn't sanctioned. That's a line I can't cross, however
 clean the PR is. (This came to a head in
