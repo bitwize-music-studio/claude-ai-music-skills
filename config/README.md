@@ -126,6 +126,7 @@ The `~/.bitwize-music/` directory also contains:
 | `generation.suno_mcp_reminder` | No | Show how to add Suno's MCP server at session start while none is registered (default: `true`) |
 | `generation.suno_workspaces` | No | File each album's Suno takes in a workspace of its own, created at the album's first generation (default: `true`) |
 | `generation.take_check` | No | After generating, check the new takes against the track file with Suno's listening agent — free and advisory (default: `true`) |
+| `generation.like_keeper` | No | When a take is approved, also like it on suno.com; rejected takes are never disliked (default: `true`) |
 
 ### Promo Videos (`promotion:`)
 

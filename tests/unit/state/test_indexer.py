@@ -4718,6 +4718,12 @@ class TestBuildConfigSectionListen:
         gen = self._generation({'listen_mode': 'iTerm2_Browser'}, monkeypatch)
         assert gen['listen_mode'] == 'iterm2_browser'
 
+    def test_like_keeper_default_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['like_keeper'] is True
+
+    def test_like_keeper_off(self, monkeypatch):
+        assert self._generation({'like_keeper': False}, monkeypatch)['like_keeper'] is False
+
     def test_take_check_default_on(self, monkeypatch):
         assert self._generation({}, monkeypatch)['take_check'] is True
 

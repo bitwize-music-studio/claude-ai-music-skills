@@ -169,6 +169,11 @@ class TestGetListenPlan:
         assert [t["row"] for t in plan["takes"]] == [1]
         assert plan["local"] == {"original": None, "polished": None, "mastered": None}
 
+    def test_like_keeper_follows_the_config(self, album):  # noqa: F811
+        assert _listen_plan()["like_keeper"] is True
+        album.state["config"]["generation"] = {"like_keeper": False}
+        assert _listen_plan()["like_keeper"] is False
+
     def test_iterm_mode_from_config(self, album):  # noqa: F811
         album.state["config"]["generation"] = {"listen_mode": "iterm2_browser"}
         assert _listen_plan()["mode"] == "iterm2_browser"

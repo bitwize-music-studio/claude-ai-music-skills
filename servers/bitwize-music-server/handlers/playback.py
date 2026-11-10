@@ -85,6 +85,8 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
                 "iterm2_browser" (config generation.listen_mode)
             iterm2: {available, reason} — whether song pages can open in iTerm2
                 panes beside this session, and if not, why
+            like_keeper: whether approving a take should also like it on suno.com
+                (config generation.like_keeper, default true)
             confirm_download: whether to ask before a terminal audition spends a
                 Suno download credit (config generation.listen_confirm_download)
             player: the installed audio player, or null
@@ -151,6 +153,7 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
         "default": default,
         "mode": generation.get("listen_mode", "browser"),
         "confirm_download": generation.get("listen_confirm_download", True),
+        "like_keeper": generation.get("like_keeper", True),
         "player": _player.find_player(),
         "iterm2": {"available": iterm_reason is None, "reason": iterm_reason},
     })

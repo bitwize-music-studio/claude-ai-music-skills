@@ -393,6 +393,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'suno_workspaces': _cfg_bool(gen_config, 'suno_workspaces', True),
         # Whether /bitwize-music:generate checks new takes with Suno's listening agent
         'take_check': _cfg_bool(gen_config, 'take_check', True),
+        # Whether approving a take also likes it on suno.com
+        'like_keeper': _cfg_bool(gen_config, 'like_keeper', True),
     }
 
     return {

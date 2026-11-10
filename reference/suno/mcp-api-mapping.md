@@ -54,6 +54,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | Playing a file already on disk | 0 | 0 |
 | `workspaces-create`, `workspaces-update-clips`, `workspaces-list` | 0 *(measured)* | 0 *(measured)* |
 | `audio-listen` question, `audio-lyrics-alignment`, `audio-analysis` | 0 *(measured)* | 0 *(measured)* |
+| `audio-like`, `audio-unlike` | 0 *(measured)* | 0 *(measured)* |
 
 A `duration` of 60 seconds cost the same 10 credits as an open-ended song.
 
@@ -106,6 +107,10 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 **Workspaces**
 - `audio-create` takes `workspace_id`; the two new songs are filed there at creation. `/bitwize-music:generate` gets the id from `get_album_workspace` (the album README's `suno_workspace` block) and creates the workspace, named after the album, the first time.
 - `workspaces-update-clips(id, add, remove)` files up to 50 songs per call and answers `skipped` for any it could not move; a song is in at most one workspace, so adding moves it. `workspaces-list(query)` finds a workspace by name. Nothing deletes or renames a workspace. See [workspace-management.md](workspace-management.md).
+
+**Likes**
+- Approving a take likes it on suno.com (`audio-like`), so keepers collect under Liked Songs; a keeper that is replaced is un-liked (`audio-unlike`). `generation.like_keeper: false` turns this off.
+- The plugin never sends `dislike: true`. On suno.com a thumbs-down moves the song to the Trash.
 
 **Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`, playlists, `audio-settings`.
 

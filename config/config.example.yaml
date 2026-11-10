@@ -476,6 +476,19 @@ generation:
   #
   # take_check: true
 
+  # ---------------------------
+  # like_keeper [optional]
+  # ---------------------------
+  # When you approve a take, also like it on suno.com, so your keepers are
+  # easy to find there (Liked Songs). Rejected takes are never disliked: a
+  # thumbs-down on suno.com moves a song to the Trash. Needs Suno's MCP
+  # server. Set to false to leave likes alone, for example if you use them to
+  # steer Suno's Personalize setting.
+  #
+  # Default (if omitted): true
+  #
+  # like_keeper: true
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]
