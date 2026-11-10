@@ -122,6 +122,35 @@ def _check_suno_mcp() -> dict[str, Any]:
     return result
 
 
+def _directory_marketplace_root() -> Path | None:
+    """The folder Claude Code loads bitwize-music from directly, if it does.
+
+    A marketplace added from a local folder (``claude plugin marketplace add
+    <path>``) is recorded in ``~/.claude/plugins/known_marketplaces.json`` with
+    a ``directory`` source. Claude Code then loads the plugin's skills and MCP
+    server from that folder, not from the plugin cache. Returns None for any
+    other source, or when the file is missing or unreadable.
+    """
+    path = Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    entry = data.get("bitwize-music") if isinstance(data, dict) else None
+    source = entry.get("source") if isinstance(entry, dict) else None
+    if not isinstance(source, dict) or source.get("source") != "directory":
+        return None
+    folder = source.get("path")
+    return Path(folder).expanduser() if isinstance(folder, str) and folder else None
+
+
+def _same_folder(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve() == b.resolve()
+    except OSError:
+        return False
+
+
 def _check_skill_registration() -> dict[str, Any]:
     """Compare on-disk skills against the Claude Code plugin cache.
 
@@ -140,6 +169,25 @@ def _check_skill_registration() -> dict[str, Any]:
         p.parent.name
         for p in (_shared.PLUGIN_ROOT / "skills").glob("*/SKILL.md")
     }
+
+    # Installed from a local folder: Claude Code loads the skills from that
+    # folder, so there is no cached copy to fall behind. The copy that may sit
+    # in the cache is a leftover from the first install, and comparing against
+    # it reported a maintainer's newest skills as missing at every session start.
+    local_root = _directory_marketplace_root()
+    if local_root is not None and _same_folder(local_root, _shared.PLUGIN_ROOT):
+        return {
+            "status": "ok",
+            "source": "directory",
+            "source_count": len(source_skills),
+            "ok_count": len(source_skills),
+            "missing": [],
+            "ghost": [],
+            "message": (
+                f"Claude Code loads bitwize-music straight from {local_root}, so its "
+                "skills are the ones in that folder; a restart picks up new ones."
+            ),
+        }
 
     # Find the plugin cache
     cache_dir = _find_plugin_cache_dir()
