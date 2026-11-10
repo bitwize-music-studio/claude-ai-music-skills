@@ -46,6 +46,7 @@ Quick-reference guide for finding the right skill for any task.
 |--------------|----------------|
 | ...create Suno prompts and settings | `/suno-engineer` |
 | ...create a Style Box for an instrumental track | `/suno-engineer` (entry point for instrumental tracks — skips lyric-writer) |
+| ...generate a track without leaving the terminal | `/generate` (needs the Suno MCP server; falls back to `/clipboard`) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
@@ -119,6 +120,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`configure`](/skills/configure/SKILL.md) | Set up or edit plugin configuration | First-time setup of ~/.bitwize-music/config.yaml |
 | [`document-hunter`](/skills/document-hunter/SKILL.md) | Automated browser-based document search from free archives | Finding court docs for true-story albums |
 | [`explicit-checker`](/skills/explicit-checker/SKILL.md) | Scan lyrics for explicit content, verify flags | Ensuring explicit flags match actual content |
+| [`generate`](/skills/generate/SKILL.md) | Generate a track through Suno's MCP server: gates, cost, go-ahead, two takes, logging | Making audio without leaving the terminal |
 | [`genre-creator`](/skills/genre-creator/SKILL.md) | Create new genre documentation with consistent structure | Adding a new genre to the genre library |
 | [`health-check`](/skills/health-check/SKILL.md) | Run plugin health checks (venv packages and skill registration) | Troubleshooting missing skills or stale packages |
 | [`help`](/skills/help/SKILL.md) | Show available skills and common workflows | Quick reference for what skills exist |
@@ -179,6 +181,7 @@ What to have ready before using each skill:
 | `/voice-checker` | Lyrics written, lyric-reviewer passed |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created (instrumental: only Style Box needed) |
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer). For instrumental tracks: invoked directly as entry point |
+| `/generate` | Pre-generation gates pass; Suno MCP server connected (otherwise it points to `/clipboard`) |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
@@ -205,7 +208,7 @@ What to have ready before using each skill:
     -> /lyric-reviewer (final QC)
     -> /voice-checker (advisory: flag AI-sounding patterns)
     -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno]
+    -> /generate (per track — or generate on suno.com via /clipboard)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -226,7 +229,7 @@ What to have ready before using each skill:
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
     -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno] -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
+    -> /generate (or suno.com) -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
 ```
 
 ### OST / Mixed Album (Vocal + Instrumental)
@@ -241,7 +244,7 @@ What to have ready before using each skill:
         INSTRUMENTAL TRACK (instrumental: true in frontmatter):
             -> /suno-engineer directly (Style Box + section tags only, no lyrics)
     -> /pre-generation-check (validates all gates — auto-skips lyrics gates for instrumental tracks)
-    -> [Generate in Suno — instrumental tracks use Instrumental: On]
+    -> /generate (or suno.com — instrumental tracks use Instrumental: On)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /album-art-director (world-themed artwork)
@@ -276,13 +279,13 @@ Pre-generation-check auto-skips Gates 2 (Lyrics), 3 (Pronunciation), 4 (Explicit
     -> Log rejection reason in Generation Log
     -> IF style issue:
         -> /suno-engineer (revise Style Box)
-        -> [Regenerate on Suno]
+        -> /generate (or regenerate on suno.com)
     -> IF lyrics issue:
         -> /lyric-writer (fix lyrics)
         -> /pronunciation-specialist (re-check)
-        -> [Regenerate on Suno]
+        -> /generate (or regenerate on suno.com)
     -> IF bad luck (right prompt, wrong result):
-        -> [Regenerate on Suno with same settings — Suno is non-deterministic]
+        -> /generate again with the same settings — Suno is non-deterministic
     -> Log new attempt in Generation Log
     -> [Repeat until satisfied]
     -> Mark ✓ in Generation Log Rating
@@ -356,13 +359,14 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 30 skills)
+### `sonnet` (Reasoning & Coordination — 31 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
 - `/configure` - Interactive config setup
 - `/document-hunter` - Automated searching
 - `/explicit-checker` - Context-dependent content scanning
+- `/generate` - Suno generation through the MCP server
 - `/mastering-engineer` - Audio guidance
 - `/mix-engineer` - Stem processing guidance
 - `/plagiarism-checker` - Lyrics plagiarism scanning

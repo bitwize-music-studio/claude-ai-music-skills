@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 53 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 54 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 
@@ -12,6 +12,7 @@ All 53 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `lyric-refiner` | Multi-pass refinement for tightening, cohesion, album unity |
 | `album-conceptualizer` | Album concepts, tracklist architecture, 7 planning phases |
 | `suno-engineer` | Technical Suno prompting, model choice and generation settings |
+| `generate` | Generate a track through Suno's MCP server — gates, cost, two takes, logging |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
 | `album-art-director` | Album artwork concepts and multi-platform AI art prompts |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |

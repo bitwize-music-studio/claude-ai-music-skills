@@ -39,7 +39,7 @@ Per-skill effort assignments:
 |--------|--------|
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
-| `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `genre-creator`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
+| `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `generate`, `genre-creator`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
 | `low` | `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
 | *(none)* | All 16 Haiku skills — effort unsupported |
 
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 30 skills)
+## Sonnet Skills (`model: sonnet`, 31 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -137,6 +137,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### explicit-checker
 **Why Sonnet**: Scans lyrics for explicit content. Moved from Haiku because context matters - "ass" in "bass guitar" isn't explicit, "ass" alone might be. Needs judgment about artistic intent and platform standards.
+
+### generate
+**Why Sonnet**: Runs the generation hop through Suno's MCP server — gates, a cost summary, an explicit go-ahead, the call, logging. Every step is prescribed, but it spends the user's credits and has to handle refusals, retries and the clipboard fallback without improvising. That is more margin than Haiku's rule-following gives, and no creative judgment is involved, so not Opus.
 
 ### mastering-engineer
 **Why Sonnet**: Guides audio mastering with technical knowledge (-14 LUFS, true peak limits, genre-specific EQ). Follows established standards but needs to explain rationale and troubleshoot issues.
@@ -299,8 +302,8 @@ Is it a script-runner / coordinator with little LLM reasoning?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus (`opus`) | 7 | 13.2% | Music-defining output, high error cost |
-| Sonnet (`sonnet`) | 30 | 56.6% | Reasoning, coordination, moderate creativity |
-| Haiku (`haiku`) | 16 | 30.2% | Rule-based operations, no judgment |
+| Opus (`opus`) | 7 | 13.0% | Music-defining output, high error cost |
+| Sonnet (`sonnet`) | 31 | 57.4% | Reasoning, coordination, moderate creativity |
+| Haiku (`haiku`) | 16 | 29.6% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.
