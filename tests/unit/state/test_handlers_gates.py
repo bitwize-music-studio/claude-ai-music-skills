@@ -1278,6 +1278,50 @@ class TestCheckStreamingLyrics:
         cap_check = next(c for c in track["checks"] if c["check"] == "Lines Capitalized")
         assert cap_check["status"] == "WARN"
 
+    def _capitals_check(self, *lines):
+        body = "\n".join(lines)
+        text = f"---\ntitle: Capitals\n---\n\n## Streaming Lyrics\n\n```\n{body}\n```\n"
+        with patch("pathlib.Path.read_text", return_value=text):
+            result = json.loads(_run(
+                _gates_mod.check_streaming_lyrics("test-album", "01-first-track")
+            ))
+        return next(c for c in result["tracks"][0]["checks"] if c["check"] == "Lines Capitalized")
+
+    @pytest.mark.parametrize("line", [
+        "(We'll fix it after Christmas)",       # backing vocal
+        '"Stop," I said',                        # quoted speech
+        "\u201cStop,\u201d I said",              # typographic quotes
+        "'Cause I'm leaving town",               # elision
+        "\u2019Til the morning comes",           # typographic apostrophe
+        "...And then the lights went out",
+        "\u00bfQu\u00e9 pasa esta noche",        # inverted question mark
+        "24 hours a day",                        # a digit has no case
+        "\ud55c\uad6d\uc5b4 \uac00\uc0ac",       # a script with no capitals
+    ])
+    def test_a_capitalised_line_passes_whatever_it_opens_with(self, line):
+        """The check is about the first letter, not the first character.
+
+        It used to test the first character, so a correctly capitalised backing
+        vocal in parentheses was "not capitalized" — along with any line that
+        opens with a quotation mark, an apostrophe, a digit, or a letter from a
+        script that has no upper case.
+        """
+        check = self._capitals_check("Walking down the road tonight", line)
+        assert check["status"] == "PASS", check
+
+    @pytest.mark.parametrize("line", [
+        "(we'll fix it after christmas)",
+        '"stop," I said',
+        "'cause I'm leaving town",
+        "...and then the lights went out",
+        "stars are shining bright",
+    ])
+    def test_a_lowercase_first_letter_still_warns(self, line):
+        check = self._capitals_check("Walking down the road tonight", line)
+        assert check["status"] == "WARN", check
+        assert "1 line(s)" in check["detail"]
+        assert "line 2" in check["detail"]
+
     def test_end_punctuation_warned(self):
         with patch("pathlib.Path.read_text", return_value=STREAMING_WITH_PUNCTUATION):
             result = json.loads(_run(

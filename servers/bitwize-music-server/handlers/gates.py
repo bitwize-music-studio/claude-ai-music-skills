@@ -465,6 +465,21 @@ async def run_pre_generation_gates(
 _END_PUNCT_RE = re.compile(r'[.,:;!?]$')
 
 
+def _starts_lowercase(line: str) -> bool:
+    """True when the first letter or digit of *line* is a lowercase letter.
+
+    "Capitalized" is about the first letter, not the first character. Leading
+    punctuation is skipped, so a backing vocal in parentheses, quoted speech
+    and an elision ("'Cause") are judged on the letter that follows. A line
+    that opens with a digit, or is written in a script with no upper case, has
+    nothing to capitalize and is never flagged.
+    """
+    for ch in line:
+        if ch.isalnum():
+            return ch.islower()
+    return False
+
+
 async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
     """Check streaming lyrics readiness for an album's tracks.
 
@@ -474,7 +489,9 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
         2. Not Empty — Code block has content beyond whitespace
         3. Not Placeholder — Content doesn't match template placeholder
         4. No Section Tags — No [Verse], [Chorus] etc. lines
-        5. Lines Capitalized — Non-blank lines start uppercase
+        5. Lines Capitalized — The first letter of each line is not lowercase
+           (leading punctuation such as "(" or a quotation mark is skipped;
+           a line that opens with a digit is fine)
         6. No End Punctuation — Lines don't end with .,:;!? (ellipsis allowed)
         7. Word Count — >= 20 words; if Suno Lyrics exist, >= 80% of Suno count
 
@@ -590,7 +607,7 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
 
             # Check 5: Lines Capitalized
             uncapped = [(ln, line.strip()) for ln, line in non_blank_lines
-                        if line.strip() and not line.strip()[0].isupper()
+                        if _starts_lowercase(line)
                         and not _SECTION_TAG_RE.match(line.strip())]
             if uncapped:
                 examples = ", ".join(
