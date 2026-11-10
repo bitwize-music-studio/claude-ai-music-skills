@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -292,6 +293,7 @@ class TestOpenInPanes:
         assert result == {
             "panes": NEW_PANES[:2],
             "pages": [f"https://suno.com/embed/{CLIP_A}", f"https://suno.com/embed/{CLIP_B}"],
+            "lyrics_pane": None,
         }
 
     def test_four_takes_make_one_column(self, rig):
@@ -435,6 +437,122 @@ class TestOpenInPanes:
     def test_no_urls(self, rig):
         with pytest.raises(iterm.ItermError):
             iterm.open_in_panes([])
+
+
+# ===========================================================================
+# The lyrics pane
+# ===========================================================================
+
+LYRICS = "[Verse 1 - calm]\nPaper boats on the water\n\n[Chorus - big]\nSail away\n\n[End]"
+
+
+class TestLyricsPane:
+    """The track's lyrics in a plain pane under the takes. Not timed to the music."""
+
+    def test_the_lyrics_pane_goes_under_the_takes(self, rig):
+        result = iterm.open_in_panes([SONG_A, SONG_B], lyrics=LYRICS, title="Paper Boats")
+        names = [p["Name"] for p in _profiles()]
+        assert rig.of("split") == [
+            (OWN_PANE, names[0], "vertical"),
+            (NEW_PANES[0], names[1], "horizontal"),
+            (NEW_PANES[1], names[2], "horizontal"),
+        ]
+        assert result["panes"] == NEW_PANES[:3]
+        assert result["lyrics_pane"] == NEW_PANES[2]
+        assert json.loads(iterm.panes_path().read_text(encoding="utf-8")) == NEW_PANES[:3]
+
+    def test_it_shows_the_text_in_a_pager_that_interprets_nothing(self, rig):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        profile = _profiles()[-1]
+        assert profile["Custom Command"] == "Yes"
+        assert "Initial URL" not in profile
+        argv = shlex.split(profile["Command"])
+        assert Path(argv[0]).name == "less"
+        assert "-L" in argv          # no LESSOPEN preprocessor
+        assert "-R" not in argv      # escape codes in the text are shown, never run
+        assert Path(argv[-1]) == iterm.lyrics_path()
+
+    def test_the_bottom_line_says_how_to_scroll_and_close_not_the_file_path(self, rig):
+        """The pane is small, so the hint lives in the pager's prompt line."""
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        argv = shlex.split(_profiles()[-1]["Command"])
+        prompt = next(a for a in argv if a.startswith("-Ps"))
+        assert "q closes" in prompt
+        assert not any(c in prompt[3:] for c in "?:.%\\")  # less prompt syntax
+
+    def test_the_header_is_two_lines(self, rig):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        lines = iterm.lyrics_path().read_text(encoding="utf-8").splitlines()
+        assert lines[:3] == ["Paper Boats", "From the track file, not timed to the take", ""]
+        assert lines[3] == "[Verse 1 - calm]"
+
+    def test_q_closes_the_pane_and_closing_it_never_stops_to_ask(self, rig):
+        """Set on the profile itself, so another user's default profile cannot
+        leave a dead pane behind, or hold the close behind a "running job" prompt."""
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        profile = _profiles()[-1]
+        assert profile["Close Sessions On End"] is True
+        assert profile["Prompt Before Closing 2"] == 2  # only for jobs not ignored
+        assert profile["Jobs to Ignore"] == ["less"]
+
+    def test_the_text_names_the_track_and_says_it_is_not_timed(self, rig):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        text = iterm.lyrics_path().read_text(encoding="utf-8")
+        assert text.splitlines()[0] == "Paper Boats"
+        assert "not timed" in text
+        assert "Paper boats on the water" in text
+        assert text.rstrip().endswith("[End]")
+
+    def test_without_lyrics_there_is_no_lyrics_pane(self, rig):
+        result = iterm.open_in_panes([SONG_A, SONG_B])
+        assert len(rig.of("split")) == 2
+        assert result["lyrics_pane"] is None
+        assert not iterm.lyrics_path().exists()
+
+    @pytest.mark.parametrize("blank", ["", "   \n  \n"])
+    def test_blank_lyrics_open_no_pane(self, rig, blank):
+        result = iterm.open_in_panes([SONG_A], lyrics=blank, title="Paper Boats")
+        assert len(rig.of("split")) == 1
+        assert result["lyrics_pane"] is None
+
+    def test_the_lyrics_never_reach_applescript(self, rig):
+        hostile = LYRICS + '\n" & do shell script "say gotcha" & "'
+        iterm.open_in_panes([SONG_A], lyrics=hostile, title="Paper Boats")
+        for _name, args in rig.calls:
+            assert not any("Paper boats" in a or "do shell script" in a for a in args)
+
+    def test_profiles_stay_distinct(self, rig):
+        iterm.open_in_panes([SONG_A, SONG_B], lyrics=LYRICS, title="Paper Boats")
+        profiles = _profiles()
+        assert len({p["Guid"] for p in profiles}) == 3
+        assert len({p["Name"] for p in profiles}) == 3
+
+    def test_closing_removes_the_lyrics_text(self, rig):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        iterm.close_panes()
+        assert rig.of("close") == [tuple(NEW_PANES[:2])]
+        assert not iterm.lyrics_path().exists()
+
+    def test_opening_without_lyrics_clears_the_earlier_text(self, rig):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        iterm.open_in_panes([SONG_B])
+        assert not iterm.lyrics_path().exists()
+
+    def test_a_failure_on_the_lyrics_pane_closes_the_takes_too(self, rig, monkeypatch):
+        real = rig.__call__
+
+        def fail_third_split(script, *args):
+            if script is iterm._SPLIT_SCRIPT and len(rig.of("split")) == 2:
+                rig.calls.append(("split", args))
+                raise iterm.ItermError("pane vanished")
+            return real(script, *args)
+
+        monkeypatch.setattr(iterm, "_osascript", fail_third_split)
+        with pytest.raises(iterm.ItermError, match="pane vanished"):
+            iterm.open_in_panes([SONG_A, SONG_B], lyrics=LYRICS, title="Paper Boats")
+        assert rig.of("close") == [tuple(NEW_PANES[:2])]
+        assert not iterm.lyrics_path().exists()
+        assert not iterm.profiles_path().exists()
 
 
 # ===========================================================================

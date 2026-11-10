@@ -3136,6 +3136,16 @@
   {
     "inputSchema": {
       "properties": {
+        "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        },
         "urls": {
           "items": {
             "type": "string"

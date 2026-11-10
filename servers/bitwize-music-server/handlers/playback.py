@@ -8,6 +8,7 @@ never fetch audio themselves and never call Suno.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import webbrowser
@@ -15,10 +16,12 @@ from pathlib import Path
 from typing import Any
 
 from handlers import _shared
-from handlers._shared import _safe_json
+from handlers._shared import _lyrics_placeholder_in, _safe_json
 from handlers.generation import (
     _first_url,
+    _instrumental_state,
     _load_track,
+    _section_code,
     album_audio_dir,
     clip_id_from_url,
     parse_generation_log,
@@ -311,7 +314,25 @@ async def stop_audio() -> str:
     return _safe_json(_player.stop())
 
 
-async def open_song_page(urls: list[str], where: str = "browser") -> str:
+def _lyrics_for_pane(album_slug: str, track_slug: str) -> tuple[str, str, str]:
+    """``(lyrics, title, note)`` for the lyrics pane; *note* says why there are none."""
+    ctx, error = _load_track(album_slug, track_slug)
+    if error or ctx is None:
+        reason = json.loads(error).get("error", "") if error else ""
+        return "", "", f"No lyrics pane: {reason or 'the track could not be read'}"
+    title = str(ctx["track"].get("title") or ctx["track_slug"])
+    instrumental, _ = _instrumental_state(ctx["text"])
+    if instrumental:
+        return "", title, "No lyrics pane: the track is instrumental"
+    lyrics = _section_code(ctx["text"], "Lyrics Box")
+    if lyrics is None or _lyrics_placeholder_in(lyrics) is not None:
+        return "", title, "No lyrics pane: the track's Lyrics Box has no lyrics yet"
+    return lyrics, title, ""
+
+
+async def open_song_page(
+    urls: list[str], where: str = "browser", album_slug: str = "", track_slug: str = "",
+) -> str:
     """Open Suno song pages, in the default web browser or in iTerm2 panes.
 
     Listening on the song page is free and unlimited. Accepts only
@@ -326,12 +347,17 @@ async def open_song_page(urls: list[str], where: str = "browser") -> str:
             stacked under it — closing any panes from an earlier call. When
             iTerm2 panes cannot be used here, the pages open in the browser
             instead and the result says why.
+        album_slug: With track_slug, in iTerm2 mode: the album of the takes
+        track_slug: The takes' track. Its Lyrics Box opens in one more pane under
+            the takes, as plain text: it is not timed to the music. Ignored in
+            the browser.
 
     Returns:
         JSON with opened and failed URL lists (failed when no browser could be
         launched — give those links to the user instead), where (the place the
         pages actually went), panes (iTerm2 pane ids) or note (why iTerm2 was
-        not used), or an error
+        not used), or an error. With a track in iTerm2 mode, also lyrics_pane
+        (whether its lyrics opened) and lyrics_note (why not)
     """
     if not urls:
         return _safe_json({"error": "No URLs given"})
@@ -349,18 +375,27 @@ async def open_song_page(urls: list[str], where: str = "browser") -> str:
 
     note = ""
     if where == "iterm2_browser":
+        named = bool(album_slug or track_slug)
+        lyrics, title, lyrics_note = (
+            _lyrics_for_pane(album_slug, track_slug) if named else ("", "", "")
+        )
         try:
-            panes = _iterm.open_in_panes([str(url) for url in urls])
+            panes = _iterm.open_in_panes([str(url) for url in urls], lyrics=lyrics, title=title)
         except _iterm.ItermError as e:
             note = f"iTerm2 panes are not available here ({e}) — opened in the browser instead"
             logger.info("Falling back to the browser: %s", e)
         else:
-            return _safe_json({
+            in_panes: dict[str, Any] = {
                 "opened": urls,
                 "failed": [],
                 "where": "iterm2_browser",
                 "panes": panes["panes"],
-            })
+            }
+            if named:
+                in_panes["lyrics_pane"] = panes.get("lyrics_pane") is not None
+                if lyrics_note:
+                    in_panes["lyrics_note"] = lyrics_note
+            return _safe_json(in_panes)
 
     opened: list[str] = []
     failed: list[str] = []

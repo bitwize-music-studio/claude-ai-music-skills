@@ -195,7 +195,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 ## Listening
 
-`/bitwize-music:listen` opens a take's song page in your browser by default, because that is free. `--iterm2` shows the takes in panes beside the session instead, which is also free. `--terminal` plays the take through your speakers.
+`/bitwize-music:listen` opens a take's song page in your browser by default, because that is free. `--iterm2` shows the takes in panes beside the session instead, which is also free, with the track's Lyrics Box in a plain pane under them. The lyrics are not timed to the music: the plugin cannot see where Suno's player is. `--terminal` plays the take through your speakers.
 
 - Terminal copies are saved as `~/.bitwize-music/cache/takes/<clip_id>.mp3` and replayed from there at no cost. The folder is a cache and safe to delete.
 - Playback needs `mpv` (recommended — it can start mid-song), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`.

@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from tests.unit.state.test_handlers_generation import (  # noqa: E402
     CLIP_A,
     CLIP_B,
+    DEFAULT_LYRICS,
     LEGACY_KEEPER_ROW,
     _row,
     _run,
@@ -349,7 +350,7 @@ class TestOpenSongPageInIterm:
     def test_opens_panes_instead_of_the_browser(self, browser, monkeypatch):
         seen = {}
 
-        def fake_open(urls):
+        def fake_open(urls, **kwargs):
             seen["urls"] = urls
             return {"panes": ["PANE-1", "PANE-2"], "pages": ["player-1", "player-2"]}
 
@@ -362,7 +363,7 @@ class TestOpenSongPageInIterm:
         assert browser == []
 
     def test_falls_back_to_the_browser_and_says_why(self, browser, monkeypatch):
-        def unavailable(urls):
+        def unavailable(urls, **kwargs):
             raise _playback_mod._iterm.ItermError("this session is not running inside iTerm2")
 
         monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", unavailable)
@@ -374,7 +375,7 @@ class TestOpenSongPageInIterm:
         assert browser == [url]
 
     def test_urls_are_checked_before_iterm_is_touched(self, browser, monkeypatch):
-        def must_not_run(urls):
+        def must_not_run(urls, **kwargs):
             raise AssertionError("open_in_panes must not be called for a bad URL")
 
         monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", must_not_run)
@@ -386,6 +387,69 @@ class TestOpenSongPageInIterm:
         result = _open([f"https://suno.com/song/{CLIP_A}"], "hologram")
         assert "error" in result
         assert browser == []
+
+
+class TestLyricsBesideTheTakes:
+    """With the album and track named, the iTerm2 panes include the track's lyrics."""
+
+    URLS = [f"https://suno.com/song/{CLIP_A}", f"https://suno.com/song/{CLIP_B}"]
+
+    @pytest.fixture
+    def panes(self, monkeypatch):
+        seen = {}
+
+        def fake_open(urls, lyrics="", title=""):
+            seen.update(urls=urls, lyrics=lyrics, title=title)
+            lyrics_pane = "PANE-3" if lyrics.strip() else None
+            panes = ["PANE-1", "PANE-2"] + ([lyrics_pane] if lyrics_pane else [])
+            return {"panes": panes, "pages": ["p1", "p2"], "lyrics_pane": lyrics_pane}
+
+        monkeypatch.setattr(_playback_mod._iterm, "open_in_panes", fake_open)
+        return seen
+
+    def _open(self, album_slug="test-album", track_slug="01-first-track", where="iterm2_browser"):
+        return json.loads(_run(_playback_mod.open_song_page(self.URLS, where, album_slug, track_slug)))
+
+    def test_the_lyrics_box_goes_to_a_pane(self, album, panes, browser):  # noqa: F811
+        result = self._open()
+        assert panes["lyrics"] == DEFAULT_LYRICS
+        assert panes["title"] == "First Track"
+        assert result["lyrics_pane"] is True
+        assert "lyrics_note" not in result
+        assert result["panes"] == ["PANE-1", "PANE-2", "PANE-3"]
+
+    def test_an_instrumental_gets_no_lyrics_pane(self, album, panes, browser):  # noqa: F811
+        album(instrumental_fm="true", instrumental_table="Yes")
+        result = self._open()
+        assert panes["lyrics"] == ""
+        assert result["lyrics_pane"] is False
+        assert "instrumental" in result["lyrics_note"]
+
+    @pytest.mark.parametrize("lyrics", [None, "[Verse 1]\n[Lyrics here...]"])
+    def test_no_lyrics_written_yet_gets_no_lyrics_pane(self, album, panes, browser, lyrics):  # noqa: F811
+        album(lyrics=lyrics)
+        result = self._open()
+        assert panes["lyrics"] == ""
+        assert result["lyrics_pane"] is False
+        assert result["lyrics_note"]
+
+    def test_an_unknown_track_still_opens_the_takes(self, album, panes, browser):  # noqa: F811
+        result = self._open(track_slug="09-nope")
+        assert result["where"] == "iterm2_browser"
+        assert panes["urls"] == self.URLS
+        assert result["lyrics_pane"] is False
+        assert "not found" in result["lyrics_note"]
+
+    def test_without_a_track_nothing_is_said_about_lyrics(self, album, panes, browser):  # noqa: F811
+        result = json.loads(_run(_playback_mod.open_song_page(self.URLS, "iterm2_browser")))
+        assert panes["lyrics"] == ""
+        assert "lyrics_pane" not in result
+
+    def test_the_browser_mode_ignores_the_track(self, album, panes, browser):  # noqa: F811
+        result = self._open(where="browser")
+        assert result["where"] == "browser"
+        assert "lyrics_pane" not in result
+        assert panes == {}
 
 
 class TestCloseSongPanes:

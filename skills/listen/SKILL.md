@@ -26,7 +26,7 @@ You never choose a take. Audio never passes through you — you start a player a
 
 For Suno takes the browser is the default, because listening on the song page is free. Two other ways are there for the asking, for one run or as the user's standing choice in `generation.listen_mode`:
 
-- **iTerm2 panes** (`--iterm2`, or `listen_mode: iterm2_browser`) — Suno's compact player for each take, in panes beside this session, so the user never leaves the terminal window. Free, like the browser. Needs macOS, iTerm2 3.6 or later and iTerm2's Browser Plugin.
+- **iTerm2 panes** (`--iterm2`, or `listen_mode: iterm2_browser`) — Suno's compact player for each take, in panes beside this session, with the track's lyrics in a pane under them, so the user never leaves the terminal window. Free, like the browser. Needs macOS, iTerm2 3.6 or later and iTerm2's Browser Plugin.
 - **Terminal** (`--terminal`, or `listen_mode: terminal`) — the take plays through the speakers from here, for one download credit.
 
 Both fall back to the browser whenever they cannot be used. Local files always play in the terminal.
@@ -69,7 +69,7 @@ Call `get_listen_plan(album_slug, track_slug)`.
 
 ## Step 2: Browser Mode and iTerm2 Mode
 
-Call `open_song_page(urls)` with the chosen takes' `url`s (at most four), in take order. For iTerm2 mode add `where="iterm2_browser"`.
+Call `open_song_page(urls)` with the chosen takes' `url`s (at most four), in take order. For iTerm2 mode add `where="iterm2_browser"`, `album_slug` and `track_slug`: the track's Lyrics Box then opens in one more pane under the takes. Leave the track out when the takes are instrumental versions.
 
 The answer's `where` says where the takes went:
 
@@ -77,9 +77,11 @@ The answer's `where` says where the takes went:
 - `iterm2_browser` → each take is open as a compact player in a pane to the right of this session, the first take on top. Say which take is where, and that each needs one click on its play button — a browser never starts sound by itself:
 
   ```
-  Both takes are open beside this session: take 1 on top, take 2 under it.
-  Click play on each one.
+  Both takes are open beside this session: take 1 on top, take 2 under it,
+  and the lyrics below them. Click play on each one.
   ```
+
+  `lyrics_pane: true` → the lyrics pane is open. It is plain text from the track file, not timed to the music, so never say it follows the song. The user scrolls it with the mouse wheel or the arrow keys, and `q` closes that pane alone. `lyrics_pane: false` → say why in a few words, from `lyrics_note` (for example, the Lyrics Box has no lyrics yet). An instrumental track needs no mention.
 
 - `note` → the panes could not be used, so the takes went to the browser. Pass the reason on; it names the fix when there is one (for example, installing iTerm2's Browser Plugin).
 - `failed` → no browser could be launched here; print those links for the user to open.

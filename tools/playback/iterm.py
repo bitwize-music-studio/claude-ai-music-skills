@@ -2,7 +2,9 @@
 
 iTerm2 3.6 can show a web page in a pane. This module opens Suno's compact
 player page for each take beside the pane the plugin's server was started from,
-remembers which panes it opened, and closes them again.
+remembers which panes it opened, and closes them again. Given a track's lyrics,
+it also opens them in a plain terminal pane under the takes. The lyrics are not
+timed to the music: the module cannot see where Suno's player is.
 
 A browser pane can only be given its page through a profile's Initial URL, so
 each take gets a small dynamic profile; they are removed when the panes close.
@@ -19,6 +21,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -52,6 +55,10 @@ _SONG_URL_RE = re.compile(
 
 # osascript prefixes its errors with the failing source range: "613:646: execution error: ".
 _OSASCRIPT_PREFIX_RE = re.compile(r"^\d+:\d+: (?:execution error: )?")
+
+# The lyrics pane's bottom line. Plain words only: ? : . % and \ mean
+# something in a less prompt.
+_LYRICS_HINT = "Wheel or arrows to scroll, q closes this pane"
 
 # iTerm2 loads a new dynamic profile a moment after its file changes.
 _PROFILE_WAIT_ATTEMPTS = 12
@@ -146,6 +153,11 @@ def panes_path() -> Path:
     return _player.cache_dir() / "listen-panes.json"
 
 
+def lyrics_path() -> Path:
+    """The text file the lyrics pane shows."""
+    return _player.cache_dir() / "listen-lyrics.txt"
+
+
 # =============================================================================
 # Availability
 # =============================================================================
@@ -218,7 +230,39 @@ def _profile(page: str) -> dict[str, str]:
     }
 
 
-def _write_profiles(profiles: list[dict[str, str]]) -> None:
+def _lyrics_profile(path: Path) -> dict[str, Any]:
+    """The terminal profile that shows *path* in a pager.
+
+    ``less -L`` ignores any LESSOPEN preprocessor, and without ``-R`` it shows
+    control characters in the text instead of passing them to the terminal.
+    Its prompt line carries the hint on scrolling and closing, in place of the
+    file's path. The pane closes when the pager quits, and closing it never
+    stops to ask about the running pager, whatever the user's default profile
+    says.
+    """
+    pager = shutil.which("less") or "/usr/bin/less"
+    return {
+        "Name": f"{PROFILE_PREFIX} lyrics",
+        "Guid": str(uuid.uuid5(_PROFILE_NAMESPACE, "lyrics")).upper(),
+        "Custom Command": "Yes",
+        "Command": shlex.join([pager, "-L", f"-Ps{_LYRICS_HINT}", str(path)]),
+        "Close Sessions On End": True,
+        "Prompt Before Closing 2": 2,  # only when a job outside the list runs
+        "Jobs to Ignore": ["less"],
+    }
+
+
+def _write_lyrics(lyrics: str, title: str) -> Path:
+    """Write the lyrics pane's text: the title, a note on what it is, the lyrics."""
+    head = [title.strip()] if title.strip() else []
+    head += ["From the track file, not timed to the take", ""]
+    path = lyrics_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(head) + "\n" + lyrics.strip("\n") + "\n", encoding="utf-8")
+    return path
+
+
+def _write_profiles(profiles: list[dict[str, Any]]) -> None:
     target = profiles_path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({"Profiles": profiles}, indent=2) + "\n", encoding="utf-8")
@@ -281,7 +325,7 @@ def _osascript(script: str, *args: str) -> str:
 
 
 def _split(anchor: str, profile_name: str, direction: str) -> tuple[str, str]:
-    """Split *anchor* with a browser profile. Returns ``(anchor id, new pane id)``."""
+    """Split *anchor* with a profile. Returns ``(anchor id, new pane id)``."""
     last_error = ""
     for _ in range(_PROFILE_WAIT_ATTEMPTS):
         try:
@@ -320,10 +364,11 @@ def close_panes() -> dict[str, Any]:
     closed = _close(_load_panes())
     _remove_profiles()
     panes_path().unlink(missing_ok=True)
+    lyrics_path().unlink(missing_ok=True)
     return {"closed": closed}
 
 
-def open_in_panes(urls: list[str]) -> dict[str, Any]:
+def open_in_panes(urls: list[str], lyrics: str = "", title: str = "") -> dict[str, Any]:
     """Open each Suno page's player in an iTerm2 pane beside this session.
 
     The panes form one column to the right of the session, the first URL at
@@ -332,7 +377,12 @@ def open_in_panes(urls: list[str]) -> dict[str, Any]:
     closed first, and the keyboard focus goes back to the session afterwards.
     A page given twice gets one pane.
 
-    Returns ``{"panes": [pane ids, top to bottom], "pages": [the URLs shown]}``.
+    With *lyrics*, one more pane at the bottom of the column shows them in a
+    pager, under *title*. They are not timed to the music. The text reaches the
+    pane through a file and a profile, never through AppleScript.
+
+    Returns ``{"panes": [pane ids, top to bottom], "pages": [the URLs shown],
+    "lyrics_pane": the lyrics pane's id, or None}``.
 
     Raises:
         ItermError: a URL is not a Suno page, iTerm2 panes are not available
@@ -351,19 +401,25 @@ def open_in_panes(urls: list[str]) -> dict[str, Any]:
     # One pane, and one profile, per page: two profiles must never share a Guid.
     profiles = [_profile(page) for page in dict.fromkeys(player_url(url) for url in urls)]
     close_panes()
-    _write_profiles(profiles)
+    text_profile = _lyrics_profile(_write_lyrics(lyrics, title)) if lyrics.strip() else None
+    _write_profiles(profiles + ([text_profile] if text_profile else []))
 
     home = _own_pane_id()
     opened: list[str] = []
+    lyrics_pane = None
     try:
         home, pane = _split(home, profiles[0]["Name"], "vertical")
         opened.append(pane)
         for profile in profiles[1:]:
             _, pane = _split(opened[-1], profile["Name"], "horizontal")
             opened.append(pane)
+        if text_profile:
+            _, lyrics_pane = _split(opened[-1], text_profile["Name"], "horizontal")
+            opened.append(lyrics_pane)
     except ItermError:
         _close(opened)
         _remove_profiles()
+        lyrics_path().unlink(missing_ok=True)
         raise
 
     _save_panes(opened)
@@ -372,4 +428,8 @@ def open_in_panes(urls: list[str]) -> dict[str, Any]:
     except ItermError as e:
         logger.warning("Opened the panes but could not return focus: %s", e)
 
-    return {"panes": opened, "pages": [profile["Initial URL"] for profile in profiles]}
+    return {
+        "panes": opened,
+        "pages": [profile["Initial URL"] for profile in profiles],
+        "lyrics_pane": lyrics_pane,
+    }
