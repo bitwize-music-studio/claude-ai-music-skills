@@ -74,7 +74,7 @@ Call `get_generation_request(album_slug, track_slug)`.
 | `supported: false` | List the blocking problems and stop. For `custom_model_unsupported`, show the **Fallback** |
 | `track_status` is `Final` | Say the track already has an approved take and ask whether to regenerate. Stop unless the answer is yes |
 | `request.model` is not in `allowed_models` | Say the plan does not include that model and stop |
-| A key in `needs_grant` while `features` lacks `controls.advanced` | Remove that key from the request and remember to say so in the summary |
+| A key in `needs_grant` while `features` lacks `controls.advanced` | Remove that key from the request and remember to say so in the summary. A dotted name such as `controls.weirdness` is a key inside `controls`; `controls.variety` is never listed and stays |
 | Warnings in `problems` | Show them and continue |
 
 Also call `get_listen_plan(album_slug, track_slug)` and keep `mode`, `confirm_download`, `player` and `iterm2` for the summary.
@@ -96,10 +96,10 @@ READY TO GENERATE — [NN] [Title]  ([album])
   Model      v6
   Takes      2 (one call always makes two)
   Max Mode   On — costs a multiple of the usual credits (2× on suno.com)
+  Variety    Off — the Style Box is used as written
   Sliders    Weirdness 50 · Style Influence 50
   Duration   Auto
   Exclude    choir, crowd vocals
-  Not sent   Variety High — no API equivalent; the Style Box is used as written
   Dropped    vocal_gender — your plan lacks advanced controls
 
   Cost       about 10 song credits (20 with Max Mode). You have 9,935.
@@ -114,6 +114,8 @@ Go ahead?   yes · generate only · play here instead · without Max Mode · wit
 Rules for the summary:
 
 - Leave out any line that does not apply (no Max Mode, nothing excluded, nothing dropped).
+- **Variety** is always shown, from `request.controls.variety`: 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max. Above Off, say "Suno rewrites the Style Box before generating" instead.
+- Anything in `ignored` goes on a **Not sent** line with its reason. The list is empty today.
 - **Max Mode** appears only when the request holds `max_mode: true`. Suno asks that Max Mode be turned on only at the user's request, so the user's yes to a summary that names it *is* that request. If they answer "without Max Mode", remove `max_mode` and proceed.
 - **Then** follows the listen plan:
   - `--no-listen` → leave the line out.

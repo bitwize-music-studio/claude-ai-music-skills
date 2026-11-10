@@ -46,7 +46,20 @@ _MIN_DURATION = 15
 _MAX_DURATION = 360
 
 # Request keys Suno only accepts on accounts with the `controls.advanced` feature.
-_NEEDS_ADVANCED_CONTROLS = ("controls", "negative_style", "vocal_gender")
+# Request fields that need the plan's advanced-controls grant. Inside `controls` the
+# sliders need it; `variety` does not (free for anyone signed in with Suno).
+_NEEDS_ADVANCED_CONTROLS = ("negative_style", "vocal_gender")
+_GRANT_FREE_CONTROLS = frozenset({"variety"})
+
+# Generation Settings "Variety" -> controls.variety. Off means the Style Box is used
+# as written; anything higher lets Suno reinterpret it.
+_VARIETY_LEVELS = {
+    "off": 0, "exact": 0, "exact style": 0, "0": 0,
+    "normal": 1, "1": 1,
+    "high": 2, "2": 2,
+    "extra": 3, "3": 3,
+    "max": 4, "4": 4,
+}
 
 # Table cells and code blocks that mean "nothing set".
 _UNSET = frozenset({"", "—", "\u2013", "-", "n/a", "none", "(none)", "auto"})
@@ -252,10 +265,15 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
         JSON with:
             supported: False when a blocking problem means nothing should be sent
             request: arguments for audio-create (title, style, lyrics, negative_style,
-                model, instrumental, max_mode, vocal_gender, duration, controls)
+                model, instrumental, max_mode, vocal_gender, duration, controls,
+                workspace_id). controls always carries variety (0 Off, 1 Normal,
+                2 High, 3 Extra, 4 Max; Off unless the track says otherwise, so the
+                Style Box is used as written) and the sliders the track sets
             needs_grant: request keys that need the account's `controls.advanced`
-                feature — drop them when account-usage does not list it
-            ignored: Generation Settings with no API equivalent (Variety above Off)
+                feature — drop them when account-usage does not list it. A dotted
+                name such as "controls.weirdness" is a key inside controls;
+                controls.variety never needs the grant
+            ignored: Generation Settings with no API equivalent (none today)
             problems: [{code, severity: blocking|warning, detail}]
             track_status: the track's current status
     """
@@ -342,12 +360,17 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
                 f"Suno accepts {_MAX_NEGATIVE_STYLE}",
             ))
 
+    # Variety Off unless the track asks for more: omitted, Suno applies the model's own
+    # default, which is Normal on v6 and v6-mini and rewrites an engineered Style Box.
+    controls: dict[str, float] = {"variety": 0}
+
     settings = _extract_markdown_section(text, "Generation Settings")
     if settings is None:
         problems.append(_problem(
             "generation_settings_missing", "warning",
             "No Generation Settings section — Suno's defaults are used for model, sliders "
-            "and duration (add one from templates/track.md § Generation Settings)",
+            "and duration, and Variety is sent as Off (add one from templates/track.md "
+            "§ Generation Settings)",
         ))
     else:
         model_raw = (_extract_table_value(settings, "Model") or "").strip()
@@ -374,12 +397,13 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
             request["max_mode"] = True
 
         variety = (_extract_table_value(settings, "Variety") or "").strip()
-        if variety.lower() not in _UNSET and variety.lower() not in ("off", "0"):
-            ignored.append({
-                "setting": "Variety",
-                "value": variety,
-                "reason": "no API equivalent — through the MCP Suno uses the Style Box as written",
-            })
+        if variety.lower() in _VARIETY_LEVELS:
+            controls["variety"] = _VARIETY_LEVELS[variety.lower()]
+        elif variety.lower() not in _UNSET:
+            problems.append(_problem(
+                "variety_unrecognized", "warning",
+                f"Variety '{variety}' is not Off, Normal, High, Extra or Max — sent as Off",
+            ))
 
         gender = (_extract_table_value(settings, "Vocal Gender") or "").strip().lower()
         if gender in ("male", "female"):
@@ -408,15 +432,14 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
                 f"Duration '{duration_raw}' is not Auto or m:ss — left to Suno",
             ))
 
-        controls: dict[str, float] = {}
         weirdness = _slider(settings, "Weirdness", problems)
         if weirdness is not None:
             controls["weirdness"] = weirdness
         style_influence = _slider(settings, "Style Influence", problems)
         if style_influence is not None:
             controls["style_influence"] = style_influence
-        if controls:
-            request["controls"] = controls
+
+    request["controls"] = controls
 
     # File the new takes in the album's Suno workspace when it has one.
     workspace = _album_workspace(ctx["album"])
@@ -431,7 +454,9 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
         "track_status": track.get("status", ""),
         "supported": supported,
         "request": request,
-        "needs_grant": [key for key in _NEEDS_ADVANCED_CONTROLS if key in request],
+        "needs_grant": [
+            f"controls.{key}" for key in controls if key not in _GRANT_FREE_CONTROLS
+        ] + [key for key in _NEEDS_ADVANCED_CONTROLS if key in request],
         "ignored": ignored,
         "problems": problems,
     })

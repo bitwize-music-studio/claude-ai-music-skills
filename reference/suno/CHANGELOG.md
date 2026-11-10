@@ -13,7 +13,7 @@ Suno's own MCP server (`https://api.suno.com/mcp`, beta since October 2026) is t
 
 ### Measured
 - One `audio-create` call makes two songs for 10 credits; a 60-second `duration` cost the same.
-- `metadata.style` came back identical to the submitted Style Box on both takes: through the MCP the Style Box is used as written, and there is no Variety setting.
+- `metadata.style` came back identical to the submitted Style Box on both takes. *Corrected the same day:* that field echoes the input, so it proves nothing about Variety. Suno's server then gained `controls.variety` (0 Off to 4 Max; "omit it to keep the model's default", which is Normal on v6). The plugin now always sends it, Off unless the track says otherwise; takes made before that change ran at the model's default.
 - An instrumental with tags-only lyrics was accepted and came back with no voice.
 - A 12-part stem split cost 50 credits and returned 24 stems (two takes of 12). Stem and full-mix WAVs are 16-bit / 48 kHz.
 - One download credit covers a song in MP3 and WAV, and all of its stems. Clip data carries no audio link, so playing a take anywhere but suno.com needs that download.

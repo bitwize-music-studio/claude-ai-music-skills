@@ -70,5 +70,6 @@ Suno's official MCP server (beta since October 2026) takes the parameters below.
 | `duration` | Target length, a hard cap | 15-360 seconds |
 | `controls.style_influence` | Style Influence | 0.00-1.00 |
 | `controls.weirdness` | Weirdness | 0.00-1.00 |
+| `controls.variety` | Variety | 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max |
 
 Names such as `prompt`, `vocalGender`, `negativeTags`, `styleWeight` and `weirdnessConstraint`, and model identifiers such as `V6` / `V6_WILD` / `V6_MINI`, come from third-party resellers, not Suno — do not use them.

@@ -266,9 +266,12 @@ class TestGetGenerationRequest:
             "model": "v6",
             "max_mode": True,
             "vocal_gender": "male",
-            "controls": {"weirdness": 0.5, "style_influence": 0.5},
+            "controls": {"variety": 0, "weirdness": 0.5, "style_influence": 0.5},
         }
-        assert result["needs_grant"] == ["controls", "negative_style", "vocal_gender"]
+        # Variety is free for a Suno sign-in; the sliders and the two fields need the grant.
+        assert result["needs_grant"] == [
+            "controls.weirdness", "controls.style_influence", "negative_style", "vocal_gender",
+        ]
         assert result["ignored"] == []
         assert result["problems"] == []
 
@@ -340,8 +343,12 @@ class TestGetGenerationRequest:
         result = _request()
         assert result["supported"] is True
         assert "generation_settings_missing" in _codes(result, "warning")
-        for key in ("model", "controls", "max_mode", "vocal_gender", "duration"):
+        for key in ("model", "max_mode", "vocal_gender", "duration"):
             assert key not in result["request"]
+        # The plugin's rule is an engineered Style Box used as written, so Variety Off is
+        # sent even then: omitted, Suno applies the model's own default (Normal on v6).
+        assert result["request"]["controls"] == {"variety": 0}
+        assert result["needs_grant"] == ["negative_style"]  # Exclude Styles is its own section
 
     @pytest.mark.parametrize(
         "cell,expected,warned",
@@ -358,13 +365,15 @@ class TestGetGenerationRequest:
 
     def test_sliders_convert_to_fractions(self, album):
         album(settings={"Weirdness": "35", "Style Influence": "80"})
-        assert _request()["request"]["controls"] == {"weirdness": 0.35, "style_influence": 0.8}
+        assert _request()["request"]["controls"] == {
+            "variety": 0, "weirdness": 0.35, "style_influence": 0.8,
+        }
 
     def test_unset_and_bad_sliders(self, album):
         album(settings={"Weirdness": "—", "Style Influence": "loud"})
         result = _request()
-        assert "controls" not in result["request"]
-        assert "controls" not in result["needs_grant"]
+        assert result["request"]["controls"] == {"variety": 0}
+        assert result["needs_grant"] == ["negative_style", "vocal_gender"]
         assert "style_influence_unrecognized" in _codes(result, "warning")
 
     def test_slider_above_100_is_clamped(self, album):
@@ -377,11 +386,37 @@ class TestGetGenerationRequest:
         album(settings={"Max Mode": "Off"})
         assert "max_mode" not in _request()["request"]
 
-    def test_variety_above_off_is_reported_as_ignored(self, album):
-        album(settings={"Variety": "High"})
-        ignored = _request()["ignored"]
-        assert [i["setting"] for i in ignored] == ["Variety"]
-        assert ignored[0]["value"] == "High"
+    @pytest.mark.parametrize("cell,expected", [
+        ("Off", 0), ("off", 0), ("0", 0), ("Exact", 0), ("Exact style", 0),
+        ("Normal", 1), ("1", 1), ("High", 2), ("HIGH", 2), ("Extra", 3), ("Max", 4), ("4", 4),
+    ])
+    def test_variety_is_sent_as_suno_numbers_it(self, album, cell, expected):
+        """controls.variety: 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max."""
+        album(settings={"Variety": cell})
+        result = _request()
+        assert result["request"]["controls"]["variety"] == expected
+        assert result["ignored"] == []
+        assert "variety_unrecognized" not in _codes(result)
+
+    @pytest.mark.parametrize("cell", ["—", "", "-"])
+    def test_unset_variety_is_sent_as_off(self, album, cell):
+        album(settings={"Variety": cell})
+        result = _request()
+        assert result["request"]["controls"]["variety"] == 0
+        assert "variety_unrecognized" not in _codes(result)
+
+    @pytest.mark.parametrize("cell", ["Medium", "5", "lots"])
+    def test_unrecognized_variety_warns_and_is_sent_as_off(self, album, cell):
+        album(settings={"Variety": cell})
+        result = _request()
+        assert result["request"]["controls"]["variety"] == 0
+        assert "variety_unrecognized" in _codes(result, "warning")
+
+    def test_variety_needs_no_grant(self, album):
+        album(settings={"Variety": "High", "Weirdness": "—", "Style Influence": "—"})
+        result = _request()
+        assert result["request"]["controls"] == {"variety": 2}
+        assert not [key for key in result["needs_grant"] if key.startswith("controls")]
 
     def test_missing_style_blocks(self, album):
         album(style=None)

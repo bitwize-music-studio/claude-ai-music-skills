@@ -68,7 +68,7 @@ A terminal audition **is** a download. The take you keep costs one download cred
 |---|---|---|
 | Title | `title` | ≤ 256 characters |
 | Lyrics Box | `lyrics` | ≤ 5000. Kept for instrumentals: tags-only lyrics were accepted and not sung *(measured)* |
-| Style Box | `style` | ≤ 1000. Used word for word — both takes came back with `metadata.style` identical to the input *(measured)* |
+| Style Box | `style` | ≤ 1000. Used as written when Variety is Off. `metadata.style` always echoes what was sent, so it cannot show whether Variety rewrote it |
 | Exclude Styles | `negative_style` | ≤ 1000. `(none)` or an untouched placeholder sends nothing. Old-style `no drums` items are sent bare (`drums`), with a warning to fix the file |
 | `instrumental: true` | `instrumental` | Frontmatter and the Track Details row must agree |
 | Model `v6` / `v6-wild` / `v6-mini` | `model` | `Custom: <name>` is not offered — use suno.com |
@@ -76,9 +76,9 @@ A terminal audition **is** a download. The take you keep costs one download cred
 | Vocal Gender | `vocal_gender` | `male` / `female`; `—` sends nothing; never sent for an instrumental |
 | Duration `m:ss` | `duration` | Seconds, 15–360, a hard cap. `Auto` sends nothing |
 | Weirdness / Style Influence 0–100 | `controls.weirdness` / `controls.style_influence` | Sent as 0–1 |
-| Variety | — | No equivalent; the Style Box is always used as written |
+| Variety `Off` / `Normal` / `High` / `Extra` / `Max` | `controls.variety` | 0–4. Always sent, and `Off` (0) when the row is blank or the section is missing: left out, Suno applies the model's own default, which is Normal on v6 and v6-mini and rewrites the Style Box |
 
-`controls`, `negative_style` and `vocal_gender` need the `controls.advanced` feature. The tool lists them under `needs_grant`; drop them, and say so, when `account-usage` does not list the feature.
+The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` feature; `controls.variety` does not. The tool lists what needs it under `needs_grant` (`controls.weirdness`, `controls.style_influence`, `negative_style`, `vocal_gender`); drop those, and say so, when `account-usage` does not list the feature.
 
 ---
 

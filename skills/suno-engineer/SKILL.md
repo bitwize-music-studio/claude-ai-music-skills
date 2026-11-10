@@ -213,7 +213,7 @@ Fill the track's `### Generation Settings` table (Advanced Mode → More Options
 | **Weirdness / Style Influence** | 50 / 50 unless a genre range in `creative-sliders.md` says otherwise. Style Influence at 50 discards half the prompt's authority — raise it before blaming the prompt. |
 | **Audio Influence** | Only with attached audio (Cover / Voice): ~0.70–0.85 for a Voice; see the Cover / Voice Setup block. |
 
-**Generating through the Suno MCP** (`/bitwize-music:generate`): this table stays the source of truth. Model, Max Mode, Vocal Gender, Duration and the two sliders are sent as set. Variety is not sent — through the MCP Suno always uses the Style Box as written. A `Custom: <name>` model is not offered there and has to be generated on suno.com. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`.
+**Generating through the Suno MCP** (`/bitwize-music:generate`): this table stays the source of truth. Model, Variety, Max Mode, Vocal Gender, Duration and the two sliders are sent as set. Variety goes as a number (Off 0 … Max 4), and Off is sent even when the row is blank — left out, Suno would apply the model's own default, Normal on v6 and v6-mini. A `Custom: <name>` model is not offered there and has to be generated on suno.com. See `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`.
 
 Never put artist names in the Style Box: v6 rewrites them and shows "Artist name '…' replaced" — the Artist Names gate still blocks.
 
