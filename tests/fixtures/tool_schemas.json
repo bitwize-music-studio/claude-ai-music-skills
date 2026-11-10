@@ -1699,6 +1699,11 @@
         "track_slug": {
           "title": "Track Slug",
           "type": "string"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
         }
       },
       "required": [
@@ -1728,6 +1733,60 @@
       "properties": {
         "album_slug": {
           "title": "Album Slug",
+          "type": "string"
+        },
+        "continue_at": {
+          "default": "",
+          "title": "Continue At",
+          "type": "string"
+        },
+        "from_section": {
+          "default": "",
+          "title": "From Section",
+          "type": "string"
+        },
+        "take": {
+          "default": 0,
+          "title": "Take",
+          "type": "integer"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_extension_requestArguments",
+      "type": "object"
+    },
+    "name": "get_extension_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_extension_requestOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "midi_upload_id": {
+          "default": "",
+          "title": "Midi Upload Id",
           "type": "string"
         },
         "track_slug": {
@@ -1849,6 +1908,45 @@
         "result"
       ],
       "title": "get_lyrics_statsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "midi_path": {
+          "default": "",
+          "title": "Midi Path",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_midi_score_planArguments",
+      "type": "object"
+    },
+    "name": "get_midi_score_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_midi_score_planOutput",
       "type": "object"
     }
   },
@@ -2100,6 +2198,55 @@
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "fit_track": {
+          "default": "",
+          "title": "Fit Track",
+          "type": "string"
+        },
+        "loop": {
+          "default": false,
+          "title": "Loop",
+          "type": "boolean"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "description"
+      ],
+      "title": "get_sound_requestArguments",
+      "type": "object"
+    },
+    "name": "get_sound_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_sound_requestOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
         }
       },
       "required": [
@@ -2132,6 +2279,11 @@
         },
         "track_slug": {
           "title": "Track Slug",
+          "type": "string"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
           "type": "string"
         }
       },

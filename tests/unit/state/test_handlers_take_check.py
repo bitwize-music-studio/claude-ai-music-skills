@@ -442,3 +442,15 @@ class TestEvaluateTakeCheck:
     def test_unknown_track(self, song):
         result = json.loads(_run(_check_mod.evaluate_take_check("test-album", "99-missing", CLIP_A, [_clean()])))
         assert result["found"] is False
+
+
+class TestVersionsAreNotChecked:
+    def test_an_instrumental_version_is_left_out(self, song):
+        """The lyric check has nothing to hold an instrumental version against."""
+        song(lyrics=LYRICS, log_rows=(
+            _row(1, CLIP_A),
+            _row(2, CLIP_B, notes="0:55, instrumental version of take 1, via MCP, 10 credits"),
+        ))
+        plan = _plan()
+        assert [take["take"] for take in plan["takes"]] == [1]
+        assert plan["default_takes"] == [1]

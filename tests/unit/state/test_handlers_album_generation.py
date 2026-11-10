@@ -3,6 +3,7 @@
 
     get_album_generation_plan(album)   — which tracks can be generated now, and the cost
     get_suno_midi_plan(album, track)   — the keeper clip to transcribe and where the .mid goes
+    get_midi_score_plan(album, track)  — the MIDI file a track is to be made from
 
 Usage:
     python -m pytest tests/unit/state/test_handlers_album_generation.py -v
@@ -11,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import struct
 import sys
 from pathlib import Path
 
@@ -84,8 +86,36 @@ class TestGetAlbumGenerationPlan:
         by_slug = {t["track_slug"]: t for t in plan["tracks"]}
         assert by_slug["01-first-track"] == {
             "track_slug": "01-first-track", "title": "First Track", "status": "In Progress",
-            "action": "generate", "reason": "", "max_mode": True, "credits": 20,
+            "action": "generate", "reason": "", "kind": "song", "max_mode": True, "credits": 20,
         }
+        assert by_slug["03-blocked"]["kind"] == "" and by_slug["05-done"]["kind"] == ""
+
+    def test_each_track_says_what_kind_of_request_it_makes(self, batch):
+        """Covers and spoken tracks go to their own Suno tools and cost the same."""
+        from tests.unit.state.test_handlers_generation import SOURCE_CLIP, _setup_block
+
+        path = batch.path.parent / "06-cover.md"
+        path.write_text(
+            track_md(title="Cover", settings={"Max Mode": "Off"})
+            + _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}"),
+            encoding="utf-8",
+        )
+        batch.state["albums"]["test-album"]["tracks"]["06-cover"] = {
+            "title": "Cover", "status": "In Progress", "path": str(path),
+        }
+        spoken = batch.path.parent / "07-spoken.md"
+        spoken.write_text(
+            track_md(title="Spoken").replace("explicit: ", "spoken: true\nexplicit: ", 1),
+            encoding="utf-8",
+        )
+        batch.state["albums"]["test-album"]["tracks"]["07-spoken"] = {
+            "title": "Spoken", "status": "In Progress", "path": str(spoken),
+        }
+        by_slug = {t["track_slug"]: t for t in _plan()["tracks"]}
+        assert (by_slug["06-cover"]["kind"], by_slug["06-cover"]["credits"]) == ("cover", 10)
+        # speech-create has no Max Mode, so the track's Max Mode: On costs nothing extra.
+        assert (by_slug["07-spoken"]["kind"], by_slug["07-spoken"]["credits"]) == ("speech", 10)
+        assert by_slug["07-spoken"]["max_mode"] is False
         assert by_slug["02-second"]["credits"] == 10
         assert by_slug["03-blocked"]["action"] == "blocked"
         assert by_slug["03-blocked"]["reason"] == "gates: Sources Verified, Homograph Check"
@@ -162,3 +192,84 @@ class TestGetSunoMidiPlan:
 
     def test_unknown_track(self, album):  # noqa: F811
         assert _midi("99-missing")["found"] is False
+
+
+# ===========================================================================
+# get_midi_score_plan
+# ===========================================================================
+
+
+def _score(track_slug="01-first-track", midi_path=""):
+    return json.loads(_run(_midi_mod.get_midi_score_plan("test-album", track_slug, midi_path)))
+
+
+def _midi_bytes(fmt=1, tracks=2, division=960, padding=0):
+    return (
+        b"MThd" + struct.pack(">IHHH", 6, fmt, tracks, division)
+        + b"MTrk" + struct.pack(">I", 4) + b"\x00\xff\x2f\x00" + b"\x00" * padding
+    )
+
+
+class TestGetMidiScorePlan:
+    def test_a_given_file(self, album, tmp_path):  # noqa: F811
+        score = tmp_path / "melody.mid"
+        score.write_bytes(_midi_bytes())
+        plan = _score(midi_path=str(score))
+        assert plan["found"] is True and plan["supported"] is True
+        assert plan["midi"] == {
+            "path": str(score), "source": "given", "bytes": len(_midi_bytes()),
+            "format": 1, "tracks": 2, "division": 960,
+        }
+        assert (plan["max_bytes"], plan["model"], plan["credits"]) == (262144, "v6-wild", 10)
+        assert plan["title"] == "First Track"
+        assert plan["problems"] == []
+
+    def test_the_tracks_own_midi_is_the_default(self, album):  # noqa: F811
+        """MIDI From Suno saves here, so a transcription can be sent back as a score."""
+        target = album.audio_dir / "sheet-music" / "source" / "01-first-track.mid"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(_midi_bytes(fmt=0, tracks=1))
+        plan = _score()
+        assert plan["supported"] is True
+        assert (plan["midi"]["path"], plan["midi"]["source"]) == (str(target), "sheet-music")
+        assert (plan["midi"]["format"], plan["midi"]["tracks"]) == (0, 1)
+
+    def test_a_vocal_track_gets_a_sketch(self, album):  # noqa: F811
+        score = album.path.parent / "m.mid"
+        score.write_bytes(_midi_bytes())
+        assert _score(midi_path=str(score))["sketch"] is True
+        album(instrumental_fm="true", instrumental_table="Yes", lyrics="[Intro]\n\n[End]")
+        assert _score(midi_path=str(score))["sketch"] is False
+
+    def test_no_file_anywhere(self, album):  # noqa: F811
+        plan = _score()
+        assert plan["supported"] is False and plan["midi"] is None
+        assert [p["code"] for p in plan["problems"]] == ["no_midi_file"]
+
+    def test_the_given_file_is_missing(self, album, tmp_path):  # noqa: F811
+        plan = _score(midi_path=str(tmp_path / "nope.mid"))
+        assert [p["code"] for p in plan["problems"]] == ["midi_file_not_found"]
+
+    def test_a_folder_is_not_a_file(self, album, tmp_path):  # noqa: F811
+        assert [p["code"] for p in _score(midi_path=str(tmp_path))["problems"]] == [
+            "midi_file_not_found",
+        ]
+
+    @pytest.mark.parametrize("data", [b"RIFF\x00\x00\x00\x00WAVE", b"", b"MThd", b"MThd\x00\x00\x00\x07" + b"\x00" * 10])
+    def test_not_a_midi_file(self, album, tmp_path, data):  # noqa: F811
+        score = tmp_path / "song.mid"
+        score.write_bytes(data)
+        plan = _score(midi_path=str(score))
+        assert plan["supported"] is False
+        assert [p["code"] for p in plan["problems"]] == ["not_a_midi_file"]
+
+    def test_too_large_for_suno(self, album, tmp_path):  # noqa: F811
+        score = tmp_path / "big.mid"
+        score.write_bytes(_midi_bytes(padding=262144))
+        plan = _score(midi_path=str(score))
+        assert [p["code"] for p in plan["problems"]] == ["midi_too_large"]
+        score.write_bytes(_midi_bytes(padding=262144 - len(_midi_bytes())))
+        assert _score(midi_path=str(score))["supported"] is True
+
+    def test_unknown_track(self, album):  # noqa: F811
+        assert _score("99-missing")["found"] is False

@@ -163,6 +163,8 @@ Pass on anything in `warnings` (for example, `afplay` cannot start mid-song).
 
 When the user has heard the takes, ask which one to keep, or whether to regenerate. Do not recommend one. If they wonder whether a take sang every line or hit the tempo, `/bitwize-music:check-take` asks Suno's listening agent for free.
 
+**The take they name is a version** (its `version` in the listen plan is `instrumental`): change that row's Rating to `✓` and stop there. A version is kept beside the track, so the Suno Link, the status and the like stay as they are. Offer `/bitwize-music:import-audio --from-suno <album> <track> --version instrumental`.
+
 **They name a keeper:**
 
 1. `stop_audio` if something is still playing, and `close_song_panes` if the takes were opened in iTerm2 panes.

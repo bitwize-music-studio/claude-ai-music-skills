@@ -75,8 +75,10 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
         JSON with:
             takes: Generation Log rows that link to Suno — row, date, model, url,
                 clip_id (null for a legacy share link, which can only be opened
-                in the browser), rating, approved, is_keeper, cache_path (where
-                the audition copy belongs) and cached (whether it is there)
+                in the browser), rating, approved, is_keeper, version
+                ("instrumental" for a version of another take, which is kept
+                beside the track and is never its keeper; else ""), cache_path
+                (where the audition copy belongs) and cached (whether it is there)
             local: {original, polished, mastered} — file path or null
             default: {"kind": "takes", "rows": [...]} for takes awaiting a
                 decision (the newest two), {"kind": "local", "stage", "path"} for
@@ -122,6 +124,7 @@ async def get_listen_plan(album_slug: str, track_slug: str) -> str:
             ),
             "duration_s": take["duration_s"],
             "credits": take["credits"],
+            "version": take["version"],
             "cache_path": str(cache_path) if cache_path else None,
             "cached": bool(cache_path and cache_path.is_file()),
         })

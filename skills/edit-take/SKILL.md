@@ -1,7 +1,7 @@
 ---
 name: edit-take
-description: Fixes one thing in a Suno take without re-rolling the song - a word or a line, a cut or added line, a time range redone, an instrument added or dropped - and keeps the rest of the take's audio. Shows the cost and waits for a go-ahead. Use when the user likes a take but something in it is wrong ("fix the word in line 3", "drop the synth", "redo the bridge"), or to apply a lyric or pronunciation fix made in the track file to a take worth keeping.
-argument-hint: <album-name> <track> [take N] ["what to change"]
+description: Fixes one thing in a Suno take without re-rolling the song - a word or a line, a cut or added line, a time range redone, an instrument added or dropped - and keeps the rest of the take's audio; also makes an instrumental version of a take. Shows the cost and waits for a go-ahead. Use when the user likes a take but something in it is wrong ("fix the word in line 3", "drop the synth", "redo the bridge"), to apply a lyric or pronunciation fix made in the track file to a take worth keeping, or when they want the take without its vocals.
+argument-hint: <album-name> <track> [take N] ["what to change" | instrumental]
 model: sonnet
 effort: medium
 allowed-tools:
@@ -34,9 +34,9 @@ Past five changed places Suno re-sings the whole song as a cover; from there `/b
 
 ## Step 1: Resolve
 
-Expected format: `<album-name> <track> [take N] ["what to change"]`
+Expected format: `<album-name> <track> [take N] ["what to change" | instrumental]`
 
-Find the album and track as `/bitwize-music:generate` does. If the words to change include new sung words, treat them like any new lyric: run `check_homographs` on them and ask about each homograph before going on.
+Find the album and track as `/bitwize-music:generate` does. The word `instrumental` in place of an instruction asks for a version of the take, not a change to it: go to **An Instrumental Version**. If the words to change include new sung words, treat them like any new lyric: run `check_homographs` on them and ask about each homograph before going on.
 
 ## Step 2: Check the Suno Server
 
@@ -104,6 +104,18 @@ Failures are handled as in `/bitwize-music:generate` Step 6: one retry with the 
 
 The track's status does not change, and the original take stays in the log. If the user keeps an edited take, approval works as always (`/bitwize-music:listen` Step 7). When the edit was given in words and changed sung words, update the Lyrics Box and Streaming Lyrics to what the keeper sings.
 
+## An Instrumental Version
+
+`/bitwize-music:edit-take <album> <track> [take N] instrumental` takes the vocals off a take and keeps the rest — a version to release beside the song, or to put under a video.
+
+1. Step 2 as above, then `get_edit_request(album_slug, track_slug, take: N, version: "instrumental")`. `already_instrumental`, `source_is_a_version` and `version_unsupported` are blocking: show the problem and stop.
+2. Summary, go-ahead and sending are Steps 4 and 5: 10 song credits for two takes. In the summary write `Makes  2 instrumental versions of take N` and `Keeps  everything but the vocals`.
+3. Log with `notes: "<log_notes from the tool>, via MCP, 10 credits"`. Those words mark the rows as versions: they are never taken for the track's keeper, the take check leaves them out, and the track's status does not change.
+4. Open both (`/bitwize-music:listen <album> <track> take <rows>`). Measured: both came back at the source's exact length with no voice on them. A version whose length differs from the source's was made again, not lifted out of the take — say so when it happens.
+5. When the user picks one, mark that row ✓ and do nothing else: no Suno Link, no status change, no like. Then `/bitwize-music:import-audio --from-suno <album> <track> --version instrumental` saves it as `versions/<track>-instrumental.wav`.
+
+**An a cappella is not offered this way.** Measured: the same request for an a cappella returned the instrumental once more and a shorter, re-sung song with its guitar. The vocals stem is the a cappella: `/bitwize-music:import-audio --from-suno <album> <track> --stems` saves it as `stems/<track>/0 Lead Vocals.wav`.
+
 ## Remember
 
 1. **An edit is a generation**: cost first, then a go-ahead, then one call.
@@ -111,3 +123,4 @@ The track's status does not change, and the original take stays in the log. If t
 3. **Two edited takes come back**; the original is untouched.
 4. **More than five changed places is a re-sing**, not an edit — say so before spending.
 5. **You never pick a take, mark a keeper or set `Final`.**
+6. **A version is kept beside the track, never as it**: its ✓ marks the one to import and changes nothing else.

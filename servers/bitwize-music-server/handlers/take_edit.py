@@ -10,6 +10,13 @@ Measured on a one-minute test song: one call made two edited takes
 for 10 song credits in under a minute; both kept the source's title and exact
 length, sang the changed word, and came back with the lyrics updated; the
 album's ``workspace_id`` and a ``model`` were accepted alongside.
+
+The same call makes an instrumental version of a take ("remove all the
+vocals"): two takes of the source's exact length with no voice on them, for 10
+credits. Asking for an a cappella the same way did not work in that test — one
+take came back as the instrumental, the other as a shorter re-sung song with
+its guitar — so only the instrumental is offered; the vocals stem is the a
+cappella.
 """
 
 from __future__ import annotations
@@ -22,7 +29,9 @@ from typing import Any
 from handlers._shared import _extract_markdown_section, _safe_json
 from handlers.gates import _KNOWN_MODELS
 from handlers.generation import (
+    VERSIONS,
     _album_workspace,
+    _instrumental_state,
     _load_track,
     _problem,
     _section_code,
@@ -37,6 +46,12 @@ logger = logging.getLogger(__name__)
 _MAX_DESCRIPTION = 3000
 # Past this many changed places Suno re-sings the whole song as a cover.
 _MAX_EDIT_PLACES = 5
+# The wording measured to drop the vocals and keep the rest of the take.
+_VERSION_REQUESTS = {
+    "instrumental": (
+        "remove all the vocals to make an instrumental version. Keep everything else as it is."
+    ),
+}
 _ID_OR_LINK_RE = re.compile(
     r"https?://|suno\.com|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
     re.IGNORECASE,
@@ -119,6 +134,7 @@ def _source_take(
             "clip_id": row["clip_id"],
             "url": f"https://suno.com/song/{row['clip_id']}",
             "keeper": bool(row["approved"] or row["clip_id"] == keeper_id),
+            "version": row["version"],
         }
 
     if take:
@@ -136,7 +152,8 @@ def _source_take(
             )
         return source(row), None
 
-    editable = [r for r in rows if r["clip_id"]]
+    # A version of a take is never the default: it is kept beside the track, not as it.
+    editable = [r for r in rows if r["clip_id"] and not r["version"]]
     if not editable:
         return None, _problem(
             "take_has_no_clip_id", "blocking",
@@ -166,8 +183,9 @@ async def get_edit_request(
     take: int = 0,
     instruction: str = "",
     take_lyrics: str = "",
+    version: str = "",
 ) -> str:
-    """Build the Suno request that edits one take in place.
+    """Build the Suno request that edits one take in place, or makes a version of it.
 
     An edit changes part of a finished take and keeps the rest of its audio:
     a few words or lines, a cut or added line, a redone time range, an
@@ -186,6 +204,14 @@ async def get_edit_request(
         track's Lyrics Box — the way to apply a pronunciation or wording fix
         made in the track file.
 
+    Or ask for a version of the take instead of a change to it:
+      - version: "instrumental" takes the vocals off and keeps the rest. Log
+        the two takes that come back with log_notes in their notes; they are
+        then kept beside the track and never taken for its keeper, and
+        get_suno_import_plan(version) saves the one the user marks. An a
+        cappella is not offered: asked for this way it came back wrong, and
+        the vocals stem of a stem split is the a cappella.
+
     Args:
         album_slug: Album slug
         track_slug: Track slug or number
@@ -193,15 +219,19 @@ async def get_edit_request(
             the only take with a clip id
         instruction: What to change, in plain words (wins over take_lyrics)
         take_lyrics: The lyrics the take was generated with
+        version: "instrumental" to make that version of the take (wins over
+            instruction and take_lyrics)
 
     Returns:
         JSON with found, title, supported (false when a blocking problem means
-        nothing should be sent), mode ("instruction" or "lyrics"), source
-        ({take, clip_id, url, keeper}), request (reference_audio_ids,
-        description, and model and workspace_id when the track has them),
-        changes ([{kind: change|cut|add, old, new, after}] in lyrics mode),
-        places (how many places change; past 5 Suno re-sings the whole song)
-        and problems ([{code, severity: blocking|warning, detail}])
+        nothing should be sent), mode ("instruction", "lyrics" or "version"),
+        version ("instrumental" or ""), source ({take, clip_id, url, keeper,
+        version}), request (reference_audio_ids, description, and model and
+        workspace_id when the track has them), log_notes (for a version: the
+        words its Generation Log notes must carry), changes ([{kind:
+        change|cut|add, old, new, after}] in lyrics mode), places (how many
+        places change; past 5 Suno re-sings the whole song) and problems
+        ([{code, severity: blocking|warning, detail}])
     """
     ctx, error = _load_track(album_slug, track_slug)
     if error:
@@ -220,7 +250,30 @@ async def get_edit_request(
         problems.append(problem)
 
     instruction = " ".join(instruction.split())
-    if instruction:
+    version = " ".join(version.lower().replace("-", " ").split())
+    if version:
+        mode = "version"
+        if version not in VERSIONS:
+            problems.append(_problem(
+                "version_unsupported", "blocking",
+                f"'{version}' is not a version this makes — only: {', '.join(VERSIONS)}. An a "
+                "cappella asked for this way came back wrong when measured; the vocals stem "
+                "is the a cappella (/bitwize-music:import-audio --from-suno <album> <track> --stems)",
+            ))
+        else:
+            description = f"In {title}, {_VERSION_REQUESTS[version]}"
+            if version == "instrumental" and _instrumental_state(text)[0]:
+                problems.append(_problem(
+                    "already_instrumental", "blocking",
+                    "The track is an instrumental already — there are no vocals to take off",
+                ))
+            if source and source["version"]:
+                problems.append(_problem(
+                    "source_is_a_version", "blocking",
+                    f"Row {source['take']} is itself a version of another take — make the "
+                    "version from the take it came from",
+                ))
+    elif instruction:
         mode = "instruction"
         if _ID_OR_LINK_RE.search(instruction):
             problems.append(_problem(
@@ -279,8 +332,13 @@ async def get_edit_request(
         "title": title,
         "supported": supported,
         "mode": mode,
+        "version": version if mode == "version" and version in VERSIONS else "",
         "source": source,
         "request": request,
+        "log_notes": (
+            f"{version} version of take {source['take']}"
+            if supported and source and mode == "version" else ""
+        ),
         "changes": changes,
         "places": len(changes),
         "problems": problems,

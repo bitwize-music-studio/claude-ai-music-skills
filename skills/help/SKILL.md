@@ -36,7 +36,9 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:generate` - Generate a track through Suno's MCP server (gates, cost, two takes, logging)
 - `/bitwize-music:listen` - Play takes or local audio in the terminal, or open the song page in the browser
 - `/bitwize-music:check-take` - Check takes against the track file with Suno's listening agent (free, advisory)
-- `/bitwize-music:edit-take` - Fix one thing in a take and keep the rest of its audio (10 Suno credits)
+- `/bitwize-music:edit-take` - Fix one thing in a take and keep the rest of its audio, or make an instrumental version (10 Suno credits)
+- `/bitwize-music:extend-take` - Carry a take on from a point in its audio and join the result (10 Suno credits)
+- `/bitwize-music:sound-effects` - Make a sound effect, a one-shot or a loop for an album (2 Suno credits)
 - `/bitwize-music:genre-creator` - Add new genre documentation to the library
 
 **Research & Sources**

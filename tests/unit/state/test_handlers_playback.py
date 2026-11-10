@@ -81,6 +81,7 @@ class TestGetListenPlan:
             "is_keeper": False,
             "duration_s": None,
             "credits": None,
+            "version": "",
             "cache_path": str(player.takes_cache_dir() / f"{CLIP_A}.mp3"),
             "cached": False,
         }
@@ -481,3 +482,15 @@ class TestPruneTakesCache:
 
     def test_no_cache_directory(self, album):  # noqa: F811
         assert _prune(False) == {"dry_run": False, "removed": [], "kept": 0, "freed_bytes": 0}
+
+
+class TestVersionsInTheListenPlan:
+    def test_a_version_row_is_labelled_and_is_never_the_keeper(self, album):
+        album(log_rows=(
+            _row(1, CLIP_A, "✓"),
+            _row(2, CLIP_B, "✓", notes="0:55, instrumental version of take 1, via MCP"),
+        ))
+        takes = _listen_plan()["takes"]
+        assert [(t["row"], t["version"], t["approved"]) for t in takes] == [
+            (1, "", True), (2, "instrumental", False),
+        ]

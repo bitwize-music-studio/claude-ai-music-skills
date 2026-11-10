@@ -25,8 +25,9 @@ from handlers.text_analysis import _load_artist_blocklist
 
 logger = logging.getLogger(__name__)
 
-# One audio-create call makes two takes for 10 song credits (measured).
-# Max Mode costs a multiple of that; suno.com charges double.
+# One audio-create call makes two takes for 10 song credits (measured), and
+# so do audio-covers-create and speech-create. Max Mode costs a multiple of that;
+# suno.com charges double.
 _CREDITS_PER_CALL = 10
 _MAX_MODE_FACTOR = 2
 _TAKES_PER_CALL = 2
@@ -46,6 +47,7 @@ async def _plan_track(
         "status": track.get("status", ""),
         "action": "generate",
         "reason": "",
+        "kind": "",
         "max_mode": False,
         "credits": 0,
     }
@@ -87,6 +89,7 @@ async def _plan_track(
     max_mode = bool(built["request"].get("max_mode"))
     return {
         **entry,
+        "kind": built["kind"],
         "max_mode": max_mode,
         "credits": _CREDITS_PER_CALL * (_MAX_MODE_FACTOR if max_mode else 1),
     }
@@ -106,7 +109,9 @@ async def get_album_generation_plan(album_slug: str) -> str:
 
     Returns:
         JSON with found, album_slug, album_title, tracks ([{track_slug, title,
-        status, action: generate|blocked|skip, reason, max_mode, credits}]),
+        status, action: generate|blocked|skip, reason, kind (for a track to
+        generate: song, cover or speech — see get_generation_request),
+        max_mode, credits}]),
         generate / blocked / skipped (track slugs), calls (one per track to
         generate), takes (two per call), estimated_credits (10 per call, 20
         with Max Mode — an estimate; the account balance is the truth),

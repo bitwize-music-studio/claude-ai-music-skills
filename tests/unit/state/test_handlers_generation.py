@@ -116,6 +116,7 @@ DEFAULT_SETTINGS = {
 PLACEHOLDER_ROW = "| — | — | — | — | — | — |"
 CLIP_A = "4ef71736-b95e-489b-b5ac-1a41badceb08"
 CLIP_B = "6455b9ea-f786-4769-ac20-a2eb3eb49fee"
+CLIP_C = "62ec929c-f72c-43ec-b70e-ed9ebf65cac4"
 
 
 def _code(body):
@@ -629,7 +630,32 @@ class TestParseGenerationLog:
             "approved": False,
             "duration_s": 63,
             "credits": None,
+            "version": "",
+            "version_of": None,
+            "version_keeper": False,
         }
+
+    def test_a_version_row_is_never_the_tracks_keeper(self):
+        """An instrumental version of a take is kept beside the track, not as the track."""
+        text = track_md(log_rows=(
+            _row(1, CLIP_A, "✓"),
+            _row(2, CLIP_B, "✓", notes="0:55, instrumental version of take 1, via MCP, 10 credits"),
+            _row(3, CLIP_C, notes="0:55, Instrumental version of take 1, via MCP"),
+        ))
+        takes = _gen_mod.parse_generation_log(text)
+        assert [(t["version"], t["version_of"], t["approved"], t["version_keeper"]) for t in takes] == [
+            ("", None, True, False),
+            ("instrumental", 1, False, True),
+            ("instrumental", 1, False, False),
+        ]
+        assert _gen_mod.keeper_clip(text)[:2] == (CLIP_A, "generation_log")
+
+    @pytest.mark.parametrize("notes", [
+        "instrumental break is too long", "an instrumental version would be nice", "take 2, instrumental",
+    ])
+    def test_ordinary_notes_do_not_make_a_version(self, notes):
+        take = _gen_mod.parse_generation_log(track_md(log_rows=(_row(1, CLIP_A, notes=notes),)))[0]
+        assert take["version"] == "" and take["version_of"] is None
 
     @pytest.mark.parametrize("notes,duration_s,credits", [
         ("0:52, via MCP, 10 credits", 52, 10),
@@ -690,8 +716,73 @@ class TestParseGenerationLog:
 # ===========================================================================
 
 
-def _plan(track_slug="01-first-track"):
-    return json.loads(_run(_gen_mod.get_suno_import_plan("test-album", track_slug)))
+def _plan(track_slug="01-first-track", version=""):
+    return json.loads(_run(_gen_mod.get_suno_import_plan("test-album", track_slug, version)))
+
+
+INSTRUMENTAL_NOTES = "0:55, instrumental version of take 1, via MCP, 10 credits"
+
+
+class TestImportAVersion:
+    def test_the_marked_instrumental_goes_to_the_versions_folder(self, album):
+        album(suno_link=f"https://suno.com/song/{CLIP_A}", log_rows=(
+            _row(1, CLIP_A, "✓"),
+            _row(2, CLIP_B, notes=INSTRUMENTAL_NOTES),
+            _row(3, CLIP_C, "✓", notes=INSTRUMENTAL_NOTES),
+        ))
+        plan = _plan(version="instrumental")
+        assert plan["problems"] == []
+        assert (plan["version"], plan["clip_id"], plan["take"]) == ("instrumental", CLIP_C, 3)
+        assert plan["song_url"] == f"https://suno.com/song/{CLIP_C}"
+        assert plan["wav"] == {
+            "path": str(album.audio_dir / "versions" / "01-first-track-instrumental.wav"),
+            "existing": None,
+        }
+        assert plan["stems"] is None
+
+    def test_an_imported_version_is_reported(self, album):
+        album(log_rows=(_row(1, CLIP_A, "✓"), _row(2, CLIP_B, "✓", notes=INSTRUMENTAL_NOTES)))
+        target = album.audio_dir / "versions" / "01-first-track-instrumental.wav"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"RIFF")
+        assert _plan(version="instrumental")["wav"]["existing"] == str(target)
+
+    def test_the_keeper_import_is_unchanged_by_version_rows(self, album):
+        album(log_rows=(_row(1, CLIP_A, "✓"), _row(2, CLIP_B, "✓", notes=INSTRUMENTAL_NOTES)))
+        plan = _plan()
+        assert (plan["clip_id"], plan["version"], plan["problems"]) == (CLIP_A, "", [])
+        assert plan["wav"]["path"] == str(album.audio_dir / "01-first-track.wav")
+        assert plan["stems"]["files"]["vocals"].endswith("0 Lead Vocals.wav")
+
+    def test_no_version_marked(self, album):
+        album(log_rows=(
+            _row(1, CLIP_A, "✓"), _row(2, CLIP_B, notes=INSTRUMENTAL_NOTES),
+            _row(3, CLIP_C, notes=INSTRUMENTAL_NOTES),
+        ))
+        plan = _plan(version="instrumental")
+        assert plan["clip_id"] is None
+        assert _codes(plan, "blocking") == ["no_version_keeper"]
+        assert "rows 2, 3" in plan["problems"][0]["detail"]
+
+    def test_two_versions_marked(self, album):
+        album(log_rows=(
+            _row(1, CLIP_A, "✓"), _row(2, CLIP_B, "✓", notes=INSTRUMENTAL_NOTES),
+            _row(3, CLIP_C, "✓", notes=INSTRUMENTAL_NOTES),
+        ))
+        assert _codes(_plan(version="instrumental"), "blocking") == ["version_keeper_ambiguous"]
+
+    def test_no_version_made(self, album):
+        album(log_rows=(_row(1, CLIP_A, "✓"),))
+        assert _codes(_plan(version="instrumental"), "blocking") == ["no_version_takes"]
+
+    @pytest.mark.parametrize("version", ["acappella", "karaoke"])
+    def test_an_unknown_version(self, album, version):
+        album(log_rows=(_row(1, CLIP_A, "✓"),))
+        assert _codes(_plan(version=version), "blocking") == ["version_unknown"]
+
+    def test_the_name_is_matched_loosely(self, album):
+        album(log_rows=(_row(1, CLIP_A, "✓"), _row(2, CLIP_B, "✓", notes=INSTRUMENTAL_NOTES)))
+        assert _plan(version=" Instrumental ")["clip_id"] == CLIP_B
 
 
 class TestGetSunoImportPlan:
@@ -981,3 +1072,337 @@ class TestWorkspaceInOtherTools:
         assert _plan()["workspace"] is None
         album.state["albums"]["test-album"]["suno_workspace"] = {"id": WORKSPACE_ID, "name": "Test Album"}
         assert _plan()["workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}
+
+
+# ===========================================================================
+# Covers, Voices and spoken word in get_generation_request
+# ===========================================================================
+
+SOURCE_CLIP = "71af26e1-7ca6-486b-8511-a5a93ddc10df"
+
+
+def _setup_block(voice="[Saved Voice name, or —]", source="[Uploaded sample e.g. Splice / earlier Suno generation / — ]",
+                 influence="[Slider setting — higher hews closer to the source; shown only when audio is uploaded]",
+                 cover_of="[Original song, or the prior generation this reworks]"):
+    return f"""
+
+## Cover / Voice Setup
+
+### Original Song Reference
+
+| Attribute | Detail |
+|-----------|--------|
+| **Cover of** | {cover_of} |
+| **Source audio** | {source} |
+| **Audio Influence** | {influence} |
+
+### Voice Selection
+
+| Attribute | Detail |
+|-----------|--------|
+| **Voice** | {voice} |
+| **Vocal identity** | [What it locks in] |
+"""
+
+
+def _write_with(album, block="", spoken=False, **kwargs):
+    text = track_md(**kwargs) + block
+    if spoken:
+        assert "instrumental: " in text
+        text = text.replace("explicit: ", "spoken: true\nexplicit: ", 1) if "explicit: " in text else text.replace(
+            "---\n\n#", "spoken: true\n---\n\n#", 1)
+    album.path.write_text(text, encoding="utf-8")
+
+
+class TestPlainSong:
+    def test_a_plain_track_is_a_song_for_audio_create(self, album):
+        result = _request()
+        assert (result["kind"], result["tool"]) == ("song", "audio-create")
+        assert result["voice"] is None and result["cover"] is None
+
+    def test_the_untouched_template_block_changes_nothing(self, album):
+        _write_with(album, _setup_block())
+        result = _request()
+        assert (result["kind"], result["tool"]) == ("song", "audio-create")
+        assert result["voice"] is None and result["cover"] is None
+        assert result["problems"] == []
+        assert "audio_influence" not in result["request"]["controls"]
+
+
+class TestTheShippedTemplate:
+    def test_its_untouched_block_makes_a_plain_song(self, album):
+        """templates/track.md ships the Cover / Voice Setup block full of bracketed
+        placeholders, one of which shows a suno.com address. None may read as set."""
+        template = (PROJECT_ROOT / "templates" / "track.md").read_text(encoding="utf-8")
+        block = template[
+            template.index("## Cover / Voice Setup"):template.index("<!-- END COVER SECTIONS -->")
+        ]
+        assert "https://suno.com/song/" in block
+        _write_with(album, "\n\n" + block)
+        result = _request()
+        assert (result["kind"], result["voice"], result["cover"]) == ("song", None, None)
+        assert result["problems"] == [] and result["ignored"] == []
+        assert "audio_influence" not in result["request"]["controls"]
+
+    def test_its_frontmatter_does_not_mark_tracks_spoken(self):
+        template = (PROJECT_ROOT / "templates" / "track.md").read_text(encoding="utf-8")
+        assert "# spoken: true" in template
+        assert _gen_mod._is_spoken(template) is False
+
+
+class TestVoice:
+    def test_a_named_voice_is_passed_on_for_the_skill_to_resolve(self, album):
+        _write_with(album, _setup_block(voice="RTB", influence="75"))
+        result = _request()
+        assert result["voice"] == {"name": "RTB"}
+        assert result["tool"] == "audio-create"
+        assert result["request"]["controls"]["audio_influence"] == 0.75
+        assert "controls.audio_influence" in result["needs_grant"]
+        assert "voice_id" not in result["request"]          # the skill adds it after voices-list
+
+    def test_a_voice_carries_its_own_gender(self, album):
+        _write_with(album, _setup_block(voice="RTB"))
+        result = _request()
+        assert "vocal_gender" not in result["request"]
+        assert {"setting": "Vocal Gender", "value": "Male"} == {
+            k: v for k, v in result["ignored"][0].items() if k != "reason"}
+
+    @pytest.mark.parametrize("cell,expected", [("0.8", 0.8), ("80%", 0.8), ("80", 0.8), ("1", 0.01), ("1.0", 1.0)])
+    def test_audio_influence_as_a_fraction_or_a_percentage(self, album, cell, expected):
+        _write_with(album, _setup_block(voice="RTB", influence=cell))
+        assert _request()["request"]["controls"]["audio_influence"] == expected
+
+    def test_audio_influence_without_a_voice_or_cover_is_not_sent(self, album):
+        _write_with(album, _setup_block(influence="75"))
+        result = _request()
+        assert "audio_influence" not in result["request"]["controls"]
+        assert [(i["setting"], i["value"]) for i in result["ignored"]] == [("Audio Influence", "75")]
+
+    @pytest.mark.parametrize("cell", ["fairly high", "70-80%", "seventy"])
+    def test_an_unreadable_audio_influence_is_left_to_suno(self, album, cell):
+        _write_with(album, _setup_block(voice="RTB", influence=cell))
+        result = _request()
+        assert "audio_influence" not in result["request"]["controls"]
+        assert "audio_influence_unrecognized" in _codes(result, "warning")
+        assert result["supported"] is True
+
+    def test_audio_influence_above_100_is_clamped(self, album):
+        _write_with(album, _setup_block(voice="RTB", influence="150"))
+        result = _request()
+        assert result["request"]["controls"]["audio_influence"] == 1.0
+        assert "audio_influence_clamped" in _codes(result, "warning")
+
+    @pytest.mark.parametrize("cell", ["—", "-", "", "none", "[Saved Voice name, or —]"])
+    def test_no_voice(self, album, cell):
+        _write_with(album, _setup_block(voice=cell))
+        assert _request()["voice"] is None
+
+    def test_a_voice_cannot_sing_an_instrumental(self, album):
+        _write_with(album, _setup_block(voice="RTB"), instrumental_fm="true", instrumental_table="Yes")
+        result = _request()
+        assert result["supported"] is False
+        assert "voice_on_instrumental" in _codes(result, "blocking")
+
+
+class TestCover:
+    def test_a_suno_source_makes_it_a_cover(self, album):
+        _write_with(album, _setup_block(source=f"[take 1](https://suno.com/song/{SOURCE_CLIP})", influence="70"))
+        result = _request()
+        assert (result["kind"], result["tool"]) == ("cover", "audio-covers-create")
+        assert result["cover"] == {
+            "source_clip_id": SOURCE_CLIP, "source_url": f"https://suno.com/song/{SOURCE_CLIP}",
+        }
+        request = result["request"]
+        assert request["id"] == SOURCE_CLIP
+        assert request["style"] == DEFAULT_STYLE and request["lyrics"] == DEFAULT_LYRICS
+        assert request["controls"] == {
+            "variety": 0, "weirdness": 0.5, "style_influence": 0.5, "audio_influence": 0.7,
+        }
+        # audio-covers-create takes neither of these.
+        assert "vocal_gender" not in request and "instrumental" not in request
+        assert [i["setting"] for i in result["ignored"]] == ["Vocal Gender"]
+
+    def test_an_instrumental_cover_sends_no_lyrics(self, album):
+        """audio-covers-create has no instrumental flag: no lyrics is what makes it one."""
+        _write_with(album, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}"),
+                    instrumental_fm="true", instrumental_table="Yes", lyrics="[Intro]\n\n[End]")
+        result = _request()
+        assert result["supported"] is True
+        assert "lyrics" not in result["request"] and "instrumental" not in result["request"]
+        assert [i["setting"] for i in result["ignored"]] == ["Lyrics Box"]
+
+    def test_a_vocal_cover_still_needs_lyrics(self, album):
+        """Sent without lyrics a cover comes back instrumental, so a vocal track is stopped."""
+        _write_with(album, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}"), lyrics=None)
+        result = _request()
+        assert result["supported"] is False
+        assert "lyrics_missing" in _codes(result, "blocking")
+
+    def test_a_source_address_with_a_query_string(self, album):
+        _write_with(album, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}?sh=AbC123"))
+        assert _request()["cover"] == {
+            "source_clip_id": SOURCE_CLIP, "source_url": f"https://suno.com/song/{SOURCE_CLIP}",
+        }
+
+    def test_a_cover_in_a_voice(self, album):
+        _write_with(album, _setup_block(voice="RTB", source=f"https://suno.com/song/{SOURCE_CLIP}"))
+        result = _request()
+        assert result["tool"] == "audio-covers-create" and result["voice"] == {"name": "RTB"}
+
+    def test_a_share_link_source_has_no_clip_id(self, album):
+        _write_with(album, _setup_block(source="https://suno.com/s/4hZKwZySCc8Lc63Q"))
+        result = _request()
+        assert result["supported"] is False
+        assert "cover_source_no_clip_id" in _codes(result, "blocking")
+
+    def test_a_described_source_stops_the_request(self, album):
+        """A cover of audio that is not on Suno must not quietly become an original."""
+        _write_with(album, _setup_block(source="Splice sample, uploaded by hand"))
+        result = _request()
+        assert (result["kind"], result["supported"], result["cover"]) == ("cover", False, None)
+        assert "cover_source_not_on_suno" in _codes(result, "blocking")
+        assert "id" not in result["request"]
+
+    def test_cover_of_without_a_source_stops_the_request(self, album):
+        _write_with(album, _setup_block(cover_of="Paper Boats, take 1"))
+        result = _request()
+        assert (result["kind"], result["supported"]) == ("cover", False)
+        assert "cover_source_missing" in _codes(result, "blocking")
+
+
+class TestSpokenWord:
+    def test_a_spoken_track_goes_to_speech_create(self, album):
+        _write_with(album, spoken=True, settings={"Duration": "1:00"})
+        result = _request()
+        assert (result["kind"], result["tool"]) == ("speech", "speech-create")
+        request = result["request"]
+        assert request["script"] == "Neon rain on the boulevard tonight\n\nHold the line"
+        assert request["style"] == DEFAULT_STYLE
+        assert request["title"] == "First Track"
+        assert request["backing_music"] is False
+        assert request["duration"] == 60
+        assert request["vocal_gender"] == "male"
+        assert request["negative_style"] == "choir, crowd vocals"
+        for key in ("lyrics", "model", "max_mode", "controls", "instrumental"):
+            assert key not in request
+        assert [i["setting"] for i in result["ignored"]] == ["Model", "Max Mode", "Variety and sliders"]
+        assert result["needs_grant"] == ["negative_style", "vocal_gender"]
+
+    def test_backing_music(self, album):
+        _write_with(album, spoken=True, settings={"Backing Music": "On"})
+        assert _request()["request"]["backing_music"] is True
+
+    def test_a_spoken_track_in_a_voice(self, album):
+        _write_with(album, _setup_block(voice="RTB"), spoken=True)
+        result = _request()
+        assert result["tool"] == "speech-create" and result["voice"] == {"name": "RTB"}
+
+    def test_spoken_and_instrumental_do_not_mix(self, album):
+        _write_with(album, spoken=True, instrumental_fm="true", instrumental_table="Yes")
+        assert "spoken_instrumental" in _codes(_request(), "blocking")
+
+    def test_a_spoken_cover_is_refused(self, album):
+        _write_with(album, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}"), spoken=True)
+        assert "spoken_cover" in _codes(_request(), "blocking")
+
+    def test_a_script_keeps_its_paragraphs_and_drops_every_tag(self, album):
+        _write_with(album, spoken=True, lyrics=(
+            "[Intro - hushed]\n\nFirst line here\nSecond line [pause] here\n\n\n"
+            "[Part two]\nThird line\n\n[End]"
+        ))
+        assert _request()["request"]["script"] == (
+            "First line here\nSecond line here\n\nThird line"
+        )
+
+    def test_tags_alone_are_not_a_script(self, album):
+        _write_with(album, spoken=True, lyrics="[Intro]\n\n[End]")
+        result = _request()
+        assert result["supported"] is False
+        assert "script_empty" in _codes(result, "blocking")
+        assert "script" not in result["request"]
+
+    def test_a_spoken_track_without_settings_raises_no_warning(self, album):
+        _write_with(album, spoken=True, settings=False)
+        result = _request()
+        assert result["problems"] == [] and result["ignored"] == []
+        assert result["request"]["backing_music"] is False
+
+    def test_a_voice_speaks_in_its_own_gender(self, album):
+        _write_with(album, _setup_block(voice="RTB"), spoken=True)
+        result = _request()
+        assert "vocal_gender" not in result["request"]
+        assert "Vocal Gender" in [i["setting"] for i in result["ignored"]]
+
+
+MIDI_UPLOAD = "c2ef630a-a5e8-4bfa-b356-0fb0cb5acfac"
+
+
+def _midi_request(upload_id=MIDI_UPLOAD):
+    return json.loads(_run(_gen_mod.get_generation_request("test-album", "01", upload_id)))
+
+
+class TestMidiScore:
+    def test_an_instrumental_track_plays_the_score(self, album):
+        album(instrumental_fm="true", instrumental_table="Yes", lyrics="[Intro]\n\n[End]")
+        result = _midi_request()
+        assert (result["kind"], result["tool"], result["supported"]) == ("midi", "audio-create", True)
+        assert result["request"] == {
+            "title": "First Track",
+            "midi_upload_id": MIDI_UPLOAD,
+            "description": "An instrumental that plays my melody, in this style: " + DEFAULT_STYLE,
+            "instrumental": True,
+            "model": "v6-wild",
+        }
+        assert result["needs_grant"] == []
+        assert result["problems"] == []
+        assert [i["setting"] for i in result["ignored"]] == [
+            "Lyrics Box", "Exclude Styles", "Model", "Max Mode", "Variety and sliders",
+        ]
+
+    def test_a_vocal_track_gets_an_instrumental_sketch(self, album):
+        """Suno takes no lyrics with a score, so the track's words wait for a cover."""
+        result = _midi_request()
+        assert result["supported"] is True
+        assert result["request"]["instrumental"] is True
+        assert "lyrics" not in result["request"] and "vocal_gender" not in result["request"]
+        assert _codes(result) == ["midi_makes_a_sketch"]
+        assert "Vocal Gender" in [i["setting"] for i in result["ignored"]]
+
+    def test_a_sketch_needs_no_lyrics_yet(self, album):
+        album(lyrics=None)
+        assert _midi_request()["supported"] is True
+
+    def test_a_track_already_on_v6_wild_has_no_model_to_ignore(self, album):
+        album(settings={"Model": "v6-wild", "Max Mode": "Off", "Duration": "2:30"})
+        settings = [i["setting"] for i in _midi_request()["ignored"]]
+        assert "Model" not in settings and "Max Mode" not in settings
+        assert "Duration" in settings
+
+    def test_a_voice_waits_for_the_cover(self, album):
+        _write_with(album, _setup_block(voice="RTB", influence="75"))
+        result = _midi_request()
+        assert result["voice"] is None
+        assert {"Voice", "Audio Influence"} <= {i["setting"] for i in result["ignored"]}
+
+    def test_a_score_and_a_cover_source_do_not_mix(self, album):
+        _write_with(album, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}"))
+        result = _midi_request()
+        assert result["supported"] is False
+        assert "midi_and_cover" in _codes(result, "blocking")
+
+    def test_a_spoken_track_plays_no_score(self, album):
+        _write_with(album, spoken=True)
+        assert "midi_spoken" in _codes(_midi_request(), "blocking")
+
+    @pytest.mark.parametrize("upload_id", ["not an id", "x", "https://suno.com/song/abc"])
+    def test_a_bad_upload_id(self, album, upload_id):
+        result = _midi_request(upload_id)
+        assert result["supported"] is False
+        assert "midi_upload_id_invalid" in _codes(result, "blocking")
+
+    def test_the_sketch_is_filed_in_the_album_workspace(self, album):
+        album.state["albums"]["test-album"]["suno_workspace"] = {"id": "ws-1", "name": "Test"}
+        assert _midi_request()["request"]["workspace_id"] == "ws-1"
+
+    def test_a_blank_upload_id_is_an_ordinary_song(self, album):
+        assert _midi_request("  ")["kind"] == "song"

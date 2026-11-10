@@ -72,6 +72,51 @@ _TEMPLATE_EXCLUDE = "[exclusions, if any]"
 _TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
 
 _SLIDER_RE = re.compile(r"(\d{1,3})\s*%?")
+# Audio Influence is written as a percentage ("70", "70%") or as a fraction ("0.7").
+_INFLUENCE_RE = re.compile(r"(\d{1,3}(?:\.\d+)?)\s*(%?)")
+
+# The four kinds of generation request, the Suno tool each is sent to, and what that
+# tool cannot carry (read from the live tool definitions).
+_KIND_TOOL = {
+    "song": "audio-create",
+    "cover": "audio-covers-create",
+    "speech": "speech-create",
+    "midi": "audio-create",
+}
+_KIND_LACKS: dict[str, frozenset[str]] = {
+    "song": frozenset(),
+    "cover": frozenset({"instrumental", "vocal_gender"}),
+    "speech": frozenset({"model", "max_mode", "controls", "instrumental"}),
+    "midi": frozenset({
+        "lyrics", "negative_style", "model", "max_mode", "vocal_gender", "duration",
+        "controls", "voice",
+    }),
+}
+_WHY_NOT: dict[str, dict[str, str]] = {
+    "cover": {"vocal_gender": "audio-covers-create takes no vocal gender"},
+    "speech": {
+        "model": "speech always uses Suno's default model",
+        "max_mode": "speech-create has no Max Mode",
+        "controls": "speech-create takes no controls, so Suno words the delivery tags its own way",
+    },
+    "midi": {
+        "lyrics": "a song made from a score takes no lyrics",
+        "negative_style": "a song made from a score takes no style to exclude from",
+        "model": "a score plays only on v6-wild",
+        "max_mode": "Max Mode needs lyrics or a style, and a score takes neither",
+        "vocal_gender": "the sketch is instrumental",
+        "duration": "the score sets the length",
+        "controls": "a song made from a score takes no style for the sliders to steer",
+        "voice": "the sketch is instrumental; the Voice sings when the sketch is covered",
+    },
+}
+# A score plays only on v6-wild, in simple mode: a description, no lyrics and no style.
+_MIDI_MODEL = "v6-wild"
+_MIDI_DESCRIPTION = "An instrumental that plays my melody, in this style: "
+_MIDI_UPLOAD_ID_RE = re.compile(r"[\w-]{8,64}")
+# A template cell nobody filled in, such as "[Saved Voice name, or —]".
+_PLACEHOLDER_CELL_RE = re.compile(r"\[[^\]]*\]")
+_BRACKET_TAG_RE = re.compile(r"\[[^\]]*\]")
 
 # Exclude Styles written before 0.102.0 read "no drums, no autotune". The field is
 # already the negation, so the items go to Suno bare. "no wave" is a genre.
@@ -96,6 +141,12 @@ _APPROVED_MARKS = ("✓", "✔", "✅")
 # log_generation writes a take's Notes as "m:ss, ..., N credits".
 _NOTE_DURATION_RE = re.compile(r"\s*(\d{1,3}):([0-5]\d)(?!\d)")
 _NOTE_CREDITS_RE = re.compile(r"(\d+)\s+credits?\b", re.IGNORECASE)
+# Notes that mark a row as a version of another take ("instrumental version of take 2"):
+# audio kept beside the track, never the track's keeper. get_edit_request words the note.
+VERSIONS = ("instrumental",)
+_VERSION_NOTE_RE = re.compile(
+    r"\b(" + "|".join(VERSIONS) + r") version of take (\d+)\b", re.IGNORECASE,
+)
 
 # Suno stem part (audio-stems-create, mode "twelve") -> filename. The names follow
 # Suno's own stems zip, so tools/mixing/mix_tracks.discover_stems routes each to
@@ -248,35 +299,157 @@ def _slider(
     return round(value / 100, 2)
 
 
+def _setup_cell(section: str | None, key: str) -> str:
+    """A Cover / Voice Setup table cell; "" when unset or still the template's placeholder."""
+    if not section:
+        return ""
+    raw = (_extract_table_value(section, key) or "").strip()
+    if raw.lower() in _UNSET or _PLACEHOLDER_CELL_RE.fullmatch(raw):
+        return ""
+    return raw
+
+
+def _set_cells(settings: str, keys: tuple[str, ...]) -> list[str]:
+    """``"Key value"`` for each Generation Settings row in *keys* that is set."""
+    cells: list[str] = []
+    for key in keys:
+        raw = (_extract_table_value(settings, key) or "").strip()
+        if raw.lower() not in _UNSET:
+            cells.append(f"{key} {raw}")
+    return cells
+
+
+def _is_spoken(text: str) -> bool:
+    """Whether the frontmatter marks the track as spoken word (``spoken: true``)."""
+    frontmatter = parse_frontmatter(text)
+    return "_error" not in frontmatter and frontmatter.get("spoken") is True
+
+
+def _script(lyrics: str) -> str:
+    """A Lyrics Box as a script to speak: section tags dropped, paragraphs kept."""
+    out: list[str] = []
+    for raw in lyrics.splitlines():
+        stripped = raw.strip()
+        if stripped and _BRACKET_TAG_RE.fullmatch(stripped):
+            continue
+        line = " ".join(_BRACKET_TAG_RE.sub(" ", stripped).split())
+        if line or (out and out[-1]):
+            out.append(line)
+    return "\n".join(out).strip()
+
+
+def _cover_source(
+    source_cell: str, cover_of: str,
+) -> tuple[dict[str, str] | None, dict[str, str] | None]:
+    """The song a cover reworks, from the Source audio cell: ``(cover, None)`` or
+    ``(None, problem)``. Only a https://suno.com/song/<id> address names one."""
+    url = _first_url(source_cell) if source_cell else None
+    clip_id = clip_id_from_url(url) if url else None
+    if clip_id:
+        return {
+            "source_clip_id": clip_id,
+            "source_url": f"https://suno.com/song/{clip_id}",
+        }, None
+    if not source_cell:
+        return None, _problem(
+            "cover_source_missing", "blocking",
+            f'Cover of names "{cover_of}" but Source audio is empty — paste the source\'s song '
+            "address (https://suno.com/song/<id>), or clear Cover of to generate an original",
+        )
+    if url and "suno.com" in url.lower():
+        return None, _problem(
+            "cover_source_no_clip_id", "blocking",
+            "Source audio is a share link, which carries no song id — open it and paste the "
+            "address it lands on (https://suno.com/song/<id>)",
+        )
+    return None, _problem(
+        "cover_source_not_on_suno", "blocking",
+        f'Source audio is "{source_cell}", not a Suno song address. Through the MCP a cover '
+        "needs the source's song page (https://suno.com/song/<id>): upload the audio on "
+        "suno.com and paste its address, or make this cover on suno.com "
+        "(/bitwize-music:clipboard)",
+    )
+
+
+def _audio_influence(raw: str, problems: list[dict[str, str]]) -> float | None:
+    """Audio Influence as the API's 0-1 fraction: "70", "70%" and "0.7" all mean 0.7."""
+    match = _INFLUENCE_RE.fullmatch(raw)
+    if not match:
+        problems.append(_problem(
+            "audio_influence_unrecognized", "warning",
+            f"Audio Influence '{raw}' is not a number from 0 to 100 — left at Suno's default",
+        ))
+        return None
+    number, percent = match.group(1), match.group(2)
+    value = float(number)
+    if "." in number and not percent and value <= 1:
+        return round(value, 2)
+    if value > 100:
+        problems.append(_problem(
+            "audio_influence_clamped", "warning",
+            f"Audio Influence {number} is above 100 — sent as 100",
+        ))
+        value = 100
+    return round(value / 100, 2)
+
+
 # =============================================================================
 # get_generation_request
 # =============================================================================
 
 
-async def get_generation_request(album_slug: str, track_slug: str) -> str:
-    """Build the Suno MCP `audio-create` arguments for a track, from its track file.
+async def get_generation_request(
+    album_slug: str, track_slug: str, midi_upload_id: str = "",
+) -> str:
+    """Build the Suno MCP request that generates a track, from its track file.
 
-    Read-only, and it never calls Suno: the calling skill sends ``request`` to the
-    Suno MCP server itself. Maps the track's Suno Inputs — Style Box, Exclude
-    Styles, Generation Settings and Lyrics Box — to the API's parameters.
+    Read-only, and it never calls Suno: the calling skill sends ``request`` to
+    the Suno tool named in ``tool``. Maps the track's Suno Inputs — Style Box,
+    Exclude Styles, Generation Settings and Lyrics Box — and its Cover / Voice
+    Setup block to that tool's parameters. A track makes one of four kinds of
+    request:
+
+      - song: audio-create with the Style Box and the Lyrics Box.
+      - cover: audio-covers-create, when Source audio (Cover / Voice Setup)
+        holds a https://suno.com/song/<id> address. The Style Box is the new
+        style and the Lyrics Box is what gets sung.
+      - speech: speech-create, when the frontmatter says ``spoken: true``. The
+        Lyrics Box is the script, spoken word for word (section tags dropped),
+        and the Style Box holds the delivery tags.
+      - midi: audio-create playing an uploaded MIDI score, when midi_upload_id
+        is given. Suno takes no lyrics with a score, so this makes an
+        instrumental sketch of the melody; cover the sketch to have the track's
+        lyrics sung over it.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
         track_slug: Track slug or number (e.g., "01-track-name" or "01")
+        midi_upload_id: The id midi-upload-complete returned, to make the track
+            from a MIDI score (see get_midi_score_plan)
 
     Returns:
         JSON with:
             supported: False when a blocking problem means nothing should be sent
-            request: arguments for audio-create (title, style, lyrics, negative_style,
-                model, instrumental, max_mode, vocal_gender, duration, controls,
-                workspace_id). controls always carries variety (0 Off, 1 Normal,
-                2 High, 3 Extra, 4 Max; Off unless the track says otherwise, so the
-                Style Box is used as written) and the sliders the track sets
+            kind: song, cover, speech or midi
+            tool: the Suno tool to send request to
+            request: that tool's arguments. A song carries title, style, lyrics,
+                negative_style, model, instrumental, max_mode, vocal_gender,
+                duration, controls and workspace_id; a cover adds id (the source
+                song); speech carries script and backing_music instead of
+                lyrics; a score carries midi_upload_id and description.
+                controls always carries variety (0 Off, 1 Normal, 2 High,
+                3 Extra, 4 Max; Off unless the track says otherwise, so the
+                Style Box is used as written), the sliders the track sets, and
+                audio_influence when a Voice or a cover source gives it meaning
+            voice: {name} when the track names a saved Voice — find its id with
+                voices-list and add it to request as voice_id — else null
+            cover: {source_clip_id, source_url} for a cover, else null
             needs_grant: request keys that need the account's `controls.advanced`
                 feature — drop them when account-usage does not list it. A dotted
                 name such as "controls.weirdness" is a key inside controls;
                 controls.variety never needs the grant
-            ignored: Generation Settings with no API equivalent (none today)
+            ignored: [{setting, value, reason}] — settings the track file makes
+                that this kind of request cannot carry
             problems: [{code, severity: blocking|warning, detail}]
             track_status: the track's current status
     """
@@ -291,6 +464,9 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
     ignored: list[dict[str, str]] = []
     request: dict[str, Any] = {}
 
+    def leave_out(setting: str, value: str, reason: str) -> None:
+        ignored.append({"setting": setting, "value": value, "reason": reason})
+
     title = str(track.get("title") or ctx["track_slug"]).strip()
     request["title"] = title
     if len(title) > _MAX_TITLE:
@@ -302,7 +478,58 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
     instrumental, mismatch = _instrumental_state(text)
     if mismatch:
         problems.append(mismatch)
-    if instrumental:
+
+    # --- which kind of request ------------------------------------------------------
+    setup = _extract_markdown_section(text, "Cover / Voice Setup")
+    source_cell = _setup_cell(setup, "Source audio")
+    cover_of = _setup_cell(setup, "Cover of")
+    voice_name = _setup_cell(setup, "Voice")
+    influence_cell = _setup_cell(setup, "Audio Influence")
+    midi_id = midi_upload_id.strip()
+
+    kind = "song"
+    cover: dict[str, str] | None = None
+    if source_cell or cover_of:
+        kind = "cover"
+        cover, problem = _cover_source(source_cell, cover_of)
+        if problem:
+            problems.append(problem)
+    if _is_spoken(text):
+        if kind == "cover":
+            problems.append(_problem(
+                "spoken_cover", "blocking",
+                "The track is spoken word and also names a cover source — a cover is sung; "
+                "clear Source audio and Cover of, or remove spoken: true",
+            ))
+        if instrumental:
+            problems.append(_problem(
+                "spoken_instrumental", "blocking",
+                "The track is marked both spoken and instrumental — speech is the voice; "
+                "keep one of the two",
+            ))
+        kind = "speech"
+    if midi_id:
+        if kind == "cover":
+            problems.append(_problem(
+                "midi_and_cover", "blocking",
+                "A score and a cover source cannot be combined — make the sketch from the "
+                "score first (clear Source audio), then cover the sketch",
+            ))
+        elif kind == "speech":
+            problems.append(_problem(
+                "midi_spoken", "blocking", "A spoken-word track cannot play a score",
+            ))
+        if not _MIDI_UPLOAD_ID_RE.fullmatch(midi_id):
+            problems.append(_problem(
+                "midi_upload_id_invalid", "blocking",
+                f"'{midi_id}' is not an upload id — pass the midi_upload_id that "
+                "midi-upload-complete returned",
+            ))
+        kind = "midi"
+    lacks = _KIND_LACKS[kind]
+    why = _WHY_NOT.get(kind, {})
+
+    if instrumental and kind == "song":
         request["instrumental"] = True
 
     style = _section_code(text, "Style Box")
@@ -325,7 +552,11 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
             ))
 
     lyrics = _section_code(text, "Lyrics Box")
-    if lyrics is not None and _TEMPLATE_LYRICS_MARKER in lyrics:
+    placeholder = lyrics is not None and _TEMPLATE_LYRICS_MARKER in lyrics
+    if "lyrics" in lacks:
+        if lyrics is not None and not placeholder:
+            leave_out("Lyrics Box", f"{len(lyrics)} characters", why["lyrics"])
+    elif placeholder:
         problems.append(_problem(
             "lyrics_placeholder", "blocking",
             "Lyrics Box still holds the template placeholder",
@@ -337,6 +568,27 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
                 "lyrics_missing", "blocking",
                 "Lyrics Box is empty — run /bitwize-music:lyric-writer",
             ))
+    elif kind == "speech":
+        script = _script(lyrics)
+        if not script:
+            problems.append(_problem(
+                "script_empty", "blocking",
+                "Lyrics Box has section tags but no words to speak",
+            ))
+        else:
+            request["script"] = script
+            if len(script) > _MAX_LYRICS:
+                problems.append(_problem(
+                    "script_too_long", "blocking",
+                    f"The script is {len(script)} characters; Suno accepts {_MAX_LYRICS}",
+                ))
+    elif kind == "cover" and instrumental:
+        # audio-covers-create has no instrumental flag: a cover is instrumental when it
+        # is sent no lyrics, so an instrumental track's section tags stay behind.
+        leave_out(
+            "Lyrics Box", f"{len(lyrics)} characters",
+            "a cover is instrumental only when no lyrics are sent",
+        )
     else:
         request["lyrics"] = lyrics
         if len(lyrics) > _MAX_LYRICS:
@@ -348,20 +600,23 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
     exclude = _section_code(text, "Exclude Styles")
     if exclude is not None and exclude.lower() not in _UNSET and exclude != _TEMPLATE_EXCLUDE:
         negative_style, stripped = _bare_exclusions(exclude)
-        request["negative_style"] = negative_style
-        if stripped:
-            problems.append(_problem(
-                "negative_style_no_prefix", "warning",
-                "Exclude Styles lists 'no ...' items, but the field is already the negation — "
-                f"sent as bare elements: {negative_style}. Fix the track file "
-                "(see migrations/0.102.0.md)",
-            ))
-        if len(negative_style) > _MAX_NEGATIVE_STYLE:
-            problems.append(_problem(
-                "negative_style_too_long", "blocking",
-                f"Exclude Styles is {len(negative_style)} characters; "
-                f"Suno accepts {_MAX_NEGATIVE_STYLE}",
-            ))
+        if "negative_style" in lacks:
+            leave_out("Exclude Styles", negative_style, why["negative_style"])
+        else:
+            request["negative_style"] = negative_style
+            if stripped:
+                problems.append(_problem(
+                    "negative_style_no_prefix", "warning",
+                    "Exclude Styles lists 'no ...' items, but the field is already the "
+                    f"negation — sent as bare elements: {negative_style}. Fix the track file "
+                    "(see migrations/0.102.0.md)",
+                ))
+            if len(negative_style) > _MAX_NEGATIVE_STYLE:
+                problems.append(_problem(
+                    "negative_style_too_long", "blocking",
+                    f"Exclude Styles is {len(negative_style)} characters; "
+                    f"Suno accepts {_MAX_NEGATIVE_STYLE}",
+                ))
 
     # Variety Off unless the track asks for more: omitted, Suno applies the model's own
     # default, which is Normal on v6 and v6-mini and rewrites an engineered Style Box.
@@ -369,16 +624,20 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
 
     settings = _extract_markdown_section(text, "Generation Settings")
     if settings is None:
-        problems.append(_problem(
-            "generation_settings_missing", "warning",
-            "No Generation Settings section — Suno's defaults are used for model, sliders "
-            "and duration, and Variety is sent as Off (add one from templates/track.md "
-            "§ Generation Settings)",
-        ))
+        if "controls" not in lacks:
+            problems.append(_problem(
+                "generation_settings_missing", "warning",
+                "No Generation Settings section — Suno's defaults are used for model, sliders "
+                "and duration, and Variety is sent as Off (add one from templates/track.md "
+                "§ Generation Settings)",
+            ))
     else:
         model_raw = (_extract_table_value(settings, "Model") or "").strip()
         model = model_raw.lower()
-        if model in _KNOWN_MODELS:
+        if "model" in lacks:
+            if model not in _UNSET and not (kind == "midi" and model == _MIDI_MODEL):
+                leave_out("Model", model_raw, why["model"])
+        elif model in _KNOWN_MODELS:
             request["model"] = model
         elif model.startswith("custom:"):
             problems.append(_problem(
@@ -397,22 +656,37 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
             ))
 
         if (_extract_table_value(settings, "Max Mode") or "").strip().lower() == "on":
-            request["max_mode"] = True
+            if "max_mode" in lacks:
+                leave_out("Max Mode", "On", why["max_mode"])
+            else:
+                request["max_mode"] = True
 
-        variety = (_extract_table_value(settings, "Variety") or "").strip()
-        if variety.lower() in _VARIETY_LEVELS:
-            controls["variety"] = _VARIETY_LEVELS[variety.lower()]
-        elif variety.lower() not in _UNSET:
-            problems.append(_problem(
-                "variety_unrecognized", "warning",
-                f"Variety '{variety}' is not Off, Normal, High, Extra or Max — sent as Off",
-            ))
+        if "controls" in lacks:
+            cells = _set_cells(settings, ("Variety", "Weirdness", "Style Influence"))
+            if cells:
+                leave_out("Variety and sliders", ", ".join(cells), why["controls"])
+        else:
+            variety = (_extract_table_value(settings, "Variety") or "").strip()
+            if variety.lower() in _VARIETY_LEVELS:
+                controls["variety"] = _VARIETY_LEVELS[variety.lower()]
+            elif variety.lower() not in _UNSET:
+                problems.append(_problem(
+                    "variety_unrecognized", "warning",
+                    f"Variety '{variety}' is not Off, Normal, High, Extra or Max — sent as Off",
+                ))
 
-        gender = (_extract_table_value(settings, "Vocal Gender") or "").strip().lower()
+        gender_cell = (_extract_table_value(settings, "Vocal Gender") or "").strip()
+        gender = gender_cell.lower()
         if gender in ("male", "female"):
-            if not instrumental:
+            if instrumental:
+                pass  # nothing sings
+            elif "vocal_gender" in lacks:
+                leave_out("Vocal Gender", gender_cell, why["vocal_gender"])
+            elif voice_name:
+                leave_out("Vocal Gender", gender_cell, "the Voice carries its own gender")
+            else:
                 request["vocal_gender"] = gender
-        elif gender not in _UNSET:
+        elif gender not in _UNSET and "vocal_gender" not in lacks:
             problems.append(_problem(
                 "vocal_gender_unrecognized", "warning",
                 f"Vocal Gender '{gender}' is not Male or Female — left to Suno",
@@ -420,7 +694,10 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
 
         duration_raw = (_extract_table_value(settings, "Duration") or "").strip()
         seconds = _parse_duration_seconds(duration_raw)
-        if seconds is not None:
+        if "duration" in lacks:
+            if seconds is not None:
+                leave_out("Duration", duration_raw, why["duration"])
+        elif seconds is not None:
             clamped = min(max(seconds, _MIN_DURATION), _MAX_DURATION)
             if clamped != seconds:
                 problems.append(_problem(
@@ -435,14 +712,62 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
                 f"Duration '{duration_raw}' is not Auto or m:ss — left to Suno",
             ))
 
-        weirdness = _slider(settings, "Weirdness", problems)
-        if weirdness is not None:
-            controls["weirdness"] = weirdness
-        style_influence = _slider(settings, "Style Influence", problems)
-        if style_influence is not None:
-            controls["style_influence"] = style_influence
+        if "controls" not in lacks:
+            weirdness = _slider(settings, "Weirdness", problems)
+            if weirdness is not None:
+                controls["weirdness"] = weirdness
+            style_influence = _slider(settings, "Style Influence", problems)
+            if style_influence is not None:
+                controls["style_influence"] = style_influence
 
-    request["controls"] = controls
+    # --- the Voice, and how closely to follow the audio it or a cover source brings ----
+    voice: dict[str, str] | None = None
+    if voice_name:
+        if "voice" in lacks:
+            leave_out("Voice", voice_name, why["voice"])
+        else:
+            voice = {"name": voice_name}
+            if instrumental:
+                problems.append(_problem(
+                    "voice_on_instrumental", "blocking",
+                    f"Voice '{voice_name}' is set on an instrumental track — a Voice always "
+                    "sings; clear the Voice or the instrumental flag",
+                ))
+    if influence_cell:
+        if "controls" in lacks:
+            leave_out("Audio Influence", influence_cell, why["controls"])
+        elif kind == "cover" or voice:
+            influence = _audio_influence(influence_cell, problems)
+            if influence is not None:
+                controls["audio_influence"] = influence
+        else:
+            leave_out(
+                "Audio Influence", influence_cell,
+                "there is no Voice or cover source for it to apply to",
+            )
+
+    # --- what only one kind carries -----------------------------------------------------
+    if kind == "cover" and cover:
+        request["id"] = cover["source_clip_id"]
+    elif kind == "speech":
+        backing = (_extract_table_value(settings or "", "Backing Music") or "").strip().lower()
+        request["backing_music"] = backing == "on"
+    elif kind == "midi":
+        request["midi_upload_id"] = midi_id
+        request["instrumental"] = True
+        request["model"] = _MIDI_MODEL
+        if "style" in request:
+            request["description"] = _MIDI_DESCRIPTION + request.pop("style")
+        if not instrumental:
+            problems.append(_problem(
+                "midi_makes_a_sketch", "warning",
+                "Suno takes no lyrics with a score, so this makes an instrumental sketch of "
+                "the melody. To have the track's lyrics sung over it, put the chosen sketch's "
+                "song address in Source audio (Cover / Voice Setup) and generate again",
+            ))
+
+    if "controls" not in lacks:
+        request["controls"] = controls
 
     # File the new takes in the album's Suno workspace when it has one.
     workspace = _album_workspace(ctx["album"])
@@ -456,9 +781,14 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
         "track_slug": ctx["track_slug"],
         "track_status": track.get("status", ""),
         "supported": supported,
+        "kind": kind,
+        "tool": _KIND_TOOL[kind],
         "request": request,
+        "voice": voice,
+        "cover": cover,
         "needs_grant": [
-            f"controls.{key}" for key in controls if key not in _GRANT_FREE_CONTROLS
+            f"controls.{key}" for key in request.get("controls", {})
+            if key not in _GRANT_FREE_CONTROLS
         ] + [key for key in _NEEDS_ADVANCED_CONTROLS if key in request],
         "ignored": ignored,
         "problems": problems,
@@ -686,6 +1016,12 @@ def parse_generation_log(text: str) -> list[dict[str, Any]]:
     ``duration_s`` and ``credits`` read from the Notes when log_generation
     wrote them ("3:14, via MCP, 10 credits"), else None. Handles the current
     six-column table and the older five-column one without Model.
+
+    A row whose Notes say "instrumental version of take N" is a version of
+    another take, not a take of the track: ``version`` names it (else ""),
+    ``version_of`` is N, and a check mark sets ``version_keeper`` — the version
+    to import — while ``approved`` stays False, so a version is never taken for
+    the track's keeper.
     """
     lines = text.split("\n")
     bounds = _generation_log_bounds(lines)
@@ -705,6 +1041,8 @@ def parse_generation_log(text: str) -> list[dict[str, Any]]:
         notes = cells[-2] if len(cells) >= 4 else ""
         length = _NOTE_DURATION_RE.match(notes)
         cost = _NOTE_CREDITS_RE.search(notes)
+        version = _VERSION_NOTE_RE.search(notes)
+        checked = any(mark in cells[-1] for mark in _APPROVED_MARKS)
         takes.append({
             "row": int(cells[0]),
             "date": cells[1],
@@ -713,9 +1051,12 @@ def parse_generation_log(text: str) -> list[dict[str, Any]]:
             "clip_id": clip_id_from_url(url) if url else None,
             "notes": notes,
             "rating": cells[-1],
-            "approved": any(mark in cells[-1] for mark in _APPROVED_MARKS),
+            "approved": checked and not version,
             "duration_s": int(length.group(1)) * 60 + int(length.group(2)) if length else None,
             "credits": int(cost.group(1)) if cost else None,
+            "version": version.group(1).lower() if version else "",
+            "version_of": int(version.group(2)) if version else None,
+            "version_keeper": checked and bool(version),
         })
     return takes
 
@@ -785,7 +1126,45 @@ def keeper_clip(
     )
 
 
-async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
+def _version_clip(
+    text: str, version: str,
+) -> tuple[dict[str, Any] | None, dict[str, str] | None]:
+    """The version of a track to import: ``(log row, None)`` or ``(None, problem)``.
+
+    It is the one row of that version marked with a check mark.
+    """
+    if version not in VERSIONS:
+        return None, _problem(
+            "version_unknown", "blocking",
+            f"'{version}' is not a version this tool imports — it knows: {', '.join(VERSIONS)}",
+        )
+    rows = [
+        take for take in parse_generation_log(text)
+        if take["version"] == version and take["clip_id"]
+    ]
+    if not rows:
+        return None, _problem(
+            "no_version_takes", "blocking",
+            f"No {version} version has been made of this track — "
+            f"/bitwize-music:edit-take <album> <track> {version}",
+        )
+    marked = [take for take in rows if take["version_keeper"]]
+    if len(marked) == 1:
+        return marked[0], None
+    listed = ", ".join(str(take["row"]) for take in (marked or rows))
+    if marked:
+        return None, _problem(
+            "version_keeper_ambiguous", "blocking",
+            f"Generation Log rows {listed} are all marked as the {version} version to keep — "
+            "leave the mark on one",
+        )
+    return None, _problem(
+        "no_version_keeper", "blocking",
+        f"Mark the {version} version to keep ✓ in the Generation Log (rows {listed})",
+    )
+
+
+async def get_suno_import_plan(album_slug: str, track_slug: str, version: str = "") -> str:
     """Say which Suno clip is a track's keeper and where its audio should be saved.
 
     Read-only, and it never calls Suno. The keeper is the clip in the track's
@@ -794,20 +1173,32 @@ async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
     originals/ when that directory exists, else the album audio root; stems go
     to stems/<track-slug>/ under names the mix tools route by instrument.
 
+    With version ("instrumental"), plans the import of that version of the
+    track instead: the one Generation Log row of that version marked with a
+    check mark, saved as versions/<track-slug>-<version>.wav — outside the
+    folder the mastering tools read, so it is never mastered as a track.
+
     Args:
         album_slug: Album slug (e.g., "my-album")
         track_slug: Track slug or number (e.g., "01-track-name" or "01")
+        version: "" for the track's keeper, or "instrumental" for its
+            instrumental version (made with get_edit_request)
 
     Returns:
         JSON with:
             clip_id: the keeper's Suno clip id, or null (see problems)
             clip_source: "suno_link" or "generation_log"
             song_url: the keeper's suno.com page
+            version: the version planned, "" for the keeper
+            take: the Generation Log row of a version (versions only)
             wav: {path: where to save the WAV, existing: a file already
                 imported for this track, or null}
-            stems: {dir, exists, files: {suno part name: file path}}
+            stems: {dir, exists, files: {suno part name: file path}}; null
+                for a version
             problems: [{code, severity, detail}] — no_keeper, keeper_ambiguous
-                or legacy_link when there is no clip id to import
+                or legacy_link when there is no clip id to import; for a
+                version, version_unknown, no_version_takes, no_version_keeper
+                or version_keeper_ambiguous
     """
     ctx, error = _load_track(album_slug, track_slug)
     if error:
@@ -816,15 +1207,34 @@ async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
     text: str = ctx["text"]
     track_slug_resolved: str = ctx["track_slug"]
 
-    problems: list[dict[str, str]] = []
-    clip_id, clip_source, link_url, problem = keeper_clip(text)
-    if problem:
-        problems.append(problem)
-
     audio_dir, error = album_audio_dir(ctx["album_slug"], ctx["album"])
     if error:
         return error
     assert audio_dir is not None
+
+    version = version.strip().lower()
+    if version:
+        row, problem = _version_clip(text, version)
+        target = audio_dir / "versions" / f"{track_slug_resolved}-{version}.wav"
+        return _safe_json({
+            "found": True,
+            "album_slug": ctx["album_slug"],
+            "track_slug": track_slug_resolved,
+            "clip_id": row["clip_id"] if row else None,
+            "clip_source": "generation_log" if row else None,
+            "song_url": row["url"] if row else None,
+            "version": version,
+            "take": row["row"] if row else None,
+            "wav": {"path": str(target), "existing": str(target) if target.is_file() else None},
+            "stems": None,
+            "workspace": _album_workspace(ctx["album"]),
+            "problems": [problem] if problem else [],
+        })
+
+    problems: list[dict[str, str]] = []
+    clip_id, clip_source, link_url, problem = keeper_clip(text)
+    if problem:
+        problems.append(problem)
 
     originals = audio_dir / "originals"
     wav_dir = originals if originals.is_dir() else audio_dir
@@ -838,6 +1248,7 @@ async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
         "clip_id": clip_id,
         "clip_source": clip_source,
         "song_url": f"https://suno.com/song/{clip_id}" if clip_id else link_url,
+        "version": "",
         "wav": {
             "path": str(wav_dir / f"{track_slug_resolved}.wav"),
             "existing": str(existing) if existing else None,

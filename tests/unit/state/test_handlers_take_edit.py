@@ -51,9 +51,9 @@ LYRICS = (
 )
 
 
-def _edit(take=0, instruction="", take_lyrics="", track_slug="01-first-track"):
+def _edit(take=0, instruction="", take_lyrics="", track_slug="01-first-track", version=""):
     return json.loads(_run(_edit_mod.get_edit_request(
-        "test-album", track_slug, take, instruction, take_lyrics,
+        "test-album", track_slug, take, instruction, take_lyrics, version,
     )))
 
 
@@ -80,6 +80,7 @@ class TestInstruction:
         assert result["mode"] == "instruction"
         assert result["source"] == {
             "take": 2, "clip_id": CLIP_B, "url": f"https://suno.com/song/{CLIP_B}", "keeper": False,
+            "version": "",
         }
         assert result["request"] == {
             "reference_audio_ids": [CLIP_B],
@@ -255,3 +256,72 @@ class TestWhichTake:
 
     def test_unknown_track(self, song):
         assert _edit(track_slug="99-missing", instruction="x")["found"] is False
+
+
+# ===========================================================================
+# An instrumental version
+# ===========================================================================
+
+
+class TestInstrumentalVersion:
+    def test_the_request_asks_for_the_vocals_to_go(self, song):
+        result = _edit(take=2, version="instrumental")
+        assert result["supported"] is True
+        assert (result["mode"], result["version"]) == ("version", "instrumental")
+        assert result["request"] == {
+            "reference_audio_ids": [CLIP_B],
+            "description": (
+                "In First Track, remove all the vocals to make an instrumental version. "
+                "Keep everything else as it is."
+            ),
+            "model": "v6",
+        }
+        assert result["log_notes"] == "instrumental version of take 2"
+        assert result["changes"] == [] and result["problems"] == []
+
+    def test_the_keeper_is_the_default_source(self, song):
+        song(lyrics=LYRICS, log_rows=(_row(1, CLIP_A, "✓"), _row(2, CLIP_B)))
+        result = _edit(version="Instrumental")
+        assert result["source"]["take"] == 1
+        assert result["log_notes"] == "instrumental version of take 1"
+
+    def test_the_logged_notes_read_back_as_a_version(self, song):
+        """What the skill logs must be what parse_generation_log recognises."""
+        from handlers import generation as gen_mod
+        from tests.unit.state.test_handlers_generation import track_md
+
+        notes = _edit(take=2, version="instrumental")["log_notes"] + ", via MCP, 10 credits"
+        take = gen_mod.parse_generation_log(track_md(log_rows=(_row(3, CLIP_A, notes=notes),)))[0]
+        assert (take["version"], take["version_of"]) == ("instrumental", 2)
+
+    def test_a_version_wins_over_an_instruction(self, song):
+        result = _edit(take=1, instruction="drop the synth", version="instrumental")
+        assert result["mode"] == "version"
+        assert "synth" not in result["request"]["description"]
+
+    @pytest.mark.parametrize("version", ["acappella", "a cappella", "A-Cappella", "vocals only"])
+    def test_an_a_cappella_is_pointed_at_the_vocals_stem(self, song, version):
+        """Measured: asked this way Suno returned the instrumental and a shorter re-sung song."""
+        result = _edit(take=1, version=version)
+        assert result["supported"] is False and result["request"] == {}
+        assert _codes(result, "blocking") == ["version_unsupported"]
+        assert "stem" in result["problems"][0]["detail"]
+
+    def test_an_unknown_version(self, song):
+        assert _codes(_edit(take=1, version="karaoke"), "blocking") == ["version_unsupported"]
+
+    def test_an_instrumental_track_has_no_vocals_to_remove(self, song):
+        song(instrumental_fm="true", instrumental_table="Yes", lyrics="[Intro]\n\n[End]",
+             log_rows=(_row(1, CLIP_A),))
+        assert _codes(_edit(version="instrumental"), "blocking") == ["already_instrumental"]
+
+    def test_a_version_is_not_made_from_a_version(self, song):
+        song(lyrics=LYRICS, log_rows=(
+            _row(1, CLIP_A, "✓"),
+            _row(2, CLIP_B, notes="0:55, instrumental version of take 1, via MCP, 10 credits"),
+        ))
+        assert _codes(_edit(take=2, version="instrumental"), "blocking") == ["source_is_a_version"]
+
+    def test_plain_edits_report_no_version(self, song):
+        result = _edit(take=1, instruction="drop the synth")
+        assert (result["version"], result["log_notes"]) == ("", "")

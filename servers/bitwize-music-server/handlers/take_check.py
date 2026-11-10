@@ -165,15 +165,17 @@ def _takes(text: str) -> tuple[list[dict[str, Any]], list[int]]:
     """The takes that can be checked, and the ones to check by default.
 
     A take needs a clip id, so share links from before MCP generation are left
-    out. The default mirrors /bitwize-music:listen: the newest two takes while
-    none is approved, the approved ones after that.
+    out. So is a version of another take (an instrumental version): the lyric
+    check has nothing to hold it against. The default mirrors
+    /bitwize-music:listen: the newest two takes while none is approved, the
+    approved ones after that.
     """
     takes = [
         {
             "take": take["row"], "clip_id": take["clip_id"], "keeper": take["approved"],
             "duration_s": take["duration_s"],
         }
-        for take in parse_generation_log(text) if take["clip_id"]
+        for take in parse_generation_log(text) if take["clip_id"] and not take["version"]
     ]
     keepers = [take["take"] for take in takes if take["keeper"]]
     return takes, keepers or [take["take"] for take in takes[-2:]]

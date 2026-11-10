@@ -8,6 +8,10 @@ explicit: false
 # Omit and the track uses the album's. A musical descriptor, not a filing
 # location: unlike the album's genre it never forms part of a path.
 # genre: ""
+# Optional. Set true for a spoken-word track (a poem, a monologue, an interlude).
+# /bitwize-music:generate then sends the Lyrics Box to Suno's speech tool as a
+# script, spoken word for word, and the Style Box as delivery tags.
+# spoken: true
 suno_url: ""
 sheet_music:
   pdf: ""
@@ -164,10 +168,10 @@ Space is not a constraint. Thoroughness is the priority.]
 | Attribute | Detail |
 |-----------|--------|
 | **Cover of** | [Original song, or the prior generation this reworks] |
-| **Source audio** | [Uploaded sample e.g. Splice / earlier Suno generation / — ] |
+| **Source audio** | [Song address on Suno, https://suno.com/song/… (needed to cover through /bitwize-music:generate) / uploaded sample e.g. Splice / — ] |
 | **Keeps** | [What carries over: topline melody, structure] |
 | **Reimagines** | [The new target genre/style the Cover shifts it into] |
-| **Audio Influence** | [Slider setting — higher hews closer to the source; shown only when audio is uploaded] |
+| **Audio Influence** | [0–100 — higher hews closer to the source, or to the Voice; shown only when audio is attached] |
 
 ### Voice Selection
 
@@ -217,7 +221,8 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
      Variety: Off | Normal | High | Extra | Max   (Off = "Exact style"; anything higher rewrites the Style Box)
      Max Mode: On | Off   (2× credits; On for tracks over ~2:00, covers, Voices)
      Vocal Gender: Male | Female | —   Duration: Auto | m:ss (10 s–6:00)   Weirdness / Style Influence: 0–100
-     Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached). -->
+     Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached).
+     Spoken tracks (spoken: true) may add a row — Backing Music: On | Off — for music under the voice. -->
 
 | Setting | Value |
 |---------|-------|

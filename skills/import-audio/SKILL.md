@@ -1,7 +1,7 @@
 ---
 name: import-audio
-description: Moves audio files to the correct album location with proper path structure, or pulls an approved take's WAV and stems straight from Suno. Use when the user has downloaded WAV files from Suno or other sources that need to be organized, or wants to import the keeper after approving a take.
-argument-hint: <file-path> <album-name> [track-slug] | --from-suno <album-name> <track> [--stems]
+description: Moves audio files to the correct album location with proper path structure, or pulls an approved take's WAV and stems straight from Suno. Use when the user has downloaded WAV files from Suno or other sources that need to be organized, or wants to import the keeper, or its instrumental version, after approving a take.
+argument-hint: <file-path> <album-name> [track-slug] | --from-suno <album-name> <track> [--stems | --version instrumental]
 model: sonnet
 effort: medium
 allowed-tools:
@@ -24,7 +24,7 @@ Import audio to the correct album location based on config — from a local file
 You put audio in the correct location in the user's audio directory. Two forms:
 
 - **A file on disk** — `<file-path> <album-name> [track-slug]`: Steps 1–5 below.
-- **Straight from Suno** — `--from-suno <album-name> <track> [--stems]`: skip to **Importing From Suno**.
+- **Straight from Suno** — `--from-suno <album-name> <track> [--stems | --version instrumental]`: skip to **Importing From Suno**.
 
 ## Step 1: Parse Arguments
 
@@ -142,6 +142,8 @@ Call `get_suno_import_plan(album_slug, track_slug)`.
 | `legacy_link` | The Suno Link is a share link from before MCP generation | Explain that it carries no clip id; the file has to be downloaded on suno.com and imported with the file form of this skill. Stop |
 
 If `wav.existing` is set, a file is already imported for this track. Say which file and ask before replacing it.
+
+**`--version instrumental`** imports the track's instrumental version instead of its keeper (`/bitwize-music:edit-take <album> <track> instrumental` makes one). Call `get_suno_import_plan(album_slug, track_slug, version: "instrumental")`: `clip_id` is the version row marked ✓ and `wav.path` is `versions/<track>-instrumental.wav`, a folder the mastering tools never read. `no_version_takes` → none has been made; `no_version_keeper` → ask the user to mark the one to keep; `version_keeper_ambiguous` → ask which. Then steps B, C and E; a version has no stems, so skip D. To release an instrumental, give it a track of its own.
 
 ### B. Check the Suno server
 

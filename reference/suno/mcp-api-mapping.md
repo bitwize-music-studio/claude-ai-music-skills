@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:import-audio`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:import-audio`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -46,6 +46,16 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | `audio-create` — one call makes **two** songs | 10 *(measured)* | 0 |
 | `audio-create` with Max Mode | a multiple of that (2× on suno.com) | 0 |
 | `audio-create` editing a take (`reference_audio_ids`) — two edited takes | 10 *(measured)* | 0 |
+| `audio-create` making an instrumental version of a take — two takes | 10 *(measured)* | 0 |
+| `audio-create` in a saved Voice (`voice_id`) — two songs | 10 *(measured)* | 0 |
+| `audio-create` playing a MIDI score (`midi_upload_id`) — two songs | 10 *(measured)* | 0 |
+| `audio-covers-create` — two covers | 10 *(measured)* | 0 |
+| `audio-extensions-create` — two continuations | 10 *(measured)* | 0 |
+| `audio-full-song` — joining a continuation to what came before | 0 *(measured)* | 0 |
+| `speech-create` — two spoken clips | 10 *(measured)* | 0 |
+| `sounds-create` — two sounds of about 20 seconds | 2 *(measured)* | 0 |
+| `midi-upload-create`, `midi-upload-complete`, `voices-list` | 0 *(measured)* | 0 |
+| `audio-midi` of a stem made with Get Stems | 0 *(measured)* | 0 |
 | `audio-stems-create`, `twelve` (two takes of 12 stems) | 50 *(measured)* | 0 |
 | `audio-stems-create`, `two` (vocals + instrumental) | 10 | 0 |
 | Listen on the song's suno.com page | 0 | 0 |
@@ -64,9 +74,18 @@ A terminal audition **is** a download. The take you keep costs one download cred
 
 ---
 
-## Track File → `audio-create`
+## Track File → Request
 
-`get_generation_request(album, track)` builds the arguments from the track's Suno Inputs:
+`get_generation_request(album, track)` reads what kind of request the track makes, names the Suno tool for it in `tool`, and builds that tool's arguments:
+
+| Kind | When | Tool |
+|---|---|---|
+| `song` | Any other track | `audio-create` |
+| `cover` | **Source audio** in the Cover / Voice Setup block holds a `https://suno.com/song/<id>` address | `audio-covers-create` |
+| `speech` | The frontmatter says `spoken: true` | `speech-create` |
+| `midi` | The tool is given a `midi_upload_id` (`/bitwize-music:generate --midi`) | `audio-create` |
+
+Anything the track file sets that the kind's tool cannot carry comes back under `ignored`, with the reason, and `/bitwize-music:generate` shows it before the go-ahead. A song maps like this:
 
 | Track file | Argument | Notes |
 |---|---|---|
@@ -82,7 +101,50 @@ A terminal audition **is** a download. The take you keep costs one download cred
 | Weirdness / Style Influence 0–100 | `controls.weirdness` / `controls.style_influence` | Sent as 0–1 |
 | Variety `Off` / `Normal` / `High` / `Extra` / `Max` | `controls.variety` | 0–4. Always sent, and `Off` (0) when the row is blank or the section is missing: left out, Suno applies the model's own default, which is Normal on v6 and v6-mini and rewrites the Style Box |
 
-The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` feature; `controls.variety` does not. The tool lists what needs it under `needs_grant` (`controls.weirdness`, `controls.style_influence`, `negative_style`, `vocal_gender`); drop those, and say so, when `account-usage` does not list the feature.
+The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` feature; `controls.variety` does not. The tool lists what needs it under `needs_grant` (`controls.weirdness`, `controls.style_influence`, `controls.audio_influence`, `negative_style`, `vocal_gender`); drop those, and say so, when `account-usage` does not list the feature.
+
+### Covers and Voices
+
+Both come from the track's **Cover / Voice Setup** block (`templates/track.md`). A cell still holding the template's bracketed placeholder counts as empty.
+
+| Track file | Argument | Notes |
+|---|---|---|
+| Source audio: a `https://suno.com/song/<id>` address | `id` on `audio-covers-create` | The song to cover — your own, or one suno.com lets you remix. A share link (`suno.com/s/…`) carries no id, and audio that is not on Suno cannot be covered from here: both stop the request rather than quietly making an original |
+| Style Box | `style` | The **new** style |
+| Lyrics Box | `lyrics` | What gets sung. A cover sent no lyrics comes back instrumental, so an instrumental track sends none and a vocal track must have them |
+| Audio Influence `70`, `70%` or `0.7` | `controls.audio_influence` | Likeness to the source for a cover, to the Voice for a song. Sent only when there is one of the two |
+| Voice: the saved Voice's name | `voice_id` | The tool returns `voice: {name}`; the skill finds the id with `voices-list(query)` — own Voices first, then `collection: "loved"` — and adds it. Vocal Gender is not sent with a Voice, and a Voice on an instrumental track is refused |
+
+`audio-covers-create` has no `instrumental` and no `vocal_gender`; the rest (model, Max Mode, duration, exclusions, sliders, workspace) goes along as for a song.
+
+*Measured:* a cover of a 52-second take in a new style made two covers of 62 and 65 seconds for 10 credits; they took the source's title and came back with `metadata.cover_audio_id`. At Audio Influence 70 the cover kept the source's tempo (about 95 BPM measured) although the new style asked for 80. A song sent with a `voice_id` cost the same 10 credits and came back with `metadata.voice_id`.
+
+### Spoken Word
+
+`spoken: true` in a track's frontmatter sends it to `speech-create`.
+
+| Track file | Argument | Notes |
+|---|---|---|
+| Lyrics Box | `script` | Spoken word for word. Section tags and bracketed cues are taken out; blank lines between paragraphs stay. ≤ 5000 characters |
+| Style Box | `style` | Delivery tags ("calm narrator, warm, close microphone"), and the style of the music bed when there is one |
+| Backing Music `On` (Generation Settings) | `backing_music: true` | Off unless the row says On |
+| Vocal Gender, Duration, Exclude Styles, Voice | `vocal_gender`, `duration`, `negative_style`, `voice_id` | As for a song |
+
+Speech has no model, no Max Mode and no `controls`, so those settings are listed under `ignored`.
+
+*Measured:* one call made two clips for 10 credits, 20 and 50 seconds long from the same four-sentence script. Suno reworded the delivery tags for each ("calm narrator, warm, close microphone" became "tense and strident delivery" on one and "deep bass register, flat affectless monotone" on the other), which is why the two differ. The listening agent heard the script word for word and no music.
+
+### A MIDI Score
+
+`/bitwize-music:generate <album> <track> --midi [file]` has Suno play a melody from a MIDI file.
+
+1. `get_midi_score_plan` checks the file — a MIDI header, at most 256 KB — and without a file uses the track's own under `sheet-music/source/`, where MIDI From Suno saves a transcription.
+2. The upload is three free steps: `midi-upload-create` (no arguments) answers `{midi_upload_id, upload_url, upload_fields, max_bytes}`; the file goes to `upload_url` as a multipart form with every field first and the file last as `file` (HTTP `204` on success); `midi-upload-complete(id)` checks it.
+3. `get_generation_request(album, track, midi_upload_id)` builds the request: `midi_upload_id`, a `description` made from the Style Box ("An instrumental that plays my melody, in this style: …"), `instrumental: true` and `model: "v6-wild"`, the only model that plays a score.
+
+A score is sent in Suno's simple mode, which takes a description and nothing else of the track's: no lyrics, no style field, no exclusions, no Max Mode, no sliders. So a score makes an **instrumental**. For an instrumental track the takes are the track. For a vocal track they are sketches: put the chosen sketch's address in Source audio and generate again, and the cover sings the Lyrics Box over it.
+
+*Measured:* a two-track, 3 KB score of about 55 seconds made two instrumentals of 64 seconds for 10 credits; `metadata.lyrics` read `[Instrumental]` and Suno wrote the style from the description. The listening agent heard solo guitar carrying the melody; the bass and brushed snare the description also named were not heard. Covering a sketch with lyrics was not measured as a chain — each call was, on its own.
 
 ---
 
@@ -125,7 +187,7 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: covers, extensions, mashups, speech, sounds, songs from a MIDI score, `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering, pulling a stem).
+**Not used by the plugin yet**: mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), creating a Voice (`voices-start`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -162,6 +224,42 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - **More than five changed places** and Suno re-sings the whole song as a cover. The tool warns; regenerate instead.
 
 *Measured, one word changed in a 55-second take:* one call made **two** edited takes for **10 song credits** in under a minute. Both kept the source's title and its length to the hundredth of a second, came back with `metadata.lyrics` updated and `metadata.description` holding the instruction, and were filed in the `workspace_id` given. The listening agent heard the new word in both; one of them also kept a quirk of the source take ("all lined up" for "are lined up"), which is what keeping the audio means.
+
+### An Instrumental Version
+
+The same call takes the vocals off a take: `get_edit_request(…, version: "instrumental")` writes "In <Title>, remove all the vocals to make an instrumental version. Keep everything else as it is."
+
+- The two takes are logged with "instrumental version of take N" in their notes. Those words make them **versions**: `parse_generation_log` reports `version`, they are never the track's keeper, the take check leaves them out, and a ✓ on one marks the version to import.
+- `get_suno_import_plan(album, track, version: "instrumental")` plans that import to `versions/<track>-instrumental.wav`, beside the album's audio and outside the folder the mastering tools read.
+
+*Measured:* two takes for 10 credits, both 55.17 seconds against the source's 55.16, titled "<Title> (Instrumental)" by Suno, with no voice heard on either.
+
+**An a cappella is not offered.** The same request for an a cappella returned one take of the source's length with no voice on it — the instrumental again — and one of 35 seconds, sung afresh with its guitar. The vocals stem of a stem split is the a cappella.
+
+---
+
+## Extending a Take
+
+`/bitwize-music:extend-take` keeps a take up to a point and generates what follows: more of a song that stopped early, or a new second half.
+
+- **The call**: `audio-extensions-create` with `id` (the take), `continue_at` (seconds into it), and `lyrics`, `style`, `negative_style`, `model`, `max_mode`, `controls` and `workspace_id` from the track. `get_extension_request` builds it. No `duration` is sent — it would cap the new ending — and the tool has no `vocal_gender`.
+- **The words** are the track's Lyrics Box from a named section to the end (`from_section: "Verse 2"`, or `"Chorus #2"` for the second Chorus), so they have passed the track's checks. With no section named, no lyrics are sent and Suno writes on by itself.
+- **The answer holds only the continuation.** `audio-full-song(id: <continuation>)` joins it to what came before, free, and returns a new song. Each of the two continuations ends its own chain, so each is joined and the two whole songs are logged as takes.
+- A joined song is **not** filed in the workspace its parts are in, and `audio-full-song` takes no workspace: file it with `workspaces-update-clips`.
+
+*Measured, a 55-second take carried on from 0:46 with a two-line verse:* one call made two continuations of 51 seconds for 10 credits (`metadata.extend_audio_id`, `metadata.continue_at`); each joined into a whole song of 97 seconds (`metadata.concat_clip_ids`) in the same voice, with the new verse sung about 14 seconds in. 0:46 fell inside a phrase, and the listening agent heard the cut — carry on from the end of a line. The joined song's `metadata.lyrics` is the source's whole lyrics followed by the continuation's, including the lines after the cut that are no longer sung.
+
+---
+
+## Sounds
+
+`/bitwize-music:sound-effects` makes an effect, a one-shot or a loop: `sounds-create` with a `description` (≤ 500 characters), `loop`, and optionally `tempo`, `key` and `title`. `get_sound_request` builds it, takes the tempo and key from a track's Style Box when asked to fit the sound to it, and names the `sounds/` folder under the album's audio for saving.
+
+- Two sounds of about 20 seconds for 1 credit each. The model and the length are Suno's choice. Sounds need Suno's Pro plan or higher.
+- `sounds-create` takes no workspace; the skill files the two sounds afterwards.
+- A sound is an ordinary song in the library: it opens, downloads and is listened to like one.
+
+*Measured:* "soft rain on a window, gentle and steady" as a loop made one clip of rain and one with a piano melody over a soft background — hear both. A guitar loop asked for at 96 BPM in G was measured at 96 BPM; the listening agent named its key as D major, so the key is not confirmed.
 
 ---
 

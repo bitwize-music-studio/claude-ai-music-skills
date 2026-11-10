@@ -493,8 +493,10 @@ from handlers import (
     streaming,
     suno_midi,
     suno_release,
+    suno_sounds,
     take_check,
     take_edit,
+    take_extend,
     text_analysis,
 )
 
@@ -513,6 +515,8 @@ gates.register(mcp)
 generation.register(mcp)
 take_check.register(mcp)
 take_edit.register(mcp)
+take_extend.register(mcp)
+suno_sounds.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
 suno_midi.register(mcp)
@@ -749,18 +753,23 @@ from handlers.streaming import (  # noqa: F401
     update_streaming_url,
     verify_streaming_urls,
 )
-from handlers.suno_midi import get_suno_midi_plan  # noqa: F401
+from handlers.suno_midi import (  # noqa: F401
+    get_midi_score_plan,
+    get_suno_midi_plan,
+)
 
 # Take-check tools
 from handlers.suno_release import (  # noqa: F401
     get_suno_release_plan,
     set_album_playlist,
 )
+from handlers.suno_sounds import get_sound_request  # noqa: F401
 from handlers.take_check import (  # noqa: F401
     evaluate_take_check,
     get_take_check_plan,
 )
 from handlers.take_edit import get_edit_request  # noqa: F401
+from handlers.take_extend import get_extension_request  # noqa: F401
 
 # Text analysis tools
 from handlers.text_analysis import (  # noqa: F401

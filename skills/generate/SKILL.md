@@ -1,7 +1,7 @@
 ---
 name: generate
-description: Generates a track on Suno through Suno's official MCP server. Runs the pre-generation gates, shows the cost, waits for a go-ahead, makes two takes, logs them and hands off to listening. Use when the user says "generate track N", "regenerate", or is ready to make audio. Falls back to the clipboard flow when the Suno server is not connected.
-argument-hint: <album-name> [track-number-or-slug] [--no-listen] [--no-check]
+description: Generates a track on Suno through Suno's official MCP server - a song, a cover of another Suno song, a track sung in a saved Voice, a spoken-word piece, or a sketch that plays a MIDI score. Runs the pre-generation gates, shows the cost, waits for a go-ahead, makes two takes, logs them and hands off to listening. Use when the user says "generate track N", "regenerate", or is ready to make audio. Falls back to the clipboard flow when the Suno server is not connected.
+argument-hint: <album-name> [track-number-or-slug] [--midi [file]] [--no-listen] [--no-check]
 model: sonnet
 effort: medium
 prerequisites:
@@ -37,15 +37,17 @@ Setup, costs, the track-file mapping and the tool notes are in `${CLAUDE_PLUGIN_
 
 ## Step 1: Resolve the Track
 
-Expected format: `<album-name> [track-number-or-slug] [--no-listen] [--no-check]`
+Expected format: `<album-name> [track-number-or-slug] [--midi [file]] [--no-listen] [--no-check]`
 
 If arguments are missing, show:
 
 ```
-Usage: /generate <album-name> <track> [--no-listen] [--no-check]
+Usage: /generate <album-name> <track> [--midi [file]] [--no-listen] [--no-check]
 
 Example: /generate sample-album 03
 ```
+
+`--midi` makes the track from a MIDI file: see **From a MIDI Score** before Step 4.
 
 With a track, this run generates that one track. With an album and no track, go to **Album Mode** below: every track that is ready, after one summary and one go-ahead. If the user names a few tracks, do them one at a time — each gets its own summary and its own go-ahead.
 
@@ -66,12 +68,14 @@ Follow § Preflight in `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`
 
 ## Step 4: Build the Request
 
-Call `get_generation_request(album_slug, track_slug)`.
+Call `get_generation_request(album_slug, track_slug)`. It reads what kind of request the track makes and names the Suno tool to send it to in `tool`: a song (`audio-create`), a cover (`audio-covers-create`) or spoken word (`speech-create`). The differences are under **Covers, Voices and Spoken Tracks**.
 
 | Result | Do |
 |--------|-----|
 | `found: false` | Report the error and stop |
-| `supported: false` | List the blocking problems and stop. For `custom_model_unsupported`, show the **Fallback** |
+| `supported: false` | List the blocking problems and stop. For `custom_model_unsupported` or `cover_source_not_on_suno`, show the **Fallback** |
+| `tool` is not `audio-create` | Find that tool and load its definition as in Step 3. `features` lacks `generate.cover` (a cover) or `speech` (spoken word) → say the plan does not include it and stop |
+| `voice` is set | `voices-list(query: <voice.name>)`; nothing found → once more with `collection: "loved"`. One match, or one whose name is exactly the Voice's → add its `id` to the request as `voice_id`. Several otherwise → ask which. None, or `features` lacks `voices` → name the Voice, say it was not found on the Suno account, and stop |
 | `track_status` is `Final` | Say the track already has an approved take and ask whether to regenerate. Stop unless the answer is yes |
 | `request.model` is not in `allowed_models` | Say the plan does not include that model and stop |
 | A key in `needs_grant` while `features` lacks `controls.advanced` | Remove that key from the request and remember to say so in the summary. A dotted name such as `controls.weirdness` is a key inside `controls`; `controls.variety` is never listed and stays |
@@ -114,8 +118,9 @@ Go ahead?   yes · generate only · play here instead · without Max Mode · wit
 Rules for the summary:
 
 - Leave out any line that does not apply (no Max Mode, nothing excluded, nothing dropped).
-- **Variety** is always shown, from `request.controls.variety`: 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max. Above Off, say "Suno rewrites the Style Box before generating" instead.
-- Anything in `ignored` goes on a **Not sent** line with its reason. The list is empty today.
+- **Variety** is shown whenever the request holds `controls`, from `request.controls.variety`: 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max. Above Off, say "Suno rewrites the Style Box before generating" instead.
+- Anything in `ignored` goes on a **Not sent** line with its setting, value and reason — a cover, a spoken track and a score each leave some settings behind.
+- Name what kind it is when it is not a plain song: a `Cover of` line with `cover.source_url`, a `Voice` line with the Voice's name, `Audio influence` among the sliders, or `Spoken word` with the script's length and `Backing music On/Off` in place of the model lines.
 - **Max Mode** appears only when the request holds `max_mode: true`. Suno asks that Max Mode be turned on only at the user's request, so the user's yes to a summary that names it *is* that request. If they answer "without Max Mode", remove `max_mode` and proceed.
 - **Then** follows the listen plan:
   - `--no-listen` → leave the line out.
@@ -133,29 +138,29 @@ Rules for the summary:
 
 1. Fix an idempotency key **before** the first attempt: `{album_slug}/{track_slug}/{UTC timestamp}`, for example `sample-album/03-t-day-beach/2026-06-15T12:00:00Z`.
    If Step 4b planned a workspace, make it first: `workspaces-create(name: <suggested_name>)`, then `set_album_workspace(album_slug, <its id>, <its name>)`, then one `workspaces-update-clips(id: <its id>, add: <list>)` per list in `batches` for the earlier takes (check `skipped`). Put `workspace_id: <its id>` into the request. If `workspaces-create` fails, say so and generate without one; the takes can be filed later.
-2. Call `audio-create` with the keys of `request` and the `idempotency_key`. Add nothing else.
+2. Call the tool named in `tool` with the keys of `request`, the `voice_id` from Step 4 when the track names a Voice, and the `idempotency_key`. Add nothing else.
 3. The answer carries two ids in `clip_ids`. Tell the user the takes are generating.
 4. Call `audio-wait` with every id in `ids` and `until: "complete"`. It returns after about 50 seconds whether or not the songs are finished; call it again while any is still pending. A song usually takes one to three minutes.
 5. Call `account-usage` again. Credits spent = balance before − balance after.
 
 | What happened | Do |
 |---------------|-----|
-| No response or a timeout from `audio-create` | Retry **once** with the **same** idempotency key |
+| No response or a timeout from the create call | Retry **once** with the **same** idempotency key |
 | The call is rejected for an unknown argument | Remove that argument, tell the user, and retry once with a **new** key (the arguments changed) |
 | `402` — out of credits | Call `account-upgrade`, show its link, and stop. Log nothing |
 | `403` — model or feature not on the plan | Name what is missing. Offer to retry without it when it is `max_mode`, `controls`, `negative_style` or `vocal_gender`; otherwise show the **Fallback** |
 | `400` — Suno's content check rejected the title, lyrics or style | Show Suno's message word for word and stop. The track's status does not change |
 | One take ends with `status: error` | Log it as failed in Step 7 and carry on with the other |
 
-Never call `audio-create` a second time for the same go-ahead except as the table says. Each successful call spends credits.
+Never send the create call a second time for the same go-ahead except as the table says. Each successful call spends credits.
 
 ## Step 7: Log the Takes
 
 Call `log_generation(album_slug, track_slug, model, clips, notes)`:
 
-- `model` — the model that was sent (`default` if none was).
+- `model` — the model that was sent (`default` if none was; `speech` for a spoken track).
 - `clips` — one entry per clip id: `{"clip_id": ..., "status": "complete" or "error", "duration_s": the clip's metadata.duration, "error": the reason for a failed take}`.
-- `notes` — `via MCP, N credits`, plus `, Max Mode` when it was used.
+- `notes` — `via MCP, N credits`, plus `, Max Mode` when it was used, `, cover` for a cover, `, Voice <name>` when one sang, `, spoken` for a spoken track and `, from a MIDI score` for a score.
 
 Then, unless the track is already `Generated`: `update_track_field(album_slug, track_slug, "status", "Generated")`.
 
@@ -205,7 +210,7 @@ When they reject both takes, add the reason to the Notes of those rows, then fol
 
      01 First Track      20 credits (Max Mode)
      02 Second Track     10 credits
-     05 Fifth Track      10 credits
+     05 Fifth Track      10 credits (cover)
      ...
      Blocked   03 Third — gates: Sources Verified
      Skipped   04 Fourth — already has takes
@@ -216,9 +221,28 @@ When they reject both takes, add the reason to the Notes of those rows, then fol
    Go ahead?   yes · cancel
    ```
 
-   Name Max Mode on each track that asks for it: Suno wants Max Mode only at the user's request, and a yes to a list that names it is that request. Wait for an explicit yes.
-5. On a yes, take the tracks in `generate` one after another: Step 4 (`get_generation_request`), Step 6 (one `audio-create` with the track's own idempotency key, then `audio-wait`) and Step 7 (`log_generation`, status `Generated`). Start a track only when the one before is logged. At a `402` stop the batch and report what was done; any other failure on one track is reported and the batch carries on.
+   Name Max Mode on each track that asks for it: Suno wants Max Mode only at the user's request, and a yes to a list that names it is that request. Name each track's `kind` when it is a cover or spoken word. Wait for an explicit yes.
+5. On a yes, take the tracks in `generate` one after another: Step 4 (`get_generation_request`, with its Voice lookup), Step 6 (one call to the track's `tool` with the track's own idempotency key, then `audio-wait`) and Step 7 (`log_generation`, status `Generated`). A MIDI score is never part of Album Mode. Start a track only when the one before is logged. At a `402` stop the batch and report what was done; any other failure on one track is reported and the batch carries on.
 6. Report every track's takes and the credits spent (balance before − balance after). Then run `/bitwize-music:check-take` for each generated track unless `--no-check`, and offer `/bitwize-music:listen <album> <track>` track by track.
+
+## Covers, Voices and Spoken Tracks
+
+The track file says which kind it is; Steps 2 to 8 apply to all of them. Two takes, 10 song credits each call (measured for every kind).
+
+- **Cover** (`kind: cover`) — the track's Cover / Voice Setup block holds a song address in **Source audio** (`https://suno.com/song/<id>`). The Style Box is the new style, and the Lyrics Box is what gets sung: a cover sent no lyrics comes back instrumental, so a vocal track still needs its words. **Audio Influence** in that block says how closely to follow the source. Measured: a cover at Audio Influence 70 kept its source's tempo although the new style named another, so lower it when the tempo should change. A source that is not on Suno cannot be covered from here — the user uploads it on suno.com and pastes its address.
+- **Voice** — the track names a saved Voice (Suno's Voices need a Pro or Premier plan). The Voice carries its own gender, so Vocal Gender is not sent, and a Voice cannot sing an instrumental track.
+- **Spoken word** (`kind: speech`) — the frontmatter says `spoken: true`. The Lyrics Box is the script, spoken word for word with its section tags taken out; the Style Box holds delivery tags ("calm narrator, warm, close microphone"); `Backing Music: On` in Generation Settings keeps music under the voice. There is no model, Max Mode or slider to send, and Suno words the delivery tags its own way, so the two clips can differ a good deal (measured: 20 and 50 seconds from one short script). Tell the user to hear both.
+
+## From a MIDI Score
+
+`--midi [file]` has Suno play a melody the user wrote. A score plays only on `v6-wild` and goes out with a description built from the Style Box; Suno takes no lyrics, exclusions, sliders or duration with it.
+
+1. `get_midi_score_plan(album_slug, track_slug, midi_path)`. With no file named it uses the track's own `.mid` under `sheet-music/source/` (`/bitwize-music:sheet-music-publisher` § MIDI From Suno saves one there). `supported: false` → show the problem and stop. The gates in Step 2 still run, with one difference: Lyrics Reviewed, Pronunciation Resolved, Homograph Check, Lyric Length and Performance Cues check words that a score does not send, so when they are the only gates failing, say so and carry on — a melody can be sketched before its lyrics exist. Every other gate blocks as usual.
+2. Say what will come back before anything is uploaded. `sketch: false` (an instrumental track): the takes are the track. `sketch: true` (a vocal track): the takes are instrumental sketches of the melody, and the track's lyrics are sung over the chosen sketch in a second step that costs another 10 credits.
+3. Upload the file, which is free: `midi-upload-create`; then send the file to its `upload_url` as a multipart form, every `upload_fields` entry first and the file last as `file` — `curl -sS -o /dev/null -w '%{http_code}' -F 'key=…' -F 'policy=…' … -F 'file=@<midi.path>' '<upload_url>'`, where `204` is success; then `midi-upload-complete(id: <midi_upload_id>)`. The address and fields are credentials for this one upload: do not show them.
+4. `get_generation_request(album_slug, track_slug, midi_upload_id: <that id>)` returns `kind: midi`. Carry on from Step 4b: summary with its **Not sent** lines, go-ahead, one `audio-create`, the log, listening. The song stays `queued` until Suno's copyright check on the score passes.
+
+For a vocal track, when the user has chosen a sketch: put its song address in **Source audio** of the track's Cover / Voice Setup block (add the block from `templates/track.md` if the track has none) and run `/bitwize-music:generate` again. That covers the sketch with the Style Box and Lyrics Box. Do not mark a sketch ✓ — it is not the track.
 
 ## Fallback
 

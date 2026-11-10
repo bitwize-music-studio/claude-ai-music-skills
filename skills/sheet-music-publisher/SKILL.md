@@ -193,6 +193,8 @@ For a track whose keeper was generated through Suno's MCP server, Suno can trans
 
 Refusals carry a `reason`: `plan_required` (the plan lacks Studio), `quota_exhausted` (out of credits), `not_ready` (the song is still generating).
 
+The saved file can go back to Suno as a score, edited or not: `/bitwize-music:generate <album> <track> --midi` plays it (see that skill, § From a MIDI Score).
+
 ## Remember
 
 1. **Load override first** - Call `load_override("sheet-music-preferences.md")` at invocation
