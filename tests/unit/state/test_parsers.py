@@ -107,6 +107,43 @@ class TestParseAlbumReadme:
         assert '_error' not in result
         assert result['explicit'] is True
 
+    def test_suno_workspace_block(self, tmp_path):
+        """The frontmatter's suno_workspace block names the Suno workspace holding the album's takes."""
+        path = tmp_path / "README.md"
+        path.write_text(
+            '---\ntitle: "Album"\nsuno_workspace:  # set by /generate\n'
+            '  id: "be7f57b5-0cef-4769-ab0e-44b4861bd895"\n  name: "Album"\n---\n\n# Album\n',
+            encoding='utf-8',
+        )
+        result = parse_album_readme(path)
+        assert result['suno_workspace'] == {
+            'id': 'be7f57b5-0cef-4769-ab0e-44b4861bd895', 'name': 'Album',
+        }
+
+    @pytest.mark.parametrize("frontmatter", [
+        'title: "Album"\n',                                        # no block at all
+        'title: "Album"\nsuno_workspace:\n  id: ""\n  name: ""\n',  # the template's empty block
+        'title: "Album"\nsuno_workspace:\n',                       # block with nothing under it
+        'title: "Album"\nsuno_workspace: "not a mapping"\n',
+        'title: "Album"\nsuno_workspace:\n  name: "Album"\n',     # name without an id
+    ])
+    def test_suno_workspace_absent_or_empty_is_none(self, tmp_path, frontmatter):
+        path = tmp_path / "README.md"
+        path.write_text(f'---\n{frontmatter}---\n\n# Album\n', encoding='utf-8')
+        result = parse_album_readme(path)
+        assert '_error' not in result
+        assert result['suno_workspace'] is None
+
+    def test_suno_workspace_id_without_name(self, tmp_path):
+        path = tmp_path / "README.md"
+        path.write_text(
+            '---\ntitle: "Album"\nsuno_workspace:\n  id: be7f57b5-0cef-4769-ab0e-44b4861bd895\n---\n',
+            encoding='utf-8',
+        )
+        assert parse_album_readme(path)['suno_workspace'] == {
+            'id': 'be7f57b5-0cef-4769-ab0e-44b4861bd895', 'name': '',
+        }
+
     def test_tracklist_parsing(self):
         path = FIXTURES_DIR / "album-readme.md"
         result = parse_album_readme(path)

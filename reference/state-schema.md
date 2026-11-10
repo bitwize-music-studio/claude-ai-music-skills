@@ -55,6 +55,7 @@ Map of album slug (string) → album data object.
 | `track_count` | integer | Total number of tracks |
 | `tracks_completed` | integer | Number of tracks with completed status |
 | `streaming_urls` | object | Map of platform → URL (only non-empty entries from frontmatter `streaming:` block) |
+| `suno_workspace` | object\|null | `{id, name}` of the Suno workspace holding the album's takes, from the frontmatter `suno_workspace:` block; null until `/bitwize-music:generate` records one |
 | `readme_mtime` | float | Last modification time of album README.md |
 | `tracks` | object | Map of track slug → track data |
 

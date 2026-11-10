@@ -384,6 +384,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
         # Whether session start shows how to add Suno's MCP server when none is registered
         'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
+        # Whether /bitwize-music:generate files each album's takes in a Suno workspace of its own
+        'suno_workspaces': _cfg_bool(gen_config, 'suno_workspaces', True),
     }
 
     return {
@@ -457,6 +459,7 @@ def scan_albums(
                 'explicit': album_data.get('explicit', False),
                 'anchor_track': album_data.get('anchor_track'),
                 'layout': album_data.get('layout'),
+                'suno_workspace': album_data.get('suno_workspace'),
                 'mastering': album_data.get('mastering') or {},
                 'release_date': album_data.get('release_date'),
                 'track_count': album_data.get('track_count', len(tracks)),
@@ -846,6 +849,7 @@ def incremental_update(
                     'explicit': album_data.get('explicit', False),
                     'anchor_track': album_data.get('anchor_track'),
                     'layout': album_data.get('layout'),
+                    'suno_workspace': album_data.get('suno_workspace'),
                     'mastering': album_data.get('mastering') or {},
                     'release_date': album_data.get('release_date'),
                     'track_count': album_data.get('track_count', len(tracks)),

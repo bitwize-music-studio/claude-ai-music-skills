@@ -736,3 +736,196 @@ class TestGetSunoImportPlan:
 
     def test_unknown_track(self, album):
         assert _plan(track_slug="99-missing")["found"] is False
+
+
+# ===========================================================================
+# Album workspaces: get_album_workspace / set_album_workspace
+# ===========================================================================
+
+WORKSPACE_ID = "be7f57b5-0cef-4769-ab0e-44b4861bd895"
+CLIP_C = "71af26e1-7ca6-486b-8511-a5a93ddc10df"
+
+README_WITH_BLOCK = """---
+title: "Test Album"
+release_date: ""  # YYYY-MM-DD (fill in when releasing)
+genres: ["electronic"]
+suno_workspace:  # Suno workspace that holds this album's takes; /bitwize-music:generate fills it in
+  id: ""
+  name: ""
+streaming:
+  spotify: ""       # Fill in when released
+---
+
+# Test Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+"""
+
+README_WITHOUT_BLOCK = """---
+title: "Test Album"
+release_date: ""  # YYYY-MM-DD (fill in when releasing)
+genres: ["electronic"]
+---
+
+# Test Album
+"""
+
+
+def _workspace(album_slug="test-album"):
+    return json.loads(_run(_gen_mod.get_album_workspace(album_slug)))
+
+
+def _set(album_slug="test-album", workspace_id=WORKSPACE_ID, name="Test Album"):
+    return json.loads(_run(_gen_mod.set_album_workspace(album_slug, workspace_id, name)))
+
+
+def _readme(album, text=README_WITH_BLOCK):
+    path = Path(album.state["albums"]["test-album"]["path"]) / "README.md"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+class TestGetAlbumWorkspace:
+    def test_album_without_a_workspace(self, album):
+        result = _workspace()
+        assert result["found"] is True
+        assert result["album_slug"] == "test-album"
+        assert result["album_title"] == "Test Album"
+        assert result["workspace"] is None
+        assert result["suggested_name"] == "Test Album"
+        assert result["clips"] == []
+        assert result["batches"] == []
+        assert result["enabled"] is True
+
+    def test_album_with_a_workspace(self, album):
+        album.state["albums"]["test-album"]["suno_workspace"] = {"id": WORKSPACE_ID, "name": "Test Album"}
+        assert _workspace()["workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}
+
+    def test_clips_come_from_every_generation_log(self, album):
+        album(log_rows=(_row(1, CLIP_A), _row(2, CLIP_B, rating="✓"), LEGACY_KEEPER_ROW))
+        second = album.path.parent / "02-second.md"
+        second.write_text(track_md(title="Second", log_rows=(_row(1, CLIP_C),)), encoding="utf-8")
+        album.state["albums"]["test-album"]["tracks"]["02-second"] = {
+            "title": "Second", "status": "Generated", "path": str(second),
+        }
+        result = _workspace()
+        assert result["clips"] == [
+            {"track_slug": "01-first-track", "take": 1, "clip_id": CLIP_A, "keeper": False},
+            {"track_slug": "01-first-track", "take": 2, "clip_id": CLIP_B, "keeper": True},
+            {"track_slug": "02-second", "take": 1, "clip_id": CLIP_C, "keeper": False},
+        ]
+        assert result["batches"] == [[CLIP_A, CLIP_B, CLIP_C]]
+
+    def test_batches_hold_at_most_fifty_clips(self, album, monkeypatch):
+        """workspaces-update-clips takes 50 ids per call."""
+        rows = tuple(_row(n, f"{n:08x}-0000-4000-8000-000000000000") for n in range(1, 121))
+        album(log_rows=rows)
+        batches = _workspace()["batches"]
+        assert [len(b) for b in batches] == [50, 50, 20]
+        assert batches[0][0] == "00000001-0000-4000-8000-000000000000"
+
+    def test_placeholder_title_suggests_the_slug(self, album):
+        album.state["albums"]["test-album"]["title"] = "[Album Title]"
+        result = _workspace()
+        assert result["album_title"] == "[Album Title]"
+        assert result["suggested_name"] == "test-album"
+
+    def test_config_switch(self, album):
+        album.state["config"]["generation"] = {"suno_workspaces": False}
+        assert _workspace()["enabled"] is False
+
+    def test_unknown_album(self, album):
+        assert _workspace("nope")["found"] is False
+
+
+class TestSetAlbumWorkspace:
+    def test_fills_the_template_block_and_keeps_comments(self, album):
+        path = _readme(album)
+        result = _set()
+        assert result == {
+            "updated": True, "path": str(path),
+            "workspace": {"id": WORKSPACE_ID, "name": "Test Album"},
+        }
+        text = path.read_text(encoding="utf-8")
+        assert f'  id: "{WORKSPACE_ID}"' in text
+        assert '  name: "Test Album"' in text
+        assert "# YYYY-MM-DD (fill in when releasing)" in text      # comments survive
+        assert "# Suno workspace that holds this album's takes" in text
+        assert "# Fill in when released" in text
+        assert text.endswith("| **Status** | In Progress |\n")      # body untouched
+        from tools.state.parsers import parse_album_readme
+        assert parse_album_readme(path)["suno_workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}
+
+    def test_adds_the_block_to_an_older_readme(self, album):
+        path = _readme(album, README_WITHOUT_BLOCK)
+        assert _set()["updated"] is True
+        text = path.read_text(encoding="utf-8")
+        assert text.startswith('---\ntitle: "Test Album"\n')
+        assert "# YYYY-MM-DD (fill in when releasing)" in text
+        assert "\nsuno_workspace:  # Suno workspace that holds this album's takes" in text
+        assert f'\n  id: "{WORKSPACE_ID}"\n  name: "Test Album"\n---\n' in text
+        from tools.state.parsers import parse_album_readme
+        assert parse_album_readme(path)["suno_workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}
+
+    def test_replaces_an_earlier_workspace(self, album):
+        path = _readme(album)
+        _set()
+        other = "0f3c6c19-0c42-4d4f-9a37-7f5fd1bd2e01"
+        assert _set(workspace_id=other, name="Renamed")["workspace"] == {"id": other, "name": "Renamed"}
+        text = path.read_text(encoding="utf-8")
+        assert text.count("suno_workspace:") == 1
+        assert WORKSPACE_ID not in text
+        assert f'  id: "{other}"' in text and '  name: "Renamed"' in text
+
+    def test_name_with_quotes_cannot_break_the_frontmatter(self, album):
+        path = _readme(album)
+        assert _set(name='Say "Hi" \\ again')["updated"] is True
+        from tools.state.parsers import parse_album_readme
+        assert parse_album_readme(path)["suno_workspace"]["name"] == 'Say "Hi" \\ again'
+
+    def test_refreshes_the_cache_entry(self, album):
+        _readme(album)
+        _set()
+        assert album.state["albums"]["test-album"]["suno_workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}
+        _gen_mod.write_state.assert_called_once()
+
+    @pytest.mark.parametrize("bad", ["", "not-a-uuid", "be7f57b5-0cef-4769-ab0e", "../../etc"])
+    def test_rejects_a_bad_workspace_id_before_writing(self, album, bad):
+        path = _readme(album)
+        before = path.read_text(encoding="utf-8")
+        result = _set(workspace_id=bad)
+        assert "error" in result
+        assert path.read_text(encoding="utf-8") == before
+
+    def test_name_is_required(self, album):
+        _readme(album)
+        assert "error" in _set(name="   ")
+
+    def test_missing_readme_is_an_error(self, album):
+        assert "README" in _set()["error"]
+
+    def test_readme_without_frontmatter_is_an_error(self, album):
+        _readme(album, "# Test Album\n\nNo frontmatter here.\n")
+        assert "frontmatter" in _set()["error"].lower()
+
+    def test_unknown_album(self, album):
+        assert _set("nope")["found"] is False
+
+
+class TestWorkspaceInOtherTools:
+    def test_generation_request_carries_the_workspace_id(self, album):
+        album.state["albums"]["test-album"]["suno_workspace"] = {"id": WORKSPACE_ID, "name": "Test Album"}
+        assert _request()["request"]["workspace_id"] == WORKSPACE_ID
+
+    def test_generation_request_without_a_workspace(self, album):
+        assert "workspace_id" not in _request()["request"]
+
+    def test_import_plan_carries_the_workspace(self, album):
+        album(suno_link=f"[Listen](https://suno.com/song/{CLIP_A})", status="Final")
+        assert _plan()["workspace"] is None
+        album.state["albums"]["test-album"]["suno_workspace"] = {"id": WORKSPACE_ID, "name": "Test Album"}
+        assert _plan()["workspace"] == {"id": WORKSPACE_ID, "name": "Test Album"}

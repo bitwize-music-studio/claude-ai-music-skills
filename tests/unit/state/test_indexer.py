@@ -1648,6 +1648,39 @@ anchor_track: 2
         assert "no-anchor-album" in result
         assert result["no-anchor-album"]["anchor_track"] is None
 
+    def test_suno_workspace_propagated_from_frontmatter(self, tmp_path):
+        """The album's Suno workspace must reach state.albums[slug] so the generate skill can file takes."""
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Workspace Album"
+genres: ["folk"]
+explicit: false
+suno_workspace:
+  id: "be7f57b5-0cef-4769-ab0e-44b4861bd895"
+  name: "Workspace Album"
+---
+
+# Workspace Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "folk", "workspace-album",
+                         readme_text=readme_text)
+        result = scan_albums(content_root, "testartist")
+        assert result["workspace-album"]["suno_workspace"] == {
+            "id": "be7f57b5-0cef-4769-ab0e-44b4861bd895", "name": "Workspace Album",
+        }
+
+    def test_suno_workspace_none_when_not_in_frontmatter(self, tmp_path):
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "plain-album")
+        assert scan_albums(content_root, "testartist")["plain-album"]["suno_workspace"] is None
+
     def test_mastering_block_propagated_from_frontmatter(self, tmp_path):
         """State cache must carry mastering overrides from album README
         frontmatter so master_album's config resolution can find them."""
@@ -4684,6 +4717,15 @@ class TestBuildConfigSectionListen:
     def test_iterm2_browser_mode(self, monkeypatch):
         gen = self._generation({'listen_mode': 'iTerm2_Browser'}, monkeypatch)
         assert gen['listen_mode'] == 'iterm2_browser'
+
+    def test_suno_workspaces_default_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['suno_workspaces'] is True
+
+    def test_suno_workspaces_off(self, monkeypatch):
+        assert self._generation({'suno_workspaces': False}, monkeypatch)['suno_workspaces'] is False
+
+    def test_suno_workspaces_garbage_falls_back(self, monkeypatch):
+        assert self._generation({'suno_workspaces': 'later'}, monkeypatch)['suno_workspaces'] is True
 
     def test_suno_mcp_reminder_defaults_on(self, monkeypatch):
         assert self._generation({}, monkeypatch)['suno_mcp_reminder'] is True

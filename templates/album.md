@@ -13,6 +13,9 @@ streaming:
   amazon_music: ""  # Fill in when released
 sheet_music:
   songbook: ""
+suno_workspace:  # Suno workspace that holds this album's takes; /bitwize-music:generate fills it in
+  id: ""
+  name: ""
 # mastering:  # Optional - per-album mastering settings
 #   adm_validation_enabled: true
 # slug: ""  # Optional - only uncomment if you need to override auto-generated slug

@@ -9,6 +9,7 @@ See reference/suno/mcp-api-mapping.md for the mapping these tools implement.
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import re
 from pathlib import Path
@@ -417,6 +418,11 @@ async def get_generation_request(album_slug: str, track_slug: str) -> str:
         if controls:
             request["controls"] = controls
 
+    # File the new takes in the album's Suno workspace when it has one.
+    workspace = _album_workspace(ctx["album"])
+    if workspace:
+        request["workspace_id"] = workspace["id"]
+
     supported = not any(p["severity"] == "blocking" for p in problems)
     return _safe_json({
         "found": True,
@@ -798,8 +804,197 @@ async def get_suno_import_plan(album_slug: str, track_slug: str) -> str:
                 for part, filename in SUNO_STEM_FILENAMES.items()
             },
         },
+        "workspace": _album_workspace(ctx["album"]),
         "problems": problems,
     })
+
+
+# =============================================================================
+# Album workspaces
+# =============================================================================
+
+_WORKSPACE_ID_RE = re.compile(r"^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
+_WORKSPACE_BATCH = 50  # workspaces-update-clips files at most 50 songs per call
+_WORKSPACE_KEY = "suno_workspace"
+_WORKSPACE_COMMENT = (
+    "# Suno workspace that holds this album's takes; /bitwize-music:generate fills it in"
+)
+_TEMPLATE_ALBUM_TITLES = frozenset({"", "[Album Title]"})
+
+
+def _album_workspace(album: dict[str, Any]) -> dict[str, str] | None:
+    """The album's recorded Suno workspace, ``{"id", "name"}``, or None."""
+    workspace = album.get(_WORKSPACE_KEY)
+    if not isinstance(workspace, dict) or not workspace.get("id"):
+        return None
+    return {"id": str(workspace["id"]), "name": str(workspace.get("name") or "")}
+
+
+def _album_clips(album: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every take with a clip id in the album's Generation Logs, in track and take order.
+
+    Legacy share links carry no clip id and are left out.
+    """
+    clips: list[dict[str, Any]] = []
+    for track_slug, track in sorted((album.get("tracks") or {}).items()):
+        path = track.get("path") or ""
+        if not path:
+            continue
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning("Skipping %s while collecting clips: %s", path, e)
+            continue
+        for take in parse_generation_log(text):
+            if take["clip_id"]:
+                clips.append({
+                    "track_slug": track_slug,
+                    "take": take["row"],
+                    "clip_id": take["clip_id"],
+                    "keeper": take["approved"],
+                })
+    return clips
+
+
+async def get_album_workspace(album_slug: str) -> str:
+    """The Suno workspace an album's takes are filed in, and the takes it has so far.
+
+    /bitwize-music:generate reads this before generating: a recorded workspace
+    is passed to audio-create (see get_generation_request), and an album without
+    one gets a workspace created and recorded with set_album_workspace. clips
+    lists every take in the album's Generation Logs so earlier takes can be filed
+    with workspaces-update-clips; batches splits their ids into groups of 50,
+    which is that tool's limit.
+
+    Args:
+        album_slug: Album slug
+
+    Returns:
+        JSON with found, album_slug, album_title, workspace ({id, name} or null),
+        suggested_name (the album title, or the slug while the title is still
+        the template's placeholder), clips ([{track_slug, take, clip_id,
+        keeper}]), batches ([[clip ids]]), and enabled (config
+        generation.suno_workspaces, default true)
+    """
+    album_slug, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+    assert album is not None
+
+    title = str(album.get("title") or "").strip()
+    clips = _album_clips(album)
+    ids = [clip["clip_id"] for clip in clips]
+    generation = _shared.cache.get_state().get("config", {}).get("generation", {}) or {}
+    return _safe_json({
+        "found": True,
+        "album_slug": album_slug,
+        "album_title": title,
+        "workspace": _album_workspace(album),
+        "suggested_name": album_slug if title in _TEMPLATE_ALBUM_TITLES else title,
+        "clips": clips,
+        "batches": [ids[i:i + _WORKSPACE_BATCH] for i in range(0, len(ids), _WORKSPACE_BATCH)],
+        "enabled": bool(generation.get("suno_workspaces", True)),
+    })
+
+
+def _frontmatter_bounds(lines: list[str]) -> int | None:
+    """Index of the closing ``---`` of a file's frontmatter, or None."""
+    if not lines or lines[0].strip() != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return i
+    return None
+
+
+def _write_workspace_block(text: str, workspace_id: str, name: str) -> str | None:
+    """*text* with its ``suno_workspace`` frontmatter block set, or None without frontmatter.
+
+    Edits lines rather than re-dumping the YAML, so the comments in the album
+    README survive. An existing block is replaced; otherwise one is added just
+    before the closing ``---``.
+    """
+    lines = text.split("\n")
+    end = _frontmatter_bounds(lines)
+    if end is None:
+        return None
+    block = [
+        f"{_WORKSPACE_KEY}:  {_WORKSPACE_COMMENT}",
+        f"  id: {json.dumps(workspace_id)}",
+        f"  name: {json.dumps(name, ensure_ascii=False)}",
+    ]
+    start = next(
+        (i for i in range(1, end) if lines[i].startswith(f"{_WORKSPACE_KEY}:")), None,
+    )
+    if start is None:
+        return "\n".join(lines[:end] + block + lines[end:])
+    stop = start + 1
+    while stop < end and (lines[stop].startswith((" ", "\t")) or not lines[stop].strip()):
+        stop += 1
+    return "\n".join(lines[:start] + block + lines[stop:])
+
+
+async def set_album_workspace(album_slug: str, workspace_id: str, name: str) -> str:
+    """Record the Suno workspace that holds an album's takes.
+
+    Writes the suno_workspace block in the album README's frontmatter (keeping
+    its comments) and refreshes the state cache. From then on
+    get_generation_request carries the workspace id and get_suno_import_plan
+    reports it. Call it right after workspaces-create, or to point the album
+    at a workspace that already exists.
+
+    Args:
+        album_slug: Album slug
+        workspace_id: The workspace's id from workspaces-create or workspaces-list
+        name: The workspace's name, for people reading the README
+
+    Returns:
+        JSON with updated, path and workspace, or an error
+    """
+    album_slug, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+    assert album is not None
+
+    workspace_id = workspace_id.strip().lower()
+    name = name.strip()
+    if not _WORKSPACE_ID_RE.match(workspace_id):
+        return _safe_json({"error": f"Not a Suno workspace id: '{workspace_id}'"})
+    if not name:
+        return _safe_json({"error": "The workspace needs a name"})
+
+    readme = Path(album.get("path") or "") / "README.md"
+    if not album.get("path") or not readme.is_file():
+        return _safe_json({"error": f"README.md not found for album '{album_slug}'"})
+    try:
+        text = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        return _safe_json({"error": f"Cannot read {readme}: {e}"})
+
+    updated = _write_workspace_block(text, workspace_id, name)
+    if updated is None:
+        return _safe_json({"error": f"{readme} has no YAML frontmatter"})
+    check = parse_frontmatter(updated)
+    recorded = check.get(_WORKSPACE_KEY) if isinstance(check, dict) else None
+    if "_error" in check or not isinstance(recorded, dict) or recorded.get("id") != workspace_id:
+        return _safe_json({"error": "The frontmatter would not parse after the change; nothing written"})
+
+    try:
+        atomic_write_text(readme, updated)
+    except OSError as e:
+        return _safe_json({"error": f"Cannot write {readme}: {e}"})
+
+    workspace = {"id": workspace_id, "name": name}
+    # The file is written either way; a failed cache refresh self-heals on rebuild.
+    try:
+        album[_WORKSPACE_KEY] = workspace
+        album["readme_mtime"] = readme.stat().st_mtime
+        write_state(_shared.cache.get_state())
+    except Exception as e:
+        logger.warning("Workspace recorded for %s but cache update failed: %s", album_slug, e)
+
+    logger.info("Album %s filed in Suno workspace %s (%s)", album_slug, name, workspace_id)
+    return _safe_json({"updated": True, "path": str(readme), "workspace": workspace})
 
 
 def register(mcp: Any) -> None:
@@ -807,3 +1002,5 @@ def register(mcp: Any) -> None:
     mcp.tool()(get_generation_request)
     mcp.tool()(log_generation)
     mcp.tool()(get_suno_import_plan)
+    mcp.tool()(get_album_workspace)
+    mcp.tool()(set_album_workspace)

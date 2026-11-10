@@ -451,6 +451,18 @@ generation:
   #
   # suno_mcp_reminder: true
 
+  # ---------------------------
+  # suno_workspaces [optional]
+  # ---------------------------
+  # With Suno's MCP server connected, /bitwize-music:generate files each
+  # album's takes in a Suno workspace of its own, created at the album's first
+  # generation and recorded in the album README. Stems from a split go there
+  # too. Set to false to leave songs loose in My Songs instead.
+  #
+  # Default (if omitted): true
+  #
+  # suno_workspaces: true
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]

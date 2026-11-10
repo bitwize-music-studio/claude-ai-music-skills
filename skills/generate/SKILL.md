@@ -79,6 +79,13 @@ Call `get_generation_request(album_slug, track_slug)`.
 
 Also call `get_listen_plan(album_slug, track_slug)` and keep `mode`, `confirm_download`, `player` and `iterm2` for the summary.
 
+## Step 4b: The Album's Workspace
+
+Each album's takes live in a Suno workspace of their own, so they are easy to find on suno.com. Call `get_album_workspace(album_slug)`. Skip this step when `enabled` is false (`generation.suno_workspaces: false` in the config).
+
+- `workspace` set → call `workspaces-list(query: <workspace.name>)` and look for `workspace.id` among the answers. Found → `request.workspace_id` is already set; nothing more to do. Not found → the workspace was deleted on suno.com: say so and offer "create it again" or "carry on without". Never recreate it silently. For "carry on without", drop `workspace_id` from `request` for this run.
+- `workspace` null → plan to create one in Step 6: keep `suggested_name` and `batches`, and add the **Workspace** line to the summary.
+
 ## Step 5: Show the Summary and Get a Go-Ahead
 
 Nothing has been spent yet. Show exactly what will be sent and what it costs:
@@ -96,10 +103,12 @@ READY TO GENERATE — [NN] [Title]  ([album])
   Dropped    vocal_gender — your plan lacks advanced controls
 
   Cost       about 10 song credits (20 with Max Mode). You have 9,935.
+  Workspace  create "Album Title" on suno.com and file the takes there (free),
+             and file its 4 earlier takes
   Then       open both takes in your browser (free).
              (Playing them here instead uses 2 download credits. You have 66.)
 
-Go ahead?   yes · generate only · play here instead · without Max Mode · cancel
+Go ahead?   yes · generate only · play here instead · without Max Mode · without a workspace · cancel
 ```
 
 Rules for the summary:
@@ -114,12 +123,14 @@ Rules for the summary:
   - `mode` is `terminal` → "play both takes here: 2 download credits. You have N. (Opening them in the browser instead is free.)", with "browser instead" among the answers.
   - `mode` is `terminal` but `player` is null → "open both takes in your browser (free) — no audio player is installed; install mpv to play here".
   - `mode` is `terminal` and fewer than 2 download credits are left → "open both takes in your browser (free) — you have N download credits left".
-- A yes covers exactly what the **Then** line says. Terminal playback spends download credits only when the summary said so or the user answered "play here instead".
+- **Workspace** appears only when Step 4b planned one. Add "and file its N earlier takes" when `clips` is not empty. "Without a workspace" skips it for this run, and the answers list carries that option only when the line is shown.
+- A yes covers exactly what the **Then** and **Workspace** lines say. Terminal playback spends download credits only when the summary said so or the user answered "play here instead".
 - Wait for an explicit answer. Silence is not a yes.
 
 ## Step 6: Generate
 
 1. Fix an idempotency key **before** the first attempt: `{album_slug}/{track_slug}/{UTC timestamp}`, for example `sample-album/03-t-day-beach/2026-06-15T12:00:00Z`.
+   If Step 4b planned a workspace, make it first: `workspaces-create(name: <suggested_name>)`, then `set_album_workspace(album_slug, <its id>, <its name>)`, then one `workspaces-update-clips(id: <its id>, add: <list>)` per list in `batches` for the earlier takes (check `skipped`). Put `workspace_id: <its id>` into the request. If `workspaces-create` fails, say so and generate without one; the takes can be filed later.
 2. Call `audio-create` with the keys of `request` and the `idempotency_key`. Add nothing else.
 3. The answer carries two ids in `clip_ids`. Tell the user the takes are generating.
 4. Call `audio-wait` with every id in `ids` and `until: "complete"`. It returns after about 50 seconds whether or not the songs are finished; call it again while any is still pending. A song usually takes one to three minutes.
@@ -154,8 +165,11 @@ GENERATED — [NN] [Title]
   Take 1 (row 3)   3:14   https://suno.com/song/...
   Take 2 (row 4)   3:20   https://suno.com/song/...
 
+  Filed in workspace "Album Title" (new, with 4 earlier takes).
   Spent 10 song credits. 9,925 left.
 ```
+
+Leave the workspace line out when none was used; drop the parenthesis when the workspace already existed.
 
 Then continue straight into `/bitwize-music:listen` for those two rows, in the way chosen in Step 5. If that was the terminal, the download credits were approved there — do not ask again.
 
@@ -194,3 +208,4 @@ Or generate it on suno.com now:
 3. **Send only what `get_generation_request` returned.** The mapping lives in that tool, not in your head.
 4. **The live tool definition wins.** Suno's server is in beta and its arguments change.
 5. **You never pick a take, mark a keeper, set `Final` or publish.** A human listens first.
+6. **Each album's takes are filed in its own workspace**, made at the first generation and recorded in the album README. Creating and filing are free; nothing is deleted or published.

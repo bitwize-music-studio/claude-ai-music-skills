@@ -143,6 +143,16 @@ def _normalize_status(raw: str | None) -> str:
     return status
 
 
+def _parse_suno_workspace(value: Any) -> dict[str, str] | None:
+    """``suno_workspace: {id, name}`` from album frontmatter, or None when unset."""
+    if not isinstance(value, dict):
+        return None
+    workspace_id = str(value.get('id') or '').strip()
+    if not workspace_id:
+        return None
+    return {'id': workspace_id, 'name': str(value.get('name') or '').strip()}
+
+
 def parse_album_readme(path: Path) -> dict[str, Any]:
     """Parse an album README.md into structured data.
 
@@ -240,6 +250,10 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         # Try extracting from path (albums/{genre}/{album}/)
         result['genre'] = _extract_genre_from_path(path)
+
+    # The Suno workspace that holds this album's takes (set by /bitwize-music:generate).
+    # None until a workspace has been recorded; the template ships an empty block.
+    result['suno_workspace'] = _parse_suno_workspace(fm.get('suno_workspace'))
 
     # Album Details table fields
     result['status'] = _normalize_status(_extract_table_value(text, 'Status'))

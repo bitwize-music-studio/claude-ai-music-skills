@@ -180,18 +180,19 @@ Run § Preflight in the reference doc. If the server is not connected, give the 
 5. For each take-1 stem, in the order returned, about two seconds apart:
    - `audio-download(id: <the stem's audio_id>, format: "wav")`. It answers `ok` once the song itself has been downloaded (step C did that). Handle `processing` and `rate_limited` as in step C. If it answers `requires_credit`, ask once — that one credit covers the song and every stem.
    - Save the link to `stems.files[<the stem's name>]`, the same way as the WAV. The plan maps Suno's part names (`vocals`, `backing_vocals`, `drums`, ... `fx`) to the file names the mix tools expect.
-6. Call `update_track_field(album_slug, track_slug, "stems", "Yes")`.
+6. If the plan has a `workspace`, file the stems in it so they do not pile up in My Songs: `workspaces-update-clips(id: <workspace.id>, add: [every stem's audio_id, both takes])` — 24 ids, under that tool's limit of 50. Check `skipped`. Filing is free.
+7. Call `update_track_field(album_slug, track_slug, "stems", "Yes")`.
 
 Import all 12 files, including parts the song does not have: Suno returns those as near-silent stems, and `/bitwize-music:mix-engineer` skips them on its own.
 
-The split also leaves 24 stem songs in the user's Suno library. Mention it once.
+Without a workspace the split leaves 24 stem songs loose in the user's Suno library. Mention it once.
 
 ### E. Confirm
 
 ```
 Imported from Suno: [NN] [Title]
    WAV: {wav.path}
- Stems: {stems.dir} (12 files, take 1)
+ Stems: {stems.dir} (12 files, take 1) — 24 stem songs filed in workspace "{workspace.name}"
  Spent: 1 download credit, 50 song credits
   Next: /bitwize-music:mix-engineer [album]
 ```

@@ -52,6 +52,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | Any later download of that song, either format | 0 | 0 *(measured)* |
 | Downloading the stems of a song that has been downloaded | 0 | 0 *(measured)* |
 | Playing a file already on disk | 0 | 0 |
+| `workspaces-create`, `workspaces-update-clips`, `workspaces-list` | 0 *(measured)* | 0 *(measured)* |
 
 A `duration` of 60 seconds cost the same 10 credits as an open-ended song.
 
@@ -101,7 +102,11 @@ A terminal audition **is** a download. The take you keep costs one download cred
 - A part the song lacks still arrives, as a near-silent stem. The mix tools skip those on their own.
 - Each stem is a song in the Suno library. They are not filed in a workspace automatically.
 
-**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-listen`, `audio-analysis`, workspaces, playlists, `audio-settings`.
+**Workspaces**
+- `audio-create` takes `workspace_id`; the two new songs are filed there at creation. `/bitwize-music:generate` gets the id from `get_album_workspace` (the album README's `suno_workspace` block) and creates the workspace, named after the album, the first time.
+- `workspaces-update-clips(id, add, remove)` files up to 50 songs per call and answers `skipped` for any it could not move; a song is in at most one workspace, so adding moves it. `workspaces-list(query)` finds a workspace by name. Nothing deletes or renames a workspace. See [workspace-management.md](workspace-management.md).
+
+**Not used by the plugin yet**: covers, extensions, mashups, `reference_audio_ids` edits, speech, sounds, MIDI, `audio-listen`, `audio-analysis`, playlists, `audio-settings`.
 
 **Not offered by the server**: deleting a song; Custom Models.
 
