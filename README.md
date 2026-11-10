@@ -59,7 +59,7 @@ codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-All 59 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+All 60 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
 
 ```bash
 python3 -m venv ~/.bitwize-music/venv
@@ -76,7 +76,7 @@ So far Codex support covers discovery and the MCP tools, and many skills still a
 
 This is where the engineering lives. The plugin is a case study in how far you can push Claude Code's plugin system.
 
-### Skill System (59 Skills)
+### Skill System (60 Skills)
 
 Each skill is a self-contained markdown file with a YAML frontmatter that declares its model, description, and when it should activate. Skills range from simple clipboard operations to multi-step creative workflows. Claude routes to skills automatically based on context, or you invoke them directly with `/bitwize-music:<name>`.
 
@@ -139,7 +139,7 @@ Coverage is measured on all three OSes and gated on the **combined** total, not 
 ## Project Structure
 
 ```
-skills/              59 skill definitions (markdown + YAML frontmatter)
+skills/              60 skill definitions (markdown + YAML frontmatter)
 servers/             MCP server (Python, 80+ tools)
 tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
@@ -155,7 +155,7 @@ config/              Example config and setup docs
 
 | Topic | Location |
 |-------|----------|
-| All 59 skills | [docs/skills.md](docs/skills.md) |
+| All 60 skills | [docs/skills.md](docs/skills.md) |
 | Configuration | [docs/configuration.md](docs/configuration.md) |
 | Troubleshooting | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

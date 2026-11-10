@@ -4042,6 +4042,55 @@
   },
   {
     "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "saved_from": {
+          "default": "",
+          "title": "Saved From",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "vocal_identity": {
+          "default": "",
+          "title": "Vocal Identity",
+          "type": "string"
+        },
+        "voice": {
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "voice"
+      ],
+      "title": "set_track_voiceArguments",
+      "type": "object"
+    },
+    "name": "set_track_voice",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "set_track_voiceOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
       "properties": {},
       "title": "stop_audioArguments",
       "type": "object"

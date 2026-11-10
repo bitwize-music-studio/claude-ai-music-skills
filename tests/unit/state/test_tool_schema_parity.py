@@ -12,7 +12,7 @@ the suite because they change what *clients* see, not what handlers return:
    both reproduce it byte for byte.
 
 2. **Error-boundary drift (#443).** ``_shared.install_error_boundary`` monkey-patches
-   ``mcp.tool`` to wrap all 119 handlers. It relies on ``functools.wraps`` setting
+   ``mcp.tool`` to wrap all 120 handlers. It relies on ``functools.wraps`` setting
    ``__wrapped__``, which ``inspect.signature`` follows, so the wrapper stays
    invisible to schema generation. Drop the ``@functools.wraps`` and every tool
    silently collapses to ``(*args, **kwargs)`` — handlers keep working, tests keep
@@ -145,9 +145,9 @@ def test_golden_covers_every_tool_with_a_schema() -> None:
 
 # --- tool descriptions --------------------------------------------------------
 #
-# Descriptions are the highest-leverage field the server publishes: 108 of the 119
+# Descriptions are the highest-leverage field the server publishes: 109 of the 120
 # carry their handler's full `Args:` block, ~50k characters in total, and that
-# prose is what the model reads when choosing between 119 tools. A bad input schema
+# prose is what the model reads when choosing between 120 tools. A bad input schema
 # fails loudly at call time; a degraded description just causes quiet wrong-tool
 # selection that reads as the model being dim.
 #
@@ -157,7 +157,7 @@ def test_golden_covers_every_tool_with_a_schema() -> None:
 #   * A human edits a docstring — already visible in that file's own diff. Locking
 #     it in the golden adds no information and costs a regeneration every few days.
 #   * The SDK changes how it *derives* descriptions — starts at the summary line,
-#     strips `Args:`, truncates, dedents differently. That silently rewrites all 119
+#     strips `Args:`, truncates, dedents differently. That silently rewrites all 120
 #     with no diff anywhere in the repo, and nothing else in the suite would see it.
 #
 # Only the second is worth a guard, and it does not need the prose locked — just

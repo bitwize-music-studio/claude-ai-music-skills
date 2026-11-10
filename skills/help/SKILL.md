@@ -39,6 +39,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:edit-take` - Fix one thing in a take and keep the rest of its audio, or make an instrumental version (10 Suno credits)
 - `/bitwize-music:extend-take` - Carry a take on from a point in its audio and join the result (10 Suno credits)
 - `/bitwize-music:sound-effects` - Make a sound effect, a one-shot or a loop for an album (2 Suno credits)
+- `/bitwize-music:suno-voice` - Put one of your saved Suno Voices on a track or an album, list them, or get the link to make one (free)
 - `/bitwize-music:genre-creator` - Add new genre documentation to the library
 
 **Research & Sources**

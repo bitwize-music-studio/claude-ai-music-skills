@@ -495,6 +495,7 @@ from handlers import (
     suno_midi,
     suno_release,
     suno_sounds,
+    suno_voices,
     take_check,
     take_edit,
     take_extend,
@@ -519,6 +520,7 @@ take_check.register(mcp)
 take_edit.register(mcp)
 take_extend.register(mcp)
 suno_sounds.register(mcp)
+suno_voices.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
 suno_midi.register(mcp)
@@ -772,6 +774,7 @@ from handlers.suno_release import (  # noqa: F401
     set_album_playlist,
 )
 from handlers.suno_sounds import get_sound_request  # noqa: F401
+from handlers.suno_voices import set_track_voice  # noqa: F401
 from handlers.take_check import (  # noqa: F401
     evaluate_take_check,
     get_take_check_plan,

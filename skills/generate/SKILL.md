@@ -75,7 +75,7 @@ Call `get_generation_request(album_slug, track_slug)`. It reads what kind of req
 | `found: false` | Report the error and stop |
 | `supported: false` | List the blocking problems and stop. For `custom_model_unsupported` or `cover_source_not_on_suno`, show the **Fallback** |
 | `tool` is not `audio-create` | Find that tool and load its definition as in Step 3. `features` lacks `generate.cover` (a cover) or `speech` (spoken word) → say the plan does not include it and stop |
-| `voice` is set | `voices-list(query: <voice.name>)`; nothing found → once more with `collection: "loved"`. One match, or one whose name is exactly the Voice's → add its `id` to the request as `voice_id`. Several otherwise → ask which. None, or `features` lacks `voices` → name the Voice, say it was not found on the Suno account, and stop |
+| `voice` is set | `voices-list(query: <voice.name>)`; nothing found → once more with `collection: "loved"`. One match, or one whose name is exactly the Voice's → add its `id` to the request as `voice_id`. Several otherwise → ask which. None, or `features` lacks `voices` → name the Voice, say it was not found on the Suno account, point to `/bitwize-music:suno-voice` (it lists their Voices, and gives Suno's link to make a new one when they ask), and stop |
 | `track_status` is `Final` | Say the track already has an approved take and ask whether to regenerate. Stop unless the answer is yes |
 | `request.model` is not in `allowed_models` | Say the plan does not include that model and stop |
 | A key in `needs_grant` while `features` lacks `controls.advanced` | Remove that key from the request and remember to say so in the summary. A dotted name such as `controls.weirdness` is a key inside `controls`; `controls.variety` is never listed and stays |

@@ -40,7 +40,7 @@ Per-skill effort assignments:
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
 | `medium` | `album-art-director`, `album-ideas`, `edit-take`, `explicit-checker`, `extend-take`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
-| `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `sound-effects`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
+| `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `sound-effects`, `suno-voice`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
 | *(none)* | All 15 Haiku skills — effort unsupported |
 
 ---
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 37 skills)
+## Sonnet Skills (`model: sonnet`, 38 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -212,6 +212,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### sound-effects
 **Why Sonnet**: Makes two short sounds through Suno's MCP server for two credits. The call is simple; the model is there for the go-ahead before spending, for filing the sounds afterwards, and for not choosing between two results that can differ in kind.
+
+### suno-voice
+**Why Sonnet**: Looks a Voice up on the user's Suno account and writes it into track files through one tool. Simple calls; the model is there to ask when several Voices match, to refuse an instrumental track, and to call `voices-start` only when the user asks for a new Voice.
 
 ### session-start
 **Why Sonnet**: Runs the 8-step session startup procedure. Requires reading config, loading overrides, interpreting state cache, and producing contextual tips. Judgment needed to identify relevant status and recommendations.

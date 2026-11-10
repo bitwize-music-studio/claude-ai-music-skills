@@ -175,7 +175,7 @@ Space is not a constraint. Thoroughness is the priority.]
 
 ### Voice Selection
 
-*The saved Voice applied to this track. Delete this subsection if no Voice is used. Upgrade older Voices with "Upgrade Voice to v6" before generating.*
+*The saved Voice applied to this track (`/bitwize-music:suno-voice` fills this in). Delete this subsection if no Voice is used. Upgrade older Voices with "Upgrade Voice to v6" before generating.*
 
 | Attribute | Detail |
 |-----------|--------|

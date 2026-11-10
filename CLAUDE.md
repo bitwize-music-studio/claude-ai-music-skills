@@ -65,7 +65,7 @@ The `bitwize-music-mcp` server is the **preferred way to query project state**. 
 
 ### Suno MCP Server (optional)
 
-Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
+Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
 
 - **Never spend Suno credits without a go-ahead.** Generating, splitting stems, and a download that answers `requires_credit` each need the user's yes first, with the cost stated. Reading the library and the account is free.
 - **Never pick a take, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens first.
@@ -168,6 +168,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Fixing one thing in a take** → `/bitwize-music:edit-take` (changes a word, a line, a section or an instrument and keeps the rest of the take's audio; 10 Suno credits for two edited takes, after a go-ahead). `instrumental` in place of the instruction makes an instrumental version of the take
 - **Carrying on a take that stopped early** → `/bitwize-music:extend-take` (keeps the take up to a point and generates what follows from the Lyrics Box; 10 Suno credits for two continuations, joined into whole songs for free)
 - **A sound effect, an ambience or a loop** → `/bitwize-music:sound-effects` (2 Suno credits for two sounds, after a go-ahead)
+- **Singing a track or an album in one of the user's saved Voices, or making a new Voice** → `/bitwize-music:suno-voice` (checks the Voice is on their Suno account, then writes it into the track files; free. A new Voice is made on suno.com through the link Suno returns, and only when the user asks)
 - **Checking a take against the track file** → `/bitwize-music:check-take` (asks Suno's listening agent which lines are sung, the tempo, the voice; free and advisory, and `/bitwize-music:generate` runs it on new takes)
 - **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems)
 - **Research needed** → apply `/bitwize-music:researcher` standards

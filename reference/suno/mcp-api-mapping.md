@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:import-audio`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -117,6 +117,10 @@ Both come from the track's **Cover / Voice Setup** block (`templates/track.md`).
 
 `audio-covers-create` has no `instrumental` and no `vocal_gender`; the rest (model, Max Mode, duration, exclusions, sliders, workspace) goes along as for a song.
 
+**Putting a Voice on a track.** `/bitwize-music:suno-voice` finds the Voice with `voices-list(query)` (own, then `collection: "loved"`) and only then calls the plugin's `set_track_voice`, which writes the **Voice** row, adds the block above Suno Inputs when the track has none, and records the song the Voice was made from (`root_clip_id`). With no track named it covers every track of the album that has lyrics and lists the instrumental ones it skipped. `"—"` takes the Voice off. Free: nothing is generated until `/generate`.
+
+**Making a new Voice.** `voices-start` takes no arguments and returns a suno.com `url` where the user records and verifies the Voice; it then appears in `voices-list`. Suno's rule is never to ask the user for recordings or files. The plugin calls it only when the user asks to make a Voice. Not measured.
+
 *Measured:* a cover of a 52-second take in a new style made two covers of 62 and 65 seconds for 10 credits; they took the source's title and came back with `metadata.cover_audio_id`. At Audio Influence 70 the cover kept the source's tempo (about 95 BPM measured) although the new style asked for 80. A song sent with a `voice_id` cost the same 10 credits and came back with `metadata.voice_id`.
 
 ### Spoken Word
@@ -187,7 +191,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), creating a Voice (`voices-start`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
