@@ -473,6 +473,7 @@ _shared.PLUGIN_ROOT = PLUGIN_ROOT
 
 from handlers import (
     album_fields,
+    album_generation,
     album_ops,
     content,
     core,
@@ -490,6 +491,7 @@ from handlers import (
     skills,
     status,
     streaming,
+    suno_midi,
     suno_release,
     take_check,
     take_edit,
@@ -511,7 +513,9 @@ gates.register(mcp)
 generation.register(mcp)
 take_check.register(mcp)
 take_edit.register(mcp)
+album_generation.register(mcp)
 suno_release.register(mcp)
+suno_midi.register(mcp)
 playback.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
@@ -566,12 +570,13 @@ from handlers._shared import (  # noqa: F401
     _safe_json,
     _update_frontmatter_block,
 )
-
-# Album ops tools
 from handlers.album_fields import (  # noqa: F401
     sync_album_tracklist,
     update_album_field,
 )
+
+# Album ops tools
+from handlers.album_generation import get_album_generation_plan  # noqa: F401
 from handlers.album_ops import (  # noqa: F401
     create_album_structure,
     get_album_full,
@@ -744,6 +749,7 @@ from handlers.streaming import (  # noqa: F401
     update_streaming_url,
     verify_streaming_urls,
 )
+from handlers.suno_midi import get_suno_midi_plan  # noqa: F401
 
 # Take-check tools
 from handlers.suno_release import (  # noqa: F401

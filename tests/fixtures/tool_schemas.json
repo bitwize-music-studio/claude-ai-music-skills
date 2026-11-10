@@ -1480,6 +1480,11 @@
           "title": "Glow",
           "type": "number"
         },
+        "start_s": {
+          "default": -1.0,
+          "title": "Start S",
+          "type": "number"
+        },
         "style": {
           "default": "pulse",
           "title": "Style",
@@ -1558,6 +1563,35 @@
         "result"
       ],
       "title": "get_album_fullOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_generation_planArguments",
+      "type": "object"
+    },
+    "name": "get_album_generation_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_generation_planOutput",
       "type": "object"
     }
   },
@@ -2120,6 +2154,40 @@
         "result"
       ],
       "title": "get_suno_import_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_suno_midi_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_midi_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_midi_planOutput",
       "type": "object"
     }
   },

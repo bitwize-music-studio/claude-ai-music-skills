@@ -13081,6 +13081,33 @@ class TestGeneratePromoVideos:
         assert len(captured_title) == 1
         assert captured_title[0] == "The Real Title"
 
+    @pytest.mark.parametrize("start_s,expected", [(47.5, 47.5), (0.0, 0.0), (-1.0, None)])
+    def test_single_track_start_is_passed_to_the_generator(self, tmp_path, start_s, expected):
+        """start_s picks where the promo passage begins; negative leaves it to the energy analysis."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-some-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        captured = {}
+
+        def mock_generate(**kwargs):
+            captured.update(kwargs)
+            return True
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-some-track.wav", start_s=start_s,
+            )))
+        assert result["tracks"][0]["success"] is True
+        assert captured["start_time"] == expected
+
 
 # =============================================================================
 # Tests for generate_album_sampler tool

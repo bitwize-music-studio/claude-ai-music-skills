@@ -119,7 +119,13 @@ The sliders, `negative_style` and `vocal_gender` need the `controls.advanced` fe
 - `playlists-create` answers `{id, name, playlist_url, visibility, clip_count}`. `playlists-add-clips` takes 100 ids per call and keeps the order given *(measured)*; re-adding is the only way to reorder. Visibility is fixed at creation; no tool renames or deletes a playlist.
 - `audio-settings(visibility: "public")` publishes a song. The plugin calls it only when the user asks to publish, one confirmed list at a time; Suno allows 100 publishes a day.
 
-**Not used by the plugin yet**: covers, extensions, mashups, speech, sounds, MIDI, `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering, pulling a stem).
+**Whole albums** — `/bitwize-music:generate <album>` reads `get_album_generation_plan`: the tracks that pass the gates and map to a request, the blocked ones with the reason, the ones that already have takes, and an estimate (10 credits a call, 20 with Max Mode). One go-ahead covers the listed calls; they run one after another.
+
+**MIDI** — `audio-midi(id)` transcribes a song to a multi-track `.mid`: 10 song credits, none for a stem made with Get Stems or a song transcribed before; it needs a plan with Studio. `get_suno_midi_plan` names the keeper and the target file under `sheet-music/source/`.
+
+**Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
+
+**Not used by the plugin yet**: covers, extensions, mashups, speech, sounds, songs from a MIDI score, `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering, pulling a stem).
 
 **Not offered by the server**: deleting a song; Custom Models.
 

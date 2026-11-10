@@ -1,7 +1,7 @@
 ---
 name: generate
 description: Generates a track on Suno through Suno's official MCP server. Runs the pre-generation gates, shows the cost, waits for a go-ahead, makes two takes, logs them and hands off to listening. Use when the user says "generate track N", "regenerate", or is ready to make audio. Falls back to the clipboard flow when the Suno server is not connected.
-argument-hint: <album-name> <track-number-or-slug> [--no-listen] [--no-check]
+argument-hint: <album-name> [track-number-or-slug] [--no-listen] [--no-check]
 model: sonnet
 effort: medium
 prerequisites:
@@ -37,7 +37,7 @@ Setup, costs, the track-file mapping and the tool notes are in `${CLAUDE_PLUGIN_
 
 ## Step 1: Resolve the Track
 
-Expected format: `<album-name> <track-number-or-slug> [--no-listen] [--no-check]`
+Expected format: `<album-name> [track-number-or-slug] [--no-listen] [--no-check]`
 
 If arguments are missing, show:
 
@@ -47,7 +47,7 @@ Usage: /generate <album-name> <track> [--no-listen] [--no-check]
 Example: /generate sample-album 03
 ```
 
-One track per run. If the user asks for several, do them one at a time — each gets its own summary and its own go-ahead.
+With a track, this run generates that one track. With an album and no track, go to **Album Mode** below: every track that is ready, after one summary and one go-ahead. If the user names a few tracks, do them one at a time — each gets its own summary and its own go-ahead.
 
 ## Step 2: Run the Gates
 
@@ -191,6 +191,35 @@ Approval is the user's call and is not part of generating. When they name the ke
 
 When they reject both takes, add the reason to the Notes of those rows, then follow the Regeneration Workflow in CLAUDE.md: a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, and plain bad luck is another `/generate`.
 
+## Album Mode
+
+`/bitwize-music:generate <album>` with no track generates every track that is ready, after one go-ahead.
+
+1. Check the Suno server as in Step 3, then call `get_album_generation_plan(album_slug)`.
+2. `generate` is empty → say why and stop: list the `blocked` tracks with their reasons and the `skipped` ones.
+3. Workspace: as in Step 4b. The plan carries `workspace` and `suggested_workspace_name`.
+4. Show one summary and get one go-ahead. It covers every call in the list and nothing else:
+
+   ```
+   READY TO GENERATE — [Album]  (5 of 12 tracks)
+
+     01 First Track      20 credits (Max Mode)
+     02 Second Track     10 credits
+     05 Fifth Track      10 credits
+     ...
+     Blocked   03 Third — gates: Sources Verified
+     Skipped   04 Fourth — already has takes
+
+     Calls     5, one per track (10 takes)
+     Cost      about 70 song credits. You have 9,915.
+
+   Go ahead?   yes · cancel
+   ```
+
+   Name Max Mode on each track that asks for it: Suno wants Max Mode only at the user's request, and a yes to a list that names it is that request. Wait for an explicit yes.
+5. On a yes, take the tracks in `generate` one after another: Step 4 (`get_generation_request`), Step 6 (one `audio-create` with the track's own idempotency key, then `audio-wait`) and Step 7 (`log_generation`, status `Generated`). Start a track only when the one before is logged. At a `402` stop the batch and report what was done; any other failure on one track is reported and the batch carries on.
+6. Report every track's takes and the credits spent (balance before − balance after). Then run `/bitwize-music:check-take` for each generated track unless `--no-check`, and offer `/bitwize-music:listen <album> <track>` track by track.
+
 ## Fallback
 
 When the Suno server is not connected, or the track needs something it does not offer:
@@ -209,7 +238,7 @@ Or generate it on suno.com now:
 ## Remember
 
 1. **Gates, then cost, then a go-ahead** — in that order, every time.
-2. **One call makes two takes and spends credits.** One go-ahead covers one call.
+2. **One call makes two takes and spends credits.** One go-ahead covers one call — or, in Album Mode, exactly the calls its summary listed.
 3. **Send only what `get_generation_request` returned.** The mapping lives in that tool, not in your head.
 4. **The live tool definition wins.** Suno's server is in beta and its arguments change.
 5. **You never pick a take, mark a keeper, set `Final` or publish.** A human listens first.
