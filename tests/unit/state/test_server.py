@@ -5837,8 +5837,8 @@ class TestGetLyricsStats:
 
     def test_over_target_status(self, tmp_path):
         """Track over genre max gets OVER status."""
-        # Electronic target is 100-200. Create lyrics with >200 words.
-        long_lyrics = "\n".join(f"Word number {i} here today" for i in range(60))
+        # Electronic target is 220-300. Create lyrics with >300 words.
+        long_lyrics = "\n".join(f"Word number {i} here today" for i in range(80))
         track_file = tmp_path / "05-long.md"
         track_file.write_text(
             f"# Track\n\n## Suno Inputs\n\n### Lyrics Box\n```\n[Verse 1]\n{long_lyrics}\n```\n"
@@ -5853,7 +5853,7 @@ class TestGetLyricsStats:
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         track = result["tracks"][0]
         assert track["status"] in ("OVER", "DANGER")
-        assert track["word_count"] > 200
+        assert track["word_count"] > 300
 
     def test_danger_zone(self, tmp_path):
         """Track over 800 words gets DANGER status."""
@@ -10474,9 +10474,9 @@ class TestGetLyricsStatsEdgeCases:
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "01")))
         assert result["found"] is True
-        # Default target is 150-350
-        assert result["target"]["min"] == 150
-        assert result["target"]["max"] == 350
+        # Default target is 220-400 (the reference's default 3:30-5:00 duration)
+        assert result["target"]["min"] == 220
+        assert result["target"]["max"] == 400
 
     def test_empty_lyrics_shows_empty_status(self, tmp_path):
         """Track without a Lyrics Box section shows EMPTY status."""

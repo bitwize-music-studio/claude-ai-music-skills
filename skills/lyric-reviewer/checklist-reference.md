@@ -247,16 +247,28 @@ Detailed criteria for each lyric review checkpoint.
 - Number of verses
 - Whether user explicitly requested extra verses
 
-**Genre targets:**
+**Which target applies**, in this order (the lyric-writer uses the same one):
 
-| Genre | Target Words | Max Verses |
-|-------|-------------|------------|
-| Pop / Dance-Pop / Synth-Pop | 150–250 | 2 |
+1. The track's `Target Duration`, when its Track Details row is not `—`
+2. The album README's `Target Duration`, when it is not still the template's bracketed placeholder
+3. The genre's default range, in the table below
+
+A duration is turned into a word range with the Duration → Word Count mapping in the lyric-writer's [craft-reference.md](../lyric-writer/craft-reference.md) (Song Length). That file is the source for every number here. `get_lyrics_stats` does the lookup for you: it returns each track's target, its status and, in `target_basis`, which of the three it used.
+
+**Genre targets** (the default, for a 3:30–5:00 track):
+
+| Genre | Target Words | Verses |
+|-------|-------------|--------|
+| Pop / Dance-Pop / Synth-Pop | 250–350 | 2–3 |
 | Punk / Pop-Punk | 150–250 | 2 |
-| Rock / Alt-Rock | 200–350 | 2–3 |
-| Folk / Country / Americana | 200–350 | 2–3 |
-| Hip-Hop / Rap | 300–500 | 2–3 |
+| Rock / Alt-Rock | 250–400 | 2–3 |
+| Folk / Country / Americana | 250–400 | 3 |
+| Hip-Hop / Rap | 400–600 | 3 |
+| Electronic / Synthwave / EDM | 220–300 | 3 |
 | Ballad (any genre) | 200–300 | 2–3 |
+| Ambient / Lo-Fi | 50–150 | n/a |
+
+A genre with no row uses 220–400. Ambient and lo-fi keep their range whatever the Target Duration.
 
 **Severity:**
 - **Critical**: Over 500 words (non-hip-hop) or over 700 words (hip-hop) — Suno will rush or skip content
@@ -267,10 +279,11 @@ Detailed criteria for each lyric review checkpoint.
 **Output format:**
 ```
 ### Length Check
-- [✗] CRITICAL: 720 words (pop) - far over 150-250 target, Suno will skip sections
+- [✗] CRITICAL: 720 words (pop) - far over 250-350 target, Suno will skip sections
 - [✗] V1, V2, V3, V4 - 4 verses, user did not request extra
-- [⚠] 360 words (rock) - slightly over 200-350 target
-- [✓] 280 words (folk) - within 200-350 range
+- [⚠] 430 words (rock) - slightly over 250-400 target
+- [⚠] 280 words (pop, track target 3:00-3:30) - over the 150-250 that duration allows
+- [✓] 280 words (folk) - within 250-400 range
 ```
 
 ---

@@ -664,6 +664,7 @@ from handlers.ideas import (  # noqa: F401
 from handlers.lyrics_analysis import (  # noqa: F401
     analyze_readability,
     analyze_rhyme_scheme,
+    check_album_lyrics,
     count_syllables,
     extract_distinctive_phrases,
     validate_section_structure,

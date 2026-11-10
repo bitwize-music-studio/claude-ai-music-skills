@@ -12,6 +12,7 @@ import json
 import math
 import re
 import sys
+import unicodedata
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
@@ -157,6 +158,46 @@ def _normalize_slug(name: str) -> str:
     if name and not slug:
         raise ValueError(f"Invalid name: normalizes to an empty slug: {name!r}")
     return slug
+
+
+# Apostrophes and quotation marks, straight and typographic. Dropped rather than
+# hyphenated when a title becomes a filename, so "It's" gives "its", not "it-s".
+_TITLE_SLUG_DROPPED = frozenset({
+    "'", '"', "`",
+    "\u00b4",  # acute accent, typed for an apostrophe
+    "\u02bc",  # modifier letter apostrophe
+    "\u2018", "\u2019", "\u201a", "\u201b",  # single typographic quotes
+    "\u201c", "\u201d", "\u201e", "\u201f",  # double typographic quotes
+})
+
+
+def _slug_from_title(title: str) -> str:
+    """Filename slug for a *new* file made from a human title.
+
+    ``_normalize_slug`` only lowercases and hyphenates spaces, because it also
+    resolves names that already exist, and those must keep resolving. A title
+    is different: it is prose, and its punctuation has no business in a
+    filename. ``It's a Bicycle`` used to give ``it's-a-bicycle``, and
+    ``Part 2: The Return`` kept its colon.
+
+    Apostrophes and quotation marks are dropped, and so are invisible format
+    marks such as a zero-width joiner, which would otherwise split a word.
+    Letters, digits and combining marks of any script are kept, so
+    ``Café del Mar`` and a Korean title come through intact. Everything else
+    becomes a hyphen, and runs of hyphens collapse. Returns ``""`` when nothing usable is left; the caller decides
+    what to do about that. The result never contains a path separator or a dot,
+    so it cannot leave the directory it is joined to.
+    """
+    out: list[str] = []
+    for ch in unicodedata.normalize("NFC", title).lower():
+        category = unicodedata.category(ch)
+        # Cf = invisible format marks (zero-width joiner and non-joiner).
+        if ch in _TITLE_SLUG_DROPPED or category == "Cf":
+            continue
+        # L = letter, N = number, M = combining mark (keeps Indic vowel signs
+        # and decomposed accents attached to their letter).
+        out.append(ch if category[0] in "LNM" else "-")
+    return re.sub(r"-{2,}", "-", "".join(out)).strip("-")
 
 
 # The album directory shape, written down once. Every album mirrors this same
@@ -809,6 +850,34 @@ _STREAMING_PLACEHOLDER_MARKERS = [
     "Write out all repeats fully",
     "Blank lines between sections only",
 ]
+
+# The Suno boxes as templates/track.md ships them. A track still holding either
+# has not been written: the lyrics line reads as a section tag (so the box is
+# non-empty with zero words) and the style line is 84 characters of brackets.
+_TEMPLATE_LYRICS_MARKER = "[Lyrics here...]"
+# Lines that mean the lyrics have not been written: the template's own, and the
+# wording older track stubs were left with.
+_LYRICS_PLACEHOLDERS = (_TEMPLATE_LYRICS_MARKER, "[Lyrics to be written]")
+_TEMPLATE_STYLE = (
+    "[genre], [tempo/BPM], [mood], [vocal description], [instruments], [production notes]"
+)
+_TEMPLATE_STYLE_TOKENS = tuple(token.strip() for token in _TEMPLATE_STYLE.split(","))
+
+
+def _lyrics_placeholder_in(lyrics: str) -> str | None:
+    """The placeholder line still present in *lyrics*, or None when there is none."""
+    lowered = lyrics.lower()
+    for marker in _LYRICS_PLACEHOLDERS:
+        if marker.lower() in lowered:
+            return marker
+    return None
+
+
+def _template_style_tokens_in(style: str) -> list[str]:
+    """The template's bracketed style tokens still present in *style*, in order."""
+    lowered = style.lower()
+    return [token for token in _TEMPLATE_STYLE_TOKENS if token.lower() in lowered]
+
 
 # Sections whose markdown content should be extracted as a code block
 _CODE_BLOCK_SECTIONS = frozenset({"Style Box", "Exclude Styles", "Lyrics Box", "Streaming Lyrics", "Original Quote"})
