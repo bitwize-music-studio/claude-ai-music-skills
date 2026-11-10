@@ -2,23 +2,22 @@
 """PostToolUse hook: Validate track file YAML frontmatter after Write/Edit.
 
 Only activates for files matching */tracks/*.md pattern.
-Checks that the frontmatter block exists and carries its required fields.
+Reports one thing: a frontmatter block that opens on the first line and is
+never closed. Such a block swallows the whole file, and every frontmatter
+reader then drops every field at once (title, explicit, genre, suno_url).
 
-``status`` is deliberately not one of them. A track's status lives in the
-``| **Status** |`` row of its Track Details table: that is what the parser, the
-state cache and ``update_track_field`` read and write, and ``templates/track.md``
-has never had a frontmatter copy. This hook used to require one anyway, so the
-first whole-file Write of any track failed, and the way to quiet it was to add
-a second status that nothing keeps up to date. A frontmatter ``status`` left
-over from then is ignored, whatever it says.
+It deliberately requires no frontmatter at all, and no field in it. A track's
+details live in its Track Details table, which is what the parser, the state
+cache and ``update_track_field`` read and write. Most older tracks have no
+frontmatter, and some carry a block from an older template with neither
+``title`` nor ``track_number``. This hook used to require a block with
+``title``, ``track_number`` and ``status``, so a whole-file rewrite of any such
+track failed, and the way to quiet it was to bolt on fields nothing reads.
 """
 from __future__ import annotations
 
 import json
-import re
 import sys
-
-REQUIRED_FIELDS = ["title", "track_number"]
 
 
 def is_track_file(file_path: str) -> bool:
@@ -45,16 +44,22 @@ def is_track_file(file_path: str) -> bool:
     return "tracks" in file_path.replace("\\", "/").split("/")[:-1]
 
 
-def extract_frontmatter(content: str) -> dict | None:
-    match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-    if not match:
+def frontmatter_problem(content: str) -> str | None:
+    """What is wrong with *content*'s frontmatter block, or None.
+
+    A file that does not start with a ``---`` line has no frontmatter, which
+    is fine. One that does must have a second ``---`` line to close it.
+    Trailing spaces and Windows line endings are allowed on both.
+    """
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != "---":
         return None
-    fm = {}
-    for line in match.group(1).split("\n"):
-        if ":" in line:
-            key, _, value = line.partition(":")
-            fm[key.strip()] = value.strip().strip('"').strip("'")
-    return fm
+    if any(line.strip() == "---" for line in lines[1:]):
+        return None
+    return (
+        "Track file opens a YAML frontmatter block (---) on its first line but "
+        "it is never closed. Add a closing --- line after the last field."
+    )
 
 
 def get_file_content(data: dict) -> str | None:
@@ -77,16 +82,8 @@ def validate(data: dict) -> list[str]:
         # Edit tool — can't validate full frontmatter from partial edit
         return []
 
-    fm = extract_frontmatter(content)
-    if fm is None:
-        return ["Track file is missing YAML frontmatter (--- block)."]
-
-    issues = []
-    for field in REQUIRED_FIELDS:
-        if field not in fm or not fm[field]:
-            issues.append(f"Missing required frontmatter field: {field}")
-
-    return issues
+    problem = frontmatter_problem(content)
+    return [problem] if problem else []
 
 
 def main():
