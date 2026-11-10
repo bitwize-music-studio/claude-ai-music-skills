@@ -84,6 +84,7 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...import audio files to album | `/import-audio` |
+| ...pull the approved take's WAV and stems from Suno | `/import-audio --from-suno` |
 | ...import track markdown files | `/import-track` |
 | ...place album art in correct locations | `/import-art` |
 | ...rename an album or track | `/rename <album\|track> <current> <new>` |
@@ -126,7 +127,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`health-check`](/skills/health-check/SKILL.md) | Run plugin health checks (venv packages and skill registration) | Troubleshooting missing skills or stale packages |
 | [`help`](/skills/help/SKILL.md) | Show available skills and common workflows | Quick reference for what skills exist |
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
-| [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
+| [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location, or pull the keeper's WAV and stems from Suno | Importing downloaded WAV files, or importing straight through the Suno MCP |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
 | [`listen`](/skills/listen/SKILL.md) | Play Suno takes or local audio in the terminal, or open the song page in the browser | Auditioning takes before picking the keeper |
 | [`lyric-refiner`](/skills/lyric-refiner/SKILL.md) | Multi-pass lyric refinement for tightening, cohesion, and album unity | Polishing lyrics after writing, before QC |
@@ -192,7 +193,7 @@ What to have ready before using each skill:
 | `/promo-reviewer` | Promo copy populated in promo/ directory |
 | `/cloud-uploader` | Promo videos generated |
 | `/release-director` | Mastering complete, all QA passed |
-| `/import-audio` | Audio files in known location (e.g., ~/Downloads) |
+| `/import-audio` | Audio files in known location (e.g., ~/Downloads) — or, for `--from-suno`, an approved take and the Suno MCP server |
 | `/import-art` | Album art generated (from DALL-E or similar) |
 | `/researcher` | Album concept with research needs identified |
 | `/document-hunter` | Playwright installed (`pip install playwright && playwright install chromium`) |
@@ -213,6 +214,7 @@ What to have ready before using each skill:
     -> /pre-generation-check (validate all gates)
     -> /generate (per track — or generate on suno.com via /clipboard)
     -> /listen (hear the takes, pick the keeper)
+    -> /import-audio --from-suno (the keeper's WAV; --stems for stems)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -363,7 +365,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 32 skills)
+### `sonnet` (Reasoning & Coordination — 33 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -371,6 +373,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/document-hunter` - Automated searching
 - `/explicit-checker` - Context-dependent content scanning
 - `/generate` - Suno generation through the MCP server
+- `/import-audio` - File imports, including WAV and stems from Suno
 - `/listen` - Terminal and browser auditioning
 - `/mastering-engineer` - Audio guidance
 - `/mix-engineer` - Stem processing guidance
@@ -391,14 +394,13 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/verify-sources` - Human verification gate
 - `/voice-checker` - Advisory review for AI-sounding patterns
 
-### `haiku` (Pattern Matching — 16 skills)
+### `haiku` (Pattern Matching — 15 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
 - `/health-check` - Plugin health checks
 - `/help` - Display information
 - `/import-art` - File operations
-- `/import-audio` - File operations
 - `/import-track` - File operations
 - `/new-album` - Directory creation
 - `/next-step` - Workflow routing

@@ -91,8 +91,8 @@ Skills declare which Claude model they need. Creative work that directly impacts
 | Tier | `model:` | Skills | Rationale |
 |------|----------|--------|-----------|
 | Creative | `opus` | 7 | Lyrics, Suno prompts, album concepts, legal/verification research — output quality defines the music |
-| Reasoning | `sonnet` | 32 | Research coordination, pronunciation analysis, most workflows |
-| Mechanical | `haiku` | 16 | Imports, validation, clipboard, help — speed over creativity |
+| Reasoning | `sonnet` | 33 | Research coordination, pronunciation analysis, most workflows |
+| Mechanical | `haiku` | 15 | Imports, validation, clipboard, help — speed over creativity |
 
 Skills declare the tier alias, not a pinned version, so each one tracks the current frontier model in its tier automatically — no per-skill edit when a new Claude generation ships.
 

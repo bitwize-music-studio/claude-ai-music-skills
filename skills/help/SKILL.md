@@ -74,7 +74,7 @@ Display this help information to the user in a clear, organized format.
 
 **File Management**
 - `/bitwize-music:import-track` - Move track .md files to album location
-- `/bitwize-music:import-audio` - Move audio files to album location
+- `/bitwize-music:import-audio` - Move audio files to album location, or pull the keeper from Suno (`--from-suno`)
 - `/bitwize-music:import-art` - Place album art in correct locations
 - `/bitwize-music:rename` - Rename an album or track (updates slugs and all paths)
 - `/bitwize-music:clipboard` - Copy track lyrics/prompts to clipboard

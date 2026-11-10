@@ -72,7 +72,7 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 | `album-ideas` | Track and manage album idea backlog |
 | `promote-idea` | Promote a pending idea into a full album in one shot |
 | `rename` | Rename album or track, update all paths |
-| `import-audio` | Move audio files to correct album location |
+| `import-audio` | Move audio files to the album, or pull the keeper's WAV and stems from Suno |
 | `import-track` | Move track markdown files to correct location |
 | `import-art` | Place album art in audio and content directories |
 | `clipboard` | Copy track content to system clipboard |

@@ -1,25 +1,30 @@
 ---
 name: import-audio
-description: Moves audio files to the correct album location with proper path structure. Use when the user has downloaded WAV files from Suno or other sources that need to be organized.
-argument-hint: <file-path> <album-name> [track-slug]
-model: haiku
+description: Moves audio files to the correct album location with proper path structure, or pulls an approved take's WAV and stems straight from Suno. Use when the user has downloaded WAV files from Suno or other sources that need to be organized, or wants to import the keeper after approving a take.
+argument-hint: <file-path> <album-name> [track-slug] | --from-suno <album-name> <track> [--stems]
+model: sonnet
+effort: medium
 allowed-tools:
   - Read
   - Bash
   - bitwize-music-mcp
+  - mcp__suno__*
 ---
 
 ## Your Task
 
 **Input**: $ARGUMENTS
 
-Import an audio file (WAV, MP3, etc.) to the correct album location based on config.
+Import audio to the correct album location based on config — from a local file, or with `--from-suno` straight from Suno through its MCP server.
 
 ---
 
 # Import Audio Skill
 
-You move audio files to the correct location in the user's audio directory.
+You put audio in the correct location in the user's audio directory. Two forms:
+
+- **A file on disk** — `<file-path> <album-name> [track-slug]`: Steps 1–5 below.
+- **Straight from Suno** — `--from-suno <album-name> <track> [--stems]`: skip to **Importing From Suno**.
 
 ## Step 1: Parse Arguments
 
@@ -119,6 +124,80 @@ Extracted stems: {source_file}
   Updated: {track-slug} stems → Yes
 ```
 
+## Importing From Suno (`--from-suno`)
+
+Pulls a track's approved take from Suno through the Suno MCP server: the WAV, and with `--stems` the 12 stems. No browser, no Downloads folder.
+
+Costs, limits and the tool notes are in `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`. In short: the first download of a song uses one Suno download credit; every later download of it, in any format, and of its stems, is free. A take that was played in the terminal with `/bitwize-music:listen` has already used its credit.
+
+### A. Find the keeper
+
+Call `get_suno_import_plan(album_slug, track_slug)`.
+
+| `problems` code | Meaning | Do |
+|-----------------|---------|-----|
+| *(none)* | `clip_id` is the keeper | Continue |
+| `no_keeper` | No take is approved yet | Ask the user to pick one first (`/bitwize-music:listen`), then stop |
+| `keeper_ambiguous` | Several takes are marked ✓ and no Suno Link is set | Ask which one, set the Suno Link, then call the plan again |
+| `legacy_link` | The Suno Link is a share link from before MCP generation | Explain that it carries no clip id; the file has to be downloaded on suno.com and imported with the file form of this skill. Stop |
+
+If `wav.existing` is set, a file is already imported for this track. Say which file and ask before replacing it.
+
+### B. Check the Suno server
+
+Run § Preflight in the reference doc. If the server is not connected, give the setup command and stop — the file form of this skill still works for a manual download.
+
+### C. Download the WAV
+
+1. Call `audio-download(id: <clip_id>, format: "wav")` **without** `confirm`.
+
+   | Answer | Do |
+   |--------|-----|
+   | `status: "ok"` | Free — save it (step 2) |
+   | `status: "requires_credit"` | Say it uses one download credit and how many are left (`credits_remaining` in the answer). Ask. On yes, call again with `confirm: true` |
+   | `status: "processing"` | Call `audio-download` again |
+   | `rate_limited` | Wait `retry_after_seconds`, then call again |
+   | Any other refusal | Report what Suno said and stop |
+
+2. Save the link to `wav.path`, exactly as the plan gave it:
+
+   ```bash
+   mkdir -p "$(dirname "{wav.path}")" \
+     && curl -fsSL --max-time 600 -o "{wav.path}.part" "{url}" \
+     && mv "{wav.path}.part" "{wav.path}"
+   ```
+
+   Quote the URL — it contains `&`. Links last an hour. If `curl` fails, remove the `.part` file and report the error.
+
+3. Call `get_suno_import_plan` again and check that `wav.existing` is now the new file.
+
+### D. Stems (`--stems` only)
+
+1. **State the price and ask.** A 12-part split costs 50 Suno song credits. Show the balance from `account-usage`. If `stems.exists` is true, also say the stems folder already exists and will be overwritten. Stop unless the answer is yes.
+2. Call `audio-stems-create(id: <clip_id>, mode: "twelve", idempotency_key: "{album_slug}/{track_slug}/stems/{UTC timestamp}")`. Keep the `id` in the answer (`stemgrp_...`).
+3. Call `audio-stems-retrieve(id: <clip_id>, group_id: <that id>)` about every 20 seconds until `status` is no longer `pending` — usually one to two minutes. `partial` means some stems failed: say which, and carry on with the rest.
+4. The split returns **two takes** of all 12 parts. Use the stems with `take: 1`, and say that take 2 exists. Never mix the two takes — they are separate renderings and do not sum together.
+5. For each take-1 stem, in the order returned, about two seconds apart:
+   - `audio-download(id: <the stem's audio_id>, format: "wav")`. It answers `ok` once the song itself has been downloaded (step C did that). Handle `processing` and `rate_limited` as in step C. If it answers `requires_credit`, ask once — that one credit covers the song and every stem.
+   - Save the link to `stems.files[<the stem's name>]`, the same way as the WAV. The plan maps Suno's part names (`vocals`, `backing_vocals`, `drums`, ... `fx`) to the file names the mix tools expect.
+6. Call `update_track_field(album_slug, track_slug, "stems", "Yes")`.
+
+Import all 12 files, including parts the song does not have: Suno returns those as near-silent stems, and `/bitwize-music:mix-engineer` skips them on its own.
+
+The split also leaves 24 stem songs in the user's Suno library. Mention it once.
+
+### E. Confirm
+
+```
+Imported from Suno: [NN] [Title]
+   WAV: {wav.path}
+ Stems: {stems.dir} (12 files, take 1)
+ Spent: 1 download credit, 50 song credits
+  Next: /bitwize-music:mix-engineer [album]
+```
+
+Leave out the lines that do not apply.
+
 ## Error Handling
 
 **Source file doesn't exist:**
@@ -182,6 +261,21 @@ Result:
 ```
 Moved: ~/Downloads/03-t-day-beach.wav
    To: ~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/03-t-day-beach.wav
+```
+
+### Import from Suno example
+
+```
+/import-audio --from-suno sample-album 03 --stems
+```
+
+Result:
+```
+Imported from Suno: 03 T-Day Beach
+   WAV: ~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/03-t-day-beach.wav
+ Stems: ~/bitwize-music/audio/artists/bitwize/albums/hip-hop/sample-album/stems/03-t-day-beach/ (12 files, take 1)
+ Spent: 50 song credits
+  Next: /bitwize-music:mix-engineer sample-album
 ```
 
 ### Stems import example
