@@ -187,7 +187,7 @@ The MCP server and indexer detect stale cache by comparing:
 1. `state.json` file mtime vs cached mtime
 2. `config.yaml` file mtime vs `config.config_mtime`
 
-If either has changed, the cache is reloaded or rebuilt.
+If `state.json` changed, the server reloads it. If `config.yaml` is newer than the state's `config.config_mtime`, the server refreshes the state on that load (an incremental update: the config section is rebuilt and only what the change calls for is rescanned), so an edited setting takes effect on the next tool call without a manual `rebuild_state`. The session data and migration tracking are kept.
 
 ---
 

@@ -649,6 +649,108 @@ class TestStateCacheGetState:
             assert result == {}
 
 
+class TestStateCacheConfigRefresh:
+    """A config.yaml edited after the state was built refreshes the state on load.
+
+    The suite turns this off by default (tests/conftest.py); these tests turn it
+    back on with every collaborator mocked.
+    """
+
+    def _load(self, *, recorded=1234567890.0, config_mtime=200.0, config_exists=True,
+              read_config={"artist": {"name": "test-artist"}}, updated="default",
+              enabled=True, incremental_error=None):
+        cache = server.StateCache()
+        on_disk = _fresh_state()
+        if recorded is None:
+            on_disk["config"].pop("config_mtime")
+        else:
+            on_disk["config"]["config_mtime"] = recorded
+        refreshed = _fresh_state()
+        refreshed["config"]["config_mtime"] = config_mtime
+        refreshed["config"]["generation"] = {"listen_mode": "iterm2_browser"}
+
+        mock_state = MagicMock()
+        mock_state.exists.return_value = True
+        mock_state.stat.return_value = MagicMock(st_mtime=100.0)
+        mock_config = MagicMock()
+        mock_config.exists.return_value = config_exists
+        mock_config.stat.return_value = MagicMock(st_mtime=config_mtime)
+
+        incremental = MagicMock(return_value=refreshed if updated == "default" else updated)
+        if incremental_error:
+            incremental.side_effect = incremental_error
+        rebuilt = _fresh_state()
+        rebuilt["config"]["config_mtime"] = config_mtime
+        rebuilt.pop("session", None)
+        import tools.state.indexer as indexer_mod
+        with patch.object(indexer_mod, "AUTO_REFRESH_ON_CONFIG_CHANGE", enabled), \
+             patch.object(server, "STATE_FILE", mock_state), \
+             patch.object(server, "CONFIG_FILE", mock_config), \
+             patch.object(server, "read_state", return_value=on_disk), \
+             patch.object(server, "read_config", return_value=read_config) as mock_read_config, \
+             patch.object(server, "incremental_update", incremental), \
+             patch.object(server, "build_state", return_value=rebuilt) as mock_build, \
+             patch.object(server, "write_state") as mock_write:
+            result = cache.get_state()
+        return types.SimpleNamespace(
+            result=result, on_disk=on_disk, refreshed=refreshed, rebuilt=rebuilt,
+            incremental=incremental, read_config=mock_read_config, build=mock_build, write=mock_write,
+        )
+
+    def test_changed_config_refreshes_the_state(self):
+        run = self._load()
+        run.incremental.assert_called_once_with(run.on_disk, {"artist": {"name": "test-artist"}})
+        run.write.assert_called_once_with(run.refreshed)
+        assert run.result is run.refreshed
+        assert run.result["config"]["generation"] == {"listen_mode": "iterm2_browser"}
+
+    def test_unchanged_config_is_left_alone(self):
+        run = self._load(recorded=200.0, config_mtime=200.0)
+        run.incremental.assert_not_called()
+        run.read_config.assert_not_called()
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_switched_off(self):
+        run = self._load(enabled=False)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_state_without_a_recorded_mtime_is_left_alone(self):
+        run = self._load(recorded=None)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_missing_config_file_is_left_alone(self):
+        run = self._load(config_exists=False)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_unreadable_config_keeps_the_cached_state(self):
+        run = self._load(read_config=None)
+        run.incremental.assert_not_called()
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_a_state_the_incremental_update_cannot_handle_is_rebuilt(self):
+        run = self._load(updated=None)
+        run.build.assert_called_once()
+        run.write.assert_called_once_with(run.rebuilt)
+        assert run.result is run.rebuilt
+        # A rebuild must not drop the session or acknowledge migrations.
+        assert run.result["session"] == run.on_disk["session"]
+
+    def test_a_failed_refresh_keeps_the_cached_state(self):
+        run = self._load(incremental_error=RuntimeError("boom"))
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_the_suite_default_is_off(self):
+        """tests/conftest.py keeps every other test from reading the real config."""
+        import tools.state.indexer as indexer_mod
+        assert indexer_mod.AUTO_REFRESH_ON_CONFIG_CHANGE is False
+
+
 class TestStateCacheIsStale:
     """Tests for StateCache._is_stale()."""
 

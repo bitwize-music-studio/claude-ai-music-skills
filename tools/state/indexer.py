@@ -106,6 +106,11 @@ CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
 STATE_FILE = CACHE_DIR / "state.json"
 LOCK_FILE = CACHE_DIR / "state.lock"
 
+# Whether the MCP server refreshes its cached state when config.yaml is newer than the
+# state's config section (StateCache._refresh_if_config_changed). The test suite turns
+# it off, so loading a sample state never reads a developer's real config.
+AUTO_REFRESH_ON_CONFIG_CHANGE = True
+
 CONFIG_FILE = CONFIG_PATH
 
 # Track statuses that count toward an album's tracks_completed.

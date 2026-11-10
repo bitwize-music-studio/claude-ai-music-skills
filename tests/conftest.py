@@ -86,6 +86,12 @@ def _isolate_state_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(indexer_mod, "CACHE_DIR", cache_dir)
     monkeypatch.setattr(indexer_mod, "STATE_FILE", cache_dir / "state.json")
     monkeypatch.setattr(indexer_mod, "LOCK_FILE", cache_dir / "state.lock")
+    # The MCP server refreshes its state when config.yaml is newer than the state.
+    # Off by default here: a test that hands the cache a sample state next to a mock
+    # config file would otherwise read the developer's real config and rescan their
+    # library. The tests of that refresh turn it back on. Patched on the indexer
+    # because it is one module however many copies of server.py the tests load.
+    monkeypatch.setattr(indexer_mod, "AUTO_REFRESH_ON_CONFIG_CHANGE", False)
 
     server_py = str(
         (PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py").resolve()
