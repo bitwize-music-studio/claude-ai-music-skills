@@ -59,9 +59,9 @@ def _flattened(image: PILImage) -> PILImage:
     """*image* as opaque RGB; anything transparent shows white, not black."""
     if image.mode in ("RGBA", "LA") or "transparency" in image.info:
         rgba = image.convert("RGBA")
-        background = _pillow().new("RGB", rgba.size, (255, 255, 255))
+        background: PILImage = _pillow().new("RGB", rgba.size, (255, 255, 255))
         background.paste(rgba, mask=rgba.getchannel("A"))
-        return background  # type: ignore[no-any-return]
+        return background
     return image.convert("RGB")
 
 
