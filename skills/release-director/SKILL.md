@@ -14,6 +14,7 @@ allowed-tools:
   - Glob
   - Bash
   - bitwize-music-mcp
+  - mcp__suno__*
 ---
 
 ## Your Task
@@ -155,7 +156,7 @@ Check for custom release preferences:
 4. **Lyrics Accuracy** - Match source material, pronunciation checked
 5. **Artwork Quality** - Resolution, format, specs met
 6. **File Organization** - Correct structure, naming conventions
-7. **Documentation** - README complete, generation logs filled
+7. **Documentation** - README complete, generation logs filled. Run `sync_album_tracklist(album_slug, dry_run: true)`: if it reports changes, the README's Tracklist has drifted from the track files — show them and, on a yes, run it for real
 8. **Explicit Content** - Flagged correctly
 9. **Promo Copy** (optional) - `promo/` directory has platform copy populated (campaign.md, twitter.md, instagram.md, etc.). Use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually. Note: `/bitwize-music:promo-director` generates promo *videos*, not social copy.
 10. **Rights** - every track's audio came from a permitted download on a paid plan (trial/free downloads carry no commercial rights); no Remix (Remixes are never commercial); distributor accepts Suno's current model family (Believe/TuneCore: new-model tracks only)
@@ -171,6 +172,36 @@ Check for custom release preferences:
 4. **Track order confirmation** - Final sequencing verified
 5. **Genre classification** - distributor primary/secondary/subgenre
 6. **Social media copy** (optional) - `promo/` files populated for target platforms (use `/bitwize-music:promo-writer` to generate copy from album themes, or fill in templates manually; `/bitwize-music:promo-director` generates videos, not copy)
+
+### Step 4: Suno — Playlist and Publishing (optional)
+
+Only when Suno's MCP server is connected (a tool named `playlists-create` is available), and only the parts the user asks for. Nothing here costs credits, and nothing here happens on its own.
+
+Call `get_suno_release_plan(album_slug)`.
+
+**Album playlist** — the approved takes in track order, as a listen-through set on suno.com.
+
+1. `missing` is not empty → list those tracks and why (`no_keeper`: no approved take; `keeper_ambiguous`: several rows marked ✓; `legacy_link`: an old share link with no clip id). Ask whether to go on with the rest or stop.
+2. `playlist` is null → ask: "Create a private playlist "<suggested_name>" on suno.com with the N approved takes?" On a yes:
+   - `playlists-create(name: <suggested_name>, visibility: "private")`
+   - `set_album_playlist(album_slug, <its id>, <its name>)`
+   - one `playlists-add-clips(id: <its id>, clip_ids: <list>)` per list in `batches` — the playlist keeps the order the songs are added in. Check `failed`.
+
+   Make it `public` only if the user asks for a public playlist in so many words: visibility is fixed when the playlist is created, and Suno's server has no tool to change it, rename the playlist or delete it.
+3. `playlist` is set → read it with `playlists-list-clips(id)` (page with `next_cursor`) and compare with `clip_ids`. The same songs in the same order → say it is up to date. Otherwise say what differs and, on a yes, `playlists-remove-clips` everything in it, then add the `batches` again — re-adding is the only way to reorder. A 404 means it was deleted on suno.com: offer to create it again.
+4. Give the user the playlist's `url`.
+
+**Publishing on suno.com** — only when the user asks to publish. The default is to leave every song private.
+
+1. List the keepers by title and get an explicit yes: "Publish these N songs on suno.com? Anyone will be able to find them on your profile and in search."
+2. On a yes, for each keeper: `audio-settings(id: <clip_id>, visibility: "public")`. Add `can_remix: false` only if the user said they do not want remixes.
+   - `publish_pending: true` → it publishes when it finishes; say so.
+   - `403` → Suno will not let this song be published; give the reason and carry on with the others.
+   - `409` → not ready yet; try that one again in a moment.
+   - `429 quota_exceeded` → Suno allows 100 publishes a day; stop and say how many went through.
+3. Report which songs are now public. To take one back: `audio-settings(id, visibility: "private")`.
+
+Never publish, unpublish or change remix settings as a side effect of anything else.
 
 ---
 
@@ -188,7 +219,7 @@ Check for custom release preferences:
   - [ ] Approval email received (after 3-7 days)
 
 - [ ] **Documentation updated**
-  - [ ] Release date added
+  - [ ] Release date added — `update_album_field(album_slug, "release-date", "YYYY-MM-DD")`
   - [ ] Platform links added — use `update_streaming_url` MCP tool for each platform
   - [ ] Run `verify_streaming_urls` MCP tool to confirm all platform links are live
   - [ ] `promo/` copy updated with final streaming links

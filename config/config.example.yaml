@@ -399,6 +399,96 @@ generation:
   #
   # additional_genres: []
 
+  # ---------------------------
+  # listen_mode [optional]
+  # ---------------------------
+  # How /bitwize-music:listen auditions Suno takes by default.
+  #
+  # Default (if omitted): browser
+  #
+  # Options:
+  #   browser        - Open the song's suno.com page in your web browser. Free
+  #                    and unlimited.
+  #   iterm2_browser - Open Suno's compact player for each take in iTerm2 panes
+  #                    beside the session, so you never leave the terminal
+  #                    window. Free and unlimited. Needs macOS, iTerm2 3.6 or
+  #                    later and iTerm2's Browser Plugin
+  #                    (https://iterm2.com/browser-plugin.html). Anywhere else
+  #                    the takes open in your web browser instead.
+  #   terminal       - Play the take in the terminal. Suno offers no free audio
+  #                    feed for this, so the first play of a song downloads it
+  #                    and uses one Suno download credit. Later plays, and the
+  #                    WAV import of that song, are free.
+  #
+  # Any of them can be chosen for one run:
+  #   /bitwize-music:listen <album> <track> --browser | --iterm2 | --terminal
+  #
+  # listen_mode: browser
+
+  # ---------------------------
+  # listen_confirm_download [optional]
+  # ---------------------------
+  # Whether to ask before a terminal audition spends a download credit.
+  # Only matters when takes are played in the terminal (listen_mode: terminal,
+  # or --terminal on a single run).
+  #
+  # Default (if omitted): true
+  #
+  # Set to false as a standing approval: the skill stops asking and only
+  # reports the download credits used and left.
+  #
+  # listen_confirm_download: true
+
+  # ---------------------------
+  # suno_mcp_reminder [optional]
+  # ---------------------------
+  # When no Suno MCP server is registered, session start shows how to add one
+  # (claude mcp add --transport http suno https://api.suno.com/mcp, then /mcp
+  # to sign in). Set to false if you use the clipboard flow on purpose and do
+  # not want the reminder; session start then says only "Suno: not connected".
+  #
+  # Default (if omitted): true
+  #
+  # suno_mcp_reminder: true
+
+  # ---------------------------
+  # suno_workspaces [optional]
+  # ---------------------------
+  # With Suno's MCP server connected, /bitwize-music:generate files each
+  # album's takes in a Suno workspace of its own, created at the album's first
+  # generation and recorded in the album README. Stems from a split go there
+  # too. Set to false to leave songs loose in My Songs instead.
+  #
+  # Default (if omitted): true
+  #
+  # suno_workspaces: true
+
+  # ---------------------------
+  # take_check [optional]
+  # ---------------------------
+  # After /bitwize-music:generate makes two takes, ask Suno's listening agent
+  # whether each one sings the lyrics as written and matches the tempo, voice
+  # and exclusions, and show a short report while you listen. Free; takes
+  # about a minute; advisory only. Set to false to skip it; you can still run
+  # /bitwize-music:check-take yourself.
+  #
+  # Default (if omitted): true
+  #
+  # take_check: true
+
+  # ---------------------------
+  # like_keeper [optional]
+  # ---------------------------
+  # When you approve a take, also like it on suno.com, so your keepers are
+  # easy to find there (Liked Songs). Rejected takes are never disliked:
+  # that rating is yours to give. Needs Suno's MCP server. Set to false to
+  # leave likes alone, for example if you use them to steer Suno's
+  # Personalize setting.
+  #
+  # Default (if omitted): true
+  #
+  # like_keeper: true
+
 
 # =============================================================================
 # PROMO VIDEOS [optional]

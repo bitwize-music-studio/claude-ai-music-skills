@@ -56,6 +56,8 @@ Map of album slug (string) → album data object.
 | `track_count` | integer | Total number of tracks |
 | `tracks_completed` | integer | Number of tracks with completed status |
 | `streaming_urls` | object | Map of platform → URL (only non-empty entries from frontmatter `streaming:` block) |
+| `suno_workspace` | object\|null | `{id, name}` of the Suno workspace holding the album's takes, from the frontmatter `suno_workspace:` block; null until `/bitwize-music:generate` records one |
+| `suno_playlist` | object\|null | `{id, name}` of the Suno playlist of the album's approved takes, from the frontmatter `suno_playlist:` block; null until `/bitwize-music:release-director` records one |
 | `readme_mtime` | float | Last modification time of album README.md |
 | `tracks` | object | Map of track slug → track data |
 
@@ -187,7 +189,7 @@ The MCP server and indexer detect stale cache by comparing:
 1. `state.json` file mtime vs cached mtime
 2. `config.yaml` file mtime vs `config.config_mtime`
 
-If either has changed, the cache is reloaded or rebuilt.
+If `state.json` changed, the server reloads it. If `config.yaml` is newer than the state's `config.config_mtime`, the server refreshes the state on that load (an incremental update: the config section is rebuilt and only what the change calls for is rescanned), so an edited setting takes effect on the next tool call without a manual `rebuild_state`. The session data and migration tracking are kept.
 
 ---
 

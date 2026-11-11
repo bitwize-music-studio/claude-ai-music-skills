@@ -15,6 +15,7 @@ REQUIRED_SUNO_REFS = [
     'voice-tags.md',
     'instrumental-tags.md',
     'genre-list.md',
+    'mcp-api-mapping.md',
 ]
 
 

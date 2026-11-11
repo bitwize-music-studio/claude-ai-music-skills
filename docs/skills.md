@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 53 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 60 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 
@@ -12,6 +12,13 @@ All 53 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `lyric-refiner` | Multi-pass refinement for tightening, cohesion, album unity |
 | `album-conceptualizer` | Album concepts, tracklist architecture, 7 planning phases |
 | `suno-engineer` | Technical Suno prompting, model choice and generation settings |
+| `generate` | Generate a track through Suno's MCP server — gates, cost, two takes, logging; songs, covers, saved Voices, spoken word and MIDI scores |
+| `listen` | Play takes or local audio in the terminal, or open the song page in the browser |
+| `check-take` | Check takes against the track file with Suno's listening agent — lyrics sung, tempo, voice, problems |
+| `edit-take` | Fix one thing in a take (a word, a line, a section, an instrument) and keep the rest of its audio; or make an instrumental version of it |
+| `extend-take` | Carry a take on from a point in its audio — more of a song that stopped early, or a new second half — and join the result into whole songs |
+| `sound-effects` | Make a sound effect, a one-shot or a loop for an album through Suno's MCP server |
+| `suno-voice` | Put one of your saved Suno Voices on a track or an album, list your Voices, or get Suno's link to make a new one |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
 | `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI make the cover (`artwork.generator: codex`) |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
@@ -70,7 +77,7 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 | `album-ideas` | Track and manage album idea backlog |
 | `promote-idea` | Promote a pending idea into a full album in one shot |
 | `rename` | Rename album or track, update all paths |
-| `import-audio` | Move audio files to correct album location |
+| `import-audio` | Move audio files to the album, or pull the keeper's WAV and stems from Suno |
 | `import-track` | Move track markdown files to correct location |
 | `import-art` | Place album art in audio and content directories |
 | `clipboard` | Copy track content to system clipboard |

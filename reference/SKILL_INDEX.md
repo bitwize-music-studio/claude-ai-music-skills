@@ -46,7 +46,17 @@ Quick-reference guide for finding the right skill for any task.
 |--------------|----------------|
 | ...create Suno prompts and settings | `/suno-engineer` |
 | ...create a Style Box for an instrumental track | `/suno-engineer` (entry point for instrumental tracks — skips lyric-writer) |
+| ...generate a track without leaving the terminal | `/generate` (needs the Suno MCP server; falls back to `/clipboard`) |
+| ...hear a take, compare takes, or play a mix | `/listen` (opens the song page in the browser by default; `--iterm2` shows it beside the session; `--terminal` plays it here) |
+| ...know whether a take sang every line, hit the tempo or broke an exclusion | `/check-take` (asks Suno's listening agent; free and advisory) |
 | ...copy lyrics/prompts to clipboard | `/clipboard` |
+| ...fix one word, line or section of a take I otherwise like | `/edit-take` (keeps the rest of the take's audio; 10 Suno credits for two edited takes) |
+| ...carry on a take that stopped early, or keep its first half and redo the rest | `/extend-take` (10 Suno credits for two continuations; joining them into whole songs is free) |
+| ...get an instrumental version of a take | `/edit-take <album> <track> instrumental` (10 Suno credits; for an a cappella, the vocals stem from `/import-audio --from-suno --stems`) |
+| ...cover one of my Suno songs, sing a track in a saved Voice, or make a spoken-word track | `/generate` (reads the track's Cover / Voice Setup block and `spoken: true`) |
+| ...put one of my saved Voices on a track or an album, see my Voices, or make a new one | `/suno-voice` (checks the Voice is on your Suno account and writes it into the track files; free. A new Voice is made on suno.com through the link it gives) |
+| ...have Suno play a melody I wrote | `/generate <album> <track> --midi <file>` (the takes are the track when it is instrumental, a sketch to cover when it has lyrics) |
+| ...make a sound effect, an ambience or a loop | `/sound-effects` (2 Suno credits for two sounds) |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
@@ -82,6 +92,7 @@ Quick-reference guide for finding the right skill for any task.
 | I need to... | Use this skill |
 |--------------|----------------|
 | ...import audio files to album | `/import-audio` |
+| ...pull the approved take's WAV and stems from Suno | `/import-audio --from-suno` |
 | ...import track markdown files | `/import-track` |
 | ...place album art in correct locations | `/import-art` |
 | ...rename an album or track | `/rename <album\|track> <current> <new>` |
@@ -114,17 +125,22 @@ Quick-reference guide for finding the right skill for any task.
 | [`album-conceptualizer`](/skills/album-conceptualizer/SKILL.md) | Album concepts, tracklist architecture, thematic planning | Planning a new album's structure and narrative |
 | [`album-dashboard`](/skills/album-dashboard/SKILL.md) | Visual album progress dashboard with completion percentages | Quick overview of album progress by phase |
 | [`album-ideas`](/skills/album-ideas/SKILL.md) | Track and manage album ideas | Brainstorming and planning future albums |
+| [`check-take`](/skills/check-take/SKILL.md) | Check Suno takes against the track file with Suno's listening agent | After generating, before picking the keeper |
 | [`clipboard`](/skills/clipboard/SKILL.md) | Copy track content to system clipboard | Quickly copying lyrics/prompts for Suno |
 | [`cloud-uploader`](/skills/cloud-uploader/SKILL.md) | Upload promo videos to Cloudflare R2 or AWS S3 | Hosting promo videos for social sharing |
 | [`configure`](/skills/configure/SKILL.md) | Set up or edit plugin configuration | First-time setup of ~/.bitwize-music/config.yaml |
 | [`document-hunter`](/skills/document-hunter/SKILL.md) | Automated browser-based document search from free archives | Finding court docs for true-story albums |
+| [`edit-take`](/skills/edit-take/SKILL.md) | Edit part of a Suno take in place through the MCP server | A good take with one flaw: a word, a line, a section, an instrument |
 | [`explicit-checker`](/skills/explicit-checker/SKILL.md) | Scan lyrics for explicit content, verify flags | Ensuring explicit flags match actual content |
+| [`extend-take`](/skills/extend-take/SKILL.md) | Carry a Suno take on from a point in its audio and join the result | A take that stopped early, or whose first half is worth keeping |
+| [`generate`](/skills/generate/SKILL.md) | Generate a track through Suno's MCP server: gates, cost, go-ahead, two takes, logging | Making audio without leaving the terminal |
 | [`genre-creator`](/skills/genre-creator/SKILL.md) | Create new genre documentation with consistent structure | Adding a new genre to the genre library |
 | [`health-check`](/skills/health-check/SKILL.md) | Run plugin health checks (venv packages and skill registration) | Troubleshooting missing skills or stale packages |
 | [`help`](/skills/help/SKILL.md) | Show available skills and common workflows | Quick reference for what skills exist |
 | [`import-art`](/skills/import-art/SKILL.md) | Place album art in audio and content locations | Copying artwork to correct paths after creation |
-| [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location | Importing WAV files from Suno downloads |
+| [`import-audio`](/skills/import-audio/SKILL.md) | Move audio files to correct album location, or pull the keeper's WAV and stems from Suno | Importing downloaded WAV files, or importing straight through the Suno MCP |
 | [`import-track`](/skills/import-track/SKILL.md) | Move track .md files to correct album location | Importing track files from external sources |
+| [`listen`](/skills/listen/SKILL.md) | Play Suno takes or local audio in the terminal, or open the song page in the browser | Auditioning takes before picking the keeper |
 | [`lyric-refiner`](/skills/lyric-refiner/SKILL.md) | Multi-pass lyric refinement for tightening, cohesion, and album unity | Polishing lyrics after writing, before QC |
 | [`lyric-reviewer`](/skills/lyric-reviewer/SKILL.md) | QC gate before Suno generation (14-point checklist) | Final quality check before generating |
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
@@ -156,7 +172,9 @@ Quick-reference guide for finding the right skill for any task.
 | [`session-start`](/skills/session-start/SKILL.md) | Session startup procedure — verify setup, load state, report status | Beginning a fresh working session |
 | [`setup`](/skills/setup/SKILL.md) | Verify environment and dependencies | First-time installation check |
 | [`sheet-music-publisher`](/skills/sheet-music-publisher/SKILL.md) | Convert audio to sheet music, create songbooks | Creating printable sheet music from tracks |
+| [`sound-effects`](/skills/sound-effects/SKILL.md) | Make a sound effect, a one-shot or a loop through Suno's MCP server | Rain for an intro, a riser, a drum loop at a track's tempo |
 | [`suno-engineer`](/skills/suno-engineer/SKILL.md) | Technical Suno prompting (v6 family), model choice, genre selection | Crafting optimal Suno style prompts |
+| [`suno-voice`](/skills/suno-voice/SKILL.md) | Put a saved Suno Voice on a track or an album, list Voices, or get the link to make one | "Sing this album in my RTB voice" |
 | [`test`](/skills/test/SKILL.md) | Run automated tests to validate plugin integrity | Verifying plugin works correctly |
 | [`tutorial`](/skills/tutorial/SKILL.md) | Interactive guided album creation | Learning the workflow step-by-step |
 | [`validate-album`](/skills/validate-album/SKILL.md) | Validate album structure, file locations | Catching path issues before they cause problems |
@@ -179,6 +197,13 @@ What to have ready before using each skill:
 | `/voice-checker` | Lyrics written, lyric-reviewer passed |
 | `/pre-generation-check` | Lyrics written, pronunciation resolved, style prompt created (instrumental: only Style Box needed) |
 | `/suno-engineer` | Lyrics written (auto-invoked by lyric-writer). For instrumental tracks: invoked directly as entry point |
+| `/generate` | Pre-generation gates pass; Suno MCP server connected (otherwise it points to `/clipboard`) |
+| `/listen` | A generated take or local audio for the track; an audio player (`mpv` recommended) for terminal playback |
+| `/check-take` | A take generated through the Suno MCP server (it needs a clip id); Suno MCP server connected |
+| `/edit-take` | A take generated through the Suno MCP server; Suno MCP server connected; song credits |
+| `/extend-take` | A take generated through the Suno MCP server, the time to carry on from, and the section of the Lyrics Box that follows; Suno MCP server connected; song credits |
+| `/sound-effects` | An album; Suno MCP server connected; song credits (Suno's Pro plan or higher) |
+| `/suno-voice` | Suno MCP server connected; Voices on the plan (Pro or Premier). Taking a Voice off needs neither |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
 | `/promo-director` | Mastered audio + album artwork |
@@ -186,7 +211,7 @@ What to have ready before using each skill:
 | `/promo-reviewer` | Promo copy populated in promo/ directory |
 | `/cloud-uploader` | Promo videos generated |
 | `/release-director` | Mastering complete, all QA passed |
-| `/import-audio` | Audio files in known location (e.g., ~/Downloads) |
+| `/import-audio` | Audio files in known location (e.g., ~/Downloads) — or, for `--from-suno`, an approved take and the Suno MCP server |
 | `/import-art` | Album art generated elsewhere (DALL-E or similar); art made through Codex is filed by the art director |
 | `/researcher` | Album concept with research needs identified |
 | `/document-hunter` | Playwright installed (`pip install playwright && playwright install chromium`) |
@@ -205,7 +230,12 @@ What to have ready before using each skill:
     -> /lyric-reviewer (final QC)
     -> /voice-checker (advisory: flag AI-sounding patterns)
     -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno]
+    -> /generate (per track — or generate on suno.com via /clipboard)
+    -> /listen (hear the takes, pick the keeper)
+    -> /check-take (runs with /generate: what each take sings and how it sounds, against the track file)
+    -> /edit-take (optional: fix one flaw in a take worth keeping, instead of re-rolling)
+    -> /extend-take (optional: carry on a take that stopped early)
+    -> /import-audio --from-suno (the keeper's WAV; --stems for stems)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /promo-director (optional: promo videos)
@@ -226,7 +256,7 @@ What to have ready before using each skill:
     -> /pronunciation-specialist (names, places, acronyms)
     -> /lyric-reviewer (verify against sources)
     -> /pre-generation-check (validate all gates)
-    -> [Generate in Suno] -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
+    -> /generate (or suno.com) -> /listen -> /mix-engineer (optional) -> /mastering-engineer -> /release-director
 ```
 
 ### OST / Mixed Album (Vocal + Instrumental)
@@ -241,7 +271,7 @@ What to have ready before using each skill:
         INSTRUMENTAL TRACK (instrumental: true in frontmatter):
             -> /suno-engineer directly (Style Box + section tags only, no lyrics)
     -> /pre-generation-check (validates all gates — auto-skips lyrics gates for instrumental tracks)
-    -> [Generate in Suno — instrumental tracks use Instrumental: On]
+    -> /generate (or suno.com — instrumental tracks use Instrumental: On)
     -> /mix-engineer (optional: polish raw audio)
     -> /mastering-engineer (master audio)
     -> /album-art-director (world-themed artwork)
@@ -276,13 +306,13 @@ Pre-generation-check auto-skips Gates 2 (Lyrics), 3 (Pronunciation), 4 (Explicit
     -> Log rejection reason in Generation Log
     -> IF style issue:
         -> /suno-engineer (revise Style Box)
-        -> [Regenerate on Suno]
+        -> /generate (or regenerate on suno.com)
     -> IF lyrics issue:
         -> /lyric-writer (fix lyrics)
         -> /pronunciation-specialist (re-check)
-        -> [Regenerate on Suno]
+        -> /generate (or regenerate on suno.com)
     -> IF bad luck (right prompt, wrong result):
-        -> [Regenerate on Suno with same settings — Suno is non-deterministic]
+        -> /generate again with the same settings — Suno is non-deterministic
     -> Log new attempt in Generation Log
     -> [Repeat until satisfied]
     -> Mark ✓ in Generation Log Rating
@@ -356,13 +386,20 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 30 skills)
+### `sonnet` (Reasoning & Coordination — 38 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
 - `/configure` - Interactive config setup
 - `/document-hunter` - Automated searching
+- `/edit-take` - Cost, go-ahead and logging for an in-place edit
 - `/explicit-checker` - Context-dependent content scanning
+- `/extend-take` - Cost, go-ahead, joining and logging for a continuation
+- `/generate` - Suno generation through the MCP server
+- `/genre-creator` - Genre documentation with a consistent structure
+- `/import-audio` - File imports, including WAV and stems from Suno
+- `/listen` - Terminal and browser auditioning
+- `/check-take` - Relaying Suno's listening agent, without ranking takes
 - `/mastering-engineer` - Audio guidance
 - `/mix-engineer` - Stem processing guidance
 - `/plagiarism-checker` - Lyrics plagiarism scanning
@@ -378,18 +415,19 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/resume` - Status reporting
 - `/session-start` - Session startup procedure
 - `/sheet-music-publisher` - Transcription workflow
+- `/sound-effects` - Cost and go-ahead for a sound, without choosing between the two
+- `/suno-voice` - Checks a Voice exists before writing it; never picks one for the user
 - `/tutorial` - Interactive guided creation
 - `/verify-sources` - Human verification gate
 - `/voice-checker` - Advisory review for AI-sounding patterns
 
-### `haiku` (Pattern Matching — 16 skills)
+### `haiku` (Pattern Matching — 15 skills)
 - `/about` - Static information
 - `/album-dashboard` - Progress dashboard
 - `/clipboard` - Copy to clipboard
 - `/health-check` - Plugin health checks
 - `/help` - Display information
 - `/import-art` - File operations
-- `/import-audio` - File operations
 - `/import-track` - File operations
 - `/new-album` - Directory creation
 - `/next-step` - Workflow routing

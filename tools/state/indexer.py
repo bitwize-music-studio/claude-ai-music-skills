@@ -107,6 +107,11 @@ CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
 STATE_FILE = CACHE_DIR / "state.json"
 LOCK_FILE = CACHE_DIR / "state.lock"
 
+# Whether the MCP server refreshes its cached state when config.yaml is newer than the
+# state's config section (StateCache._refresh_if_config_changed). The test suite turns
+# it off, so loading a sample state never reads a developer's real config.
+AUTO_REFRESH_ON_CONFIG_CHANGE = True
+
 CONFIG_FILE = CONFIG_PATH
 
 # Track statuses that count toward an album's tracks_completed.
@@ -339,6 +344,19 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             return default
         return value
 
+    def _cfg_choice(section: dict[str, Any], key: str,
+                    choices: tuple[str, ...], default: str) -> str:
+        # Enumerated settings: anything outside the list (or a non-string) is a
+        # typo, so warn and keep the default instead of passing it downstream.
+        value = _cfg_str(section, key, default).strip().lower()
+        if value not in choices:
+            logger.warning(
+                "Config %s is not one of %s — using %r",
+                key, ", ".join(choices), default,
+            )
+            return default
+        return value
+
     content_root_raw = _cfg_str(paths, 'content_root', '.')
     content_root = str(resolve_path(content_root_raw))
 
@@ -366,6 +384,18 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
+        # How /bitwize-music:listen auditions Suno takes (reference/suno/mcp-api-mapping.md)
+        'listen_mode': _cfg_choice(
+            gen_config, 'listen_mode', ('browser', 'terminal', 'iterm2_browser'), 'browser'),
+        'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
+        # Whether session start shows how to add Suno's MCP server when none is registered
+        'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
+        # Whether /bitwize-music:generate files each album's takes in a Suno workspace of its own
+        'suno_workspaces': _cfg_bool(gen_config, 'suno_workspaces', True),
+        # Whether /bitwize-music:generate checks new takes with Suno's listening agent
+        'take_check': _cfg_bool(gen_config, 'take_check', True),
+        # Whether approving a take also likes it on suno.com
+        'like_keeper': _cfg_bool(gen_config, 'like_keeper', True),
     }
 
     return {
@@ -441,6 +471,8 @@ def scan_albums(
                 'explicit': album_data.get('explicit', False),
                 'anchor_track': album_data.get('anchor_track'),
                 'layout': album_data.get('layout'),
+                'suno_workspace': album_data.get('suno_workspace'),
+                'suno_playlist': album_data.get('suno_playlist'),
                 'mastering': album_data.get('mastering') or {},
                 'release_date': album_data.get('release_date'),
                 'track_count': album_data.get('track_count', len(tracks)),
@@ -830,6 +862,8 @@ def incremental_update(
                     'explicit': album_data.get('explicit', False),
                     'anchor_track': album_data.get('anchor_track'),
                     'layout': album_data.get('layout'),
+                    'suno_workspace': album_data.get('suno_workspace'),
+                    'suno_playlist': album_data.get('suno_playlist'),
                     'mastering': album_data.get('mastering') or {},
                     'release_date': album_data.get('release_date'),
                     'track_count': album_data.get('track_count', len(tracks)),

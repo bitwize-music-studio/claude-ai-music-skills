@@ -2078,9 +2078,9 @@ class TestValidateSectionStructure:
         )
 
     def test_unknown_section_type_defaults_to_verse(self):
-        """Tags like [Interlude] should default to section_type 'verse'."""
+        """A tag that names no known section is treated as a verse."""
         lyrics = (
-            "[Interlude]\n"
+            "[Part Two]\n"
             "Some content\n"
         )
         result = json.loads(_run(server.validate_section_structure(lyrics)))
@@ -2387,3 +2387,451 @@ class TestInputLengthBounds:
         result = json.loads(_run(server.check_homographs(short_text)))
         assert "error" not in result
         assert "has_homographs" in result
+
+
+# ===========================================================================
+# Section type comes from the tag's name
+# ===========================================================================
+
+def _type_of(tag: str) -> str:
+    """Section type the tokenizer gives a lyric line under *tag*."""
+    result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(f"{tag}\nSome words here")
+    return result[0]["section_type"]
+
+
+class TestSectionTypeFromTagName:
+    """A section's type is read from its name, never from its performance cue.
+
+    The type used to be a substring search over the whole tag, cue included, so
+    ``[Outro - chorus reprise]`` was a chorus and ``[Break - friendly banter]``
+    was an ending (the "end" in "friendly").
+    """
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[Outro - chorus reprise]", "outro"),
+        ("[Intro - verse melody hummed]", "intro"),
+        ("[Verse 1 - chorus of angels]", "verse"),
+        ("[Break - friendly banter]", "break"),
+        ("[Chorus - instrumental tail]", "chorus"),
+        ("[Bridge - spoken intro]", "bridge"),
+        ("[Verse 1: raspy older vocal, hook-heavy]", "verse"),
+        ("[Bridge | Female, whispered chorus]", "bridge"),
+        ("[Verse 2 \u2013 chorus of angels]", "verse"),      # en dash
+        ("[Outro \u2014 chorus reprise]", "outro"),          # em dash
+        ("[Chorus (instrumental tail)]", "chorus"),
+        ("[Chorus, with a drum break]", "chorus"),            # a comma starts a cue too
+        ("[Bridge, solo vocal]", "bridge"),
+        ("[Verse 1, fade in]", "verse"),
+    ])
+    def test_the_cue_does_not_change_the_type(self, tag, expected):
+        assert _type_of(tag) == expected
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[Female - Chorus]", "chorus"),
+        ("[Male - Verse 2]", "verse"),
+        ("[Both | Chorus]", "chorus"),
+        ("[Full choir - Chorus - full SATB]", "chorus"),
+        ("[Duet - Final Chorus]", "chorus"),
+        ("[Rapper - Pre-Chorus]", "pre-chorus"),
+    ])
+    def test_a_singer_named_before_the_section_does_not_hide_it(self, tag, expected):
+        """Duet sheets put the voice first: `[Female - Chorus]`."""
+        assert _lyrics_analysis_mod._named_section_type(tag[1:-1]) == expected
+
+    @pytest.mark.parametrize("tag", [
+        "[Spoken - over the verse riff]",
+        "[Whispered - like the chorus, slower]",
+        "[Male lead - gravel, close to the mic]",
+    ])
+    def test_a_cue_that_only_mentions_a_section_does_not_name_one(self, tag):
+        assert _lyrics_analysis_mod._named_section_type(tag[1:-1]) is None
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[Chorus2]", "chorus"), ("[Hook1]", "hook"), ("[Bridge2]", "bridge"),
+        ("[Outro2]", "outro"), ("[Verse3]", "verse"),
+    ])
+    def test_a_number_written_against_the_name_is_still_a_number(self, tag, expected):
+        assert _type_of(tag) == expected
+
+    def test_a_duet_sheet_has_no_structure_issues(self):
+        eight = "\n".join(f"Line number {i} of the verse" for i in range(8)) + "\n"
+        four = "\n".join(f"Line number {i} of the chorus" for i in range(4)) + "\n"
+        lyrics = (
+            "[Female - Verse 1]\n" + eight + "\n[Both - Chorus]\n" + four
+            + "\n[Male - Verse 2]\n" + eight + "\n[Both - Chorus]\n" + four
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["issues"] == []
+        assert result["summary"]["has_chorus"] is True
+
+    def test_phrase_priorities_are_what_they_were(self):
+        """Typing changed; which sections count as hooks for phrase ranking did not."""
+        priority = _lyrics_analysis_mod._SECTION_PRIORITY
+        assert priority["post-chorus"] == priority["chorus"]
+        assert "refrain" not in priority
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[Short Instrumental Intro]", "intro"),
+        ("[Guitar Solo Interlude]", "interlude"),
+        ("[Percussion Break]", "break"),
+        ("[Instrumental Break]", "break"),
+        ("[melodic interlude]", "interlude"),
+        ("[Catchy Hook]", "hook"),
+        ("[Catchy Verse]", "verse"),
+        ("[Soft Verse]", "verse"),
+        ("[Building Chorus]", "chorus"),
+        ("[Final Chorus]", "chorus"),
+        ("[Synth Solo]", "solo"),
+    ])
+    def test_a_descriptive_name_takes_its_last_section_word(self, tag, expected):
+        """Every one of these is a tag reference/suno/structure-tags.md suggests."""
+        assert _type_of(tag) == expected
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[Pre-Chorus]", "pre-chorus"),
+        ("[Pre Chorus]", "pre-chorus"),
+        ("[Post-Chorus]", "post-chorus"),
+        ("[Refrain]", "refrain"),
+        ("[Interlude]", "interlude"),
+        ("[Instrumental]", "instrumental"),
+        ("[Guitar Solo]", "solo"),
+        ("[Break]", "break"),
+        ("[Drop]", "drop"),
+        ("[Fade Out]", "fade"),
+        ("[Fade to End]", "end"),
+        ("[Big Finish]", "end"),
+        ("[End]", "end"),
+    ])
+    def test_sections_that_used_to_default_to_verse_are_known(self, tag, expected):
+        assert _type_of(tag) == expected
+
+    @pytest.mark.parametrize("tag, expected", [
+        ("[INTRO 4]", "intro"),
+        ("[VERSE 1 8]", "verse"),
+        ("[PRE 4]", "pre-chorus"),
+        ("[CHORUS 8]", "chorus"),
+        ("[OUTRO 4]", "outro"),
+    ])
+    def test_bar_count_tags_are_recognised(self, tag, expected):
+        assert _type_of(tag) == expected
+
+    @pytest.mark.parametrize("tag", ["[Weekend]", "[Trending]", "[Hooked]", "[Breakdown]", "[Part Two]"])
+    def test_a_section_word_inside_another_word_does_not_count(self, tag):
+        assert _type_of(tag) == "verse"
+
+    def test_the_validator_reads_types_the_same_way(self):
+        lyrics = "[Outro - chorus reprise]\nOne last line\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["sections"][0]["section_type"] == "outro"
+
+
+# ===========================================================================
+# Instrumental sections in validate_section_structure
+# ===========================================================================
+
+_FOUR_LINES = "Line one here\nLine two here\nLine three here\nLine four here\n"
+
+
+class TestInstrumentalSectionsInStructure:
+    """An instrumental passage is a tag with nothing under it, on purpose.
+
+    Suno sings whatever is written under a tag, so ``[Intro - sleigh bells]``,
+    ``[Break - sax]`` and ``[End]`` have to be empty. They used to be reported
+    as empty sections, and the break was counted as a zero-line verse that made
+    the real verses look unbalanced.
+    """
+
+    SHEET = (
+        "[Intro - sleigh bells]\n\n"
+        "[Verse 1]\n" + _FOUR_LINES + "\n"
+        "[Chorus]\nRing the bell\nAll is well\n\n"
+        "[Verse 2]\n" + _FOUR_LINES + "\n"
+        "[Break - baritone sax and handclaps]\n\n"
+        "[Verse 3]\n" + _FOUR_LINES + "\n"
+        "[Chorus]\nRing the bell\nAll is well\n\n"
+        "[End]\n"
+    )
+
+    def test_a_sheet_with_instrumental_intro_break_and_end_has_no_issues(self):
+        result = json.loads(_run(server.validate_section_structure(self.SHEET)))
+        assert result["issues"] == []
+        assert result["summary"]["issues_count"] == 0
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_the_reported_case_without_a_chorus(self):
+        """Three four-line verses, an empty break and [End]."""
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            "[Verse 2]\n" + _FOUR_LINES + "\n"
+            "[Break - baritone sax and handclaps]\n\n"
+            "[Verse 3]\n" + _FOUR_LINES + "\n"
+            "[End]\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        kinds = [i["type"] for i in result["issues"]]
+        assert "empty_section" not in kinds
+        assert "unbalanced_sections" not in kinds
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_the_break_is_not_counted_as_a_verse(self):
+        result = json.loads(_run(server.validate_section_structure(self.SHEET)))
+        by_tag = {s["tag"]: s["section_type"] for s in result["sections"]}
+        assert by_tag["[Break - baritone sax and handclaps]"] == "break"
+        assert by_tag["[Intro - sleigh bells]"] == "intro"
+        assert by_tag["[End]"] == "end"
+
+    @pytest.mark.parametrize("tag", [
+        "[Intro]", "[Short Instrumental Intro]", "[Outro]", "[Interlude]",
+        "[Instrumental]", "[Guitar Solo]", "[Break]", "[Percussion Break]",
+        "[Drop]", "[End]", "[Fade Out]", "[Big Finish]",
+        # A bridge is as often played as sung: these are all from real albums.
+        "[Bridge]", "[Bridge - 8 bars]", "[Soft Bridge - cadence and arpeggio, reflective]",
+        # A sung section the writer has marked instrumental.
+        "[Instrumental Chorus]", "[Chorus - instrumental, no vocals]",
+        # Directions that are not sections at all.
+        "[Main Theme]", "[Crash]", "[Silence]", "[Banjo roll]",
+        "[Full mixed choir throughout]",
+    ])
+    def test_an_empty_instrumental_or_ending_tag_is_not_an_empty_section(self, tag):
+        lyrics = "[Verse 1]\n" + _FOUR_LINES + "\n" + tag + "\n\n[Chorus]\nRing the bell\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert not [i for i in result["issues"] if i["type"] == "empty_section"]
+
+    @pytest.mark.parametrize("tag", [
+        "[Verse 2]", "[Chorus]", "[Final Chorus]", "[Pre-Chorus]", "[Post-Chorus]",
+        "[Hook]", "[Refrain]", "[Verse 2 - tender]",
+    ])
+    def test_an_empty_sung_section_is_still_reported(self, tag):
+        """Suno improvises words for a verse or chorus left blank."""
+        lyrics = "[Verse 1]\n" + _FOUR_LINES + "\n" + tag + "\n\n[Outro]\nGoodbye now\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(
+            i["type"] == "empty_section" and i["tag"] == tag for i in result["issues"]
+        )
+
+    def test_an_empty_direction_is_neither_reported_nor_counted_as_a_verse(self):
+        """`[Main Theme]` names no section. It is a direction, not a blank verse."""
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            "[Main Theme]\n\n"
+            "[Verse 2]\n" + _FOUR_LINES + "\n"
+            "[Chorus]\nRing the bell\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["issues"] == []
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    @pytest.mark.parametrize("tag", [
+        "[Spoken]", "[Male lead]", "[Full choir]", "[Vocoder]", "[Platform voice]", "[Build]",
+    ])
+    def test_a_voice_or_delivery_tag_is_not_measured_against_the_verses(self, tag):
+        """`[Spoken]` with one line under it is not a short verse.
+
+        Tags that name no section default to the type "verse". Comparing them
+        with the real verses produced 91 of the 107 "unbalanced" reports on a
+        catalogue of 1,418 vocal tracks.
+        """
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            + tag + "\nJust one line under it\n\n"
+            "[Verse 2]\n" + _FOUR_LINES + "\n"
+            "[Chorus]\nRing the bell\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["issues"] == []
+        assert result["summary"]["section_balance"] == "BALANCED"
+
+    def test_named_verses_of_different_lengths_are_still_unbalanced(self):
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            "[Spoken]\nJust one line under it\n\n"
+            "[Verse 2 - quieter]\nOnly one line here\n\n"
+            "[Chorus]\nRing the bell\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        issue = next(i for i in result["issues"] if i["type"] == "unbalanced_sections")
+        assert issue["sections"] == ["[Verse 1]", "[Verse 2 - quieter]"]
+        assert result["summary"]["section_balance"] == "UNBALANCED"
+
+    def test_a_chorus_sung_twice_in_a_row_is_not_a_doubled_tag(self):
+        """`[Chorus]`, its lines, `[Chorus]`, its lines again: a double chorus."""
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            "[Chorus]\nRing the bell\nAll is well\n\n"
+            "[Chorus]\nRing the bell\nAll is well\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["issues"] == []
+
+    def test_unnumbered_verses_in_a_row_are_not_doubled_tags(self):
+        lyrics = "[Verse]\n" + _FOUR_LINES + "\n[Verse]\n" + _FOUR_LINES + "\n[Chorus]\nRing the bell\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert result["issues"] == []
+
+    def test_a_tag_typed_twice_with_nothing_between_is_still_an_error(self):
+        lyrics = "[Verse 1]\n" + _FOUR_LINES + "\n[Chorus]\n[Chorus]\nRing the bell\n"
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert [(i["type"], i["tag"], i["severity"]) for i in result["issues"]] == [
+            ("duplicate_consecutive_tag", "[Chorus]", "error"),
+        ]
+
+    def test_the_same_numbered_verse_twice_is_still_an_error(self):
+        lyrics = "[Verse 1]\n" + _FOUR_LINES + "\n[Verse 1]\n" + _FOUR_LINES
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert any(i["type"] == "duplicate_consecutive_tag" for i in result["issues"])
+
+    def test_a_blank_verse_is_reported_once_not_twice(self):
+        """An empty verse is an empty section; it is not also an imbalance."""
+        lyrics = (
+            "[Verse 1]\n" + _FOUR_LINES + "\n"
+            "[Verse 2]\n\n"
+            "[Chorus]\nRing the bell\n"
+        )
+        result = json.loads(_run(server.validate_section_structure(lyrics)))
+        assert [i["type"] for i in result["issues"]] == ["empty_section"]
+
+
+# ===========================================================================
+# Repeated sections in analyze_rhyme_scheme
+# ===========================================================================
+
+class TestRhymeSchemeRepeatedSections:
+    """A chorus sung twice is two sections, not one section rhyming with itself.
+
+    Lines used to be grouped by the tag's text, so both passes of
+    ``[Chorus - b]`` were merged and every end word in the chorus was reported
+    as a self-rhyme. A repeated chorus with an identical tag is the normal case.
+    """
+
+    REPEATED_CHORUS = (
+        "[Verse 1 - a]\n"
+        "I went to the store\n"
+        "I wanted some more\n"
+        "\n"
+        "[Chorus - b]\n"
+        "Ring the bell\n"
+        "All is well\n"
+        "\n"
+        "[Verse 2 - c]\n"
+        "I came back home\n"
+        "No need to roam\n"
+        "\n"
+        "[Chorus - b]\n"
+        "Ring the bell\n"
+        "All is well\n"
+    )
+
+    def test_a_repeated_chorus_reports_no_issues(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme(self.REPEATED_CHORUS)))
+        assert result["issues"] == []
+        assert result["summary"]["self_rhymes"] == 0
+        assert result["summary"]["sections_with_issues"] == 0
+
+    def test_each_pass_of_the_chorus_is_its_own_section(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme(self.REPEATED_CHORUS)))
+        seen = [(s["section"], s["occurrence"], s["scheme"]) for s in result["sections"]]
+        assert seen == [
+            ("Verse 1 - a", 1, "AA"),
+            ("Chorus - b", 1, "AA"),
+            ("Verse 2 - c", 1, "AB"),
+            ("Chorus - b", 2, "AA"),
+        ]
+        assert result["summary"]["total_sections"] == 4
+
+    def test_line_numbers_stay_with_their_own_pass(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme(self.REPEATED_CHORUS)))
+        second = result["sections"][3]
+        assert [line["line_number"] for line in second["lines"]] == [14, 15]
+
+    def test_bare_repeated_tags_are_separate_too(self):
+        lyrics = "[Chorus]\nRing the bell\nAll is well\n\n[Chorus]\nRing the bell\nAll is well\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["issues"] == []
+        assert [s["occurrence"] for s in result["sections"]] == [1, 2]
+
+    def test_a_word_rhymed_with_itself_inside_one_pass_is_still_flagged(self):
+        lyrics = "[Chorus]\nRing the bell\nHear the bell\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        flagged = [(i["word"], i["line_numbers"]) for i in result["issues"]]
+        assert flagged == [("bell", [2, 3])]
+
+    def test_a_self_rhyme_in_a_repeated_chorus_is_reported_once(self):
+        """The second pass says the same thing again; it points back to the first."""
+        lyrics = (
+            "[Chorus]\nRing the bell\nHear the bell\n\n"
+            "[Verse 2]\nI came back home\n\n"
+            "[Chorus]\nRing the bell\nHear the bell\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert [(i["word"], i["line_numbers"]) for i in result["issues"]] == [("bell", [2, 3])]
+        assert result["summary"]["self_rhymes"] == 1
+        first, _, second = result["sections"]
+        assert "same_as" not in first
+        assert second["same_as"] == 1
+        assert second["issues"] == []
+        assert second["scheme"] == first["scheme"]
+
+    def test_a_chorus_that_changes_on_its_second_pass_is_checked_again(self):
+        lyrics = (
+            "[Chorus]\nRing the bell\nHear the bell\n\n"
+            "[Chorus]\nRing the bell\nBreak the bell\n"
+        )
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert [i["line_numbers"] for i in result["issues"]] == [[2, 3], [6, 7]]
+
+    def test_the_tokenizer_numbers_each_tag(self):
+        lyrics = "Loose line first\n[Chorus]\nRing the bell\n[Verse 2]\nI came home\n[Chorus]\nRing the bell"
+        result = _lyrics_analysis_mod._tokenize_lyrics_with_sections(lyrics)
+        assert [(r["section"], r["section_index"]) for r in result] == [
+            ("Unknown", 0), ("Chorus", 1), ("Verse 2", 2), ("Chorus", 3),
+        ]
+
+
+class TestRepeatedLinesAreNotSelfRhymes:
+    """A line sung again is a refrain, not a word rhymed with itself.
+
+    On a catalogue of 1,418 vocal tracks the self-rhyme check fired on 982.
+    More than half of its reports were the same line repeated inside one
+    section, which is how hooks are written.
+    """
+
+    def test_a_line_repeated_in_one_section_is_not_reported(self):
+        lyrics = "[Chorus]\nRing the bell\nAll is well\nRing the bell\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["issues"] == []
+
+    def test_punctuation_case_and_backing_parentheses_do_not_make_it_a_new_line(self):
+        lyrics = "[Chorus]\nRing the bell\nRing the bell!\n(ring the bell)\nAll is well\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["issues"] == []
+
+    def test_two_different_lines_ending_on_one_word_are_still_reported(self):
+        lyrics = "[Chorus]\nRing the bell\nHear the bell\nRing the bell\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert [(i["word"], i["line_numbers"]) for i in result["issues"]] == [("bell", [2, 3, 4])]
+
+    def test_the_repeat_still_gets_its_rhyme_letter(self):
+        lyrics = "[Chorus]\nRing the bell\nAll is well\nRing the bell\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["sections"][0]["scheme"] == "AAA"
+
+
+class TestRhymeSchemeIsLabelledApproximate:
+    """The scheme is a spelling match, and the output says so.
+
+    ``signed / mind / four / more`` comes back ``ABCD``. Without a label that
+    reads as "nothing rhymes"; with one it reads as "check by ear".
+    """
+
+    def test_the_output_names_its_method(self):
+        lyrics = "[Verse]\nThe papers were signed\nIt stayed on my mind\n"
+        result = json.loads(_run(server.analyze_rhyme_scheme(lyrics)))
+        assert result["method"] == "spelling"
+        assert result["approximate"] is True
+        assert "spell" in result["note"].lower()
+        assert "aloud" in result["note"].lower()
+
+    def test_empty_input_is_labelled_too(self):
+        result = json.loads(_run(server.analyze_rhyme_scheme("")))
+        assert result["method"] == "spelling"
+        assert result["approximate"] is True

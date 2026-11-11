@@ -100,6 +100,8 @@ Before finalizing any lyrics, verify:
 
 **Critical**: Verse 1 line lengths must match Verse 2 line lengths.
 
+`check_album_lyrics` uses the Tolerance column to find the odd line out: it reports a verse line that sits more than twice the tolerance from its verse's median (more than 4 syllables for most genres, more than 6 for hip-hop). It treats "Flexible" as ±3. Anything tighter flags four finished songs in ten, so parallel lines within the tolerance are still yours to check by reading.
+
 ---
 
 ## Song Length
@@ -126,6 +128,13 @@ instead of the genre default. When the track shows `—`, check the album README
 
 Add ~30 words per instrumental break/solo when estimating.
 
+Reading a Target Duration:
+- **A range uses its midpoint.** `3:00–3:30` is 3:15, so it takes the 2:30–3:30 row.
+- **A value on a boundary takes the longer row.** `3:30` uses 3:30–5:00, and `~5:00` uses 5:00–7:00.
+- **A bracketed album value is not set.** The album template ships `[3:30–5:00]` as a placeholder. Until someone replaces it, the genre defaults below apply.
+
+The `get_lyrics_stats` tool applies the same lookup and says which one it used in `target_basis`: `track_duration`, `album_duration`, `genre` or `default`. Its numbers are these two tables; a test fails if they stop matching.
+
 ### Word Count Targets by Genre (Suno)
 
 These targets produce tracks in the 3:30–5:00 range on Suno. The previous lower targets (e.g., 150 words for electronic) produce 2:00–2:30 tracks.
@@ -139,6 +148,9 @@ These targets produce tracks in the 3:30–5:00 range on Suno. The previous lowe
 | Folk / Country | 3:30–5:00 | 250–400 | 3 verses + chorus + bridge |
 | Ballad (any) | 3:30–5:00 | 200–300 | 2–3 verses + chorus + bridge (slower tempo = fewer words) |
 | Punk / Pop-Punk | 2:30–3:30 | 150–250 | 2 verses + chorus + bridge (punk is short by design) |
+| Ambient / Lo-Fi | any | 50–150 | Sparse or wordless by design. Keeps this range whatever the Target Duration, because the duration mapping assumes a song sung throughout |
+
+A genre with no row here uses the default duration's range: 220–400 words.
 
 ### Instrumental Tags Count as Runtime
 

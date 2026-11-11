@@ -1152,6 +1152,22 @@ async def update_track_field(
     except Exception as e:
         logger.warning("File written but cache update failed for %s.%s: %s", normalized_album, matched_slug, e)
 
+    # A status change is followed through to the album: its README Tracklist row,
+    # and the album's own status once every track is Final. The track update has
+    # already succeeded, so a failure here is logged, not returned.
+    extras: dict[str, Any] = {}
+    if field_key == "status":
+        try:
+            from handlers.album_fields import after_track_status_change
+
+            extras = await after_track_status_change(
+                normalized_album, matched_slug, str(parsed.get("status") or value),
+            )
+        except Exception as e:
+            logger.warning(
+                "Album follow-up failed for %s.%s: %s", normalized_album, matched_slug, e,
+            )
+
     return _safe_json({
         "success": True,
         "album_slug": normalized_album,
@@ -1159,6 +1175,7 @@ async def update_track_field(
         "field": table_key,
         "value": value,
         "track": parsed,
+        **extras,
     })
 
 
@@ -1205,6 +1222,23 @@ async def get_album_progress(album_slug: str) -> str:
     # Detect phase
     phase = _detect_phase(album)
 
+    # Generated tracks whose takes all still await the user's decision.
+    from handlers.generation import parse_generation_log  # lazy: avoids an import cycle
+
+    pending: list[dict[str, Any]] = []
+    for slug, track in sorted(tracks.items()):
+        if track.get("status") != TRACK_GENERATED or not track.get("path"):
+            continue
+        try:
+            track_text = Path(track["path"]).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        takes = [take for take in parse_generation_log(track_text) if take["url"]]
+        if takes and not any(take["approved"] for take in takes):
+            pending.append({
+                "track_slug": slug, "title": track.get("title", slug), "takes": len(takes),
+            })
+
     return _safe_json({
         "found": True,
         "album_slug": normalized,
@@ -1220,6 +1254,9 @@ async def get_album_progress(album_slug: str) -> str:
             1 for t in tracks.values()
             if t.get("sources_verified", "").lower() == "pending"
         ),
+        "takes_pending_decision": pending,
+        "suno_workspace": album.get("suno_workspace"),
+        "suno_playlist": album.get("suno_playlist"),
     })
 
 

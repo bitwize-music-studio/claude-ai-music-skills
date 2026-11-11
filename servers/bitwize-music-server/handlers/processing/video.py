@@ -29,6 +29,7 @@ async def generate_promo_videos(
     color_hex: str = "",
     glow: float = 0.6,
     text_color: str = "",
+    start_s: float = -1.0,
 ) -> str:
     """Generate promo videos with waveform visualization for social media.
 
@@ -44,6 +45,9 @@ async def generate_promo_videos(
         color_hex: Wave color as hex (e.g. "#C9A96E"). Empty = auto-extract from artwork
         glow: Glow intensity 0.0 (none) to 1.0 (full). Default 0.6
         text_color: Text color as hex (e.g. "#FFD700"). Empty = white
+        start_s: Where the promo passage starts in the track, in seconds. Only
+               with track_filename. Negative (the default) picks the most
+               energetic passage and starts it on the nearest beat
 
     Returns:
         JSON with per-track results and summary
@@ -146,6 +150,7 @@ async def generate_promo_videos(
                 output_path=output_path,
                 duration=duration,
                 style=style,
+                start_time=start_s if start_s >= 0 else None,
                 artist_name=artist,
                 font_path=font_path,
                 color_hex=color_hex,

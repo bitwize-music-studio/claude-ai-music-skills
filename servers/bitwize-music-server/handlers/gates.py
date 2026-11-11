@@ -16,8 +16,10 @@ from handlers._shared import (
     _extract_markdown_section,
     _find_album_or_error,
     _find_track_or_error,
+    _lyrics_placeholder_in,
     _parse_pronunciation_table,
     _safe_json,
+    _template_style_tokens_in,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,10 @@ def _check_pre_gen_gates_for_track(
         gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
                       "detail": "Lyrics contain [TODO] or [PLACEHOLDER] markers"})
         blocking += 1
+    elif placeholder := _lyrics_placeholder_in(lyrics_content):
+        gates.append({"gate": "Lyrics Reviewed", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": f"Lyrics Box still holds a placeholder ({placeholder})"})
+        blocking += 1
     else:
         gates.append({"gate": "Lyrics Reviewed", "status": "PASS",
                       "detail": "Lyrics populated"})
@@ -178,9 +184,15 @@ def _check_pre_gen_gates_for_track(
         if style_section:
             style_content = _extract_code_block(style_section)
 
+    leftover_style = _template_style_tokens_in(style_content) if style_content else []
     if not style_content or not style_content.strip():
         gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
                       "detail": "Style Box is empty"})
+        blocking += 1
+    elif leftover_style:
+        gates.append({"gate": "Style Prompt Complete", "status": "FAIL", "severity": "BLOCKING",
+                      "detail": "Style Box still holds the template placeholder: "
+                                + ", ".join(leftover_style)})
         blocking += 1
     else:
         gates.append({"gate": "Style Prompt Complete", "status": "PASS",
@@ -345,10 +357,12 @@ async def run_pre_generation_gates(
 
     Gates:
         1. Sources Verified — sources_verified is not "Pending"
-        2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER]
+        2. Lyrics Reviewed — Lyrics Box populated, no [TODO]/[PLACEHOLDER], and
+           no "[Lyrics here...]" or "[Lyrics to be written]" placeholder lines
         3. Pronunciation Resolved — All Pronunciation Notes entries applied
         4. Explicit Flag Set — Explicit field is "Yes" or "No"
-        5. Style Prompt Complete — Non-empty Style Box with content
+        5. Style Prompt Complete — Non-empty Style Box that is not the
+           template's bracketed placeholder
         6. Artist Names Cleared — No real artist names in Style Box
         7. Homograph Check — No unresolved homographs in lyrics
         8. Lyric Length — Lyrics under 800-word Suno limit
@@ -450,6 +464,21 @@ async def run_pre_generation_gates(
 _END_PUNCT_RE = re.compile(r'[.,:;!?]$')
 
 
+def _starts_lowercase(line: str) -> bool:
+    """True when the first letter or digit of *line* is a lowercase letter.
+
+    "Capitalized" is about the first letter, not the first character. Leading
+    punctuation is skipped, so a backing vocal in parentheses, quoted speech
+    and an elision ("'Cause") are judged on the letter that follows. A line
+    that opens with a digit, or is written in a script with no upper case, has
+    nothing to capitalize and is never flagged.
+    """
+    for ch in line:
+        if ch.isalnum():
+            return ch.islower()
+    return False
+
+
 async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
     """Check streaming lyrics readiness for an album's tracks.
 
@@ -459,7 +488,9 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
         2. Not Empty — Code block has content beyond whitespace
         3. Not Placeholder — Content doesn't match template placeholder
         4. No Section Tags — No [Verse], [Chorus] etc. lines
-        5. Lines Capitalized — Non-blank lines start uppercase
+        5. Lines Capitalized — The first letter of each line is not lowercase
+           (leading punctuation such as "(" or a quotation mark is skipped;
+           a line that opens with a digit is fine)
         6. No End Punctuation — Lines don't end with .,:;!? (ellipsis allowed)
         7. Word Count — >= 20 words; if Suno Lyrics exist, >= 80% of Suno count
 
@@ -575,7 +606,7 @@ async def check_streaming_lyrics(album_slug: str, track_slug: str = "") -> str:
 
             # Check 5: Lines Capitalized
             uncapped = [(ln, line.strip()) for ln, line in non_blank_lines
-                        if line.strip() and not line.strip()[0].isupper()
+                        if _starts_lowercase(line)
                         and not _SECTION_TAG_RE.match(line.strip())]
             if uncapped:
                 examples = ", ".join(

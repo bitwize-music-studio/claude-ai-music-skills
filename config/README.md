@@ -126,6 +126,12 @@ The `~/.bitwize-music/` directory also contains:
 | `urls.youtube` | No | YouTube channel URL |
 | `urls.twitter` | No | Twitter/X profile URL |
 | `generation.service` | No | Music service (default: `suno`) |
+| `generation.listen_mode` | No | How `/bitwize-music:listen` auditions Suno takes: `browser` (default — opens the song page, free), `iterm2_browser` (Suno's compact player in iTerm2 panes beside the session, also free; needs macOS, iTerm2 3.6+ and its Browser Plugin, and opens the browser anywhere else) or `terminal` (plays it here; the first play of a song uses one Suno download credit) |
+| `generation.listen_confirm_download` | No | Ask before a terminal audition spends a download credit (default: `true`) |
+| `generation.suno_mcp_reminder` | No | Show how to add Suno's MCP server at session start while none is registered (default: `true`) |
+| `generation.suno_workspaces` | No | File each album's Suno takes in a workspace of its own, created at the album's first generation (default: `true`) |
+| `generation.take_check` | No | After generating, check the new takes against the track file with Suno's listening agent — free and advisory (default: `true`) |
+| `generation.like_keeper` | No | When a take is approved, also like it on suno.com; rejected takes are never disliked (default: `true`) |
 
 ### Promo Videos (`promotion:`)
 
