@@ -422,6 +422,7 @@ _shared.PLUGIN_ROOT = PLUGIN_ROOT
 # ---------------------------------------------------------------------------
 
 from handlers import (
+    album_art,
     album_ops,
     content,
     core,
@@ -450,6 +451,7 @@ content.register(mcp)
 text_analysis.register(mcp)
 lyrics_analysis.register(mcp)
 album_ops.register(mcp)
+album_art.register(mcp)
 gates.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
@@ -506,6 +508,11 @@ from handlers._shared import (  # noqa: F401
 )
 
 # Album ops tools
+from handlers.album_art import (  # noqa: F401
+    generate_album_art,
+    get_album_art_plan,
+    import_album_art,
+)
 from handlers.album_ops import (  # noqa: F401
     create_album_structure,
     get_album_full,

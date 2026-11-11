@@ -39,6 +39,10 @@ Example: /import-art ~/Downloads/album-art.jpg sample-album
 
 ## Step 2: Find Album and Resolve Paths via MCP
 
+**Preferred: one call.** After `find_album(album_name)`, call `import_album_art(album_slug, source_path)`. It does steps 2 to 4 itself: it resolves both folders, writes `album.png` as a square PNG of at least 3000x3000 (enlarging a smaller image) and `album-art.png` at the image's own size, and reports what it wrote. It keeps an existing cover unless you pass `replace=true`, so ask the user first. Then go to Step 5.
+
+Use the manual steps below only for a file the tool refuses that the user wants kept as it is, such as an image that is not square.
+
 1. Call `find_album(album_name)` — fuzzy match, returns album metadata including genre
 2. Call `resolve_path("audio", album_slug)` — returns audio directory path
 3. Call `resolve_path("content", album_slug)` — returns content directory path

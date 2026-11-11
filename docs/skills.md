@@ -13,7 +13,7 @@ All 53 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `album-conceptualizer` | Album concepts, tracklist architecture, 7 planning phases |
 | `suno-engineer` | Technical Suno prompting, model choice and generation settings |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
-| `album-art-director` | Album artwork concepts and multi-platform AI art prompts |
+| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI make the cover (`artwork.generator: codex`) |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
 | `mastering-engineer` | Audio mastering for streaming platforms (-14 LUFS) |
 

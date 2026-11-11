@@ -110,7 +110,7 @@ Quick-reference guide for finding the right skill for any task.
 | Skill | Description | Primary Use Case |
 |-------|-------------|------------------|
 | [`about`](/skills/about/SKILL.md) | About bitwize and this plugin | Learning about the plugin creator |
-| [`album-art-director`](/skills/album-art-director/SKILL.md) | Visual concepts for album artwork and AI art prompts | Creating album cover concepts for DALL-E/ChatGPT |
+| [`album-art-director`](/skills/album-art-director/SKILL.md) | Visual concepts for album artwork and AI art prompts; with `artwork.generator: codex`, has the Codex CLI make the image | Creating album cover concepts for DALL-E/ChatGPT, or the cover itself through Codex |
 | [`album-conceptualizer`](/skills/album-conceptualizer/SKILL.md) | Album concepts, tracklist architecture, thematic planning | Planning a new album's structure and narrative |
 | [`album-dashboard`](/skills/album-dashboard/SKILL.md) | Visual album progress dashboard with completion percentages | Quick overview of album progress by phase |
 | [`album-ideas`](/skills/album-ideas/SKILL.md) | Track and manage album ideas | Brainstorming and planning future albums |
@@ -187,7 +187,7 @@ What to have ready before using each skill:
 | `/cloud-uploader` | Promo videos generated |
 | `/release-director` | Mastering complete, all QA passed |
 | `/import-audio` | Audio files in known location (e.g., ~/Downloads) |
-| `/import-art` | Album art generated (from DALL-E or similar) |
+| `/import-art` | Album art generated elsewhere (DALL-E or similar); art made through Codex is filed by the art director |
 | `/researcher` | Album concept with research needs identified |
 | `/document-hunter` | Playwright installed (`pip install playwright && playwright install chromium`) |
 

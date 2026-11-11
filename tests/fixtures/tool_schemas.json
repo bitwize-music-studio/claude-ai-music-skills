@@ -1291,6 +1291,45 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "candidates": {
+          "default": 0,
+          "title": "Candidates",
+          "type": "integer"
+        },
+        "open_viewer": {
+          "default": true,
+          "title": "Open Viewer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "generate_album_artArguments",
+      "type": "object"
+    },
+    "name": "generate_album_art",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "generate_album_artOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "clip_duration": {
           "default": 12,
           "title": "Clip Duration",
@@ -1399,6 +1438,35 @@
         "result"
       ],
       "title": "generate_promo_videosOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_art_planArguments",
+      "type": "object"
+    },
+    "name": "get_album_art_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_art_planOutput",
       "type": "object"
     }
   },
@@ -1880,6 +1948,45 @@
         "result"
       ],
       "title": "health_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "source_path": {
+          "title": "Source Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "source_path"
+      ],
+      "title": "import_album_artArguments",
+      "type": "object"
+    },
+    "name": "import_album_art",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "import_album_artOutput",
       "type": "object"
     }
   },
