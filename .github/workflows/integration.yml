@@ -166,7 +166,9 @@ jobs:
     # Step timeout + $APT_OPTS (workflow env, top of file) guard against silent
     # apt-mirror stalls (the 2026-08-19 nightly burned 90 min inside `apt-get
     # update`) — see nightly.yml. 15 min, not 10: musescore3 pulls a large
-    # dependency tree. No -qq here either, for the same attribution reason.
+    # dependency tree. apt-install.sh falls back to archive.ubuntu.com when the
+    # runner's mirror is slow rather than stalled (#595). No -qq here either,
+    # for the same attribution reason.
     #
     # This install deliberately does NOT carry --no-install-recommends, unlike
     # the ffmpeg sites: musescore3 is a Qt GUI application whose recommends pull
@@ -177,10 +179,9 @@ jobs:
       if: runner.os == 'Linux'
       timeout-minutes: 15
       run: |
-        sudo apt-get $APT_OPTS update
         # xvfb is a headless fallback if the offscreen plugin misbehaves on the
         # runner; the primary path is QT_QPA_PLATFORM=offscreen.
-        sudo apt-get $APT_OPTS install -y musescore3 xvfb
+        bash .github/scripts/apt-install.sh musescore3 xvfb
         echo "mscore3 on PATH: $(command -v mscore3 || echo '(not on PATH)')"
         ls -l /usr/bin/mscore3 /usr/bin/musescore3 || true
 
