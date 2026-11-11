@@ -1273,6 +1273,27 @@ class TestCover:
         assert result["supported"] is False
         assert "cover_source_no_clip_id" in _codes(result, "blocking")
 
+    @pytest.mark.parametrize("source", [
+        "https://www.suno.com/s/4hZKwZySCc8Lc63Q",
+        "https://Suno.com/s/4hZKwZySCc8Lc63Q",
+    ])
+    def test_any_suno_share_link_gets_the_share_link_message(self, album, source):
+        _write_with(album, _setup_block(source=source))
+        assert "cover_source_no_clip_id" in _codes(_request(), "blocking")
+
+    @pytest.mark.parametrize("source", [
+        "https://notsuno.com/s/4hZKwZySCc8Lc63Q",
+        "https://suno.com.evil.example/s/4hZKwZySCc8Lc63Q",
+        "https://evil.example/s/4hZKwZySCc8Lc63Q?next=suno.com",
+    ])
+    def test_a_lookalike_address_is_not_taken_for_suno(self, album, source):
+        """The host decides, not where "suno.com" appears in the text (CodeQL
+        py/incomplete-url-substring-sanitization)."""
+        _write_with(album, _setup_block(source=source))
+        result = _request()
+        assert "cover_source_not_on_suno" in _codes(result, "blocking")
+        assert "cover_source_no_clip_id" not in _codes(result, "blocking")
+
     def test_a_described_source_stops_the_request(self, album):
         """A cover of audio that is not on Suno must not quietly become an original."""
         _write_with(album, _setup_block(source="Splice sample, uploaded by hand"))

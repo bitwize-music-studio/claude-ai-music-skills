@@ -14,6 +14,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from handlers import _shared
 from handlers._atomic import atomic_write_text
@@ -339,6 +340,17 @@ def _script(lyrics: str) -> str:
     return "\n".join(out).strip()
 
 
+def _is_suno_address(url: str) -> bool:
+    """Whether *url* is on suno.com or one of its subdomains.
+
+    Decided by the parsed host, never by where "suno.com" appears in the text,
+    so notsuno.com, suno.com.example.org and a query string naming suno.com
+    are all not Suno.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    return host == "suno.com" or host.endswith(".suno.com")
+
+
 def _cover_source(
     source_cell: str, cover_of: str,
 ) -> tuple[dict[str, str] | None, dict[str, str] | None]:
@@ -357,7 +369,7 @@ def _cover_source(
             f'Cover of names "{cover_of}" but Source audio is empty — paste the source\'s song '
             "address (https://suno.com/song/<id>), or clear Cover of to generate an original",
         )
-    if url and "suno.com" in url.lower():
+    if url and _is_suno_address(url):
         return None, _problem(
             "cover_source_no_clip_id", "blocking",
             "Source audio is a share link, which carries no song id — open it and paste the "
