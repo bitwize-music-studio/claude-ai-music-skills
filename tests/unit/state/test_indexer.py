@@ -1282,8 +1282,11 @@ class TestReadStateWindowsOpenRetry:
     an OSError as corruption.
 
     On Windows, while a concurrent write_state is mid-os.replace, a reader's
-    open(STATE_FILE) transiently raises PermissionError WinError 5 / 32. The
-    old code caught it under ``except (json.JSONDecodeError, OSError)`` and
+    open(STATE_FILE) transiently raises a sharing violation. open() goes
+    through the C runtime, so it arrives as PermissionError(13, 'Permission
+    denied') with no winerror; that is the form CI's lock stress test saw.
+    The winerror 5 / 32 form is the one os.replace raises; both are retried.
+    The old code caught it under ``except (json.JSONDecodeError, OSError)`` and
     treated it as CORRUPTION — backing up the good state.json to a .corrupt
     copy and returning {}. That is the data-loss-adjacent bug these tests pin:
     transient contention is retried; a surviving OSError re-raises (never
@@ -1298,6 +1301,11 @@ class TestReadStateWindowsOpenRetry:
         err = PermissionError("Access is denied")
         err.winerror = winerror
         return err
+
+    @staticmethod
+    def _crt_access_denied():
+        """What open() raises on Windows for a sharing violation: no winerror."""
+        return PermissionError(errno.EACCES, "Permission denied")
 
     @staticmethod
     def _spy_quarantine(monkeypatch, indexer):
@@ -1340,6 +1348,68 @@ class TestReadStateWindowsOpenRetry:
         assert calls["n"] == fail_times + 1
         assert quarantine_calls == []
         assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_retries_crt_access_denied_from_open_on_windows(self, tmp_path, monkeypatch):
+        """The form open() really raises: errno EACCES and no winerror.
+
+        The retry used to recognise only winerror 5 / 32, which open() never
+        sets, so a contended read failed on its first attempt. CI's lock
+        stress test saw 200 of 400 reads fail that way on windows-latest.
+        """
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        real_open = open
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_open(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._crt_access_denied()
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr(indexer, "open", flaky_open, raising=False)
+
+        loaded = read_state()
+
+        assert loaded is not None
+        assert loaded['value'] == 'ok'
+        assert calls["n"] == fail_times + 1
+        assert quarantine_calls == []
+
+    def test_crt_error_other_than_eacces_not_retried_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """Without a winerror only EACCES counts: a C-runtime ENOENT raises at once."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_enoent(*args, **kwargs):
+            calls["n"] += 1
+            raise FileNotFoundError(errno.ENOENT, "No such file or directory")
+
+        monkeypatch.setattr(indexer, "open", fail_enoent, raising=False)
+
+        with pytest.raises(FileNotFoundError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
 
     def test_transient_open_gives_up_reraises_without_quarantine_on_windows(
         self, tmp_path, monkeypatch
@@ -1410,7 +1480,8 @@ class TestReadStateWindowsOpenRetry:
 
     def test_posix_open_oserror_not_retried_or_quarantined(self, tmp_path, monkeypatch):
         """POSIX: a genuine OSError from open is not retried and is not
-        quarantined — it re-raises (open never fails mid-rename on POSIX)."""
+        quarantined — it re-raises (open never fails mid-rename on POSIX). It
+        uses the errno EACCES form, which Windows does retry."""
         import tools.state.indexer as indexer
         _override_indexer_paths(monkeypatch, tmp_path)
         write_state({'version': '1.0.0'})
@@ -1426,7 +1497,7 @@ class TestReadStateWindowsOpenRetry:
 
         def fail_once(*args, **kwargs):
             calls["n"] += 1
-            raise PermissionError("Permission denied")
+            raise PermissionError(errno.EACCES, "Permission denied")
 
         monkeypatch.setattr(indexer, "open", fail_once, raising=False)
 
