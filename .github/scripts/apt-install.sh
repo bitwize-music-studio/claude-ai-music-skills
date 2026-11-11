@@ -18,6 +18,13 @@
 # runs from that cache, so the time limit can only ever cut a download short,
 # never dpkg.
 #
+# Where the mirror is named depends on the runner image. Older images put it in
+# the sources themselves; the Ubuntu 26.04 images put it in
+# /etc/apt/apt-mirrors.txt, which the sources reach through mirror+file:. So the
+# switch rewrites whichever text file under /etc/apt names the mirror. On 26.04
+# the mirror was also seen refusing every request, not just trickling.
+# APT_ETC overrides /etc/apt for tests.
+#
 # $APT_OPTS (workflow env) applies to every apt-get call. No -qq anywhere: the
 # Get:/Hit: lines are the only record of which mirror a slow step was waiting on.
 set -euo pipefail
@@ -35,6 +42,7 @@ case "$fetch_timeout" in
     ;;
 esac
 read -r -a apt_opts <<< "${APT_OPTS:-}"
+apt_etc="${APT_ETC:-/etc/apt}"
 
 # apt-get as root. With a time limit, timeout runs as root as well, so its TERM
 # (and the KILL 30 s later) reach apt-get itself rather than stopping at sudo.
@@ -68,12 +76,12 @@ if [ "$status" -ne 0 ]; then
     *) reason="failed (exit $status)" ;;
   esac
   echo "::warning title=apt mirror fallback::fetching from the runner's mirror $reason; retrying from archive.ubuntu.com"
-  mapfile -t sources < <(grep -rlF azure.archive.ubuntu.com /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null || true)
+  mapfile -t sources < <(grep -rlIF azure.archive.ubuntu.com "$apt_etc" 2>/dev/null || true)
   if [ "${#sources[@]}" -gt 0 ]; then
     sudo sed -i 's#azure\.archive\.ubuntu\.com#archive.ubuntu.com#g' "${sources[@]}"
     echo "Now using archive.ubuntu.com in: ${sources[*]}"
   else
-    echo "No apt source names azure.archive.ubuntu.com; retrying the configured mirrors."
+    echo "No apt source or mirror list names azure.archive.ubuntu.com; retrying the configured mirrors."
   fi
   apt_get 0 update
   apt_get 0 install -y --download-only "$@"
