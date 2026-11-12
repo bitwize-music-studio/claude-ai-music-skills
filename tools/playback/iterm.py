@@ -11,8 +11,12 @@ each take gets a small dynamic profile; they are removed when the panes close.
 Nothing from a URL or a pane id is ever pasted into AppleScript source — every
 value is passed to the script as an argument.
 
-There is one set of player panes per machine, not per session: opening takes
-closes the panes of the previous call, whichever session made it.
+Each Claude Code session keeps its own panes, told apart by the iTerm2 pane the
+session runs in (``ITERM_SESSION_ID``): its pane record, lyrics text and
+profiles file carry that pane's id, and opening or closing takes touches only
+that session's panes. Another session's files are removed once none of its
+panes is open any more, and its panes are never closed. A process with no pane
+id uses the files without an id, shared by every such process.
 """
 
 from __future__ import annotations
@@ -42,9 +46,12 @@ PLUGIN_BUNDLE_ID = "com.googlecode.iterm2.iTermBrowserPlugin"
 PLUGIN_URL = "https://iterm2.com/browser-plugin.html"
 PROFILE_PREFIX = "bitwize-music player"
 PROFILES_FILE = "bitwize-music-listen.json"
+PANES_FILE = "listen-panes.json"
+LYRICS_FILE = "listen-lyrics.txt"
 
-# Profile Guids are derived from the page URL, so the same take always gets the
-# same profile and iTerm2 never sees two profiles with one Guid.
+# Profile Guids are derived from the session's pane id and the page URL, so the
+# same take always gets the same profile in one session, and iTerm2 never sees
+# two profiles with one Guid, even when two sessions show the same take.
 _PROFILE_NAMESPACE = uuid.UUID("6b1d2c0e-5a7f-4e7b-9c1a-b17e11570000")
 
 _SUNO_PREFIX = "https://suno.com/"
@@ -128,6 +135,24 @@ on run argv
 end run
 """
 
+# No arguments. Answers the id of every pane iTerm2 has open, one per line.
+_LIST_SCRIPT = """
+on run argv
+  set paneIds to {}
+  tell application "iTerm2"
+    repeat with w in windows
+      repeat with t in tabs of w
+        repeat with s in sessions of t
+          set end of paneIds to (id of s)
+        end repeat
+      end repeat
+    end repeat
+  end tell
+  set AppleScript's text item delimiters to linefeed
+  return paneIds as text
+end run
+"""
+
 
 class ItermError(Exception):
     """iTerm2 panes could not be used; the message says why."""
@@ -143,19 +168,32 @@ def dynamic_profiles_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / "iTerm2" / "DynamicProfiles"
 
 
-def profiles_path() -> Path:
-    """The one dynamic-profiles file this module owns."""
-    return dynamic_profiles_dir() / PROFILES_FILE
+def _session_name(filename: str, key: str | None) -> str:
+    """*filename* for the session started from pane *key*.
+
+    *key* defaults to this process's own pane. The pane id goes before the
+    extension; "" (no pane id) leaves the name as it is.
+    """
+    key = _own_pane_id() if key is None else key
+    if not key:
+        return filename
+    stem, _, extension = filename.rpartition(".")
+    return f"{stem}-{key}.{extension}"
 
 
-def panes_path() -> Path:
-    """The file recording which panes are open."""
-    return _player.cache_dir() / "listen-panes.json"
+def profiles_path(key: str | None = None) -> Path:
+    """The session's dynamic-profiles file (this process's session by default)."""
+    return dynamic_profiles_dir() / _session_name(PROFILES_FILE, key)
 
 
-def lyrics_path() -> Path:
-    """The text file the lyrics pane shows."""
-    return _player.cache_dir() / "listen-lyrics.txt"
+def panes_path(key: str | None = None) -> Path:
+    """The file recording which panes the session has open."""
+    return _player.cache_dir() / _session_name(PANES_FILE, key)
+
+
+def lyrics_path(key: str | None = None) -> Path:
+    """The text file the session's lyrics pane shows."""
+    return _player.cache_dir() / _session_name(LYRICS_FILE, key)
 
 
 # =============================================================================
@@ -219,9 +257,15 @@ def player_url(url: str) -> str:
     return f"https://suno.com/embed/{match.group(1).lower()}" if match else url
 
 
+def _guid(name: str) -> str:
+    """The Guid of this session's profile *name*: stable in one session, unique to it."""
+    key = _own_pane_id()
+    return str(uuid.uuid5(_PROFILE_NAMESPACE, f"{key}\n{name}" if key else name)).upper()
+
+
 def _profile(page: str) -> dict[str, str]:
     """The browser profile that opens *page*."""
-    guid = str(uuid.uuid5(_PROFILE_NAMESPACE, page)).upper()
+    guid = _guid(page)
     return {
         "Name": f"{PROFILE_PREFIX} {guid[:8]}",
         "Guid": guid,
@@ -241,9 +285,10 @@ def _lyrics_profile(path: Path) -> dict[str, Any]:
     says.
     """
     pager = shutil.which("less") or "/usr/bin/less"
+    guid = _guid("lyrics")
     return {
-        "Name": f"{PROFILE_PREFIX} lyrics",
-        "Guid": str(uuid.uuid5(_PROFILE_NAMESPACE, "lyrics")).upper(),
+        "Name": f"{PROFILE_PREFIX} lyrics {guid[:8]}",
+        "Guid": guid,
         "Custom Command": "Yes",
         "Command": shlex.join([pager, "-L", f"-Ps{_LYRICS_HINT}", str(path)]),
         "Close Sessions On End": True,
@@ -277,10 +322,13 @@ def _remove_profiles() -> None:
 # =============================================================================
 
 
-def _load_panes() -> list[str]:
-    """Recorded pane ids. Anything that is not a pane id is dropped."""
+def _load_panes(path: Path | None = None) -> list[str]:
+    """Pane ids recorded in *path* (this session's record by default).
+
+    Anything that is not a pane id is dropped.
+    """
     try:
-        data = json.loads(panes_path().read_text(encoding="utf-8"))
+        data = json.loads((path or panes_path()).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
     if not isinstance(data, list):
@@ -354,17 +402,50 @@ def _close(panes: list[str]) -> int:
         return 0
 
 
+def _forget_closed_sessions() -> None:
+    """Remove other sessions' files once none of their panes is open any more.
+
+    Never closes a pane: another session's panes are that session's to close.
+    The records are read before iTerm2 is asked what is open, so a record
+    written in between is never judged against an answer older than its panes.
+    Never raises; when iTerm2 cannot answer, every file stays.
+    """
+    own = panes_path()
+    records: dict[str, list[str]] = {}
+    for path in sorted(_player.cache_dir().glob("listen-panes*.json")):
+        key = path.stem.removeprefix("listen-panes").removeprefix("-")
+        if path != own and (not key or _PANE_ID_RE.fullmatch(key)):
+            records[key] = _load_panes(path)
+    if not records or not _IS_MACOS or shutil.which("osascript") is None:
+        return
+    try:
+        open_panes = set(_osascript(_LIST_SCRIPT).split())
+    except ItermError as e:
+        logger.warning("Could not list iTerm2 panes, so other sessions' files stay: %s", e)
+        return
+    for key, panes in records.items():
+        if not open_panes.intersection(panes):
+            panes_path(key).unlink(missing_ok=True)
+            lyrics_path(key).unlink(missing_ok=True)
+            profiles_path(key).unlink(missing_ok=True)
+
+
 # =============================================================================
 # Public API
 # =============================================================================
 
 
 def close_panes() -> dict[str, Any]:
-    """Close the panes this module opened and remove their profiles."""
+    """Close the panes this session opened and remove their profiles.
+
+    Panes another session opened stay open. That session's files are removed
+    once none of its panes is open any more.
+    """
     closed = _close(_load_panes())
     _remove_profiles()
     panes_path().unlink(missing_ok=True)
     lyrics_path().unlink(missing_ok=True)
+    _forget_closed_sessions()
     return {"closed": closed}
 
 
@@ -373,8 +454,9 @@ def open_in_panes(urls: list[str], lyrics: str = "", title: str = "") -> dict[st
 
     The panes form one column to the right of the session, the first URL at
     the top: each pane is split off under the one before, and iTerm2 shares
-    the column's height evenly between them. Panes from an earlier call are
-    closed first, and the keyboard focus goes back to the session afterwards.
+    the column's height evenly between them. This session's panes from an
+    earlier call are closed first, and other sessions' panes are left open.
+    The keyboard focus goes back to the session afterwards.
     A page given twice gets one pane.
 
     With *lyrics*, one more pane at the bottom of the column shows them in a
