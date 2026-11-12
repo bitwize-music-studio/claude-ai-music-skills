@@ -145,6 +145,7 @@ if _MCPServer is None:
 # Import from plugin's tools
 from datetime import UTC
 
+import tools.state.indexer as _indexer
 from tools.state.indexer import (
     CONFIG_FILE,
     CURRENT_VERSION,
@@ -152,6 +153,7 @@ from tools.state.indexer import (
     _read_plugin_version,
     build_state,
     carry_migration_tracking,
+    incremental_update,
     read_config,
     read_state,
     write_state,
@@ -379,8 +381,56 @@ class StateCache:
                 else:
                     logger.warning("Config not found, cannot auto-rebuild")
             else:
-                album_count = len(self._state.get("albums", {}))
+                self._refresh_if_config_changed()
+                album_count = len((self._state or {}).get("albums", {}))
                 logger.debug("Loaded state from disk: %d albums", album_count)
+
+    def _refresh_if_config_changed(self) -> None:
+        """Bring the state up to date when config.yaml changed after it was built.
+
+        The state's config section records the config file's mtime from when it
+        was built. A different mtime means the config was edited since, and
+        without a refresh every tool keeps answering from the old settings until
+        someone runs rebuild_state. ``incremental_update`` re-reads the config
+        and rescans only what the change calls for; when it cannot work with the
+        state it has, a full rebuild takes over, keeping the session and the
+        migration tracking. Any failure leaves the loaded state in place.
+        """
+        state = self._state
+        if not _indexer.AUTO_REFRESH_ON_CONFIG_CHANGE or state is None:
+            return
+        section = state.get("config")
+        recorded = section.get("config_mtime") if isinstance(section, dict) else None
+        if isinstance(recorded, bool) or not isinstance(recorded, (int, float)):
+            return
+        try:
+            if not CONFIG_FILE.exists():
+                return
+            current = CONFIG_FILE.stat().st_mtime
+        except OSError:
+            return
+        if current == recorded:
+            return
+
+        config = read_config()
+        if config is None:
+            logger.warning("Config changed but cannot be read; keeping the cached state")
+            return
+        try:
+            refreshed = incremental_update(state, config)
+            if refreshed is None:
+                refreshed = build_state(config, plugin_root=PLUGIN_ROOT)
+                refreshed["session"] = state.get("session", {})
+                carry_migration_tracking(refreshed, state)
+            write_state(refreshed)
+        except Exception:
+            logger.warning(
+                "Refresh after a config change failed; using the cached state", exc_info=True,
+            )
+            return
+        self._state = refreshed
+        self._update_mtimes()
+        logger.info("Config changed since the state was built; state refreshed")
 
     def _update_mtimes(self) -> None:
         """Update cached mtime values."""
@@ -422,21 +472,33 @@ _shared.PLUGIN_ROOT = PLUGIN_ROOT
 # ---------------------------------------------------------------------------
 
 from handlers import (
+    album_art,
+    album_fields,
+    album_generation,
     album_ops,
     content,
     core,
     database,
     gates,
+    generation,
     health,
     ideas,
     lyrics_analysis,
     maintenance,
+    playback,
     processing,
     promo,
     rename,
     skills,
     status,
     streaming,
+    suno_midi,
+    suno_release,
+    suno_sounds,
+    suno_voices,
+    take_check,
+    take_edit,
+    take_extend,
     text_analysis,
 )
 
@@ -450,7 +512,19 @@ content.register(mcp)
 text_analysis.register(mcp)
 lyrics_analysis.register(mcp)
 album_ops.register(mcp)
+album_art.register(mcp)
+album_fields.register(mcp)
 gates.register(mcp)
+generation.register(mcp)
+take_check.register(mcp)
+take_edit.register(mcp)
+take_extend.register(mcp)
+suno_sounds.register(mcp)
+suno_voices.register(mcp)
+album_generation.register(mcp)
+suno_release.register(mcp)
+suno_midi.register(mcp)
+playback.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
 status.register(mcp)
@@ -504,8 +578,18 @@ from handlers._shared import (  # noqa: F401
     _safe_json,
     _update_frontmatter_block,
 )
+from handlers.album_art import (  # noqa: F401
+    generate_album_art,
+    get_album_art_plan,
+    import_album_art,
+)
+from handlers.album_fields import (  # noqa: F401
+    sync_album_tracklist,
+    update_album_field,
+)
 
 # Album ops tools
+from handlers.album_generation import get_album_generation_plan  # noqa: F401
 from handlers.album_ops import (  # noqa: F401
     create_album_structure,
     get_album_full,
@@ -559,6 +643,15 @@ from handlers.gates import (  # noqa: F401
     run_pre_generation_gates,
 )
 
+# Suno generation bridge tools
+from handlers.generation import (  # noqa: F401
+    get_album_workspace,
+    get_generation_request,
+    get_suno_import_plan,
+    log_generation,
+    set_album_workspace,
+)
+
 # Health tools
 from handlers.health import (  # noqa: F401
     acknowledge_migrations,
@@ -580,6 +673,7 @@ from handlers.ideas import (  # noqa: F401
 from handlers.lyrics_analysis import (  # noqa: F401
     analyze_readability,
     analyze_rhyme_scheme,
+    check_album_lyrics,
     count_syllables,
     extract_distinctive_phrases,
     validate_section_structure,
@@ -590,6 +684,17 @@ from handlers.maintenance import (  # noqa: F401
     cleanup_legacy_venvs,
     migrate_audio_layout,
     reset_mastering,
+)
+
+# Auditioning tools
+from handlers.playback import (  # noqa: F401
+    close_song_panes,
+    compare_audio,
+    get_listen_plan,
+    open_song_page,
+    play_audio,
+    prune_takes_cache,
+    stop_audio,
 )
 
 # Processing tools
@@ -658,6 +763,24 @@ from handlers.streaming import (  # noqa: F401
     update_streaming_url,
     verify_streaming_urls,
 )
+from handlers.suno_midi import (  # noqa: F401
+    get_midi_score_plan,
+    get_suno_midi_plan,
+)
+
+# Take-check tools
+from handlers.suno_release import (  # noqa: F401
+    get_suno_release_plan,
+    set_album_playlist,
+)
+from handlers.suno_sounds import get_sound_request  # noqa: F401
+from handlers.suno_voices import set_track_voice  # noqa: F401
+from handlers.take_check import (  # noqa: F401
+    evaluate_take_check,
+    get_take_check_plan,
+)
+from handlers.take_edit import get_edit_request  # noqa: F401
+from handlers.take_extend import get_extension_request  # noqa: F401
 
 # Text analysis tools
 from handlers.text_analysis import (  # noqa: F401

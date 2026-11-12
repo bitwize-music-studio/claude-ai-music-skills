@@ -12,6 +12,7 @@ from typing import Any
 from handlers import _shared
 from handlers._shared import _safe_json
 from handlers._shared import get_plugin_version as _read_plugin_version
+from tools.shared import mcp_registrations as _mcp_registrations
 from tools.shared.venv import venv_python
 from tools.state import indexer
 
@@ -88,6 +89,68 @@ def _find_plugin_cache_dir() -> Path | None:
     return candidates[0]
 
 
+# Suno's official MCP server. The plugin does not ship it; the user adds it once.
+SUNO_MCP_HOST = "api.suno.com"
+SUNO_MCP_URL = "https://api.suno.com/mcp"
+SUNO_MCP_FIX: dict[str, str] = {
+    "add": f"claude mcp add --transport http suno {SUNO_MCP_URL}",
+    "then": "Run /mcp and sign in to Suno",
+    "everywhere": "Add --scope user to the command to have it in every project",
+    "other_assistants": "https://help.suno.com/en/articles/14551425",
+}
+
+
+def _check_suno_mcp() -> dict[str, Any]:
+    """Whether a Suno MCP server is registered for this session, and how to add one.
+
+    Reads Claude Code's and Codex's MCP registrations (any server name counts
+    when its URL is on api.suno.com). Suno's server is optional, so the status
+    is "configured" or "missing" — never a warning. ``reminder`` says whether
+    session start should show the install instructions when it is missing
+    (config ``generation.suno_mcp_reminder``, default true).
+    """
+    servers = _mcp_registrations.find_servers(SUNO_MCP_HOST)
+    state = _shared.cache.get_state() if _shared.cache is not None else {}
+    generation = (state or {}).get("config", {}).get("generation", {}) or {}
+    result: dict[str, Any] = {
+        "status": "configured" if servers else "missing",
+        "servers": servers,
+        "reminder": bool(generation.get("suno_mcp_reminder", True)),
+    }
+    if not servers:
+        result["fix"] = dict(SUNO_MCP_FIX)
+    return result
+
+
+def _directory_marketplace_root() -> Path | None:
+    """The folder Claude Code loads bitwize-music from directly, if it does.
+
+    A marketplace added from a local folder (``claude plugin marketplace add
+    <path>``) is recorded in ``~/.claude/plugins/known_marketplaces.json`` with
+    a ``directory`` source. Claude Code then loads the plugin's skills and MCP
+    server from that folder, not from the plugin cache. Returns None for any
+    other source, or when the file is missing or unreadable.
+    """
+    path = Path.home() / ".claude" / "plugins" / "known_marketplaces.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    entry = data.get("bitwize-music") if isinstance(data, dict) else None
+    source = entry.get("source") if isinstance(entry, dict) else None
+    if not isinstance(source, dict) or source.get("source") != "directory":
+        return None
+    folder = source.get("path")
+    return Path(folder).expanduser() if isinstance(folder, str) and folder else None
+
+
+def _same_folder(a: Path, b: Path) -> bool:
+    try:
+        return a.resolve() == b.resolve()
+    except OSError:
+        return False
+
+
 def _check_skill_registration() -> dict[str, Any]:
     """Compare on-disk skills against the Claude Code plugin cache.
 
@@ -106,6 +169,25 @@ def _check_skill_registration() -> dict[str, Any]:
         p.parent.name
         for p in (_shared.PLUGIN_ROOT / "skills").glob("*/SKILL.md")
     }
+
+    # Installed from a local folder: Claude Code loads the skills from that
+    # folder, so there is no cached copy to fall behind. The copy that may sit
+    # in the cache is a leftover from the first install, and comparing against
+    # it reported a maintainer's newest skills as missing at every session start.
+    local_root = _directory_marketplace_root()
+    if local_root is not None and _same_folder(local_root, _shared.PLUGIN_ROOT):
+        return {
+            "status": "ok",
+            "source": "directory",
+            "source_count": len(source_skills),
+            "ok_count": len(source_skills),
+            "missing": [],
+            "ghost": [],
+            "message": (
+                f"Claude Code loads bitwize-music straight from {local_root}, so its "
+                "skills are the ones in that folder; a restart picks up new ones."
+            ),
+        }
 
     # Find the plugin cache
     cache_dir = _find_plugin_cache_dir()
@@ -313,8 +395,13 @@ async def health_check() -> str:
 
     Returns:
         JSON with overall status ("ok", "warn", "fail"), per-check
-        summaries, raw results for venv and skills, and an album slug
-        collision section ("ok" or "collision" with details and fix).
+        summaries, raw results for venv and skills, an album slug
+        collision section ("ok" or "collision" with details and fix), and
+        a suno section: whether Suno's MCP server is registered
+        ("configured" with the server's name and scope, or "missing" with
+        the add command and sign-in step under fix) plus reminder, whether
+        session start should show those instructions. The suno check's
+        status is "ok" or "info"; "info" never lowers the overall status.
     """
     checks: list[dict[str, Any]] = []
 
@@ -382,7 +469,19 @@ async def health_check() -> str:
         checks.append({"name": "collisions", "status": "ok",
                         "detail": "No album slug collisions"})
 
-    # --- Overall status ---
+    # --- Suno MCP server (optional, so "info" rather than "warn" when missing) ---
+    suno_raw = _check_suno_mcp()
+    if suno_raw["status"] == "configured":
+        first = suno_raw["servers"][0]
+        checks.append({"name": "suno", "status": "ok",
+                        "detail": (f"Suno MCP server configured as "
+                                   f"'{first['name']}' ({first['scope']})")})
+    else:
+        checks.append({"name": "suno", "status": "info",
+                        "detail": "Suno MCP server not configured (optional)",
+                        "fix": SUNO_MCP_FIX["add"]})
+
+    # --- Overall status ("info" is neither a warning nor a failure) ---
     statuses = [c["status"] for c in checks]
     if "fail" in statuses:
         overall = "fail"
@@ -397,6 +496,7 @@ async def health_check() -> str:
         "venv": venv_raw,
         "skills": skills_raw,
         "collisions": collisions_raw,
+        "suno": suno_raw,
     })
 
 

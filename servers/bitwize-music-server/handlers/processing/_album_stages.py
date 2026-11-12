@@ -91,6 +91,11 @@ from tools.mastering.metadata import (
 from tools.mastering.metadata import (
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
+from tools.mastering.playlist import (
+    PlaylistEntry,
+    playlist_path,
+    render_m3u8,
+)
 from tools.mastering.signature_persistence import (
     SIGNATURE_FILENAME,
     SignaturePersistenceError,
@@ -2123,6 +2128,89 @@ async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
         ctx.warnings.append(f"Layout emitter: {exc}")
 
     ctx.stages["layout"] = layout_stage
+    return None
+
+
+def _track_seconds(path: Path) -> int:
+    """A WAV's length in whole seconds, or -1 when it cannot be read."""
+    import soundfile as sf
+
+    try:
+        return round(float(sf.info(str(path)).duration))
+    except Exception:  # an unreadable file still gets its place in the playlist
+        return -1
+
+
+def _mastered_wavs(mastered_dir: Path) -> list[Path]:
+    """The WAVs in ``mastered/``, in track order.
+
+    A name holding a line break is left out: it would split its playlist line.
+    """
+    if not mastered_dir.is_dir():
+        return []
+    return sorted(
+        f for f in mastered_dir.iterdir()
+        if f.is_file() and f.suffix.lower() == ".wav" and not {"\n", "\r"} & set(f.name)
+    )
+
+
+def _playlist_entries(slug: str, wavs: list[Path]) -> tuple[str, list[PlaylistEntry]]:
+    """The album's name and one entry per WAV, titled from state and config."""
+    from tools.shared.config import load_config
+
+    try:
+        artist = str(((load_config() or {}).get("artist") or {}).get("name") or "").strip()
+        album = ((_shared.cache.get_state() or {}).get("albums") or {}).get(slug) or {}
+    except Exception as exc:  # titles are a nicety: never lose the playlist over them
+        logger.warning("Playlist: could not read titles (%s); using file names.", exc)
+        artist, album = "", {}
+    tracks = album.get("tracks") or {}
+    entries = []
+    for wav in wavs:
+        title = str((tracks.get(wav.stem) or {}).get("title") or wav.stem)
+        entries.append(PlaylistEntry(
+            path=f"mastered/{wav.name}",
+            seconds=_track_seconds(wav),
+            title=f"{artist} - {title}" if artist else title,
+        ))
+    return str(album.get("name") or slug), entries
+
+
+def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
+    """Write ``<album slug>.m3u8`` beside ``mastered/``, listing its WAVs in order.
+
+    Rebuilt from what is in ``mastered/`` on every call, so each tool that
+    writes there keeps it current. Titles come from the state cache and the
+    artist from config, as for the metadata stage; a track without a title
+    shows its file name. With nothing mastered, a playlist left from earlier
+    is removed. Never raises: a failure comes back as ``status: "warn"``.
+    """
+    slug = _normalize_slug(album_slug)
+    target = playlist_path(audio_dir, slug)
+    try:
+        wavs = _mastered_wavs(audio_dir / "mastered")
+        if not wavs:
+            target.unlink(missing_ok=True)
+            return {"status": "skipped", "reason": "no mastered WAVs", "path": None}
+        album_name, entries = _playlist_entries(slug, wavs)
+        atomic_write_text(target, render_m3u8(album_name, entries))
+    except OSError as exc:
+        return {"status": "warn", "path": str(target), "error": str(exc)}
+    return {"status": "pass", "path": str(target), "tracks": len(entries)}
+
+
+async def _stage_playlist(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6.8: Write the album's listening playlist beside ``mastered/``.
+
+    Reads ctx: album_slug, audio_dir, warnings
+    Sets ctx:  stages["playlist"]
+    Returns: None always (a failure is a warning, never a halt).
+    """
+    assert ctx.audio_dir is not None
+    stage = write_album_playlist(ctx.album_slug, ctx.audio_dir)
+    if stage["status"] == "warn":
+        ctx.warnings.append(f"Playlist: {stage['error']}")
+    ctx.stages["playlist"] = stage
     return None
 
 

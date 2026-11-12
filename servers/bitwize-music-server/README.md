@@ -62,7 +62,7 @@ pip install -r requirements.txt
 
 After installing, **restart Claude Code** to reload the plugin.
 
-## Tools Available (38)
+## Tools Available (43)
 
 ### Albums & Tracks
 | Tool | Description |
@@ -75,6 +75,7 @@ After installing, **restart Claude Code** to reload the plugin.
 | `get_album_full(album_slug, include_sections?)` | Combined album + track content query (eliminates N+1) |
 | `get_pending_verifications()` | Get tracks needing source verification |
 | `search(query, scope?)` | Full-text search across albums/tracks/ideas |
+| `set_track_voice(album_slug, voice, track_slug?, saved_from?, vocal_identity?)` | Put a saved Suno Voice on a track, or every vocal track of an album (`"—"` takes it off). Check it with Suno's `voices-list` first |
 
 ### Paths & Files
 | Tool | Description |
@@ -96,7 +97,8 @@ After installing, **restart Claude Code** to reload the plugin.
 | `scan_artist_names(text)` | Check text against artist name blocklist |
 | `check_explicit_content(text)` | Scan lyrics for explicit/profane words with override support |
 | `check_pronunciation_enforcement(album_slug, track_slug)` | Verify pronunciation notes applied in lyrics |
-| `get_lyrics_stats(album_slug, track_slug?)` | Word/char counts with genre target comparison |
+| `get_lyrics_stats(album_slug, track_slug?)` | Word/char counts against the target for the track's duration or genre |
+| `check_album_lyrics(album_slug, track_slug?, verbose?)` | Every lyric check (syllables, rhyme, structure, homographs, explicit) across an album; returns only what needs a look |
 
 ### Validation & Structure
 | Tool | Description |
@@ -104,6 +106,13 @@ After installing, **restart Claude Code** to reload the plugin.
 | `validate_album_structure(album_slug, checks?)` | Structural validation of album directories and files |
 | `create_album_structure(album_slug, genre, documentary?)` | Create new album directory with templates |
 | `run_pre_generation_gates(album_slug, track_slug?)` | Run all 6 pre-generation validation gates |
+
+### Album Art
+| Tool | Description |
+|------|-------------|
+| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready, and the cost. Free |
+| `generate_album_art(album_slug, candidates?, open_viewer?)` | Have the Codex CLI make 1-4 cover candidates (one ChatGPT image each); never picks one |
+| `import_album_art(album_slug, source_path, replace?)` | File the chosen image as `album.png` (3000x3000) and `album-art.png` |
 
 ### Session & Config
 | Tool | Description |

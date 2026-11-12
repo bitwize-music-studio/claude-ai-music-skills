@@ -35,7 +35,10 @@ Claude: Imports stems from Suno, polishes per-stem
         Generates promo video and social media copy
 ```
 
-Concept to released album. You generate on Suno, everything else happens in the terminal.
+Concept to released album, from the terminal. Connect Suno's own MCP server and generation happens there too — and you still listen to every take before it's approved.
+
+> [!WARNING]
+> [Suno's MCP server](https://suno.com/mcp) is an invite-only beta: you can connect it only once Suno has invited you. Without it, the rest of the plugin works the same, and you paste the lyrics and style prompt into suno.com as before. Suno is also updating the server constantly, so the skills that use it (`generate`, `listen`, `check-take`, `edit-take`, `extend-take`, `sound-effects`, `suno-voice` and `import-audio --from-suno`) may break without warning until Suno officially releases it.
 
 ---
 
@@ -50,13 +53,33 @@ Then run `/bitwize-music:setup` to detect your environment and install dependenc
 
 **Platform**: macOS, Linux, WSL2, and native Windows are all fully supported. The full test suite runs on windows-latest in CI (plus dedicated Windows legs for the MCP boot check and MuseScore PDF export) — the MCP server, state cache, non-audio workflow, and the ffmpeg audio pipeline all run natively there. Promo video works on Windows too, though it's verified by hand rather than continuously guarded (its tests mock ffmpeg). Sheet music works natively too: MuseScore PDF export is CI-verified on windows-latest, and AnthemScore transcription runs against a licensed install (its free trial exposes no CLI on any OS, so that caveat isn't Windows-specific). Python 3.11+ for the MCP server and audio tools. See the [compatibility matrix](reference/cross-platform/tool-compatibility-matrix.md) for the per-feature breakdown.
 
+### OpenAI Codex (experimental)
+
+Codex can install the plugin from this repository too:
+
+```bash
+codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
+codex plugin add bitwize-music@bitwize-music
+```
+
+All 60 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+
+```bash
+python3 -m venv ~/.bitwize-music/venv
+~/.bitwize-music/venv/bin/python -m pip install -r https://raw.githubusercontent.com/bitwize-music-studio/claude-ai-music-skills/main/requirements.txt
+```
+
+On Windows (cmd), run `python -m venv %USERPROFILE%\.bitwize-music\venv`, then `%USERPROFILE%\.bitwize-music\venv\Scripts\python.exe -m pip install -r` with the same URL.
+
+So far Codex support covers discovery and the MCP tools, and many skills still assume Claude Code. [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548) tracks the rest.
+
 ---
 
 ## Architecture
 
 This is where the engineering lives. The plugin is a case study in how far you can push Claude Code's plugin system.
 
-### Skill System (53 Skills)
+### Skill System (60 Skills)
 
 Each skill is a self-contained markdown file with a YAML frontmatter that declares its model, description, and when it should activate. Skills range from simple clipboard operations to multi-step creative workflows. Claude routes to skills automatically based on context, or you invoke them directly with `/bitwize-music:<name>`.
 
@@ -71,8 +94,8 @@ Skills declare which Claude model they need. Creative work that directly impacts
 | Tier | `model:` | Skills | Rationale |
 |------|----------|--------|-----------|
 | Creative | `opus` | 7 | Lyrics, Suno prompts, album concepts, legal/verification research — output quality defines the music |
-| Reasoning | `sonnet` | 30 | Research coordination, pronunciation analysis, most workflows |
-| Mechanical | `haiku` | 16 | Imports, validation, clipboard, help — speed over creativity |
+| Reasoning | `sonnet` | 37 | Research coordination, pronunciation analysis, most workflows |
+| Mechanical | `haiku` | 15 | Imports, validation, clipboard, help — speed over creativity |
 
 Skills declare the tier alias, not a pinned version, so each one tracks the current frontier model in its tier automatically — no per-skill edit when a new Claude generation ships.
 
@@ -110,7 +133,7 @@ Nothing ships without passing gates:
 
 ### CI/CD
 
-6 GitHub Actions workflows: tests (4,412 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
+6 GitHub Actions workflows: tests (6,022 across ubuntu/macOS/Windows, plus lint, security scanning with bandit + pip-audit, and static validation), real-service integration (Postgres, SeaweedFS/S3, MuseScore), nightly deep tests, auto-release from changelog, PR target enforcement, and version sync. Dependabot watches pip and Actions versions weekly.
 
 Coverage is measured on all three OSes and gated on the **combined** total, not one platform's view. That matters because every `sys.platform == "win32"` branch is unreachable on Linux — measuring only there made the platform-specific code invisible to the gate, which is exactly where this project's real bugs have lived. The merge is asserted rather than assumed: a mis-specified path mapping makes `coverage combine` report the Linux-only number while looking like success, so the job fails unless a known win32-only line is genuinely covered.
 
@@ -119,7 +142,7 @@ Coverage is measured on all three OSes and gated on the **combined** total, not 
 ## Project Structure
 
 ```
-skills/              53 skill definitions (markdown + YAML frontmatter)
+skills/              60 skill definitions (markdown + YAML frontmatter)
 servers/             MCP server (Python, 80+ tools)
 tools/               Audio mastering, promo videos, sheet music, cloud uploads
 reference/           46+ docs — Suno guides, mastering workflows, genre references
@@ -135,7 +158,7 @@ config/              Example config and setup docs
 
 | Topic | Location |
 |-------|----------|
-| All 53 skills | [docs/skills.md](docs/skills.md) |
+| All 60 skills | [docs/skills.md](docs/skills.md) |
 | Configuration | [docs/configuration.md](docs/configuration.md) |
 | Troubleshooting | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

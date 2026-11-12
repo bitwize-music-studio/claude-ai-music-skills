@@ -305,6 +305,45 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "verbose": {
+          "default": false,
+          "title": "Verbose",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "check_album_lyricsArguments",
+      "type": "object"
+    },
+    "name": "check_album_lyrics",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "check_album_lyricsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "max_results": {
           "default": 0,
           "title": "Max Results",
@@ -513,6 +552,69 @@
         "result"
       ],
       "title": "cleanup_legacy_venvsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "close_song_panesArguments",
+      "type": "object"
+    },
+    "name": "close_song_panes",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "close_song_panesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "length_s": {
+          "default": 15.0,
+          "title": "Length S",
+          "type": "number"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Paths",
+          "type": "array"
+        },
+        "start_s": {
+          "default": 0.0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "paths"
+      ],
+      "title": "compare_audioArguments",
+      "type": "object"
+    },
+    "name": "compare_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "compare_audioOutput",
       "type": "object"
     }
   },
@@ -1073,6 +1175,58 @@
   {
     "inputSchema": {
       "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "answers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Answers",
+          "type": "array"
+        },
+        "clip_id": {
+          "title": "Clip Id",
+          "type": "string"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "clip_id",
+        "answers"
+      ],
+      "title": "evaluate_take_checkArguments",
+      "type": "object"
+    },
+    "name": "evaluate_take_check",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "evaluate_take_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "include_raw_lines": {
           "default": true,
           "title": "Include Raw Lines",
@@ -1291,6 +1445,45 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "candidates": {
+          "default": 0,
+          "title": "Candidates",
+          "type": "integer"
+        },
+        "open_viewer": {
+          "default": true,
+          "title": "Open Viewer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "generate_album_artArguments",
+      "type": "object"
+    },
+    "name": "generate_album_art",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "generate_album_artOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "clip_duration": {
           "default": 12,
           "title": "Clip Duration",
@@ -1365,6 +1558,11 @@
           "title": "Glow",
           "type": "number"
         },
+        "start_s": {
+          "default": -1.0,
+          "title": "Start S",
+          "type": "number"
+        },
         "style": {
           "default": "pulse",
           "title": "Style",
@@ -1399,6 +1597,35 @@
         "result"
       ],
       "title": "generate_promo_videosOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_art_planArguments",
+      "type": "object"
+    },
+    "name": "get_album_art_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_art_planOutput",
       "type": "object"
     }
   },
@@ -1457,6 +1684,35 @@
       "required": [
         "album_slug"
       ],
+      "title": "get_album_generation_planArguments",
+      "type": "object"
+    },
+    "name": "get_album_generation_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_generation_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
       "title": "get_album_progressArguments",
       "type": "object"
     },
@@ -1472,6 +1728,35 @@
         "result"
       ],
       "title": "get_album_progressOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_album_workspaceArguments",
+      "type": "object"
+    },
+    "name": "get_album_workspace",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_album_workspaceOutput",
       "type": "object"
     }
   },
@@ -1493,6 +1778,148 @@
         "result"
       ],
       "title": "get_configOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "instruction": {
+          "default": "",
+          "title": "Instruction",
+          "type": "string"
+        },
+        "take": {
+          "default": 0,
+          "title": "Take",
+          "type": "integer"
+        },
+        "take_lyrics": {
+          "default": "",
+          "title": "Take Lyrics",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_edit_requestArguments",
+      "type": "object"
+    },
+    "name": "get_edit_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_edit_requestOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "continue_at": {
+          "default": "",
+          "title": "Continue At",
+          "type": "string"
+        },
+        "from_section": {
+          "default": "",
+          "title": "From Section",
+          "type": "string"
+        },
+        "take": {
+          "default": 0,
+          "title": "Take",
+          "type": "integer"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_extension_requestArguments",
+      "type": "object"
+    },
+    "name": "get_extension_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_extension_requestOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "midi_upload_id": {
+          "default": "",
+          "title": "Midi Upload Id",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_generation_requestArguments",
+      "type": "object"
+    },
+    "name": "get_generation_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_generation_requestOutput",
       "type": "object"
     }
   },
@@ -1531,6 +1958,40 @@
           "type": "string"
         },
         "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_listen_planArguments",
+      "type": "object"
+    },
+    "name": "get_listen_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_listen_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
           "default": "",
           "title": "Track Slug",
           "type": "string"
@@ -1554,6 +2015,45 @@
         "result"
       ],
       "title": "get_lyrics_statsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "midi_path": {
+          "default": "",
+          "title": "Midi Path",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_midi_score_planArguments",
+      "type": "object"
+    },
+    "name": "get_midi_score_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_midi_score_planOutput",
       "type": "object"
     }
   },
@@ -1805,6 +2305,55 @@
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "fit_track": {
+          "default": "",
+          "title": "Fit Track",
+          "type": "string"
+        },
+        "loop": {
+          "default": false,
+          "title": "Loop",
+          "type": "boolean"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "description"
+      ],
+      "title": "get_sound_requestArguments",
+      "type": "object"
+    },
+    "name": "get_sound_request",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_sound_requestOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
         }
       },
       "required": [
@@ -1825,6 +2374,142 @@
         "result"
       ],
       "title": "get_streaming_urlsOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_suno_import_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_import_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_import_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_suno_midi_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_midi_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_midi_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "get_suno_release_planArguments",
+      "type": "object"
+    },
+    "name": "get_suno_release_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_suno_release_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_take_check_planArguments",
+      "type": "object"
+    },
+    "name": "get_take_check_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_take_check_planOutput",
       "type": "object"
     }
   },
@@ -1880,6 +2565,45 @@
         "result"
       ],
       "title": "health_checkOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "source_path": {
+          "title": "Source Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "source_path"
+      ],
+      "title": "import_album_artArguments",
+      "type": "object"
+    },
+    "name": "import_album_art",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "import_album_artOutput",
       "type": "object"
     }
   },
@@ -2031,6 +2755,59 @@
         "result"
       ],
       "title": "load_overrideOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "clips": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Clips",
+          "type": "array"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "model",
+        "clips"
+      ],
+      "title": "log_generationArguments",
+      "type": "object"
+    },
+    "name": "log_generation",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "log_generationOutput",
       "type": "object"
     }
   },
@@ -2360,6 +3137,92 @@
     "inputSchema": {
       "properties": {
         "album_slug": {
+          "default": "",
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "urls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Urls",
+          "type": "array"
+        },
+        "where": {
+          "default": "browser",
+          "title": "Where",
+          "type": "string"
+        }
+      },
+      "required": [
+        "urls"
+      ],
+      "title": "open_song_pageArguments",
+      "type": "object"
+    },
+    "name": "open_song_page",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "open_song_pageOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "length_s": {
+          "default": 0.0,
+          "title": "Length S",
+          "type": "number"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "start_s": {
+          "default": 0.0,
+          "title": "Start S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "play_audioArguments",
+      "type": "object"
+    },
+    "name": "play_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "play_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
           "title": "Album Slug",
           "type": "string"
         },
@@ -2629,6 +3492,33 @@
         "result"
       ],
       "title": "prune_archivalOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "dry_run": {
+          "default": true,
+          "title": "Dry Run",
+          "type": "boolean"
+        }
+      },
+      "title": "prune_takes_cacheArguments",
+      "type": "object"
+    },
+    "name": "prune_takes_cache",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prune_takes_cacheOutput",
       "type": "object"
     }
   },
@@ -3079,6 +3969,188 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "playlist_id": {
+          "title": "Playlist Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "playlist_id",
+        "name"
+      ],
+      "title": "set_album_playlistArguments",
+      "type": "object"
+    },
+    "name": "set_album_playlist",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "set_album_playlistOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "workspace_id": {
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "workspace_id",
+        "name"
+      ],
+      "title": "set_album_workspaceArguments",
+      "type": "object"
+    },
+    "name": "set_album_workspace",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "set_album_workspaceOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "saved_from": {
+          "default": "",
+          "title": "Saved From",
+          "type": "string"
+        },
+        "track_slug": {
+          "default": "",
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "vocal_identity": {
+          "default": "",
+          "title": "Vocal Identity",
+          "type": "string"
+        },
+        "voice": {
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "voice"
+      ],
+      "title": "set_track_voiceArguments",
+      "type": "object"
+    },
+    "name": "set_track_voice",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "set_track_voiceOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {},
+      "title": "stop_audioArguments",
+      "type": "object"
+    },
+    "name": "stop_audio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "stop_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "dry_run": {
+          "default": false,
+          "title": "Dry Run",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "sync_album_tracklistArguments",
+      "type": "object"
+    },
+    "name": "sync_album_tracklist",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "sync_album_tracklistOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "dry_run": {
           "default": false,
           "title": "Dry Run",
@@ -3113,6 +4185,45 @@
         "result"
       ],
       "title": "transcribe_audioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "field",
+        "value"
+      ],
+      "title": "update_album_fieldArguments",
+      "type": "object"
+    },
+    "name": "update_album_field",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "update_album_fieldOutput",
       "type": "object"
     }
   },

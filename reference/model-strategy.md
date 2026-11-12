@@ -39,9 +39,9 @@ Per-skill effort assignments:
 |--------|--------|
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
-| `medium` | `album-art-director`, `album-ideas`, `explicit-checker`, `genre-creator`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
-| `low` | `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
-| *(none)* | All 16 Haiku skills — effort unsupported |
+| `medium` | `album-art-director`, `album-ideas`, `edit-take`, `explicit-checker`, `extend-take`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
+| `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `sheet-music-publisher`, `sound-effects`, `suno-voice`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
+| *(none)* | All 15 Haiku skills — effort unsupported |
 
 ---
 
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 30 skills)
+## Sonnet Skills (`model: sonnet`, 38 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -125,6 +125,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### album-ideas
 **Why Sonnet**: Brainstorming and organizing album concepts. Requires creativity to suggest ideas but follows a simple status workflow. Not generating final output - just capturing and organizing possibilities.
+
+### check-take
+**Why Sonnet**: Puts fixed questions to Suno's listening agent and relays the evaluation. Mechanical, but it must pace five questions at a time, pass answers on word for word, and report flags without ranking or picking a take — discipline Haiku is less reliable at.
 
 ### cloud-uploader
 **Why Sonnet**: Coordinates file uploads to R2/S3 with correct paths and metadata. Requires understanding the folder structure and naming conventions. Technical but not complex enough for Opus, not simple enough for Haiku.
@@ -135,8 +138,23 @@ These skills require reasoning and moderate creativity but follow established pa
 ### document-hunter
 **Why Sonnet**: Automates searching public archives for documents. Requires judgment about search strategies and evaluating results. Technical automation with decision-making, not pure pattern matching.
 
+### edit-take
+**Why Sonnet**: Edits one take in place through Suno's MCP server. Like `generate` it spends credits, so it has to show the cost, wait for a go-ahead, send exactly what the tool built, and recover from a failed call without paying twice; it also has to notice when an edit is wide enough that Suno will re-sing the whole song.
+
 ### explicit-checker
 **Why Sonnet**: Scans lyrics for explicit content. Moved from Haiku because context matters - "ass" in "bass guitar" isn't explicit, "ass" alone might be. Needs judgment about artistic intent and platform standards.
+
+### extend-take
+**Why Sonnet**: Carries a take on through Suno's MCP server. It spends credits like `generate` — cost, go-ahead, one call — and then has three more steps to get right in order: join each continuation, file the joined songs, and log the whole songs, never the halves.
+
+### generate
+**Why Sonnet**: Runs the generation hop through Suno's MCP server — gates, a cost summary, an explicit go-ahead, the call, logging. Every step is prescribed, but it spends the user's credits and has to handle refusals, retries and the clipboard fallback without improvising. That is more margin than Haiku's rule-following gives, and no creative judgment is involved, so not Opus.
+
+### import-audio
+**Why Sonnet**: Moving a local file into the album is pure path resolution, and was Haiku work. Moved up because `--from-suno` spends the user's Suno credits — a download credit for the WAV, 50 song credits for a stem split — and has to ask at the right moments, pick one of two stem takes without mixing them, and respect Suno's rate limit.
+
+### listen
+**Why Sonnet**: Plays takes or local audio and opens song pages. Mostly mechanical, but a terminal audition of a new take spends a Suno download credit, so it has to ask once, honour a standing approval, respect Suno's rate limit, and fall back to the browser cleanly — branching that needs reliable judgment about when a question has already been answered.
 
 ### mastering-engineer
 **Why Sonnet**: Guides audio mastering with technical knowledge (-14 LUFS, true peak limits, genre-specific EQ). Follows established standards but needs to explain rationale and troubleshoot issues.
@@ -192,6 +210,12 @@ These skills require reasoning and moderate creativity but follow established pa
 ### sheet-music-publisher
 **Why Sonnet**: Coordinates transcription workflow with tool-specific guidance. Technical process requiring troubleshooting knowledge. Not creative output, but needs to explain and adapt.
 
+### sound-effects
+**Why Sonnet**: Makes two short sounds through Suno's MCP server for two credits. The call is simple; the model is there for the go-ahead before spending, for filing the sounds afterwards, and for not choosing between two results that can differ in kind.
+
+### suno-voice
+**Why Sonnet**: Looks a Voice up on the user's Suno account and writes it into track files through one tool. Simple calls; the model is there to ask when several Voices match, to refuse an instrumental track, and to call `voices-start` only when the user asks for a new Voice.
+
 ### session-start
 **Why Sonnet**: Runs the 8-step session startup procedure. Requires reading config, loading overrides, interpreting state cache, and producing contextual tips. Judgment needed to identify relevant status and recommendations.
 
@@ -206,7 +230,7 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ---
 
-## Haiku Skills (`model: haiku`, 16 skills)
+## Haiku Skills (`model: haiku`, 15 skills)
 
 These skills perform simple, rule-based operations with no creative judgment.
 
@@ -221,9 +245,6 @@ These skills perform simple, rule-based operations with no creative judgment.
 
 ### import-art
 **Why Haiku**: Places album art in correct locations. Rule-based file operation: read config, determine paths, copy files. Binary success/failure.
-
-### import-audio
-**Why Haiku**: Moves audio files to correct album location. Path resolution following strict rules: `{audio_root}/artists/{artist}/albums/{genre}/{album}/`. No judgment - just correct path construction.
 
 ### import-track
 **Why Haiku**: Moves track markdown files to correct location. Same as import-audio - rule-based path resolution and file operations.
@@ -299,8 +320,8 @@ Is it a script-runner / coordinator with little LLM reasoning?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus (`opus`) | 7 | 13.2% | Music-defining output, high error cost |
-| Sonnet (`sonnet`) | 30 | 56.6% | Reasoning, coordination, moderate creativity |
-| Haiku (`haiku`) | 16 | 30.2% | Rule-based operations, no judgment |
+| Opus (`opus`) | 7 | 12.7% | Music-defining output, high error cost |
+| Sonnet (`sonnet`) | 33 | 60.0% | Reasoning, coordination, moderate creativity |
+| Haiku (`haiku`) | 15 | 27.3% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

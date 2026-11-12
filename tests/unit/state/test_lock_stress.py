@@ -41,12 +41,13 @@ read_state() contract (pinned from tools/state/indexer.py, do not invent one):
     * corrupt / partial JSON,
       or a JSON non-object    -> copies the file to ``state.<ts>.corrupt`` and
                                  returns ``{}``
-    * a transient Windows sharing violation (winerror 5/32) that outlives
-      read_state's bounded retry budget -> RE-RAISES the ``OSError`` (#489):
-      it is cross-process contention, not corruption, so it is deliberately
-      never quarantined. The reader worker catches and tolerates this rare
-      case (see MODE=="reader") — under this test's pathological write burst a
-      reader can, occasionally, exhaust the budget on one iteration.
+    * a transient Windows sharing violation (errno EACCES from ``open``)
+      that outlives read_state's bounded retry budget -> RE-RAISES the
+      ``OSError`` (#489): it is cross-process contention, not corruption, so
+      it is deliberately never quarantined. The reader worker catches and
+      tolerates this rare case (see MODE=="reader") — under this test's
+      pathological write burst a reader can, occasionally, exhaust the budget
+      on one iteration.
     * a valid JSON object     -> returns it
 The reader's ``None`` / ``{}`` / marker-less branches assert this contract as
 live documentation, but they are UNREACHABLE-BY-DESIGN while the atomic-replace
@@ -79,6 +80,8 @@ WRITER_ITERS = 15
 READER_ITERS = 400
 # Generous hard cap — the *only* wall-clock assertion. Never tune this to be
 # tight; process spawn + fsync-per-write on a loaded CI box is unpredictable.
+# The writers' lock wait is stretched to match (see the worker), so
+# write_state's 10s lock timeout cannot act as a second, tighter cap.
 HARD_CAP_SECONDS = 60.0
 SCHEMA_VERSION = "1.4.0"
 
@@ -101,6 +104,21 @@ cache_dir = Path(os.environ["STRESS_CACHE_DIR"])
 indexer.CACHE_DIR = cache_dir
 indexer.STATE_FILE = cache_dir / "state.json"
 indexer.LOCK_FILE = cache_dir / "state.lock"
+
+# The test's hard cap is its only wall-clock assertion. write_state's 10s lock
+# timeout would otherwise be a second, tighter one: with four writers looping
+# back to back while the reader keeps the file busy, a loaded Windows runner can
+# keep one writer waiting past 10s while the others keep writing (#592). So the
+# writers may wait up to the hard cap; a deadlock or livelock still trips it.
+_acquire_lock = indexer._acquire_lock_with_timeout
+LOCK_BUDGET = float(os.environ["STRESS_LOCK_TIMEOUT"])
+
+
+def _acquire_lock_within_hard_cap(lock_fd, timeout=LOCK_BUDGET):
+    return _acquire_lock(lock_fd, timeout)
+
+
+indexer._acquire_lock_with_timeout = _acquire_lock_within_hard_cap
 
 MODE = sys.argv[1]
 WORKER_ID = int(sys.argv[2])
@@ -139,9 +157,9 @@ elif MODE == "reader":
             state = indexer.read_state()
         except OSError as exc:
             # Post-#489 contract: read_state RE-RAISES a transient Windows
-            # sharing violation (winerror 5/32) that outlived its bounded retry
-            # budget. Under this test's deliberately pathological multi-writer
-            # burst the reader can, rarely, exhaust that budget on one
+            # sharing violation (errno EACCES from open) that outlived its
+            # bounded retry budget. Under this test's deliberately pathological
+            # multi-writer burst the reader can, rarely, exhaust that budget on one
             # iteration -- that is contention, not a torn read or corruption, so
             # tolerate it and move on. On POSIX read_state never raises here
             # (open cannot fail mid-rename), so os_errors stays 0 and this
@@ -220,6 +238,7 @@ def test_multiprocess_lock_stress(tmp_path: Path) -> None:
         **_base_env(),
         "STRESS_PROJECT_ROOT": str(PROJECT_ROOT),
         "STRESS_CACHE_DIR": str(cache_dir),
+        "STRESS_LOCK_TIMEOUT": str(HARD_CAP_SECONDS),
     }
 
     # Spawn everyone up front so writers and the reader genuinely overlap.

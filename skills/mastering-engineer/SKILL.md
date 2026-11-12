@@ -297,6 +297,7 @@ to streaming platforms:
 
 ```
 {audio_root}/.../[album]/
+├── [album].m3u8                      # Listening playlist of mastered/ — DO NOT UPLOAD
 ├── mastered/                         # Final masters — UPLOAD THIS
 │   ├── 01-track.wav
 │   └── ...
@@ -326,6 +327,16 @@ Re-run cleanup (regenerable artifacts):
 ```
 reset_mastering(album_slug, subfolders=["mastering_samples"], dry_run=False)
 ```
+
+### Album playlist (`[album].m3u8`)
+
+Every tool that writes `mastered/` (`master_album`, `master_audio`,
+`master_with_reference`, `fix_dynamic_track`) rebuilds `[album].m3u8`, named
+for the album slug, beside it. It lists the mastered WAVs in track order with
+their titles and lengths, by paths relative to the album folder, so any
+player (Music, VLC, foobar2000) plays the mastered album straight through.
+It sits beside `mastered/`, never inside, so the upload stays WAV-only. Give
+its path when reporting a finished master. Resetting `mastered/` removes it.
 
 Configurable thresholds live in `tools/mastering/genre-presets.yaml`
 under `defaults:` (`mono_fold_band_drop_fail_db`, etc.) — override per-user
@@ -445,6 +456,7 @@ After all tracks mastered and verified:
 
 **Album**: [Album Name]
 **Mastered Files Location**: [path to mastered/ directory]
+**Listening Playlist**: [path to [album].m3u8 beside mastered/]
 **Track Count**: [N]
 
 **Mastering Report**:

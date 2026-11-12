@@ -139,6 +139,26 @@ still match — re-ordered tracks get the default back.
   a separate product from per-track mastered delivery (explicit #290
   non-goal).
 
+## Album playlist (`<album-slug>.m3u8`)
+
+For listening to the mastered album in order, every tool that writes
+`mastered/` (`master_album`, `master_audio`, `master_with_reference`,
+`fix_dynamic_track`) rebuilds `<album-slug>.m3u8` in the album's audio dir.
+It is an extended M3U in UTF-8: `#EXTM3U`, a `#PLAYLIST:` line with the
+album's name, then an `#EXTINF:<seconds>,<artist> - <title>` line and a
+`mastered/<file>.wav` path per track, in file order. Titles come from the
+track files (the file name when a track has none) and the artist from
+config. The paths are relative, so the album folder can move and the
+playlist still plays.
+
+- **Beside `mastered/`, never inside.** `mastered/` is what goes to the
+  distributor and stays WAV-only.
+- **Rebuilt, not edited.** Each run lists what `mastered/` holds then, so
+  hand edits do not survive a re-master. With nothing mastered, the
+  playlist is removed, and `reset_mastering` of `mastered/` removes it too.
+- **Never fails a master.** A playlist that cannot be written is a
+  warning.
+
 ## Album-ceiling guard (step 8)
 
 Between Verification (Stage 5) and Mastering samples (Stage 5.5),

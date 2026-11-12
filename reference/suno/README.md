@@ -8,6 +8,7 @@ Reference guides for Suno AI music generation.
 |-------|-------------|
 | [Best Practices](best-practices.md) | Comprehensive prompting guide for the current model family |
 | [Model Catalog](models.md) | v6 / v6-wild / v6-mini / Custom Models — tiers, defaults, when to use which |
+| [Suno MCP](mcp-api-mapping.md) | Suno's official MCP server — setup, what each action costs, how a track file maps to a generation |
 | [Creative Sliders](creative-sliders.md) | Weirdness, Style Influence, Audio Influence — deep dive |
 | [Pronunciation Guide](pronunciation-guide.md) | Homographs, tech terms, fixes |
 | [Tips & Tricks](tips-and-tricks.md) | Troubleshooting and operational techniques |
@@ -31,6 +32,7 @@ Reference guides for Suno AI music generation.
 | Finding the right genre/subgenre tag | [Genre List](genre-list.md) |
 | Debugging a failed generation | [Tips & Tricks](tips-and-tricks.md) |
 | Picking a model or Generation Settings | [Model Catalog](models.md) |
+| Generating, listening or importing without leaving the terminal | [Suno MCP](mcp-api-mapping.md) |
 
 > **Related skill**: `/bitwize-music:suno-engineer` provides interactive guidance using these references.
 
@@ -54,14 +56,20 @@ Structure tags are mandatory in every section; the other three are optional acce
 
 ## API Parameters
 
-> These parameters come from **third-party API resellers**, not Suno — there is no official Suno API, and no reseller exposes v6 (identifiers such as `V6` / `V6_WILD` / `V6_MINI` do not exist). Treat this table as historical.
+Suno's official MCP server (beta since October 2026) takes the parameters below. [mcp-api-mapping.md](mcp-api-mapping.md) has the full mapping from a track file, what each action costs, and setup.
 
 | Parameter | Description | Range |
 |-----------|-------------|-------|
-| `style` | Musical style/genre | 200-1000 chars |
-| `prompt` | Lyrics in custom mode | 3000-5000 chars |
+| `style` | Style Box | up to 1000 chars |
+| `lyrics` | Lyrics Box | up to 5000 chars |
+| `negative_style` | Exclude Styles | up to 1000 chars |
 | `instrumental` | No vocals | true/false |
-| `vocalGender` | Vocal type | "m" or "f" |
-| `negativeTags` | Styles to avoid | Text |
-| `styleWeight` | Style adherence | 0.00-1.00 |
-| `weirdnessConstraint` | Creative deviation | 0.00-1.00 |
+| `vocal_gender` | Vocal type | `male` or `female` |
+| `model` | Model label | `v6`, `v6-wild`, `v6-mini` |
+| `max_mode` | Max Mode | true/false |
+| `duration` | Target length, a hard cap | 15-360 seconds |
+| `controls.style_influence` | Style Influence | 0.00-1.00 |
+| `controls.weirdness` | Weirdness | 0.00-1.00 |
+| `controls.variety` | Variety | 0 Off, 1 Normal, 2 High, 3 Extra, 4 Max |
+
+Names such as `prompt`, `vocalGender`, `negativeTags`, `styleWeight` and `weirdnessConstraint`, and model identifiers such as `V6` / `V6_WILD` / `V6_MINI`, come from third-party resellers, not Suno — do not use them.

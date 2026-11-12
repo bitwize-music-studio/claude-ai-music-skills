@@ -1282,8 +1282,11 @@ class TestReadStateWindowsOpenRetry:
     an OSError as corruption.
 
     On Windows, while a concurrent write_state is mid-os.replace, a reader's
-    open(STATE_FILE) transiently raises PermissionError WinError 5 / 32. The
-    old code caught it under ``except (json.JSONDecodeError, OSError)`` and
+    open(STATE_FILE) transiently raises a sharing violation. open() goes
+    through the C runtime, so it arrives as PermissionError(13, 'Permission
+    denied') with no winerror; that is the form CI's lock stress test saw.
+    The winerror 5 / 32 form is the one os.replace raises; both are retried.
+    The old code caught it under ``except (json.JSONDecodeError, OSError)`` and
     treated it as CORRUPTION — backing up the good state.json to a .corrupt
     copy and returning {}. That is the data-loss-adjacent bug these tests pin:
     transient contention is retried; a surviving OSError re-raises (never
@@ -1298,6 +1301,11 @@ class TestReadStateWindowsOpenRetry:
         err = PermissionError("Access is denied")
         err.winerror = winerror
         return err
+
+    @staticmethod
+    def _crt_access_denied():
+        """What open() raises on Windows for a sharing violation: no winerror."""
+        return PermissionError(errno.EACCES, "Permission denied")
 
     @staticmethod
     def _spy_quarantine(monkeypatch, indexer):
@@ -1340,6 +1348,68 @@ class TestReadStateWindowsOpenRetry:
         assert calls["n"] == fail_times + 1
         assert quarantine_calls == []
         assert list(tmp_path.glob("state.*.corrupt")) == []
+
+    def test_retries_crt_access_denied_from_open_on_windows(self, tmp_path, monkeypatch):
+        """The form open() really raises: errno EACCES and no winerror.
+
+        The retry used to recognise only winerror 5 / 32, which open() never
+        sets, so a contended read failed on its first attempt. CI's lock
+        stress test saw 200 of 400 reads fail that way on windows-latest.
+        """
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0', 'value': 'ok'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(indexer.time, "sleep", lambda *_: None)
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        real_open = open
+        calls = {"n": 0}
+        fail_times = 3
+
+        def flaky_open(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] <= fail_times:
+                raise self._crt_access_denied()
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr(indexer, "open", flaky_open, raising=False)
+
+        loaded = read_state()
+
+        assert loaded is not None
+        assert loaded['value'] == 'ok'
+        assert calls["n"] == fail_times + 1
+        assert quarantine_calls == []
+
+    def test_crt_error_other_than_eacces_not_retried_on_windows(
+        self, tmp_path, monkeypatch
+    ):
+        """Without a winerror only EACCES counts: a C-runtime ENOENT raises at once."""
+        import tools.state.indexer as indexer
+        _override_indexer_paths(monkeypatch, tmp_path)
+        write_state({'version': '1.0.0'})
+
+        monkeypatch.setattr(indexer.sys, "platform", "win32")
+        monkeypatch.setattr(
+            indexer.time, "sleep",
+            lambda *_: pytest.fail("must not retry a non-sharing error"),
+        )
+        quarantine_calls = self._spy_quarantine(monkeypatch, indexer)
+
+        calls = {"n": 0}
+
+        def fail_enoent(*args, **kwargs):
+            calls["n"] += 1
+            raise FileNotFoundError(errno.ENOENT, "No such file or directory")
+
+        monkeypatch.setattr(indexer, "open", fail_enoent, raising=False)
+
+        with pytest.raises(FileNotFoundError):
+            read_state()
+        assert calls["n"] == 1
+        assert quarantine_calls == []
 
     def test_transient_open_gives_up_reraises_without_quarantine_on_windows(
         self, tmp_path, monkeypatch
@@ -1410,7 +1480,8 @@ class TestReadStateWindowsOpenRetry:
 
     def test_posix_open_oserror_not_retried_or_quarantined(self, tmp_path, monkeypatch):
         """POSIX: a genuine OSError from open is not retried and is not
-        quarantined — it re-raises (open never fails mid-rename on POSIX)."""
+        quarantined — it re-raises (open never fails mid-rename on POSIX). It
+        uses the errno EACCES form, which Windows does retry."""
         import tools.state.indexer as indexer
         _override_indexer_paths(monkeypatch, tmp_path)
         write_state({'version': '1.0.0'})
@@ -1426,7 +1497,7 @@ class TestReadStateWindowsOpenRetry:
 
         def fail_once(*args, **kwargs):
             calls["n"] += 1
-            raise PermissionError("Permission denied")
+            raise PermissionError(errno.EACCES, "Permission denied")
 
         monkeypatch.setattr(indexer, "open", fail_once, raising=False)
 
@@ -1647,6 +1718,66 @@ anchor_track: 2
         result = scan_albums(content_root, "testartist")
         assert "no-anchor-album" in result
         assert result["no-anchor-album"]["anchor_track"] is None
+
+    def test_suno_workspace_propagated_from_frontmatter(self, tmp_path):
+        """The album's Suno workspace must reach state.albums[slug] so the generate skill can file takes."""
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Workspace Album"
+genres: ["folk"]
+explicit: false
+suno_workspace:
+  id: "be7f57b5-0cef-4769-ab0e-44b4861bd895"
+  name: "Workspace Album"
+---
+
+# Workspace Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | In Progress |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "folk", "workspace-album",
+                         readme_text=readme_text)
+        result = scan_albums(content_root, "testartist")
+        assert result["workspace-album"]["suno_workspace"] == {
+            "id": "be7f57b5-0cef-4769-ab0e-44b4861bd895", "name": "Workspace Album",
+        }
+        assert result["workspace-album"]["suno_playlist"] is None
+
+    def test_suno_playlist_propagated_from_frontmatter(self, tmp_path):
+        content_root = tmp_path / "content"
+        readme_text = """---
+title: "Playlist Album"
+genres: ["folk"]
+suno_playlist:
+  id: "dfb303aa-74b1-41f3-9771-48a69bdd43ed"
+  name: "Playlist Album"
+---
+
+# Playlist Album
+
+## Album Details
+
+| Attribute | Detail |
+|-----------|--------|
+| **Status** | Complete |
+| **Tracks** | 0 |
+"""
+        _make_album_tree(content_root, "testartist", "folk", "playlist-album",
+                         readme_text=readme_text)
+        result = scan_albums(content_root, "testartist")
+        assert result["playlist-album"]["suno_playlist"] == {
+            "id": "dfb303aa-74b1-41f3-9771-48a69bdd43ed", "name": "Playlist Album",
+        }
+
+    def test_suno_workspace_none_when_not_in_frontmatter(self, tmp_path):
+        content_root = tmp_path / "content"
+        _make_album_tree(content_root, "testartist", "rock", "plain-album")
+        assert scan_albums(content_root, "testartist")["plain-album"]["suno_workspace"] is None
 
     def test_mastering_block_propagated_from_frontmatter(self, tmp_path):
         """State cache must carry mastering overrides from album README
@@ -4649,3 +4780,77 @@ class TestScanIdeasEdgeCases:
         assert result['items'] == []
         assert result['counts'] == {}
         assert result['file_mtime'] == 0.0
+
+
+@pytest.mark.unit
+class TestBuildConfigSectionListen:
+    """generation.listen_mode / listen_confirm_download — how Suno takes are auditioned."""
+
+    def _generation(self, generation, monkeypatch):
+        import tools.state.indexer as indexer
+        monkeypatch.setattr(indexer, 'get_config_mtime', lambda: 0.0)
+        config = {
+            'artist': {'name': 'test'},
+            'paths': {'content_root': '/tmp/c'},
+            'generation': generation,
+        }
+        return build_config_section(config)['generation']
+
+    def test_defaults(self, monkeypatch):
+        """The browser is the default: listening on the song page is free."""
+        gen = self._generation({}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'
+        assert gen['listen_confirm_download'] is True
+
+    def test_terminal_mode_and_standing_approval(self, monkeypatch):
+        gen = self._generation(
+            {'listen_mode': 'Terminal', 'listen_confirm_download': 'false'}, monkeypatch)
+        assert gen['listen_mode'] == 'terminal'
+        assert gen['listen_confirm_download'] is False
+
+    def test_explicit_browser_mode(self, monkeypatch):
+        gen = self._generation({'listen_mode': 'browser'}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'
+
+    def test_iterm2_browser_mode(self, monkeypatch):
+        gen = self._generation({'listen_mode': 'iTerm2_Browser'}, monkeypatch)
+        assert gen['listen_mode'] == 'iterm2_browser'
+
+    def test_like_keeper_default_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['like_keeper'] is True
+
+    def test_like_keeper_off(self, monkeypatch):
+        assert self._generation({'like_keeper': False}, monkeypatch)['like_keeper'] is False
+
+    def test_take_check_default_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['take_check'] is True
+
+    def test_take_check_off(self, monkeypatch):
+        assert self._generation({'take_check': False}, monkeypatch)['take_check'] is False
+
+    def test_suno_workspaces_default_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['suno_workspaces'] is True
+
+    def test_suno_workspaces_off(self, monkeypatch):
+        assert self._generation({'suno_workspaces': False}, monkeypatch)['suno_workspaces'] is False
+
+    def test_suno_workspaces_garbage_falls_back(self, monkeypatch):
+        assert self._generation({'suno_workspaces': 'later'}, monkeypatch)['suno_workspaces'] is True
+
+    def test_suno_mcp_reminder_defaults_on(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['suno_mcp_reminder'] is True
+
+    def test_suno_mcp_reminder_off(self, monkeypatch):
+        assert self._generation({'suno_mcp_reminder': False}, monkeypatch)['suno_mcp_reminder'] is False
+
+    def test_suno_mcp_reminder_garbage_falls_back(self, monkeypatch):
+        assert self._generation({'suno_mcp_reminder': 'maybe'}, monkeypatch)['suno_mcp_reminder'] is True
+
+    def test_unknown_mode_falls_back_to_browser(self, monkeypatch, caplog):
+        gen = self._generation({'listen_mode': 'speakers'}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'
+        assert 'listen_mode' in caplog.text
+
+    def test_non_string_mode_falls_back_to_browser(self, monkeypatch):
+        gen = self._generation({'listen_mode': 3}, monkeypatch)
+        assert gen['listen_mode'] == 'browser'

@@ -1,5 +1,6 @@
 """Shared pytest fixtures for plugin and unit tests."""
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -11,6 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from tests import sharding
 from tests.fixtures.audio import (
     make_bass,
     make_bright,
@@ -26,6 +28,26 @@ from tests.fixtures.audio import (
     write_wav,
 )
 from tools.state.parsers import parse_frontmatter
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items):
+    """Keep only this CI shard's tests when PYTEST_SHARD="i/n" is set.
+
+    trylast: shard positions are taken after -k/-m deselection, so every
+    shard of a run splits the same final list. See tests/sharding.py.
+    """
+    spec = os.environ.get(sharding.ENV_VAR)
+    if not spec:
+        return
+    try:
+        index, total = sharding.parse_shard(spec)
+    except ValueError as exc:
+        raise pytest.UsageError(str(exc)) from exc
+    kept, dropped = sharding.split(items, index, total)
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+        items[:] = kept
 
 
 @pytest.fixture(autouse=True)
@@ -64,6 +86,12 @@ def _isolate_state_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(indexer_mod, "CACHE_DIR", cache_dir)
     monkeypatch.setattr(indexer_mod, "STATE_FILE", cache_dir / "state.json")
     monkeypatch.setattr(indexer_mod, "LOCK_FILE", cache_dir / "state.lock")
+    # The MCP server refreshes its state when config.yaml is newer than the state.
+    # Off by default here: a test that hands the cache a sample state next to a mock
+    # config file would otherwise read the developer's real config and rescan their
+    # library. The tests of that refresh turn it back on. Patched on the indexer
+    # because it is one module however many copies of server.py the tests load.
+    monkeypatch.setattr(indexer_mod, "AUTO_REFRESH_ON_CONFIG_CHANGE", False)
 
     server_py = str(
         (PROJECT_ROOT / "servers" / "bitwize-music-server" / "server.py").resolve()
@@ -78,6 +106,32 @@ def _isolate_state_cache(monkeypatch, tmp_path):
             continue
         monkeypatch.setattr(module, "STATE_FILE", cache_dir / "state.json")
         monkeypatch.setattr(module, "CONFIG_FILE", cache_dir / "config.yaml")
+
+
+@pytest.fixture(autouse=True)
+def _isolate_iterm(monkeypatch, tmp_path):
+    """Keep every test away from the developer's real iTerm2.
+
+    ``tools.playback.iterm`` drives iTerm2 with AppleScript and keeps its
+    browser profiles in ~/Library/Application Support/iTerm2/DynamicProfiles.
+    Neither lives under the state cache, so the fixture above does not cover
+    them. A suite run inside iTerm2 must never split the developer's terminal,
+    close their panes or delete their profiles — and ``close_panes`` removes
+    the profiles file even when it has no pane to close. Tests that exercise
+    the module install their own fake over these.
+    """
+    import tools.playback.iterm as iterm_mod
+
+    def _refuse(script, *args):
+        raise AssertionError(
+            "a test reached real AppleScript - fake tools.playback.iterm._osascript"
+        )
+
+    monkeypatch.setattr(iterm_mod, "_osascript", _refuse)
+    monkeypatch.setattr(iterm_mod, "_plugin_installed", lambda: False)
+    monkeypatch.setattr(
+        iterm_mod, "dynamic_profiles_dir", lambda: tmp_path / "_isolated_iterm_profiles"
+    )
 
 
 @pytest.fixture(autouse=True)

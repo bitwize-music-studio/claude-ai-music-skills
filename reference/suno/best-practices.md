@@ -262,7 +262,7 @@ Male baritone, gravelly, introspective, folk storyteller
 
 ### Keep Lyrics Concise
 
-Shorter lyrics generate better results. Dense or long lyrics cause Suno to rush, compress sections, or skip content entirely. Target **200–350 words** for most genres (up to 500 for hip-hop/rap). Two verses plus chorus plus bridge is the sweet spot — avoid 4–5 verse songs.
+Shorter lyrics generate better results. Dense or long lyrics cause Suno to rush, compress sections, or skip content entirely. Target **220–400 words** for a 3:30–5:00 song in most genres (**400–600** for hip-hop/rap), and fewer for a shorter target. The ranges by duration and by genre are in the lyric-writer's [craft-reference.md](../../skills/lyric-writer/craft-reference.md) (Song Length), and `get_lyrics_stats` checks a track against them. Two or three verses plus chorus plus bridge is the sweet spot — avoid 4–5 verse songs.
 
 ### Use Explicit Section Tags
 
