@@ -394,9 +394,10 @@ def add_footer_to_pdf(input_path: str | Path, output_path: str | Path, footer_ur
     reader = PdfReader(str(input_path))
     writer = PdfWriter()
 
+    # Merge onto the writer's copy of each page: pypdf 7 refuses to merge onto
+    # a page that still belongs to its reader.
     for page in reader.pages:
-        page.merge_page(footer_page)
-        writer.add_page(page)
+        writer.add_page(page).merge_page(footer_page)
 
     with open(str(output_path), "wb") as f:
         writer.write(f)
