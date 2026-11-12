@@ -344,7 +344,8 @@ async def open_song_page(
         where: "browser" opens one tab each in the default browser.
             "iterm2_browser" opens Suno's compact player for each take in an
             iTerm2 pane beside this session — the first to the right, the rest
-            stacked under it — closing any panes from an earlier call. When
+            stacked under it — closing this session's panes from an earlier
+            call; other Claude Code sessions' panes stay open. When
             iTerm2 panes cannot be used here, the pages open in the browser
             instead and the result says why.
         album_slug: With track_slug, in iTerm2 mode: the album of the takes
@@ -416,7 +417,9 @@ async def open_song_page(
 
 
 async def close_song_panes() -> str:
-    """Close the iTerm2 panes opened by open_song_page(where="iterm2_browser").
+    """Close the iTerm2 panes this session opened with open_song_page(where="iterm2_browser").
+
+    Panes another Claude Code session opened stay open.
 
     Call it once the user has picked a take (or rejected them all). Safe to call
     when no panes are open, and outside iTerm2.

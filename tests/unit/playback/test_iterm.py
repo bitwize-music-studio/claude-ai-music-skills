@@ -42,6 +42,8 @@ SONG_B = f"https://suno.com/song/{CLIP_B}"
 SONG_C = f"https://suno.com/song/{CLIP_C}"
 SONG_D = f"https://suno.com/song/{CLIP_D}"
 OWN_PANE = "287287FA-9DD5-4864-906A-0493BEAC469E"
+# The pane a second Claude Code session runs in, in another tab.
+OTHER_PANE = "C5E2A1B4-3D6F-4A8B-9C0D-1E2F3A4B5C6D"
 FOCUSED_PANE = "74C908E1-918E-4B44-9639-F8736DA5E1C6"
 # Pane ids in the order iTerm2 hands them out.
 NEW_PANES = [
@@ -54,13 +56,16 @@ NEW_PANES = [
 
 
 class FakeIterm:
-    """Answers the three scripts the way iTerm2 does, and records every call."""
+    """Answers the scripts the way iTerm2 does, and records every call."""
 
     def __init__(self):
         self.calls: list[tuple[str, tuple[str, ...]]] = []
         self.split_errors: list[str] = []  # raised, in order, before splits succeed
         self.split_answer: str | None = None  # answered instead of the two pane ids
         self.select_error: str | None = None
+        self.list_error: str | None = None
+        # The panes iTerm2 has open: the sessions' own, then every pane split off.
+        self.live: set[str] = {OWN_PANE, OTHER_PANE, FOCUSED_PANE}
         self._next_pane = 0
 
     def __call__(self, script, *args):
@@ -72,15 +77,22 @@ class FakeIterm:
                 return self.split_answer
             pane = NEW_PANES[self._next_pane]
             self._next_pane += 1
+            self.live.add(pane)
             return f"{args[0] or FOCUSED_PANE}\n{pane}"
         if script is iterm._CLOSE_SCRIPT:
             self.calls.append(("close", args))
+            self.live.difference_update(args)
             return str(len(args))
         if script is iterm._SELECT_SCRIPT:
             self.calls.append(("select", args))
             if self.select_error:
                 raise iterm.ItermError(self.select_error)
             return ""
+        if script is iterm._LIST_SCRIPT:
+            self.calls.append(("list", args))
+            if self.list_error:
+                raise iterm.ItermError(self.list_error)
+            return "\n".join(sorted(self.live))
         raise AssertionError("unexpected script")
 
     def of(self, kind):
@@ -353,7 +365,8 @@ class TestOpenInPanes:
     def test_values_travel_as_arguments_not_inside_the_script(self, rig):
         """Nothing from a URL or a pane id is ever pasted into AppleScript source."""
         iterm.open_in_panes([SONG_A])
-        for script in (iterm._SPLIT_SCRIPT, iterm._CLOSE_SCRIPT, iterm._SELECT_SCRIPT):
+        for script in (iterm._SPLIT_SCRIPT, iterm._CLOSE_SCRIPT, iterm._SELECT_SCRIPT,
+                       iterm._LIST_SCRIPT):
             assert "suno.com" not in script
             assert OWN_PANE not in script
             assert "on run argv" in script
@@ -601,3 +614,121 @@ class TestClosePanes:
         assert iterm.close_panes() == {"closed": 0}
         assert rig.of("close") == []
         assert not iterm.panes_path().exists()
+
+
+# ===========================================================================
+# Two sessions (#625)
+# ===========================================================================
+
+
+def _be(monkeypatch, pane):
+    """Make this process a Claude Code session started from *pane*."""
+    monkeypatch.setenv("ITERM_SESSION_ID", f"w0t2p0:{pane}")
+
+
+class TestEachSessionKeepsItsOwnPanes:
+    """Two Claude Code sessions in two tabs: neither touches the other's panes."""
+
+    def test_opening_leaves_the_other_sessions_panes_open(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A])
+        _be(monkeypatch, OTHER_PANE)
+        result = iterm.open_in_panes([SONG_B])
+        assert rig.of("close") == []
+        assert rig.of("split")[-1][0] == OTHER_PANE
+        assert result["panes"] == [NEW_PANES[1]]
+
+    def test_closing_closes_only_this_sessions_panes(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A])
+        _be(monkeypatch, OTHER_PANE)
+        iterm.open_in_panes([SONG_B])
+
+        assert iterm.close_panes() == {"closed": 1}
+        assert rig.of("close") == [(NEW_PANES[1],)]
+
+        _be(monkeypatch, OWN_PANE)
+        assert iterm.close_panes() == {"closed": 1}
+        assert rig.of("close")[-1] == (NEW_PANES[0],)
+
+    def test_each_session_has_its_own_files(self, rig, monkeypatch):
+        mine = (iterm.panes_path(), iterm.profiles_path(), iterm.lyrics_path())
+        _be(monkeypatch, OTHER_PANE)
+        theirs = (iterm.panes_path(), iterm.profiles_path(), iterm.lyrics_path())
+        assert all(a != b for a, b in zip(mine, theirs, strict=True))
+
+    def test_the_other_sessions_lyrics_are_left_alone(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        mine = iterm.lyrics_path()
+        _be(monkeypatch, OTHER_PANE)
+        iterm.open_in_panes([SONG_B], lyrics="[Verse]\nSomething else", title="Other")
+        assert "Paper boats on the water" in mine.read_text(encoding="utf-8")
+
+    def test_the_same_take_in_two_sessions_gets_two_profiles(self, rig, monkeypatch):
+        """iTerm2 must never see two profiles with one Guid, or two with one name."""
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        mine = _profiles()
+        _be(monkeypatch, OTHER_PANE)
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        theirs = _profiles()
+        assert not {p["Guid"] for p in mine} & {p["Guid"] for p in theirs}
+        assert not {p["Name"] for p in mine} & {p["Name"] for p in theirs}
+
+    def test_without_a_session_id_the_shared_files_are_used(self, rig, monkeypatch):
+        monkeypatch.delenv("ITERM_SESSION_ID")
+        assert iterm.panes_path().name == "listen-panes.json"
+        assert iterm.profiles_path().name == "bitwize-music-listen.json"
+        assert iterm.lyrics_path().name == "listen-lyrics.txt"
+
+
+class TestFilesLeftByOtherSessions:
+    """Another session's files go once none of its panes is open. Nothing is closed."""
+
+    def test_removed_once_all_of_its_panes_are_gone(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A], lyrics=LYRICS, title="Paper Boats")
+        gone = (iterm.panes_path(), iterm.profiles_path(), iterm.lyrics_path())
+        rig.live -= {OWN_PANE, *NEW_PANES[:2]}  # its tab was closed
+        _be(monkeypatch, OTHER_PANE)
+        iterm.open_in_panes([SONG_B])
+        assert not any(path.exists() for path in gone)
+        assert rig.of("close") == []
+
+    def test_kept_while_any_of_its_panes_is_open(self, rig, monkeypatch):
+        """Its own pane may be gone while one of its players is still playing."""
+        iterm.open_in_panes([SONG_A, SONG_B])
+        kept = (iterm.panes_path(), iterm.profiles_path())
+        rig.live -= {OWN_PANE, NEW_PANES[0]}
+        _be(monkeypatch, OTHER_PANE)
+        iterm.open_in_panes([SONG_C])
+        assert all(path.exists() for path in kept)
+        assert rig.of("close") == []
+
+    def test_closing_cleans_up_too(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A])
+        gone = iterm.panes_path()
+        rig.live.discard(NEW_PANES[0])
+        _be(monkeypatch, OTHER_PANE)
+        assert iterm.close_panes() == {"closed": 0}
+        assert not gone.exists()
+
+    def test_the_shared_files_go_once_their_panes_are_gone(self, rig, monkeypatch):
+        """Left by an earlier build, or by a session with no pane id."""
+        monkeypatch.delenv("ITERM_SESSION_ID")
+        iterm.open_in_panes([SONG_A])
+        shared = (iterm.panes_path(), iterm.profiles_path())
+        rig.live.discard(NEW_PANES[0])
+        _be(monkeypatch, OWN_PANE)
+        iterm.open_in_panes([SONG_B])
+        assert not any(path.exists() for path in shared)
+
+    def test_nothing_is_asked_when_no_other_session_left_files(self, rig):
+        iterm.open_in_panes([SONG_A])
+        iterm.open_in_panes([SONG_B])
+        assert rig.of("list") == []
+
+    def test_skipped_when_iterm2_cannot_list_its_panes(self, rig, monkeypatch):
+        iterm.open_in_panes([SONG_A])
+        theirs = iterm.panes_path()
+        rig.list_error = "iTerm got an error: Connection is invalid. (-609)"
+        _be(monkeypatch, OTHER_PANE)
+        result = iterm.open_in_panes([SONG_B])
+        assert result["panes"] == [NEW_PANES[1]]
+        assert theirs.exists()
