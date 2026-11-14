@@ -3,6 +3,6 @@
   "private": true,
   "description": "The Codex CLI version the Codex Plugin E2E job tests against. Dependabot proposes bumps.",
   "devDependencies": {
-    "@openai/codex": "0.162.1"
+    "@openai/codex": "0.167.1"
   }
 }
