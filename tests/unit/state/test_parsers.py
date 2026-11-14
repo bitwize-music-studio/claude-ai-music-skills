@@ -399,6 +399,48 @@ class TestParseTrackFadeOut:
         assert "fade_out" not in self._parse(tmp_path, "")
 
 
+
+class TestParseReleaseCodes:
+    """ISRC (track) and UPC (album) in frontmatter, once a distributor assigned them."""
+
+    @staticmethod
+    def _track(tmp_path, isrc_line):
+        path = tmp_path / "01-harbor.md"
+        path.write_text(f"---\ntitle: Harbor\n{isrc_line}---\n\n# Harbor\n", encoding="utf-8")
+        return parse_track_file(path)
+
+    @staticmethod
+    def _album(tmp_path, upc_line):
+        path = tmp_path / "README.md"
+        path.write_text(f"---\ntitle: Paper Boats\n{upc_line}---\n\n# Paper Boats\n", encoding="utf-8")
+        return parse_album_readme(path)
+
+    @pytest.mark.parametrize("line, expected", [
+        ('isrc: "US-ABC-23-00001"\n', "USABC2300001"),
+        ('isrc: "qzabc2000001"\n', "QZABC2000001"),
+        ('isrc: "QZ ABC 20 00001"\n', "QZABC2000001"),
+    ])
+    def test_an_isrc_is_stored_compact(self, tmp_path, line, expected):
+        assert self._track(tmp_path, line)["isrc"] == expected
+
+    @pytest.mark.parametrize("line", ['isrc: ""\n', 'isrc: "pending"\n', 'isrc: "US-ABC-23"\n', ""])
+    def test_no_isrc_or_not_an_isrc_leaves_it_unset(self, tmp_path, line):
+        assert "isrc" not in self._track(tmp_path, line)
+
+    @pytest.mark.parametrize("line, expected", [
+        ('upc: "123456789012"\n', "123456789012"),
+        ('upc: "1234567890128"\n', "1234567890128"),
+        ("upc: 123456789012\n", "123456789012"),  # unquoted, YAML reads a number
+        ('upc: "1234-5678-9012"\n', "123456789012"),
+    ])
+    def test_a_upc_is_stored_as_digits(self, tmp_path, line, expected):
+        assert self._album(tmp_path, line)["upc"] == expected
+
+    @pytest.mark.parametrize("line", ['upc: ""\n', 'upc: "12345"\n', 'upc: "TBD"\n', ""])
+    def test_no_upc_or_not_a_upc_leaves_it_unset(self, tmp_path, line):
+        assert "upc" not in self._album(tmp_path, line)
+
+
 class TestParseIdeasFile:
     """Tests for parse_ideas_file()."""
 

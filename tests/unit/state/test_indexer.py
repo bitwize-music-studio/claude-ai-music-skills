@@ -3804,6 +3804,40 @@ class TestMigrate14To15:
         assert album['tracks']['02-hard-stop']['fade_out'] is None
 
 
+    def test_album_readmes_are_re_read_too(self):
+        """1.5.0 also caches an album's UPC, so READMEs are re-parsed as well."""
+        state = TestMigrate13To14()._state_1_3({'x': {'readme_mtime': 5.0, 'tracks': {}}})
+        state['version'] = '1.4.0'
+        migrated = migrate_state(state)
+        assert migrated is not None
+        assert migrated['albums']['x']['readme_mtime'] == 0.0
+
+
+@pytest.mark.unit
+class TestReleaseCodesInTheCache:
+    """The master's metadata stage embeds ISRC and UPC from the cache, which never kept them."""
+
+    def test_a_tracks_isrc_reaches_the_cache(self, tmp_path):
+        tracks_dir = tmp_path / "album" / "tracks"
+        tracks_dir.mkdir(parents=True)
+        (tracks_dir / "01-a.md").write_text('---\ntitle: A\nisrc: "QZABC2000001"\n---\n# A\n',
+                                           encoding="utf-8")
+        (tracks_dir / "02-b.md").write_text("---\ntitle: B\n---\n# B\n", encoding="utf-8")
+        tracks = scan_tracks(tmp_path / "album")
+        assert tracks["01-a"]["isrc"] == "QZABC2000001"
+        assert "isrc" not in tracks["02-b"]
+
+    def test_an_albums_upc_reaches_the_cache(self):
+        from tools.state.indexer import _album_entry
+
+        album_dir = Path("/content/albums/folk/paper-boats")
+        entry = _album_entry(album_dir, {"title": "Paper Boats", "upc": "123456789012"},
+                             "paper-boats", "folk", 1.0, {})
+        assert entry["upc"] == "123456789012"
+        assert entry["title"] == "Paper Boats"
+        assert "upc" not in _album_entry(album_dir, {"title": "Paper Boats"}, "paper-boats", "folk", 1.0, {})
+
+
 @pytest.mark.unit
 class TestValidateStatePluginVersion:
     """Tests for plugin_version validation in validate_state()."""

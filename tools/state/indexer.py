@@ -212,14 +212,16 @@ def _migrate_1_3_to_1_4(state: dict[str, Any]) -> dict[str, Any]:
 def _migrate_1_4_to_1_5(state: dict[str, Any]) -> dict[str, Any]:
     """Migrate state from 1.4.0 to 1.5.0: re-read every track for its Fade Out.
 
-    1.5.0 caches each track's Fade Out row, which mastering reads; before it,
-    the row never reached the cache. Clearing the cached track mtimes makes
-    the next incremental update re-parse every track file, instead of leaving
-    the field missing until each file changes. (The MCP server rebuilds the
+    1.5.0 caches each track's Fade Out row and ISRC and each album's UPC,
+    which mastering reads; before it, none reached the cache. Clearing the
+    cached README and track mtimes makes the next incremental update re-parse
+    every album and track file, instead of leaving the fields missing until
+    each file changes. (The MCP server rebuilds the
     whole cache on any version change instead.)
     """
     for album in (state.get('albums') or {}).values():
         if isinstance(album, dict):
+            album['readme_mtime'] = 0.0
             for track in (album.get('tracks') or {}).values():
                 if isinstance(track, dict):
                     track['mtime'] = 0.0
@@ -481,24 +483,8 @@ def scan_albums(
             except OSError:
                 continue  # File removed between glob and stat
 
-            albums[album_slug] = {
-                'path': str(album_dir),
-                'genre': album_dir.parent.name,
-                'title': album_data.get('title', album_slug),
-                'status': album_data.get('status', 'Unknown'),
-                'explicit': album_data.get('explicit', False),
-                'anchor_track': album_data.get('anchor_track'),
-                'layout': album_data.get('layout'),
-                'suno_workspace': album_data.get('suno_workspace'),
-                'suno_playlist': album_data.get('suno_playlist'),
-                'mastering': album_data.get('mastering') or {},
-                'release_date': album_data.get('release_date'),
-                'track_count': album_data.get('track_count', len(tracks)),
-                'tracks_completed': _count_completed_tracks(tracks),
-                'streaming_urls': album_data.get('streaming_urls', {}),
-                'readme_mtime': readme_mtime,
-                'tracks': tracks,
-            }
+            albums[album_slug] = _album_entry(
+                album_dir, album_data, album_slug, album_dir.parent.name, readme_mtime, tracks)
             winner_dir = album_dir
             break  # remaining same-slug dirs are shadowed, never parsed
 
@@ -529,6 +515,35 @@ def scan_albums(
     return albums
 
 
+def _album_entry(album_dir: Path, album_data: dict[str, Any], slug: str, genre: str,
+                 readme_mtime: float, tracks: dict[str, Any]) -> dict[str, Any]:
+    """The cached entry for one album, built alike by full and incremental scans.
+
+    ``upc`` is copied only when the README's frontmatter holds a valid one.
+    """
+    entry: dict[str, Any] = {
+        'path': str(album_dir),
+        'genre': genre,
+        'title': album_data.get('title', slug),
+        'status': album_data.get('status', 'Unknown'),
+        'explicit': album_data.get('explicit', False),
+        'anchor_track': album_data.get('anchor_track'),
+        'layout': album_data.get('layout'),
+        'suno_workspace': album_data.get('suno_workspace'),
+        'suno_playlist': album_data.get('suno_playlist'),
+        'mastering': album_data.get('mastering') or {},
+        'release_date': album_data.get('release_date'),
+        'track_count': album_data.get('track_count', len(tracks)),
+        'tracks_completed': _count_completed_tracks(tracks),
+        'streaming_urls': album_data.get('streaming_urls', {}),
+        'readme_mtime': readme_mtime,
+        'tracks': tracks,
+    }
+    if album_data.get('upc'):
+        entry['upc'] = album_data['upc']
+    return entry
+
+
 def _track_entry(track_path: Path, track_data: dict[str, Any], slug: str,
                  mtime: float) -> dict[str, Any]:
     """The cached entry for one track, built alike by full and incremental scans.
@@ -549,6 +564,8 @@ def _track_entry(track_path: Path, track_data: dict[str, Any], slug: str,
     }
     if 'fade_out' in track_data:
         entry['fade_out'] = track_data['fade_out']
+    if track_data.get('isrc'):
+        entry['isrc'] = track_data['isrc']
     return entry
 
 
@@ -886,24 +903,8 @@ def incremental_update(
                 else:
                     tracks = scan_tracks(album_dir)
 
-                existing_albums[slug] = {
-                    'path': str(album_dir),
-                    'genre': genre,
-                    'title': album_data.get('title', slug),
-                    'status': album_data.get('status', 'Unknown'),
-                    'explicit': album_data.get('explicit', False),
-                    'anchor_track': album_data.get('anchor_track'),
-                    'layout': album_data.get('layout'),
-                    'suno_workspace': album_data.get('suno_workspace'),
-                    'suno_playlist': album_data.get('suno_playlist'),
-                    'mastering': album_data.get('mastering') or {},
-                    'release_date': album_data.get('release_date'),
-                    'track_count': album_data.get('track_count', len(tracks)),
-                    'tracks_completed': _count_completed_tracks(tracks),
-                    'streaming_urls': album_data.get('streaming_urls', {}),
-                    'readme_mtime': readme_mtime,
-                    'tracks': tracks,
-                }
+                existing_albums[slug] = _album_entry(
+                    album_dir, album_data, slug, genre, readme_mtime, tracks)
                 winner_dir = album_dir
                 break  # remaining same-slug dirs are shadowed
 

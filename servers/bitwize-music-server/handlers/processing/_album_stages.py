@@ -2174,7 +2174,7 @@ def _playlist_entries(slug: str, wavs: list[Path]) -> tuple[str, list[PlaylistEn
             seconds=_track_seconds(wav),
             title=f"{artist} - {title}" if artist else title,
         ))
-    return str(album.get("name") or slug), entries
+    return str(album.get("title") or slug), entries
 
 
 def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
@@ -2677,7 +2677,7 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
     # --- resolve track titles from state cache ---
     state_albums = (_shared.cache.get_state() or {}).get("albums", {})
     album_data = state_albums.get(_normalize_slug(ctx.album_slug)) or {}
-    album_name = album_data.get("name") or ctx.album_slug
+    album_name = album_data.get("title") or ctx.album_slug
     release_date = str(album_data.get("release_date") or "")
     # TDRC requires YYYY; reject malformed values ("15/06/2026", "unknown").
     year = ""

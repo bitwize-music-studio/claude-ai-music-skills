@@ -12,6 +12,9 @@ explicit: false
 # /bitwize-music:generate then sends the Lyrics Box to Suno's speech tool as a
 # script, spoken word for word, and the Style Box as delivery tags.
 # spoken: true
+# Optional. The track's ISRC, once your distributor has assigned one (DistroKid
+# shows it after the upload). master_album embeds it in the mastered WAV.
+# isrc: ""
 suno_url: ""
 sheet_music:
   pdf: ""

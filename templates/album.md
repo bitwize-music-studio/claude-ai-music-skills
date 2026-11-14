@@ -1,6 +1,7 @@
 ---
 title: "[Album Title]"
 release_date: ""  # YYYY-MM-DD (fill in when releasing)
+# upc: ""  # Optional: the album's UPC/EAN once assigned; master_album embeds it in the masters
 genres: []  # e.g., ["hip-hop", "documentary"]
 tags: []  # e.g., ["tech", "linux", "true-story"]
 explicit: false  # true or false

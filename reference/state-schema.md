@@ -53,6 +53,7 @@ Map of album slug (string) → album data object.
 | `status` | string | Album status (see valid values below) |
 | `explicit` | boolean | Whether album contains explicit content |
 | `release_date` | string\|null | Release date or null if unreleased |
+| `upc` | string | The README frontmatter's `upc:`, digits only (12 or 13). **Absent** when there is none or it isn't a UPC/EAN. Embedded in the masters by `master_album` |
 | `track_count` | integer | Total number of tracks |
 | `tracks_completed` | integer | Number of tracks with completed status |
 | `streaming_urls` | object | Map of platform → URL (only non-empty entries from frontmatter `streaming:` block) |
@@ -83,6 +84,7 @@ Map of album slug (string) → album data object.
 | `genre` | string | Track's own genre from frontmatter `genre:`, or `""` when it declares none. A musical descriptor, not a path segment — unlike the album's `genre`, nothing resolves a directory from it. Consumed by `get_lyrics_stats` to pick the word-count target per track, falling back to the album's genre then the default. |
 | `mtime` | float | Last modification time of track file |
 | `fade_out` | float or null | The track file's Fade Out row: seconds of fade-out mastering adds, or `null` for no fade (`0`, `—`, `No …`). **Absent** when the file has no such row, and mastering then applies its 3 s default. Every mastering path reads it through `fade_out_for_track` |
+| `isrc` | string | The track frontmatter's `isrc:`, compact and upper case (`CCXXXYYNNNNN`). **Absent** when there is none or it isn't an ISRC. Embedded in the master by `master_album` |
 
 ### Valid Track Statuses
 
@@ -212,6 +214,6 @@ The migration chain is defined in `tools/state/indexer.py` as `MIGRATIONS` dict.
 | 1.1.0 | 1.2.0 | Added `plugin_version` top-level field for upgrade path tracking |
 | 1.2.0 | 1.3.0 | Added `album_collisions` top-level field (seeded to `[]`) for cross-genre slug collision detection (issue #392) |
 | 1.3.0 | 1.4.0 | Re-coerced cached album/track `explicit` flags that pre-#388 parsers stored as raw truthy strings (e.g. `"false"`) to real booleans |
-| 1.4.0 | 1.5.0 | Tracks carry `fade_out`. The migration clears cached track mtimes so the next incremental update re-reads every track file; the MCP server rebuilds the whole state on the version change instead, keeping session and migration tracking |
+| 1.4.0 | 1.5.0 | Tracks carry `fade_out` and `isrc`, albums `upc`. The migration clears cached README and track mtimes so the next incremental update re-reads every album and track file; the MCP server rebuilds the whole state on the version change instead, keeping session and migration tracking |
 
 `last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. A schema bump no longer endangers it. The live MCP path auto-rebuilds every state whose version differs, and that rebuild carries the existing `last_migrated_version` forward, the session too (`carry_migration_tracking`, issue #320). So a bump such as 1.4.0 → 1.5.0 leaves migration status alone, and a test of the auto-rebuild keeps it that way.

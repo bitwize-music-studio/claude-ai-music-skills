@@ -67,7 +67,7 @@ def _install_album(monkeypatch, slug: str, *, name: str = "", titles: dict | Non
                    audio_dir: Path | None = None) -> None:
     album: dict = {"status": "In Progress", "tracks": {}}
     if name:
-        album["name"] = name
+        album["title"] = name
     if audio_dir is not None:
         album["path"] = str(audio_dir)
     for stem, title in (titles or {}).items():
