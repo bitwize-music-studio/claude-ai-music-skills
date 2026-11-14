@@ -126,3 +126,99 @@ class TestSoundCloud:
     def test_no_description_no_field(self):
         album = _fields(build_kit(_facts(description=""), TODAY).soundcloud[0])
         assert "Description" not in album
+
+
+def _messages(facts, level=None, today=TODAY):
+    return [c.message for c in build_kit(facts, today).checks if level in (None, c.level)]
+
+
+class TestChecks:
+    def test_a_ready_album_has_only_the_format_note(self):
+        checks = build_kit(_facts(), TODAY).checks
+        assert [(c.level, c.message) for c in checks] == [(INFO, "Masters: PCM_24 96000 Hz")]
+
+    def test_failures_come_first(self):
+        facts = _facts(release_date="", legal_name="")
+        levels = [c.level for c in build_kit(facts, TODAY).checks]
+        assert levels == sorted(levels, key=[FAIL, WARN, INFO].index)
+
+    def test_a_track_without_a_master(self):
+        assert _messages(_facts(tracks=(_track(1, wav="", wav_format=""),)), FAIL) == [
+            "Track 1 (Harbor) has no mastered WAV"]
+
+    def test_an_unreadable_master(self):
+        assert _messages(_facts(tracks=(_track(1, wav_format="unreadable"),)), FAIL) == [
+            "Track 1 (Harbor) has a master that can't be read as a WAV"]
+
+    def test_a_stray_wav(self):
+        assert _messages(_facts(stray_wavs=("99-demo.wav",)), FAIL) == [
+            "mastered/99-demo.wav matches no track: move it out before uploading"]
+
+    @pytest.mark.parametrize("cover, size, message", [
+        ("", None, "No album.png beside mastered/: add the cover with /bitwize-music:import-art"),
+        ("/a/album.png", None, "album.png can't be read as an image"),
+        ("/a/album.png", (3000, 2000), "album.png is 3000×2000: it must be square, at least 3000×3000"),
+        ("/a/album.png", (1400, 1400), "album.png is 1400×1400: it must be square, at least 3000×3000"),
+    ])
+    def test_the_cover(self, cover, size, message):
+        assert _messages(_facts(cover=cover, cover_size=size), FAIL) == [message]
+
+    def test_missing_config(self):
+        assert _messages(_facts(legal_name="", ai_disclosure=None), FAIL) == [
+            "Set artist.legal_name in config: DistroKid needs the songwriter's real name",
+            "Set release.ai_disclosure in config: your standard answer to DistroKid's AI "
+            "question ([] for none)",
+        ]
+
+    @pytest.mark.parametrize("release_date, message", [
+        ("", "No release date in the album README: set release_date, or choose it on the form"),
+        ("someday", "Release date 'someday' isn't YYYY-MM-DD"),
+        ("1999-12-31", "Release date 1999-12-31 is in the past"),
+    ])
+    def test_the_release_date(self, release_date, message):
+        assert _messages(_facts(release_date=release_date), WARN) == [message]
+
+    @pytest.mark.parametrize("title, message", [
+        ("", "Track 1 title is empty"),
+        ("Harbor (feat. Gulls)", "Track 1 title names a featured artist: both forms have a field for that"),
+        ("Harbor ft. Gulls", "Track 1 title names a featured artist: both forms have a field for that"),
+        ("Harbor (Explicit)", "Track 1 title says (Explicit) or (Clean): set the explicit flag instead"),
+        ("Harbor 🌊", "Track 1 title has an emoji, which stores reject"),
+        ("H" * 101, "Track 1 title is 101 characters: SoundCloud allows 100"),
+    ])
+    def test_track_titles(self, title, message):
+        assert message in _messages(_facts(tracks=(_track(1, title=title),)), WARN)
+
+    def test_a_word_containing_ft_is_fine(self):
+        assert _messages(_facts(tracks=(_track(1, title="Left Behind"),)), WARN) == []
+
+    def test_the_album_title_is_checked_too(self):
+        assert _messages(_facts(title="Boats 🌊"), WARN) == [
+            "Album title has an emoji, which stores reject"]
+
+    @pytest.mark.parametrize("explicit, found, message", [
+        (True, False, "Track 1 (Harbor) is marked explicit, but no explicit words were found"),
+        (False, True, "Track 1 (Harbor) has explicit words but isn't marked explicit"),
+    ])
+    def test_the_explicit_flag(self, explicit, found, message):
+        facts = _facts(tracks=(_track(1, explicit=explicit, explicit_found=found),))
+        assert _messages(facts, WARN) == [message]
+
+    def test_lyrics(self):
+        assert _messages(_facts(tracks=(_track(1, lyrics=""),)), WARN) == [
+            "Track 1 (Harbor) has no Streaming Lyrics"]
+        facts = _facts(tracks=(_track(1, lyrics_problems=("Section tags found",)),))
+        assert _messages(facts, WARN) == ["Track 1 (Harbor) Streaming Lyrics: Section tags found"]
+
+    def test_an_instrumental_needs_no_lyrics(self):
+        facts = _facts(tracks=(_track(1, instrumental=True, lyrics="",
+                                      lyrics_problems=("Section missing",)),))
+        assert _messages(facts, WARN) == []
+
+    def test_tracks_not_final(self):
+        facts = _facts(tracks=(_track(1), _track(2, status="Generated"), _track(3, status="In Progress")))
+        assert _messages(facts, WARN) == ["Not Final yet: track 2, 3"]
+
+    def test_formats_are_listed_once_each(self):
+        facts = _facts(tracks=(_track(1), _track(2), _track(3, wav_format="PCM_16 44100 Hz")))
+        assert _messages(facts, INFO) == ["Masters: PCM_16 44100 Hz; PCM_24 96000 Hz"]

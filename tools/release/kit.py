@@ -216,4 +216,88 @@ def _soundcloud(f: AlbumFacts) -> tuple[Block, ...]:
 
 def run_checks(f: AlbumFacts, today: date) -> tuple[Check, ...]:
     """Everything to clear before uploading, failures first. Never raises."""
-    return ()
+    checks: list[Check] = []
+    for t in f.tracks:
+        if not t.wav:
+            checks.append(Check(FAIL, f"Track {t.number} ({t.title}) has no mastered WAV"))
+        elif t.wav_format == UNREADABLE:
+            checks.append(Check(FAIL, f"Track {t.number} ({t.title}) has a master that can't be read as a WAV"))
+    for name in f.stray_wavs:
+        checks.append(Check(FAIL, f"mastered/{name} matches no track: move it out before uploading"))
+    checks += _cover_checks(f)
+    if not f.legal_name:
+        checks.append(Check(FAIL, "Set artist.legal_name in config: DistroKid needs the songwriter's real name"))
+    if f.ai_disclosure is None:
+        checks.append(Check(
+            FAIL,
+            "Set release.ai_disclosure in config: your standard answer to DistroKid's AI "
+            "question ([] for none)",
+        ))
+    checks += _date_checks(f.release_date, today)
+    checks += _title_checks("Album title", f.title)
+    for t in f.tracks:
+        checks += _title_checks(f"Track {t.number} title", t.title)
+        checks += _track_checks(t)
+    not_final = [str(t.number) for t in f.tracks if t.status != "Final"]
+    if not_final:
+        checks.append(Check(WARN, "Not Final yet: track " + ", ".join(not_final)))
+    formats = sorted({t.wav_format for t in f.tracks if t.wav_format and t.wav_format != UNREADABLE})
+    if formats:
+        checks.append(Check(INFO, "Masters: " + "; ".join(formats)))
+    return tuple(sorted(checks, key=lambda c: _LEVEL_ORDER[c.level]))
+
+
+def _cover_checks(f: AlbumFacts) -> list[Check]:
+    if not f.cover:
+        return [Check(FAIL, "No album.png beside mastered/: add the cover with /bitwize-music:import-art")]
+    if f.cover_size is None:
+        return [Check(FAIL, "album.png can't be read as an image")]
+    width, height = f.cover_size
+    if width != height or width < COVER_MIN:
+        # Written as an escape: ruff's RUF001 rejects the multiplication sign as a literal.
+        return [Check(FAIL, f"album.png is {width}\u00d7{height}: it must be square, "
+                            f"at least {COVER_MIN}\u00d7{COVER_MIN}")]
+    return []
+
+
+def _date_checks(release_date: str, today: date) -> list[Check]:
+    if not release_date:
+        return [Check(WARN, "No release date in the album README: set release_date, or choose it on the form")]
+    try:
+        when = date.fromisoformat(release_date)
+    except ValueError:
+        return [Check(WARN, f"Release date {release_date!r} isn't YYYY-MM-DD")]
+    if when < today:
+        return [Check(WARN, f"Release date {release_date} is in the past")]
+    return []
+
+
+def _title_checks(what: str, title: str) -> list[Check]:
+    if not title.strip():
+        return [Check(WARN, f"{what} is empty")]
+    found = []
+    if _FEAT_RE.search(title):
+        found.append(f"{what} names a featured artist: both forms have a field for that")
+    if _VERSION_MARKER_RE.search(title):
+        found.append(f"{what} says (Explicit) or (Clean): set the explicit flag instead")
+    if _EMOJI_RE.search(title):
+        found.append(f"{what} has an emoji, which stores reject")
+    if len(title) > TITLE_LIMIT:
+        found.append(f"{what} is {len(title)} characters: SoundCloud allows {TITLE_LIMIT}")
+    return [Check(WARN, message) for message in found]
+
+
+def _track_checks(t: TrackFacts) -> list[Check]:
+    checks: list[Check] = []
+    name = f"Track {t.number} ({t.title})"
+    if t.explicit_found is not None and t.explicit_found != t.explicit:
+        if t.explicit:
+            checks.append(Check(WARN, f"{name} is marked explicit, but no explicit words were found"))
+        else:
+            checks.append(Check(WARN, f"{name} has explicit words but isn't marked explicit"))
+    if not t.instrumental:
+        if not t.lyrics:
+            checks.append(Check(WARN, f"{name} has no Streaming Lyrics"))
+        elif t.lyrics_problems:
+            checks.append(Check(WARN, f"{name} Streaming Lyrics: " + "; ".join(t.lyrics_problems)))
+    return checks
