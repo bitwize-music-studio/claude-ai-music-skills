@@ -53,7 +53,9 @@ def _spawn(argv: list[str]) -> None:
 
 def _open_chosen(url: str, choice: str) -> str:
     """Open url with the chosen browser: "" when it opened, else why it didn't."""
-    target = str(Path(choice).expanduser()) if _looks_like_path(choice) else choice
+    # Only a leading ~ is expanded. Rebuilding any other path through Path would turn
+    # its slashes into backslashes on Windows, so it's passed on exactly as written.
+    target = str(Path(choice).expanduser()) if choice.startswith("~") else choice
     if _on_macos():
         try:
             done = _run_open(["/usr/bin/open", "-a", target, url])
