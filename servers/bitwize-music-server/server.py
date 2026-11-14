@@ -488,6 +488,7 @@ from handlers import (
     playback,
     processing,
     promo,
+    release_kit,
     rename,
     skills,
     status,
@@ -532,6 +533,7 @@ promo.register(mcp)
 health.register(mcp)
 ideas.register(mcp)
 rename.register(mcp)
+release_kit.register(mcp)
 processing.register(mcp)
 database.register(mcp)
 maintenance.register(mcp)
@@ -728,6 +730,9 @@ from handlers.promo import (  # noqa: F401
     get_promo_content,
     get_promo_status,
 )
+
+# Release kit
+from handlers.release_kit import build_release_kit  # noqa: F401
 
 # Rename tools
 from handlers.rename import (  # noqa: F401
