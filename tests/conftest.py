@@ -135,6 +135,26 @@ def _isolate_iterm(monkeypatch, tmp_path):
 
 
 @pytest.fixture(autouse=True)
+def _isolate_browser_launch(monkeypatch):
+    """Keep every test from starting a real browser app.
+
+    ``tools.playback.browser`` opens a browser the user named through macOS
+    ``open -a``, or by running its program elsewhere. A suite run must never
+    open windows on the developer's desktop. Tests that exercise it install
+    their own fakes over these.
+    """
+    import tools.playback.browser as browser_mod
+
+    def _refuse(argv, *args, **kwargs):
+        raise AssertionError(
+            "a test reached a real browser launch - fake tools.playback.browser._run_open/_spawn"
+        )
+
+    monkeypatch.setattr(browser_mod, "_run_open", _refuse)
+    monkeypatch.setattr(browser_mod, "_spawn", _refuse)
+
+
+@pytest.fixture(autouse=True)
 def _reset_warned_bad_values():
     """Reset the shared coercers' once-per-process warn dedup (#556).
 

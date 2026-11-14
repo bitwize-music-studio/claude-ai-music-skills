@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,6 +37,7 @@ from tests.unit.state.test_handlers_generation import (  # noqa: E402
 )
 
 from handlers import playback as _playback_mod  # noqa: E402
+from tools.playback import browser as _browser_mod  # noqa: E402
 from tools.playback import player  # noqa: E402
 
 CLIP_C = "5f044d3b-fa97-4ace-b9f8-d9aa99933230"
@@ -274,8 +276,27 @@ def browser(monkeypatch):
         opened.append(url)
         return True
 
-    monkeypatch.setattr(_playback_mod.webbrowser, "open_new_tab", fake_open)
+    monkeypatch.setattr(_browser_mod.webbrowser, "open_new_tab", fake_open)
     return opened
+
+
+@pytest.fixture(autouse=True)
+def empty_config(monkeypatch):
+    """No cached settings unless a test sets some: open_song_page reads generation.listen_browser.
+
+    Without this a test could reach the real StateCache that importing server.py installs,
+    and build state from the developer's own config and library.
+    """
+    from handlers import _shared
+
+    class _Empty:
+        def get_state(self):
+            return {"config": {"generation": {}}}
+
+        def get_state_ref(self):
+            return self.get_state()
+
+    monkeypatch.setattr(_shared, "cache", _Empty())
 
 
 @pytest.fixture(autouse=True)
@@ -329,7 +350,7 @@ class TestOpenSongPage:
         assert browser == []
 
     def test_browser_that_cannot_open_is_reported(self, monkeypatch):
-        monkeypatch.setattr(_playback_mod.webbrowser, "open_new_tab", lambda url: False)
+        monkeypatch.setattr(_browser_mod.webbrowser, "open_new_tab", lambda url: False)
         url = f"https://suno.com/song/{CLIP_A}"
         result = _open([url])
         assert result["opened"] == []
@@ -338,9 +359,9 @@ class TestOpenSongPage:
 
     def test_browser_error_is_reported(self, monkeypatch):
         def boom(url):
-            raise _playback_mod.webbrowser.Error("no browser")
+            raise _browser_mod.webbrowser.Error("no browser")
 
-        monkeypatch.setattr(_playback_mod.webbrowser, "open_new_tab", boom)
+        monkeypatch.setattr(_browser_mod.webbrowser, "open_new_tab", boom)
         assert _open([f"https://suno.com/song/{CLIP_A}"])["failed"] == [
             f"https://suno.com/song/{CLIP_A}",
         ]
@@ -558,3 +579,97 @@ class TestVersionsInTheListenPlan:
         assert [(t["row"], t["version"], t["approved"]) for t in takes] == [
             (1, "", True), (2, "instrumental", False),
         ]
+
+
+# ===========================================================================
+# open_song_page in a chosen browser: generation.listen_browser, or browser= for one run
+# ===========================================================================
+
+
+@pytest.fixture
+def listen_config(tmp_path, monkeypatch):
+    """Index an empty library with the real indexer, with the generation settings given."""
+    from handlers import _shared
+    from tools.state.indexer import build_state
+
+    def configure(**generation):
+        state = build_state({
+            "artist": {"name": "bitwize"},
+            "paths": {"content_root": str(tmp_path / "content")},
+            "generation": generation,
+        }, plugin_root=tmp_path)
+
+        class _Cache:
+            def get_state(self):
+                return state
+
+            def get_state_ref(self):
+                return state
+
+        monkeypatch.setattr(_shared, "cache", _Cache())
+
+    return configure
+
+
+@pytest.fixture
+def named_launch(monkeypatch):
+    """macOS `open -a` calls, recorded instead of run."""
+    from tools.playback import browser as browser_mod
+
+    launched: list[list[str]] = []
+    outcome = {"returncode": 0, "stderr": ""}
+
+    def run_open(argv):
+        launched.append(argv)
+        return subprocess.CompletedProcess(argv, outcome["returncode"], "", outcome["stderr"])
+
+    monkeypatch.setattr(browser_mod, "_run_open", run_open)
+    monkeypatch.setattr(browser_mod, "_on_macos", lambda: True)
+    return {"launched": launched, "outcome": outcome}
+
+
+class TestOpenSongPageInAChosenBrowser:
+    URL = f"https://suno.com/song/{CLIP_A}"
+
+    def _open(self, *args, **kwargs):
+        return json.loads(_run(_playback_mod.open_song_page([self.URL], *args, **kwargs)))
+
+    def test_listen_browser_names_the_app(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="Firefox")
+        result = self._open()
+        assert named_launch["launched"] == [["/usr/bin/open", "-a", "Firefox", self.URL]]
+        assert browser == []
+        assert result == {"opened": [self.URL], "failed": [], "where": "browser", "browser": "Firefox"}
+
+    def test_a_browser_for_one_run_overrides_it(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="Firefox")
+        self._open(browser="Safari")
+        assert named_launch["launched"] == [["/usr/bin/open", "-a", "Safari", self.URL]]
+
+    def test_default_is_the_systems_browser(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="default")
+        assert self._open() == {"opened": [self.URL], "failed": [], "where": "browser"}
+        assert browser == [self.URL]
+        assert named_launch["launched"] == []
+
+    def test_an_app_that_wont_open_falls_back_with_a_note(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="Netscape")
+        named_launch["outcome"].update(returncode=1, stderr="Unable to find application named 'Netscape'")
+        result = self._open()
+        assert browser == [self.URL]
+        assert result["browser"] == "default"
+        assert "Netscape" in result["note"]
+
+    def test_iterm2_points_at_the_panes(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="iTerm2")
+        result = self._open()
+        assert "iterm2_browser" in result["error"]
+        assert browser == [] and named_launch["launched"] == []
+
+    def test_panes_that_cant_open_fall_back_to_the_chosen_browser(self, browser, listen_config, named_launch):
+        listen_config(listen_browser="Firefox")
+        result = self._open("iterm2_browser")
+        assert named_launch["launched"] == [["/usr/bin/open", "-a", "Firefox", self.URL]]
+        assert result["where"] == "browser"
+        assert result["browser"] == "Firefox"
+        assert "iTerm2 panes are not available" in result["note"]

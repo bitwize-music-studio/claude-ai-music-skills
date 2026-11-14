@@ -32,7 +32,7 @@ Every skill that uses Suno tools runs these checks first:
 1. **Find the tools.** Look for `audio-create`, `audio-wait` and `account-usage` on any connected MCP server (a tool search for `suno audio-create` finds them). Do not assume the `mcp__suno__` prefix — the user may have named the server differently.
 2. **Not found** → the server is not configured. Give the setup command above and offer the fallback below.
 3. **Found, but a call returns an authentication error** → tell the user to run `/mcp` and sign in.
-4. **Read the account once** with `account-usage`: `allowed_models`, `features`, `suno_account.credits_remaining` and `suno_account.download_credits_remaining`.
+4. **Read the account once** with `account-usage`: `allowed_models`, `features`, `suno_account.credits_remaining`, `suno_account.download_credits_remaining` and `suno_account.plan.name` (Suno Studio comes with Premier only; see § Suno Studio).
 5. **Trust the live tool definition.** Send only arguments the tool lists today. If a call is rejected for an unknown argument, drop that argument, tell the user, and retry once.
 
 ---
@@ -62,6 +62,7 @@ Suno keeps two balances: **song credits** and **download credits** (Free 7 lifet
 | First `audio-download` of a song, MP3 or WAV | 0 | 1 *(measured)* |
 | Any later download of that song, either format | 0 | 0 *(measured)* |
 | Downloading the stems of a song that has been downloaded | 0 | 0 *(measured)* |
+| A WAV downloaded in Suno Studio (Premier): select the whole waveform, Download .WAV | 0 | 0 *(measured once)* |
 | Playing a file already on disk | 0 | 0 |
 | `workspaces-create`, `workspaces-update-clips`, `workspaces-list` | 0 *(measured)* | 0 *(measured)* |
 | `audio-listen` question, `audio-lyrics-alignment`, `audio-analysis` | 0 *(measured)* | 0 *(measured)* |
@@ -205,7 +206,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 - Playback needs `mpv` (recommended — it can start mid-song), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`.
 - "Compare" plays the same passage of two to four files back to back (`compare_audio`): two takes, or a track's original, polished and mastered files. It needs `mpv`, the one player that takes several files with one start point and length.
 - `prune_takes_cache` clears audition copies once a track has a keeper; copies of takes still awaiting a decision are kept. `/bitwize-music:listen` runs it when a keeper is named.
-- `generation.listen_mode` sets the default (`browser`, `iterm2_browser` or `terminal`); `generation.listen_confirm_download: false` stops the question before a download credit is spent. See [config/README.md](../../config/README.md).
+- `generation.listen_mode` sets the default (`browser`, `iterm2_browser` or `terminal`); `generation.listen_browser` picks the web browser for `browser` (`default`, an app name, or a path to one); `generation.listen_confirm_download: false` stops the question before a download credit is spent. See [config/README.md](../../config/README.md).
 
 **iTerm2 panes** (`iterm2_browser`; measured on iTerm2 3.6.6)
 
@@ -286,6 +287,19 @@ The agent is not infallible: asked twice about one take, it agreed with itself o
 
 ---
 
+## Suno Studio (Premier)
+
+Suno Studio is Suno's editor in the browser. Suno's pricing page lists it under Premier only, so the plan from `account-usage` (`suno_account.plan.name`) decides whether it can be offered. `/bitwize-music:import-audio --from-suno` offers it (its step C2) as a third answer to the download-credit question, **studio** beside yes and no, and on its own once the credits run out. Other plans are asked only yes or no:
+
+- `open_in_studio(album, track, plan, browser)` opens `https://suno.com/studio?for_clip_id=<the keeper's clip id>&create_new=1`. That starts a new Studio project holding the song, in the browser named by `generation.studio_browser` (an app name), else the system's default. Any plan but Premier is refused.
+- The user selects the song's whole waveform in Studio's editor and clicks **Download .WAV**. Measured once, the file was a stereo WAV at 48 kHz, 16-bit, the same format as an `audio-download` WAV. It is named after the song's Suno title and the range downloaded, e.g. `Harbor [0m00s-2m37s].wav`.
+- `find_studio_download(since, title, expected_seconds)` waits for the finished file in ~/Downloads. It checks the file against the song's title and length from `audio-retrieve`, which catches a selection that missed part of the song.
+- **Cost.** Suno's downloads FAQ says users "will still be able to download their work from Studio without limitation". In one measured download, `download_credits_remaining` didn't change, and `audio-download` still answered `requires_credit` for the song afterwards. So a Studio download isn't the song's download: a later `audio-download` of the song, or of its stems, still uses one credit.
+- **Not in iTerm2.** Studio hands the WAV over as a `blob:` URL, which iTerm2's browser can't save ("Plug-in handled load"). `open_in_studio` refuses iTerm2, whatever `generation.studio_browser` says.
+- **No stems.** Studio's multitrack export names its files its own way, not with the 12 names the mix tools expect.
+
+---
+
 ## Fallback
 
 When the server is missing, not signed in, lacks a feature, or the track uses a Custom Model:
@@ -299,4 +313,5 @@ When the server is missing, not signed in, lacks a feature, or the track uses a 
 ## Sources
 
 - [Suno MCP](https://suno.com/mcp) · [What is Suno MCP (Beta)?](https://help.suno.com/en/articles/14551361) · [Connecting it](https://help.suno.com/en/articles/14551425) · [FAQ](https://help.suno.com/en/articles/14486145)
-- [Download limits](https://help.suno.com/en/articles/13614785) — "Streaming and sharing on Suno remain unlimited on every plan"; one song is one download whatever the format; stems count as part of the song's download.
+- [Download limits](https://help.suno.com/en/articles/13614785) — "Streaming and sharing on Suno remain unlimited on every plan"; one song is one download whatever the format; stems count as part of the song's download; users "will still be able to download their work from Studio without limitation".
+- [Pricing](https://suno.com/pricing) — "Access to Suno Studio" is listed under Premier; Free and Pro say "Not included".

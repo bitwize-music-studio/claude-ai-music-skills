@@ -1,7 +1,7 @@
 ---
 name: listen
 description: Opens a track's Suno takes in the browser or in iTerm2 panes beside the session, or plays takes and local audio in the terminal. Use when the user wants to hear a take, compare takes, audition a generation, or says "play it" or "let me hear it". Opening the song page is the default and is free; playing a new Suno take in the terminal uses one download credit.
-argument-hint: <album-name> <track> [take N | all] [--browser | --iterm2 | --terminal] [--from m:ss] [--stage original|polished|mastered]
+argument-hint: <album-name> <track> [take N | all] [--browser [<app>] | --iterm2 | --terminal] [--from m:ss] [--stage original|polished|mastered]
 model: sonnet
 effort: medium
 allowed-tools:
@@ -48,7 +48,7 @@ The take that is kept needs that download credit anyway — its WAV import is th
 
 ## Step 1: Work Out What to Play
 
-Expected format: `<album-name> <track> [take N | all] [--browser | --iterm2 | --terminal] [--from m:ss] [--stage original|polished|mastered]`
+Expected format: `<album-name> <track> [take N | all] [--browser [<app>] | --iterm2 | --terminal] [--from m:ss] [--stage original|polished|mastered]`
 
 Call `get_listen_plan(album_slug, track_slug)`.
 
@@ -62,6 +62,7 @@ Call `get_listen_plan(album_slug, track_slug)`.
 
 **How**
 - `--browser`, `--iterm2` or `--terminal` wins; otherwise use `mode` from the plan (`browser` unless the user's config says `iterm2_browser` or `terminal`).
+- `--browser <app>` also names the web browser for this run: an app name (`Safari`, `"Google Chrome"`) or a path to one. Without it the takes open in `generation.listen_browser`, else the system's default.
 - Local files always play in the terminal.
 - A take whose `clip_id` is null is a share link from before MCP generation: it can be opened in the browser or in an iTerm2 pane, never played in the terminal.
 - Terminal mode with `player: null` → say no audio player is installed (`brew install mpv`, or see the reference doc), then use the browser for takes.
@@ -69,11 +70,11 @@ Call `get_listen_plan(album_slug, track_slug)`.
 
 ## Step 2: Browser Mode and iTerm2 Mode
 
-Call `open_song_page(urls)` with the chosen takes' `url`s (at most four), in take order. For iTerm2 mode add `where="iterm2_browser"`, `album_slug` and `track_slug`: the track's Lyrics Box then opens in one more pane under the takes. Leave the track out when the takes are instrumental versions.
+Call `open_song_page(urls)` with the chosen takes' `url`s (at most four), in take order. For `--browser <app>`, add `browser: "<app>"`. For iTerm2 mode add `where="iterm2_browser"`, `album_slug` and `track_slug`: the track's Lyrics Box then opens in one more pane under the takes. Leave the track out when the takes are instrumental versions.
 
 The answer's `where` says where the takes went:
 
-- `browser` → say which takes are open in the browser.
+- `browser` → say which takes are open in the browser. If the answer has a `note`, the browser named couldn't be opened and the default was used: pass the note on.
 - `iterm2_browser` → each take is open as a compact player in a pane to the right of this session, the first take on top. Say which take is where, and that each needs one click on its play button — a browser never starts sound by itself:
 
   ```

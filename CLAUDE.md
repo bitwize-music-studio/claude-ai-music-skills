@@ -119,7 +119,7 @@ At the beginning of a fresh session:
    - In-progress albums (status: "In Progress", "Research Complete", "Complete")
    - Pending source verifications (from `get_pending_verifications(summary_only=True)`)
    - Last session context (from `get_session`)
-   - Suno MCP: connected, or configured but not connected (run `/mcp` and sign in), or missing — then the add command and sign-in step from `health_check`'s `suno.fix`, unless `generation.suno_mcp_reminder` is false (optional; never a warning)
+   - Suno MCP: connected, with the plan and downloads left from one `account-usage` read (e.g. "Suno: connected — Premier Plan, 15 downloads left"), or configured but not connected (run `/mcp` and sign in), or missing — then the add command and sign-in step from `health_check`'s `suno.fix`, unless `generation.suno_mcp_reminder` is false (optional; never a warning)
 7. **Show contextual tips** based on state:
    - No albums → suggest `/bitwize-music:tutorial`
    - Ideas exist → suggest `/bitwize-music:album-ideas list`
@@ -170,7 +170,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **A sound effect, an ambience or a loop** → `/bitwize-music:sound-effects` (2 Suno credits for two sounds, after a go-ahead)
 - **Singing a track or an album in one of the user's saved Voices, or making a new Voice** → `/bitwize-music:suno-voice` (checks the Voice is on their Suno account, then writes it into the track files; free. A new Voice is made on suno.com through the link Suno returns, and only when the user asks)
 - **Checking a take against the track file** → `/bitwize-music:check-take` (asks Suno's listening agent which lines are sung, the tempo, the voice; free and advisory, and `/bitwize-music:generate` runs it on new takes)
-- **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems)
+- **Importing the approved take** → `/bitwize-music:import-audio --from-suno` (the WAV; `--stems` adds the stems). On Premier, its download-credit question also offers **studio**, which opens the keeper in Suno Studio in the browser, where the user clicks Download .WAV, and imports the file from Downloads. It offers the same once the credits run out. Other plans get yes or no only
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise
 - **Mastering audio** → polish first via `/bitwize-music:mix-engineer`, then apply `/bitwize-music:mastering-engineer` standards. Skip polish only if: (a) user says "master only", "skip polish", or "already polished"; or (b) polished audio already exists at `{audio_root}/artists/[artist]/albums/[genre]/[album]/polished/`. Applies equally to single-track and whole-album mastering.
