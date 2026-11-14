@@ -48,7 +48,7 @@ Track completion across these phases:
 
 ### From MCP Server
 
-1. Call `get_album_progress(album_slug)` — returns completion stats, phase detection, track counts by status
+1. Call `get_album_progress(album_slug)` — returns completion stats, phase detection, track counts by status, the tracks whose takes await a decision (`takes_pending_decision`), and the album's Suno workspace and playlist when it has them
 2. Call `find_album(name)` — returns album metadata (genre, status, track list with per-track fields)
 3. Call `list_track_files(album_slug)` — returns tracks with file paths for any additional checks
 
@@ -94,10 +94,15 @@ BLOCKING ITEMS
 ! Track 05: No style prompt — blocks generation
 ! Track 07: Pronunciation table not applied — blocks generation
 
+AWAITING YOUR DECISION
+──────────────────────
+Track 04: 2 takes to hear — /bitwize-music:listen [album] 04
+
 SUMMARY
 ───────
 Tracks: [X complete / Y total]
 Blocking: [N items]
+Suno: workspace "[name]" · playlist "[name]"
 Next action: [recommendation]
 ```
 

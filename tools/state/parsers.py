@@ -30,6 +30,37 @@ _RE_MARKDOWN_LINK = re.compile(r'\[([^\]]+)\]')
 _RE_DIGIT_EXTRACT = re.compile(r'(\d+)')
 _RE_IDEAS_SECTION = re.compile(r'^##\s+Ideas\b', re.MULTILINE)
 _RE_IDEAS_SPLIT = re.compile(r'^###\s+', re.MULTILINE)
+# A Fade Out value is seconds only when it starts with the number: "3s",
+# "3.0", "8s (loops toward silence)". "No (loops to track 1)" is not 1 s.
+# Release codes, once a distributor has assigned them: an ISRC is CC-XXX-YY-NNNNN
+# (stored compact, upper case), a UPC 12 digits or an EAN 13.
+_RE_ISRC = re.compile(r'[A-Z]{2}[A-Z0-9]{3}\d{7}')
+_RE_UPC = re.compile(r'\d{12,13}')
+_RE_CODE_SEPARATORS = re.compile(r'[\s-]')
+_RE_FADE_OUT_SECONDS = re.compile(
+    r'(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?(?!\w)', re.IGNORECASE)
+
+
+def _release_code(value: Any, pattern: re.Pattern[str]) -> str | None:
+    """*value* without spaces or hyphens, upper case, when it matches *pattern*.
+
+    YAML reads an unquoted UPC as a number, so the value is taken as text first.
+    Anything else (blank, "pending", a code cut short) gives None.
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    code = _RE_CODE_SEPARATORS.sub('', str(value)).upper()
+    return code if pattern.fullmatch(code) else None
+
+
+def normalize_isrc(value: Any) -> str | None:
+    """*value* as a compact upper-case ISRC (USABC2300001), or None when it isn't one."""
+    return _release_code(value, _RE_ISRC)
+
+
+def normalize_upc(value: Any) -> str | None:
+    """*value* as a 12-digit UPC or 13-digit EAN without separators, or None when it isn't one."""
+    return _release_code(value, _RE_UPC)
 
 
 def _frontmatter_bool(value: Any, default: bool = False, context: str = "explicit") -> bool:
@@ -143,6 +174,17 @@ def _normalize_status(raw: str | None) -> str:
     return status
 
 
+def _parse_suno_ref(value: Any) -> dict[str, str] | None:
+    """A ``{id, name}`` block from album frontmatter (``suno_workspace``,
+    ``suno_playlist``), or None when it is unset."""
+    if not isinstance(value, dict):
+        return None
+    ref_id = str(value.get('id') or '').strip()
+    if not ref_id:
+        return None
+    return {'id': ref_id, 'name': str(value.get('name') or '').strip()}
+
+
 def parse_album_readme(path: Path) -> dict[str, Any]:
     """Parse an album README.md into structured data.
 
@@ -182,6 +224,9 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         result['title'] = _extract_heading(text)
     result['release_date'] = fm.get('release_date') or None
+    upc = normalize_upc(fm.get('upc'))
+    if upc:
+        result['upc'] = upc
     result['explicit'] = _frontmatter_bool(fm.get('explicit', False))
 
     # Optional anchor-track override for album mastering (issue #290 phase 2).
@@ -240,6 +285,12 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         # Try extracting from path (albums/{genre}/{album}/)
         result['genre'] = _extract_genre_from_path(path)
+
+    # The Suno workspace that holds this album's takes (set by /bitwize-music:generate).
+    # None until a workspace has been recorded; the template ships an empty block.
+    result['suno_workspace'] = _parse_suno_ref(fm.get('suno_workspace'))
+    # The Suno playlist of the album's approved takes (set by /bitwize-music:release-director).
+    result['suno_playlist'] = _parse_suno_ref(fm.get('suno_playlist'))
 
     # Album Details table fields
     result['status'] = _normalize_status(_extract_table_value(text, 'Status'))
@@ -426,17 +477,21 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     if fm_suno_url and str(fm_suno_url).strip():
         result['suno_url'] = str(fm_suno_url).strip()
 
-    # Fade Out (duration in seconds, or None)
-    fade_out_raw = _extract_table_value(text, 'Fade Out')
-    if fade_out_raw and fade_out_raw.strip() not in ('—', '\u2013', '-', ''):
-        # Extract numeric value: "5s" → 5.0, "5" → 5.0, "10.5s" → 10.5
-        fade_match = re.search(r'(\d+(?:\.\d+)?)', fade_out_raw)
-        if fade_match:
-            result['fade_out'] = float(fade_match.group(1))
-        else:
-            result['fade_out'] = None
-    else:
-        result['fade_out'] = None
+    # Fade Out: the seconds of fade mastering adds at the end of the track.
+    # A value starting with a number above zero is that fade; anything else
+    # ("0", "—", "No (seamless loop)", "None — it stops") is no fade (None).
+    # No row, or a blank one, leaves fade_out unset: the track never said, so
+    # mastering applies its default (fade_out_for_track).
+    fade_out_raw = (_extract_table_value(text, 'Fade Out') or '').strip()
+    if fade_out_raw:
+        fade_match = _RE_FADE_OUT_SECONDS.match(fade_out_raw)
+        seconds = float(fade_match.group(1)) if fade_match else 0.0
+        result['fade_out'] = seconds if seconds > 0 else None
+
+    # ISRC, once the distributor has assigned one; master_album embeds it.
+    isrc = normalize_isrc(fm.get('isrc'))
+    if isrc:
+        result['isrc'] = isrc
 
     # Sources Verified
     sources_raw = _extract_table_value(text, 'Sources Verified')

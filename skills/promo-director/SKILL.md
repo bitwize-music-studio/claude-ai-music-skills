@@ -11,6 +11,7 @@ allowed-tools:
   - Bash
   - Glob
   - bitwize-music-mcp
+  - mcp__suno__*
 requirements:
   external:
     - name: ffmpeg
@@ -180,6 +181,20 @@ generate_promo_videos(album_slug, style="pulse", duration=15)
 ```
 generate_promo_videos(album_slug, style="pulse", track_filename="01-track-name.wav")
 ```
+
+**Where the passage starts.** By default the generator picks the most energetic passage and starts it on the nearest beat. To start it somewhere else, add `start_s` to a single-track call:
+
+```
+generate_promo_videos(album_slug, track_filename="01-track-name.wav", start_s=47.2)
+```
+
+**Ask Suno where the hook is (optional, free).** When Suno's MCP server is connected and the track has a keeper generated through it, Suno's listening agent can name the passage: `get_suno_release_plan(album_slug)` gives each track's keeper `clip_id`; then ask
+
+```
+audio-listen(id: <clip_id>, question: "Where does the most recognisable 15-second passage of this song start - usually the first full chorus? Give the time of its first downbeat. End with a JSON block with these fields: start_s (seconds), section (a short name).")
+```
+
+and read the answer with `audio-listen-wait`. Offer it as a choice next to the automatic pick, and pass the chosen `start_s`. The mastered file keeps the take's timeline, so the time carries over. Five questions may be unanswered at once; 200 a day.
 
 **Album sampler:**
 

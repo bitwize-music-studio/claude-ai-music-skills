@@ -36,6 +36,7 @@ Based on the argument provided:
 
 **Album path** (`artists/[artist]/albums/[genre]/album-name/`):
 - Glob all track files in `tracks/`
+- Call `check_album_lyrics(album_slug)` and `get_lyrics_stats(album_slug)` once for the mechanical checks across every track (see below)
 - Run 14-point checklist on each (skip instrumental tracks)
 - Generate consolidated album report
 
@@ -73,6 +74,8 @@ lyric-writer (WRITES + SUNO PROMPT) → pronunciation-specialist (RESOLVES) → 
 ---
 
 ## The 14-Point Checklist
+
+**Mechanical checks first.** `check_album_lyrics(album_slug, track_slug?)` reads each track's Lyrics Box and returns only what needs a look, for one track or the whole album: a word rhymed with itself (check 1), homographs (check 3), an empty verse or chorus and lopsided verses (check 5), a verse line far off the length of its verse (check 6), and explicit words on a track not flagged explicit. `get_lyrics_stats(album_slug, track_slug?)` covers check 9 and says which target it used. Neither judges prosody, POV, development, or whether a rhyme scheme suits the genre — those are still read by you. A finding is a place to look, not a verdict: report it at the severity the checklist gives it only after reading the lines. The rhyme scheme the tool can show (`verbose`) is matched by spelling, so it is approximate.
 
 ### 1. Rhyme Check
 - Repeated end words, self-rhymes, predictable patterns

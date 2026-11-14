@@ -30,6 +30,15 @@ HEALTH CHECK: OK
   Venv: N packages verified
   Skills: N skills registered
   Collisions: no album slug collisions
+  Suno: MCP server configured as 'suno' (local)
+```
+
+When the `suno` check is `info` (no Suno MCP server registered), the overall status is still OK — the server is optional. Add one line under the OK block, from the result's `suno.fix`:
+
+```
+SUNO [info]
+  No Suno MCP server registered (optional — /bitwize-music:generate and /bitwize-music:listen need it)
+  Add it: claude mcp add --transport http suno https://api.suno.com/mcp — then run /mcp and sign in
 ```
 
 ### Warnings

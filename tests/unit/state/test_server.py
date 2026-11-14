@@ -649,6 +649,108 @@ class TestStateCacheGetState:
             assert result == {}
 
 
+class TestStateCacheConfigRefresh:
+    """A config.yaml edited after the state was built refreshes the state on load.
+
+    The suite turns this off by default (tests/conftest.py); these tests turn it
+    back on with every collaborator mocked.
+    """
+
+    def _load(self, *, recorded=1234567890.0, config_mtime=200.0, config_exists=True,
+              read_config={"artist": {"name": "test-artist"}}, updated="default",
+              enabled=True, incremental_error=None):
+        cache = server.StateCache()
+        on_disk = _fresh_state()
+        if recorded is None:
+            on_disk["config"].pop("config_mtime")
+        else:
+            on_disk["config"]["config_mtime"] = recorded
+        refreshed = _fresh_state()
+        refreshed["config"]["config_mtime"] = config_mtime
+        refreshed["config"]["generation"] = {"listen_mode": "iterm2_browser"}
+
+        mock_state = MagicMock()
+        mock_state.exists.return_value = True
+        mock_state.stat.return_value = MagicMock(st_mtime=100.0)
+        mock_config = MagicMock()
+        mock_config.exists.return_value = config_exists
+        mock_config.stat.return_value = MagicMock(st_mtime=config_mtime)
+
+        incremental = MagicMock(return_value=refreshed if updated == "default" else updated)
+        if incremental_error:
+            incremental.side_effect = incremental_error
+        rebuilt = _fresh_state()
+        rebuilt["config"]["config_mtime"] = config_mtime
+        rebuilt.pop("session", None)
+        import tools.state.indexer as indexer_mod
+        with patch.object(indexer_mod, "AUTO_REFRESH_ON_CONFIG_CHANGE", enabled), \
+             patch.object(server, "STATE_FILE", mock_state), \
+             patch.object(server, "CONFIG_FILE", mock_config), \
+             patch.object(server, "read_state", return_value=on_disk), \
+             patch.object(server, "read_config", return_value=read_config) as mock_read_config, \
+             patch.object(server, "incremental_update", incremental), \
+             patch.object(server, "build_state", return_value=rebuilt) as mock_build, \
+             patch.object(server, "write_state") as mock_write:
+            result = cache.get_state()
+        return types.SimpleNamespace(
+            result=result, on_disk=on_disk, refreshed=refreshed, rebuilt=rebuilt,
+            incremental=incremental, read_config=mock_read_config, build=mock_build, write=mock_write,
+        )
+
+    def test_changed_config_refreshes_the_state(self):
+        run = self._load()
+        run.incremental.assert_called_once_with(run.on_disk, {"artist": {"name": "test-artist"}})
+        run.write.assert_called_once_with(run.refreshed)
+        assert run.result is run.refreshed
+        assert run.result["config"]["generation"] == {"listen_mode": "iterm2_browser"}
+
+    def test_unchanged_config_is_left_alone(self):
+        run = self._load(recorded=200.0, config_mtime=200.0)
+        run.incremental.assert_not_called()
+        run.read_config.assert_not_called()
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_switched_off(self):
+        run = self._load(enabled=False)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_state_without_a_recorded_mtime_is_left_alone(self):
+        run = self._load(recorded=None)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_missing_config_file_is_left_alone(self):
+        run = self._load(config_exists=False)
+        run.incremental.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_unreadable_config_keeps_the_cached_state(self):
+        run = self._load(read_config=None)
+        run.incremental.assert_not_called()
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_a_state_the_incremental_update_cannot_handle_is_rebuilt(self):
+        run = self._load(updated=None)
+        run.build.assert_called_once()
+        run.write.assert_called_once_with(run.rebuilt)
+        assert run.result is run.rebuilt
+        # A rebuild must not drop the session or acknowledge migrations.
+        assert run.result["session"] == run.on_disk["session"]
+
+    def test_a_failed_refresh_keeps_the_cached_state(self):
+        run = self._load(incremental_error=RuntimeError("boom"))
+        run.write.assert_not_called()
+        assert run.result is run.on_disk
+
+    def test_the_suite_default_is_off(self):
+        """tests/conftest.py keeps every other test from reading the real config."""
+        import tools.state.indexer as indexer_mod
+        assert indexer_mod.AUTO_REFRESH_ON_CONFIG_CHANGE is False
+
+
 class TestStateCacheIsStale:
     """Tests for StateCache._is_stale()."""
 
@@ -4145,6 +4247,22 @@ class TestValidateAlbumStructure:
         failed_msgs = [c["message"] for c in result["checks"] if c["status"] == "FAIL"]
         assert any("tracks/ directory" in m for m in failed_msgs)
 
+    def test_missing_tracks_dir_on_an_album_with_no_tracks_yet_is_a_warning(self, tmp_path):
+        """Git keeps no empty folder, so an album without tracks loses tracks/.
+
+        That is the same state as an empty tracks/ (no tracks written yet), and
+        create_track makes the folder when the first track is written. It used
+        to FAIL, on 11 albums of one catalogue.
+        """
+        mock_cache, album_dir, _ = self._make_album_on_disk(tmp_path)
+        shutil.rmtree(str(album_dir / "tracks"))
+        mock_cache.get_state()["albums"]["test-album"]["tracks"] = {}
+        with patch.object(_shared_mod, "cache", mock_cache):
+            result = json.loads(_run(server.validate_album_structure("test-album", checks="structure")))
+        assert not [c for c in result["checks"] if c["status"] == "FAIL"]
+        warned = [c["message"] for c in result["checks"] if c["status"] == "WARN"]
+        assert any("No track files" in m for m in warned)
+
     def test_audio_wrong_location(self, tmp_path):
         mock_cache, album_dir, audio_dir = self._make_album_on_disk(tmp_path)
         # Move audio to old flat structure (wrong location)
@@ -5735,8 +5853,8 @@ class TestGetLyricsStats:
 
     def test_over_target_status(self, tmp_path):
         """Track over genre max gets OVER status."""
-        # Electronic target is 100-200. Create lyrics with >200 words.
-        long_lyrics = "\n".join(f"Word number {i} here today" for i in range(60))
+        # Electronic target is 220-300. Create lyrics with >300 words.
+        long_lyrics = "\n".join(f"Word number {i} here today" for i in range(80))
         track_file = tmp_path / "05-long.md"
         track_file.write_text(
             f"# Track\n\n## Suno Inputs\n\n### Lyrics Box\n```\n[Verse 1]\n{long_lyrics}\n```\n"
@@ -5751,7 +5869,7 @@ class TestGetLyricsStats:
             result = json.loads(_run(server.get_lyrics_stats("test-album", "05")))
         track = result["tracks"][0]
         assert track["status"] in ("OVER", "DANGER")
-        assert track["word_count"] > 200
+        assert track["word_count"] > 300
 
     def test_danger_zone(self, tmp_path):
         """Track over 800 words gets DANGER status."""
@@ -6615,17 +6733,18 @@ class TestCreateTrack:
         assert result["found"] is False
 
     def test_no_tracks_dir(self, tmp_path):
-        """Returns error when tracks/ directory is missing."""
+        """A missing tracks/ folder is made: git does not keep an empty one."""
         album_dir = tmp_path / "album"
         album_dir.mkdir()
         # No tracks/ subdirectory
         state = _fresh_state()
         state["albums"]["test-album"]["path"] = str(album_dir)
         mock_cache = MockStateCache(state)
-        with patch.object(_shared_mod, "cache", mock_cache):
+        with patch.object(_shared_mod, "cache", mock_cache), \
+             patch.object(_shared_mod, "PLUGIN_ROOT", PROJECT_ROOT):
             result = json.loads(_run(server.create_track("test-album", "01", "Track")))
-        assert "error" in result
-        assert "tracks/" in result["error"]
+        assert result.get("created") is True, result
+        assert (album_dir / "tracks" / "01-track.md").is_file()
 
     def test_zero_pads_number(self, tmp_path):
         """Track number is zero-padded to two digits."""
@@ -7863,6 +7982,76 @@ class TestCheckSkillRegistration:
         assert "fix_message" in result
         assert "claude plugin update" in result["fix_message"]
 
+    # --- a marketplace that points at a local folder ---------------------------
+    #
+    # Claude Code loads a plugin from a `directory` marketplace straight from
+    # that folder: its skills and MCP server come from the working tree, and the
+    # copy in the plugin cache is a leftover from whenever it was first
+    # installed. Comparing the folder with that copy reported a maintainer's
+    # newest skills as "missing" at every session start, and told them to run
+    # `claude plugin update`.
+
+    def _write_marketplaces(self, home, source):
+        plugins = home / ".claude" / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "known_marketplaces.json").write_text(json.dumps({
+            "bitwize-music": {"source": source, "installLocation": source.get("path", "")},
+        }))
+
+    def test_a_directory_marketplace_at_the_plugin_root_is_ok(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "listen", "resume"], ["resume", "old-skill"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(plugin_root)})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+        assert result["source"] == "directory"
+        assert result["missing"] == []
+        assert result["ghost"] == []
+        assert "fix_message" not in result
+        assert str(plugin_root) in result["message"]
+
+    def test_a_trailing_slash_or_tilde_in_the_path_still_matches(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(plugin_root) + "/"})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "ok"
+
+    def test_a_directory_marketplace_somewhere_else_is_still_compared(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "directory", "path": str(tmp_path / "elsewhere")})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+        assert result["missing"] == ["generate"]
+
+    def test_a_github_marketplace_is_still_compared(self, tmp_path):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        self._write_marketplaces(tmp_path / "fakehome", {"source": "github", "repo": "bitwize-music-studio/claude-ai-music-skills"})
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+
+    @pytest.mark.parametrize("content", ["not json", "[]", '{"bitwize-music": "directory"}', '{"bitwize-music": {"source": null}}'])
+    def test_an_unreadable_marketplace_file_falls_back_to_the_comparison(self, tmp_path, content):
+        plugin_root = self._setup_skills(tmp_path, ["generate", "resume"], ["resume"])
+        plugins = tmp_path / "fakehome" / ".claude" / "plugins"
+        plugins.mkdir(parents=True, exist_ok=True)
+        (plugins / "known_marketplaces.json").write_text(content)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=tmp_path / "fakehome"):
+            result = _health_mod._check_skill_registration()
+        assert result["status"] == "stale"
+
 
 # =============================================================================
 # Tests for health_check
@@ -7871,6 +8060,12 @@ class TestCheckSkillRegistration:
 
 class TestHealthCheck:
     """Tests for the health_check() MCP tool."""
+
+    @pytest.fixture(autouse=True)
+    def no_suno_server(self, monkeypatch):
+        """By default no Suno MCP server is registered anywhere; tests that want one patch this."""
+        monkeypatch.setattr(_health_mod._mcp_registrations, "find_servers",
+                            lambda host, project=None: [])
 
     def test_all_ok(self, tmp_path):
         """Both venv and skills ok returns overall ok."""
@@ -7912,13 +8107,16 @@ class TestHealthCheck:
             result = json.loads(_run(_health_mod.health_check()))
 
         assert result["status"] == "ok"
-        assert len(result["checks"]) == 3
+        assert len(result["checks"]) == 4
         assert result["checks"][0]["name"] == "venv"
         assert result["checks"][0]["status"] == "ok"
         assert result["checks"][1]["name"] == "skills"
         assert result["checks"][1]["status"] == "ok"
         assert result["checks"][2]["name"] == "collisions"
         assert result["checks"][2]["status"] == "ok"
+        # Suno's server is optional: its absence is "info" and never lowers the overall status.
+        assert result["checks"][3]["name"] == "suno"
+        assert result["checks"][3]["status"] == "info"
 
     def test_stale_skills_returns_warn(self, tmp_path):
         """Stale skills with ok venv returns overall warn."""
@@ -7996,6 +8194,90 @@ class TestHealthCheck:
         assert "skills" in result
         assert "status" in result["venv"]
         assert "status" in result["skills"]
+
+    def test_suno_missing_shape(self, tmp_path):
+        """No Suno MCP server registered: status "missing" with the add command and the sign-in step."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(_fresh_state())):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        suno = result["suno"]
+        assert suno["status"] == "missing"
+        assert suno["servers"] == []
+        assert suno["reminder"] is True
+        assert suno["fix"]["add"] == "claude mcp add --transport http suno https://api.suno.com/mcp"
+        assert "/mcp" in suno["fix"]["then"]
+        assert "--scope user" in suno["fix"]["everywhere"]
+        check = next(c for c in result["checks"] if c["name"] == "suno")
+        assert check["status"] == "info"
+        assert check["fix"] == suno["fix"]["add"]
+        assert "optional" in check["detail"]
+
+    def test_suno_configured_shape(self, tmp_path):
+        """A registered Suno server, whatever its name, gives "configured" with name and scope."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        servers = [{"name": "music-api", "scope": "user", "url": "https://api.suno.com/mcp"}]
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(_fresh_state())), \
+             patch.object(_health_mod._mcp_registrations, "find_servers",
+                          return_value=servers) as find_servers:
+            result = json.loads(_run(_health_mod.health_check()))
+
+        find_servers.assert_called_once_with("api.suno.com")
+        assert result["suno"]["status"] == "configured"
+        assert result["suno"]["servers"] == servers
+        assert "fix" not in result["suno"]
+        check = next(c for c in result["checks"] if c["name"] == "suno")
+        assert check["status"] == "ok"
+        assert "'music-api'" in check["detail"]
+        assert "(user)" in check["detail"]
+        assert "fix" not in check
+
+    def test_suno_reminder_follows_the_config(self, tmp_path):
+        """generation.suno_mcp_reminder: false turns the reminder flag off; detection still runs."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+        state = _fresh_state()
+        state.setdefault("config", {})["generation"] = {"suno_mcp_reminder": False}
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["suno"]["status"] == "missing"
+        assert result["suno"]["reminder"] is False
+        assert "fix" in result["suno"]
+
+    def test_suno_without_a_state_cache(self, tmp_path):
+        """No cache at all: detection still answers, and the reminder defaults to on."""
+        plugin_root = tmp_path / "plugin"
+        (plugin_root / "skills").mkdir(parents=True)
+        fakehome = tmp_path / "fakehome"
+        (fakehome / ".bitwize-music").mkdir(parents=True)
+
+        with patch.object(_shared_mod, "PLUGIN_ROOT", plugin_root), \
+             patch.object(Path, "home", return_value=fakehome), \
+             patch.object(_shared_mod, "cache", None):
+            result = json.loads(_run(_health_mod.health_check()))
+
+        assert result["suno"] == {
+            "status": "missing", "servers": [], "reminder": True,
+            "fix": result["suno"]["fix"],
+        }
 
     def test_collisions_ok_shape(self, tmp_path):
         """Empty album_collisions yields the {"status": "ok"} section."""
@@ -10279,9 +10561,9 @@ class TestGetLyricsStatsEdgeCases:
         with patch.object(_shared_mod, "cache", mock_cache):
             result = json.loads(_run(server.get_lyrics_stats("test-album", "01")))
         assert result["found"] is True
-        # Default target is 150-350
-        assert result["target"]["min"] == 150
-        assert result["target"]["max"] == 350
+        # Default target is 220-400 (the reference's default 3:30-5:00 duration)
+        assert result["target"]["min"] == 220
+        assert result["target"]["max"] == 400
 
     def test_empty_lyrics_shows_empty_status(self, tmp_path):
         """Track without a Lyrics Box section shows EMPTY status."""
@@ -12885,6 +13167,33 @@ class TestGeneratePromoVideos:
         assert result["tracks"][0]["success"] is True
         assert len(captured_title) == 1
         assert captured_title[0] == "The Real Title"
+
+    @pytest.mark.parametrize("start_s,expected", [(47.5, 47.5), (0.0, 0.0), (-1.0, None)])
+    def test_single_track_start_is_passed_to_the_generator(self, tmp_path, start_s, expected):
+        """start_s picks where the promo passage begins; negative leaves it to the energy analysis."""
+        audio_dir = tmp_path / "artists" / "test-artist" / "albums" / "electronic" / "test-album"
+        audio_dir.mkdir(parents=True)
+        (audio_dir / "album.png").write_bytes(b"")
+        (audio_dir / "01-some-track.wav").write_bytes(b"")
+        state = _fresh_state()
+        state["config"]["audio_root"] = str(tmp_path)
+        state["config"]["artist_name"] = "test-artist"
+        captured = {}
+
+        def mock_generate(**kwargs):
+            captured.update(kwargs)
+            return True
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_processing_helpers, "_check_ffmpeg", return_value=None), \
+             patch("tools.promotion.generate_promo_video.generate_waveform_video",
+                   side_effect=mock_generate), \
+             patch("tools.shared.fonts.find_font", return_value="/fake/font.ttf"):
+            result = json.loads(_run(server.generate_promo_videos(
+                "test-album", track_filename="01-some-track.wav", start_s=start_s,
+            )))
+        assert result["tracks"][0]["success"] is True
+        assert captured["start_time"] == expected
 
 
 # =============================================================================
@@ -15683,23 +15992,46 @@ class TestUpdateFrontmatterBlock:
 class TestDiagnose:
     """Tests for the diagnose() comprehensive health check tool."""
 
-    def _make_healthy_env(self, tmp_path):
-        """Create a state and filesystem that passes all checks."""
-        state = _fresh_state()
-        state["config"]["content_root"] = str(tmp_path / "content")
-        state["config"]["audio_root"] = str(tmp_path / "audio")
-        state["config"]["documents_root"] = str(tmp_path / "docs")
-        state["config"]["artist_name"] = "test-artist"
-        (tmp_path / "content").mkdir()
-        (tmp_path / "audio").mkdir()
-        (tmp_path / "docs").mkdir()
+    @pytest.fixture(autouse=True)
+    def _isolated_config(self, monkeypatch, tmp_path):
+        """The database and cloud checks read config.yaml: never the developer's own."""
+        import tools.database.connection as db_connection
+        import tools.shared.config as shared_config
+
+        self.config_path = tmp_path / "_isolated_config" / "config.yaml"
+        monkeypatch.setattr(shared_config, "CONFIG_PATH", self.config_path)
+        monkeypatch.setattr(db_connection, "CONFIG_PATH", self.config_path)
+
+    def _make_healthy_env(self, tmp_path, **sections):
+        """A config, the cache the real indexer builds from it, and a filesystem that passes all checks.
+
+        ``sections`` adds top-level config sections (``cloud``, ``database``).
+        The state comes from the indexer, not a dict typed by hand, so a check
+        reading a key the cache never stores fails here as it would for users.
+        """
+        import yaml
+
+        from tools.state.indexer import build_state
+
+        for folder in ("content", "audio", "docs"):
+            (tmp_path / folder).mkdir()
+        config = {
+            "artist": {"name": "test-artist"},
+            "paths": {
+                "content_root": str(tmp_path / "content"),
+                "audio_root": str(tmp_path / "audio"),
+                "documents_root": str(tmp_path / "docs"),
+            },
+            **sections,
+        }
+        self.config_path.parent.mkdir(parents=True)
+        self.config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+        state = build_state(config, plugin_root=tmp_path)
 
         # State cache file (at patched home)
         cache_dir = tmp_path / ".bitwize-music" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "state.json").write_text(
-            json.dumps({"schema_version": "1.2.0", "albums": {}})
-        )
+        (cache_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         # Fake venv (at patched home) — platform-appropriate layout
         # (bin/python3 on POSIX, Scripts\python.exe on Windows)
@@ -15774,27 +16106,63 @@ class TestDiagnose:
         cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
         assert cloud_check["status"] == "ok"
 
-    def test_cloud_enabled_missing_creds(self, tmp_path):
-        state = _fresh_state()
-        state["config"]["cloud"] = {"enabled": True, "provider": "r2", "r2": {}}
-        state["config"]["content_root"] = str(tmp_path)
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["documents_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test"
-        mock_cache = MockStateCache(state)
-
-        plugin_dir = tmp_path / ".claude-plugin"
-        plugin_dir.mkdir()
-        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
-        (tmp_path / "requirements.txt").write_text("")
-
+    def _check(self, mock_cache, tmp_path, name):
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("handlers.health.Path.home", return_value=tmp_path):
             result = json.loads(_run(server.diagnose()))
-        cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
-        assert cloud_check["status"] == "fail"
-        assert "missing" in cloud_check["detail"].lower()
+        return next(c for c in result["checks"] if c["name"] == name)
+
+    def test_state_cache_reports_its_schema_version(self, tmp_path):
+        """state.json keeps its schema version under "version"."""
+        from tools.state.indexer import CURRENT_VERSION
+
+        check = self._check(self._make_healthy_env(tmp_path), tmp_path, "state_cache")
+        assert check["detail"] == f"Schema {CURRENT_VERSION}, 0 album(s)"
+
+    def test_cloud_enabled_missing_creds(self, tmp_path):
+        """The cloud section comes from config.yaml: the state cache never keeps it."""
+        mock_cache = self._make_healthy_env(
+            tmp_path, cloud={"enabled": True, "provider": "r2", "r2": {"bucket": "promo"}})
+        assert "cloud" not in mock_cache.get_state()["config"]
+
+        check = self._check(mock_cache, tmp_path, "cloud")
+        assert check["status"] == "fail"
+        assert check["detail"] == (
+            "R2 enabled but missing: account_id, access_key_id, secret_access_key")
+
+    def test_cloud_enabled_and_configured(self, tmp_path):
+        r2 = {"account_id": "acct", "access_key_id": "key", "secret_access_key": "secret",
+              "bucket": "promo"}
+        mock_cache = self._make_healthy_env(
+            tmp_path, cloud={"enabled": True, "provider": "r2", "r2": r2})
+
+        check = self._check(mock_cache, tmp_path, "cloud")
+        assert check == {"name": "cloud", "status": "ok", "detail": "Provider: r2, configured"}
+
+    def test_database_check_logs_in_with_the_configured_user(self, tmp_path, monkeypatch):
+        """The login comes from config.yaml: the cache keeps only enabled, host and name."""
+        database = {"enabled": True, "host": "db.example", "port": 6543, "name": "music",
+                    "user": "bitwize", "password": "not-a-real-password"}
+        mock_cache = self._make_healthy_env(tmp_path, database=database)
+        assert "user" not in mock_cache.get_state()["config"]["database"]
+        calls = []
+
+        class _Connection:
+            def close(self):
+                pass
+
+        def _connect(**kwargs):
+            calls.append(kwargs)
+            return _Connection()
+
+        monkeypatch.setitem(sys.modules, "psycopg2", types.SimpleNamespace(connect=_connect))
+
+        check = self._check(mock_cache, tmp_path, "database")
+        assert check == {"name": "database", "status": "ok", "detail": "Connected successfully"}
+        assert calls == [{"host": "db.example", "port": 6543, "dbname": "music",
+                          "user": "bitwize", "password": "not-a-real-password",
+                          "connect_timeout": 5}]
 
     def test_overall_status_worst_of_all(self, tmp_path):
         """Overall status should be the worst of any individual check."""

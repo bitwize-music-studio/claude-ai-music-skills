@@ -2,7 +2,7 @@
 covers the new default-off semantic — no album frontmatter mastering
 block means the ADM stage is skipped and the pipeline completes
 through all post-loop stages (mastering_samples, post_qc, archival,
-metadata, layout, signature_persist, status_update)."""
+metadata, layout, playlist, signature_persist, status_update)."""
 
 from __future__ import annotations
 
@@ -109,8 +109,8 @@ def test_master_album_completes_with_adm_off(
     # All unconditional post-loop stages ran — this is the anti-regression
     # guard. If ADM-off broke ANY of these, we'd halt before reaching them.
     # (archival is conditional on archival_enabled config and is omitted here.)
-    for must_run in ("mastering_samples", "post_qc",
-                     "layout", "signature_persist", "status_update"):
+    for must_run in ("mastering_samples", "post_qc", "layout", "playlist",
+                     "signature_persist", "status_update"):
         assert must_run in stages, (
             f"Stage {must_run} did not run with ADM off — "
             f"stages reached: {list(stages.keys())}"

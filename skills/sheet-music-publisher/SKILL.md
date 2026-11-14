@@ -12,6 +12,7 @@ allowed-tools:
   - Glob
   - Bash
   - bitwize-music-mcp
+  - mcp__suno__*
 requirements:
   external:
     - name: AnthemScore
@@ -179,6 +180,20 @@ See [workflow-detail.md](workflow-detail.md) for detailed steps on all 7 phases:
 7. Summary & Next Steps
 
 Also covers: Error Handling, Tips for Better Results, Tool Invocation Examples, Quality Standards, Workflow State Tracking.
+
+## MIDI From Suno (optional)
+
+For a track whose keeper was generated through Suno's MCP server, Suno can transcribe the song itself to a multi-track MIDI file, with one MIDI track per instrument it hears. That is a better start for a DAW or an arrangement than a piano reduction. AnthemScore still makes the PDF and MusicXML.
+
+1. `get_suno_midi_plan(album_slug, track_slug)` → the keeper's `clip_id` and `midi.path`. A problem (`no_keeper`, `legacy_link`) means this track cannot use it.
+2. **State the cost and ask.** A transcription costs 10 Suno song credits per song and needs a Suno plan with Studio (Premier). A stem made with Suno's Get Stems is free, and so is a song that was transcribed before. Show the balance from `account-usage`. Stop unless the answer is yes.
+3. `audio-midi(id: <clip_id>)`. It answers `processing` at first: call it again with the same id about every 15 seconds until `status` is `ok`. `failed` means nothing was charged.
+4. Save the file: `mkdir -p "$(dirname "{midi.path}")" && curl -fsSL --max-time 120 -o "{midi.path}" "{url}"`. Quote the URL.
+5. Report the `instruments` Suno found, with their note counts, and the credits spent.
+
+Refusals carry a `reason`: `plan_required` (the plan lacks Studio), `quota_exhausted` (out of credits), `not_ready` (the song is still generating).
+
+The saved file can go back to Suno as a score, edited or not: `/bitwize-music:generate <album> <track> --midi` plays it (see that skill, § From a MIDI Score).
 
 ## Remember
 

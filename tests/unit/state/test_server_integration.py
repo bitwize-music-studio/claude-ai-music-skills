@@ -533,7 +533,7 @@ class TestStateRebuildPipeline:
     def test_state_json_has_correct_structure(self, integration_env):
         """state.json built from real files has all expected fields."""
         state = json.loads(integration_env["state_file"].read_text())
-        assert state["version"] == "1.4.0"
+        assert state["version"] == "1.5.0"
         assert "config" in state
         assert "albums" in state
         assert "session" in state
@@ -2328,6 +2328,28 @@ class TestAutoRebuildOnVersionMismatch:
         assert state["session"]["last_track"] == "01-opener"
         assert state["session"]["last_phase"] == "Writing"
         assert state["session"]["pending_actions"] == ["review lyrics"]
+
+    @pytest.mark.parametrize("recorded", ["0.90.0", None])
+    def test_auto_rebuild_keeps_migration_tracking(self, integration_env, monkeypatch, recorded):
+        """A schema bump must not mark pending upgrade notes as processed (#320).
+
+        The rebuild seeds last_migrated_version to the installed version for a
+        brand-new state; over an existing one it carries the old value, so a
+        version bump (1.4.0 to 1.5.0, say) leaves migration status alone.
+        """
+        monkeypatch.setattr(server, "PLUGIN_ROOT", integration_env["tmp_path"])
+        state_file = integration_env["state_file"]
+        old_state = json.loads(state_file.read_text())
+        old_state["version"] = "1.4.0"
+        old_state["last_migrated_version"] = recorded
+        state_file.write_text(json.dumps(old_state))
+
+        fresh_cache = server.StateCache()
+        monkeypatch.setattr(server, "cache", fresh_cache)
+
+        state = fresh_cache.get_state()
+        assert state["version"] == indexer.CURRENT_VERSION
+        assert state["last_migrated_version"] == recorded
 
     def test_auto_rebuild_writes_to_disk(self, integration_env, monkeypatch):
         """Auto-rebuilt state is persisted to state.json."""

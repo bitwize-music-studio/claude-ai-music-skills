@@ -74,28 +74,28 @@ Album has tracks with status "Sources Pending"
 All tracks have lyrics (or Style Box for instrumentals), none generated
   → Has vocal tracks?
     YES → "Run /bitwize-music:pronunciation-specialist on vocal tracks, then /bitwize-music:lyric-reviewer for final QC, then /bitwize-music:pre-generation-check to validate all gates (instrumental tracks auto-skip lyrics gates)."
-    NO (all instrumental) → "All Style Boxes ready! Run /bitwize-music:pre-generation-check to validate gates before generating on Suno."
+    NO (all instrumental) → "All Style Boxes ready! Run /bitwize-music:pre-generation-check to validate gates, then /bitwize-music:generate [album] [track] for each track."
 
 Some tracks generated, some not
-  → Any Generated tracks without ✓ in Generation Log Rating?
-    YES → "Track [name] needs review. Listen and approve (mark ✓ in Generation Log) or regenerate.
+  → Any Generated tracks without ✓ in Generation Log Rating? (`get_album_progress` lists them under `takes_pending_decision`)
+    YES → "Track [name] needs review. Listen with /bitwize-music:listen [album] [track], then approve (mark ✓ in Generation Log) or regenerate.
            Style issue → /bitwize-music:suno-engineer to revise Style Box, then regenerate
            Lyrics issue → /bitwize-music:lyric-writer to fix lyrics, then regenerate
-           Bad luck → Regenerate on Suno (non-deterministic, same settings may give better result)"
-    NO  → "Generate track [first un-generated track] on Suno. Use /bitwize-music:suno-engineer"
+           Bad luck → /bitwize-music:generate again (non-deterministic, same settings may give better result)"
+    NO  → "Generate track [first un-generated track]: /bitwize-music:generate [album] [track] (or on suno.com via /bitwize-music:clipboard)"
 
 All tracks generated, none Final
   → "All tracks generated! Review each track:
      Mark keepers with ✓ in Generation Log, regenerate rejected ones.
      Once all approved, batch-approve:
      Use update_track_field(album_slug, track_slug, 'status', 'Final') for each.
-     Once all Final, album advances to Complete."
+     The tool advances the album to Complete itself when the last track goes Final."
 
 All tracks generated, some Final
   → Any Generated (non-Final) without ✓?
     YES → "Review track [name] — approve (✓) or regenerate"
     NO  → "All reviewed! Batch-approve remaining: update_track_field(album_slug, track_slug, 'status', 'Final') for each.
-           Then import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"
+           Then import audio with /bitwize-music:import-audio (--from-suno pulls each keeper straight from Suno), then master with /bitwize-music:mastering-engineer"
 
 All tracks Final
   → "All tracks approved! Import audio with /bitwize-music:import-audio, then master with /bitwize-music:mastering-engineer"

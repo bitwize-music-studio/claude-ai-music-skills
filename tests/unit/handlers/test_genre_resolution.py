@@ -74,11 +74,11 @@ class TestPrecedence:
         result = album("pop", {"t1": (400, "hip-hop")})
         row = result["tracks"][0]
         assert row["genre"] == "hip-hop"
-        assert row["target"] == {"min": 300, "max": 500}
+        assert row["target"] == {"min": 400, "max": 600}
         assert row["status"] == "OK"
 
     def test_same_track_is_over_target_without_its_own_genre(self, album):
-        """400 words is OVER on pop (150-250) — this is what the fix changes."""
+        """400 words is OVER on pop (250-350) — this is what the fix changes."""
         result = album("pop", {"t1": (400, None)})
         row = result["tracks"][0]
         assert row["genre"] == "pop"
@@ -91,7 +91,7 @@ class TestPrecedence:
     def test_unknown_genres_fall_back_to_the_default(self, album):
         result = album("cinematic", {"t1": (200, None)})
         row = result["tracks"][0]
-        assert row["target"] == {"min": 150, "max": 350}
+        assert row["target"] == {"min": 220, "max": 400}
         assert row["genre"] == "cinematic"
 
     def test_note_names_the_genre_the_target_came_from(self, album):
@@ -116,7 +116,7 @@ class TestSummaryUnchanged:
         """The summary keeps its old meaning even when tracks differ."""
         result = album("pop", {"t1": (400, "hip-hop")})
         assert result["genre"] == "pop"
-        assert result["target"] == {"min": 150, "max": 250}
+        assert result["target"] == {"min": 250, "max": 350}
 
 
 class TestTrackFrontmatter:

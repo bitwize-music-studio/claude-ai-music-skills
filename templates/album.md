@@ -1,6 +1,7 @@
 ---
 title: "[Album Title]"
 release_date: ""  # YYYY-MM-DD (fill in when releasing)
+# upc: ""  # Optional: the album's UPC/EAN once assigned; master_album embeds it in the masters
 genres: []  # e.g., ["hip-hop", "documentary"]
 tags: []  # e.g., ["tech", "linux", "true-story"]
 explicit: false  # true or false
@@ -13,6 +14,12 @@ streaming:
   amazon_music: ""  # Fill in when released
 sheet_music:
   songbook: ""
+suno_workspace:  # Suno workspace that holds this album's takes; /bitwize-music:generate fills it in
+  id: ""
+  name: ""
+suno_playlist:  # Suno playlist of this album's approved takes; /bitwize-music:release-director fills it in
+  id: ""
+  name: ""
 # mastering:  # Optional - per-album mastering settings
 #   adm_validation_enabled: true
 # slug: ""  # Optional - only uncomment if you need to override auto-generated slug

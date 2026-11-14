@@ -91,6 +91,11 @@ from tools.mastering.metadata import (
 from tools.mastering.metadata import (
     embed_wav_metadata as _embed_wav_metadata_fn_default,
 )
+from tools.mastering.playlist import (
+    PlaylistEntry,
+    playlist_path,
+    render_m3u8,
+)
 from tools.mastering.signature_persistence import (
     SIGNATURE_FILENAME,
     SignaturePersistenceError,
@@ -782,13 +787,6 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
         _shutil.rmtree(staging_dir)
     staging_dir.mkdir()
 
-    state = _shared.cache.get_state() or {}
-    album_tracks = (
-        state.get("albums", {})
-        .get(_normalize_slug(ctx.album_slug), {})
-        .get("tracks", {})
-    )
-
     remaster_set = ctx.remaster_filenames
 
     try:
@@ -801,10 +799,8 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
                 continue
 
             output_path = staging_dir / fname
-            track_stem = wav_file.stem
-            track_slug = _normalize_slug(track_stem)
-            track_meta = album_tracks.get(track_slug, {})
-            fade_out_val = track_meta.get("fade_out")
+            # The track file's Fade Out row, or the default without one.
+            fade_out_val = _helpers._track_fade_out(ctx.album_slug, fname)
 
             # Per-track ceiling: fall back to album-wide effective_ceiling.
             per_track_ceiling = ctx.track_ceilings.get(fname, ctx.effective_ceiling)
@@ -952,6 +948,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
     """
     from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.fix_dynamic_track import fix_dynamic
+    from tools.mastering.master_tracks import apply_fade_out
 
     assert ctx.output_dir is not None and ctx.source_dir is not None and ctx.audio_dir is not None
 
@@ -1026,10 +1023,16 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     ceil: float,
                     subtype: str,
                     target_rate: int,
+                    fade: float | None,
                 ) -> dict[str, Any]:
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
                         data = _np.column_stack([data, data])
+                    # Recovery re-processes the source, so it needs the
+                    # track's fade too; before the loudness work, as in
+                    # master_track.
+                    if fade:
+                        data = apply_fade_out(data, rate, duration=fade)
                     data, metrics = fix_dynamic(
                         data, rate,
                         target_lufs=lufs,
@@ -1058,6 +1061,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     None, _do_recovery, raw_path, mastered_path,
                     effective_lufs, eq_settings, effective_ceiling,
                     recovery_subtype, _delivery_rate,
+                    _helpers._track_fade_out(ctx.album_slug, fname),
                 )
                 auto_recovered.append({
                     "filename":       fname,
@@ -1491,6 +1495,8 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                         compress_ratio=ctx.effective_compress,
                         preset=ctx.effective_preset,
                         tilt_db=tilt_db,
+                        # Re-mastered from the source: keep the track's fade.
+                        fade_out=_helpers._track_fade_out(ctx.album_slug, filename),
                     ),
                 )
                 all_corrections.append({
@@ -2126,6 +2132,89 @@ async def _stage_layout(ctx: MasterAlbumCtx) -> str | None:
     return None
 
 
+def _track_seconds(path: Path) -> int:
+    """A WAV's length in whole seconds, or -1 when it cannot be read."""
+    import soundfile as sf
+
+    try:
+        return round(float(sf.info(str(path)).duration))
+    except Exception:  # an unreadable file still gets its place in the playlist
+        return -1
+
+
+def _mastered_wavs(mastered_dir: Path) -> list[Path]:
+    """The WAVs in ``mastered/``, in track order.
+
+    A name holding a line break is left out: it would split its playlist line.
+    """
+    if not mastered_dir.is_dir():
+        return []
+    return sorted(
+        f for f in mastered_dir.iterdir()
+        if f.is_file() and f.suffix.lower() == ".wav" and not {"\n", "\r"} & set(f.name)
+    )
+
+
+def _playlist_entries(slug: str, wavs: list[Path]) -> tuple[str, list[PlaylistEntry]]:
+    """The album's name and one entry per WAV, titled from state and config."""
+    from tools.shared.config import load_config
+
+    try:
+        artist = str(((load_config() or {}).get("artist") or {}).get("name") or "").strip()
+        album = ((_shared.cache.get_state() or {}).get("albums") or {}).get(slug) or {}
+    except Exception as exc:  # titles are a nicety: never lose the playlist over them
+        logger.warning("Playlist: could not read titles (%s); using file names.", exc)
+        artist, album = "", {}
+    tracks = album.get("tracks") or {}
+    entries = []
+    for wav in wavs:
+        title = str((tracks.get(wav.stem) or {}).get("title") or wav.stem)
+        entries.append(PlaylistEntry(
+            path=f"mastered/{wav.name}",
+            seconds=_track_seconds(wav),
+            title=f"{artist} - {title}" if artist else title,
+        ))
+    return str(album.get("title") or slug), entries
+
+
+def write_album_playlist(album_slug: str, audio_dir: Path) -> dict[str, Any]:
+    """Write ``<album slug>.m3u8`` beside ``mastered/``, listing its WAVs in order.
+
+    Rebuilt from what is in ``mastered/`` on every call, so each tool that
+    writes there keeps it current. Titles come from the state cache and the
+    artist from config, as for the metadata stage; a track without a title
+    shows its file name. With nothing mastered, a playlist left from earlier
+    is removed. Never raises: a failure comes back as ``status: "warn"``.
+    """
+    slug = _normalize_slug(album_slug)
+    target = playlist_path(audio_dir, slug)
+    try:
+        wavs = _mastered_wavs(audio_dir / "mastered")
+        if not wavs:
+            target.unlink(missing_ok=True)
+            return {"status": "skipped", "reason": "no mastered WAVs", "path": None}
+        album_name, entries = _playlist_entries(slug, wavs)
+        atomic_write_text(target, render_m3u8(album_name, entries))
+    except OSError as exc:
+        return {"status": "warn", "path": str(target), "error": str(exc)}
+    return {"status": "pass", "path": str(target), "tracks": len(entries)}
+
+
+async def _stage_playlist(ctx: MasterAlbumCtx) -> str | None:
+    """Stage 6.8: Write the album's listening playlist beside ``mastered/``.
+
+    Reads ctx: album_slug, audio_dir, warnings
+    Sets ctx:  stages["playlist"]
+    Returns: None always (a failure is a warning, never a halt).
+    """
+    assert ctx.audio_dir is not None
+    stage = write_album_playlist(ctx.album_slug, ctx.audio_dir)
+    if stage["status"] == "warn":
+        ctx.warnings.append(f"Playlist: {stage['error']}")
+    ctx.stages["playlist"] = stage
+    return None
+
+
 async def _stage_status_update(ctx: MasterAlbumCtx) -> str | None:
     """Stage 7: Transition Generated → Final tracks; advance album to Complete.
 
@@ -2588,7 +2677,7 @@ async def _stage_metadata(ctx: MasterAlbumCtx) -> str | None:
     # --- resolve track titles from state cache ---
     state_albums = (_shared.cache.get_state() or {}).get("albums", {})
     album_data = state_albums.get(_normalize_slug(ctx.album_slug)) or {}
-    album_name = album_data.get("name") or ctx.album_slug
+    album_name = album_data.get("title") or ctx.album_slug
     release_date = str(album_data.get("release_date") or "")
     # TDRC requires YYYY; reject malformed values ("15/06/2026", "unknown").
     year = ""

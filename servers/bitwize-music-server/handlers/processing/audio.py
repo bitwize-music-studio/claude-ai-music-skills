@@ -224,6 +224,18 @@ async def qc_audio(
     })
 
 
+def _refresh_playlist(album_slug: str, audio_dir: Path) -> str | None:
+    """Rebuild the album's listening playlist after mastered/ changed.
+
+    Returns its path, or None when none was written (nothing mastered, or the
+    write failed, which is logged and never fails the mastering call).
+    """
+    stage = _album_stages.write_album_playlist(album_slug, audio_dir)
+    if stage["status"] == "warn":
+        logger.warning("Could not write the album playlist: %s", stage["error"])
+    return stage["path"] if stage["status"] == "pass" else None
+
+
 async def master_audio(
     album_slug: str,
     genre: str = "",
@@ -237,7 +249,8 @@ async def master_audio(
     """Master audio tracks for streaming platforms.
 
     Normalizes loudness, applies optional EQ, and limits peaks. Creates
-    mastered files in a mastered/ subfolder within the audio directory.
+    mastered files in a mastered/ subfolder within the audio directory, and
+    rebuilds the album's listening playlist, <album slug>.m3u8, beside it.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
@@ -255,7 +268,8 @@ async def master_audio(
             base audio dir (e.g., "polished" to master from mix-engineer output)
 
     Returns:
-        JSON with per-track results, settings applied, and summary
+        JSON with per-track results, settings applied, summary, and playlist
+        (the playlist's path; None on a dry run)
     """
     dep_err = _helpers._check_mastering_deps()
     if dep_err:
@@ -352,18 +366,10 @@ async def master_audio(
                 }
             result = await loop.run_in_executor(None, _dry_run_measure, wav_file)
         else:
-            # Look up per-track fade_out from state cache
-            fade_out_val = 5.0  # default
-            state = _shared.cache.get_state() or {}
-            albums = state.get("albums", {})
-            album_data = albums.get(_normalize_slug(album_slug))
-            if album_data:
-                track_slug = wav_file.stem
-                track_info = album_data.get("tracks", {}).get(track_slug, {})
-                if track_info.get("fade_out") is not None:
-                    fade_out_val = track_info["fade_out"]
+            # The track file's Fade Out row, or the default without one.
+            fade_out_val = _helpers._track_fade_out(album_slug, wav_file.name)
 
-            def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
+            def _do_master(in_path: Path, out_path: Path, fo: float | None) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
@@ -387,6 +393,7 @@ async def master_audio(
     finals = [r["final_lufs"] for r in track_results]
 
     return _safe_json({
+        "playlist": None if dry_run else _refresh_playlist(album_slug, audio_dir),
         "tracks": track_results,
         "settings": {
             "target_lufs": effective_lufs,
@@ -449,6 +456,10 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
     output_path = output_dir / Path(track_filename).name
 
     from tools.mastering.fix_dynamic_track import fix_dynamic
+    from tools.mastering.master_tracks import apply_fade_out
+
+    # The fix re-processes the source, so it needs the track's fade too.
+    fade = _helpers._track_fade_out(album_slug, track_filename)
 
     def _do_fix(in_path: Path, out_path: Path) -> dict[str, Any]:
         import numpy as np
@@ -457,6 +468,8 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
         data, rate = sf.read(str(in_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
+        if fade:  # before the loudness work, as in master_track
+            data = apply_fade_out(data, rate, duration=fade)
 
         data, metrics = fix_dynamic(data, rate)
 
@@ -472,6 +485,7 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
 
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(None, _do_fix, input_path, output_path)
+    result["playlist"] = _refresh_playlist(album_slug, audio_dir)
     return _safe_json(result)
 
 
@@ -556,11 +570,13 @@ async def master_with_reference(
             return _safe_json({
                 "tracks": [{"filename": target_filename, "success": True, "output": str(output_path)}],
                 "summary": {"success": 1, "failed": 0},
+                "playlist": _refresh_playlist(album_slug, audio_dir),
             })
         except Exception as e:
             return _safe_json({
                 "tracks": [{"filename": target_filename, "success": False, "error": str(e)}],
                 "summary": {"success": 0, "failed": 1},
+                "playlist": _refresh_playlist(album_slug, audio_dir),
             })
     else:
         # Batch all WAVs
@@ -587,6 +603,7 @@ async def master_with_reference(
         return _safe_json({
             "tracks": results,
             "summary": {"success": success_count, "failed": len(results) - success_count},
+            "playlist": _refresh_playlist(album_slug, audio_dir),
         })
 
 
@@ -692,7 +709,9 @@ async def master_album(
         warn-fallback so the album always completes.
 
     Phase 3 (post-loop): mastering_samples → post_qc → archival →
-        metadata → layout → signature_persist → status_update  (run once)
+        metadata → layout → playlist → signature_persist → status_update
+        (run once). playlist writes ``<album slug>.m3u8`` beside
+        ``mastered/`` for listening to the mastered album in order.
 
     Warn-fallback (album always completes, flagged deliverable):
       - Verification: recovery-eligible tracks whose fix_dynamic pass
@@ -1210,6 +1229,7 @@ async def master_album(
         _album_stages._stage_archival,
         _album_stages._stage_metadata,
         _album_stages._stage_layout,
+        _album_stages._stage_playlist,
         # signature_persist runs BEFORE status_update so the album never
         # advances to "Complete" without ALBUM_SIGNATURE.yaml on disk —
         # otherwise a release-without-re-master would halt the next master
@@ -2090,6 +2110,8 @@ async def album_coherence_correct(
                     partial(
                         master_track, src, staged,
                         preset=modified_preset, tilt_db=applied_tilt_db,
+                        # Re-mastered from the source: keep the track's fade.
+                        fade_out=_helpers._track_fade_out(album_slug, filename),
                     ),
                 )
             except Exception as exc:  # pragma: no cover - defensive

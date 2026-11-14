@@ -203,7 +203,7 @@ make check    # lint + test (full pre-PR check)
 make clean    # remove .venv and caches
 ```
 
-The Makefile manages a `.venv/` directory automatically. If dependencies in `requirements.txt` or `requirements-test.txt` change, `make test` will reinstall them.
+The Makefile manages a `.venv/` directory automatically. If dependencies in `requirements.txt` or `requirements-test.txt` change, or `python3` becomes a different version, `make test` rebuilds it from scratch.
 
 You can also use the `/bitwize-music:test` skill inside a Claude Code session:
 

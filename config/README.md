@@ -68,6 +68,11 @@ sheet_music:
   page_size: "letter"           # letter, 9x12, 6x9
   section_headers: false
 
+# Album art (optional)
+artwork:
+  generator: manual             # manual (you make the image) or codex
+  candidates: 1                 # images per run with codex, 1-4
+
 # Cloud storage (optional)
 # cloud:
 #   enabled: true
@@ -110,6 +115,9 @@ The `~/.bitwize-music/` directory also contains:
 | `artist.name` | Yes | Your artist/project name |
 | `artist.genres` | No | Primary genres (array) |
 | `artist.style` | No | Brief style description to help Claude understand your vibe |
+| `artist.legal_name` | No | Your real name for songwriter credits (DistroKid, SoundCloud Composer); used by `/bitwize-music:release-kit` |
+| `release.ai_disclosure` | No | Your standard answer to DistroKid's AI question, a list of what you tick (`[]` for none); shown on the release kit |
+| `release.language` | No | Release language on the release kit (default: `English`) |
 | `paths.content_root` | Yes | Where albums and artists live |
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |
@@ -121,6 +129,14 @@ The `~/.bitwize-music/` directory also contains:
 | `urls.youtube` | No | YouTube channel URL |
 | `urls.twitter` | No | Twitter/X profile URL |
 | `generation.service` | No | Music service (default: `suno`) |
+| `generation.listen_mode` | No | How `/bitwize-music:listen` auditions Suno takes: `browser` (default — opens the song page, free), `iterm2_browser` (Suno's compact player in iTerm2 panes beside the session, also free; needs macOS, iTerm2 3.6+ and its Browser Plugin, and opens the browser anywhere else) or `terminal` (plays it here; the first play of a song uses one Suno download credit) |
+| `generation.listen_browser` | No | The web browser `listen_mode: browser` opens song pages in: `default` (or unset) for the system's default, an app name such as `Firefox`, `Google Chrome` or `Safari`, or a path to one (`/Applications/Firefox Developer Edition.app` on macOS, the browser's program elsewhere). One run can name another with `/bitwize-music:listen ... --browser <app>`. One that can't be opened falls back to the default, and the skill says so. Not iTerm2: for panes, use `listen_mode: iterm2_browser` |
+| `generation.listen_confirm_download` | No | Ask before a terminal audition spends a download credit (default: `true`) |
+| `generation.studio_browser` | No | The browser `/bitwize-music:import-audio --from-suno` opens Suno Studio in once download credits run out (Premier): `default` (or unset) for the system's default, an app name such as `Firefox`, `Google Chrome` or `Safari`, or a path to one. One that isn't installed falls back to the default, and the skill says so. Never iTerm2: its browser can't save Studio's downloads. Separate from `generation.listen_mode`, so listening can stay in iTerm2 panes |
+| `generation.suno_mcp_reminder` | No | Show how to add Suno's MCP server at session start while none is registered (default: `true`) |
+| `generation.suno_workspaces` | No | File each album's Suno takes in a workspace of its own, created at the album's first generation (default: `true`) |
+| `generation.take_check` | No | After generating, check the new takes against the track file with Suno's listening agent — free and advisory (default: `true`) |
+| `generation.like_keeper` | No | When a take is approved, also like it on suno.com; rejected takes are never disliked (default: `true`) |
 
 ### Promo Videos (`promotion:`)
 
@@ -141,6 +157,18 @@ Settings for `/bitwize-music:sheet-music-publisher` skill.
 |---------|----------|-------------|
 | `sheet_music.page_size` | No | Page size: `letter`, `9x12`, `6x9` (default: letter) |
 | `sheet_music.section_headers` | No | Include [Verse], [Chorus] labels (default: false) |
+
+### Album Art (`artwork:`)
+
+Settings for `/bitwize-music:album-art-director`. The art director always designs the cover and writes the prompt; this decides who makes the image.
+
+| Setting | Required | Description |
+|---------|----------|-------------|
+| `artwork.generator` | No | `manual`: you make the image and file it with `/bitwize-music:import-art`. `codex`: your installed Codex CLI makes it with its built-in image tool (default: manual) |
+| `artwork.candidates` | No | Images made per run with `codex`, 1 to 4 (default: 1) |
+| `artwork.codex_path` | No | Full path to the Codex CLI when it is not on the PATH the plugin sees |
+
+With `codex`, each candidate uses one image from the ChatGPT plan Codex is signed in to (`codex login`), and you are asked before any is made. Codex returns a 1254x1254 image; the one you choose is enlarged to 3000x3000.
 
 ### Cloud Storage (`cloud:`)
 

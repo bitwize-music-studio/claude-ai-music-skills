@@ -12,6 +12,7 @@ import argparse
 import logging
 import os
 import sys
+from collections.abc import Mapping
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -635,6 +636,30 @@ def apply_stereo_width(data: Any, rate: int, width: float = 1.0,
     result[:, 1] = mid - side
 
     return result
+
+
+# The fade-out a track gets when its file has no Fade Out row.
+DEFAULT_FADE_OUT_SECONDS = 3.0
+
+
+def fade_out_for_track(track: Mapping[str, Any] | None) -> float | None:
+    """The fade-out to master a track with, in seconds, or None for no fade.
+
+    *track* is the track's entry in the state cache, whose ``fade_out`` comes
+    from the track file's Fade Out row: a number of seconds is used as it is,
+    and None (the row said no fade) means none. A track whose file has no
+    Fade Out row, or that has no entry at all, gets DEFAULT_FADE_OUT_SECONDS.
+    Anything else that isn't a positive number means no fade.
+
+    Every path that masters a track from its source uses this, so a track
+    gets the same fade whichever tool or stage wrote it.
+    """
+    if not track or "fade_out" not in track:
+        return DEFAULT_FADE_OUT_SECONDS
+    value = track["fade_out"]
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    return float(value)
 
 
 def apply_fade_out(data: Any, rate: int, duration: float = 5.0, curve: str = 'exponential') -> Any:

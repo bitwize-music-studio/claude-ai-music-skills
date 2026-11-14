@@ -72,7 +72,7 @@ Suno retired every earlier model on **2026-09-09**; nothing you generate today r
 - **Custom Models** were upgraded automatically — nothing to rebuild.
 - **Generation Logs** that name a model other than the four above refer to a retired model.
 
-There is no official Suno API, and no third-party reseller exposes v6; do not write `V6` / `V6_WILD` / `V6_MINI` identifiers anywhere — they do not exist.
+Through Suno's official MCP server the model labels are the lowercase names used here — `v6`, `v6-wild`, `v6-mini` — and Custom Models are not offered (see [mcp-api-mapping.md](mcp-api-mapping.md)). Upper-case `V6` / `V6_WILD` / `V6_MINI` identifiers come from third-party resellers; they do not exist, so do not write them anywhere.
 
 ---
 

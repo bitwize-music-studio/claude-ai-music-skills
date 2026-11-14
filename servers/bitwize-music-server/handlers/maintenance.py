@@ -9,6 +9,7 @@ from typing import Any
 
 from handlers import _shared
 from handlers._shared import _album_dir, _normalize_slug, _resolve_audio_dir, _safe_json
+from tools.mastering.playlist import playlist_path
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ async def reset_mastering(
 
     Only 'mastered', 'polished', and 'mastering_samples' are allowed —
     originals/ and stems/ are protected and cannot be deleted through this tool.
+    Resetting mastered/ also removes the album's listening playlist,
+    <album slug>.m3u8, which lists it.
 
     Default is dry_run=True: reports what would be deleted without removing anything.
     Set dry_run=False to actually delete.
@@ -97,6 +100,14 @@ async def reset_mastering(
                 "file_count": file_count,
                 "size_mb": size_mb,
             }
+
+    if "mastered" in subfolders:
+        # The listening playlist lists mastered/: without it, it plays nothing.
+        playlist = playlist_path(audio_dir, _normalize_slug(album_slug))
+        if playlist.is_file():
+            if not dry_run:
+                playlist.unlink()
+            results["mastered"]["playlist"] = str(playlist)
 
     return _safe_json({
         "album_slug": album_slug,

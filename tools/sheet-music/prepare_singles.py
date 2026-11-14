@@ -240,10 +240,12 @@ def _add_title_page_and_footer(pdf_path: Path, title: str, artist: str | None, c
         if footer_url:
             footer_page = songbook_mod.create_footer_overlay(page_size, footer_url)
 
+        # Merge onto the writer's copy of each page: pypdf 7 refuses to merge
+        # onto a page that still belongs to its reader.
         for page in reader.pages:
+            added = writer.add_page(page)
             if footer_page:
-                page.merge_page(footer_page)
-            writer.add_page(page)
+                added.merge_page(footer_page)
 
         with open(str(pdf_path), "wb") as f:
             writer.write(f)

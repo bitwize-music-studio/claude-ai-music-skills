@@ -8,6 +8,13 @@ explicit: false
 # Omit and the track uses the album's. A musical descriptor, not a filing
 # location: unlike the album's genre it never forms part of a path.
 # genre: ""
+# Optional. Set true for a spoken-word track (a poem, a monologue, an interlude).
+# /bitwize-music:generate then sends the Lyrics Box to Suno's speech tool as a
+# script, spoken word for word, and the Style Box as delivery tags.
+# spoken: true
+# Optional. The track's ISRC, once your distributor has assigned one (DistroKid
+# shows it after the upload). master_album embeds it in the mastered WAV.
+# isrc: ""
 suno_url: ""
 sheet_music:
   pdf: ""
@@ -31,9 +38,16 @@ sheet_music:
 | **Explicit** | Yes / No |
 | **POV** | [Character/Perspective] |
 | **Role** | [Track's role in the album narrative] |
-| **Fade Out** | 5s |
+| **Fade Out** | 3s |
 | **Target Duration** | — |
 | **Sources Verified** | ❌ Pending |
+
+<!--
+FADE OUT: seconds of fade-out mastering adds to the end of the track (e.g. 3s, 8s).
+- 0, — or No = no fade: hard endings, cold stops, seamless loops
+- Only a number at the start counts: "No (loops to track 1)" means no fade
+- Without this row, mastering fades 3s
+-->
 
 <!--
 SOURCE VERIFICATION: Required for tracks with source material (quotes, real events, etc.)
@@ -164,14 +178,14 @@ Space is not a constraint. Thoroughness is the priority.]
 | Attribute | Detail |
 |-----------|--------|
 | **Cover of** | [Original song, or the prior generation this reworks] |
-| **Source audio** | [Uploaded sample e.g. Splice / earlier Suno generation / — ] |
+| **Source audio** | [Song address on Suno, https://suno.com/song/… (needed to cover through /bitwize-music:generate) / uploaded sample e.g. Splice / — ] |
 | **Keeps** | [What carries over: topline melody, structure] |
 | **Reimagines** | [The new target genre/style the Cover shifts it into] |
-| **Audio Influence** | [Slider setting — higher hews closer to the source; shown only when audio is uploaded] |
+| **Audio Influence** | [0–100 — higher hews closer to the source, or to the Voice; shown only when audio is attached] |
 
 ### Voice Selection
 
-*The saved Voice applied to this track. Delete this subsection if no Voice is used. Upgrade older Voices with "Upgrade Voice to v6" before generating.*
+*The saved Voice applied to this track (`/bitwize-music:suno-voice` fills this in). Delete this subsection if no Voice is used. Upgrade older Voices with "Upgrade Voice to v6" before generating.*
 
 | Attribute | Detail |
 |-----------|--------|
@@ -217,7 +231,8 @@ Suno Inputs below with the destination genre/mood, then note here what to preser
      Variety: Off | Normal | High | Extra | Max   (Off = "Exact style"; anything higher rewrites the Style Box)
      Max Mode: On | Off   (2× credits; On for tracks over ~2:00, covers, Voices)
      Vocal Gender: Male | Female | —   Duration: Auto | m:ss (10 s–6:00)   Weirdness / Style Influence: 0–100
-     Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached). -->
+     Audio Influence lives in the Cover / Voice Setup block (it only appears when audio is attached).
+     Spoken tracks (spoken: true) may add a row — Backing Music: On | Off — for music under the voice. -->
 
 | Setting | Value |
 |---------|-------|

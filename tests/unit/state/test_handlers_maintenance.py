@@ -423,6 +423,48 @@ class TestResetMastering:
 
         assert "error" in result
 
+    def _with_playlist(self, tmp_path, subfolder="mastered"):
+        audio_dir = self._make_audio_with_subfolder(tmp_path, subfolder)
+        playlist = audio_dir / "test-album.m3u8"
+        playlist.write_text("#EXTM3U\nmastered/01-track.wav\n", encoding="utf-8")
+        return playlist
+
+    def test_resetting_mastered_removes_the_album_playlist(self, tmp_path):
+        """The playlist lists mastered/; without it, it would point at nothing."""
+        playlist = self._with_playlist(tmp_path)
+        state = _state(tmp_path, {"test-album": {"genre": "electronic"}})
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(
+                _maintenance_mod.reset_mastering("test-album", dry_run=False)
+            ))
+
+        assert result["results"]["mastered"]["playlist"] == str(playlist)
+        assert not playlist.exists()
+
+    def test_a_dry_run_names_the_playlist_and_keeps_it(self, tmp_path):
+        playlist = self._with_playlist(tmp_path)
+        state = _state(tmp_path, {"test-album": {"genre": "electronic"}})
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)):
+            result = json.loads(_run(
+                _maintenance_mod.reset_mastering("test-album", dry_run=True)
+            ))
+
+        assert result["results"]["mastered"]["playlist"] == str(playlist)
+        assert playlist.exists()
+
+    def test_resetting_only_polished_keeps_the_playlist(self, tmp_path):
+        playlist = self._with_playlist(tmp_path, "polished")
+        state = _state(tmp_path, {"test-album": {"genre": "electronic"}})
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)):
+            _run(_maintenance_mod.reset_mastering(
+                "test-album", subfolders=["polished"], dry_run=False,
+            ))
+
+        assert playlist.exists()
+
 
 # ===========================================================================
 # cleanup_legacy_venvs

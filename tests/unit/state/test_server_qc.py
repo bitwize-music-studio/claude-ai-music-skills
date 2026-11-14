@@ -1450,6 +1450,127 @@ class TestMasterAlbumPipeline:
         assert len(captured_kwargs) == 1
         assert captured_kwargs[0]["fade_out"] == 3.0
 
+    # "3s" fades 3 s; "—" and "No (loops to track 1)" don't fade; a track
+    # with no Fade Out row gets the 3 s default.
+    EXPECTED_FADES = {
+        "01-track-1.wav": 3.0,
+        "02-track-2.wav": None,
+        "03-track-3.wav": None,
+        "04-track-4.wav": 3.0,
+    }
+
+    def _fade_state(self, tmp_path, state):
+        """Track entries built by the real parser and indexer from real track files."""
+        from tools.state.indexer import scan_tracks
+
+        album_dir = tmp_path / "content" / "test-album"
+        (album_dir / "tracks").mkdir(parents=True)
+        rows = {"01-track-1": "3s", "02-track-2": "—",
+                "03-track-3": "No (loops to track 1)", "04-track-4": None}
+        for slug, value in rows.items():
+            details = [f"| **Title** | {slug} |", "| **Status** | Generated |"]
+            if value is not None:
+                details.append(f"| **Fade Out** | {value} |")
+            (album_dir / "tracks" / f"{slug}.md").write_text(
+                f"# {slug}\n\n## Track Details\n\n| Attribute | Detail |\n|---|---|\n"
+                + "\n".join(details) + "\n",
+                encoding="utf-8",
+            )
+        state["albums"]["test-album"]["tracks"] = scan_tracks(album_dir)
+
+    @staticmethod
+    def _fade_spy(captured):
+        def mock_master(input_path, output_path, **kwargs):
+            captured[Path(input_path).name] = kwargs.get("fade_out")
+            _write_tiny_stereo_wav(output_path)
+            return {"original_lufs": -20.0, "final_lufs": -14.0,
+                    "gain_applied": 6.0, "final_peak": -1.5}
+        return mock_master
+
+    def test_master_album_fades_what_the_track_files_say(self, tmp_path):
+        """Real track files through the real indexer. The test above puts
+        fade_out into the state by hand, so it never saw the cache drop it."""
+        _audio_dir, state = self._make_audio_dir(tmp_path, 4)
+        self._fade_state(tmp_path, state)
+        captured: dict = {}
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track",
+                   side_effect=self._fade_spy(captured)), \
+             patch("tools.mastering.analyze_tracks.analyze_track",
+                   side_effect=lambda f: self._mock_analyze(Path(f).name, lufs=-14.0)), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
+             patch.object(server, "write_state"):
+            json.loads(_run(server.master_album("test-album")))
+
+        assert captured == self.EXPECTED_FADES
+
+    def test_master_audio_fades_the_same_way(self, tmp_path):
+        """master_audio used to fade 5 s whatever the track said."""
+        _audio_dir, state = self._make_audio_dir(tmp_path, 4)
+        self._fade_state(tmp_path, state)
+        captured: dict = {}
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track",
+                   side_effect=self._fade_spy(captured)):
+            json.loads(_run(server.master_audio("test-album")))
+
+        assert captured == self.EXPECTED_FADES
+
+    def test_auto_recovery_keeps_the_tracks_fade(self, tmp_path):
+        """A track the verification stage re-processes from its source keeps its fade."""
+        import numpy as np_
+        _audio_dir, state = self._make_audio_dir(tmp_path, 2)
+        state["albums"]["test-album"]["tracks"] = {
+            "01-track-1": {"title": "Track 1", "status": "Generated", "fade_out": 8.0},
+            "02-track-2": {"title": "Track 2", "status": "Generated", "fade_out": None},
+        }
+        analyze_calls = [0]
+
+        def mock_analyze(filepath):
+            idx = analyze_calls[0]
+            analyze_calls[0] += 1
+            name = Path(filepath).name
+            if name == "01-track-1.wav":  # too quiet until recovered
+                return self._mock_analyze(
+                    name, lufs=-14.0 if idx >= 4 else -16.0,
+                    peak_db=-1.1 if idx >= 4 else -1.0,
+                )
+            return self._mock_analyze(name, lufs=-14.0, peak_db=-1.5)
+
+        def mock_fix_dynamic(data, rate, target_lufs=-14.0, eq_settings=None, ceiling_db=-1.0):
+            return data, {"original_lufs": -16.0, "final_lufs": -14.0, "final_peak_db": -1.1}
+
+        fades: list[float] = []
+
+        def spy_fade(data, rate, duration=5.0, curve="exponential"):
+            fades.append(duration)
+            return data
+
+        with patch.object(_shared_mod, "cache", MockStateCache(state)), \
+             patch.object(_processing_helpers, "_check_mastering_deps", return_value=None), \
+             patch("tools.mastering.master_tracks.load_genre_presets", return_value={}), \
+             patch("tools.mastering.master_tracks.master_track",
+                   side_effect=self._fade_spy({})), \
+             patch("tools.mastering.analyze_tracks.analyze_track", side_effect=mock_analyze), \
+             patch("tools.mastering.qc_tracks.qc_track",
+                   side_effect=lambda f, c=None, g=None: self._mock_qc_result(Path(f).name)), \
+             patch("tools.mastering.fix_dynamic_track.fix_dynamic", side_effect=mock_fix_dynamic), \
+             patch("tools.mastering.master_tracks.apply_fade_out", side_effect=spy_fade), \
+             patch("soundfile.read", return_value=(np_.zeros((100, 2)), 44100)), \
+             patch("soundfile.write"):
+            result = json.loads(_run(server.master_album("test-album")))
+
+        recovered = result["stages"]["verification"]["auto_recovered"]
+        assert [r["filename"] for r in recovered] == ["01-track-1.wav"]
+        assert fades == [8.0]
+
     def test_auto_recovery_re_verifies_all_tracks(self, tmp_path):
         """After fixing one track, ALL tracks should be re-verified."""
         import numpy as np_

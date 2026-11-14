@@ -8,7 +8,7 @@ The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `version` | string | Yes | Schema version (currently `"1.4.0"`) |
+| `version` | string | Yes | Schema version (currently `"1.5.0"`) |
 | `generated_at` | string | Yes | ISO 8601 UTC timestamp of last build/update |
 | `plugin_version` | string\|null | Yes | Installed plugin version from `.claude-plugin/plugin.json`, refreshed every build (display only), or `null` if unreadable |
 | `last_migrated_version` | string\|null | No | Version through which migration notes have been processed. Only advances via `acknowledge_migrations`; preserved across rebuilds. `null`/absent = pre-tracking (surfaces the backlog once). Drives `get_pending_migrations`. See issue #320. |
@@ -33,6 +33,7 @@ Snapshot of resolved paths and artist info from `~/.bitwize-music/config.yaml`.
 | `overrides_dir` | string | Resolved absolute path to overrides directory |
 | `artist_name` | string | Artist name from config |
 | `config_mtime` | float | Last modification time of config.yaml (for staleness detection) |
+| `artwork` | object | Who makes the album cover: `{generator: "manual" \| "codex", candidates: 1-4, codex_path}`. The album-art tools read the config file itself, so a change takes effect at once |
 
 ---
 
@@ -52,9 +53,12 @@ Map of album slug (string) → album data object.
 | `status` | string | Album status (see valid values below) |
 | `explicit` | boolean | Whether album contains explicit content |
 | `release_date` | string\|null | Release date or null if unreleased |
+| `upc` | string | The README frontmatter's `upc:`, digits only (12 or 13). **Absent** when there is none or it isn't a UPC/EAN. Embedded in the masters by `master_album` |
 | `track_count` | integer | Total number of tracks |
 | `tracks_completed` | integer | Number of tracks with completed status |
 | `streaming_urls` | object | Map of platform → URL (only non-empty entries from frontmatter `streaming:` block) |
+| `suno_workspace` | object\|null | `{id, name}` of the Suno workspace holding the album's takes, from the frontmatter `suno_workspace:` block; null until `/bitwize-music:generate` records one |
+| `suno_playlist` | object\|null | `{id, name}` of the Suno playlist of the album's approved takes, from the frontmatter `suno_playlist:` block; null until `/bitwize-music:release-director` records one |
 | `readme_mtime` | float | Last modification time of album README.md |
 | `tracks` | object | Map of track slug → track data |
 
@@ -79,6 +83,8 @@ Map of album slug (string) → album data object.
 | `sources_verified` | string | Verification status: `"N/A"`, `"Pending"`, or `"Verified (DATE)"` |
 | `genre` | string | Track's own genre from frontmatter `genre:`, or `""` when it declares none. A musical descriptor, not a path segment — unlike the album's `genre`, nothing resolves a directory from it. Consumed by `get_lyrics_stats` to pick the word-count target per track, falling back to the album's genre then the default. |
 | `mtime` | float | Last modification time of track file |
+| `fade_out` | float or null | The track file's Fade Out row: seconds of fade-out mastering adds, or `null` for no fade (`0`, `—`, `No …`). **Absent** when the file has no such row, and mastering then applies its 3 s default. Every mastering path reads it through `fade_out_for_track` |
+| `isrc` | string | The track frontmatter's `isrc:`, compact and upper case (`CCXXXYYNNNNN`). **Absent** when there is none or it isn't an ISRC. Embedded in the master by `master_album` |
 
 ### Valid Track Statuses
 
@@ -186,7 +192,7 @@ The MCP server and indexer detect stale cache by comparing:
 1. `state.json` file mtime vs cached mtime
 2. `config.yaml` file mtime vs `config.config_mtime`
 
-If either has changed, the cache is reloaded or rebuilt.
+If `state.json` changed, the server reloads it. If `config.yaml` is newer than the state's `config.config_mtime`, the server refreshes the state on that load (an incremental update: the config section is rebuilt and only what the change calls for is rescanned), so an edited setting takes effect on the next tool call without a manual `rebuild_state`. The session data and migration tracking are kept.
 
 ---
 
@@ -208,5 +214,6 @@ The migration chain is defined in `tools/state/indexer.py` as `MIGRATIONS` dict.
 | 1.1.0 | 1.2.0 | Added `plugin_version` top-level field for upgrade path tracking |
 | 1.2.0 | 1.3.0 | Added `album_collisions` top-level field (seeded to `[]`) for cross-genre slug collision detection (issue #392) |
 | 1.3.0 | 1.4.0 | Re-coerced cached album/track `explicit` flags that pre-#388 parsers stored as raw truthy strings (e.g. `"false"`) to real booleans |
+| 1.4.0 | 1.5.0 | Tracks carry `fade_out` and `isrc`, albums `upc`. The migration clears cached README and track mtimes so the next incremental update re-reads every album and track file; the MCP server rebuilds the whole state on the version change instead, keeping session and migration tracking |
 
-`last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. Avoiding a version bump here is deliberate — bumping would force the live MCP path to auto-rebuild every existing state, erasing the very "behind" status migration detection depends on (issue #320).
+`last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. A schema bump no longer endangers it. The live MCP path auto-rebuilds every state whose version differs, and that rebuild carries the existing `last_migrated_version` forward, the session too (`carry_migration_tracking`, issue #320). So a bump such as 1.4.0 → 1.5.0 leaves migration status alone, and a test of the auto-rebuild keeps it that way.

@@ -225,6 +225,44 @@ Structure tags are reliable when every section carries one — but reliability s
 
 ---
 
+## How the Plugin's Checks Read Tags
+
+Suno accepts far more tags than the plugin's own checks know by name. `validate_section_structure`, `analyze_rhyme_scheme` and `check_album_lyrics` (which runs both across an album) sort every tag into a section type, and this is how:
+
+- **The type comes from the tag's name, not its cue.** The name is the text before ` - `, `:`, `|`, `(` or a comma. `[Outro - chorus reprise]` is an outro.
+- **The last section word in the name wins.** `[Short Instrumental Intro]` is an intro, and `[Guitar Solo Interlude]` is an interlude. A number written against the word still counts: `[Chorus2]` is a chorus.
+- **A singer named first does not hide the section.** In `[Female - Chorus]` or `[Full choir - Chorus - full SATB]` the first part names no section, so the next part that is a section name and nothing more is used. A cue that only mentions a section, as in `[Spoken - over the verse riff]`, names nothing.
+- **A tag that names no section is not held to a section's rules.** A voice or delivery tag (`[Spoken]`, `[Male lead]`, `[Whispered]`), a direction (`[Crash]`, `[Silence]`) or a custom name (`[Main Theme]`) is listed with the type `verse` for want of a better one, but it may be empty and it is not compared with the real verses.
+
+| Type | Example tags | Left empty |
+|------|--------------|------------|
+| verse | `[Verse]`, `[Verse 2]`, `[Soft Verse]` | Reported |
+| chorus | `[Chorus]`, `[Final Chorus]` | Reported |
+| hook | `[Hook]`, `[Catchy Hook]` | Reported |
+| refrain | `[Refrain]` | Reported |
+| pre-chorus | `[Pre-Chorus]`, `[PRE 4]` | Reported |
+| post-chorus | `[Post-Chorus]` | Reported |
+| bridge | `[Bridge]`, `[Bridge - 8 bars]` | Fine |
+| intro | `[Intro]`, `[Short Instrumental Intro]` | Fine |
+| outro | `[Outro]` | Fine |
+| interlude | `[Interlude]`, `[melodic interlude]` | Fine |
+| instrumental | `[Instrumental]` | Fine |
+| solo | `[Guitar Solo]`, `[Synth Solo]` | Fine |
+| break | `[Break]`, `[Percussion Break]` | Fine |
+| drop | `[Drop]` | Fine |
+| fade | `[Fade Out]`, `[Fade In]` | Fine |
+| end | `[End]`, `[Fade to End]`, `[Big Finish]` | Fine |
+
+An empty sung section is reported because Suno improvises words for it. An empty instrumental or ending section is how you ask for one: Suno sings anything written under a tag, so `[Break - sax]` has to be followed by nothing. A bridge may be empty because it is as often played as sung. A sung section whose tag says "instrumental", in its name or its cue (`[Instrumental Chorus]`, `[Chorus - instrumental]`), may also be empty.
+
+Only sections named as verses are compared with each other for length, and an empty one is left out of that comparison.
+
+Repetition is not a self-rhyme. A chorus sung three times under the same tag is three sections, a pass that is word for word the same as an earlier one is reported once, and a line repeated inside a section is a refrain. A self-rhyme is the same word ending two different lines of one section.
+
+The same tag twice in a row is a section sung again (a double chorus) when each has lines under it. It is reported only when nothing sits under the first tag, which means the tag was typed twice, or when the tag is numbered: `[Verse 1]` twice is a slip in the numbering.
+
+---
+
 ## Per-Section Direction
 
 Two data points worth knowing: a launch-day test found v6's own description of an output naming details that existed only in a `[Bridge | Female — Whispered …]` cue, i.e. per-section direction is read; and Suno's redesigned lyrics editor now offers a "Melodic instructions" option that "adds one bracketed production note per section (e.g. [half-time drums])" — Suno itself now writes per-section bracketed cues, which is this guide's Performance Cues convention.

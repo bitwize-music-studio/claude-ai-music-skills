@@ -10,6 +10,7 @@ import colorsys
 import logging
 import subprocess
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -105,10 +106,38 @@ def get_audio_duration(audio_path: Path) -> float:
     return float(result.stdout.strip())
 
 
+# A passage that starts on a beat sounds cut on purpose; one that starts a
+# quarter-beat late sounds like an accident. Only a beat this close is used, so
+# the energy-based pick is nudged, never moved to another part of the song.
+_BEAT_SNAP_WINDOW_S = 1.0
+
+
+def _snap_to_beat(
+    librosa: Any, np: Any, y: Any, sr: float, start: float, max_start: float,
+) -> float:
+    """*start* moved to the nearest beat when one lies within the snap window.
+
+    Any failure of the beat tracker leaves *start* as it is.
+    """
+    try:
+        _, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        beat_times = np.asarray(librosa.frames_to_time(beat_frames, sr=sr), dtype=float)
+        if beat_times.size == 0:
+            return start
+        nearest = float(beat_times[int(np.argmin(np.abs(beat_times - start)))])
+    except Exception as e:
+        logger.debug("Beat tracking failed, keeping the energy pick: %s", e)
+        return start
+    if abs(nearest - start) <= _BEAT_SNAP_WINDOW_S and 0 <= nearest <= max_start:
+        return nearest
+    return start
+
+
 def find_best_segment(audio_path: Path, duration: int = 15) -> float:
     """Find the most energetic segment by analyzing audio energy.
 
-    Uses librosa to find the highest-energy window (usually chorus).
+    Uses librosa to find the highest-energy window (usually chorus), then
+    starts it on the nearest beat when one is within a second.
     Falls back to 20% into track if librosa unavailable.
     Returns the start time in seconds.
     """
@@ -141,6 +170,7 @@ def find_best_segment(audio_path: Path, duration: int = 15) -> float:
                 best_start = times[i]
 
         best_start = min(max(best_start, 0), max_start)
+        best_start = _snap_to_beat(librosa, np, y, sr, best_start, max_start)
         logger.info("Found energetic segment at %.1fs", best_start)
         return best_start
 

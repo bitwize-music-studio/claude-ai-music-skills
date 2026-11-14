@@ -86,6 +86,7 @@ except ImportError:
     print("Error: PyYAML is required. Install with: pip install pyyaml")
     sys.exit(1)
 
+from tools.artwork.codex import artwork_settings
 from tools.shared.colors import Colors
 from tools.shared.config import CONFIG_PATH, parse_yaml_bool
 from tools.shared.logging_config import setup_logging
@@ -99,12 +100,17 @@ from tools.state.parsers import (
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.4.0"
+CURRENT_VERSION = "1.5.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
 STATE_FILE = CACHE_DIR / "state.json"
 LOCK_FILE = CACHE_DIR / "state.lock"
+
+# Whether the MCP server refreshes its cached state when config.yaml is newer than the
+# state's config section (StateCache._refresh_if_config_changed). The test suite turns
+# it off, so loading a sample state never reads a developer's real config.
+AUTO_REFRESH_ON_CONFIG_CHANGE = True
 
 CONFIG_FILE = CONFIG_PATH
 
@@ -203,6 +209,25 @@ def _migrate_1_3_to_1_4(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _migrate_1_4_to_1_5(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.4.0 to 1.5.0: re-read every track for its Fade Out.
+
+    1.5.0 caches each track's Fade Out row and ISRC and each album's UPC,
+    which mastering reads; before it, none reached the cache. Clearing the
+    cached README and track mtimes makes the next incremental update re-parse
+    every album and track file, instead of leaving the fields missing until
+    each file changes. (The MCP server rebuilds the
+    whole cache on any version change instead.)
+    """
+    for album in (state.get('albums') or {}).values():
+        if isinstance(album, dict):
+            album['readme_mtime'] = 0.0
+            for track in (album.get('tracks') or {}).values():
+                if isinstance(track, dict):
+                    track['mtime'] = 0.0
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: dict[str, tuple[Any, str]] = {
@@ -210,6 +235,7 @@ MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
     "1.2.0": (_migrate_1_2_to_1_3, "1.3.0"),
     "1.3.0": (_migrate_1_3_to_1_4, "1.4.0"),
+    "1.4.0": (_migrate_1_4_to_1_5, "1.5.0"),
 }
 
 
@@ -338,6 +364,19 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             return default
         return value
 
+    def _cfg_choice(section: dict[str, Any], key: str,
+                    choices: tuple[str, ...], default: str) -> str:
+        # Enumerated settings: anything outside the list (or a non-string) is a
+        # typo, so warn and keep the default instead of passing it downstream.
+        value = _cfg_str(section, key, default).strip().lower()
+        if value not in choices:
+            logger.warning(
+                "Config %s is not one of %s — using %r",
+                key, ", ".join(choices), default,
+            )
+            return default
+        return value
+
     content_root_raw = _cfg_str(paths, 'content_root', '.')
     content_root = str(resolve_path(content_root_raw))
 
@@ -365,6 +404,24 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
             gen_config, 'require_source_path_for_documentary', True),
         'additional_genres': [str(g).lower().strip() for g in additional_genres_raw]
         if isinstance(additional_genres_raw, list) else [],
+        # How /bitwize-music:listen auditions Suno takes (reference/suno/mcp-api-mapping.md)
+        'listen_mode': _cfg_choice(
+            gen_config, 'listen_mode', ('browser', 'terminal', 'iterm2_browser'), 'browser'),
+        # The browser listen_mode `browser` opens song pages in: "default", an app
+        # name or a path to one; empty means the system's default browser
+        'listen_browser': _cfg_str(gen_config, 'listen_browser', '').strip(),
+        'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
+        # The browser /bitwize-music:import-audio opens Suno Studio in: "default",
+        # an app name or a path to one; empty means the system's default browser
+        'studio_browser': _cfg_str(gen_config, 'studio_browser', '').strip(),
+        # Whether session start shows how to add Suno's MCP server when none is registered
+        'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
+        # Whether /bitwize-music:generate files each album's takes in a Suno workspace of its own
+        'suno_workspaces': _cfg_bool(gen_config, 'suno_workspaces', True),
+        # Whether /bitwize-music:generate checks new takes with Suno's listening agent
+        'take_check': _cfg_bool(gen_config, 'take_check', True),
+        # Whether approving a take also likes it on suno.com
+        'like_keeper': _cfg_bool(gen_config, 'like_keeper', True),
     }
 
     return {
@@ -376,6 +433,8 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         'config_mtime': get_config_mtime(),
         'database': database_section,
         'generation': generation_section,
+        # Who makes the album cover: the user, or their Codex CLI.
+        'artwork': artwork_settings(config),
     }
 
 
@@ -430,22 +489,8 @@ def scan_albums(
             except OSError:
                 continue  # File removed between glob and stat
 
-            albums[album_slug] = {
-                'path': str(album_dir),
-                'genre': album_dir.parent.name,
-                'title': album_data.get('title', album_slug),
-                'status': album_data.get('status', 'Unknown'),
-                'explicit': album_data.get('explicit', False),
-                'anchor_track': album_data.get('anchor_track'),
-                'layout': album_data.get('layout'),
-                'mastering': album_data.get('mastering') or {},
-                'release_date': album_data.get('release_date'),
-                'track_count': album_data.get('track_count', len(tracks)),
-                'tracks_completed': _count_completed_tracks(tracks),
-                'streaming_urls': album_data.get('streaming_urls', {}),
-                'readme_mtime': readme_mtime,
-                'tracks': tracks,
-            }
+            albums[album_slug] = _album_entry(
+                album_dir, album_data, album_slug, album_dir.parent.name, readme_mtime, tracks)
             winner_dir = album_dir
             break  # remaining same-slug dirs are shadowed, never parsed
 
@@ -476,6 +521,60 @@ def scan_albums(
     return albums
 
 
+def _album_entry(album_dir: Path, album_data: dict[str, Any], slug: str, genre: str,
+                 readme_mtime: float, tracks: dict[str, Any]) -> dict[str, Any]:
+    """The cached entry for one album, built alike by full and incremental scans.
+
+    ``upc`` is copied only when the README's frontmatter holds a valid one.
+    """
+    entry: dict[str, Any] = {
+        'path': str(album_dir),
+        'genre': genre,
+        'title': album_data.get('title', slug),
+        'status': album_data.get('status', 'Unknown'),
+        'explicit': album_data.get('explicit', False),
+        'anchor_track': album_data.get('anchor_track'),
+        'layout': album_data.get('layout'),
+        'suno_workspace': album_data.get('suno_workspace'),
+        'suno_playlist': album_data.get('suno_playlist'),
+        'mastering': album_data.get('mastering') or {},
+        'release_date': album_data.get('release_date'),
+        'track_count': album_data.get('track_count', len(tracks)),
+        'tracks_completed': _count_completed_tracks(tracks),
+        'streaming_urls': album_data.get('streaming_urls', {}),
+        'readme_mtime': readme_mtime,
+        'tracks': tracks,
+    }
+    if album_data.get('upc'):
+        entry['upc'] = album_data['upc']
+    return entry
+
+
+def _track_entry(track_path: Path, track_data: dict[str, Any], slug: str,
+                 mtime: float) -> dict[str, Any]:
+    """The cached entry for one track, built alike by full and incremental scans.
+
+    ``fade_out`` is copied only when the track file has a Fade Out row: an
+    absent key means the track never said (mastering applies its default),
+    while None means no fade.
+    """
+    entry: dict[str, Any] = {
+        'path': str(track_path),
+        'title': track_data.get('title', slug),
+        'status': track_data.get('status', 'Unknown'),
+        'explicit': track_data.get('explicit', False),
+        'has_suno_link': track_data.get('has_suno_link', False),
+        'sources_verified': track_data.get('sources_verified', 'N/A'),
+        'genre': track_data.get('genre', ''),
+        'mtime': mtime,
+    }
+    if 'fade_out' in track_data:
+        entry['fade_out'] = track_data['fade_out']
+    if track_data.get('isrc'):
+        entry['isrc'] = track_data['isrc']
+    return entry
+
+
 def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     """Scan all track files in an album's tracks/ directory.
 
@@ -504,16 +603,7 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
         except OSError:
             continue  # File removed between glob and stat
 
-        tracks[track_slug] = {
-            'path': str(track_path),
-            'title': track_data.get('title', track_slug),
-            'status': track_data.get('status', 'Unknown'),
-            'explicit': track_data.get('explicit', False),
-            'has_suno_link': track_data.get('has_suno_link', False),
-            'sources_verified': track_data.get('sources_verified', 'N/A'),
-            'genre': track_data.get('genre', ''),
-            'mtime': track_mtime,
-        }
+        tracks[track_slug] = _track_entry(track_path, track_data, track_slug, track_mtime)
 
     return tracks
 
@@ -819,22 +909,8 @@ def incremental_update(
                 else:
                     tracks = scan_tracks(album_dir)
 
-                existing_albums[slug] = {
-                    'path': str(album_dir),
-                    'genre': genre,
-                    'title': album_data.get('title', slug),
-                    'status': album_data.get('status', 'Unknown'),
-                    'explicit': album_data.get('explicit', False),
-                    'anchor_track': album_data.get('anchor_track'),
-                    'layout': album_data.get('layout'),
-                    'mastering': album_data.get('mastering') or {},
-                    'release_date': album_data.get('release_date'),
-                    'track_count': album_data.get('track_count', len(tracks)),
-                    'tracks_completed': _count_completed_tracks(tracks),
-                    'streaming_urls': album_data.get('streaming_urls', {}),
-                    'readme_mtime': readme_mtime,
-                    'tracks': tracks,
-                }
+                existing_albums[slug] = _album_entry(
+                    album_dir, album_data, slug, genre, readme_mtime, tracks)
                 winner_dir = album_dir
                 break  # remaining same-slug dirs are shadowed
 
@@ -929,16 +1005,7 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
         # Re-parse this track
         track_data = parse_track_file(track_path)
         if '_error' not in track_data:
-            existing_tracks[slug] = {
-                'path': str(track_path),
-                'title': track_data.get('title', slug),
-                'status': track_data.get('status', 'Unknown'),
-                'explicit': track_data.get('explicit', False),
-                'has_suno_link': track_data.get('has_suno_link', False),
-                'sources_verified': track_data.get('sources_verified', 'N/A'),
-                'genre': track_data.get('genre', ''),
-                'mtime': current_mtime,
-            }
+            existing_tracks[slug] = _track_entry(track_path, track_data, slug, current_mtime)
 
     # Remove tracks that no longer exist
     for slug in list(existing_tracks.keys()):
@@ -999,6 +1066,8 @@ def _acquire_lock_with_timeout(lock_fd: Any, timeout: int | float = LOCK_TIMEOUT
 # STATE_FILE raises PermissionError with winerror 5 (ERROR_ACCESS_DENIED) or 32
 # (ERROR_SHARING_VIOLATION) whenever another process holds the target open: a
 # lock-free read_state, a second Claude session, or a transient antivirus scan.
+# The reader's open() hits the same contention but reports it without a
+# winerror; see _is_windows_sharing_violation.
 # POSIX rename-over-open-file is atomic and never hits this, so retrying is
 # Windows-only. Budget: 10 attempts with a 10ms backoff doubling to a 100ms
 # cap keeps the total retry window under ~1s (9 sleeps sum to 650ms) — long
@@ -1012,6 +1081,26 @@ _WINDOWS_SHARING_VIOLATION_ERRNOS = (5, 32)
 _T = TypeVar("_T")
 
 
+def _is_windows_sharing_violation(e: OSError) -> bool:
+    """Whether ``e`` is the transient error a concurrent handle causes on Windows.
+
+    The two calls retried here report it differently. ``os.replace`` calls the
+    Win32 API, so its error carries ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
+    (ERROR_SHARING_VIOLATION). ``open`` goes through the C runtime, which maps
+    both codes to errno EACCES and sets no ``winerror``, so the reader sees
+    ``PermissionError(13, 'Permission denied')``. A ``winerror``, when present,
+    decides; errno EACCES counts only without one. A genuine permission fault
+    from ``open`` looks the same, so it spends the retry budget before it
+    propagates: the trade the writer already makes for winerror 5.
+    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only exists
+    on Windows OSErrors.
+    """
+    winerror = getattr(e, "winerror", None)
+    if winerror is not None:
+        return winerror in _WINDOWS_SHARING_VIOLATION_ERRNOS
+    return e.errno == errno.EACCES
+
+
 def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
     """Run ``operation``, retrying transient Windows sharing violations.
 
@@ -1020,14 +1109,12 @@ def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
     an atomic rename never fails on an open target, and ``open`` never fails
     mid-rename, so there is nothing transient to retry. On Windows, a
     concurrent open handle on ``STATE_FILE`` — a lock-free ``read_state``,
-    another session, or an AV scan — makes the operation raise
-    ``PermissionError`` with ``winerror`` 5 (ERROR_ACCESS_DENIED) or 32
-    (ERROR_SHARING_VIOLATION) until that handle closes. Only those transient
-    errors are retried, with a bounded backoff; every other error (and the
-    final attempt) propagates immediately so a genuinely stuck file still
-    fails loudly rather than being silently swallowed or misclassified.
-    ``getattr(e, "winerror", ...)`` is platform-safe: the attribute only
-    exists on Windows OSErrors.
+    another session, or an AV scan — makes the operation raise a sharing
+    violation (see :func:`_is_windows_sharing_violation`) until that handle
+    closes. Only those transient errors are retried, with a bounded backoff;
+    every other error (and the final attempt) propagates immediately so a
+    genuinely stuck file still fails loudly rather than being silently
+    swallowed or misclassified.
     """
     if sys.platform == "win32":
         wait = _REPLACE_RETRY_INITIAL_WAIT
@@ -1035,10 +1122,10 @@ def _retry_on_windows_sharing_violation(operation: Callable[[], _T]) -> _T:
             try:
                 return operation()
             except OSError as e:
-                transient = (
-                    getattr(e, "winerror", None) in _WINDOWS_SHARING_VIOLATION_ERRNOS
-                )
-                if not transient or attempt == _REPLACE_RETRY_ATTEMPTS - 1:
+                if (
+                    not _is_windows_sharing_violation(e)
+                    or attempt == _REPLACE_RETRY_ATTEMPTS - 1
+                ):
                     raise
                 time.sleep(wait)
                 wait = min(wait * 2, _REPLACE_RETRY_MAX_WAIT)
@@ -1137,13 +1224,14 @@ def read_state() -> dict[str, Any] | None:
     Quarantine (back up + return empty) is reserved for *genuine corruption* —
     the bytes are present but are not valid state: malformed JSON, or JSON that
     decodes to the wrong shape (list/str/number). An ``OSError`` from the open
-    is never corruption. On Windows a transient sharing violation (winerror
-    5/32) from a concurrent ``write_state`` mid-``os.replace`` is retried with
-    the same budget as the writer; any ``OSError`` that survives the retry
-    (persistent contention, a real permission/disk fault) re-raises so the
-    caller sees a genuinely-unreadable file rather than a wiped, quarantined
-    view of good state (#487). POSIX ``open`` never fails mid-rename, so an
-    ``OSError`` there re-raises immediately.
+    is never corruption. On Windows a transient sharing violation from a
+    concurrent ``write_state`` mid-``os.replace`` (errno EACCES with no
+    ``winerror``, as ``open`` reports it) is retried with the same budget as
+    the writer; any ``OSError`` that survives the retry (persistent
+    contention, a real permission/disk fault) re-raises so the caller sees a
+    genuinely-unreadable file rather than a wiped, quarantined view of good
+    state (#489). POSIX ``open`` never fails mid-rename, so an ``OSError``
+    there re-raises immediately.
 
     Returns:
         Parsed state dict, empty dict if corrupted or not a JSON object

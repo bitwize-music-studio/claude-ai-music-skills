@@ -167,6 +167,50 @@ class TestHealthCheckCollisionDocs:
         )
 
 
+class TestHealthCheckSunoDocs:
+    """Skills documenting health_check must surface its suno section."""
+
+    ADD_COMMAND = "claude mcp add --transport http suno https://api.suno.com/mcp"
+
+    def test_session_start_shows_how_to_add_suno(self, skills_dir):
+        content = (skills_dir / "session-start" / "SKILL.md").read_text()
+
+        step_16 = re.search(r'## Step 1\.6.*?(?=\n## Step 2)', content, re.DOTALL)
+        assert step_16, "session-start SKILL.md missing Step 1.6 section"
+        text = step_16.group()
+        assert "health_check" in text and "suno" in text, (
+            "session-start Step 1.6 does not read the health_check suno section"
+        )
+        assert self.ADD_COMMAND in text, (
+            "session-start Step 1.6 does not show how to add Suno's MCP server"
+        )
+        assert "/mcp" in text, "session-start Step 1.6 does not say to sign in with /mcp"
+        assert "suno_mcp_reminder" in text, (
+            "session-start Step 1.6 does not honour generation.suno_mcp_reminder"
+        )
+
+        report = re.search(r'## Report Format.*?```.*?```', content, re.DOTALL)
+        assert report and "Suno:" in report.group(), (
+            "session-start Report Format has no Suno line"
+        )
+
+    def test_health_check_documents_suno(self, skills_dir):
+        content = (skills_dir / "health-check" / "SKILL.md").read_text()
+        report = re.search(r'## Report Format.*?(?=\n## Remember|$)', content, re.DOTALL)
+        assert report, "health-check SKILL.md missing Report Format section"
+        assert "SUNO" in report.group(), (
+            "health-check Report Format has no SUNO section slot alongside VENV/SKILLS/COLLISIONS"
+        )
+        assert self.ADD_COMMAND in report.group()
+
+    def test_setup_skill_uses_the_same_add_command(self, skills_dir):
+        content = (skills_dir / "setup" / "SKILL.md").read_text()
+        assert self.ADD_COMMAND in content
+        assert "health_check" in content, (
+            "setup Step 3.5 should check health_check's suno section before telling the user to add the server"
+        )
+
+
 class TestGitignore:
     """Required .gitignore entries must be present."""
 

@@ -91,7 +91,7 @@ def test_metadata_stage_embeds_track_number_year_genre(
     fake_state = {"albums": {"my-album": {
         "path": str(tmp_path),
         "status": "In Progress",
-        "name": "My Album",
+        "title": "My Album",
         "release_date": "2026-06-15",
         "upc": "123456789012",
         "tracks": {"01-track": {
@@ -138,6 +138,7 @@ def test_metadata_stage_embeds_track_number_year_genre(
     from mutagen.wave import WAVE
     tags = WAVE(str(wav)).tags
     assert tags is not None
+    assert str(tags.get("TALB")) == "My Album"
     assert str(tags.get("TRCK")) == "1"
     assert "2026" in str(tags.get("TDRC"))
     assert "pop" in str(tags.get("TCON"))
@@ -187,3 +188,59 @@ def test_metadata_stage_warns_on_embed_error(
     assert result is None  # never halts
     assert any("metadata" in w.lower() for w in ctx.warnings)
     assert ctx.stages["metadata"]["status"] == "warn"
+
+
+def test_title_and_codes_from_real_files_reach_the_masters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The cache comes from the real parser and indexer, not from a hand-made state.
+
+    The stage read the album's "name" (the cache keeps "title") and ISRC and
+    UPC the cache never kept, and tests that wrote those keys by hand could
+    not notice.
+    """
+    from handlers import _shared
+    from tools.state.indexer import _album_entry, scan_tracks
+    from tools.state.parsers import parse_album_readme
+
+    album_dir = tmp_path / "content" / "albums" / "pop" / "my-album"
+    (album_dir / "tracks").mkdir(parents=True)
+    (album_dir / "README.md").write_text(
+        '---\ntitle: "My Album"\nrelease_date: "2026-06-15"\nupc: "123456789012"\n---\n# My Album\n',
+        encoding="utf-8")
+    (album_dir / "tracks" / "01-track.md").write_text(
+        '---\ntitle: "My Track"\nisrc: "US-RC1-23-45678"\n---\n# My Track\n', encoding="utf-8")
+    entry = _album_entry(album_dir, parse_album_readme(album_dir / "README.md"),
+                         "my-album", "pop", 0.0, scan_tracks(album_dir))
+    fake_state = {"albums": {"my-album": entry}}
+
+    class _FakeCache:
+        def get_state(self): return fake_state
+        def get_state_ref(self): return fake_state
+    monkeypatch.setattr(_shared, "cache", _FakeCache())
+    monkeypatch.setattr("tools.shared.config.load_config", lambda: {"artist": {"name": "bitwize"}})
+
+    wav = _write_wav(tmp_path / "01-track.wav")
+
+    async def _run():
+        ctx = album_stages_mod.MasterAlbumCtx(
+            album_slug="my-album", genre="pop", target_lufs=-14.0,
+            ceiling_db=-1.0, cut_highmid=None, cut_highs=None,
+            source_subfolder="", freeze_signature=False, new_anchor=False,
+            loop=asyncio.get_running_loop(),
+        )
+        ctx.audio_dir = tmp_path
+        ctx.mastered_files = [wav]
+        ctx.targets = {}
+        return await album_stages_mod._stage_metadata(ctx), ctx
+
+    asyncio.run(_run())
+
+    from mutagen.wave import WAVE
+    tags = WAVE(str(wav)).tags
+    assert tags is not None
+    assert str(tags.get("TALB")) == "My Album"
+    assert "USRC12345678" in str(tags.get("TSRC"))
+    upc_tag = next((t for t in tags.getall("TXXX") if t.desc == "UPC"), None)
+    assert upc_tag is not None and "123456789012" in str(upc_tag)

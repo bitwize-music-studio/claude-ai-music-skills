@@ -112,6 +112,16 @@ The track template has an optional **Cover / Voice Setup** block (in `templates/
 
 ---
 
+### Through the Suno MCP Server
+
+`/bitwize-music:generate` reads that block, so a cover or a Voice track is generated from the terminal like any other (details and measurements: [mcp-api-mapping.md](../suno/mcp-api-mapping.md#covers-and-voices)):
+
+- **Cover** — put the source's song page in **Source audio** (`https://suno.com/song/<id>`): one of your own songs, or one suno.com lets you remix. The track then goes to Suno's cover tool with the Style Box as the new style and the Lyrics Box as the words. Audio that is not on Suno (a Splice sample, a recording) has to be uploaded on suno.com first; until Source audio holds a song address, `/generate` stops rather than make an original by mistake.
+- **Voice** — put the saved Voice's name in **Voice**. `/generate` finds it among your Voices, then among the ones you saved from others.
+- **Audio Influence** — `70`, `70%` and `0.7` all mean the same; it is sent only for a cover or a Voice track.
+
+---
+
 ## Checklists
 
 **Before saving a Persona:**
