@@ -15992,23 +15992,46 @@ class TestUpdateFrontmatterBlock:
 class TestDiagnose:
     """Tests for the diagnose() comprehensive health check tool."""
 
-    def _make_healthy_env(self, tmp_path):
-        """Create a state and filesystem that passes all checks."""
-        state = _fresh_state()
-        state["config"]["content_root"] = str(tmp_path / "content")
-        state["config"]["audio_root"] = str(tmp_path / "audio")
-        state["config"]["documents_root"] = str(tmp_path / "docs")
-        state["config"]["artist_name"] = "test-artist"
-        (tmp_path / "content").mkdir()
-        (tmp_path / "audio").mkdir()
-        (tmp_path / "docs").mkdir()
+    @pytest.fixture(autouse=True)
+    def _isolated_config(self, monkeypatch, tmp_path):
+        """The database and cloud checks read config.yaml: never the developer's own."""
+        import tools.database.connection as db_connection
+        import tools.shared.config as shared_config
+
+        self.config_path = tmp_path / "_isolated_config" / "config.yaml"
+        monkeypatch.setattr(shared_config, "CONFIG_PATH", self.config_path)
+        monkeypatch.setattr(db_connection, "CONFIG_PATH", self.config_path)
+
+    def _make_healthy_env(self, tmp_path, **sections):
+        """A config, the cache the real indexer builds from it, and a filesystem that passes all checks.
+
+        ``sections`` adds top-level config sections (``cloud``, ``database``).
+        The state comes from the indexer, not a dict typed by hand, so a check
+        reading a key the cache never stores fails here as it would for users.
+        """
+        import yaml
+
+        from tools.state.indexer import build_state
+
+        for folder in ("content", "audio", "docs"):
+            (tmp_path / folder).mkdir()
+        config = {
+            "artist": {"name": "test-artist"},
+            "paths": {
+                "content_root": str(tmp_path / "content"),
+                "audio_root": str(tmp_path / "audio"),
+                "documents_root": str(tmp_path / "docs"),
+            },
+            **sections,
+        }
+        self.config_path.parent.mkdir(parents=True)
+        self.config_path.write_text(yaml.safe_dump(config), encoding="utf-8")
+        state = build_state(config, plugin_root=tmp_path)
 
         # State cache file (at patched home)
         cache_dir = tmp_path / ".bitwize-music" / "cache"
         cache_dir.mkdir(parents=True)
-        (cache_dir / "state.json").write_text(
-            json.dumps({"schema_version": "1.2.0", "albums": {}})
-        )
+        (cache_dir / "state.json").write_text(json.dumps(state), encoding="utf-8")
 
         # Fake venv (at patched home) — platform-appropriate layout
         # (bin/python3 on POSIX, Scripts\python.exe on Windows)
@@ -16083,27 +16106,63 @@ class TestDiagnose:
         cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
         assert cloud_check["status"] == "ok"
 
-    def test_cloud_enabled_missing_creds(self, tmp_path):
-        state = _fresh_state()
-        state["config"]["cloud"] = {"enabled": True, "provider": "r2", "r2": {}}
-        state["config"]["content_root"] = str(tmp_path)
-        state["config"]["audio_root"] = str(tmp_path)
-        state["config"]["documents_root"] = str(tmp_path)
-        state["config"]["artist_name"] = "test"
-        mock_cache = MockStateCache(state)
-
-        plugin_dir = tmp_path / ".claude-plugin"
-        plugin_dir.mkdir()
-        (plugin_dir / "plugin.json").write_text('{"version": "0.84.0"}')
-        (tmp_path / "requirements.txt").write_text("")
-
+    def _check(self, mock_cache, tmp_path, name):
         with patch.object(_shared_mod, "cache", mock_cache), \
              patch.object(_shared_mod, "PLUGIN_ROOT", tmp_path), \
              patch("handlers.health.Path.home", return_value=tmp_path):
             result = json.loads(_run(server.diagnose()))
-        cloud_check = next(c for c in result["checks"] if c["name"] == "cloud")
-        assert cloud_check["status"] == "fail"
-        assert "missing" in cloud_check["detail"].lower()
+        return next(c for c in result["checks"] if c["name"] == name)
+
+    def test_state_cache_reports_its_schema_version(self, tmp_path):
+        """state.json keeps its schema version under "version"."""
+        from tools.state.indexer import CURRENT_VERSION
+
+        check = self._check(self._make_healthy_env(tmp_path), tmp_path, "state_cache")
+        assert check["detail"] == f"Schema {CURRENT_VERSION}, 0 album(s)"
+
+    def test_cloud_enabled_missing_creds(self, tmp_path):
+        """The cloud section comes from config.yaml: the state cache never keeps it."""
+        mock_cache = self._make_healthy_env(
+            tmp_path, cloud={"enabled": True, "provider": "r2", "r2": {"bucket": "promo"}})
+        assert "cloud" not in mock_cache.get_state()["config"]
+
+        check = self._check(mock_cache, tmp_path, "cloud")
+        assert check["status"] == "fail"
+        assert check["detail"] == (
+            "R2 enabled but missing: account_id, access_key_id, secret_access_key")
+
+    def test_cloud_enabled_and_configured(self, tmp_path):
+        r2 = {"account_id": "acct", "access_key_id": "key", "secret_access_key": "secret",
+              "bucket": "promo"}
+        mock_cache = self._make_healthy_env(
+            tmp_path, cloud={"enabled": True, "provider": "r2", "r2": r2})
+
+        check = self._check(mock_cache, tmp_path, "cloud")
+        assert check == {"name": "cloud", "status": "ok", "detail": "Provider: r2, configured"}
+
+    def test_database_check_logs_in_with_the_configured_user(self, tmp_path, monkeypatch):
+        """The login comes from config.yaml: the cache keeps only enabled, host and name."""
+        database = {"enabled": True, "host": "db.example", "port": 6543, "name": "music",
+                    "user": "bitwize", "password": "not-a-real-password"}
+        mock_cache = self._make_healthy_env(tmp_path, database=database)
+        assert "user" not in mock_cache.get_state()["config"]["database"]
+        calls = []
+
+        class _Connection:
+            def close(self):
+                pass
+
+        def _connect(**kwargs):
+            calls.append(kwargs)
+            return _Connection()
+
+        monkeypatch.setitem(sys.modules, "psycopg2", types.SimpleNamespace(connect=_connect))
+
+        check = self._check(mock_cache, tmp_path, "database")
+        assert check == {"name": "database", "status": "ok", "detail": "Connected successfully"}
+        assert calls == [{"host": "db.example", "port": 6543, "dbname": "music",
+                          "user": "bitwize", "password": "not-a-real-password",
+                          "connect_timeout": 5}]
 
     def test_overall_status_worst_of_all(self, tmp_path):
         """Overall status should be the worst of any individual check."""
