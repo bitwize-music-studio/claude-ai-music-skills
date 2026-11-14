@@ -787,13 +787,6 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
         _shutil.rmtree(staging_dir)
     staging_dir.mkdir()
 
-    state = _shared.cache.get_state() or {}
-    album_tracks = (
-        state.get("albums", {})
-        .get(_normalize_slug(ctx.album_slug), {})
-        .get("tracks", {})
-    )
-
     remaster_set = ctx.remaster_filenames
 
     try:
@@ -806,10 +799,8 @@ async def _stage_mastering(ctx: MasterAlbumCtx) -> str | None:
                 continue
 
             output_path = staging_dir / fname
-            track_stem = wav_file.stem
-            track_slug = _normalize_slug(track_stem)
-            track_meta = album_tracks.get(track_slug, {})
-            fade_out_val = track_meta.get("fade_out")
+            # The track file's Fade Out row, or the default without one.
+            fade_out_val = _helpers._track_fade_out(ctx.album_slug, fname)
 
             # Per-track ceiling: fall back to album-wide effective_ceiling.
             per_track_ceiling = ctx.track_ceilings.get(fname, ctx.effective_ceiling)
@@ -957,6 +948,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
     """
     from tools.mastering.analyze_tracks import analyze_track
     from tools.mastering.fix_dynamic_track import fix_dynamic
+    from tools.mastering.master_tracks import apply_fade_out
 
     assert ctx.output_dir is not None and ctx.source_dir is not None and ctx.audio_dir is not None
 
@@ -1031,10 +1023,16 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     ceil: float,
                     subtype: str,
                     target_rate: int,
+                    fade: float | None,
                 ) -> dict[str, Any]:
                     data, rate = sf.read(str(src))
                     if len(data.shape) == 1:
                         data = _np.column_stack([data, data])
+                    # Recovery re-processes the source, so it needs the
+                    # track's fade too; before the loudness work, as in
+                    # master_track.
+                    if fade:
+                        data = apply_fade_out(data, rate, duration=fade)
                     data, metrics = fix_dynamic(
                         data, rate,
                         target_lufs=lufs,
@@ -1063,6 +1061,7 @@ async def _stage_verification(ctx: MasterAlbumCtx) -> str | None:
                     None, _do_recovery, raw_path, mastered_path,
                     effective_lufs, eq_settings, effective_ceiling,
                     recovery_subtype, _delivery_rate,
+                    _helpers._track_fade_out(ctx.album_slug, fname),
                 )
                 auto_recovered.append({
                     "filename":       fname,
@@ -1496,6 +1495,8 @@ async def _stage_coherence_correct(ctx: MasterAlbumCtx) -> str | None:
                         compress_ratio=ctx.effective_compress,
                         preset=ctx.effective_preset,
                         tilt_db=tilt_db,
+                        # Re-mastered from the source: keep the track's fade.
+                        fade_out=_helpers._track_fade_out(ctx.album_slug, filename),
                     ),
                 )
                 all_corrections.append({

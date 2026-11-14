@@ -30,6 +30,10 @@ _RE_MARKDOWN_LINK = re.compile(r'\[([^\]]+)\]')
 _RE_DIGIT_EXTRACT = re.compile(r'(\d+)')
 _RE_IDEAS_SECTION = re.compile(r'^##\s+Ideas\b', re.MULTILINE)
 _RE_IDEAS_SPLIT = re.compile(r'^###\s+', re.MULTILINE)
+# A Fade Out value is seconds only when it starts with the number: "3s",
+# "3.0", "8s (loops toward silence)". "No (loops to track 1)" is not 1 s.
+_RE_FADE_OUT_SECONDS = re.compile(
+    r'(\d+(?:\.\d+)?)\s*(?:s|secs?|seconds?)?(?!\w)', re.IGNORECASE)
 
 
 def _frontmatter_bool(value: Any, default: bool = False, context: str = "explicit") -> bool:
@@ -443,17 +447,16 @@ def parse_track_file(path: Path) -> dict[str, Any]:
     if fm_suno_url and str(fm_suno_url).strip():
         result['suno_url'] = str(fm_suno_url).strip()
 
-    # Fade Out (duration in seconds, or None)
-    fade_out_raw = _extract_table_value(text, 'Fade Out')
-    if fade_out_raw and fade_out_raw.strip() not in ('—', '\u2013', '-', ''):
-        # Extract numeric value: "5s" → 5.0, "5" → 5.0, "10.5s" → 10.5
-        fade_match = re.search(r'(\d+(?:\.\d+)?)', fade_out_raw)
-        if fade_match:
-            result['fade_out'] = float(fade_match.group(1))
-        else:
-            result['fade_out'] = None
-    else:
-        result['fade_out'] = None
+    # Fade Out: the seconds of fade mastering adds at the end of the track.
+    # A value starting with a number above zero is that fade; anything else
+    # ("0", "—", "No (seamless loop)", "None — it stops") is no fade (None).
+    # No row, or a blank one, leaves fade_out unset: the track never said, so
+    # mastering applies its default (fade_out_for_track).
+    fade_out_raw = (_extract_table_value(text, 'Fade Out') or '').strip()
+    if fade_out_raw:
+        fade_match = _RE_FADE_OUT_SECONDS.match(fade_out_raw)
+        seconds = float(fade_match.group(1)) if fade_match else 0.0
+        result['fade_out'] = seconds if seconds > 0 else None
 
     # Sources Verified
     sources_raw = _extract_table_value(text, 'Sources Verified')

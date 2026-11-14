@@ -350,6 +350,55 @@ class TestParseTrackFile:
         assert result['explicit'] is True
 
 
+class TestParseTrackFadeOut:
+    """The Fade Out row: the seconds of fade mastering adds, or no fade."""
+
+    @staticmethod
+    def _parse(tmp_path, value):
+        rows = ["| **Title** | Paper Boats |", "| **Status** | In Progress |"]
+        if value is not None:
+            rows.append(f"| **Fade Out** | {value} |")
+        path = tmp_path / "01-paper-boats.md"
+        path.write_text(
+            "# Paper Boats\n\n## Track Details\n\n| Attribute | Detail |\n"
+            "|-----------|--------|\n" + "\n".join(rows) + "\n",
+            encoding="utf-8",
+        )
+        result = parse_track_file(path)
+        assert '_error' not in result
+        return result
+
+    @pytest.mark.parametrize("value, seconds", [
+        ("3s", 3.0),
+        ("5s", 5.0),
+        ("3.0", 3.0),
+        ("5 seconds", 5.0),
+        ("8s (loops toward silence)", 8.0),
+        ("12s (long, unresolved — the tune must not land)", 12.0),
+    ])
+    def test_seconds_at_the_start_are_the_fade(self, tmp_path, value, seconds):
+        assert self._parse(tmp_path, value)["fade_out"] == seconds
+
+    @pytest.mark.parametrize("value", [
+        "—", "–", "-", "0", "0s", "0s (hard punk ending)",
+        "None", "None — it stops", "No", "No (seamless loop)", "N/A",
+        # A number later in the text is not a fade: this used to fade 1 s.
+        "No (loops to track 1)",
+        "fade slowly",
+    ])
+    def test_anything_else_means_no_fade(self, tmp_path, value):
+        result = self._parse(tmp_path, value)
+        assert "fade_out" in result
+        assert result["fade_out"] is None
+
+    def test_no_row_leaves_it_unset(self, tmp_path):
+        """Unset is "never said", so mastering applies the default; None is "no fade"."""
+        assert "fade_out" not in self._parse(tmp_path, None)
+
+    def test_a_blank_row_leaves_it_unset(self, tmp_path):
+        assert "fade_out" not in self._parse(tmp_path, "")
+
+
 class TestParseIdeasFile:
     """Tests for parse_ideas_file()."""
 

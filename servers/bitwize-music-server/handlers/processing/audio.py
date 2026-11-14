@@ -366,18 +366,10 @@ async def master_audio(
                 }
             result = await loop.run_in_executor(None, _dry_run_measure, wav_file)
         else:
-            # Look up per-track fade_out from state cache
-            fade_out_val = 5.0  # default
-            state = _shared.cache.get_state() or {}
-            albums = state.get("albums", {})
-            album_data = albums.get(_normalize_slug(album_slug))
-            if album_data:
-                track_slug = wav_file.stem
-                track_info = album_data.get("tracks", {}).get(track_slug, {})
-                if track_info.get("fade_out") is not None:
-                    fade_out_val = track_info["fade_out"]
+            # The track file's Fade Out row, or the default without one.
+            fade_out_val = _helpers._track_fade_out(album_slug, wav_file.name)
 
-            def _do_master(in_path: Path, out_path: Path, fo: float) -> dict[str, Any]:
+            def _do_master(in_path: Path, out_path: Path, fo: float | None) -> dict[str, Any]:
                 return _master_track(
                     str(in_path), str(out_path),
                     target_lufs=effective_lufs,
@@ -464,6 +456,10 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
     output_path = output_dir / Path(track_filename).name
 
     from tools.mastering.fix_dynamic_track import fix_dynamic
+    from tools.mastering.master_tracks import apply_fade_out
+
+    # The fix re-processes the source, so it needs the track's fade too.
+    fade = _helpers._track_fade_out(album_slug, track_filename)
 
     def _do_fix(in_path: Path, out_path: Path) -> dict[str, Any]:
         import numpy as np
@@ -472,6 +468,8 @@ async def fix_dynamic_track(album_slug: str, track_filename: str) -> str:
         data, rate = sf.read(str(in_path))
         if len(data.shape) == 1:
             data = np.column_stack([data, data])
+        if fade:  # before the loudness work, as in master_track
+            data = apply_fade_out(data, rate, duration=fade)
 
         data, metrics = fix_dynamic(data, rate)
 
@@ -2112,6 +2110,8 @@ async def album_coherence_correct(
                     partial(
                         master_track, src, staged,
                         preset=modified_preset, tilt_db=applied_tilt_db,
+                        # Re-mastered from the source: keep the track's fade.
+                        fade_out=_helpers._track_fade_out(album_slug, filename),
                     ),
                 )
             except Exception as exc:  # pragma: no cover - defensive

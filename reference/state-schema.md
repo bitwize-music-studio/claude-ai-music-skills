@@ -8,7 +8,7 @@ The state cache at `~/.bitwize-music/cache/state.json` is a JSON file built from
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `version` | string | Yes | Schema version (currently `"1.4.0"`) |
+| `version` | string | Yes | Schema version (currently `"1.5.0"`) |
 | `generated_at` | string | Yes | ISO 8601 UTC timestamp of last build/update |
 | `plugin_version` | string\|null | Yes | Installed plugin version from `.claude-plugin/plugin.json`, refreshed every build (display only), or `null` if unreadable |
 | `last_migrated_version` | string\|null | No | Version through which migration notes have been processed. Only advances via `acknowledge_migrations`; preserved across rebuilds. `null`/absent = pre-tracking (surfaces the backlog once). Drives `get_pending_migrations`. See issue #320. |
@@ -82,6 +82,7 @@ Map of album slug (string) → album data object.
 | `sources_verified` | string | Verification status: `"N/A"`, `"Pending"`, or `"Verified (DATE)"` |
 | `genre` | string | Track's own genre from frontmatter `genre:`, or `""` when it declares none. A musical descriptor, not a path segment — unlike the album's `genre`, nothing resolves a directory from it. Consumed by `get_lyrics_stats` to pick the word-count target per track, falling back to the album's genre then the default. |
 | `mtime` | float | Last modification time of track file |
+| `fade_out` | float or null | The track file's Fade Out row: seconds of fade-out mastering adds, or `null` for no fade (`0`, `—`, `No …`). **Absent** when the file has no such row, and mastering then applies its 3 s default. Every mastering path reads it through `fade_out_for_track` |
 
 ### Valid Track Statuses
 
@@ -211,5 +212,6 @@ The migration chain is defined in `tools/state/indexer.py` as `MIGRATIONS` dict.
 | 1.1.0 | 1.2.0 | Added `plugin_version` top-level field for upgrade path tracking |
 | 1.2.0 | 1.3.0 | Added `album_collisions` top-level field (seeded to `[]`) for cross-genre slug collision detection (issue #392) |
 | 1.3.0 | 1.4.0 | Re-coerced cached album/track `explicit` flags that pre-#388 parsers stored as raw truthy strings (e.g. `"false"`) to real booleans |
+| 1.4.0 | 1.5.0 | Tracks carry `fade_out`. The migration clears cached track mtimes so the next incremental update re-reads every track file; the MCP server rebuilds the whole state on the version change instead, keeping session and migration tracking |
 
 `last_migrated_version` was added as a **backward-compatible optional field** (no schema-version bump). Fresh builds include it (seeded to the installed version); states written earlier simply omit it and read as `null`, which `get_pending_migrations` treats as pre-tracking. Avoiding a version bump here is deliberate — bumping would force the live MCP path to auto-rebuild every existing state, erasing the very "behind" status migration detection depends on (issue #320).
