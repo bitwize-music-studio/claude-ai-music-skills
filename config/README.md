@@ -115,6 +115,9 @@ The `~/.bitwize-music/` directory also contains:
 | `artist.name` | Yes | Your artist/project name |
 | `artist.genres` | No | Primary genres (array) |
 | `artist.style` | No | Brief style description to help Claude understand your vibe |
+| `artist.legal_name` | No | Your real name for songwriter credits (DistroKid, SoundCloud Composer); used by `/bitwize-music:release-kit` |
+| `release.ai_disclosure` | No | Your standard answer to DistroKid's AI question, a list of what you tick (`[]` for none); shown on the release kit |
+| `release.language` | No | Release language on the release kit (default: `English`) |
 | `paths.content_root` | Yes | Where albums and artists live |
 | `paths.audio_root` | Yes | Where mastered audio goes |
 | `paths.documents_root` | Yes | Where PDFs/sources go |

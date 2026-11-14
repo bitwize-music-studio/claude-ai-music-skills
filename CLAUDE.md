@@ -177,6 +177,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Album art** → apply `/bitwize-music:album-art-director`. With `artwork.generator: codex` in config it also makes the image through the user's Codex CLI: state the cost and wait for a go-ahead before generating (each candidate spends the user's ChatGPT image allowance), and never choose a candidate for the user
 - **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
+- **Getting an album's DistroKid and SoundCloud uploads ready** → `/bitwize-music:release-kit` (writes a page with every form field and a copy button, plus the checks to clear first; it never touches either site, and the user pastes and submits)
 
 - **Checking for plagiarism** → `/bitwize-music:plagiarism-checker` (web search + LLM knowledge)
 - **Checking voice/authenticity** → `/bitwize-music:voice-checker` (detect AI-sounding patterns)

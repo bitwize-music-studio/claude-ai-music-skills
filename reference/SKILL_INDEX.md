@@ -28,6 +28,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...check if album structure is correct | `/validate-album <album-name>` |
 | ...approve all generated tracks at once | Batch-approve via `update_track_field` MCP tool per track |
 | ...release my finished album | `/release-director` |
+| ...get my DistroKid and SoundCloud uploads ready to paste | `/release-kit` |
 
 ### Writing & Quality
 | I need to... | Use this skill |
@@ -157,6 +158,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`pronunciation-specialist`](/skills/pronunciation-specialist/SKILL.md) | Scan lyrics for pronunciation risks | Catching homographs and tricky words before Suno |
 | [`rename`](/skills/rename/SKILL.md) | Rename albums or tracks with path updates | Changing album/track names after creation |
 | [`release-director`](/skills/release-director/SKILL.md) | Album release coordination, QA, distribution | Releasing finished album to platforms |
+| [`release-kit`](/skills/release-kit/SKILL.md) | The DistroKid and SoundCloud upload sheet with copy buttons and pre-upload checks | "Get Paper Boats ready for DistroKid" |
 | [`researcher`](/skills/researcher/SKILL.md) | Investigative-grade research and source verification | Coordinating research for true-story albums |
 | [`researchers-biographical`](/skills/researchers-biographical/SKILL.md) | Personal backgrounds, interviews, motivations | Finding humanizing details about subjects |
 | [`researchers-financial`](/skills/researchers-financial/SKILL.md) | SEC filings, earnings calls, market data | Finding financial records and fraud documentation |
