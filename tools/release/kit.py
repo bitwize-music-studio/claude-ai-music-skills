@@ -253,10 +253,13 @@ def _cover_checks(f: AlbumFacts) -> list[Check]:
     if f.cover_size is None:
         return [Check(FAIL, "The cover can't be read as an image")]
     width, height = f.cover_size
-    if width != height or width < COVER_MIN:
-        # Written as an escape: ruff's RUF001 rejects the multiplication sign as a literal.
-        return [Check(FAIL, f"The cover is {width}\u00d7{height}: it must be square, "
-                            f"at least {COVER_MIN}\u00d7{COVER_MIN}")]
+    # Written as an escape: ruff's RUF001 rejects the multiplication sign as a literal.
+    if width != height:
+        return [Check(FAIL, f"The cover is {width}\u00d7{height}: it must be square")]
+    if width < COVER_MIN:
+        # Stores recommend 3000x3000, but smaller square covers have gone out.
+        return [Check(WARN, f"The cover is {width}\u00d7{height}, under the "
+                            f"{COVER_MIN}\u00d7{COVER_MIN} stores recommend")]
     return []
 
 

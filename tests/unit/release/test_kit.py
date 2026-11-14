@@ -157,11 +157,17 @@ class TestChecks:
     @pytest.mark.parametrize("cover, size, message", [
         ("", None, "No cover (album.png or album.jpg) beside mastered/: add it with /bitwize-music:import-art"),
         ("/a/album.png", None, "The cover can't be read as an image"),
-        ("/a/album.png", (3000, 2000), "The cover is 3000×2000: it must be square, at least 3000×3000"),
-        ("/a/album.png", (1400, 1400), "The cover is 1400×1400: it must be square, at least 3000×3000"),
+        ("/a/album.png", (3000, 2000), "The cover is 3000×2000: it must be square"),
     ])
-    def test_the_cover(self, cover, size, message):
+    def test_a_cover_that_blocks(self, cover, size, message):
         assert _messages(_facts(cover=cover, cover_size=size), FAIL) == [message]
+
+    def test_a_small_square_cover_only_warns(self):
+        """Stores recommend 3000×3000, but a smaller square cover has gone out."""
+        facts = _facts(cover_size=(2508, 2508))
+        assert _messages(facts, FAIL) == []
+        assert _messages(facts, WARN) == [
+            "The cover is 2508×2508, under the 3000×3000 stores recommend"]
 
     def test_missing_config(self):
         assert _messages(_facts(legal_name="", ai_disclosure=None), FAIL) == [
