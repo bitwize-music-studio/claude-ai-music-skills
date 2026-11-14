@@ -449,6 +449,45 @@ def close_panes() -> dict[str, Any]:
     return {"closed": closed}
 
 
+def _load_profiles() -> list[dict[str, Any]]:
+    """This session's dynamic profiles; none when the file is missing or unreadable."""
+    try:
+        data = json.loads(profiles_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    profiles = data.get("Profiles") if isinstance(data, dict) else None
+    return [p for p in profiles if isinstance(p, dict)] if isinstance(profiles, list) else []
+
+
+def open_page_in_pane(path: Path) -> dict[str, Any]:
+    """Open a local HTML page, such as a release kit, in a pane beside this session.
+
+    Unlike open_in_panes it closes nothing first: the page joins this
+    session's panes, so close_panes, or the next listen, closes it with them.
+
+    Returns ``{"pane": its pane id, "page": the file:// URL shown}``.
+
+    Raises:
+        ItermError: the path is not an existing .html file, iTerm2 panes are
+            not available here, or iTerm2 refused.
+    """
+    if path.suffix.lower() != ".html" or not path.is_file():
+        raise ItermError(f"not a local HTML page: {path}")
+    reason = unavailable_reason()
+    if reason:
+        raise ItermError(reason)
+    profile = _profile(path.resolve().as_uri())
+    others = [p for p in _load_profiles() if p.get("Guid") != profile["Guid"]]
+    _write_profiles([*others, profile])
+    home, pane = _split(_own_pane_id(), profile["Name"], "vertical")
+    _save_panes([*_load_panes(), pane])
+    try:
+        _osascript(_SELECT_SCRIPT, home)
+    except ItermError as e:
+        logger.warning("Opened the page but could not return focus: %s", e)
+    return {"pane": pane, "page": profile["Initial URL"]}
+
+
 def open_in_panes(urls: list[str], lyrics: str = "", title: str = "") -> dict[str, Any]:
     """Open each Suno page's player in an iTerm2 pane beside this session.
 
