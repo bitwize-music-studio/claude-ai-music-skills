@@ -493,6 +493,7 @@ from handlers import (
     skills,
     status,
     streaming,
+    studio,
     suno_midi,
     suno_release,
     suno_sounds,
@@ -526,6 +527,7 @@ album_generation.register(mcp)
 suno_release.register(mcp)
 suno_midi.register(mcp)
 playback.register(mcp)
+studio.register(mcp)
 streaming.register(mcp)
 skills.register(mcp)
 status.register(mcp)
@@ -768,6 +770,7 @@ from handlers.streaming import (  # noqa: F401
     update_streaming_url,
     verify_streaming_urls,
 )
+from handlers.studio import find_studio_download, open_in_studio  # noqa: F401
 from handlers.suno_midi import (  # noqa: F401
     get_midi_score_plan,
     get_suno_midi_plan,

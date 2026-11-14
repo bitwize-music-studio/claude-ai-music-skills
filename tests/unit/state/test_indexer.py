@@ -4926,6 +4926,20 @@ class TestBuildConfigSectionListen:
     def test_take_check_off(self, monkeypatch):
         assert self._generation({'take_check': False}, monkeypatch)['take_check'] is False
 
+    def test_listen_browser_unset_means_the_default_browser(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['listen_browser'] == ''
+
+    def test_listen_browser_names_an_app_or_a_path(self, monkeypatch):
+        gen = self._generation({'listen_browser': ' /Applications/Arc.app '}, monkeypatch)
+        assert gen['listen_browser'] == '/Applications/Arc.app'
+
+    def test_studio_browser_unset_means_the_default_browser(self, monkeypatch):
+        assert self._generation({}, monkeypatch)['studio_browser'] == ''
+
+    def test_studio_browser_names_an_app(self, monkeypatch):
+        gen = self._generation({'studio_browser': ' Firefox '}, monkeypatch)
+        assert gen['studio_browser'] == 'Firefox'
+
     def test_suno_workspaces_default_on(self, monkeypatch):
         assert self._generation({}, monkeypatch)['suno_workspaces'] is True
 

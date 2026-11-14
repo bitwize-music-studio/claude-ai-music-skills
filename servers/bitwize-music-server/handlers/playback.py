@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +25,7 @@ from handlers.generation import (
     clip_id_from_url,
     parse_generation_log,
 )
+from tools.playback import browser as _browser
 from tools.playback import iterm as _iterm
 from tools.playback import player as _player
 from tools.state.parsers import _extract_table_value
@@ -330,10 +330,19 @@ def _lyrics_for_pane(album_slug: str, track_slug: str) -> tuple[str, str, str]:
     return lyrics, title, ""
 
 
+def _listen_browser() -> str:
+    """generation.listen_browser from the cached config; "" without a cache."""
+    if _shared.cache is None:
+        return ""
+    generation = (_shared.cache.get_state() or {}).get("config", {}).get("generation", {}) or {}
+    return str(generation.get("listen_browser") or "")
+
+
 async def open_song_page(
     urls: list[str], where: str = "browser", album_slug: str = "", track_slug: str = "",
+    browser: str = "",
 ) -> str:
-    """Open Suno song pages, in the default web browser or in iTerm2 panes.
+    """Open Suno song pages, in a web browser or in iTerm2 panes.
 
     Listening on the song page is free and unlimited. Accepts only
     https://suno.com/song/<clip id> and https://suno.com/s/<share id> links;
@@ -341,7 +350,8 @@ async def open_song_page(
 
     Args:
         urls: One to four Suno song page URLs
-        where: "browser" opens one tab each in the default browser.
+        where: "browser" opens one tab each in the browser from `browser`,
+            else config generation.listen_browser, else the system's default.
             "iterm2_browser" opens Suno's compact player for each take in an
             iTerm2 pane beside this session — the first to the right, the rest
             stacked under it — closing this session's panes from an earlier
@@ -352,12 +362,17 @@ async def open_song_page(
         track_slug: The takes' track. Its Lyrics Box opens in one more pane under
             the takes, as plain text: it is not timed to the music. Ignored in
             the browser.
+        browser: The web browser for this run only: "default", an app name
+            ("Firefox", "Safari") or a path to one; overrides
+            generation.listen_browser. iTerm2 panes come from
+            where="iterm2_browser", not from here.
 
     Returns:
         JSON with opened and failed URL lists (failed when no browser could be
         launched — give those links to the user instead), where (the place the
-        pages actually went), panes (iTerm2 pane ids) or note (why iTerm2 was
-        not used), or an error. With a track in iTerm2 mode, also lyrics_pane
+        pages actually went), panes (iTerm2 pane ids) or note (why iTerm2, or
+        the browser named, was not used), browser (the browser used, when one
+        was named), or an error. With a track in iTerm2 mode, also lyrics_pane
         (whether its lyrics opened) and lyrics_note (why not)
     """
     if not urls:
@@ -398,19 +413,29 @@ async def open_song_page(
                     in_panes["lyrics_note"] = lyrics_note
             return _safe_json(in_panes)
 
+    choice = (browser or _listen_browser()).strip()
+    if _browser.is_iterm(choice):
+        return _safe_json({"error": (
+            f"{choice!r} isn't a web browser here: for iTerm2 panes, use "
+            'where="iterm2_browser" (listen_mode: iterm2_browser). generation.listen_browser '
+            "and browser name a web browser. Nothing was opened."
+        )})
     opened: list[str] = []
     failed: list[str] = []
+    notes = [note] if note else []
+    used_browser: str | None = None
     for url in urls:
-        try:
-            launched = webbrowser.open_new_tab(url)
-        except webbrowser.Error as e:
-            logger.warning("Could not open %s in a browser: %s", url, e)
-            launched = False
-        (opened if launched else failed).append(url)
+        used, why = _browser.open_url(str(url), choice)
+        if why and why not in notes:
+            notes.append(why)
+        used_browser = used or used_browser
+        (opened if used else failed).append(url)
 
     result: dict[str, Any] = {"opened": opened, "failed": failed, "where": "browser"}
-    if note:
-        result["note"] = note
+    if used_browser and not _browser.is_default(choice):
+        result["browser"] = used_browser
+    if notes:
+        result["note"] = "; ".join(notes)
     if failed:
         result["hint"] = "No browser could be launched here — open these links by hand"
     return _safe_json(result)

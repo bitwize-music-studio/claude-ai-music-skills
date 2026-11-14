@@ -1402,6 +1402,50 @@
   {
     "inputSchema": {
       "properties": {
+        "expected_seconds": {
+          "default": 0.0,
+          "title": "Expected Seconds",
+          "type": "number"
+        },
+        "since": {
+          "title": "Since",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "wait_seconds": {
+          "default": 120,
+          "title": "Wait Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "since"
+      ],
+      "title": "find_studio_downloadArguments",
+      "type": "object"
+    },
+    "name": "find_studio_download",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "find_studio_downloadOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
         "album_slug": {
           "title": "Album Slug",
           "type": "string"
@@ -3171,8 +3215,62 @@
     "inputSchema": {
       "properties": {
         "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "browser": {
+          "default": "",
+          "title": "Browser",
+          "type": "string"
+        },
+        "plan": {
+          "title": "Plan",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        },
+        "version": {
+          "default": "",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "plan"
+      ],
+      "title": "open_in_studioArguments",
+      "type": "object"
+    },
+    "name": "open_in_studio",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "open_in_studioOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
           "default": "",
           "title": "Album Slug",
+          "type": "string"
+        },
+        "browser": {
+          "default": "",
+          "title": "Browser",
           "type": "string"
         },
         "track_slug": {

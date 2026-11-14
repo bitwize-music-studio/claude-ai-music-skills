@@ -1,7 +1,7 @@
 ---
 name: import-audio
 description: Moves audio files to the correct album location with proper path structure, or pulls an approved take's WAV and stems straight from Suno. Use when the user has downloaded WAV files from Suno or other sources that need to be organized, or wants to import the keeper, or its instrumental version, after approving a take.
-argument-hint: <file-path> <album-name> [track-slug] | --from-suno <album-name> <track> [--stems | --version instrumental]
+argument-hint: <file-path> <album-name> [track-slug] | --from-suno <album-name> <track> [--stems | --version instrumental] [--browser <app>]
 model: sonnet
 effort: medium
 allowed-tools:
@@ -24,7 +24,7 @@ Import audio to the correct album location based on config — from a local file
 You put audio in the correct location in the user's audio directory. Two forms:
 
 - **A file on disk** — `<file-path> <album-name> [track-slug]`: Steps 1–5 below.
-- **Straight from Suno** — `--from-suno <album-name> <track> [--stems | --version instrumental]`: skip to **Importing From Suno**.
+- **Straight from Suno** — `--from-suno <album-name> <track> [--stems | --version instrumental] [--browser <app>]`: skip to **Importing From Suno**.
 
 ## Step 1: Parse Arguments
 
@@ -126,7 +126,7 @@ Extracted stems: {source_file}
 
 ## Importing From Suno (`--from-suno`)
 
-Pulls a track's approved take from Suno through the Suno MCP server: the WAV, and with `--stems` the 12 stems. No browser, no Downloads folder.
+Pulls a track's approved take from Suno through the Suno MCP server: the WAV, and with `--stems` the 12 stems, with no browser and no Downloads folder. Once the account's download credits run out, a Premier account can take the WAV from Suno Studio in the browser instead (step C2).
 
 Costs, limits and the tool notes are in `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`. In short: the first download of a song uses one Suno download credit; every later download of it, in any format, and of its stems, is free. A take that was played in the terminal with `/bitwize-music:listen` has already used its credit.
 
@@ -149,6 +149,8 @@ If `wav.existing` is set, a file is already imported for this track. Say which f
 
 Run § Preflight in the reference doc. If the server is not connected, give the setup command and stop — the file form of this skill still works for a manual download.
 
+Keep two values from `account-usage`: the plan (`suno_account.plan.name`) and `download_credits_remaining`. With no download credits left, go straight to step C2.
+
 ### C. Download the WAV
 
 1. Call `audio-download(id: <clip_id>, format: "wav")` **without** `confirm`.
@@ -156,9 +158,10 @@ Run § Preflight in the reference doc. If the server is not connected, give the 
    | Answer | Do |
    |--------|-----|
    | `status: "ok"` | Free — save it (step 2) |
-   | `status: "requires_credit"` | Say it uses one download credit and how many are left (`credits_remaining` in the answer). Ask. On yes, call again with `confirm: true` |
+   | `status: "requires_credit"` | Say it uses one download credit and how many are left (`credits_remaining` in the answer), and ask. On a Premier plan the answers are **yes** (spend the credit), **studio** (download it in Suno Studio instead: step C2, from its step 3) or **no**. On any other plan, ask only yes or no, and don't mention Studio. On yes, call again with `confirm: true` |
    | `status: "processing"` | Call `audio-download` again |
    | `rate_limited` | Wait `retry_after_seconds`, then call again |
+   | `quota_exhausted` (no download credits left) | Step C2 |
    | Any other refusal | Report what Suno said and stop |
 
 2. Save the link to `wav.path`, exactly as the plan gave it:
@@ -172,6 +175,37 @@ Run § Preflight in the reference doc. If the server is not connected, give the 
    Quote the URL — it contains `&`. Links last an hour. If `curl` fails, remove the `.part` file and report the error.
 
 3. Call `get_suno_import_plan` again and check that `wav.existing` is now the new file.
+
+### C2. Suno Studio instead (Premier)
+
+On a Premier plan the WAV can come from Suno Studio, in a real browser, instead of a download credit: when the user answers **studio** to the credit question in step C, and when no download credits are left. Suno's downloads FAQ says work downloads from Studio "without limitation", and one measured download spent no credit. That is Suno's word and one test, not a guarantee: say so. Spending the credit stays the default answer.
+
+1. **Check the plan.** Studio comes with Premier only. If the plan isn't a Premier plan, say that Studio needs Premier, when the downloads reset (`renews_on` from `account-usage`), and that more downloads can be bought on suno.com. Stop.
+2. **Offer it** when the credits have run out (after **studio** at the credit question, go straight to step 3): "You're out of Suno downloads. I can open the keeper in Suno Studio in your browser, and you download the WAV there. Suno says Studio downloads aren't limited." Stop unless the answer is yes.
+3. Call `audio-retrieve(id: <clip_id>)` and keep `title` and `metadata.duration`. It is free.
+4. Call `open_in_studio(album_slug, track_slug, plan: <the plan name>)`, adding `browser: <app>` when the user gave `--browser <app>` (an app name or a path to one), and `version` as in step A. Pass on its `note`, if any. If `browser` comes back null, give the user `url` to open by hand. A refusal names the reason; report it and stop.
+5. Tell the user `next`: in Studio's editor, select the song's whole waveform, then click **Download .WAV**.
+6. Call `find_studio_download(since: <opened_at>, title: <title>, expected_seconds: <duration>, wait_seconds: 120)`.
+
+   | `status` | Do |
+   |---|---|
+   | `found`, `problems` empty | Show `name`, its length beside the song's, and its format. Ask before importing it |
+   | `found` with `problems` | Say what's wrong, usually a selection that missed part of the song. Ask them to download it again, then call again |
+   | `several` | List the `candidates` and ask which one |
+   | `not_found` | Name anything still `downloading`. Ask them to say when the download has finished, then call again with `wait_seconds: 30` |
+
+7. On yes, copy the file to `wav.path` from step A. The audio folder may be a network share, so copy, check, then remove:
+
+   ```bash
+   mkdir -p "$(dirname "{wav.path}")" \
+     && cp "{file}" "{wav.path}.part" \
+     && mv "{wav.path}.part" "{wav.path}" \
+     && cmp -s "{file}" "{wav.path}" \
+     && rm "{file}"
+   ```
+
+   If a step fails, leave the download where it is and report the error.
+8. Carry on with step C.3. Skip `--stems`: a Studio download doesn't count as the song's download, so its stems wait until a download credit is free (one credit then covers the song and every stem). Studio's multitrack export names its files its own way, not as the mix tools expect.
 
 ### D. Stems (`--stems` only)
 
@@ -199,7 +233,7 @@ Imported from Suno: [NN] [Title]
   Next: /bitwize-music:mix-engineer [album]
 ```
 
-Leave out the lines that do not apply.
+Leave out the lines that do not apply. After step C2, the Spent line reads `Spent: no download credit (downloaded in Suno Studio)`.
 
 ## Error Handling
 
@@ -226,7 +260,7 @@ Overwrite? (The original was not moved)
 
 Suno allows downloading in both WAV and MP3 formats (WAV on Pro/Premier, web only). **Always prefer WAV** for mastering quality.
 
-**Downloads are metered since 2026-09-03.** Free accounts get 7 lifetime trial downloads (personal use only — never releasable); Pro 20 a month; Premier 60 a month; the count resets on the billing date and does not roll over. **One song is one download whatever the format, and its stems are included** — download the WAV first, then pull stems later at no extra cost; re-downloading the same song is free. Premier's **Suno Studio exports are uncapped** and arrive as 32-bit float / 48 kHz WAV — the practical route for a full album in one month. Commercial rights attach only to a permitted download made on a paid plan.
+**Downloads are metered since 2026-09-03.** Free accounts get 7 lifetime trial downloads (personal use only — never releasable); Pro 20 a month; Premier 60 a month; the count resets on the billing date and does not roll over. **One song is one download whatever the format, and its stems are included** — download the WAV first, then pull stems later at no extra cost; re-downloading the same song is free. Premier accounts can also download from **Suno Studio**: Suno's downloads FAQ says Studio work downloads "without limitation", and one measured download spent no credit and arrived as a 16-bit, 48 kHz stereo WAV, the same format as a WAV from `audio-download`. Step C2 uses it once the credits run out. Commercial rights attach only to a permitted download made on a paid plan.
 
 **If the user provides an MP3 file:**
 

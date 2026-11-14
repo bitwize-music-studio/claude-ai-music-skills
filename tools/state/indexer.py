@@ -407,7 +407,13 @@ def build_config_section(config: dict[str, Any]) -> dict[str, Any]:
         # How /bitwize-music:listen auditions Suno takes (reference/suno/mcp-api-mapping.md)
         'listen_mode': _cfg_choice(
             gen_config, 'listen_mode', ('browser', 'terminal', 'iterm2_browser'), 'browser'),
+        # The browser listen_mode `browser` opens song pages in: "default", an app
+        # name or a path to one; empty means the system's default browser
+        'listen_browser': _cfg_str(gen_config, 'listen_browser', '').strip(),
         'listen_confirm_download': _cfg_bool(gen_config, 'listen_confirm_download', True),
+        # The browser /bitwize-music:import-audio opens Suno Studio in: "default",
+        # an app name or a path to one; empty means the system's default browser
+        'studio_browser': _cfg_str(gen_config, 'studio_browser', '').strip(),
         # Whether session start shows how to add Suno's MCP server when none is registered
         'suno_mcp_reminder': _cfg_bool(gen_config, 'suno_mcp_reminder', True),
         # Whether /bitwize-music:generate files each album's takes in a Suno workspace of its own

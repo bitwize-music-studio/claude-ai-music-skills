@@ -61,7 +61,7 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 
 Two facts decide the Suno line: whether a Suno MCP server is **connected** (a tool named `audio-create` exists on any connected MCP server), and whether one is **registered** (the `suno` section of the `health_check` result from Step 1.5: `status` is `configured` or `missing`, with `servers[0].name`, `reminder` and `fix`). The server is optional, so none of this is a warning and none of it stops the session.
 
-- Connected → `Suno: connected`
+- Connected → read `account-usage` once (free) and show the plan and the downloads left: `Suno: connected — Premier Plan, 15 downloads left` (`suno_account.plan.name`, `suno_account.download_credits_remaining`). If that call fails, just `Suno: connected`
 - Registered but not connected → `Suno: configured as "<servers[0].name>" but not connected — run /mcp and sign in`
 - Missing, `reminder: true` → show how to add it, as its own short block after the Setup lines:
 
