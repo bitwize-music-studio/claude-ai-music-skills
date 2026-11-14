@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Changed
+- **`pypdf` 7.0.0 → 7.0.1, `boto3` 1.43.126 → 1.44.0, `playwright` 1.64.1 → 1.65.0, `types-PyYAML` 6.0.12.20261103 → 6.0.12.20261111** — taken from the Dependabot group PR [#641](https://github.com/bitwize-music-studio/claude-ai-music-skills/pull/641). All four install on the 3.11 floor. pypdf 7.0.1 is bug fixes, among them `PdfWriter`'s page lookup in hierarchical page trees, which `create_songbook` and `prepare_singles` write through, plus one security hardening item (image buffer sizes). No advisory is published against 7.0.0 (OSV), so the bump is recorded here and not under Security. boto3 1.44.0 brings AWS API-model updates only. Playwright 1.65 moves to Chromium 158, so document-hunter needs `playwright install chromium` again after the venv update; `migrations/0.105.0.md` says how. mypy stays clean on the default and win32 views with the new stubs.
+
 ## [0.104.0] - 2026-11-14
 
 ### Added
