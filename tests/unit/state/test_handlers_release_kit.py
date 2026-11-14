@@ -168,6 +168,17 @@ def test_facts_come_from_the_files_and_config(album):
     assert soundcloud["Description"] == "Songs about small boats."
 
 
+def test_an_older_album_jpg_cover_counts(album):
+    png = album["audio"] / "album.png"
+    Image.open(png).convert("RGB").save(album["audio"] / "album.jpg")
+    png.unlink()
+    result = _build(open_page=False)
+    assert result["checks"]["fail"] == 0, result["checks"]["items"]
+    data = json.loads((album["audio"] / "release-kit.json").read_text(encoding="utf-8"))
+    cover = {f["label"]: f["value"] for f in data["distrokid"][0]["fields"]}["Cover art"]
+    assert cover == str(album["audio"] / "album.jpg")
+
+
 def test_a_stray_wav_fails(album):
     sf.write(str(album["audio"] / "mastered" / "99-demo.wav"),
              np.zeros((800, 2), dtype=np.float32), 8000)

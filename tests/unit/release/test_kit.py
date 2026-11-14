@@ -155,10 +155,10 @@ class TestChecks:
             "mastered/99-demo.wav matches no track: move it out before uploading"]
 
     @pytest.mark.parametrize("cover, size, message", [
-        ("", None, "No album.png beside mastered/: add the cover with /bitwize-music:import-art"),
-        ("/a/album.png", None, "album.png can't be read as an image"),
-        ("/a/album.png", (3000, 2000), "album.png is 3000×2000: it must be square, at least 3000×3000"),
-        ("/a/album.png", (1400, 1400), "album.png is 1400×1400: it must be square, at least 3000×3000"),
+        ("", None, "No cover (album.png or album.jpg) beside mastered/: add it with /bitwize-music:import-art"),
+        ("/a/album.png", None, "The cover can't be read as an image"),
+        ("/a/album.png", (3000, 2000), "The cover is 3000×2000: it must be square, at least 3000×3000"),
+        ("/a/album.png", (1400, 1400), "The cover is 1400×1400: it must be square, at least 3000×3000"),
     ])
     def test_the_cover(self, cover, size, message):
         assert _messages(_facts(cover=cover, cover_size=size), FAIL) == [message]

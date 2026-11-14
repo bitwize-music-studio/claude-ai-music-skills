@@ -45,7 +45,7 @@ Lead with what blocks the upload, then the advice:
 Release kit for Paper Boats: open beside you (iTerm2 pane)
 ✗ 2 to fix first:
   - Set artist.legal_name in config: DistroKid needs the songwriter's real name
-  - album.png is 1400×1400: it must be square, at least 3000×3000
+  - The cover is 1400×1400: it must be square, at least 3000×3000
 ⚠ 1 to look at:
   - Track 4 (Tide) has explicit words but isn't marked explicit
 Files: …/release-kit.html

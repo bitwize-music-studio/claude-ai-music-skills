@@ -34,6 +34,9 @@ KIT_HTML = "release-kit.html"
 KIT_JSON = "release-kit.json"
 _LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 _TRACK_NUMBER_RE = re.compile(r"^(\d+)")
+# The cover in the audio folder: import_album_art writes album.png; older
+# albums have album.jpg. DistroKid takes either.
+_COVER_NAMES = ("album.png", "album.jpg", "album.jpeg")
 
 
 async def build_release_kit(album_slug: str, open_page: bool = True) -> str:
@@ -105,7 +108,7 @@ async def _gather(slug: str, album: dict[str, Any], audio_dir: Path) -> AlbumFac
     ]
     slugs = {t.slug for t in tracks}
     stray = tuple(sorted(p.name for p in _wavs(mastered) if p.stem not in slugs))
-    cover = audio_dir / "album.png"
+    cover = _cover_path(audio_dir)
     return AlbumFacts(
         slug=slug,
         title=str(album.get("title") or slug),
@@ -122,8 +125,8 @@ async def _gather(slug: str, album: dict[str, Any], audio_dir: Path) -> AlbumFac
         description=_concept(readme),
         explicit=bool(album.get("explicit", False)),
         upc=str(frontmatter.get("upc") or ""),
-        cover=str(cover) if cover.is_file() else "",
-        cover_size=_image_size(cover),
+        cover=str(cover) if cover else "",
+        cover_size=_image_size(cover) if cover else None,
         mastered_dir=str(mastered),
         stray_wavs=stray,
         tracks=tuple(tracks),
@@ -249,6 +252,11 @@ def _wav_format(path: Path) -> str:
     except Exception:  # reported by the kit's master check
         return UNREADABLE
     return f"{info.subtype} {info.samplerate} Hz"
+
+
+def _cover_path(audio_dir: Path) -> Path | None:
+    """The album's cover in its audio folder, or None when there is none."""
+    return next((audio_dir / name for name in _COVER_NAMES if (audio_dir / name).is_file()), None)
 
 
 def _image_size(path: Path) -> tuple[int, int] | None:

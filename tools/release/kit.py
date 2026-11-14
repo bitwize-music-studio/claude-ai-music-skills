@@ -156,7 +156,7 @@ def _distrokid(f: AlbumFacts) -> tuple[Block, ...]:
         Field("Explicit", _yes_no(f.explicit)),
         Field("UPC", f.upc or LEAVE_BLANK),
         Field("AI disclosure", _ai_text(f.ai_disclosure)),
-        Field("Cover art", f.cover or "[no album.png]"),
+        Field("Cover art", f.cover or "[no cover]"),
         Field("Audio folder", f.mastered_dir),
     ))
     tracks = []
@@ -190,7 +190,7 @@ def _soundcloud(f: AlbumFacts) -> tuple[Block, ...]:
     if f.description:
         album_fields.append(Field("Description", f.description, long=True))
     album_fields += [
-        Field("Artwork", f.cover or "[no album.png]"),
+        Field("Artwork", f.cover or "[no cover]"),
         Field("Audio folder", f.mastered_dir),
     ]
     tracks = []
@@ -249,13 +249,13 @@ def run_checks(f: AlbumFacts, today: date) -> tuple[Check, ...]:
 
 def _cover_checks(f: AlbumFacts) -> list[Check]:
     if not f.cover:
-        return [Check(FAIL, "No album.png beside mastered/: add the cover with /bitwize-music:import-art")]
+        return [Check(FAIL, "No cover (album.png or album.jpg) beside mastered/: add it with /bitwize-music:import-art")]
     if f.cover_size is None:
-        return [Check(FAIL, "album.png can't be read as an image")]
+        return [Check(FAIL, "The cover can't be read as an image")]
     width, height = f.cover_size
     if width != height or width < COVER_MIN:
         # Written as an escape: ruff's RUF001 rejects the multiplication sign as a literal.
-        return [Check(FAIL, f"album.png is {width}\u00d7{height}: it must be square, "
+        return [Check(FAIL, f"The cover is {width}\u00d7{height}: it must be square, "
                             f"at least {COVER_MIN}\u00d7{COVER_MIN}")]
     return []
 
