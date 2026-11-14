@@ -101,7 +101,7 @@ the album. Without the server, the clipboard flow works as it always has.
 Setup, costs and the fine print are in
 [reference/suno/mcp-api-mapping.md](reference/suno/mcp-api-mapping.md).
 
-![Listening to two takes in iTerm2 panes beside Claude Code](https://github.com/user-attachments/assets/listen-demo-gif-pending)
+![Listening to two takes in iTerm2 panes beside Claude Code](docs/images/listen-iterm2.gif)
 
 What hasn't changed: you still listen to every track before it's approved.
 The integration removes the busywork of the generation hop, not the listening

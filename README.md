@@ -15,7 +15,7 @@ Questions? See the [FAQ](FAQ.md).
 
 ## See It in Action
 
-![Listening to two takes in iTerm2 panes beside Claude Code, with the track's lyrics below](https://github.com/user-attachments/assets/listen-demo-gif-pending)
+![Listening to two takes in iTerm2 panes beside Claude Code, with the track's lyrics below](docs/images/listen-iterm2.gif)
 
 `/bitwize-music:listen the-nub 02 --iterm2` opens both takes of a track as Suno players beside the session, with the track's lyrics underneath, so you can hear them side by side without leaving the terminal.
 

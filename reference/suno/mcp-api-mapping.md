@@ -210,7 +210,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **iTerm2 panes** (`iterm2_browser`; measured on iTerm2 3.6.6)
 
-![Two takes playing in iTerm2 panes beside Claude Code, with the track's lyrics below](https://github.com/user-attachments/assets/listen-demo-gif-pending)
+![Two takes playing in iTerm2 panes beside Claude Code, with the track's lyrics below](../../docs/images/listen-iterm2.gif)
 
 - Needs macOS, iTerm2 3.6 or later and iTerm2's [Browser Plugin](https://iterm2.com/browser-plugin.html). Anywhere else — another terminal, tmux, an older iTerm2, no plugin, AppleScript refused — the takes open in the web browser and the tool says why.
 - Each take opens as Suno's compact player, `https://suno.com/embed/<clip id>`, whose play button is at the top of the pane; on the full song page it is a scroll away. A share link from before MCP generation has no compact player and opens as the full page.
