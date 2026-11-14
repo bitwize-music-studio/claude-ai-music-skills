@@ -1,0 +1,7 @@
+# Scripts a POSIX shell runs keep LF line endings on every checkout. bash
+# rejects a carriage return at the end of a line, and a Windows checkout with
+# core.autocrlf adds one: that broke the nightly WSL2 suite, which checks the
+# repo out on Windows and runs it inside WSL2 (#628).
+*.sh text eol=lf
+hooks/pre-commit text eol=lf
+servers/bitwize-music-server/mcp-launch text eol=lf
