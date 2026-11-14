@@ -64,6 +64,7 @@ Offer the fix for each item, and rebuild after any change:
 | `artist.legal_name`, `release.ai_disclosure` | `/bitwize-music:configure`, or edit `~/.bitwize-music/config.yaml`. The AI answer is the user's own statement: ask, never pick |
 | release date | the album README's `release_date` |
 | titles, explicit flags, Streaming Lyrics | the track files (`/bitwize-music:lyric-writer` for lyrics) |
+| an ISRC or UPC that isn't one | the track's `isrc:` or the album README's `upc:`: copy the code from the distributor, or delete the line and DistroKid assigns one |
 
 ## Remember
 

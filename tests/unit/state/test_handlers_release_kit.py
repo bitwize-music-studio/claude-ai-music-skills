@@ -21,6 +21,7 @@ for _path in (PROJECT_ROOT, SERVER_DIR):
 
 from handlers import _shared as shared_mod
 from handlers import release_kit as kit_mod
+from tools.release.kit import LEAVE_BLANK
 
 pytestmark = pytest.mark.unit
 
@@ -104,20 +105,20 @@ def album(tmp_path, monkeypatch):
                  np.zeros((800, 2), dtype=np.float32), 8000, subtype="PCM_24")
     Image.new("RGB", (3000, 3000)).save(audio / "album.png")
 
-    tracks = {
-        "01-harbor": {"path": str(content / "tracks" / "01-harbor.md"), "title": "Harbor",
-                      "status": "Final", "explicit": False},
-        "02-tide": {"path": str(content / "tracks" / "02-tide.md"), "title": "Tide",
-                    "status": "Final", "explicit": False},
-    }
-    state = {
-        "config": {"audio_root": str(tmp_path / "audio"), "artist_name": "bitwize"},
-        "albums": {"paper-boats": {
-            "path": str(content), "genre": "folk", "title": "Paper Boats",
-            "status": "Complete", "explicit": False, "tracks": tracks,
-        }},
-    }
-    monkeypatch.setattr(shared_mod, "cache", _FakeCache(state))
+    def refresh() -> dict:
+        """Index the album as the server does: the state comes from the files, not by hand."""
+        from tools.state.indexer import build_state
+
+        state = build_state({
+            "artist": {"name": "bitwize"},
+            "paths": {"content_root": str(tmp_path / "content"),
+                      "audio_root": str(tmp_path / "audio"),
+                      "documents_root": str(tmp_path / "documents")},
+        }, plugin_root=tmp_path)
+        monkeypatch.setattr(shared_mod, "cache", _FakeCache(state))
+        return state
+
+    refresh()
     import tools.shared.config as config_mod
     monkeypatch.setattr(config_mod, "load_config", lambda *a, **k: {
         "artist": {"name": "bitwize", "legal_name": "Jane Q. Writer"},
@@ -125,7 +126,7 @@ def album(tmp_path, monkeypatch):
     })
     opened: list[str] = []
     monkeypatch.setattr(kit_mod.webbrowser, "open_new_tab", lambda url: opened.append(url) or True)
-    return {"audio": audio, "opened": opened}
+    return {"audio": audio, "content": content, "opened": opened, "refresh": refresh}
 
 
 def _build(**kwargs) -> dict:
@@ -211,3 +212,41 @@ def test_an_unknown_album_is_an_error(album):
 def test_an_album_without_an_audio_folder_is_an_error(album):
     shutil.rmtree(album["audio"])
     assert "error" in _build(open_page=False)
+
+
+def _add_frontmatter(path: Path, lines: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    text = "---\n" + lines + text[4:] if text.startswith("---\n") else f"---\n{lines}---\n{text}"
+    path.write_text(text, encoding="utf-8")
+
+
+def _distrokid(audio: Path, block: int) -> dict:
+    data = json.loads((audio / "release-kit.json").read_text(encoding="utf-8"))
+    return {f["label"]: f["value"] for f in data["distrokid"][block]["fields"]}
+
+
+def test_the_codes_are_the_ones_the_masters_get(album):
+    """ISRC and UPC go through the parser's rule, as the cached codes master_album embeds do."""
+    _add_frontmatter(album["content"] / "README.md", 'upc: "1234-5678-9012"\n')
+    _add_frontmatter(album["content"] / "tracks" / "01-harbor.md", 'isrc: "us-abc-23-00001"\n')
+    state = album["refresh"]()
+    cached = state["albums"]["paper-boats"]
+    assert (cached["upc"], cached["tracks"]["01-harbor"]["isrc"]) == ("123456789012", "USABC2300001")
+
+    result = _build(open_page=False)
+    assert _distrokid(album["audio"], 0)["UPC"] == "123456789012"
+    assert _distrokid(album["audio"], 1)["ISRC"] == "USABC2300001"
+    assert result["checks"]["warn"] == 0, result["checks"]["items"]
+
+
+def test_a_code_that_isnt_one_is_left_blank_and_flagged(album):
+    _add_frontmatter(album["content"] / "README.md", 'upc: "TBD"\n')
+    _add_frontmatter(album["content"] / "tracks" / "01-harbor.md", 'isrc: "pending"\n')
+    album["refresh"]()
+
+    result = _build(open_page=False)
+    assert _distrokid(album["audio"], 0)["UPC"] == LEAVE_BLANK
+    assert _distrokid(album["audio"], 1)["ISRC"] == LEAVE_BLANK
+    warnings = [c["message"] for c in result["checks"]["items"] if c["level"] == "warn"]
+    assert [w.split(" isn't")[0] for w in warnings] == ["UPC 'TBD' in the album README",
+                                                       "Track 1 (Harbor) ISRC 'pending'"]

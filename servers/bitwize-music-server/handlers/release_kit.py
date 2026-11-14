@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import webbrowser
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -26,7 +27,12 @@ from handlers._shared import (
 from tools.playback import iterm as _iterm
 from tools.release.kit import UNREADABLE, AlbumFacts, TrackFacts, build_kit
 from tools.release.kit_page import render_html, render_json
-from tools.state.parsers import _extract_table_value, parse_frontmatter
+from tools.state.parsers import (
+    _extract_table_value,
+    normalize_isrc,
+    normalize_upc,
+    parse_frontmatter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +104,7 @@ async def _gather(slug: str, album: dict[str, Any], audio_dir: Path) -> AlbumFac
     frontmatter = parse_frontmatter(readme) if readme else {}
     genre, subgenre = _genres(readme, str(album.get("genre") or ""))
     tags = _tags(frontmatter.get("tags"), genre)
+    upc, upc_ignored = _code(frontmatter.get("upc"), normalize_upc)
 
     mastered = audio_dir / "mastered"
     entries = album.get("tracks") or {}
@@ -124,12 +131,13 @@ async def _gather(slug: str, album: dict[str, Any], audio_dir: Path) -> AlbumFac
         tags=tags,
         description=_concept(readme),
         explicit=bool(album.get("explicit", False)),
-        upc=str(frontmatter.get("upc") or ""),
+        upc=upc,
         cover=str(cover) if cover else "",
         cover_size=_image_size(cover) if cover else None,
         mastered_dir=str(mastered),
         stray_wavs=stray,
         tracks=tuple(tracks),
+        upc_ignored=upc_ignored,
     )
 
 
@@ -145,6 +153,7 @@ async def _track(number: int, t_slug: str, entry: dict[str, Any], mastered: Path
     explicit_found = None
     if lyrics and not instrumental:
         explicit_found = bool(json.loads(await check_explicit_content(lyrics)).get("has_explicit"))
+    isrc, isrc_ignored = _code((parse_frontmatter(text) if text else {}).get("isrc"), normalize_isrc)
     match = _TRACK_NUMBER_RE.match(t_slug)
     wav = mastered / f"{t_slug}.wav"
     return TrackFacts(
@@ -155,12 +164,26 @@ async def _track(number: int, t_slug: str, entry: dict[str, Any], mastered: Path
         explicit=bool(entry.get("explicit", False)),
         instrumental=instrumental,
         lyrics=lyrics,
-        isrc=str((parse_frontmatter(text) if text else {}).get("isrc") or ""),
+        isrc=isrc,
+        isrc_ignored=isrc_ignored,
         wav=str(wav) if wav.is_file() else "",
         wav_format=_wav_format(wav),
         lyrics_problems=problems,
         explicit_found=explicit_found,
     )
+
+
+def _code(value: Any, normalize: Callable[[Any], str | None]) -> tuple[str, str]:
+    """A release code as master_album embeds it, and the file's value when it isn't one.
+
+    The parser's rule, so the kit and the masters agree: "us-abc-23-00001"
+    becomes USABC2300001, and "pending" is left out (and reported). Blank
+    means absent.
+    """
+    if value is None or not str(value).strip():
+        return "", ""
+    code = normalize(value)
+    return (code, "") if code else ("", str(value).strip())
 
 
 async def _lyrics_problems(slug: str) -> dict[str, tuple[str, ...]]:

@@ -169,6 +169,18 @@ class TestChecks:
         assert _messages(facts, WARN) == [
             "The cover is 2508×2508, under the 3000×3000 stores recommend"]
 
+    def test_a_code_that_isnt_one_is_left_blank_with_a_warning(self):
+        facts = _facts(upc_ignored="TBD", tracks=(_track(1, isrc_ignored="pending"),))
+        assert _messages(facts, WARN) == [
+            "UPC 'TBD' in the album README isn't a UPC (12 or 13 digits): fix it, "
+            "or the field stays blank and DistroKid assigns one",
+            "Track 1 (Harbor) ISRC 'pending' isn't an ISRC (12 characters, like "
+            "USABC2300001): fix it, or the field stays blank and DistroKid assigns one",
+        ]
+        kit = build_kit(facts, TODAY)
+        assert _fields(kit.distrokid[0])["UPC"] == LEAVE_BLANK
+        assert _fields(kit.distrokid[1])["ISRC"] == LEAVE_BLANK
+
     def test_missing_config(self):
         assert _messages(_facts(legal_name="", ai_disclosure=None), FAIL) == [
             "Set artist.legal_name in config: DistroKid needs the songwriter's real name",

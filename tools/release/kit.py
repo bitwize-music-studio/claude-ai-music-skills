@@ -41,6 +41,8 @@ class TrackFacts:
     instrumental: bool
     lyrics: str = ""
     isrc: str = ""
+    # The file's isrc value when it isn't an ISRC: ISRC is left blank and a check warns.
+    isrc_ignored: str = ""
     wav: str = ""
     wav_format: str = ""
     lyrics_problems: tuple[str, ...] = ()
@@ -71,6 +73,8 @@ class AlbumFacts:
     mastered_dir: str
     stray_wavs: tuple[str, ...]
     tracks: tuple[TrackFacts, ...]
+    # The README's upc value when it isn't a UPC: UPC is left blank and a check warns.
+    upc_ignored: str = ""
 
 
 @dataclass(frozen=True)
@@ -214,6 +218,9 @@ def _soundcloud(f: AlbumFacts) -> tuple[Block, ...]:
     return (Block("Album (playlist)", tuple(album_fields)), *tracks)
 
 
+_FIX_OR_LEAVE_BLANK = "fix it, or the field stays blank and DistroKid assigns one"
+
+
 def run_checks(f: AlbumFacts, today: date) -> tuple[Check, ...]:
     """Everything to clear before uploading, failures first. Never raises."""
     checks: list[Check] = []
@@ -234,6 +241,9 @@ def run_checks(f: AlbumFacts, today: date) -> tuple[Check, ...]:
             "question ([] for none)",
         ))
     checks += _date_checks(f.release_date, today)
+    if f.upc_ignored:
+        checks.append(Check(WARN, f"UPC {f.upc_ignored!r} in the album README isn't a UPC "
+                                  f"(12 or 13 digits): {_FIX_OR_LEAVE_BLANK}"))
     checks += _title_checks("Album title", f.title)
     for t in f.tracks:
         checks += _title_checks(f"Track {t.number} title", t.title)
@@ -303,4 +313,7 @@ def _track_checks(t: TrackFacts) -> list[Check]:
             checks.append(Check(WARN, f"{name} has no Streaming Lyrics"))
         elif t.lyrics_problems:
             checks.append(Check(WARN, f"{name} Streaming Lyrics: " + "; ".join(t.lyrics_problems)))
+    if t.isrc_ignored:
+        checks.append(Check(WARN, f"{name} ISRC {t.isrc_ignored!r} isn't an ISRC "
+                                  f"(12 characters, like USABC2300001): {_FIX_OR_LEAVE_BLANK}"))
     return checks
