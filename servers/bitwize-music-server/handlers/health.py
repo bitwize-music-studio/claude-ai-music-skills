@@ -544,7 +544,7 @@ def _check_state_cache() -> dict[str, Any]:
         return {"name": "state_cache", "status": "fail",
                 "detail": f"Cannot parse state.json: {e}"}
 
-    version = data.get("schema_version", "unknown")
+    version = data.get("version", "unknown")
     album_count = len(data.get("albums", {}))
     return {"name": "state_cache", "status": "ok",
             "detail": f"Schema {version}, {album_count} album(s)"}
@@ -587,10 +587,12 @@ def _check_ffmpeg() -> dict[str, Any]:
 
 def _check_database() -> dict[str, Any]:
     """Check database connectivity if enabled."""
-    state = _shared.cache.get_state()
-    db_config = state.get("config", {}).get("database", {})
+    # From config.yaml itself: the state cache keeps only enabled, host and
+    # name, and leaves the login out on purpose.
+    from tools.database.connection import get_db_config
 
-    if not db_config.get("enabled"):
+    db_config = get_db_config()
+    if not db_config:
         return {"name": "database", "status": "ok",
                 "detail": "Not enabled (optional)"}
 
@@ -621,23 +623,24 @@ def _check_database() -> dict[str, Any]:
 
 def _check_cloud() -> dict[str, Any]:
     """Check cloud config if enabled."""
-    state = _shared.cache.get_state()
-    cloud = state.get("config", {}).get("cloud", {})
+    # From config.yaml itself: the state cache doesn't keep the cloud section.
+    from tools.shared.config import coerce_yaml_bool, load_config
 
-    if not cloud.get("enabled"):
+    cloud = (load_config() or {}).get("cloud") or {}
+    if not coerce_yaml_bool(cloud.get("enabled", False), default=False, context="cloud.enabled"):
         return {"name": "cloud", "status": "ok",
                 "detail": "Not enabled (optional)"}
 
     provider = cloud.get("provider", "")
     if provider == "r2":
-        r2 = cloud.get("r2", {})
+        r2 = cloud.get("r2") or {}
         missing = [f for f in ("account_id", "access_key_id", "secret_access_key", "bucket")
                    if not r2.get(f)]
         if missing:
             return {"name": "cloud", "status": "fail",
                     "detail": f"R2 enabled but missing: {', '.join(missing)}"}
     elif provider == "s3":
-        s3 = cloud.get("s3", {})
+        s3 = cloud.get("s3") or {}
         missing = [f for f in ("access_key_id", "secret_access_key", "bucket")
                    if not s3.get(f)]
         if missing:
