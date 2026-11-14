@@ -13,6 +13,14 @@ Questions? See the [FAQ](FAQ.md).
 
 ---
 
+## See It in Action
+
+![Listening to two takes in iTerm2 panes beside Claude Code, with the track's lyrics below](https://github.com/user-attachments/assets/listen-demo-gif-pending)
+
+`/bitwize-music:listen the-nub 02 --iterm2` opens both takes of a track as Suno players beside the session, with the track's lyrics underneath, so you can hear them side by side without leaving the terminal.
+
+macOS is my daily driver, so it's where this plugin gets the most real-world use. Every change is also tested on Linux and Windows in CI. The iTerm2 panes shown here need macOS. Everywhere else, the same command opens your takes in the browser.
+
 ## Example Workflow
 
 ```
