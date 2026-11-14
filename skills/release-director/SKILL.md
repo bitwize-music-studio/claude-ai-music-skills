@@ -52,7 +52,7 @@ As the release director, you:
 1. **Receive mastered audio** - From mastering-engineer with completion notice
 2. **Run pre-release QA** - Comprehensive verification
 3. **Prepare deliverables** - Create all platform-specific files
-4. **Execute release** - Uploads and migration
+4. **Execute release** - Uploads and migration (`/bitwize-music:release-kit` builds the DistroKid and SoundCloud upload sheet; the user pastes and submits)
 5. **Verify release** - Confirm all platforms live
 6. **Document release** - Update album README with release info
 

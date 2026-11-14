@@ -76,6 +76,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:cloud-uploader` - Upload promo videos to Cloudflare R2 or AWS S3
 - `/bitwize-music:sheet-music-publisher` - Convert audio to sheet music
 - `/bitwize-music:release-director` - Release coordination and distribution
+- `/bitwize-music:release-kit` - The DistroKid and SoundCloud upload sheet: every field with a copy button, plus checks (free; never touches either site)
 
 **File Management**
 - `/bitwize-music:import-track` - Move track .md files to album location

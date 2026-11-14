@@ -440,6 +440,15 @@ class TestParseReleaseCodes:
     def test_no_upc_or_not_a_upc_leaves_it_unset(self, tmp_path, line):
         assert "upc" not in self._album(tmp_path, line)
 
+    def test_the_rules_are_public_for_other_readers(self):
+        """The release kit applies the same rules to the codes it shows."""
+        from tools.state.parsers import normalize_isrc, normalize_upc
+
+        assert normalize_isrc("us-abc-23-00001") == "USABC2300001"
+        assert normalize_isrc("pending") is None
+        assert normalize_upc(123456789012) == "123456789012"
+        assert normalize_upc("TBD") is None
+
 
 class TestParseIdeasFile:
     """Tests for parse_ideas_file()."""

@@ -1,6 +1,6 @@
 # Skills Reference
 
-All 60 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
+All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them automatically when relevant.
 
 ---
 
@@ -65,6 +65,7 @@ The research system is coordinated by a lead `/researcher` skill that dispatches
 | `cloud-uploader` | Upload promo content to Cloudflare R2 or AWS S3 |
 | `sheet-music-publisher` | Convert audio to sheet music, create printable songbooks |
 | `release-director` | QA, distribution prep, platform uploads |
+| `release-kit` | Everything the DistroKid and SoundCloud upload forms ask for, on one page with copy buttons and pre-upload checks |
 
 ## Album Management
 

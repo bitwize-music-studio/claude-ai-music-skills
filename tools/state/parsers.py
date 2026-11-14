@@ -53,6 +53,16 @@ def _release_code(value: Any, pattern: re.Pattern[str]) -> str | None:
     return code if pattern.fullmatch(code) else None
 
 
+def normalize_isrc(value: Any) -> str | None:
+    """*value* as a compact upper-case ISRC (USABC2300001), or None when it isn't one."""
+    return _release_code(value, _RE_ISRC)
+
+
+def normalize_upc(value: Any) -> str | None:
+    """*value* as a 12-digit UPC or 13-digit EAN without separators, or None when it isn't one."""
+    return _release_code(value, _RE_UPC)
+
+
 def _frontmatter_bool(value: Any, default: bool = False, context: str = "explicit") -> bool:
     """Coerce a frontmatter boolean, honoring quoted strings.
 
@@ -214,7 +224,7 @@ def parse_album_readme(path: Path) -> dict[str, Any]:
     else:
         result['title'] = _extract_heading(text)
     result['release_date'] = fm.get('release_date') or None
-    upc = _release_code(fm.get('upc'), _RE_UPC)
+    upc = normalize_upc(fm.get('upc'))
     if upc:
         result['upc'] = upc
     result['explicit'] = _frontmatter_bool(fm.get('explicit', False))
@@ -479,7 +489,7 @@ def parse_track_file(path: Path) -> dict[str, Any]:
         result['fade_out'] = seconds if seconds > 0 else None
 
     # ISRC, once the distributor has assigned one; master_album embeds it.
-    isrc = _release_code(fm.get('isrc'), _RE_ISRC)
+    isrc = normalize_isrc(fm.get('isrc'))
     if isrc:
         result['isrc'] = isrc
 

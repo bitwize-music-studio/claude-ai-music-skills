@@ -125,6 +125,15 @@ artist:
   #
   # label: "Your Label"
 
+  # ---------------------------
+  # legal_name [optional]
+  # ---------------------------
+  # Your real name, for songwriter credits: DistroKid asks for it on every
+  # track, and SoundCloud has a Composer field. Used by
+  # /bitwize-music:release-kit. Kept here, out of the content repo.
+  #
+  # legal_name: "Your Legal Name"
+
 
 # =============================================================================
 # PATHS [REQUIRED]
@@ -309,6 +318,19 @@ urls:
 
   # Other platforms
   # linktree: "https://linktr.ee/your-artist"
+
+
+# =============================================================================
+# RELEASE [optional]
+# =============================================================================
+# Your standard answers for upload forms, used by /bitwize-music:release-kit.
+
+# release:
+#   # What you tick on DistroKid's AI question, word for word as you want it
+#   # shown on the kit page. [] means no AI.
+#   ai_disclosure: ["Vocals", "Instrumental", "Composition", "Lyrics"]
+#   # The release language (default: English).
+#   language: "English"
 
 
 # =============================================================================

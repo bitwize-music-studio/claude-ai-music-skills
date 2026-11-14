@@ -732,3 +732,58 @@ class TestFilesLeftByOtherSessions:
         result = iterm.open_in_panes([SONG_B])
         assert result["panes"] == [NEW_PANES[1]]
         assert theirs.exists()
+
+
+# ===========================================================================
+# A local page (the release kit)
+# ===========================================================================
+
+
+class TestOpenPageInPane:
+    """A local page joins this session's panes; nothing closes to make room."""
+
+    @staticmethod
+    def _page(tmp_path):
+        page = tmp_path / "release-kit.html"
+        page.write_text("<!doctype html><title>kit</title>", encoding="utf-8")
+        return page
+
+    def test_opens_beside_the_session_and_closes_nothing(self, rig, tmp_path):
+        iterm.open_in_panes([SONG_A])  # a player is already open
+        page = self._page(tmp_path)
+
+        result = iterm.open_page_in_pane(page)
+
+        assert rig.of("close") == []
+        assert rig.of("split")[-1][0] == OWN_PANE
+        assert rig.of("split")[-1][2] == "vertical"
+        assert result == {"pane": NEW_PANES[1], "page": page.resolve().as_uri()}
+        assert json.loads(iterm.panes_path().read_text(encoding="utf-8")) == NEW_PANES[:2]
+        assert [p["Initial URL"] for p in _profiles()] == [
+            f"https://suno.com/embed/{CLIP_A}", page.resolve().as_uri()]
+        assert rig.of("select")[-1] == (OWN_PANE,)
+
+    def test_closing_the_players_closes_the_page_too(self, rig, tmp_path):
+        iterm.open_page_in_pane(self._page(tmp_path))
+        assert iterm.close_panes() == {"closed": 1}
+
+    def test_opening_it_twice_keeps_one_profile(self, rig, tmp_path):
+        page = self._page(tmp_path)
+        iterm.open_page_in_pane(page)
+        iterm.open_page_in_pane(page)
+        assert len(_profiles()) == 1
+
+    @pytest.mark.parametrize("name, body", [("kit.txt", "x"), ("missing.html", None)])
+    def test_only_an_existing_local_html_file(self, rig, tmp_path, name, body):
+        page = tmp_path / name
+        if body is not None:
+            page.write_text(body, encoding="utf-8")
+        with pytest.raises(iterm.ItermError, match="not a local HTML page"):
+            iterm.open_page_in_pane(page)
+        assert rig.calls == []
+
+    def test_unavailable_raises_with_the_reason(self, rig, tmp_path, monkeypatch):
+        monkeypatch.setenv("TERM_PROGRAM", "Apple_Terminal")
+        with pytest.raises(iterm.ItermError, match="not running inside iTerm2"):
+            iterm.open_page_in_pane(self._page(tmp_path))
+        assert rig.calls == []
