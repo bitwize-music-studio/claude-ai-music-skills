@@ -6,7 +6,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
-## [0.104.0] - 2026-11-10
+## [0.104.0] - 2026-11-14
 
 ### Added
 - **`/bitwize-music:release-kit` makes uploading an album pasting, not typing** — `build_release_kit` writes `release-kit.html` and `release-kit.json` beside `mastered/`. The page has a DistroKid tab and a SoundCloud tab, each listing every value its upload form asks for with a copy button: album details, credits, ℗/© lines, genre, tags, the Concept as the description, per-track titles, explicit and instrumental flags, Streaming Lyrics, and the audio and cover paths. ISRC and UPC come from the track and album files by the rule the masters' metadata uses, so both get the same code; a value that isn't one is left blank, with a warning. Checks come first: masters for every track and no strays, a square cover (a warning under 3000×3000), the config values in place, the release date, title rules, explicit flags against the lyrics, and Streaming Lyrics. Two new config fields hold what DistroKid needs from you: `artist.legal_name` for songwriter credits and `release.ai_disclosure` for your standard AI answer. Both stay out of the content repo. The page opens in an iTerm2 pane beside the session where panes work, and in the browser elsewhere. Nothing touches either site: DistroKid's terms bar scripts, so you paste and submit.
