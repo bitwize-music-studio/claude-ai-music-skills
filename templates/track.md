@@ -12,6 +12,9 @@ explicit: false
 # /bitwize-music:generate then sends the Lyrics Box to Suno's speech tool as a
 # script, spoken word for word, and the Style Box as delivery tags.
 # spoken: true
+# Optional. The track's ISRC, once your distributor has assigned one (DistroKid
+# shows it after the upload). master_album embeds it in the mastered WAV.
+# isrc: ""
 suno_url: ""
 sheet_music:
   pdf: ""
@@ -35,9 +38,16 @@ sheet_music:
 | **Explicit** | Yes / No |
 | **POV** | [Character/Perspective] |
 | **Role** | [Track's role in the album narrative] |
-| **Fade Out** | 5s |
+| **Fade Out** | 3s |
 | **Target Duration** | — |
 | **Sources Verified** | ❌ Pending |
+
+<!--
+FADE OUT: seconds of fade-out mastering adds to the end of the track (e.g. 3s, 8s).
+- 0, — or No = no fade: hard endings, cold stops, seamless loops
+- Only a number at the start counts: "No (loops to track 1)" means no fade
+- Without this row, mastering fades 3s
+-->
 
 <!--
 SOURCE VERIFICATION: Required for tracks with source material (quotes, real events, etc.)

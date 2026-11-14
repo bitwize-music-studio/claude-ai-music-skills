@@ -338,6 +338,18 @@ player (Music, VLC, foobar2000) plays the mastered album straight through.
 It sits beside `mastered/`, never inside, so the upload stays WAV-only. Give
 its path when reporting a finished master. Resetting `mastered/` removes it.
 
+### Fade-outs
+
+Each track's **Fade Out** row decides the fade mastering adds to its end:
+seconds (`3s`, `8s`) fade that long, while `0`, `—` or `No …` mean no fade
+(hard endings, cold stops, seamless loops). A track with no row fades 3 s.
+Every path that masters a track from its source applies the same fade:
+`master_album` (including coherence correction and auto-recovery),
+`master_audio`, `album_coherence_correct` and `fix_dynamic_track`. The fade
+curve is cubic, so a 3 s fade sounds closer to 2 s; set a longer one on a
+track that should fade musically. Before mastering a loop or a hard ending,
+check that its row says no fade.
+
 Configurable thresholds live in `tools/mastering/genre-presets.yaml`
 under `defaults:` (`mono_fold_band_drop_fail_db`, etc.) — override per-user
 in `~/.bitwize-music/overrides/mastering-presets.yaml`.

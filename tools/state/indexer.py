@@ -100,7 +100,7 @@ from tools.state.parsers import (
 logger = logging.getLogger(__name__)
 
 # Schema version for state.json
-CURRENT_VERSION = "1.4.0"
+CURRENT_VERSION = "1.5.0"
 
 # Cache location (constant, not configurable)
 CACHE_DIR = Path.home() / ".bitwize-music" / "cache"
@@ -209,6 +209,25 @@ def _migrate_1_3_to_1_4(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _migrate_1_4_to_1_5(state: dict[str, Any]) -> dict[str, Any]:
+    """Migrate state from 1.4.0 to 1.5.0: re-read every track for its Fade Out.
+
+    1.5.0 caches each track's Fade Out row and ISRC and each album's UPC,
+    which mastering reads; before it, none reached the cache. Clearing the
+    cached README and track mtimes makes the next incremental update re-parse
+    every album and track file, instead of leaving the fields missing until
+    each file changes. (The MCP server rebuilds the
+    whole cache on any version change instead.)
+    """
+    for album in (state.get('albums') or {}).values():
+        if isinstance(album, dict):
+            album['readme_mtime'] = 0.0
+            for track in (album.get('tracks') or {}).values():
+                if isinstance(track, dict):
+                    track['mtime'] = 0.0
+    return state
+
+
 # Migration chain for schema upgrades
 # Format: "from_version": (migration_fn, "to_version")
 MIGRATIONS: dict[str, tuple[Any, str]] = {
@@ -216,6 +235,7 @@ MIGRATIONS: dict[str, tuple[Any, str]] = {
     "1.1.0": (_migrate_1_1_to_1_2, "1.2.0"),
     "1.2.0": (_migrate_1_2_to_1_3, "1.3.0"),
     "1.3.0": (_migrate_1_3_to_1_4, "1.4.0"),
+    "1.4.0": (_migrate_1_4_to_1_5, "1.5.0"),
 }
 
 
@@ -463,24 +483,8 @@ def scan_albums(
             except OSError:
                 continue  # File removed between glob and stat
 
-            albums[album_slug] = {
-                'path': str(album_dir),
-                'genre': album_dir.parent.name,
-                'title': album_data.get('title', album_slug),
-                'status': album_data.get('status', 'Unknown'),
-                'explicit': album_data.get('explicit', False),
-                'anchor_track': album_data.get('anchor_track'),
-                'layout': album_data.get('layout'),
-                'suno_workspace': album_data.get('suno_workspace'),
-                'suno_playlist': album_data.get('suno_playlist'),
-                'mastering': album_data.get('mastering') or {},
-                'release_date': album_data.get('release_date'),
-                'track_count': album_data.get('track_count', len(tracks)),
-                'tracks_completed': _count_completed_tracks(tracks),
-                'streaming_urls': album_data.get('streaming_urls', {}),
-                'readme_mtime': readme_mtime,
-                'tracks': tracks,
-            }
+            albums[album_slug] = _album_entry(
+                album_dir, album_data, album_slug, album_dir.parent.name, readme_mtime, tracks)
             winner_dir = album_dir
             break  # remaining same-slug dirs are shadowed, never parsed
 
@@ -511,6 +515,60 @@ def scan_albums(
     return albums
 
 
+def _album_entry(album_dir: Path, album_data: dict[str, Any], slug: str, genre: str,
+                 readme_mtime: float, tracks: dict[str, Any]) -> dict[str, Any]:
+    """The cached entry for one album, built alike by full and incremental scans.
+
+    ``upc`` is copied only when the README's frontmatter holds a valid one.
+    """
+    entry: dict[str, Any] = {
+        'path': str(album_dir),
+        'genre': genre,
+        'title': album_data.get('title', slug),
+        'status': album_data.get('status', 'Unknown'),
+        'explicit': album_data.get('explicit', False),
+        'anchor_track': album_data.get('anchor_track'),
+        'layout': album_data.get('layout'),
+        'suno_workspace': album_data.get('suno_workspace'),
+        'suno_playlist': album_data.get('suno_playlist'),
+        'mastering': album_data.get('mastering') or {},
+        'release_date': album_data.get('release_date'),
+        'track_count': album_data.get('track_count', len(tracks)),
+        'tracks_completed': _count_completed_tracks(tracks),
+        'streaming_urls': album_data.get('streaming_urls', {}),
+        'readme_mtime': readme_mtime,
+        'tracks': tracks,
+    }
+    if album_data.get('upc'):
+        entry['upc'] = album_data['upc']
+    return entry
+
+
+def _track_entry(track_path: Path, track_data: dict[str, Any], slug: str,
+                 mtime: float) -> dict[str, Any]:
+    """The cached entry for one track, built alike by full and incremental scans.
+
+    ``fade_out`` is copied only when the track file has a Fade Out row: an
+    absent key means the track never said (mastering applies its default),
+    while None means no fade.
+    """
+    entry: dict[str, Any] = {
+        'path': str(track_path),
+        'title': track_data.get('title', slug),
+        'status': track_data.get('status', 'Unknown'),
+        'explicit': track_data.get('explicit', False),
+        'has_suno_link': track_data.get('has_suno_link', False),
+        'sources_verified': track_data.get('sources_verified', 'N/A'),
+        'genre': track_data.get('genre', ''),
+        'mtime': mtime,
+    }
+    if 'fade_out' in track_data:
+        entry['fade_out'] = track_data['fade_out']
+    if track_data.get('isrc'):
+        entry['isrc'] = track_data['isrc']
+    return entry
+
+
 def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
     """Scan all track files in an album's tracks/ directory.
 
@@ -539,16 +597,7 @@ def scan_tracks(album_dir: Path) -> dict[str, dict[str, Any]]:
         except OSError:
             continue  # File removed between glob and stat
 
-        tracks[track_slug] = {
-            'path': str(track_path),
-            'title': track_data.get('title', track_slug),
-            'status': track_data.get('status', 'Unknown'),
-            'explicit': track_data.get('explicit', False),
-            'has_suno_link': track_data.get('has_suno_link', False),
-            'sources_verified': track_data.get('sources_verified', 'N/A'),
-            'genre': track_data.get('genre', ''),
-            'mtime': track_mtime,
-        }
+        tracks[track_slug] = _track_entry(track_path, track_data, track_slug, track_mtime)
 
     return tracks
 
@@ -854,24 +903,8 @@ def incremental_update(
                 else:
                     tracks = scan_tracks(album_dir)
 
-                existing_albums[slug] = {
-                    'path': str(album_dir),
-                    'genre': genre,
-                    'title': album_data.get('title', slug),
-                    'status': album_data.get('status', 'Unknown'),
-                    'explicit': album_data.get('explicit', False),
-                    'anchor_track': album_data.get('anchor_track'),
-                    'layout': album_data.get('layout'),
-                    'suno_workspace': album_data.get('suno_workspace'),
-                    'suno_playlist': album_data.get('suno_playlist'),
-                    'mastering': album_data.get('mastering') or {},
-                    'release_date': album_data.get('release_date'),
-                    'track_count': album_data.get('track_count', len(tracks)),
-                    'tracks_completed': _count_completed_tracks(tracks),
-                    'streaming_urls': album_data.get('streaming_urls', {}),
-                    'readme_mtime': readme_mtime,
-                    'tracks': tracks,
-                }
+                existing_albums[slug] = _album_entry(
+                    album_dir, album_data, slug, genre, readme_mtime, tracks)
                 winner_dir = album_dir
                 break  # remaining same-slug dirs are shadowed
 
@@ -966,16 +999,7 @@ def _update_tracks_incremental(album: dict[str, Any], album_dir: Path) -> None:
         # Re-parse this track
         track_data = parse_track_file(track_path)
         if '_error' not in track_data:
-            existing_tracks[slug] = {
-                'path': str(track_path),
-                'title': track_data.get('title', slug),
-                'status': track_data.get('status', 'Unknown'),
-                'explicit': track_data.get('explicit', False),
-                'has_suno_link': track_data.get('has_suno_link', False),
-                'sources_verified': track_data.get('sources_verified', 'N/A'),
-                'genre': track_data.get('genre', ''),
-                'mtime': current_mtime,
-            }
+            existing_tracks[slug] = _track_entry(track_path, track_data, slug, current_mtime)
 
     # Remove tracks that no longer exist
     for slug in list(existing_tracks.keys()):

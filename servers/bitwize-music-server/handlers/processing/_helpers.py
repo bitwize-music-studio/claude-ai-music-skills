@@ -21,6 +21,22 @@ def _extract_track_number_from_stem(stem: str) -> int | None:
     return int(match.group(1)) if match else None
 
 
+def _track_fade_out(album_slug: str, wav_name: str) -> float | None:
+    """The fade-out to master the album's track *wav_name* with, or None for none.
+
+    Looks the track up in the state cache by slug, normalizing the album slug
+    and the WAV's stem, and applies fade_out_for_track: the track file's Fade
+    Out row, or the default when it has none. Every path that masters a track
+    from its source calls this, so they cannot disagree.
+    """
+    from tools.mastering.master_tracks import fade_out_for_track
+
+    state = _shared.cache.get_state() or {}
+    album = (state.get("albums") or {}).get(_normalize_slug(album_slug)) or {}
+    tracks = album.get("tracks") or {}
+    return fade_out_for_track(tracks.get(_normalize_slug(Path(wav_name).stem)))
+
+
 def _build_title_map(album_slug: str, wav_files: list[Path]) -> dict[str, str]:
     """Map WAV stems to clean titles from state cache, falling back to slug_to_title.
 

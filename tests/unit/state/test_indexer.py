@@ -3284,8 +3284,8 @@ class TestMigrate1_0To1_1:
         }
         result = migrate_state(state)
         assert result is not None
-        # Full chain: 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0
-        assert result['version'] == '1.4.0'
+        # Full chain: 1.0.0 → 1.1.0 → 1.2.0 → 1.3.0 → 1.4.0 → 1.5.0
+        assert result['version'] == '1.5.0'
         assert 'skills' in result
         assert result['skills']['count'] == 0
         assert result['skills']['items'] == {}
@@ -3563,7 +3563,7 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert 'plugin_version' in result
         assert result['plugin_version'] is None
 
@@ -3599,7 +3599,7 @@ class TestMigrate1_1To1_2:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert result['plugin_version'] == '0.43.0'
 
 
@@ -3643,7 +3643,7 @@ class TestMigrate1_2To1_3:
         """State from v1.2.0 gets album_collisions field via migration."""
         result = migrate_state(self._state_1_2())
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert result['album_collisions'] == []
 
     def test_migration_preserves_existing_album_collisions(self):
@@ -3655,7 +3655,7 @@ class TestMigrate1_2To1_3:
         }
         result = migrate_state(self._state_1_2(album_collisions=[collision]))
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert result['album_collisions'] == [collision]
 
     def test_full_chain_1_0_to_1_3(self):
@@ -3666,7 +3666,7 @@ class TestMigrate1_2To1_3:
         del state['skills']
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == CURRENT_VERSION == '1.4.0'
+        assert result['version'] == CURRENT_VERSION == '1.5.0'
         assert 'skills' in result
         assert 'plugin_version' in result
         assert result['album_collisions'] == []
@@ -3721,7 +3721,7 @@ class TestMigrate13To14:
         }
         result = migrate_state(self._state_1_3(albums))
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert result['albums']['my-album']['explicit'] is False
         assert result['albums']['my-album']['tracks']['01-track']['explicit'] is False
         assert result['albums']['my-album']['tracks']['02-track']['explicit'] is True
@@ -3738,6 +3738,104 @@ class TestMigrate13To14:
         assert result is not None
         assert result['albums']['a']['explicit'] is True
         assert result['albums']['a']['tracks']['t']['explicit'] is False
+
+
+def _album_with_fades(tmp_path, rows):
+    """An album folder whose tracks carry the given Fade Out rows (None = no row)."""
+    album_dir = tmp_path / "fade-album"
+    tracks_dir = album_dir / "tracks"
+    tracks_dir.mkdir(parents=True)
+    for slug, value in rows.items():
+        details = [f"| **Title** | {slug} |", "| **Status** | Generated |"]
+        if value is not None:
+            details.append(f"| **Fade Out** | {value} |")
+        (tracks_dir / f"{slug}.md").write_text(
+            f"# {slug}\n\n## Track Details\n\n| Attribute | Detail |\n"
+            "|-----------|--------|\n" + "\n".join(details) + "\n",
+            encoding="utf-8",
+        )
+    return album_dir
+
+
+FADE_ROWS = {"01-faded": "3s", "02-hard-stop": "—", "03-no-row": None}
+
+
+@pytest.mark.unit
+class TestTrackFadeOutInTheCache:
+    """The Fade Out row reaches the cached track, which is where mastering reads it.
+
+    Both track entries (full scan, incremental update) used to copy a fixed
+    list of fields without it, so master_album never saw a fade.
+    """
+
+    def test_a_full_scan_caches_it(self, tmp_path):
+        tracks = scan_tracks(_album_with_fades(tmp_path, FADE_ROWS))
+        assert tracks['01-faded']['fade_out'] == 3.0
+        assert tracks['02-hard-stop']['fade_out'] is None
+        assert 'fade_out' not in tracks['03-no-row']
+
+    def test_an_incremental_update_builds_the_same_entries(self, tmp_path):
+        """One builder for both, so the two can't drift apart again."""
+        album_dir = _album_with_fades(tmp_path, FADE_ROWS)
+        album: dict = {'tracks': {}}
+        _update_tracks_incremental(album, album_dir)
+        assert album['tracks'] == scan_tracks(album_dir)
+
+
+@pytest.mark.unit
+class TestMigrate14To15:
+    """1.4.0 → 1.5.0: caches made before tracks carried fade_out get re-read."""
+
+    def test_the_next_update_re_reads_every_track(self, tmp_path):
+        album_dir = _album_with_fades(tmp_path, FADE_ROWS)
+        tracks = scan_tracks(album_dir)
+        for track in tracks.values():
+            track.pop('fade_out', None)  # what a 1.4.0 cache holds
+        state = TestMigrate13To14()._state_1_3({'fade-album': {'tracks': tracks}})
+        state['version'] = '1.4.0'
+
+        migrated = migrate_state(state)
+
+        assert migrated is not None
+        assert migrated['version'] == CURRENT_VERSION == '1.5.0'
+        album = migrated['albums']['fade-album']
+        _update_tracks_incremental(album, album_dir)
+        assert album['tracks']['01-faded']['fade_out'] == 3.0
+        assert album['tracks']['02-hard-stop']['fade_out'] is None
+
+
+    def test_album_readmes_are_re_read_too(self):
+        """1.5.0 also caches an album's UPC, so READMEs are re-parsed as well."""
+        state = TestMigrate13To14()._state_1_3({'x': {'readme_mtime': 5.0, 'tracks': {}}})
+        state['version'] = '1.4.0'
+        migrated = migrate_state(state)
+        assert migrated is not None
+        assert migrated['albums']['x']['readme_mtime'] == 0.0
+
+
+@pytest.mark.unit
+class TestReleaseCodesInTheCache:
+    """The master's metadata stage embeds ISRC and UPC from the cache, which never kept them."""
+
+    def test_a_tracks_isrc_reaches_the_cache(self, tmp_path):
+        tracks_dir = tmp_path / "album" / "tracks"
+        tracks_dir.mkdir(parents=True)
+        (tracks_dir / "01-a.md").write_text('---\ntitle: A\nisrc: "QZABC2000001"\n---\n# A\n',
+                                           encoding="utf-8")
+        (tracks_dir / "02-b.md").write_text("---\ntitle: B\n---\n# B\n", encoding="utf-8")
+        tracks = scan_tracks(tmp_path / "album")
+        assert tracks["01-a"]["isrc"] == "QZABC2000001"
+        assert "isrc" not in tracks["02-b"]
+
+    def test_an_albums_upc_reaches_the_cache(self):
+        from tools.state.indexer import _album_entry
+
+        album_dir = Path("/content/albums/folk/paper-boats")
+        entry = _album_entry(album_dir, {"title": "Paper Boats", "upc": "123456789012"},
+                             "paper-boats", "folk", 1.0, {})
+        assert entry["upc"] == "123456789012"
+        assert entry["title"] == "Paper Boats"
+        assert "upc" not in _album_entry(album_dir, {"title": "Paper Boats"}, "paper-boats", "folk", 1.0, {})
 
 
 @pytest.mark.unit
@@ -3810,7 +3908,7 @@ class TestFullMigrationChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         # From 1.0→1.1 migration
         assert 'skills' in result
         assert result['skills']['count'] == 0
@@ -4028,7 +4126,7 @@ class TestMigrateStateChain:
         }
         result = migrate_state(state)
         assert result is not None
-        assert result['version'] == '1.4.0'
+        assert result['version'] == '1.5.0'
         assert result['plugin_version'] is None
 
     def test_migration_does_not_overwrite_existing_skills(self):
