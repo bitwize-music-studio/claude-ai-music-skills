@@ -455,8 +455,13 @@ def _get_rhyme_tail(word: str) -> str:
     - Vowel 'y' is folded to 'i' in the returned tail, so "rhyme"/"rhymes"
       ("yme") matches "time"/"times" ("ime").
 
+    - A one-syllable consonant + 'y' word ("cry", "sky", "why") keys as
+      "ie", the vowel sound of "lie" and "cries"; otherwise its tail would be
+      the single letter "i", which never groups.
+
     Examples: "night" -> "ight", "away" -> "ai", "desire" -> "ire",
-    "eyes" -> "ie", "cries" -> "ie", "times" -> "ime", "rhymes" -> "ime".
+    "eyes" -> "ie", "cries" -> "ie", "cry" -> "ie", "times" -> "ime",
+    "rhymes" -> "ime".
     """
     if not word:
         return ""
@@ -469,6 +474,19 @@ def _get_rhyme_tail(word: str) -> str:
         word = word[:-1]
 
     vowels = set("aeiouy")
+
+    # A one-syllable word spelled consonants + 'y' ("cry", "sky", "why",
+    # "my") ends on the vowel sound of "lie" and "cries". The nucleus search below
+    # finds only the final 'y' there, a one-letter tail that
+    # analyze_rhyme_scheme never groups, so key it as "ie" like those
+    # spellings. A 'y' after another vowel ("away") or in a longer word
+    # ("baby", "city", where it is unstressed /i/) is left to the scan.
+    if (
+        len(word) >= 2
+        and word.endswith("y")
+        and not any(c in vowels for c in word[:-1])
+    ):
+        return "ie"
 
     # Handle silent 'e' — if word ends with consonant + 'e', find the
     # vowel cluster before the 'e' but include 'e' in the returned tail
