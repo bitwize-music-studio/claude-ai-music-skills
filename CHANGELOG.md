@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **Album coherence checks the real anchor when a silent track was skipped** — `master_album` numbers its anchor among the source WAVs, but the coherence check and correct stages read that number against the mastered tracks, and mastering leaves out a silent source. With source 02 silent and 03 the anchor, the stages measured every track against 04 and re-mastered the on-target tracks toward it; an anchor at the end of the album ran past the shorter list and stopped the run with `ValueError: anchor_index_1based out of range`. The stages now find the anchor among the mastered tracks by filename, and say `anchor_not_mastered` when it has no mastered file.
+
 ## [0.104.1] - 2026-11-14
 
 ### Added
