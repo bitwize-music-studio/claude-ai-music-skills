@@ -1296,19 +1296,25 @@ def _anchor_position(
 
     ``anchor_result["selected_index"]`` numbers the tracks of
     ``ctx.analysis_results``, which holds every source WAV. The coherence
-    stages index ``verify_results``, built from the mastered files, and
-    mastering skips a silent source, so the same number can name a different
-    track there or run past its end. Find the anchor there by filename.
-    Without an analysis entry to name it, the index is used as given.
+    stages index ``verify_results``, which holds every WAV in ``mastered/``.
+    That list is longer when ``mastered/`` keeps a file no source matches
+    (the old master of a renamed or removed track) and shorter when mastering
+    skipped a source with no measurable loudness, so the same number can name
+    a different track there or run past its end. Find the anchor there by
+    filename.
+
+    Without an analysis entry to name the anchor (a frozen signature written
+    when the album had more tracks, say), the number is used as given, as
+    long as it fits ``results``.
     """
     anchor_idx = ctx.anchor_result.get("selected_index")
     if not isinstance(anchor_idx, int) or anchor_idx < 1:
         return None
-    if anchor_idx > len(ctx.analysis_results):
-        return anchor_idx
-    anchor_name = ctx.analysis_results[anchor_idx - 1].get("filename")
+    anchor_name: str | None = None
+    if anchor_idx <= len(ctx.analysis_results):
+        anchor_name = ctx.analysis_results[anchor_idx - 1].get("filename")
     if not anchor_name:
-        return anchor_idx
+        return anchor_idx if anchor_idx <= len(results) else None
     for pos, result in enumerate(results, start=1):
         if result.get("filename") == anchor_name:
             return pos
@@ -1344,7 +1350,7 @@ async def _stage_coherence_check(ctx: MasterAlbumCtx) -> str | None:
         return None
 
     # The anchor's place among the mastered tracks, which can differ from
-    # its number among the sources when mastering skipped a silent track.
+    # its number among the sources (see _anchor_position).
     anchor_pos = _anchor_position(ctx, ctx.verify_results)
     if anchor_pos is None:
         ctx.stages["coherence_check"] = {
