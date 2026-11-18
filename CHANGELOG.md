@@ -8,6 +8,7 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ### Fixed
 - **Album coherence checks the real anchor when a silent track was skipped** — `master_album` numbers its anchor among the source WAVs, but the coherence check and correct stages read that number against the mastered tracks, and mastering leaves out a silent source. With source 02 silent and 03 the anchor, the stages measured every track against 04 and re-mastered the on-target tracks toward it; an anchor at the end of the album ran past the shorter list and stopped the run with `ValueError: anchor_index_1based out of range`. The stages now find the anchor among the mastered tracks by filename, and say `anchor_not_mastered` when it has no mastered file.
+- **`analyze_rhyme_scheme` hears cry / sky / why as a rhyme** — a one-syllable end word spelled consonants + `y` got the one-letter rhyme key `i`, and the scheme only groups keys of two letters or more, so a chorus ending cry / sky / why came back as `ABC`, and two lines ending on the same word as `AB`. Such words now key as `ie`, the key `lie`, `eyes` and `cries` already had. Longer words ending in an unstressed `y` (`baby`, `city`) keep their key, and the two-letter floor that keeps `go` and `do` apart stays.
 
 ## [0.104.1] - 2026-11-14
 
