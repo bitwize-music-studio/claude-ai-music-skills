@@ -6,6 +6,9 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Fixed
+- **`analyze_rhyme_scheme` hears cry / sky / why as a rhyme** — a one-syllable end word spelled consonants + `y` got the one-letter rhyme key `i`, and the scheme only groups keys of two letters or more, so a chorus ending cry / sky / why came back as `ABC`, and two lines ending on the same word as `AB`. Such words now key as `ie`, the key `lie`, `eyes` and `cries` already had. Longer words ending in an unstressed `y` (`baby`, `city`) keep their key, and the two-letter floor that keeps `go` and `do` apart stays.
+
 ## [0.104.1] - 2026-11-14
 
 ### Added
