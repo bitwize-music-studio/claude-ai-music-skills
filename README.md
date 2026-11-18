@@ -192,6 +192,7 @@ config/              Example config and setup docs
 <a href="https://github.com/medinabestari"><img src="https://images.weserv.nl/?url=github.com/medinabestari.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@medinabestari"></a>
 <a href="https://github.com/cbrahms"><img src="https://images.weserv.nl/?url=github.com/cbrahms.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@cbrahms"></a>
 <a href="https://github.com/wufei-png"><img src="https://images.weserv.nl/?url=github.com/wufei-png.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@wufei-png"></a>
+<a href="https://github.com/divya0795"><img src="https://images.weserv.nl/?url=github.com/divya0795.png&h=60&w=60&fit=cover&mask=circle" width="60" height="60" alt="@divya0795"></a>
 
 If you make something with this, I'd genuinely love to hear it — [@bitwizemusic](https://x.com/bitwizemusic) on X, [join the Discord](https://discord.gg/dMURByGF), or [open a discussion](https://github.com/bitwize-music-studio/claude-ai-music-skills/discussions).
 
