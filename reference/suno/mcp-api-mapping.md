@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -40,7 +40,7 @@ Every skill that uses Suno tools runs these checks first:
 
 ## What Things Cost
 
-Suno keeps three balances: **song credits**, **download credits** (Free 7 lifetime, Pro 20 a month, Premier 60 a month) and **Visuals credits** for images and video, which are bought separately. `account-usage` reports them as `suno_account.credits_remaining`, `download_credits_remaining` and `visuals_credits_remaining`. Nothing the plugin does spends Visuals credits; see § Visuals for what would.
+Suno keeps three balances: **song credits**, **download credits** (Free 7 lifetime, Pro 20 a month, Premier 60 a month) and **Visuals credits** for images and video, which are bought separately. `account-usage` reports them as `suno_account.credits_remaining`, `download_credits_remaining` and `visuals_credits_remaining`. The plugin spends Visuals credits on one thing, album art made through Suno (§ Visuals).
 
 | Action | Song credits | Download credits |
 |---|---|---|
@@ -194,7 +194,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: every Visuals tool (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: the Visuals tools for video, Sequences, characters and uploads (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -294,7 +294,19 @@ The agent is not infallible: asked twice about one take, it agreed with itself o
 
 ## Visuals
 
-Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. **The plugin does not use them yet**, and no skill pre-approves one, so Claude Code asks before each call. This section records what they are and what they cost, so that nobody spends credits by surprise.
+Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for one thing, **album art**. `/bitwize-music:album-art-director` pre-approves the tools that takes, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
+
+**Album art** (`artwork.generator: suno`)
+
+`/bitwize-music:album-art-director` has `image-create` make the cover from the art prompt in the album README. `get_album_art_plan` builds the request: the prompt, with the Negative Prompt as a last "Avoid:" line, `aspect: "1:1"`, and `model` when `artwork.suno_model` is set.
+
+1. **Price.** `image-create` with `dry_run: true` answers `{"dry_run": true, "credits": 1, "items": [{"task": "text_to_image", "model": "image-1", "takes": 2, "credits": 1}], "visuals_credits_remaining": N}` and spends nothing. The skill states that price and waits for a go-ahead.
+2. **Generate.** `image-create` answers `{"id": "gen_...", "status": "processing", "assets": [{"status", "label"}, ...], "visuals_credits_remaining": N}`. The credit is taken when the call is made.
+3. **Wait.** `visuals-wait(ids)` answers `{"status": "done", "jobs": [{"id", "status": "ready", "assets": [{"asset_id", "media_type", "width", "height", "label", "thumbnail_url", "suno_url"}, ...]}]}`.
+4. **Save.** `visuals-download(id: <asset_id>)` answers `{"status": "ok", "format": "jpg", "url"}`. `save_album_art_candidates` saves the picture behind each `url` under the album's `artwork-candidates/` and opens them. It fetches only https links on Suno's own hosts.
+5. **File.** The user chooses, and `import_album_art` files that one, enlarged to 3000x3000.
+
+*Measured with `image-1` (Fast):* one call made two 1024x1024 JPEGs for 1 Visuals credit, ready within seconds. `visuals-wait`, `visuals-show` and `visuals-download` spent nothing, and downloading an image spent no download credit. The link was a plain https address on `cdn1.suno.ai`, and the file behind it is made by the `visuals-download` call: the second take's address, built by hand before that call, answered `403`. One of the two test images carried a small mark like a signature in a corner, so look before filing.
 
 **What spends Visuals credits**
 
@@ -311,8 +323,8 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 **What does not**
 
 - `sequence-create`, `sequence-update`, `sequence-export` and `video-assemble` are free by their own descriptions. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
-- `visuals-models` is free *(measured)*.
-- The descriptions of `sequence-get`, `sequence-list`, `visuals-wait`, `visuals-show`, `visuals-download`, `visuals-library`, `characters-list`, `characters-save`, `visuals-upload-create` and `visuals-upload-complete` name no charge.
+- `visuals-models`, `visuals-library`, `visuals-wait`, `visuals-show` and `visuals-download` are free *(measured)*.
+- The descriptions of `sequence-get`, `sequence-list`, `characters-list`, `characters-save`, `visuals-upload-create` and `visuals-upload-complete` name no charge.
 
 **Rules Suno writes into the tools**
 
@@ -320,9 +332,9 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 - The look, who is on screen and whether anyone sings on screen are the user's to choose. Ask before creating a Sequence.
 - Downloading a music video needs its song unlocked: `visuals-download` answers `403 clip_not_unlocked` until the song has been downloaded, which can cost a download credit.
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
-- Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. What Claude Code shows has not been measured, so the link is what the user can count on.
+- Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* no tool that spends Visuals credits has been called from the plugin.
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, `video-create` and `sequence-generate`.
 
 ---
 

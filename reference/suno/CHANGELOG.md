@@ -4,6 +4,24 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-19 - Album Art Through Suno
+
+`artwork.generator: suno` has Suno's image tool make an album's cover. Measured on a Premier account with the Fast model.
+
+### Features
+- `/bitwize-music:album-art-director` sends the art prompt to `image-create`, prices it first with `dry_run`, and saves the two takes as candidates with `save_album_art_candidates`. [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `image-create` with `image-1`: two 1024x1024 JPEGs for 1 Visuals credit, taken when the call is made, and ready within seconds. The same request with `dry_run: true` answered `credits: 1`, `takes: 2` and the balance, and spent nothing.
+- `visuals-wait`, `visuals-show`, `visuals-download` and `visuals-library` spent nothing, and downloading an image spent no download credit.
+- The download link was a plain https address on `cdn1.suno.ai`. The file behind it is made by the `visuals-download` call: the other take's address, built by hand before that call, answered `403`. In Claude Code, `visuals-show` returned the pictures to the model as images.
+
+### Not Measured
+- `image-2` and `image-4`: their prices come from `visuals-models`, and their image size is unknown.
+- Lettering on a cover, and every video tool.
+
+---
+
 ## 2026-11-18 - Visuals Tools and Settings Read-Back
 
 Suno's MCP server grew from 41 tools to 59 with Visuals, its image and video feature (launched 2026-11-17), and song data began to carry the settings a take was made with. Read from a fresh connection on a Premier account; a session that had been open since before the launch still listed 41.

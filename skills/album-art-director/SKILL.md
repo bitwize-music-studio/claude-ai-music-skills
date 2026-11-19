@@ -1,6 +1,6 @@
 ---
 name: album-art-director
-description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation. With artwork.generator set to codex in config, it also has the user's Codex CLI make the image.
+description: Creates visual concepts for album artwork and generates AI art prompts. Use during planning for concept discussion, or after all tracks are Final for actual artwork generation. With artwork.generator set to codex or suno in config, it also has the user's Codex CLI or Suno's image tool make the image.
 argument-hint: <album-path or "create art concept for [album]">
 model: sonnet
 effort: medium
@@ -11,6 +11,11 @@ allowed-tools:
   - Grep
   - Glob
   - bitwize-music-mcp
+  - mcp__suno__account-usage
+  - mcp__suno__image-create
+  - mcp__suno__visuals-download
+  - mcp__suno__visuals-show
+  - mcp__suno__visuals-wait
 ---
 
 ## Your Task
@@ -138,7 +143,7 @@ Check for custom album art preferences:
 
 ### Step 2: Platform Selection
 
-**First call `get_album_art_plan(album_slug)`.** If its `generator` is `codex`, do not ask: the user has set `artwork.generator: codex` in config, so the platform is Codex's image tool. Use the Codex format below and set `**Platform**: Codex` in the album README.
+**First call `get_album_art_plan(album_slug)`.** If its `generator` is `codex`, do not ask: the user has set `artwork.generator: codex` in config, so the platform is Codex's image tool. Use the Codex format below and set `**Platform**: Codex` in the album README. If its `generator` is `suno`, do not ask either: the platform is Suno's image tool. Use the Suno format below and set `**Platform**: Suno`.
 
 **Otherwise, before building prompts, ask the user which AI art platform they use.** Different platforms need fundamentally different prompt styles.
 
@@ -235,6 +240,15 @@ Render the text "[exact text]" in [typeface style], [placement]. No other text.
 ```
 Say what must not appear in the sentences themselves ("no watermark, no logos") instead of relying on the Avoid line. If the cover carries the artist name or the title, quote it exactly, in the casing the user uses. Drop the text line for a cover with no text.
 
+#### Suno Format
+For `artwork.generator: suno`. Suno's image tool takes plain sentences in one text field. The plugin adds the album's Negative Prompt as a last line, "Avoid: ...", so keep that section to a few words or delete it.
+```
+A square album cover showing [detailed scene description].
+The style is [artistic approach] with [mood/lighting].
+Use [color palette] colors. Frame the composition [composition details]. No text.
+```
+Say what must not appear in the sentences themselves. Do not name a real artist, character or person: Suno's moderation refuses such a prompt.
+
 #### Stable Diffusion Format
 Tag-based with weighted tokens. Extensive negative prompt.
 ```
@@ -279,6 +293,37 @@ Only when `get_album_art_plan` reports `generator: codex`. With `manual`, stop a
 Two things to tell the user once:
 - **Codex returns a 1254x1254 image whatever size is asked for.** The import enlarges it to 3000x3000. That meets a distributor's size rule but adds no detail, so a cover with fine lettering is worth checking at full size.
 - **You can look at a candidate with the Read tool** to describe it or check its text, but which cover to use is the user's call.
+
+---
+
+## Generating the Image with Suno
+
+Only when `get_album_art_plan` reports `generator: suno`. Suno's image tool makes the cover, and it spends **Visuals credits**, a balance of its own beside song and download credits. Background and prices: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` § Visuals.
+
+1. **Save the prompt first.** Write it to the album README's `### Image Prompt` block and set `**Platform**: Suno`. The tools read the prompt from there.
+2. **Get the user's approval of the prompt.** Show it, and change it until they are happy with it.
+3. **Call `get_album_art_plan(album_slug)`.** If `ready` is false, tell the user each blocking problem and stop. Keep `suno.request`: the arguments for Suno's `image-create`.
+4. **Find Suno's tools.** Look for `image-create`, `visuals-wait` and `visuals-download` on a connected MCP server and load their definitions. Not there → say so and stop: either Suno's server is not connected (the setup command is in the reference doc), or this session started before Suno added the tools and needs a restart. The user can still make the image elsewhere and file it with `/bitwize-music:import-art`.
+5. **Price it. This spends nothing.** Call `image-create` with the keys of `suno.request` and `dry_run: true`. The answer's `credits` is the exact price and `visuals_credits_remaining` is the balance (`account-usage` gives the balance too).
+6. **State the cost and wait.** For example: "Two candidates from Suno for 50 Visuals credits. You have 450." If the price is more than the balance, say so and stop. Do not generate until the user says go.
+7. **Generate.** Call `image-create` with the keys of `suno.request` again, without `dry_run`, and with `idempotency_key: "{album_slug}/album-art/{UTC timestamp}"`. Keep the `id` it answers with, then call `visuals-wait(ids: <that id>)` and call it again while `status` is `processing`. Each ready take carries an `asset_id` and a `suno_url`.
+8. **Save the candidates.** For each ready take, `visuals-download(id: <asset_id>)` answers with a `url` (call again while it answers `processing`). Ask for every take: the file behind a link is made by that call, and an address worked out from another take's is refused. Then `save_album_art_candidates(album_slug, [<each url>])`. It saves the pictures in the album's audio folder under `artwork-candidates/` and opens them in the image viewer. This is free.
+9. **Let the user choose.** Give them the file names and each take's `suno_url`, and ask which one to use, or what to change. Never pick for them, and never import an image they have not chosen. If nothing fits, revise the prompt in the README and go back to step 5: a new run has a new price and needs a new go-ahead.
+10. **Call `import_album_art(album_slug, <chosen file>)`.** It writes `album.png` to the audio folder, enlarged to 3000x3000, and `album-art.png` to the album folder. If the album already has a cover it refuses; ask the user before passing `replace=true`.
+11. **Report** the two paths, that the cover was enlarged, and the Visuals credits spent and left.
+
+| What happened | Do |
+|---------------|-----|
+| No response or a timeout from `image-create` | Retry **once** with the **same** idempotency key, so the retry cannot be charged twice |
+| `400` with `reason: prompt_refused` | Show Suno's message. Revise the prompt once, and only when it named a real artist, character or person. Never reword a prompt to get past moderation |
+| `429 moderation_limited` | Stop and tell the user. Do not retry |
+| `404` from a Visuals tool | The Suno sign-in does not include Visuals. Say so and stop |
+| A take ends `failed` | Save the other one and say which failed |
+
+Three things to tell the user once:
+- **The model decides the price and the size.** Measured with `image-1` (Fast): two 1024x1024 JPEGs for 1 Visuals credit. Without `artwork.suno_model` in config, Suno uses its own default, `image-4` (Max), which its price list puts at 50 credits a pair and whose size was not measured. The import enlarges the chosen image to 3000x3000, which meets a distributor's size rule but adds no detail.
+- **You can look at a take** with `visuals-show(ids: <asset_id>)`, or with the Read tool on a saved candidate, to describe it or check it for stray marks. Which cover to use is the user's call.
+- **Lettering was not measured.** Ask for a cover with no text and add the title in an image editor, unless the user wants to try it.
 
 ---
 
@@ -387,7 +432,7 @@ As the album art director, you:
 - All tracks should be `Final` before generating actual artwork
 
 ### After This Skill
-- `import-art` - places artwork the user made elsewhere in the correct album directories. Art made here through Codex is filed by `import_album_art` in step 7 above
+- `import-art` - places artwork the user made elsewhere in the correct album directories. Art made here through Codex or Suno is filed by `import_album_art`, as the steps above say
 - `promo-director` - needs album art for promo video generation
 - `release-director` - requires artwork for distribution
 

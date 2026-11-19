@@ -110,8 +110,9 @@ After installing, **restart Claude Code** to reload the plugin.
 ### Album Art
 | Tool | Description |
 |------|-------------|
-| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready, and the cost. Free |
+| `get_album_art_plan(album_slug)` | Who makes the cover (`artwork.generator`), the image prompt from the album README, whether Codex is ready or the request for Suno's `image-create`, and the cost. Free |
 | `generate_album_art(album_slug, candidates?, open_viewer?)` | Have the Codex CLI make 1-4 cover candidates (one ChatGPT image each); never picks one |
+| `save_album_art_candidates(album_slug, links, open_viewer?)` | Save the images Suno made (the links from its `visuals-download`) as cover candidates and open them; never picks one. Free |
 | `import_album_art(album_slug, source_path, replace?)` | File the chosen image as `album.png` (3000x3000) and `album-art.png` |
 
 ### Session & Config

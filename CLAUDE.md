@@ -65,7 +65,7 @@ The `bitwize-music-mcp` server is the **preferred way to query project state**. 
 
 ### Suno MCP Server (optional)
 
-Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. Rules that hold in every session:
+Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. With `artwork.generator: suno` in config, `/bitwize-music:album-art-director` has its image tool make the cover. Rules that hold in every session:
 
 - **Never spend Suno credits of any kind without a go-ahead.** Generating, splitting stems, a download that answers `requires_credit`, and any image or video (Visuals credits are a balance of their own) each need the user's yes first, with the cost stated. Reading the library and the account is free.
 - **Never pick a take or an image, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens, or looks, first.
@@ -174,7 +174,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Research needed** → apply `/bitwize-music:researcher` standards
 - **Polishing audio / fixing Suno artifacts** → apply `/bitwize-music:mix-engineer` expertise
 - **Mastering audio** → polish first via `/bitwize-music:mix-engineer`, then apply `/bitwize-music:mastering-engineer` standards. Skip polish only if: (a) user says "master only", "skip polish", or "already polished"; or (b) polished audio already exists at `{audio_root}/artists/[artist]/albums/[genre]/[album]/polished/`. Applies equally to single-track and whole-album mastering.
-- **Album art** → apply `/bitwize-music:album-art-director`. With `artwork.generator: codex` in config it also makes the image through the user's Codex CLI: state the cost and wait for a go-ahead before generating (each candidate spends the user's ChatGPT image allowance), and never choose a candidate for the user
+- **Album art** → apply `/bitwize-music:album-art-director`. With `artwork.generator: codex` or `suno` in config it also makes the image, through the user's Codex CLI or Suno's image tool: state the cost and wait for a go-ahead before generating (a Codex candidate spends the user's ChatGPT image allowance, a pair from Suno spends Visuals credits), and never choose a candidate for the user
 - **Writing promo copy** → apply `/bitwize-music:promo-writer` expertise
 - **Releasing** → apply `/bitwize-music:release-director`
 - **Getting an album's DistroKid and SoundCloud uploads ready** → `/bitwize-music:release-kit` (writes a page with every form field and a copy button, plus the checks to clear first; it never touches either site, and the user pastes and submits)

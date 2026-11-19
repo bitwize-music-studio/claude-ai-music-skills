@@ -1,4 +1,4 @@
-"""Album artwork — plan a cover, have Codex make candidates, file the one chosen.
+"""Album artwork — plan a cover, have Codex or Suno make candidates, file the one chosen.
 
 The art director writes an image prompt into the album README. What happens
 next depends on ``artwork.generator`` in the user's config:
@@ -7,10 +7,15 @@ next depends on ``artwork.generator`` in the user's config:
   choice and brings the result back with ``import_album_art``.
 * ``codex``: ``generate_album_art`` asks the user's installed Codex CLI for the
   image, using its built-in image tool on their ChatGPT sign-in.
+* ``suno``: the image comes from Suno's ``image-create`` tool. This server never
+  calls Suno, so the plan carries that tool's request for the art director
+  skill to send, and ``save_album_art_candidates`` saves the pictures behind
+  the links Suno gives back.
 
-Two rules hold throughout. Generating spends the user's image allowance, so it
-does nothing while anything is missing. And the tools never choose: generating
-makes candidates and stops; importing files the image it is given.
+Two rules hold throughout. Generating spends the user's image allowance or
+their Visuals credits, so nothing is made while anything is missing. And the
+tools never choose: they make or save candidates and stop; importing files the
+image it is given.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ from handlers._shared import (
 )
 from tools.artwork import codex as codex_art
 from tools.artwork import cover as cover_art
+from tools.artwork import suno as suno_art
 from tools.state.indexer import read_config
 
 logger = logging.getLogger(__name__)
@@ -43,6 +49,10 @@ logger = logging.getLogger(__name__)
 # Where candidates wait to be chosen, beside the album's audio. Nothing else in
 # the plugin looks in here, so a candidate is never mistaken for the cover.
 CANDIDATES_DIR = "artwork-candidates"
+# Codex saves PNGs; Suno's pictures are saved as what they are.
+_CANDIDATE_SUFFIXES = (".png", ".jpg", ".jpeg", ".webp")
+# Links save_album_art_candidates takes in one call: two image-create calls' worth.
+MAX_LINKS = 4
 
 _PLATFORM_RE = re.compile(r"(?m)^\*\*Platform\*\*:\s*(.+?)\s*$")
 
@@ -126,19 +136,20 @@ def _build_plan(album_slug: str) -> tuple[dict[str, Any] | None, str | None]:
     assert paths is not None
 
     settings = _settings()
+    generator = settings["generator"]
     prompt, avoid, platform = _read_art_section(Path(album["path"]))
     problems: list[dict[str, str]] = []
     codex_info: dict[str, Any] | None = None
 
-    if settings["generator"] != "codex":
+    if generator == "manual":
         problems.append(_problem(
             "generator_manual", "blocking",
             "artwork.generator is manual, so the image is yours to make: take the prompt "
             "to the image tool you use, then file the result with import_album_art. To "
-            "have Codex make it, set `artwork: {generator: codex}` in "
-            "~/.bitwize-music/config.yaml.",
+            "have Codex or Suno make it, set `artwork: {generator: codex}` or "
+            "`artwork: {generator: suno}` in ~/.bitwize-music/config.yaml.",
         ))
-    else:
+    elif generator == "codex":
         codex = codex_art.find_codex(settings["codex_path"])
         if not codex:
             problems.append(_problem(
@@ -169,7 +180,10 @@ def _build_plan(album_slug: str) -> tuple[dict[str, Any] | None, str | None]:
         ))
 
     try:
-        earlier = sorted(p.name for p in paths["candidates_dir"].glob("*.png"))
+        earlier = sorted(
+            p.name for p in paths["candidates_dir"].iterdir()
+            if p.is_file() and p.suffix.lower() in _CANDIDATE_SUFFIXES
+        )
     except OSError:
         earlier = []
     existing = {
@@ -183,13 +197,44 @@ def _build_plan(album_slug: str) -> tuple[dict[str, Any] | None, str | None]:
             "This album already has a cover. Importing a new one needs replace=true.",
         ))
 
-    count = settings["candidates"]
+    # With Suno the image is made by the skill, which sends this request to Suno's
+    # image-create tool. Whether that tool is there is the skill's to find out.
+    suno_info: dict[str, Any] | None = None
+    if generator == "suno" and prompt:
+        suno_info = {
+            "tool": "image-create",
+            "request": suno_art.build_request(prompt, avoid, settings.get("suno_model", "")),
+        }
+
+    if generator == "suno":
+        count = suno_art.TAKES
+        cost = (
+            "Visuals credits, a balance of their own on the Suno account. Send the request "
+            "to image-create with dry_run: true first: the answer's `credits` is the exact "
+            "price, and nothing is spent. One call makes two images."
+        )
+        output = (
+            "Suno's Fast model returned 1024x1024 JPEGs when measured; its other models "
+            "were not measured. The image chosen is enlarged to 3000x3000 when it is "
+            "imported, which adds size but no detail."
+        )
+    else:
+        count = settings["candidates"]
+        cost = (
+            f"{count} image{'' if count == 1 else 's'} from the ChatGPT plan Codex is signed "
+            "in to (one per candidate), plus Codex usage for about a minute per image."
+        )
+        output = (
+            "Codex returns a 1254x1254 PNG. The image chosen is enlarged to 3000x3000 "
+            "when it is imported, which adds size but no detail."
+        )
     plan = {
         "found": True,
         "album_slug": normalized,
-        "generator": settings["generator"],
+        "generator": generator,
         "candidates": count,
         "codex": codex_info,
+        "suno": suno_info,
         "platform": platform,
         "prompt": prompt,
         "avoid": avoid,
@@ -199,14 +244,8 @@ def _build_plan(album_slug: str) -> tuple[dict[str, Any] | None, str | None]:
             "content_art": str(paths["content_art"]),
         },
         "existing": existing,
-        "cost": (
-            f"{count} image{'' if count == 1 else 's'} from the ChatGPT plan Codex is signed "
-            "in to (one per candidate), plus Codex usage for about a minute per image."
-        ),
-        "output": (
-            "Codex returns a 1254x1254 PNG. The image chosen is enlarged to 3000x3000 "
-            "when it is imported, which adds size but no detail."
-        ),
+        "cost": cost,
+        "output": output,
         "ready": not any(p["severity"] == "blocking" for p in problems),
         "problems": problems,
     }
@@ -239,18 +278,24 @@ def _open_in_viewer(paths: list[Path]) -> bool:
 async def get_album_art_plan(album_slug: str) -> str:
     """Say how an album's cover will be made, before anything is spent. Free.
 
-    Reads `artwork.generator` from config (manual or codex), the image prompt
-    the art director wrote into the album README, and, for codex, whether the
-    Codex CLI is installed, signed in and able to generate images. Call it
-    before generate_album_art, tell the user the `cost`, and wait for their
-    go-ahead.
+    Reads `artwork.generator` from config (manual, codex or suno), the image
+    prompt the art director wrote into the album README, and, for codex,
+    whether the Codex CLI is installed, signed in and able to generate images.
+    Call it before anything is made, tell the user the `cost`, and wait for
+    their go-ahead.
+
+    With suno, `suno.request` holds the arguments for Suno's image-create tool,
+    which the calling skill sends: first with dry_run: true for the price, then
+    for real once the user says go. save_album_art_candidates saves the
+    pictures behind the links Suno's visuals-download gives for the takes.
 
     Args:
         album_slug: Album slug (e.g., "my-album")
 
     Returns:
         JSON with {found, album_slug, generator, candidates, codex: {path,
-        version, logged_in, image_generation} | null, platform, prompt, avoid,
+        version, logged_in, image_generation} | null, suno: {tool, request:
+        {prompt, aspect, model?}} | null, platform, prompt, avoid,
         paths: {candidates_dir, album_png, content_art}, existing: {album_png,
         content_art, candidates}, cost, output, ready, problems: [{code,
         severity, message}]}. `ready` is false while any problem is blocking.
@@ -292,7 +337,14 @@ async def generate_album_art(
     if error:
         return error
     assert plan is not None
-    if not plan["ready"]:
+    if plan["generator"] == "suno":
+        plan["problems"].append(_problem(
+            "generator_suno", "blocking",
+            "artwork.generator is suno, and this tool drives Codex. The image comes from "
+            "Suno's image-create tool: /bitwize-music:album-art-director sends it the "
+            "plan's `suno.request`, then saves the takes with save_album_art_candidates.",
+        ))
+    if not plan["ready"] or plan["generator"] != "codex":
         return _safe_json({
             "found": True,
             "album_slug": plan["album_slug"],
@@ -342,13 +394,98 @@ async def generate_album_art(
     })
 
 
+async def save_album_art_candidates(
+    album_slug: str,
+    links: list[str],
+    open_viewer: bool = True,
+) -> str:
+    """Save cover candidates Suno made beside the album's audio, and show them.
+
+    For `artwork.generator: suno`. Suno's image-create makes the images and its
+    visuals-download gives a link to each take; pass those links here. Each
+    picture is saved in the album's audio folder under artwork-candidates/
+    and, by default, opened in the image viewer, as generate_album_art does
+    for Codex. Free: nothing is generated here, and only https links on
+    Suno's own hosts are fetched.
+
+    Nothing is imported and no candidate is chosen: show the user what was
+    saved, let them pick or ask for changes, then call import_album_art with
+    the file they chose.
+
+    Args:
+        album_slug: Album slug (e.g., "my-album")
+        links: The `url` Suno's visuals-download gave for each take, one to four
+        open_viewer: Open the saved candidates in the system image viewer
+
+    Returns:
+        JSON with {found, album_slug, saved, candidates: [{path, width,
+        height, format}], failed: [{link, error}], candidates_dir, opened,
+        next}. `link` is the link's place in `links`, counted from 1
+    """
+    normalized, album, error = _find_album_or_error(album_slug)
+    if error:
+        return error
+    assert album is not None
+    paths, error = _art_paths(normalized, album)
+    if error:
+        return error
+    assert paths is not None
+
+    if (
+        not isinstance(links, list) or not 1 <= len(links) <= MAX_LINKS
+        or not all(isinstance(link, str) for link in links)
+    ):
+        return _safe_json({
+            "found": True, "album_slug": normalized, "saved": 0,
+            "error": f"Pass one to {MAX_LINKS} links, each the `url` visuals-download gave for a take.",
+        })
+
+    candidates_dir = paths["candidates_dir"]
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    loop = asyncio.get_running_loop()
+    saved: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for number, link in enumerate(links, start=1):
+        if not suno_art.is_suno_link(link):
+            failed.append({
+                "link": number,
+                "error": "Not a download link on Suno's hosts: "
+                         f"{suno_art.link_host(link) or 'no host'}",
+            })
+            continue
+        result = await loop.run_in_executor(None, functools.partial(
+            suno_art.fetch_image, link, candidates_dir, f"cover-suno-{stamp}-{number}",
+        ))
+        if result.get("ok"):
+            saved.append({key: result[key] for key in ("path", "width", "height", "format")})
+        else:
+            failed.append({"link": number, "error": str(result.get("error", "unknown error"))})
+
+    opened = bool(saved) and open_viewer and _open_in_viewer([Path(c["path"]) for c in saved])
+    return _safe_json({
+        "found": True,
+        "album_slug": normalized,
+        "saved": len(saved),
+        "candidates": saved,
+        "failed": failed,
+        "candidates_dir": str(candidates_dir),
+        "opened": opened,
+        "next": (
+            "Show the user the candidates and ask which one to use, or what to change. "
+            "The choice is the user's: never pick for them. Then call import_album_art "
+            "with the file they chose."
+        ),
+    })
+
+
 async def import_album_art(album_slug: str, source_path: str, replace: bool = False) -> str:
     """File an image as an album's cover.
 
     Writes two files: `album.png` in the album's audio folder, as a square PNG
     of at least 3000x3000 (a smaller image is enlarged), and `album-art.png` in
     the album's content folder at the image's own size. Use it for a candidate
-    the user chose from generate_album_art, or for art made anywhere else.
+    the user chose from generate_album_art or save_album_art_candidates, or
+    for art made anywhere else.
 
     Only import the image the user picked. An existing cover is kept unless
     replace is true.
@@ -418,4 +555,5 @@ def register(mcp: Any) -> None:
     """Register the album artwork tools with the MCP server."""
     mcp.tool()(get_album_art_plan)
     mcp.tool()(generate_album_art)
+    mcp.tool()(save_album_art_candidates)
     mcp.tool()(import_album_art)
