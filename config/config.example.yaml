@@ -771,7 +771,9 @@ artwork:
   # The image model Suno uses (suno only). Suno's price list names image-1
   # (Fast), image-2 (Standard) and image-4 (Max), cheapest first.
   #
-  # Default (if omitted): Suno's own default, image-4 when this was written
+  # Default (if omitted): Suno's own default, image-4 when this was written.
+  # A value that is not a model id stops the art plan with a message, so a
+  # typing mistake cannot fall through to the default model's price.
   #
   # suno_model: "image-1"
 

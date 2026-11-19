@@ -200,11 +200,23 @@ def _build_plan(album_slug: str) -> tuple[dict[str, Any] | None, str | None]:
     # With Suno the image is made by the skill, which sends this request to Suno's
     # image-create tool. Whether that tool is there is the skill's to find out.
     suno_info: dict[str, Any] | None = None
-    if generator == "suno" and prompt:
-        suno_info = {
-            "tool": "image-create",
-            "request": suno_art.build_request(prompt, avoid, settings.get("suno_model", "")),
-        }
+    if generator == "suno":
+        written = str(settings.get("suno_model") or "")
+        model = suno_art.model_name(written)
+        if written and not model:
+            # Sent without a model, Suno would use its default, which costs fifty
+            # times the Fast one. A typing mistake must not choose that.
+            problems.append(_problem(
+                "suno_model_unreadable", "blocking",
+                f"artwork.suno_model is '{written}', which is not a model id such as "
+                "image-1. Correct it in ~/.bitwize-music/config.yaml, or remove it to use "
+                "Suno's own default.",
+            ))
+        elif prompt:
+            suno_info = {
+                "tool": "image-create",
+                "request": suno_art.build_request(prompt, avoid, model),
+            }
 
     if generator == "suno":
         count = suno_art.TAKES
@@ -453,9 +465,13 @@ async def save_album_art_candidates(
                          f"{suno_art.link_host(link) or 'no host'}",
             })
             continue
-        result = await loop.run_in_executor(None, functools.partial(
-            suno_art.fetch_image, link, candidates_dir, f"cover-suno-{stamp}-{number}",
-        ))
+        try:
+            result = await loop.run_in_executor(None, functools.partial(
+                suno_art.fetch_image, link, candidates_dir, f"cover-suno-{stamp}-{number}",
+            ))
+        except Exception as exc:  # whatever a library raises, keep the takes already saved
+            logger.warning("Saving a Suno cover candidate failed: %s", exc)
+            result = {"ok": False, "error": f"The download failed: {exc}"}
         if result.get("ok"):
             saved.append({key: result[key] for key in ("path", "width", "height", "format")})
         else:

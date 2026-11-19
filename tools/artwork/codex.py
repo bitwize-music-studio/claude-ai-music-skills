@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from tools.artwork.cover import image_size
-from tools.artwork.suno import model_name as suno_model_name
+from tools.artwork.suno import written_model as suno_written_model
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,9 @@ def artwork_settings(config: dict[str, Any] | None) -> dict[str, Any]:
 
     Returns ``{"generator": "manual" | "codex" | "suno", "candidates": 1..4,
     "codex_path": str, "suno_model": str}``. ``suno_model`` is ``""`` for
-    Suno's own default. Anything missing or unreadable falls back to the
-    default, which is the user making the image themselves.
+    Suno's own default and otherwise what was written, which the art plan
+    checks. Anything else missing or unreadable falls back to the default,
+    which is the user making the image themselves.
     """
     section = config.get("artwork") if isinstance(config, dict) else None
     if not isinstance(section, dict):
@@ -90,7 +91,7 @@ def artwork_settings(config: dict[str, Any] | None) -> dict[str, Any]:
         "generator": generator,
         "candidates": _candidate_count(section.get("candidates")),
         "codex_path": codex_path if isinstance(codex_path, str) else "",
-        "suno_model": suno_model_name(section.get("suno_model")),
+        "suno_model": suno_written_model(section.get("suno_model")),
     }
 
 

@@ -33,7 +33,7 @@ Every skill that uses Suno tools runs these checks first:
 2. **Not found** → the server is not configured. Give the setup command above and offer the fallback below.
 3. **Found, but a call returns an authentication error** → tell the user to run `/mcp` and sign in.
 4. **Read the account once** with `account-usage`: `allowed_models`, `features`, `suno_account.credits_remaining`, `suno_account.download_credits_remaining` and `suno_account.plan.name` (Suno Studio comes with Premier only; see § Suno Studio).
-5. **Trust the live tool definition.** Send only arguments the tool lists today. If a call is rejected for an unknown argument, drop that argument, tell the user, and retry once.
+5. **Trust the live tool definition.** Send only arguments the tool lists today. If a call is rejected for an unknown argument, drop that argument, tell the user, and retry once. The exception is `dry_run` on a Visuals tool: without it the call spends credits, so stop instead.
 6. **A session lists the server's tools as they were when it started.** Suno adds tools without notice. Before deciding that one is missing, restart the session, or reconnect the server from `/mcp`.
 
 ---
@@ -298,12 +298,12 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 
 **Album art** (`artwork.generator: suno`)
 
-`/bitwize-music:album-art-director` has `image-create` make the cover from the art prompt in the album README. `get_album_art_plan` builds the request: the prompt, with the Negative Prompt as a last "Avoid:" line, `aspect: "1:1"`, and `model` when `artwork.suno_model` is set.
+`/bitwize-music:album-art-director` has `image-create` make the cover from the art prompt in the album README. `get_album_art_plan` builds the request: the prompt, with the Negative Prompt as a last "Avoid:" line, `aspect: "1:1"`, and `model` when `artwork.suno_model` is set. A `suno_model` that is not a model id stops the plan, so that a typing mistake cannot fall through to Suno's default model and its price.
 
 1. **Price.** `image-create` with `dry_run: true` answers `{"dry_run": true, "credits": 1, "items": [{"task": "text_to_image", "model": "image-1", "takes": 2, "credits": 1}], "visuals_credits_remaining": N}` and spends nothing. The skill states that price and waits for a go-ahead.
 2. **Generate.** `image-create` answers `{"id": "gen_...", "status": "processing", "assets": [{"status", "label"}, ...], "visuals_credits_remaining": N}`. The credit is taken when the call is made.
 3. **Wait.** `visuals-wait(ids)` answers `{"status": "done", "jobs": [{"id", "status": "ready", "assets": [{"asset_id", "media_type", "width", "height", "label", "thumbnail_url", "suno_url"}, ...]}]}`.
-4. **Save.** `visuals-download(id: <asset_id>)` answers `{"status": "ok", "format": "jpg", "url"}`. `save_album_art_candidates` saves the picture behind each `url` under the album's `artwork-candidates/` and opens them. It fetches only https links on Suno's own hosts.
+4. **Save.** `visuals-download(id: <asset_id>)` answers `{"status": "ok", "format": "jpg", "url"}`. `save_album_art_candidates` saves the picture behind each `url` under the album's `artwork-candidates/` and opens them. It fetches only https links on Suno's own hosts, and keeps a file only when it decodes whole as a JPEG, a PNG or a WebP.
 5. **File.** The user chooses, and `import_album_art` files that one, enlarged to 3000x3000.
 
 *Measured with `image-1` (Fast):* one call made two 1024x1024 JPEGs for 1 Visuals credit, ready within seconds. `visuals-wait`, `visuals-show` and `visuals-download` spent nothing, and downloading an image spent no download credit. The link was a plain https address on `cdn1.suno.ai`, and the file behind it is made by the `visuals-download` call: the second take's address, built by hand before that call, answered `403`. One of the two test images carried a small mark like a signature in a corner, so look before filing.

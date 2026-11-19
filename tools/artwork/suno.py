@@ -15,8 +15,11 @@ Pillow is imported on first use, as in ``cover.py``.
 
 from __future__ import annotations
 
+import http.client
 import io
+import os
 import re
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -33,10 +36,16 @@ TAKES = 2
 # A 1024x1024 JPEG was about 600 KB when measured; this leaves room for a far
 # larger image and still stops a download that is not one.
 MAX_BYTES = 40 * 1024 * 1024
+# 8000x8000: far past any cover, and far short of an image built to exhaust memory.
+MAX_PIXELS = 64_000_000
+# How long one read may stall, and how long the whole download may take.
 TIMEOUT_S = 60
+TOTAL_TIMEOUT_S = 120
+CHUNK_BYTES = 64 * 1024
 
-# Suno serves pages from suno.com and files from suno.ai.
+# Suno serves pages from suno.com and files from suno.ai, on the https port.
 _DOMAINS = ("suno.ai", "suno.com")
+_PORTS = (None, 443)
 _USER_AGENT = "bitwize-music-mcp/1.0 (album art)"
 
 # A model id such as "image-1". It goes into a request, so it is checked first.
@@ -55,6 +64,20 @@ def model_name(value: Any) -> str:
         return ""
     name = value.strip().lower()
     return name if _MODEL_RE.fullmatch(name) else ""
+
+
+def written_model(value: Any) -> str:
+    """``artwork.suno_model`` as it was written, for the art plan to judge.
+
+    Nothing is dropped here: a model id with a typing mistake has to reach
+    the plan, which stops on it. Left to become ``""`` it would quietly pick
+    Suno's default, at fifty times the price of the Fast model.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return "(unreadable)"
+    return str(value).strip().lower()
 
 
 def build_request(prompt: str, avoid: str = "", model: str = "") -> dict[str, str]:
@@ -82,18 +105,22 @@ def link_host(url: str) -> str:
 
 
 def is_suno_link(url: str) -> bool:
-    """Whether *url* is an https address on one of Suno's hosts.
+    """Whether *url* is an https address on one of Suno's hosts, on the https port.
 
     Decided by the parsed scheme and host, never by where "suno" appears in the
     text, so ``suno.ai.example.org`` and ``cdn1.suno.ai@example.org`` are not
     Suno's.
     """
     try:
-        scheme = urlparse(url).scheme
+        parsed = urlparse(url)
+        port = parsed.port  # raises for a port that is not a number
     except ValueError:
         return False
     host = link_host(url)
-    return scheme == "https" and any(host == domain or host.endswith(f".{domain}") for domain in _DOMAINS)
+    return (
+        parsed.scheme == "https" and port in _PORTS
+        and any(host == domain or host.endswith(f".{domain}") for domain in _DOMAINS)
+    )
 
 
 class SunoOnlyRedirects(urllib.request.HTTPRedirectHandler):
@@ -109,24 +136,43 @@ class SunoOnlyRedirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def default_opener() -> urllib.request.OpenerDirector:
+    """An opener whose redirects stay on Suno's hosts."""
+    return urllib.request.build_opener(SunoOnlyRedirects)
+
+
 def read_link(url: str, *, opener: Any = None) -> bytes:
     """The bytes behind a Suno download link.
 
+    Read a chunk at a time, so a reply that never ends stops at ``MAX_BYTES``
+    and one that trickles in stops at ``TOTAL_TIMEOUT_S``.
+
     Raises:
-        ValueError: the link is not https on one of Suno's hosts, or the file
-            is larger than ``MAX_BYTES``.
-        OSError: the download failed (urllib's errors are OSErrors).
+        ValueError: the link is not https on one of Suno's hosts, the file is
+            larger than ``MAX_BYTES``, or the download took too long.
+        OSError: the download failed (urllib's own errors are OSErrors).
+        http.client.HTTPException: the reply was not HTTP that could be read.
     """
     if not is_suno_link(url):
         raise ValueError(f"Not a download link on Suno's hosts: {link_host(url) or 'no host'}")
     if opener is None:
-        opener = urllib.request.build_opener(SunoOnlyRedirects)
+        opener = default_opener()
     request = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    started = time.monotonic()
+    chunks: list[bytes] = []
+    size = 0
     with opener.open(request, timeout=TIMEOUT_S) as response:
-        data: bytes = response.read(MAX_BYTES + 1)
-    if len(data) > MAX_BYTES:
-        raise ValueError(f"The file is larger than {MAX_BYTES // (1024 * 1024)} MB")
-    return data
+        while True:
+            chunk: bytes = response.read(CHUNK_BYTES)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_BYTES:
+                raise ValueError(f"The file is larger than {MAX_BYTES // (1024 * 1024)} MB")
+            if time.monotonic() - started > TOTAL_TIMEOUT_S:
+                raise ValueError(f"The download took longer than {TOTAL_TIMEOUT_S} seconds")
+            chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def fetch_image(
@@ -135,7 +181,8 @@ def fetch_image(
     """Save the picture behind a Suno download link as ``<dest_dir>/<stem><suffix>``.
 
     The suffix follows what the file is (``.jpg``, ``.png`` or ``.webp``), not
-    what its address says. An existing file is never overwritten.
+    what its address says. The picture has to decode whole, so a download cut
+    short is not saved. An existing file is never overwritten.
 
     Returns:
         ``{"ok": True, "path", "width", "height", "format"}``, or
@@ -150,16 +197,24 @@ def fetch_image(
         return failed(f"Not a download link on Suno's hosts: {link_host(url) or 'no host'}")
     try:
         data = read(url)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, http.client.HTTPException) as exc:  # the last is no OSError
         return failed(f"The download failed: {exc}")
 
     try:
         image_module = _pillow()
-        with image_module.open(io.BytesIO(data)) as probe:
-            probe.verify()
+    except ValueError as exc:
+        return failed(str(exc))
+    too_large = "The image is too large to be a cover"
+    try:
         with image_module.open(io.BytesIO(data)) as image:
             width, height = image.size
             kind = str(image.format or "")
+            if width * height > MAX_PIXELS:
+                return failed(f"{too_large}: {width}x{height}")
+            # A header is not a picture: a JPEG cut short opens, and only fails to decode.
+            image.load()
+    except image_module.DecompressionBombError:
+        return failed(too_large)
     except (OSError, SyntaxError, ValueError) as exc:  # UnidentifiedImageError is an OSError
         return failed(f"What Suno sent is not an image: {exc}")
 
@@ -169,13 +224,19 @@ def fetch_image(
             f"Suno sent a {kind or 'nameless'} image; a cover is read from a JPEG, a PNG or a WebP",
         )
     target = dest_dir / f"{stem}{suffix}"
+    created = False
     try:
         dest_dir.mkdir(parents=True, exist_ok=True)
         with open(target, "xb") as handle:  # "x": never write over an earlier candidate
+            created = True
             handle.write(data)
-    except FileExistsError:
-        return failed(f"{target.name} is already there; nothing was overwritten")
+            handle.flush()
+            os.fsync(handle.fileno())
     except OSError as exc:
+        if created:
+            target.unlink(missing_ok=True)  # ours: the open above made it
+        elif isinstance(exc, FileExistsError) and target.exists():
+            return failed(f"{target.name} is already there; nothing was overwritten")
         return failed(f"Could not save {target.name}: {exc}")
     return {
         "ok": True, "path": str(target), "width": int(width), "height": int(height), "format": kind,

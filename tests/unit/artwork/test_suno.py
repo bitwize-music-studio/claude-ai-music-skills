@@ -14,10 +14,13 @@ Usage:
 
 from __future__ import annotations
 
+import http.client
 import io
+import struct
 import sys
 import urllib.error
 import urllib.request
+import zlib
 from pathlib import Path
 
 import pytest
@@ -40,6 +43,19 @@ def _image_bytes(fmt: str = "JPEG", size: tuple[int, int] = (1024, 1024)) -> byt
     buffer = io.BytesIO()
     Image.new("RGB", size, (30, 120, 130)).save(buffer, fmt)
     return buffer.getvalue()
+
+
+def _png_claiming(width: int, height: int) -> bytes:
+    """A small PNG whose header says it is *width* x *height*, with no pixels behind it."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(b"")) + chunk(b"IEND", b"")
+    )
 
 
 # ===========================================================================
@@ -86,6 +102,7 @@ class TestIsSunoLink:
         "https://suno.ai/x.png",
         "https://suno.com/visual/ast_1",
         "https://CDN1.SUNO.AI/visual/x.jpg",
+        "https://cdn1.suno.ai:443/visual/x.jpg",
     ])
     def test_an_https_address_on_sunos_hosts(self, url):
         assert suno_art.is_suno_link(url) is True
@@ -99,6 +116,8 @@ class TestIsSunoLink:
         "file:///etc/passwd",
         "ftp://cdn1.suno.ai/x.jpg",
         "cdn1.suno.ai/visual/x.jpg",
+        "https://cdn1.suno.ai:8443/visual/x.jpg",           # not the https port
+        "https://cdn1.suno.ai:abc/visual/x.jpg",            # a port that is not a number
         "",
     ])
     def test_anything_else_is_not(self, url):
@@ -169,6 +188,42 @@ class TestFetchImage:
         assert result["ok"] is False
         assert str(failure.args[0]) in result["error"]
 
+    @pytest.mark.parametrize("failure", [
+        http.client.IncompleteRead(b"half"), http.client.BadStatusLine("junk"),
+        http.client.InvalidURL("nonnumeric port: 'abc'"),
+    ])
+    def test_a_reply_http_cannot_make_sense_of_is_an_error_too(self, tmp_path, failure):
+        """http.client's errors are not OSErrors, and must not escape."""
+        def read(url):
+            raise failure
+
+        result = suno_art.fetch_image(LINK, tmp_path, "cover", read=read)
+        assert result["ok"] is False and "The download failed" in result["error"]
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize("fmt", ["JPEG", "PNG", "WEBP"])
+    def test_a_picture_cut_short_is_not_a_candidate(self, tmp_path, fmt):
+        """A header is not a picture: the file has to decode to its last pixel."""
+        whole = _image_bytes(fmt)
+        result = suno_art.fetch_image(LINK, tmp_path, "cover", read=lambda url: whole[: len(whole) // 2])
+        assert result["ok"] is False and "not an image" in result["error"]
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.parametrize("size", [(9000, 9000), (30000, 30000)])
+    def test_an_image_far_larger_than_a_cover_is_refused_unopened(self, tmp_path, size):
+        result = suno_art.fetch_image(LINK, tmp_path, "cover", read=lambda url: _png_claiming(*size))
+        assert result["ok"] is False and "too large" in result["error"]
+        assert list(tmp_path.iterdir()) == []
+
+    def test_a_save_that_fails_part_way_leaves_nothing_behind(self, tmp_path, monkeypatch):
+        def full_disk(fileno):
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(suno_art.os, "fsync", full_disk)
+        result = suno_art.fetch_image(LINK, tmp_path, "cover", read=lambda url: _image_bytes())
+        assert result["ok"] is False and "No space left" in result["error"]
+        assert list(tmp_path.iterdir()) == []
+
     def test_an_existing_file_is_never_overwritten(self, tmp_path):
         (tmp_path / "cover.jpg").write_bytes(b"the earlier candidate")
         result = suno_art.fetch_image(LINK, tmp_path, "cover", read=lambda url: _image_bytes())
@@ -187,11 +242,21 @@ class TestFetchImage:
 
 
 class _Response:
-    def __init__(self, data: bytes) -> None:
-        self._data = data
+    """A reply that hands its bytes out as asked, and refuses a read with no limit."""
 
-    def read(self, amount: int = -1) -> bytes:
-        return self._data if amount < 0 else self._data[:amount]
+    def __init__(self, data: bytes, endless: bool = False) -> None:
+        self._data, self._at, self._endless = data, 0, endless
+        self.handed_out = 0
+
+    def read(self, amount: int | None = None) -> bytes:
+        assert amount is not None and amount > 0, "read the reply without a limit"
+        if self._endless:
+            chunk = b"x" * amount
+        else:
+            chunk = self._data[self._at:self._at + amount]
+            self._at += len(chunk)
+        self.handed_out += len(chunk)
+        return chunk
 
     def __enter__(self):
         return self
@@ -201,13 +266,14 @@ class _Response:
 
 
 class _Opener:
-    def __init__(self, data: bytes) -> None:
-        self.data, self.requests, self.timeouts = data, [], []
+    def __init__(self, data: bytes = b"", endless: bool = False) -> None:
+        self.response = _Response(data, endless)
+        self.requests, self.timeouts = [], []
 
     def open(self, request, timeout=None):
         self.requests.append(request)
         self.timeouts.append(timeout)
-        return _Response(self.data)
+        return self.response
 
 
 class TestReadLink:
@@ -231,6 +297,34 @@ class TestReadLink:
         with pytest.raises(ValueError, match="example.org"):
             suno_art.read_link("https://example.org/x.jpg", opener=opener)
         assert opener.requests == []
+
+    def test_a_reply_that_never_ends_is_cut_off_at_the_limit(self, monkeypatch):
+        monkeypatch.setattr(suno_art, "MAX_BYTES", 1000)
+        opener = _Opener(endless=True)
+        with pytest.raises(ValueError, match="larger than"):
+            suno_art.read_link(LINK, opener=opener)
+        assert opener.response.handed_out <= 1000 + suno_art.CHUNK_BYTES
+
+    def test_a_reply_that_trickles_in_is_given_up_on(self, monkeypatch):
+        ticks = iter([0.0, 1.0, suno_art.TOTAL_TIMEOUT_S + 2.0, suno_art.TOTAL_TIMEOUT_S + 3.0])
+        monkeypatch.setattr(suno_art.time, "monotonic", lambda: next(ticks))
+        with pytest.raises(ValueError, match="longer than"):
+            suno_art.read_link(LINK, opener=_Opener(endless=True))
+
+    def test_without_an_opener_it_uses_the_one_that_stays_on_suno(self, monkeypatch):
+        opener = _Opener(b"picture bytes")
+        monkeypatch.setattr(suno_art, "default_opener", lambda: opener)
+        assert suno_art.read_link(LINK) == b"picture bytes"
+        assert len(opener.requests) == 1
+
+    def test_the_default_opener_follows_redirects_only_on_suno(self):
+        handlers = suno_art.default_opener().handlers
+        assert any(isinstance(handler, suno_art.SunoOnlyRedirects) for handler in handlers)
+        plain = [
+            handler for handler in handlers
+            if type(handler) is urllib.request.HTTPRedirectHandler
+        ]
+        assert plain == []
 
 
 class TestRedirects:

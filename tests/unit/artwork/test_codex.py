@@ -304,10 +304,12 @@ class TestArtworkSettings:
         assert codex_art.artwork_settings({"artwork": {"generator": written}})["generator"] == "suno"
 
     @pytest.mark.parametrize("written, expected", [
-        ("image-1", "image-1"), (" Image-4 ", "image-4"), ("", ""), (None, ""), (4, ""),
-        ("image 4", ""), (["image-1"], ""),
+        ("image-1", "image-1"), (" Image-4 ", "image-4"), ("", ""), (None, ""),
+        ("image_1", "image_1"), ("image 4", "image 4"), (4, "4"),
+        (["image-1"], "(unreadable)"), (True, "(unreadable)"),
     ])
-    def test_the_suno_model_is_a_model_id_or_sunos_default(self, written, expected):
+    def test_the_suno_model_is_kept_as_written_for_the_plan_to_judge(self, written, expected):
+        """A typing mistake must reach the plan, not turn quietly into Suno's dearer default."""
         settings = codex_art.artwork_settings({"artwork": {"generator": "suno", "suno_model": written}})
         assert settings["suno_model"] == expected
 

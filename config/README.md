@@ -166,7 +166,7 @@ Settings for `/bitwize-music:album-art-director`. The art director always design
 |---------|----------|-------------|
 | `artwork.generator` | No | `manual`: you make the image and file it with `/bitwize-music:import-art`. `codex`: your installed Codex CLI makes it with its built-in image tool. `suno`: Suno's image tool makes it, through Suno's MCP server, for Visuals credits (default: manual) |
 | `artwork.candidates` | No | Images made per run with `codex`, 1 to 4 (default: 1). Suno always makes two |
-| `artwork.suno_model` | No | With `suno`: the image model, such as `image-1` (Fast, the cheapest). Leave it out for Suno's own default |
+| `artwork.suno_model` | No | With `suno`: the image model, such as `image-1` (Fast, the cheapest). Leave it out for Suno's own default. A value that is not a model id stops the art plan with a message |
 | `artwork.codex_path` | No | Full path to the Codex CLI when it is not on the PATH the plugin sees |
 
 With `codex`, each candidate uses one image from the ChatGPT plan Codex is signed in to (`codex login`), and you are asked before any is made. Codex returns a 1254x1254 image; the one you choose is enlarged to 3000x3000.

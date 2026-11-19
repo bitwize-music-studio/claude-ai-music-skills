@@ -25,10 +25,10 @@ allowed-tools:
 When invoked:
 1. Read album concept, tracklist, and themes
 2. Design visual concept with color palette, composition, style
-3. Find out who makes the image: call `get_album_art_plan(album_slug)`. If its `generator` is `codex`, the platform is Codex. Otherwise ask the user which AI art platform they use (see [Platform Selection](#platform-selection))
+3. Find out who makes the image: call `get_album_art_plan(album_slug)`. If its `generator` is `codex` or `suno`, that is the platform. Otherwise ask the user which AI art platform they use (see [Platform Selection](#platform-selection))
 4. Generate platform-specific AI art prompts
 5. Document in album's art section
-6. With `codex`: once the user approves the prompt and the cost, have Codex make the image (see [Generating the Image with Codex](#generating-the-image-with-codex))
+6. With `codex` or `suno`: once the user approves the prompt and the cost, have it make the image (see [Generating the Image with Codex](#generating-the-image-with-codex) or [Generating the Image with Suno](#generating-the-image-with-suno))
 
 ---
 
@@ -304,18 +304,18 @@ Only when `get_album_art_plan` reports `generator: suno`. Suno's image tool make
 2. **Get the user's approval of the prompt.** Show it, and change it until they are happy with it.
 3. **Call `get_album_art_plan(album_slug)`.** If `ready` is false, tell the user each blocking problem and stop. Keep `suno.request`: the arguments for Suno's `image-create`.
 4. **Find Suno's tools.** Look for `image-create`, `visuals-wait` and `visuals-download` on a connected MCP server and load their definitions. Not there → say so and stop: either Suno's server is not connected (the setup command is in the reference doc), or this session started before Suno added the tools and needs a restart. The user can still make the image elsewhere and file it with `/bitwize-music:import-art`.
-5. **Price it. This spends nothing.** Call `image-create` with the keys of `suno.request` and `dry_run: true`. The answer's `credits` is the exact price and `visuals_credits_remaining` is the balance (`account-usage` gives the balance too).
+5. **Price it. This spends nothing.** Call `image-create` with the keys of `suno.request` and `dry_run: true`. The answer carries `dry_run: true`, the exact price as `credits`, and the balance as `visuals_credits_remaining` (`account-usage` gives the balance too). If the tool no longer lists `dry_run`, refuses it, or answers without `dry_run: true`, stop and tell the user. Never drop `dry_run` to get the call through: without it the same call spends credits. The usual rule for an argument a tool rejects, drop it and retry, does not apply here.
 6. **State the cost and wait.** For example: "Two candidates from Suno for 50 Visuals credits. You have 450." If the price is more than the balance, say so and stop. Do not generate until the user says go.
 7. **Generate.** Call `image-create` with the keys of `suno.request` again, without `dry_run`, and with `idempotency_key: "{album_slug}/album-art/{UTC timestamp}"`. Keep the `id` it answers with, then call `visuals-wait(ids: <that id>)` and call it again while `status` is `processing`. Each ready take carries an `asset_id` and a `suno_url`.
 8. **Save the candidates.** For each ready take, `visuals-download(id: <asset_id>)` answers with a `url` (call again while it answers `processing`). Ask for every take: the file behind a link is made by that call, and an address worked out from another take's is refused. Then `save_album_art_candidates(album_slug, [<each url>])`. It saves the pictures in the album's audio folder under `artwork-candidates/` and opens them in the image viewer. This is free.
-9. **Let the user choose.** Give them the file names and each take's `suno_url`, and ask which one to use, or what to change. Never pick for them, and never import an image they have not chosen. If nothing fits, revise the prompt in the README and go back to step 5: a new run has a new price and needs a new go-ahead.
+9. **Let the user choose.** Give them the file names and each take's `suno_url`, and ask which one to use, or what to change. Never pick for them, and never import an image they have not chosen. If nothing fits, revise the prompt in the README and go back to step 2. The plan has to be read again, because `suno.request` still holds the old prompt, and a new run has a new price and needs a new go-ahead.
 10. **Call `import_album_art(album_slug, <chosen file>)`.** It writes `album.png` to the audio folder, enlarged to 3000x3000, and `album-art.png` to the album folder. If the album already has a cover it refuses; ask the user before passing `replace=true`.
 11. **Report** the two paths, that the cover was enlarged, and the Visuals credits spent and left.
 
 | What happened | Do |
 |---------------|-----|
 | No response or a timeout from `image-create` | Retry **once** with the **same** idempotency key, so the retry cannot be charged twice |
-| `400` with `reason: prompt_refused` | Show Suno's message. Revise the prompt once, and only when it named a real artist, character or person. Never reword a prompt to get past moderation |
+| `400` with `reason: prompt_refused` | Show Suno's message and generate nothing more. If the prompt named a real artist, character or person, offer one revised prompt and take it back through step 2: the README, the user's approval, the plan, the price and a new go-ahead. Never reword a prompt to get past moderation, and never send a prompt the user has not approved |
 | `429 moderation_limited` | Stop and tell the user. Do not retry |
 | `404` from a Visuals tool | The Suno sign-in does not include Visuals. Say so and stop |
 | A take ends `failed` | Save the other one and say which failed |

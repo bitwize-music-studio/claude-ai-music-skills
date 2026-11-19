@@ -363,6 +363,19 @@ class TestPlanWithSuno:
     def test_a_model_from_config_goes_into_the_request(self, studio):
         assert self._plan(studio, suno_model="image-1")["suno"]["request"]["model"] == "image-1"
 
+    @pytest.mark.parametrize("written", ["image_1", "image 4", "(unreadable)"])
+    def test_a_model_that_is_not_a_model_id_stops_the_plan(self, studio, written):
+        """Suno's default costs fifty times the Fast model: a typing mistake must not pick it."""
+        plan = self._plan(studio, suno_model=written)
+        assert plan["ready"] is False
+        assert _codes(plan, "blocking") == ["suno_model_unreadable"]
+        assert written in plan["problems"][0]["message"]
+        assert plan["suno"] is None
+
+    def test_a_bad_suno_model_does_not_matter_to_the_other_generators(self, studio):
+        studio.set(generator="codex", suno_model="image_1")
+        assert _run(album_art.get_album_art_plan("paper-boats"))["ready"] is True
+
     def test_things_to_avoid_ride_in_the_prompt(self, studio):
         studio.build(negative="text, watermark")
         plan = self._plan(studio)
@@ -589,6 +602,21 @@ class TestSaveCandidates:
         assert result["saved"] == 1
         assert result["failed"] == [{"link": 1, "error": "The download failed: timed out"}]
         assert _SUNO_NAME.match(Path(result["candidates"][0]["path"]).name).group(1) == "2"
+
+    def test_a_download_that_blows_up_is_reported_and_the_other_kept(self, studio, monkeypatch):
+        """Whatever a library raises, one take's failure must not lose the take already saved."""
+        real = album_art.suno_art.fetch_image
+
+        def fetch(url, dest_dir, stem, **kwargs):
+            if stem.endswith("-2"):
+                raise RuntimeError("decoder fell over")
+            return real(url, dest_dir, stem, **kwargs)
+
+        monkeypatch.setattr(album_art.suno_art, "fetch_image", fetch)
+        result = self._save()
+        assert result["saved"] == 1
+        assert result["failed"] == [{"link": 2, "error": "The download failed: decoder fell over"}]
+        assert studio.opened == [[result["candidates"][0]["path"]]]
 
     def test_a_link_that_is_not_sunos_is_refused_and_never_fetched(self, studio):
         result = self._save(["https://example.org/cover.jpg", SUNO_LINKS[0]])
