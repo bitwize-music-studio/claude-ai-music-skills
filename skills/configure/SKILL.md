@@ -14,6 +14,16 @@ allowed-tools:
 
 ## Your Task
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+from this skill's path. Use the arguments in the request. Ask for missing
+settings through the host's question tool or in chat, then wait for the answers
+before writing the config.
+
+You can configure the workspace before MCP starts. To validate YAML, use the
+plugin venv's Python when available (`~/.bitwize-music/venv/bin/python3` or the
+venv's `Scripts/python.exe` on Windows). Otherwise, use another YAML parser.
+If no parser is available, report that the YAML syntax is unverified.
+
 **Input**: $ARGUMENTS
 
 Route based on argument:

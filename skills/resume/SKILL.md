@@ -28,6 +28,22 @@ allowed-tools:
 
 ## Instructions
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+from this skill's path, then read the installed plugin's `CLAUDE.md`. Read
+`~/.bitwize-music/config.yaml`. If it is missing, recommend the installed
+`configure` skill and stop. Load `CLAUDE.md` from `paths.overrides`
+(default `{content_root}/overrides`) if present. Use the album argument in
+the request and the installed Codex skill names in recommendations.
+
+When MCP is unavailable in Codex, look for the requested album under
+`{content_root}/artists/{artist}/albums/`. If the request omits the album
+name, use `session.last_album` from `~/.bitwize-music/cache/state.json` only
+when the cached artist and content root match the current config. Ask for the
+album name if none matches. If several match, ask the user to choose one. Read
+the selected album's README and tracks for status and source verification,
+then continue at Step 4 in read-only mode. Tell the user that saving session
+context requires MCP.
+
 When this skill is invoked with an album name:
 
 ### Step 1: Find the Album via MCP
@@ -67,7 +83,8 @@ Based on album and track statuses, identify the workflow phase:
 
 ### Step 5: Report to User
 
-Present a clear status report:
+In Claude Code, list three next steps with the action from Step 6 first.
+In Codex, show only that action in the next-action section.
 
 ```
 📁 Album: [Album Title]
@@ -94,9 +111,9 @@ Present a clear status report:
 Ready to continue? Tell me what you'd like to work on.
 ```
 
-### Step 6: Recommend the Single Best Next Action
+### Step 6: Choose the Priority Action
 
-Pick ONE clear recommendation from the decision tree below. Don't list 5 options — pick the best one, include the skill name, and be specific about which track.
+Include the skill name and, when applicable, the track.
 
 **Decision Tree** (evaluate top-to-bottom, first match wins):
 

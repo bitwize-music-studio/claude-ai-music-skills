@@ -6,6 +6,10 @@ This project uses [Conventional Commits](https://conventionalcommits.org/) and [
 
 ## [Unreleased]
 
+### Added
+- **Run `setup`, `configure`, `session-start`, and `resume` in Codex from your music workspace.** Startup and resume use your workflow overrides and the shared source-verification rules.
+- **Codex startup checks the installed skill files.** `health_check(runtime="codex")` reports their count, dependency status, and album slug collisions. Use Codex's skill picker to check registration.
+
 ### Fixed
 - **Album coherence checks the real anchor when `mastered/` and the source tracks don't line up** — `master_album` numbers its anchor among the source WAVs, but the coherence check and correct stages read that number against the mastered tracks, which are every WAV in `mastered/`. A file left there by a renamed or removed track shifted the count: with `02-old-take.wav` left behind and track 03 the anchor, the stages measured every track against the leftover and re-mastered outliers toward it. A track that mastering skipped for having no measurable loudness shifted it the other way, and an anchor at the end of the album then ran past the shorter list and stopped the run with `ValueError: anchor_index_1based out of range`. A plainly silent source never got that far, because pre-QC stops the run at it. The stages now find the anchor among the mastered tracks by filename, and say `anchor_not_mastered` when it has no mastered file. An anchor number that fits neither list, which a frozen signature written for a longer album can carry, gets the same report where it raised the same `ValueError`.
 - **`analyze_rhyme_scheme` hears cry / sky / why as a rhyme** — a one-syllable end word spelled consonants + `y` got the one-letter rhyme key `i`, and the scheme only groups keys of two letters or more, so a chorus ending cry / sky / why came back as `ABC`, and two lines ending on the same word as `AB`. Such words now key as `ie`, the key `lie`, `eyes` and `cries` already had. Longer words ending in an unstressed `y` (`baby`, `city`) keep their key, and the two-letter floor that keeps `go` and `do` apart stays.

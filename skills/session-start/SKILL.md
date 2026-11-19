@@ -15,6 +15,9 @@ allowed-tools:
 
 ## Your Task
 
+In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
+from this skill's path, then read the installed plugin's `CLAUDE.md`.
+
 Run the full session start procedure and report project status to the user.
 
 ---
@@ -40,7 +43,8 @@ Quick dependency check:
 
 ## Step 1.5: Health Check
 
-Use the `health_check` MCP tool (checks venv packages + skill registration + album slug collisions in one call):
+Call `health_check()` in Claude Code and `health_check(runtime="codex")` in
+Codex. The MCP launcher sets `CLAUDE_PLUGIN_ROOT` in both hosts.
 
 **Venv results** (from `result.venv`):
 - `status: "ok"` → continue silently
@@ -48,10 +52,15 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 - `status: "no_venv"` → **stop** and suggest `/bitwize-music:setup`
 - `status: "error"` → warn and continue
 
-**Skill registration results** (from `result.skills`):
+**Skill results** (from `result.skills`):
 - `status: "ok"` → continue silently
 - `status: "stale"` → warn: list missing and ghost skill names, show fix message
 - `status: "no_cache"` → warn that plugin cache not found, continue
+- `status: "not_checked"` → Report that MCP found the installed skill files.
+  If a skill is missing in Codex, check registration in the skill picker or
+  with `skills/list`.
+- `status: "error"` → **Stop** and report that the installed plugin has no
+  canonical skill files. Suggest reinstalling the plugin in the active host.
 
 **Album slug collision results** (from `result.collisions`):
 - `status: "ok"` → continue silently
@@ -59,9 +68,15 @@ Use the `health_check` MCP tool (checks venv packages + skill registration + alb
 
 ## Step 1.6: Suno MCP (optional)
 
-Two facts decide the Suno line: whether a Suno MCP server is **connected** (a tool named `audio-create` exists on any connected MCP server), and whether one is **registered** (the `suno` section of the `health_check` result from Step 1.5: `status` is `configured` or `missing`, with `servers[0].name`, `reminder` and `fix`). The server is optional, so none of this is a warning and none of it stops the session.
+Suno is optional. If the `audio-create` MCP tool is available, call
+`account-usage` once (free) for the plan (`suno_account.plan.name`) and
+remaining downloads (`suno_account.download_credits_remaining`). Show
+`Suno: connected — Premier Plan, 15 downloads left` with the returned values.
+If the call fails, show `Suno: connected`.
 
-- Connected → read `account-usage` once (free) and show the plan and the downloads left: `Suno: connected — Premier Plan, 15 downloads left` (`suno_account.plan.name`, `suno_account.download_credits_remaining`). If that call fails, just `Suno: connected`
+When Suno is disconnected in Claude Code, read `suno.status`, `servers`,
+`reminder`, and `fix` from the `health_check` result.
+
 - Registered but not connected → `Suno: configured as "<servers[0].name>" but not connected — run /mcp and sign in`
 - Missing, `reminder: true` → show how to add it, as its own short block after the Setup lines:
 
@@ -72,20 +87,29 @@ Two facts decide the Suno line: whether a Suno MCP server is **connected** (a to
   (Hide this with generation.suno_mcp_reminder: false in your config.)
   ```
 
-  Use the `fix` fields from the result rather than retyping them. In Codex, give the link in `fix.other_assistants` instead of the `claude` command.
-- Missing, `reminder: false` → `Suno: not connected (optional)`
+  Use the `fix` fields from the result.
+
+When Suno is disconnected in Codex, check the session's MCP settings or run
+`codex mcp list` from the music workspace using the same profile. If a server
+is registered, show its name and use `codex mcp login <server-name>` if it needs
+sign-in. If no Suno server is registered and reminders are enabled, link to
+[Suno's setup instructions](https://help.suno.com/en/articles/14551425).
+
+In either host, if Suno is absent and `reminder` is false, show `Suno: not connected (optional)`.
 
 ## Step 2: Load Config
 
 Read `~/.bitwize-music/config.yaml`.
 
-If missing, tell user to run `/bitwize-music:configure`.
+If the file is missing, recommend `/bitwize-music:configure` in Claude Code or
+the installed `configure` skill by its advertised name in Codex. Continue once
+the required workspace paths are configured.
 
 ## Step 3: Load Overrides
 
 Read `paths.overrides` from config (default: `{content_root}/overrides`):
 
-- Check for `{overrides}/CLAUDE.md` — incorporate instructions if found
+- In either host, load `{overrides}/CLAUDE.md` from that directory if present
 - Check for `{overrides}/pronunciation-guide.md` — note if found
 - Skip silently if missing (overrides are optional)
 
@@ -189,7 +213,7 @@ SESSION START
 =============
 
 Setup: MCP ready, config loaded
-Health: [venv ok, skills ok, no collisions | warnings listed]
+Health: [venv result, skill check detail, album slug collisions]
 Suno: [connected | not connected (optional)]
 Overrides: [loaded from {path} | not found (optional)]
 State: [loaded | rebuilt | error]
