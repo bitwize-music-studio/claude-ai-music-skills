@@ -586,6 +586,7 @@ from handlers.album_art import (  # noqa: F401
     generate_album_art,
     get_album_art_plan,
     import_album_art,
+    save_album_art_candidates,
 )
 from handlers.album_fields import (  # noqa: F401
     sync_album_tracklist,

@@ -20,7 +20,7 @@ All 61 skills, invoked with `/bitwize-music:<skill-name>`. Claude also uses them
 | `sound-effects` | Make a sound effect, a one-shot or a loop for an album through Suno's MCP server |
 | `suno-voice` | Put one of your saved Suno Voices on a track or an album, list your Voices, or get Suno's link to make a new one |
 | `pronunciation-specialist` | Prevent Suno mispronunciations with phonetic spelling |
-| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI make the cover (`artwork.generator: codex`) |
+| `album-art-director` | Album artwork concepts and multi-platform AI art prompts; can have the Codex CLI or Suno's image tool make the cover (`artwork.generator: codex` or `suno`) |
 | `mix-engineer` | Per-stem audio polish (noise reduction, EQ, compression) |
 | `mastering-engineer` | Audio mastering for streaming platforms (-14 LUFS) |
 

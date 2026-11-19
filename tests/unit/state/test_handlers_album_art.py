@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The album-art tools: plan, generate candidates with Codex, import the one chosen.
+"""The album-art tools: plan, make candidates with Codex or Suno, import the one chosen.
 
 The art director used to stop at a prompt: the user took it to ChatGPT or
 Midjourney, downloaded the result and ran /import-art. With
@@ -15,6 +15,11 @@ Three rules the tests hold the tools to:
 * an existing cover is never overwritten unless asked.
 
 Codex itself is never run here; ``generate_image`` is replaced.
+
+With ``artwork.generator: suno`` the image comes from Suno's image-create tool,
+which only a skill can call. The plan then carries that tool's request, and
+``save_album_art_candidates`` saves the pictures behind the links Suno gives
+back. Nothing is fetched here; ``fetch_image`` is replaced.
 
 Usage:
     python -m pytest tests/unit/state/test_handlers_album_art.py -v
@@ -165,10 +170,11 @@ def studio(tmp_path: Path, monkeypatch):
     box = types.SimpleNamespace(
         album_dir=album_dir, audio_dir=audio_dir,
         candidates_dir=audio_dir / "artwork-candidates",
-        settings={"generator": "codex", "candidates": 1, "codex_path": ""},
+        settings={"generator": "codex", "candidates": 1, "codex_path": "", "suno_model": ""},
         codex="/usr/local/bin/codex",
         status={"version": "codex-cli 0.164.0", "logged_in": True, "image_generation": True},
         calls=[], opened=[], fail_on=set(), viewer_works=True,
+        fetched=[], fetch_fail_on=set(),
     )
 
     def build(**options) -> None:
@@ -176,7 +182,7 @@ def studio(tmp_path: Path, monkeypatch):
 
     def configure(**changes) -> None:
         for key, value in changes.items():
-            if key in ("generator", "candidates", "codex_path"):
+            if key in ("generator", "candidates", "codex_path", "suno_model"):
                 box.settings[key] = value
             else:
                 setattr(box, key, value)
@@ -190,6 +196,15 @@ def studio(tmp_path: Path, monkeypatch):
         return {"ok": True, "path": str(Path(dest_dir) / filename), "width": 1254,
                 "height": 1254, "seconds": 50, "saved_by": "codex"}
 
+    def fake_fetch(url, dest_dir, stem, **kwargs):
+        box.fetched.append({"url": url, "dest_dir": Path(dest_dir), "stem": stem})
+        if len(box.fetched) in box.fetch_fail_on:
+            return {"ok": False, "error": "The download failed: timed out"}
+        path = Path(dest_dir) / f"{stem}.jpg"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (1024, 1024), (30, 120, 130)).save(path, "JPEG")
+        return {"ok": True, "path": str(path), "width": 1024, "height": 1024, "format": "JPEG"}
+
     def fake_open(paths):
         box.opened.append([str(p) for p in paths])
         return box.viewer_works
@@ -198,6 +213,7 @@ def studio(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(album_art.codex_art, "find_codex", lambda configured="", **kw: box.codex)
     monkeypatch.setattr(album_art.codex_art, "codex_status", lambda codex, **kw: dict(box.status))
     monkeypatch.setattr(album_art.codex_art, "generate_image", fake_generate)
+    monkeypatch.setattr(album_art.suno_art, "fetch_image", fake_fetch)
     monkeypatch.setattr(album_art, "_open_in_viewer", fake_open)
 
     box.build = build
@@ -327,6 +343,91 @@ class TestPlan:
         assert "no_prompt" in _codes(plan, "blocking")
 
 
+class TestPlanWithSuno:
+    """`artwork.generator: suno` — the image comes from Suno's image-create tool."""
+
+    def _plan(self, studio, **settings):
+        studio.set(generator="suno", **settings)
+        return _run(album_art.get_album_art_plan("paper-boats"))
+
+    def test_the_plan_carries_the_request_for_sunos_image_tool(self, studio):
+        plan = self._plan(studio)
+        assert plan["generator"] == "suno"
+        assert plan["ready"] is True
+        assert plan["problems"] == []
+        assert plan["suno"] == {
+            "tool": "image-create", "request": {"prompt": PROMPT, "aspect": "1:1"},
+        }
+        assert plan["codex"] is None
+
+    def test_a_model_from_config_goes_into_the_request(self, studio):
+        assert self._plan(studio, suno_model="image-1")["suno"]["request"]["model"] == "image-1"
+
+    @pytest.mark.parametrize("written", ["image_1", "image 4", "(unreadable)"])
+    def test_a_model_that_is_not_a_model_id_stops_the_plan(self, studio, written):
+        """Suno's default costs fifty times the Fast model: a typing mistake must not pick it."""
+        plan = self._plan(studio, suno_model=written)
+        assert plan["ready"] is False
+        assert _codes(plan, "blocking") == ["suno_model_unreadable"]
+        assert written in plan["problems"][0]["message"]
+        assert plan["suno"] is None
+
+    def test_a_bad_suno_model_does_not_matter_to_the_other_generators(self, studio):
+        studio.set(generator="codex", suno_model="image_1")
+        assert _run(album_art.get_album_art_plan("paper-boats"))["ready"] is True
+
+    def test_things_to_avoid_ride_in_the_prompt(self, studio):
+        studio.build(negative="text, watermark")
+        plan = self._plan(studio)
+        assert plan["suno"]["request"]["prompt"] == f"{PROMPT}\n\nAvoid: text, watermark"
+        assert plan["prompt"] == PROMPT and plan["avoid"] == "text, watermark"
+
+    def test_the_cost_is_visuals_credits_priced_by_a_dry_run(self, studio):
+        cost = self._plan(studio)["cost"]
+        assert "Visuals credits" in cost
+        assert "dry_run" in cost
+        assert "ChatGPT" not in cost
+
+    def test_it_says_what_suno_returns(self, studio):
+        output = self._plan(studio)["output"]
+        assert "1024x1024" in output and "3000x3000" in output
+        assert "Codex" not in output
+
+    def test_one_call_makes_two_candidates(self, studio):
+        """Suno makes two takes a call; artwork.candidates is Codex's count."""
+        assert self._plan(studio, candidates=4)["candidates"] == 2
+
+    def test_codex_is_never_looked_for(self, studio, monkeypatch):
+        def looked(*args, **kwargs):
+            raise AssertionError("looked for Codex with the generator set to suno")
+
+        monkeypatch.setattr(album_art.codex_art, "find_codex", looked)
+        monkeypatch.setattr(album_art.codex_art, "codex_status", looked)
+        assert self._plan(studio)["ready"] is True
+
+    @pytest.mark.parametrize("options", [{"prompt": None}, {"prompt": TEMPLATE_PROMPT}])
+    def test_no_prompt_yet(self, studio, options):
+        studio.build(**options)
+        plan = self._plan(studio)
+        assert plan["ready"] is False
+        assert _codes(plan, "blocking") == ["no_prompt"]
+        assert plan["suno"] is None
+
+    def test_the_other_generators_have_no_suno_request(self, studio):
+        assert _run(album_art.get_album_art_plan("paper-boats"))["suno"] is None
+        studio.set(generator="manual")
+        assert _run(album_art.get_album_art_plan("paper-boats"))["suno"] is None
+
+    def test_candidates_saved_from_suno_are_listed_with_the_rest(self, studio):
+        _png(studio.candidates_dir / "cover-20260615-101500-1.png")
+        jpg = studio.candidates_dir / "cover-suno-20260615-101700-1.jpg"
+        Image.new("RGB", (1024, 1024), (30, 120, 130)).save(jpg, "JPEG")
+        (studio.candidates_dir / "notes.txt").write_text("not a candidate", encoding="utf-8")
+        assert self._plan(studio)["existing"]["candidates"] == [
+            "cover-20260615-101500-1.png", "cover-suno-20260615-101700-1.jpg",
+        ]
+
+
 # ===========================================================================
 # generate_album_art
 # ===========================================================================
@@ -391,6 +492,15 @@ class TestGenerate:
         assert code in _codes(result, "blocking")
         assert studio.calls == []
 
+    def test_with_suno_it_makes_nothing_and_says_where_the_image_comes_from(self, studio):
+        """generate_album_art drives Codex; Suno's image tool is the skill's to call."""
+        studio.set(generator="suno")
+        result = _run(album_art.generate_album_art("paper-boats"))
+        assert result["generated"] == 0
+        assert studio.calls == []
+        assert _codes(result, "blocking") == ["generator_suno"]
+        assert "image-create" in result["problems"][0]["message"]
+
     def test_nothing_is_spent_without_a_prompt(self, studio):
         studio.build(prompt=TEMPLATE_PROMPT)
         result = _run(album_art.generate_album_art("paper-boats"))
@@ -425,6 +535,117 @@ class TestGenerate:
         result = _run(album_art.generate_album_art("paper-boats"))
         assert result["generated"] == 0
         assert studio.opened == []
+
+
+# ===========================================================================
+# save_album_art_candidates
+# ===========================================================================
+
+SUNO_LINKS = [
+    "https://cdn1.suno.ai/visual/c2pa_video_gen_01a1f5e9-09e2-7d3a-89f1-7b081265d258.jpg",
+    "https://cdn1.suno.ai/visual/c2pa_video_gen_01a1f5e9-09de-7d06-91d9-907f0eaad11f.jpg",
+]
+_SUNO_NAME = re.compile(r"^cover-suno-\d{8}-\d{6}-(\d)\.jpg$")
+
+
+class TestSaveCandidates:
+    def _save(self, links=None, **kwargs):
+        return _run(album_art.save_album_art_candidates(
+            "paper-boats", SUNO_LINKS if links is None else links, **kwargs,
+        ))
+
+    def test_each_link_becomes_a_candidate_beside_the_audio(self, studio):
+        result = self._save()
+        assert result["found"] is True
+        assert result["saved"] == 2
+        assert result["failed"] == []
+        numbers = [_SUNO_NAME.match(Path(c["path"]).name).group(1) for c in result["candidates"]]
+        assert numbers == ["1", "2"]
+        assert {Path(c["path"]).parent for c in result["candidates"]} == {studio.candidates_dir}
+        assert [(c["width"], c["height"], c["format"]) for c in result["candidates"]] == [
+            (1024, 1024, "JPEG"), (1024, 1024, "JPEG"),
+        ]
+        assert [f["url"] for f in studio.fetched] == SUNO_LINKS
+        assert result["candidates_dir"] == str(studio.candidates_dir)
+
+    def test_the_candidates_are_opened_for_the_user(self, studio):
+        result = self._save()
+        assert studio.opened == [[c["path"] for c in result["candidates"]]]
+        assert result["opened"] is True
+
+    def test_the_viewer_can_be_left_shut(self, studio):
+        result = self._save(open_viewer=False)
+        assert studio.opened == []
+        assert result["opened"] is False
+
+    def test_a_viewer_that_will_not_open_is_not_a_failure(self, studio):
+        studio.set(viewer_works=False)
+        result = self._save()
+        assert result["saved"] == 2
+        assert result["opened"] is False
+
+    def test_nothing_is_imported_and_the_readme_is_untouched(self, studio):
+        before = (studio.album_dir / "README.md").read_text(encoding="utf-8")
+        self._save()
+        assert not (studio.audio_dir / "album.png").exists()
+        assert not (studio.album_dir / "album-art.png").exists()
+        assert (studio.album_dir / "README.md").read_text(encoding="utf-8") == before
+
+    def test_it_leaves_the_choice_to_the_user(self, studio):
+        result = self._save()
+        assert "import_album_art" in result["next"]
+        assert "never pick" in result["next"].lower()
+
+    def test_one_failed_download_does_not_lose_the_other(self, studio):
+        studio.set(fetch_fail_on={1})
+        result = self._save()
+        assert result["saved"] == 1
+        assert result["failed"] == [{"link": 1, "error": "The download failed: timed out"}]
+        assert _SUNO_NAME.match(Path(result["candidates"][0]["path"]).name).group(1) == "2"
+
+    def test_a_download_that_blows_up_is_reported_and_the_other_kept(self, studio, monkeypatch):
+        """Whatever a library raises, one take's failure must not lose the take already saved."""
+        real = album_art.suno_art.fetch_image
+
+        def fetch(url, dest_dir, stem, **kwargs):
+            if stem.endswith("-2"):
+                raise RuntimeError("decoder fell over")
+            return real(url, dest_dir, stem, **kwargs)
+
+        monkeypatch.setattr(album_art.suno_art, "fetch_image", fetch)
+        result = self._save()
+        assert result["saved"] == 1
+        assert result["failed"] == [{"link": 2, "error": "The download failed: decoder fell over"}]
+        assert studio.opened == [[result["candidates"][0]["path"]]]
+
+    def test_a_link_that_is_not_sunos_is_refused_and_never_fetched(self, studio):
+        result = self._save(["https://example.org/cover.jpg", SUNO_LINKS[0]])
+        assert result["saved"] == 1
+        assert result["failed"][0]["link"] == 1
+        assert "example.org" in result["failed"][0]["error"]
+        assert [f["url"] for f in studio.fetched] == [SUNO_LINKS[0]]
+
+    def test_nothing_is_opened_when_nothing_was_saved(self, studio):
+        studio.set(fetch_fail_on={1, 2})
+        result = self._save()
+        assert result["saved"] == 0
+        assert studio.opened == []
+
+    @pytest.mark.parametrize("links", [[], [SUNO_LINKS[0]] * 5, "https://cdn1.suno.ai/x.jpg", [7]])
+    def test_one_to_four_links_are_taken(self, studio, links):
+        result = self._save(links)
+        assert "error" in result
+        assert studio.fetched == []
+
+    def test_it_does_not_need_the_generator_to_be_suno(self, studio):
+        """A link the user got from Suno some other way is a candidate too."""
+        studio.set(generator="manual")
+        assert self._save()["saved"] == 2
+
+    def test_an_unknown_album(self, studio):
+        result = _run(album_art.save_album_art_candidates("no-such-album", SUNO_LINKS))
+        assert result.get("found") is False or "error" in result
+        assert studio.fetched == []
 
 
 # ===========================================================================
@@ -508,6 +729,8 @@ class TestImport:
 
 
 class TestTheyAreRegisteredTools:
-    @pytest.mark.parametrize("name", ["get_album_art_plan", "generate_album_art", "import_album_art"])
+    @pytest.mark.parametrize("name", [
+        "get_album_art_plan", "generate_album_art", "save_album_art_candidates", "import_album_art",
+    ])
     def test_the_server_exposes_it(self, name):
         assert callable(getattr(server, name, None))
