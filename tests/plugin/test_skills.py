@@ -481,11 +481,53 @@ class TestSkillRegistrationIntegrity:
 
 SUNO_TOOL_PREFIX = 'mcp__suno__'
 
+# The tools on Suno's MCP server when this list was written. It is only used
+# to spot a tool's name in a skill's text, so a tool Suno adds later is not
+# looked for until it is added here.
+SUNO_TOOLS = frozenset({
+    'account-me', 'account-upgrade', 'account-usage', 'audio-analysis', 'audio-covers-create',
+    'audio-create', 'audio-download', 'audio-edit', 'audio-extensions-create',
+    'audio-full-song', 'audio-like', 'audio-listen', 'audio-listen-wait',
+    'audio-lyrics-alignment', 'audio-mashups-create', 'audio-midi', 'audio-retrieve',
+    'audio-settings', 'audio-stems-create', 'audio-stems-retrieve', 'audio-unlike',
+    'audio-upload-complete', 'audio-upload-create', 'audio-wait', 'characters-list',
+    'characters-save', 'image-create', 'library-liked', 'library-list', 'library-search',
+    'midi-upload-complete', 'midi-upload-create', 'playlists-add-clips', 'playlists-create',
+    'playlists-list', 'playlists-list-clips', 'playlists-remove-clips', 'sequence-create',
+    'sequence-export', 'sequence-generate', 'sequence-get', 'sequence-list', 'sequence-update',
+    'sounds-create', 'speech-create', 'video-assemble', 'video-create', 'visuals-download',
+    'visuals-library', 'visuals-models', 'visuals-show', 'visuals-upload-complete',
+    'visuals-upload-create', 'visuals-wait', 'voices-list', 'voices-start', 'workspaces-create',
+    'workspaces-list', 'workspaces-update-clips',
+})
+
+# Suno tools a skill names but leaves to Claude Code's permission prompt on
+# purpose, as {skill: {tool, ...}}. A tool that spends credits and has no
+# go-ahead step of its own in the skill belongs here, not in allowed-tools.
+NAMED_BUT_ASKED_FIRST: dict[str, set[str]] = {}
+
 
 def _suno_pre_approvals(frontmatter: dict) -> list[str]:
-    """The Suno entries in a skill's ``allowed-tools``, as written."""
+    """The Suno entries in a skill's ``allowed-tools``, as written.
+
+    ``allowed-tools`` is a YAML list in this repo, but Claude Code also reads
+    one comma- or space-separated line, so both are understood here.
+    """
     tools = frontmatter.get('allowed-tools') or []
+    if isinstance(tools, str):
+        tools = re.split(r'[,\s]+', tools)
     return [str(tool) for tool in tools if str(tool).startswith('mcp__suno')]
+
+
+def _skill_body(frontmatter: dict) -> str:
+    """A SKILL.md's text after its frontmatter."""
+    content = frontmatter.get('_content', '')
+    return content.split('---', 2)[2] if content.startswith('---') else content
+
+
+def _names_tool(body: str, tool: str) -> bool:
+    """True when a skill's text names a Suno tool (``audio-listen`` is not ``audio-listen-wait``)."""
+    return re.search(rf'(?<![a-z-]){re.escape(tool)}(?![a-z-])', body) is not None
 
 
 class TestSunoToolPreApproval:
@@ -514,18 +556,47 @@ class TestSunoToolPreApproval:
     def test_a_pre_approved_suno_tool_is_one_the_skill_names(self, all_skill_frontmatter):
         unnamed = {}
         for name, fm in all_skill_frontmatter.items():
-            content = fm.get('_content', '')
-            body = content.split('---', 2)[2] if content.startswith('---') else content
+            body = _skill_body(fm)
             for entry in _suno_pre_approvals(fm):
                 tool = entry[len(SUNO_TOOL_PREFIX):]
                 if '*' in tool or not tool:
                     continue  # the test above reports these
-                if not re.search(rf'(?<![a-z-]){re.escape(tool)}(?![a-z-])', body):
+                if not _names_tool(body, tool):
                     unnamed.setdefault(name, []).append(entry)
         assert not unnamed, (
             "Suno tools a skill pre-approves but never names in its text — "
             f"drop them from allowed-tools or name them where they are called: {unnamed}"
         )
+
+    def test_a_suno_tool_the_skill_names_is_pre_approved(self, all_skill_frontmatter):
+        """The other direction: a call the skill's text makes must not stop at a prompt.
+
+        A step borrowed from another skill ("as /bitwize-music:generate Step 4
+        does") has to name the tool it calls, or nothing here can see it.
+        """
+        left_out = {}
+        for name, fm in all_skill_frontmatter.items():
+            approved = {entry[len(SUNO_TOOL_PREFIX):] for entry in _suno_pre_approvals(fm)}
+            if not approved:
+                continue  # a skill that pre-approves no Suno tool asks for each call
+            body = _skill_body(fm)
+            named = {tool for tool in SUNO_TOOLS if _names_tool(body, tool)}
+            missing = named - approved - NAMED_BUT_ASKED_FIRST.get(name, set())
+            if missing:
+                left_out[name] = sorted(missing)
+        assert not left_out, (
+            "Suno tools a skill names but does not pre-approve, so the call would stop "
+            "at a permission prompt — add them to allowed-tools, or to "
+            f"NAMED_BUT_ASKED_FIRST when that is intended: {left_out}"
+        )
+
+    @pytest.mark.parametrize('written', [
+        ['Read', 'mcp__suno__*'],
+        'Read, Edit, Bash, mcp__suno__*',
+        'Read Edit mcp__suno__*',
+    ])
+    def test_a_wildcard_is_found_however_the_list_is_written(self, written):
+        assert _suno_pre_approvals({'allowed-tools': written}) == ['mcp__suno__*']
 
     def test_the_suno_skills_still_pre_approve_their_tools(self, all_skill_frontmatter):
         """Guards the two tests above against passing because nothing was read."""

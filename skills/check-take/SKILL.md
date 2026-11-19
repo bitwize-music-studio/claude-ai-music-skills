@@ -64,7 +64,7 @@ Once per take: `evaluate_take_check(album_slug, track_slug, clip_id, answers, du
 - `duration_s` — the take's `metadata.duration`, when you have it.
 - `settings` — an object holding the `model`, `negative_style`, `max_mode` and `controls` you kept for that take, each exactly as Suno gave it. Leave it out when the take had none of them.
 
-The tool holds those settings against what the track file asks for today, so a track edited since the take was made shows as a difference.
+The tool holds the model against the one the Generation Log says went out with the take, and the other settings against what the track file asks for today, so a track edited since the take was made shows as a difference.
 
 ## Step 5: Report
 

@@ -278,7 +278,7 @@ The same call takes the vocals off a take: `get_edit_request(…, version: "inst
 
 - **How**: `get_take_check_plan` numbers the lyric lines and writes the questions; the skill puts them to Suno's listening agent (`audio-listen`, read with `audio-listen-wait`); `evaluate_take_check` reads the JSON block the agent ends its answer with. A question holds 2,000 characters, so long lyrics are split across questions; only the first asks about the sound. The skill also reads each take once with `audio-retrieve` and hands the settings in its `metadata` to `evaluate_take_check`.
 - **What it checks**: lyric lines not sung, sung with different words or hard to understand, with what was heard instead; tempo against the BPM in the Style Box (a tempo measured at double or half the one asked for counts as a match — a relaxed 96 BPM song is often measured at 190); the voice against Vocal Gender; Exclude Styles items that turn up among the instruments; problems the agent names; a clean ending; length against the track's Target Duration.
-- **The settings Suno made the take with**: the model against the one the Generation Log says was sent, and Variety, Max Mode, the exclusions and each slider the track sets against the request the track file makes today. Only what Suno reports is compared, and a slider the track leaves alone never is, because nothing was asked of it. A track edited since the take was made shows as a difference, as its lyrics do.
+- **The settings Suno made the take with**: the model against the one the Generation Log says was sent, and Variety, Max Mode, the exclusions and each slider the track sets against the request the track file makes today. Only what Suno reports is compared, and a slider the track leaves alone never is, because nothing was asked of it. A track edited since the take was made shows as a difference, as its lyrics do. A take the log says was made from a MIDI score is held to its model alone, because a score goes out with no exclusions, Max Mode or sliders.
 - **Limits**: five unanswered questions at a time, 200 a day. An answer arrives in under a minute.
 - `generation.take_check: false` stops `/generate` from running it; the skill still runs on request.
 
@@ -301,11 +301,11 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 | Tool | Makes | Price |
 |---|---|---|
 | `image-create` | Images from a prompt, two takes, at 1:1, 9:16 or 16:9 | Per generation: 1 (`image-1`, Fast), 25 (`image-2`, Standard) or 50 (`image-4`, Max, the default) |
-| `video-create` | A clip of 5 to 15 seconds. With `song_id` it is made for a chosen part of that song, which becomes its soundtrack | Per second: 15 (`video-1`, Fast, 480p) or 30 (`video-2`, Standard, 720p, the default) |
+| `video-create` | A clip of 5 to 15 seconds. With `song_id` it is made for a chosen part of that song, which becomes its soundtrack | Per second: 15 (`video-1`, Fast, 480p) or 30 (`video-2`, Standard, 720p) |
 | `sequence-generate` | Keyframes or clips for up to 8 shots of a Sequence in one call | The same prices, per shot |
 
 - A generation is charged once however many takes it makes, so a 15-second clip at 720p is 450 credits.
-- The prices are the ones `visuals-models` listed when this was written. Read it for today's.
+- The models and prices are the ones `visuals-models` listed when this was written, with `video-2` as the default for each kind of clip it named. Read it for today's: a default belongs to a task, and the tool descriptions also name a `video-5` that it did not list.
 - `dry_run: true` on any of the three answers with the exact price and spends nothing. Use it to state the cost before the go-ahead.
 
 **What does not**
@@ -320,7 +320,7 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 - The look, who is on screen and whether anyone sings on screen are the user's to choose. Ask before creating a Sequence.
 - Downloading a music video needs its song unlocked: `visuals-download` answers `403 clip_not_unlocked` until the song has been downloaded, which can cost a download credit.
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
-- Give the user each image's or video's `suno_url`. Claude Code has no picture board: `visuals-show` hands the pictures to the model, and the user opens the link.
+- Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. What Claude Code shows has not been measured, so the link is what the user can count on.
 
 *Not measured:* no tool that spends Visuals credits has been called from the plugin.
 

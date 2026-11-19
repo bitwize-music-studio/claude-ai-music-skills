@@ -8,12 +8,16 @@ allowed-tools:
   - Read
   - Edit
   - bitwize-music-mcp
+  - mcp__suno__account-upgrade
   - mcp__suno__account-usage
   - mcp__suno__audio-extensions-create
   - mcp__suno__audio-full-song
+  - mcp__suno__audio-like
   - mcp__suno__audio-listen
   - mcp__suno__audio-listen-wait
+  - mcp__suno__audio-unlike
   - mcp__suno__audio-wait
+  - mcp__suno__voices-list
   - mcp__suno__workspaces-update-clips
 ---
 
@@ -61,7 +65,7 @@ Then `get_extension_request(album_slug, track_slug, take: N, continue_at: "<time
 | `no_section_named` (a warning) | Say Suno will write the words itself, show `sections`, and ask whether to name one |
 | `continue_from_end` (a warning) | Say the take's ending stays in the middle of the song; ask whether to carry on from before it instead |
 | Any other blocking problem | Show it and stop |
-| `voice` is set | Find its id as `/bitwize-music:generate` Step 4 does and add it to the request as `voice_id` |
+| `voice` is set | Find its id with `voices-list`, as `/bitwize-music:generate` Step 4 does, and add it to the request as `voice_id` |
 | A key in `needs_grant` while `features` lacks `controls.advanced` | Remove it from the request and say so in the summary |
 
 ## Step 4: Show the Summary and Get a Go-Ahead
@@ -91,7 +95,7 @@ Go ahead?   yes · without Max Mode · cancel
 5. If the album has a workspace (`request.workspace_id`), file the two joined songs in it: `workspaces-update-clips(id: <that id>, add: [<both joined ids>])`. The continuations are filed already; a joined song is not.
 6. Call `account-usage` again. Credits spent = balance before − balance after.
 
-Failures are handled as in `/bitwize-music:generate` Step 6. If one join fails, say so and log the other whole song; `audio-full-song` may be asked again for the same continuation up to three times.
+Failures are handled as in `/bitwize-music:generate` Step 6, down to `account-upgrade` on a `402`. If one join fails, say so and log the other whole song; `audio-full-song` may be asked again for the same continuation up to three times.
 
 ## Step 6: Log and Hand Off
 
@@ -109,7 +113,7 @@ Failures are handled as in `/bitwize-music:generate` Step 6. If one join fails, 
 
 3. Continue into `/bitwize-music:listen` for the two new rows — tell the user to listen across the join, and give its time — then `/bitwize-music:check-take` for them, as `/bitwize-music:generate` Step 8 does.
 
-The track's status does not change, and the original take stays in the log. If the user keeps an extended take, approval works as always (`/bitwize-music:listen` Step 7).
+The track's status does not change, and the original take stays in the log. If the user keeps an extended take, approval works as always (`/bitwize-music:listen` Step 7, with its `audio-like` and `audio-unlike`).
 
 ## Remember
 

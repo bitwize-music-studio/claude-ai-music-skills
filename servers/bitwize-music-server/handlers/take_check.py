@@ -61,6 +61,8 @@ _SLIDERS = (
 )
 
 _CLIP_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# /bitwize-music:generate logs a take made from a score with "from a MIDI score".
+_SCORE_NOTE_RE = re.compile(r"\bMIDI score\b", re.IGNORECASE)
 _TAG_LINE_RE = re.compile(r"\[([^\]]*)\]")
 _INLINE_TAG_RE = re.compile(r"\[[^\]]*\]")
 _BPM_RE = re.compile(r"(\d{2,3})(?:\s*[-\u2013]\s*(\d{2,3}))?\s*bpm", re.IGNORECASE)
@@ -456,13 +458,15 @@ def _settings_check(
     """Hold the settings Suno says a take was made with against the ones asked for.
 
     *asked* is the request the track file makes today (get_generation_request)
-    and *kind* its kind; *sent_model* is the model the Generation Log says went
-    out with this take; *made_with* is the take's ``metadata`` from Suno.
+    and *kind* its kind, or ``midi`` for a take the log says was made from a
+    score; *sent_model* is the model the Generation Log says went out with
+    this take; *made_with* is the take's ``metadata`` from Suno.
 
     Only what Suno reports is compared, and only against something that was
     asked: a take made as an edit comes back with its model and nothing else,
-    and a slider the track leaves to Suno has nothing to be held against.
-    Nothing to compare means no check.
+    and a slider the track leaves to Suno has nothing to be held against. A
+    setting that is null counts as not reported. Nothing to compare means no
+    check.
     """
     same: list[str] = []
     differs: list[str] = []
@@ -478,6 +482,11 @@ def _settings_check(
             same.append(made)
         else:
             differs.append(f"model {made}, {asked_model} asked")
+
+    if kind == "midi":
+        # A score goes out with a description and a model: no exclusions, Max
+        # Mode or sliders, whatever the track file sets for a song.
+        asked, made_with = {}, {}
 
     asked_controls = asked.get("controls")
     made_controls = made_with.get("controls")
@@ -498,7 +507,7 @@ def _settings_check(
 
     # Speech has no Max Mode, so a spoken track asks for neither on nor off.
     made_max = made_with.get("max_mode")
-    if isinstance(made_max, bool) and kind != "speech":
+    if isinstance(made_max, bool) and kind in ("song", "cover"):
         asked_max = bool(asked.get("max_mode"))
         made_word, asked_word = ("on" if on else "off" for on in (made_max, asked_max))
         if made_max == asked_max:
@@ -506,10 +515,10 @@ def _settings_check(
         else:
             differs.append(f"Max Mode {made_word}, {asked_word} asked")
 
-    # A key that is there but empty means no exclusions went in; a missing key
-    # means Suno does not report them for this take.
-    if "negative_style" in made_with and isinstance(made_with["negative_style"], (str, type(None))):
-        made_exclude = (made_with["negative_style"] or "").strip()
+    # An empty string means no exclusions went in. A missing key, or null, means
+    # Suno does not report them for this take, as with a take made as an edit.
+    if isinstance(made_with.get("negative_style"), str):
+        made_exclude = made_with["negative_style"].strip()
         asked_exclude = str(asked.get("negative_style") or "").strip()
         if _exclusion_set(made_exclude) == _exclusion_set(asked_exclude):
             if asked_exclude:
@@ -692,8 +701,10 @@ async def evaluate_take_check(
         # /bitwize-music:generate sends, so a track edited since the take was made
         # shows as a difference, as its lyrics do.
         built = json.loads(await get_generation_request(ctx["album_slug"], ctx["track_slug"]))
+        from_score = bool(logged and _SCORE_NOTE_RE.search(logged["notes"]))
         made_as = _settings_check(
-            built.get("request") or {}, str(built.get("kind") or ""),
+            built.get("request") or {},
+            "midi" if from_score else str(built.get("kind") or ""),
             str(logged["model"] if logged else "").strip().lower(), settings,
         )
         if made_as:

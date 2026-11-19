@@ -618,6 +618,56 @@ class TestSettingsReadBack:
         })
         assert _check(result, "settings") is None
 
+    def test_a_null_setting_is_one_suno_did_not_report(self, song):
+        """A take made as an edit, relayed with its missing settings filled in as null."""
+        result = _evaluate([_clean()], settings={
+            "model": "v6", "negative_style": None, "max_mode": None, "controls": None,
+        })
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "ok", "detail": "as asked: v6",
+        }
+
+    def test_a_sketch_from_a_midi_score_is_held_to_its_model_alone(self, song):
+        """A score goes out with no exclusions, Max Mode or sliders, whatever the track sets."""
+        _song_with(song, log_rows=(
+            _row(1, CLIP_A, notes="1:04, via MCP, 10 credits, from a MIDI score")
+            .replace("| v6 |", "| v6-wild |"),
+        ))
+        result = _evaluate([_clean()], settings={
+            "model": "v6-wild", "negative_style": "", "max_mode": False,
+            "controls": {"variety": 1, "weirdness": 0.9, "style_influence": 0.1},
+        })
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "ok", "detail": "as asked: v6-wild",
+        }
+
+    @pytest.mark.parametrize(("level", "name"), [(1, "Normal"), (2, "High"), (3, "Extra"), (4, "Max")])
+    def test_variety_levels_carry_the_names_suno_gives_them(self, song, level, name):
+        result = _evaluate([_clean()], settings=_made_with(controls={"variety": level}))
+        assert _check(result, "settings")["detail"] == f"Variety {name}, Off asked"
+
+    @pytest.mark.parametrize("asked", ["Normal", "High", "Extra", "Max"])
+    def test_the_variety_the_track_asks_for_is_named_too(self, song, asked):
+        _song_with(song, settings={"Vocal Gender": "Female", "Variety": asked})
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings")["detail"] == f"Variety Off, {asked} asked"
+
+    def test_a_variety_level_suno_has_no_name_for_is_shown_as_its_number(self, song):
+        result = _evaluate([_clean()], settings=_made_with(controls={"variety": 7}))
+        assert _check(result, "settings")["detail"] == "Variety 7, Off asked"
+
+    @pytest.mark.parametrize("reported", [0.5, 0.504, 0.496])
+    def test_a_slider_within_half_a_point_is_the_one_asked_for(self, song, reported):
+        result = _evaluate([_clean()], settings=_made_with(controls={"weirdness": reported}))
+        assert _check(result, "settings")["status"] == "ok"
+
+    @pytest.mark.parametrize(("reported", "shown"), [(0.51, "51"), (0.49, "49"), (0.0, "0"), (1, "100")])
+    def test_a_slider_a_point_or_more_away_is_flagged(self, song, reported, shown):
+        result = _evaluate([_clean()], settings=_made_with(controls={"weirdness": reported}))
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "warn", "detail": f"Weirdness {shown}, 50 asked",
+        }
+
     def test_the_other_checks_are_unchanged(self, song):
         with_settings = _evaluate([_clean(bpm=140)], settings=AS_ASKED)
         without = _evaluate([_clean(bpm=140)])
