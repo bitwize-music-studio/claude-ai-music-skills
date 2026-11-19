@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Check Codex MCP session state from an unrelated music-project cwd.
+"""Check Codex MCP session state from a music workspace outside the plugin.
 
-HOME and CODEX_HOME are temporary. Only synthetic config, albums, and session
-state are used. The probe calls MCP through app-server without a model.
+The probe uses temporary HOME and CODEX_HOME directories with synthetic config,
+albums, and session state. It calls MCP through Codex app-server without model
+turns.
 """
 
 from __future__ import annotations
@@ -104,7 +105,7 @@ def make_workspace(home: Path) -> tuple[Path, list[Path]]:
         },
         "generation": {"service": "suno"},
     }
-    # JSON is valid YAML, keeping this host probe independent of Python packages.
+    # JSON lets the probe write a YAML config with Python's standard library.
     config_file = home / ".bitwize-music" / "config.yaml"
     config_file.parent.mkdir(parents=True)
     config_file.write_text(json.dumps(config, indent=2), encoding="utf-8")
@@ -164,7 +165,7 @@ def link_venv(source: Path, target: Path) -> None:
     """Reuse dependencies without requiring Windows symlink privileges."""
     source = source.resolve()
     if sys.platform == "win32":
-        # Keep '&', '%' and '^' literal instead of passing paths through cmd.
+        # Create the junction directly to keep '&', '%' and '^' literal in paths.
         _winapi.CreateJunction(str(source), str(target))
     else:
         target.symlink_to(source, target_is_directory=True)

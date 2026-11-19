@@ -152,19 +152,14 @@ def _same_folder(a: Path, b: Path) -> bool:
 
 
 def _check_skill_registration(runtime: Literal["claude", "codex"] = "claude") -> dict[str, Any]:
-    """Compare on-disk skills against the Claude Code plugin cache.
+    """Inspect the plugin's installed skill files.
 
-    Scans ``{PLUGIN_ROOT}/skills/*/SKILL.md`` for the canonical set of
-    skill names, then compares against the cached copy at
-    ``~/.claude/plugins/cache/bitwize-music/*/skills/*/SKILL.md``.
+    Claude Code directory installs use the skills in that directory. Other
+    installs compare skill names with the Claude Code cache to find missing
+    or extra entries. If the cache is unavailable, return "no_cache".
 
-    Codex's registration is owned by the host's skills/list API. Report source
-    presence only in that mode, without inspecting an unrelated Claude cache
-    or claiming that files on disk prove host registration.
-
-    Returns:
-        dict with status ("ok", "stale", "no_cache"), missing skills,
-        ghost skills, counts, cached version, and fix message.
+    Codex gets the installed skill count with "not_checked", or "error" if the
+    plugin has no skill files. Use Codex's skills/list API to check registration.
     """
     assert _shared.PLUGIN_ROOT is not None
 
@@ -403,26 +398,20 @@ async def check_venv_health() -> str:
 
 
 async def health_check(runtime: Literal["claude", "codex"] = "claude") -> str:
-    """Run startup health checks: venv packages and skill registration.
-
-    Combines check_venv_health and skill registration checks into a
-    single call for session startup. Use this instead of calling
-    check_venv_health directly during session start.
+    """Check dependencies, skills, and album slug collisions at session startup.
 
     Args:
-        runtime: Calling host. Defaults to "claude" to preserve Claude cache
-            diagnostics. "codex" checks source presence and leaves host skill
-            registration to Codex, without scanning Claude's plugin cache.
+        runtime: Calling host. "claude" (default) uses Claude Code's skill
+            diagnostics. "codex" counts the installed skill files. Check
+            Codex registration in the skill picker or with skills/list.
 
     Returns:
         JSON with overall status ("ok", "warn", "fail"), per-check
         summaries, raw results for venv and skills, an album slug
         collision section ("ok" or "collision" with details and fix), and
-        a suno section: whether Suno's MCP server is registered
-        ("configured" with the server's name and scope, or "missing" with
-        the add command and sign-in step under fix) plus reminder, whether
-        session start should show those instructions. The suno check's
-        status is "ok" or "info"; "info" never lowers the overall status.
+        a suno section. This gives the registered Suno server's name and scope
+        or setup instructions for a missing server, plus the reminder setting.
+        The Suno check's "info" status leaves the overall status unchanged.
     """
     checks: list[dict[str, Any]] = []
 
@@ -448,7 +437,7 @@ async def health_check(runtime: Literal["claude", "codex"] = "claude") -> str:
         checks.append({"name": "venv", "status": "fail",
                         "detail": venv_raw.get("message", venv_status)})
 
-    # --- Skill registration check ---
+    # --- Skill check ---
     skills_raw = _check_skill_registration(runtime)
     skills_status = skills_raw.get("status", "error")
     if skills_status == "ok":

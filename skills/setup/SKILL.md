@@ -10,9 +10,8 @@ allowed-tools:
 Base directory for this skill: ${CLAUDE_PLUGIN_BASE_DIR}
 
 In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
-using the loaded skill's path. Resolve the plugin root from that path and use it
-in the commands below. Claude Code supplies `CLAUDE_PLUGIN_ROOT`. When presenting
-copyable commands, quote the absolute requirements path for the user's shell.
+from this skill's path and use the resolved plugin root in the commands below.
+Claude Code supplies `CLAUDE_PLUGIN_ROOT`.
 
 ## Your Task
 
@@ -107,8 +106,8 @@ All components are installed together in the venv via requirements.txt.
 
 ## Step 3: Show Installation Commands
 
-Use the shared venv and show the block for the user's shell. In Codex, use the
-resolved absolute path to `requirements.txt` in the `-r` argument.
+Use the shared venv and show the commands for the user's shell. In Codex,
+pass the quoted absolute path to `requirements.txt` with `-r`.
 
 **macOS, Linux, and WSL**
 
@@ -135,7 +134,11 @@ The plugin automatically detects the venv in `~/.bitwize-music/venv` or
 
 Neither is needed for the plugin to work. Mention them once, after the required components are sorted.
 
-**Suno MCP server** — lets `/bitwize-music:generate`, `/bitwize-music:listen` and `/bitwize-music:import-audio --from-suno` reach the user's Suno account. In Claude Code, check the `suno` section of `health_check()` when available. If configured, show its name and scope. To add a missing server, use:
+The **Suno MCP server** connects `/bitwize-music:generate`,
+`/bitwize-music:listen`, and `/bitwize-music:import-audio --from-suno` to the
+user's Suno account. In Claude Code, read the `suno` section of `health_check()`
+when available. If a server is configured, show its name and scope. To add
+a missing server, show this command.
 
 ```bash
 claude mcp add --transport http suno https://api.suno.com/mcp
@@ -144,9 +147,9 @@ claude mcp add --transport http suno https://api.suno.com/mcp
 Then `/mcp` in a session to sign in. `--scope user` on the command makes it available in every project, not only this one. The plugin does not ship this server; without it those skills fall back to the clipboard flow, and session start shows these instructions until it is added (`generation.suno_mcp_reminder: false` in the config hides them).
 
 In Codex, check the current session's MCP settings or run `codex mcp list` from
-the music workspace using the same profile. Report the registered Suno server's
-name, or link to [Suno's setup instructions](https://help.suno.com/en/articles/14551425)
-if it is absent.
+the music workspace using the same profile. If a Suno server is registered,
+show its name. Otherwise, link to
+[Suno's setup instructions](https://help.suno.com/en/articles/14551425).
 
 **Audio player** — lets `/bitwize-music:listen` play audio in the terminal. Any one of `mpv` (recommended), `ffplay` (part of ffmpeg) or macOS's built-in `afplay`:
 

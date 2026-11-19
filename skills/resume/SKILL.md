@@ -29,20 +29,20 @@ allowed-tools:
 ## Instructions
 
 In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
-using the loaded skill's path, then read the installed plugin's `CLAUDE.md`.
-Read the current `~/.bitwize-music/config.yaml` and load `CLAUDE.md` from
-`paths.overrides` (default: `{content_root}/overrides`) if present. If config is
-missing, recommend the installed `configure` skill and stop. Use the user's
-album argument and the installed skill names in recommendations.
+from this skill's path, then read the installed plugin's `CLAUDE.md`. Read
+`~/.bitwize-music/config.yaml`. If it is missing, recommend the installed
+`configure` skill and stop. Load `CLAUDE.md` from `paths.overrides`
+(default `{content_root}/overrides`) if present. Use the album argument in
+the request and the installed Codex skill names in recommendations.
 
-If the plugin's MCP server is unavailable in Codex, resolve the requested album
-under `{content_root}/artists/{artist}/albums/`. For a request without a name,
-use `session.last_album` from `~/.bitwize-music/cache/state.json` if the cached
-artist and content root match the current configuration. Ask for the album name
-if no album matches, or ask the user to choose among multiple matches. Read the
-selected album's README and tracks for current status and source verification,
-then report progress and the recommendation in read-only mode, starting at
-Step 4. Explain that saving session context requires the MCP connection.
+When MCP is unavailable in Codex, look for the requested album under
+`{content_root}/artists/{artist}/albums/`. If the request omits the album
+name, use `session.last_album` from `~/.bitwize-music/cache/state.json` only
+when the cached artist and content root match the current config. Ask for the
+album name if none matches. If several match, ask the user to choose one. Read
+the selected album's README and tracks for status and source verification,
+then continue at Step 4 in read-only mode. Tell the user that saving session
+context requires MCP.
 
 When this skill is invoked with an album name:
 
@@ -83,8 +83,8 @@ Based on album and track statuses, identify the workflow phase:
 
 ### Step 5: Report to User
 
-In Claude Code, include the three next steps shown below. In Codex, use the
-single recommendation from Step 6 as the next-action section of the report.
+In Claude Code, list three next steps with the action from Step 6 first.
+In Codex, show only that action in the next-action section.
 
 ```
 📁 Album: [Album Title]
@@ -113,9 +113,7 @@ Ready to continue? Tell me what you'd like to work on.
 
 ### Step 6: Choose the Priority Action
 
-Use the decision tree to choose the first next step in Claude Code or the
-recommended action in Codex. Include the skill name and the specific track when
-applicable.
+Include the skill name and, when applicable, the track.
 
 **Decision Tree** (evaluate top-to-bottom, first match wins):
 

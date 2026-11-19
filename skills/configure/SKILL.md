@@ -15,16 +15,14 @@ allowed-tools:
 ## Your Task
 
 In Codex, read the [shared runtime rules](../../reference/runtime-compatibility.md)
-using the loaded skill's path. Use the user's supplied arguments and ask
-configuration questions through the host's tools or conversation. Wait for the
-answers before writing those settings.
+from this skill's path. Use the arguments in the request. Ask for missing
+settings through the host's question tool or in chat, then wait for the answers
+before writing the config.
 
-For YAML validation in any configuration operation, prefer the plugin venv's
-Python when available (`~/.bitwize-music/venv/bin/python3` or, on Windows, the
-venv's `Scripts/python.exe`), which has the plugin dependencies. If the venv is
-not ready, use another available YAML parser; if none is available, report that
-syntax validation could not be completed. Configuration does not require MCP
-to be running.
+You can configure the workspace before MCP starts. To validate YAML, use the
+plugin venv's Python when available (`~/.bitwize-music/venv/bin/python3` or the
+venv's `Scripts/python.exe` on Windows). Otherwise, use another YAML parser.
+If no parser is available, report that the YAML syntax is unverified.
 
 **Input**: $ARGUMENTS
 

@@ -4,10 +4,10 @@ Comprehensive testing checklist before marketplace release.
 
 ## Codex discovery and MCP session state
 
-Activate a Python 3.11+ venv with the requirements installed (for example,
-`make venv` and `source .venv/bin/activate` on macOS/Linux/WSL). If
-`~/.bitwize-music/venv` exists, the discovery probe uses it instead, so it must
-also have the requirements installed:
+Activate a Python 3.11+ venv with the plugin requirements installed. On
+macOS, Linux, or WSL, use `make venv` and `source .venv/bin/activate`. The
+discovery probe uses `~/.bitwize-music/venv` if it exists, so install the
+requirements there as well.
 
 ```bash
 npm ci --prefix tests/e2e/codex --no-audit --no-fund
@@ -15,53 +15,57 @@ python3 tests/e2e/codex_plugin_discovery_check.py --codex tests/e2e/codex/node_m
 python3 tests/e2e/codex_session_resume_check.py --codex tests/e2e/codex/node_modules/.bin/codex --venv .venv
 ```
 
-The session probe creates temporary `HOME` and `CODEX_HOME` directories and a
-music-project directory outside the plugin. It links the dependency venv into
-that home; on Windows it uses a directory junction. On Windows, activate
-`.venv\Scripts\activate.bat` (cmd) or `.venv\Scripts\Activate.ps1` (PowerShell),
-use `python`, and append `.cmd` to the Codex executable path above.
+On Windows, activate `.venv\Scripts\activate.bat` (cmd) or
+`.venv\Scripts\Activate.ps1` (PowerShell). Use `python` and append `.cmd` to
+the Codex executable path above.
 
-**Expected:** Both probes exit 0. Codex discovers the canonical skill set and
-starts the MCP server from the isolated installed copy. Through MCP, the session
-probe checks configuration, Codex health, source-verification state, album
-progress, and persisted session updates; synthetic album and track files remain
-unchanged. CI runs these checks without model turns on Linux and Windows.
+The session probe uses temporary `HOME` and `CODEX_HOME` directories and a
+music workspace outside the plugin. It links the dependency venv into
+`HOME` using a directory junction on Windows.
+
+Both probes should exit 0. The discovery probe checks the canonical skill
+list and starts MCP from the installed copy. The session probe uses MCP to
+check configuration, health, album progress, pending source verification,
+and saved session state. It compares the synthetic album and track files
+before and after the checks. CI runs both probes on Linux and Windows without
+model turns.
 
 ### Manual conversational acceptance
 
-Use a separate temporary `HOME` and `CODEX_HOME` (`USERPROFILE` as well on
-Windows), an installed copy of the plugin, and a music workspace outside the
-plugin. Sign in with a dedicated test login in that Codex home and start a new
-Codex/MCP process there.
+Use a temporary `HOME` and `CODEX_HOME` (`USERPROFILE` too on Windows).
+Install the plugin there and use a music workspace outside the plugin.
+Sign in with a dedicated test account in that Codex home. Start a fresh Codex
+session so the MCP server starts in the same environment.
 
-1. With no config in the isolated home, invoke `setup` to inspect dependencies,
-   then invoke `configure setup` without supplying settings. Expect questions
-   for the required fields and no config file until answers are supplied.
-   On native Windows, verify the displayed PowerShell installation commands
-   with an installed plugin path containing spaces.
+1. Start with no config. Invoke `setup` to check dependencies, then
+   `configure setup` with no settings. Confirm it asks for the required
+   fields and waits for your answers before creating the config file.
+   On native Windows, check the displayed PowerShell installation commands
+   with a plugin installed under a path that contains spaces.
 2. Provide an artist and content, audio, documents, and overrides paths. Use a
    path containing spaces and an overrides directory outside the content root.
-   Expect the saved YAML to preserve the supplied values and artist casing.
-   Change only the audio path with `configure edit` and compare the other fields.
-3. Give the configured overrides `CLAUDE.md` and the music workspace's
-   `CLAUDE.md` instructions to include different markers in status reports.
-   Invoke `session-start` in a fresh session without revealing the markers.
-   Expect the configured marker, a `health_check(runtime="codex")` call, and
-   no cwd marker. With the overrides directory absent, startup should continue.
-4. Create two synthetic albums. Set the first to `Research Complete` with a
-   track awaiting source verification. Give the second `In Progress` status
-   and more completed tracks. In a fresh Codex session, invoke `resume` by
-   name for the first album and look for the configured marker from step 3.
-   In another fresh session, invoke `resume` without a name. Confirm the
-   lookup follows `get_session().session.last_album`
-   and that source verification for the first album is the final recommendation.
+   Check that the YAML preserves the values and the artist's casing. Change
+   only the audio path with `configure edit` and compare the other fields.
+3. Put instructions for different status-report markers in the configured
+   overrides `CLAUDE.md` and in the music workspace's `CLAUDE.md`. Invoke
+   `session-start` in a fresh session without mentioning either marker.
+   Check that it calls `health_check(runtime="codex")` and shows only the
+   configured marker. Repeat with the overrides directory absent and confirm
+   startup continues.
+4. Create two synthetic albums. Give the first `Research Complete` status and
+   a track awaiting source verification. Give the second `In Progress` status
+   and more completed tracks. Invoke `resume` for the first album by name in
+   a fresh session and look for the configured marker from step 3. In another
+   fresh session, invoke `resume` without a name. Check that it uses
+   `get_session().session.last_album` and recommends source verification for
+   the first album as the final next step.
    Check that `~/.bitwize-music/cache/state.json` records the first album as
    `last_album`, `Source Verification` as `last_phase`, and a fresh `updated_at`.
-5. With the plugin's MCP server disconnected, resume the first album by name
-   and from the saved context in separate sessions. Confirm the read-only
-   result identifies the verification step and leaves the saved context intact.
-   With missing config, expect a `configure` recommendation. With an unknown
-   album, expect a lookup failure and intact session context.
+5. Disconnect the plugin's MCP server. Resume the first album by name and
+   then from saved context in separate sessions. Each run should report the
+   verification step and leave the saved context intact. With no config,
+   check that the skill recommends `configure`. With an unknown album, check
+   that it reports the lookup failure and leaves the saved context intact.
 6. Verify album and track files have the same contents after startup and
    resume. Record the commit, host, CLI and model settings, and observed tool
    results.

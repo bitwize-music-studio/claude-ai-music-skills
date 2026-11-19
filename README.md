@@ -63,36 +63,35 @@ Then run `/bitwize-music:setup` to detect your environment and install dependenc
 
 ### OpenAI Codex (experimental)
 
-Codex can install the plugin from this repository too:
+Install the plugin from GitHub.
 
 ```bash
 codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-For local development, register your checkout instead:
+To use a local checkout, register its path.
 
 ```bash
 codex plugin marketplace add /absolute/path/to/this/checkout
 codex plugin add bitwize-music@bitwize-music
 ```
 
-In a new Codex session, select the installed skills or invoke
-`$bitwize-music:setup`, then `$bitwize-music:configure`. Both hosts share the
-configuration and `~/.bitwize-music/venv` (Python 3.11+). Setup resolves its
-dependencies from the installed plugin, even when your music project is elsewhere.
+In a new Codex session, run `$bitwize-music:setup`, then
+`$bitwize-music:configure`. You can also select the skills in the skill picker.
+Setup reads the requirements from the installed plugin, so you can run it from
+your music workspace. Codex and Claude Code share the configuration and the
+Python 3.11+ venv at `~/.bitwize-music/venv`.
 
-Start each music session with `$bitwize-music:session-start`, then resume an album
-with `$bitwize-music:resume my-album` (or omit the album to use session context).
-These skills read the shared workflow guide and configured overrides, preserve
-source-verification gates, and recommend the next action using Codex skill names.
-See the [shared runtime rules](reference/runtime-compatibility.md) for plugin
-paths and skill invocation. During Codex session startup, the health check
-reports skill files on disk without claiming to verify host registration.
+Run `$bitwize-music:session-start` at the start of a music session. Use
+`$bitwize-music:resume my-album` to resume an album by name, or omit the name
+to use saved session context. Both skills load your configured overrides and
+follow the shared workflow's source-verification rules.
 
-Codex support is experimental. Setup, configuration, session startup, and
-resume are adapted for Codex; [#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548)
-tracks compatibility for the remaining creative workflows.
+See the [shared runtime rules](reference/runtime-compatibility.md) for skill
+names and plugin paths.
+[#548](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues/548)
+tracks compatibility for other workflows.
 
 ---
 
