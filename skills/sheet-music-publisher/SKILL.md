@@ -12,7 +12,8 @@ allowed-tools:
   - Glob
   - Bash
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-usage
+  - mcp__suno__audio-midi
 requirements:
   external:
     - name: AnthemScore

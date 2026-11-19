@@ -17,7 +17,7 @@ The plugin does not ship the Suno server; you add it to your own Claude Code onc
 claude mcp add --transport http suno https://api.suno.com/mcp
 ```
 
-Then run `/mcp` in a session and sign in to your Suno account. Name the server `suno` as above — the skills pre-approve tools under that name. Add `--scope user` to the command to have the server in every project; without it, it belongs to the project you ran the command in. Songs made this way use your plan's credits and land in your Suno library.
+Then run `/mcp` in a session and sign in to your Suno account. Name the server `suno` as above — each skill pre-approves the Suno tools it uses under that name, and Claude Code asks before it calls any other. Add `--scope user` to the command to have the server in every project; without it, it belongs to the project you ran the command in. Songs made this way use your plan's credits and land in your Suno library.
 
 Session start checks for the server (`health_check` reads Claude Code's and Codex's MCP registrations for any server on `api.suno.com`) and shows these steps while none is registered. `generation.suno_mcp_reminder: false` in your config turns that reminder off.
 
@@ -34,12 +34,13 @@ Every skill that uses Suno tools runs these checks first:
 3. **Found, but a call returns an authentication error** → tell the user to run `/mcp` and sign in.
 4. **Read the account once** with `account-usage`: `allowed_models`, `features`, `suno_account.credits_remaining`, `suno_account.download_credits_remaining` and `suno_account.plan.name` (Suno Studio comes with Premier only; see § Suno Studio).
 5. **Trust the live tool definition.** Send only arguments the tool lists today. If a call is rejected for an unknown argument, drop that argument, tell the user, and retry once.
+6. **A session lists the server's tools as they were when it started.** Suno adds tools without notice. Before deciding that one is missing, restart the session, or reconnect the server from `/mcp`.
 
 ---
 
 ## What Things Cost
 
-Suno keeps two balances: **song credits** and **download credits** (Free 7 lifetime, Pro 20 a month, Premier 60 a month).
+Suno keeps three balances: **song credits**, **download credits** (Free 7 lifetime, Pro 20 a month, Premier 60 a month) and **Visuals credits** for images and video, which are bought separately. `account-usage` reports them as `suno_account.credits_remaining`, `download_credits_remaining` and `visuals_credits_remaining`. Nothing the plugin does spends Visuals credits; see § Visuals for what would.
 
 | Action | Song credits | Download credits |
 |---|---|---|
@@ -92,7 +93,7 @@ Anything the track file sets that the kind's tool cannot carry comes back under 
 |---|---|---|
 | Title | `title` | ≤ 256 characters |
 | Lyrics Box | `lyrics` | ≤ 5000. Kept for instrumentals: tags-only lyrics were accepted and not sung *(measured)* |
-| Style Box | `style` | ≤ 1000. Used as written when Variety is Off. `metadata.style` always echoes what was sent, so it cannot show whether Variety rewrote it |
+| Style Box | `style` | ≤ 1000. Used as written when Variety is Off. `metadata.style` always echoes what was sent, so it cannot show whether Variety rewrote it; `metadata.controls.variety` says which Variety the take was made at (§ Take Check) |
 | Exclude Styles | `negative_style` | ≤ 1000. `(none)` or an untouched placeholder sends nothing. Old-style `no drums` items are sent bare (`drums`), with a warning to fix the file |
 | `instrumental: true` | `instrumental` | Frontmatter and the Track Details row must agree |
 | Model `v6` / `v6-wild` / `v6-mini` | `model` | `Custom: <name>` is not offered — use suno.com |
@@ -160,6 +161,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 - Wait with `audio-wait`, passing every id in `ids` and `until: "complete"`. It returns after about 50 seconds whether or not the songs are done; call it again while any is pending.
 - Pass an `idempotency_key` and reuse it on a retry, so a timeout cannot charge twice.
 - Clip data (`audio-wait`, `audio-retrieve`, the library tools) carries `song_url` — the suno.com page — and no audio link.
+- Clip data also carries the settings a song was made with: `metadata.model`, `negative_style`, `max_mode` and `controls`. *Measured:* two takes of a track that asks for v6, Variety Off, Max Mode on, two exclusions and three sliders came back with all four, holding exactly those values; four takes made as edits came back with `model` alone. `/bitwize-music:check-take` holds them against the track file.
 
 **Downloads**
 - `audio-download` without `confirm` answers `requires_credit` when the download would spend a download credit. Ask the user, then call again with `confirm: true`.
@@ -192,7 +194,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: every Visuals tool (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -274,8 +276,9 @@ The same call takes the vocals off a take: `get_edit_request(…, version: "inst
 
 `/bitwize-music:check-take` holds a take against its track file, and `/bitwize-music:generate` runs it on the two new takes while you listen. It reports; it never picks a take.
 
-- **How**: `get_take_check_plan` numbers the lyric lines and writes the questions; the skill puts them to Suno's listening agent (`audio-listen`, read with `audio-listen-wait`); `evaluate_take_check` reads the JSON block the agent ends its answer with. A question holds 2,000 characters, so long lyrics are split across questions; only the first asks about the sound.
+- **How**: `get_take_check_plan` numbers the lyric lines and writes the questions; the skill puts them to Suno's listening agent (`audio-listen`, read with `audio-listen-wait`); `evaluate_take_check` reads the JSON block the agent ends its answer with. A question holds 2,000 characters, so long lyrics are split across questions; only the first asks about the sound. The skill also reads each take once with `audio-retrieve` and hands the settings in its `metadata` to `evaluate_take_check`.
 - **What it checks**: lyric lines not sung, sung with different words or hard to understand, with what was heard instead; tempo against the BPM in the Style Box (a tempo measured at double or half the one asked for counts as a match — a relaxed 96 BPM song is often measured at 190); the voice against Vocal Gender; Exclude Styles items that turn up among the instruments; problems the agent names; a clean ending; length against the track's Target Duration.
+- **The settings Suno made the take with**: the model against the one the Generation Log says was sent, and Variety, Max Mode, the exclusions and each slider the track sets against the request the track file makes today. Only what Suno reports is compared, and a slider the track leaves alone never is, because nothing was asked of it. A track edited since the take was made shows as a difference, as its lyrics do. A take the log says was made from a MIDI score is held to its model alone, because a score goes out with no exclusions, Max Mode or sliders.
 - **Limits**: five unanswered questions at a time, 200 a day. An answer arrives in under a minute.
 - `generation.take_check: false` stops `/generate` from running it; the skill still runs on request.
 
@@ -286,6 +289,40 @@ The same call takes the vocals off a take: `get_edit_request(…, version: "inst
 - `audio-analysis` has the same tempo and key, but it returns every beat of the song — 164 entries for 52 seconds — which is too much to pass through a model for a check. It is the right tool for cutting video to the beat.
 
 The agent is not infallible: asked twice about one take, it agreed with itself on the changed line and differed on whether the chorus repeats. One of its answers closed its JSON block with a stray backtick; the evaluator reads that too. Treat a flag as a place to listen.
+
+---
+
+## Visuals
+
+Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. **The plugin does not use them yet**, and no skill pre-approves one, so Claude Code asks before each call. This section records what they are and what they cost, so that nobody spends credits by surprise.
+
+**What spends Visuals credits**
+
+| Tool | Makes | Price |
+|---|---|---|
+| `image-create` | Images from a prompt, two takes, at 1:1, 9:16 or 16:9 | Per generation: 1 (`image-1`, Fast), 25 (`image-2`, Standard) or 50 (`image-4`, Max, the default) |
+| `video-create` | A clip of 5 to 15 seconds. With `song_id` it is made for a chosen part of that song, which becomes its soundtrack | Per second: 15 (`video-1`, Fast, 480p) or 30 (`video-2`, Standard, 720p) |
+| `sequence-generate` | Keyframes or clips for up to 8 shots of a Sequence in one call | The same prices, per shot |
+
+- A generation is charged once however many takes it makes, so a 15-second clip at 720p is 450 credits.
+- The models and prices are the ones `visuals-models` listed when this was written, with `video-2` as the default for each kind of clip it named. Read it for today's: a default belongs to a task, and the tool descriptions also name a `video-5` that it did not list.
+- `dry_run: true` on any of the three answers with the exact price and spends nothing. Use it to state the cost before the go-ahead.
+
+**What does not**
+
+- `sequence-create`, `sequence-update`, `sequence-export` and `video-assemble` are free by their own descriptions. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
+- `visuals-models` is free *(measured)*.
+- The descriptions of `sequence-get`, `sequence-list`, `visuals-wait`, `visuals-show`, `visuals-download`, `visuals-library`, `characters-list`, `characters-save`, `visuals-upload-create` and `visuals-upload-complete` name no charge.
+
+**Rules Suno writes into the tools**
+
+- A refused prompt may be revised once, and only for a named artist, character or person. Never reword a prompt to get past moderation. `429 moderation_limited` means stop and tell the user.
+- The look, who is on screen and whether anyone sings on screen are the user's to choose. Ask before creating a Sequence.
+- Downloading a music video needs its song unlocked: `visuals-download` answers `403 clip_not_unlocked` until the song has been downloaded, which can cost a download credit.
+- Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
+- Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. What Claude Code shows has not been measured, so the link is what the user can count on.
+
+*Not measured:* no tool that spends Visuals credits has been called from the plugin.
 
 ---
 
@@ -317,3 +354,4 @@ When the server is missing, not signed in, lacks a feature, or the track uses a 
 - [Suno MCP](https://suno.com/mcp) · [What is Suno MCP (Beta)?](https://help.suno.com/en/articles/14551361) · [Connecting it](https://help.suno.com/en/articles/14551425) · [FAQ](https://help.suno.com/en/articles/14486145)
 - [Download limits](https://help.suno.com/en/articles/13614785) — "Streaming and sharing on Suno remain unlimited on every plan"; one song is one download whatever the format; stems count as part of the song's download; users "will still be able to download their work from Studio without limitation".
 - [Pricing](https://suno.com/pricing) — "Access to Suno Studio" is listed under Premier; Free and Pro say "Not included".
+- [Introducing Visuals](https://suno.com/blog/introducing-visuals) · [Introduction to Suno Visuals](https://help.suno.com/en/articles/14661121) — clips of up to 15 seconds made from a song in the library; "Visual credits are purchased separately from song credits".

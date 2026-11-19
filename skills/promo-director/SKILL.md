@@ -11,7 +11,8 @@ allowed-tools:
   - Bash
   - Glob
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__audio-listen
+  - mcp__suno__audio-listen-wait
 requirements:
   external:
     - name: ffmpeg

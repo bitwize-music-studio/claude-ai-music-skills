@@ -4,6 +4,34 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-18 - Visuals Tools and Settings Read-Back
+
+Suno's MCP server grew from 41 tools to 59 with Visuals, its image and video feature (launched 2026-11-17), and song data began to carry the settings a take was made with. Read from a fresh connection on a Premier account; a session that had been open since before the launch still listed 41.
+
+### Features
+- [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals: the 18 new tools, which of them spend Visuals credits, and the prices `visuals-models` lists. The plugin does not call them yet.
+- The take check holds the model, Variety, Max Mode, exclusions and sliders Suno reports for a take against the track file (§ Take Check).
+
+### Measured
+- Song data from `library-list`: two takes of a track that asks for v6, Variety Off, Max Mode on, two exclusions and three sliders carry `metadata.model`, `negative_style`, `max_mode` and `controls` with exactly those values. Takes made as edits carry `model` alone. Song data read before this change had none of the four.
+- `account-usage` reports a third balance, `suno_account.visuals_credits_remaining`.
+- `visuals-models` is free. It lists `image-1` / `image-2` / `image-4` at 1 / 25 / 50 Visuals credits a generation, and `video-1` (480p) / `video-2` (720p) at 15 / 30 a second, for clips of 5 to 15 seconds.
+
+### Changes
+- Skills pre-approve the Suno tools they call by name. `mcp__suno__*` would also have pre-approved the Visuals tools that spend credits.
+- The spending rule in CLAUDE.md covers Visuals credits.
+- A session lists Suno's tools as they were when it started; § Preflight says to restart it before deciding that a tool is missing.
+- No older tool gained, lost or changed an argument. `audio-lyrics-alignment` now starts a run for an older song that was never aligned, at most once a day, where it used to answer `unavailable`.
+
+### Not Measured
+- No tool that spends Visuals credits has been called. That `sequence-create`, `sequence-update`, `sequence-export` and `video-assemble` are free is taken from their descriptions.
+
+### Sources
+- https://suno.com/mcp · https://help.suno.com/en/articles/14551361 (official — "Create images and build videos from start to finish with Visuals")
+- https://suno.com/blog/introducing-visuals · https://help.suno.com/en/articles/14661121 (official — Visuals)
+
+---
+
 ## 2026-11-10 - Official MCP Server
 
 Suno's own MCP server (`https://api.suno.com/mcp`, beta since October 2026) is the first sanctioned programmatic route to generation, and the plugin now uses it when it is connected. Tested on a Premier account. The server's tools changed twice while this was being written (nine tools added; `clip_count` removed and `max_mode` added), so the live tool definitions outrank anything recorded here.

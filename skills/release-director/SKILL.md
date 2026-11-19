@@ -14,7 +14,11 @@ allowed-tools:
   - Glob
   - Bash
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__audio-settings
+  - mcp__suno__playlists-add-clips
+  - mcp__suno__playlists-create
+  - mcp__suno__playlists-list-clips
+  - mcp__suno__playlists-remove-clips
 ---
 
 ## Your Task
