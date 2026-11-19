@@ -8,7 +8,13 @@ allowed-tools:
   - Read
   - Edit
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-usage
+  - mcp__suno__audio-extensions-create
+  - mcp__suno__audio-full-song
+  - mcp__suno__audio-listen
+  - mcp__suno__audio-listen-wait
+  - mcp__suno__audio-wait
+  - mcp__suno__workspaces-update-clips
 ---
 
 ## Your Task

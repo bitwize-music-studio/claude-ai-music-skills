@@ -8,7 +8,12 @@ allowed-tools:
   - Read
   - Bash
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-usage
+  - mcp__suno__audio-download
+  - mcp__suno__audio-retrieve
+  - mcp__suno__audio-stems-create
+  - mcp__suno__audio-stems-retrieve
+  - mcp__suno__workspaces-update-clips
 ---
 
 ## Your Task

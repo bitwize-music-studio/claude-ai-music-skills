@@ -477,3 +477,60 @@ class TestSkillRegistrationIntegrity:
             f"Skills on disk but missing from plugin cache v{_plugin_version()}: "
             f"{', '.join(sorted(missing))} — run: claude plugin update bitwize-music"
         )
+
+
+SUNO_TOOL_PREFIX = 'mcp__suno__'
+
+
+def _suno_pre_approvals(frontmatter: dict) -> list[str]:
+    """The Suno entries in a skill's ``allowed-tools``, as written."""
+    tools = frontmatter.get('allowed-tools') or []
+    return [str(tool) for tool in tools if str(tool).startswith('mcp__suno')]
+
+
+class TestSunoToolPreApproval:
+    """A skill pre-approves the Suno tools it uses by name (#652).
+
+    ``mcp__suno__*`` also pre-approves every tool Suno adds to its server
+    later. Suno added image and video tools that spend a credit balance of
+    their own, and that wildcard would have let eleven skills call them with
+    no permission prompt.
+    """
+
+    def test_no_skill_pre_approves_every_suno_tool(self, all_skill_frontmatter):
+        wildcards = {}
+        for name, fm in all_skill_frontmatter.items():
+            broad = [
+                entry for entry in _suno_pre_approvals(fm)
+                if '*' in entry or not entry[len(SUNO_TOOL_PREFIX):]
+            ]
+            if broad:
+                wildcards[name] = broad
+        assert not wildcards, (
+            "Skills that pre-approve every Suno tool, including ones Suno adds "
+            f"later — name the tools the skill uses instead: {wildcards}"
+        )
+
+    def test_a_pre_approved_suno_tool_is_one_the_skill_names(self, all_skill_frontmatter):
+        unnamed = {}
+        for name, fm in all_skill_frontmatter.items():
+            content = fm.get('_content', '')
+            body = content.split('---', 2)[2] if content.startswith('---') else content
+            for entry in _suno_pre_approvals(fm):
+                tool = entry[len(SUNO_TOOL_PREFIX):]
+                if '*' in tool or not tool:
+                    continue  # the test above reports these
+                if not re.search(rf'(?<![a-z-]){re.escape(tool)}(?![a-z-])', body):
+                    unnamed.setdefault(name, []).append(entry)
+        assert not unnamed, (
+            "Suno tools a skill pre-approves but never names in its text — "
+            f"drop them from allowed-tools or name them where they are called: {unnamed}"
+        )
+
+    def test_the_suno_skills_still_pre_approve_their_tools(self, all_skill_frontmatter):
+        """Guards the two tests above against passing because nothing was read."""
+        generate = _suno_pre_approvals(_skill_frontmatter(all_skill_frontmatter, 'generate'))
+        assert 'mcp__suno__audio-create' in generate
+        assert 'mcp__suno__audio-wait' in generate
+        check_take = _suno_pre_approvals(_skill_frontmatter(all_skill_frontmatter, 'check-take'))
+        assert 'mcp__suno__audio-listen' in check_take

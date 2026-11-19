@@ -2,7 +2,8 @@
 """Unit tests for handlers/take_check.py — the take-check tools.
 
     get_take_check_plan(album, track)                  — questions for Suno's listening agent
-    evaluate_take_check(album, track, clip, answers)   — its answers -> an advisory report
+    evaluate_take_check(album, track, clip, answers)   — its answers -> an advisory report,
+                                                         with the settings Suno says the take was made with
 
 Neither tool talks to Suno. The track-file builder and the album fixture come
 from test_handlers_generation.py.
@@ -27,8 +28,11 @@ from tests.unit.state.test_handlers_generation import (  # noqa: F401  (album is
     CLIP_A,
     CLIP_B,
     LEGACY_KEEPER_ROW,
+    SOURCE_CLIP,
     _row,
     _run,
+    _setup_block,
+    _write_with,
     album,
 )
 
@@ -59,9 +63,10 @@ def _plan(track_slug="01-first-track"):
     return json.loads(_run(_check_mod.get_take_check_plan("test-album", track_slug)))
 
 
-def _evaluate(answers, clip_id=CLIP_A, duration_s=0.0):
+def _evaluate(answers, clip_id=CLIP_A, duration_s=0.0, settings=None):
+    extra = {} if settings is None else {"settings": settings}
     return json.loads(_run(_check_mod.evaluate_take_check(
-        "test-album", "01-first-track", clip_id, answers, duration_s,
+        "test-album", "01-first-track", clip_id, answers, duration_s, **extra,
     )))
 
 
@@ -454,3 +459,167 @@ class TestVersionsAreNotChecked:
         plan = _plan()
         assert [take["take"] for take in plan["takes"]] == [1]
         assert plan["default_takes"] == [1]
+
+
+# ===========================================================================
+# The settings Suno says a take was made with
+# ===========================================================================
+
+# What Suno reports for a take of the `song` fixture made exactly as its track
+# file asks. The track sets no Audio Influence, so that one is never compared,
+# whatever Suno reports for it.
+AS_ASKED = {
+    "model": "v6",
+    "negative_style": "electric guitar, synth",
+    "max_mode": True,
+    "controls": {"variety": 0, "weirdness": 0.5, "style_influence": 0.5, "audio_influence": 0.75},
+}
+UNLOGGED_CLIP = "0f3c6c19-0c42-4d4f-9a37-7f5fd1bd2e01"
+
+
+def _made_with(**changes):
+    """AS_ASKED with some settings changed; ``controls`` changes one slider at a time."""
+    settings = {**AS_ASKED, "controls": dict(AS_ASKED["controls"])}
+    controls = changes.pop("controls", None)
+    settings.update(changes)
+    if controls is not None:
+        settings["controls"].update(controls)
+    return settings
+
+
+def _song_with(song, model_cell="v6", **kwargs):
+    """Rewrite the `song` fixture's track with one logged take and some changes."""
+    fields = {
+        "lyrics": LYRICS, "style": STYLE, "exclude": "electric guitar, synth",
+        "settings": {"Vocal Gender": "Female"},
+        "log_rows": (_row(1, CLIP_A).replace("| v6 |", f"| {model_cell} |"),),
+    }
+    fields.update(kwargs)
+    song(**fields)
+
+
+class TestSettingsReadBack:
+    def test_a_take_made_as_asked(self, song):
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "ok",
+            "detail": "as asked: v6; Variety Off; Max Mode on; excludes electric guitar, synth; "
+                      "Weirdness 50; Style Influence 50",
+        }
+        assert result["status"] == "ok"
+
+    def test_variety_above_the_one_asked_for_is_flagged(self, song):
+        result = _evaluate([_clean()], settings=_made_with(controls={"variety": 1}))
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "warn", "detail": "Variety Normal, Off asked",
+        }
+        assert result["status"] == "warn"
+        assert result["summary"] == "1 thing to check"
+
+    def test_every_difference_is_named(self, song):
+        result = _evaluate([_clean()], settings=_made_with(
+            model="v6-mini", max_mode=False, negative_style="",
+        ))
+        assert _check(result, "settings")["detail"] == (
+            'model v6-mini, v6 asked; Max Mode off, on asked; '
+            'excludes nothing, "electric guitar, synth" asked'
+        )
+
+    def test_exclusions_are_compared_as_a_set(self, song):
+        result = _evaluate([_clean()], settings=_made_with(negative_style="Synth,  Electric Guitar"))
+        assert _check(result, "settings")["status"] == "ok"
+
+    def test_an_exclusion_the_track_does_not_ask_for(self, song):
+        _song_with(song, exclude="(none)")
+        result = _evaluate([_clean()], settings=_made_with(negative_style="trap"))
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "warn", "detail": 'excludes "trap", nothing asked',
+        }
+
+    def test_a_slider_the_track_sets_is_compared(self, song):
+        _song_with(song, settings={"Vocal Gender": "Female", "Weirdness": "70"})
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "warn", "detail": "Weirdness 50, 70 asked",
+        }
+
+    def test_a_slider_the_track_leaves_alone_is_not_compared(self, song):
+        _song_with(song, settings={"Vocal Gender": "Female", "Weirdness": "—", "Style Influence": "—"})
+        result = _evaluate([_clean()], settings=_made_with(controls={"weirdness": 0.9}))
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "ok",
+            "detail": "as asked: v6; Variety Off; Max Mode on; excludes electric guitar, synth",
+        }
+
+    def test_only_what_suno_reports_is_compared(self, song):
+        """A take made as an edit comes back with its model and nothing else."""
+        result = _evaluate([_clean()], settings={"model": "v6"})
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "ok", "detail": "as asked: v6",
+        }
+
+    @pytest.mark.parametrize("settings", [
+        None, {}, {"lyrics": "la la", "duration": 61.2}, {"controls": None}, {"max_mode": "yes"},
+    ])
+    def test_nothing_to_compare_means_no_check(self, song, settings):
+        result = _evaluate([_clean()], settings=settings)
+        assert _check(result, "settings") is None
+        assert result["status"] == "ok"
+
+    def test_the_model_is_held_against_the_one_the_log_says_was_sent(self, song):
+        """A sketch from a MIDI score is made on v6-wild whatever the track's model is."""
+        _song_with(song, model_cell="v6-wild")
+        result = _evaluate([_clean()], settings={"model": "v6-wild"})
+        assert _check(result, "settings")["detail"] == "as asked: v6-wild"
+
+    @pytest.mark.parametrize("model_cell", ["default", "speech", "V5", ""])
+    def test_a_log_row_that_names_no_current_model_leaves_the_track_file_as_the_reference(
+        self, song, model_cell,
+    ):
+        _song_with(song, model_cell=model_cell)
+        result = _evaluate([_clean()], settings={"model": "v6-mini"})
+        assert _check(result, "settings")["detail"] == "model v6-mini, v6 asked"
+
+    def test_a_take_the_log_does_not_hold_is_held_against_the_track_file(self, song):
+        result = _evaluate([_clean()], clip_id=UNLOGGED_CLIP, settings={"model": "v6-mini"})
+        assert _check(result, "settings")["detail"] == "model v6-mini, v6 asked"
+
+    def test_a_track_with_no_model_has_none_to_compare(self, song):
+        _song_with(song, model_cell="default", settings={"Vocal Gender": "Female", "Model": "—"})
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings")["detail"] == (
+            "as asked: Variety Off; Max Mode on; excludes electric guitar, synth; "
+            "Weirdness 50; Style Influence 50"
+        )
+
+    def test_max_mode_made_without_being_asked_for(self, song):
+        _song_with(song, settings={"Vocal Gender": "Female", "Max Mode": "Off"})
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings")["detail"] == "Max Mode on, off asked"
+
+    def test_a_cover_is_held_to_its_audio_influence(self, song):
+        _write_with(
+            song, _setup_block(source=f"https://suno.com/song/{SOURCE_CLIP}", influence="70"),
+            lyrics=LYRICS, style=STYLE, exclude="electric guitar, synth",
+            settings={"Vocal Gender": "Female"}, log_rows=(_row(1, CLIP_A),),
+        )
+        result = _evaluate([_clean()], settings=AS_ASKED)
+        assert _check(result, "settings") == {
+            "check": "settings", "status": "warn", "detail": "Audio Influence 75, 70 asked",
+        }
+
+    def test_a_spoken_track_has_no_model_variety_or_max_mode_to_be_held_to(self, song):
+        _write_with(
+            song, spoken=True, lyrics=LYRICS, style=STYLE, exclude="(none)",
+            log_rows=(_row(1, CLIP_A).replace("| v6 |", "| speech |"),),
+        )
+        result = _evaluate([_clean()], settings={
+            "model": "v6", "max_mode": False, "controls": {"variety": 1, "weirdness": 0.5},
+        })
+        assert _check(result, "settings") is None
+
+    def test_the_other_checks_are_unchanged(self, song):
+        with_settings = _evaluate([_clean(bpm=140)], settings=AS_ASKED)
+        without = _evaluate([_clean(bpm=140)])
+        assert [c for c in with_settings["checks"] if c["check"] != "settings"] == without["checks"]
+        assert with_settings["summary"] == without["summary"] == "1 thing to check"

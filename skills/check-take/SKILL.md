@@ -1,13 +1,15 @@
 ---
 name: check-take
-description: Checks a track's Suno takes against the track file by asking Suno's listening agent - which lyric lines are not sung or are changed, tempo, voice, excluded instruments, mix problems. Free and advisory; it never picks a take. Use after generating, or when the user asks "did it sing everything", "check the takes" or "is the tempo right".
+description: Checks a track's Suno takes against the track file by asking Suno's listening agent - which lyric lines are not sung or are changed, tempo, voice, excluded instruments, mix problems - and by reading back the settings Suno made each take with. Free and advisory; it never picks a take. Use after generating, or when the user asks "did it sing everything", "check the takes" or "is the tempo right".
 argument-hint: <album-name> <track> [take N | all]
 model: sonnet
 effort: low
 allowed-tools:
   - Read
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__audio-listen
+  - mcp__suno__audio-listen-wait
+  - mcp__suno__audio-retrieve
 ---
 
 ## Your Task
@@ -22,7 +24,7 @@ You never choose a take and never rank takes. The report says what was heard; th
 
 # Check Take Skill
 
-Asking Suno's agent about a song is free: nothing is made, changed or charged. The limits are five unanswered questions at a time and 200 questions a day.
+Asking Suno's agent about a song is free: nothing is made, changed or charged. The limits are five unanswered questions at a time and 200 questions a day. Reading a take's data, which holds the settings it was made with, is free too.
 
 The agent is good, not infallible. Treat every flag as "listen here", never as proof. Background, and why Suno's lyric alignment is not used for this: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` § Take Check.
 
@@ -41,6 +43,8 @@ Call `get_take_check_plan(album_slug, track_slug)`.
 
 Look for `audio-listen` and `audio-listen-wait` on a connected MCP server and load their definitions. Not there → say the take check needs Suno's MCP server, give the setup command from the reference doc, and stop. There is no fallback.
 
+Load `audio-retrieve` as well. Without it the check still runs; it only leaves the settings out.
+
 ## Step 3: Ask
 
 For each take, for each entry in `questions`, in order: `audio-listen(id: <clip_id>, question: <the question, word for word>)`. Keep the `id` each call returns, with its take and question number.
@@ -50,9 +54,17 @@ For each take, for each entry in `questions`, in order: `audio-listen(id: <clip_
 
 Then read each answer with `audio-listen-wait(id)`. It returns after about 50 seconds whether or not the answer is ready: call it again while `status` is `processing`. On `error`, note the reason and use an empty string as that answer.
 
+**The settings each take was made with.** While the answers come in, read each take once: `audio-retrieve(id: <clip_id>)`. Keep `metadata.duration` and whichever of `metadata.model`, `metadata.negative_style`, `metadata.max_mode` and `metadata.controls` are there. A take made as an edit carries only its model, and a take can carry none of them. If the call fails, carry on without them.
+
 ## Step 4: Evaluate
 
-Once per take: `evaluate_take_check(album_slug, track_slug, clip_id, answers)` — that take's answers word for word, one per question, in question order. Pass `duration_s` when you know the take's length.
+Once per take: `evaluate_take_check(album_slug, track_slug, clip_id, answers, duration_s, settings)`:
+
+- `answers` — that take's answers word for word, one per question, in question order.
+- `duration_s` — the take's `metadata.duration`, when you have it.
+- `settings` — an object holding the `model`, `negative_style`, `max_mode` and `controls` you kept for that take, each exactly as Suno gave it. Leave it out when the take had none of them.
+
+The tool holds those settings against what the track file asks for today, so a track edited since the take was made shows as a difference.
 
 ## Step 5: Report
 
@@ -64,10 +76,12 @@ Take 1 (row 3) — 2 things to check
              heard: 'all lined up' instead of 'are lined up'
   ⚠ Tempo    112 BPM measured, 96 asked
   ✓ Vocal    female lead — soft, breathy
+  ✓ Settings as asked: v6; Variety Off; Max Mode on
 
 Take 2 (row 4) — nothing flagged
   ✓ Lyrics   all 24 lines sung as written
   ✓ Tempo    95 BPM (asked 96)
+  ✓ Settings as asked: v6; Variety Off; Max Mode on
 
 These are the agent's observations — listen at the flagged spots before deciding.
 ```
@@ -97,5 +111,5 @@ then run /mcp and sign in.
 
 1. **Advisory only.** Report what was heard; never pick, rank or reject a take.
 2. **Word for word.** Questions go to Suno exactly as the plan gives them; answers go to `evaluate_take_check` exactly as Suno gave them.
-3. **Five questions at a time, 200 a day** — and it is free.
+3. **Five questions at a time, 200 a day** — and it is free. So is reading a take's settings.
 4. **A flag is a place to listen**, not a verdict: the agent can be wrong.

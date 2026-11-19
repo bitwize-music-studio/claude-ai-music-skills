@@ -7,6 +7,10 @@ sung, changed or hard to understand; tempo against the Style Box; the voice
 against Vocal Gender; excluded elements that are heard; performance problems.
 The report states what was heard. It never ranks takes or picks one.
 
+One check needs no listening: Suno's data for a song carries the settings it was
+made with (model, Variety, Max Mode, exclusions, sliders), and the report holds
+those against the track file too.
+
 Why the listening agent and not Suno's other analysis tools (measured):
 `audio-lyrics-alignment` returned, for a library song, a transcript
 missing two lines that are plainly sung — every word marked `success` — while
@@ -24,7 +28,7 @@ from typing import Any
 
 from handlers import _shared
 from handlers._shared import _extract_markdown_section, _safe_json
-from handlers.gates import _parse_duration_seconds
+from handlers.gates import _KNOWN_MODELS, _parse_duration_seconds
 from handlers.generation import (
     _TEMPLATE_EXCLUDE,
     _UNSET,
@@ -32,6 +36,7 @@ from handlers.generation import (
     _instrumental_state,
     _load_track,
     _section_code,
+    get_generation_request,
     parse_generation_log,
 )
 from tools.state.parsers import _extract_table_value
@@ -45,6 +50,15 @@ _QUOTED_LINES = 3          # flagged lines quoted in a detail before "and N more
 _QUOTED_CHANGES = 6        # "what was heard instead" notes shown in the lyrics detail
 _TEMPO_TOLERANCE = 0.04    # a measured tempo within 4% of the one asked for matches
 _DURATION_TOLERANCE = 0.20
+_SLIDER_TOLERANCE = 0.005  # sliders travel as 0-1 fractions; half a point on Suno's 0-100 scale
+
+# controls.variety as Suno's Variety menu names it.
+_VARIETY_NAMES = ("Off", "Normal", "High", "Extra", "Max")
+_SLIDERS = (
+    ("weirdness", "Weirdness"),
+    ("style_influence", "Style Influence"),
+    ("audio_influence", "Audio Influence"),
+)
 
 _CLIP_ID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _TAG_LINE_RE = re.compile(r"\[([^\]]*)\]")
@@ -239,6 +253,8 @@ async def get_take_check_plan(album_slug: str, track_slug: str) -> str:
     evaluate_take_check. Put every question to every take being checked, in
     order: audio-listen(id: <clip_id>, question: <question>), then
     audio-listen-wait. At most five questions may be unanswered at once.
+    Read each take once with audio-retrieve too (free): evaluate_take_check
+    takes the settings in its metadata.
 
     Args:
         album_slug: Album slug
@@ -418,12 +434,115 @@ def _fmt_duration(seconds: float) -> str:
     return f"{whole // 60}:{whole % 60:02d}"
 
 
+def _fraction(value: Any) -> float | None:
+    """A slider value from Suno's data: a JSON number, zero included."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def _percent(fraction: float) -> str:
+    """A 0-1 slider as the 0-100 number the track file and suno.com show."""
+    return f"{round(fraction * 100, 1):g}"
+
+
+def _exclusion_set(value: str) -> set[str]:
+    return {" ".join(item.split()).lower() for item in value.split(",") if item.strip()}
+
+
+def _settings_check(
+    asked: dict[str, Any], kind: str, sent_model: str, made_with: dict[str, Any],
+) -> dict[str, str] | None:
+    """Hold the settings Suno says a take was made with against the ones asked for.
+
+    *asked* is the request the track file makes today (get_generation_request)
+    and *kind* its kind; *sent_model* is the model the Generation Log says went
+    out with this take; *made_with* is the take's ``metadata`` from Suno.
+
+    Only what Suno reports is compared, and only against something that was
+    asked: a take made as an edit comes back with its model and nothing else,
+    and a slider the track leaves to Suno has nothing to be held against.
+    Nothing to compare means no check.
+    """
+    same: list[str] = []
+    differs: list[str] = []
+
+    made_model = made_with.get("model")
+    # The log's model is what went out with this take: a sketch from a MIDI score
+    # is made on v6-wild whatever the track file says. "default", "speech" and
+    # the models of older rows name nothing Suno could report back.
+    asked_model = sent_model if sent_model in _KNOWN_MODELS else asked.get("model")
+    if isinstance(made_model, str) and made_model.strip() and asked_model:
+        made = made_model.strip().lower()
+        if made == asked_model:
+            same.append(made)
+        else:
+            differs.append(f"model {made}, {asked_model} asked")
+
+    asked_controls = asked.get("controls")
+    made_controls = made_with.get("controls")
+    if not isinstance(asked_controls, dict) or not isinstance(made_controls, dict):
+        asked_controls, made_controls = {}, {}
+
+    variety = _fraction(made_controls.get("variety"))
+    if variety is not None and variety.is_integer() and "variety" in asked_controls:
+        made_level, asked_level = int(variety), int(asked_controls["variety"])
+        names = [
+            _VARIETY_NAMES[level] if 0 <= level < len(_VARIETY_NAMES) else str(level)
+            for level in (made_level, asked_level)
+        ]
+        if made_level == asked_level:
+            same.append(f"Variety {names[0]}")
+        else:
+            differs.append(f"Variety {names[0]}, {names[1]} asked")
+
+    # Speech has no Max Mode, so a spoken track asks for neither on nor off.
+    made_max = made_with.get("max_mode")
+    if isinstance(made_max, bool) and kind != "speech":
+        asked_max = bool(asked.get("max_mode"))
+        made_word, asked_word = ("on" if on else "off" for on in (made_max, asked_max))
+        if made_max == asked_max:
+            same.append(f"Max Mode {made_word}")
+        else:
+            differs.append(f"Max Mode {made_word}, {asked_word} asked")
+
+    # A key that is there but empty means no exclusions went in; a missing key
+    # means Suno does not report them for this take.
+    if "negative_style" in made_with and isinstance(made_with["negative_style"], (str, type(None))):
+        made_exclude = (made_with["negative_style"] or "").strip()
+        asked_exclude = str(asked.get("negative_style") or "").strip()
+        if _exclusion_set(made_exclude) == _exclusion_set(asked_exclude):
+            if asked_exclude:
+                same.append(f"excludes {asked_exclude}")
+        else:
+            made_text, asked_text = (
+                f'"{value}"' if value else "nothing" for value in (made_exclude, asked_exclude)
+            )
+            differs.append(f"excludes {made_text}, {asked_text} asked")
+
+    for key, label in _SLIDERS:
+        made_value, asked_value = _fraction(made_controls.get(key)), _fraction(asked_controls.get(key))
+        if made_value is None or asked_value is None:
+            continue  # not reported, or left to Suno: nothing was asked of it
+        if abs(made_value - asked_value) <= _SLIDER_TOLERANCE:
+            same.append(f"{label} {_percent(asked_value)}")
+        else:
+            differs.append(f"{label} {_percent(made_value)}, {_percent(asked_value)} asked")
+
+    if differs:
+        return _check("settings", "warn", "; ".join(differs))
+    if same:
+        return _check("settings", "ok", "as asked: " + "; ".join(same))
+    return None
+
+
 async def evaluate_take_check(
     album_slug: str,
     track_slug: str,
     clip_id: str,
     answers: list[str],
     duration_s: float = 0.0,
+    settings: dict[str, Any] | None = None,
 ) -> str:
     """Hold the listening agent's answers about one take against the track file.
 
@@ -441,12 +560,17 @@ async def evaluate_take_check(
             the order of get_take_check_plan's questions
         duration_s: The take's length in seconds; 0 uses the length recorded
             in the Generation Log, if any
+        settings: The settings Suno says the take was made with: from the
+            take's metadata (audio-retrieve or audio-wait), its model,
+            negative_style, max_mode and controls, each as it came and only
+            the ones that are there. Left out, the settings are not checked
 
     Returns:
         JSON with found, clip_id, take (its Generation Log row, or null),
         status ("ok" or "warn"), summary ("nothing flagged" or "N things to
         check"), checks ([{check, status: ok|warn|info, detail}] for lyrics,
-        tempo, key, vocal, excluded, problems, ending, duration, unread),
+        tempo, key, vocal, excluded, problems, ending, duration, settings,
+        unread),
         flagged_lines ({missing, changed, unclear}: [{n, section, text}]),
         changes (the agent's notes on what it heard instead) and findings
         (what the agent measured: bpm, key, time_signature, vocal_gender,
@@ -563,6 +687,17 @@ async def evaluate_take_check(
             f"{_fmt_duration(duration_s)} (target {_fmt_duration(target_s)})" if within
             else f"{_fmt_duration(duration_s)}, target {_fmt_duration(target_s)}",
         ))
+    if isinstance(settings, dict) and settings:
+        # Held against the request the track file makes today, the same mapping
+        # /bitwize-music:generate sends, so a track edited since the take was made
+        # shows as a difference, as its lyrics do.
+        built = json.loads(await get_generation_request(ctx["album_slug"], ctx["track_slug"]))
+        made_as = _settings_check(
+            built.get("request") or {}, str(built.get("kind") or ""),
+            str(logged["model"] if logged else "").strip().lower(), settings,
+        )
+        if made_as:
+            checks.append(made_as)
     if unread:
         gaps = "; ".join(
             f"lines {q['first']}-{q['last']} were not checked" if q["first"]

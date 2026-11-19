@@ -1229,6 +1229,19 @@
           "title": "Duration S",
           "type": "number"
         },
+        "settings": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Settings"
+        },
         "track_slug": {
           "title": "Track Slug",
           "type": "string"

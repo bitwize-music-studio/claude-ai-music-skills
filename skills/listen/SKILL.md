@@ -9,7 +9,10 @@ allowed-tools:
   - Edit
   - Bash
   - bitwize-music-mcp
-  - mcp__suno__*
+  - mcp__suno__account-usage
+  - mcp__suno__audio-download
+  - mcp__suno__audio-like
+  - mcp__suno__audio-unlike
 ---
 
 ## Your Task
@@ -95,7 +98,7 @@ A local file, or a take with `cached: true`, plays at once: `play_audio(path, st
 
 ## Step 4: Terminal Mode — Take Not Cached Yet
 
-1. Run § Preflight in `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md`. If the Suno server is not available, say so and use Browser Mode.
+1. Run § Preflight in `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` and keep `suno_account.download_credits_remaining` from its `account-usage` read. If the Suno server is not available, say so and use Browser Mode.
 2. For each take to play that is not cached, call `audio-download(id: <clip_id>, format: "mp3")` **without** `confirm`. Leave about two seconds between download calls.
 
    | Answer | Do |
