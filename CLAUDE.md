@@ -65,7 +65,7 @@ The `bitwize-music-mcp` server is the **preferred way to query project state**. 
 
 ### Suno MCP Server (optional)
 
-Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. With `artwork.generator: suno` in config, `/bitwize-music:album-art-director` has its image tool make the cover. `/bitwize-music:lyric-video` has it render a lyric video, and `/bitwize-music:promo-director` can have it generate a clip for a passage of a track; neither needs a setting. Rules that hold in every session:
+Suno's official MCP server is a separate server the user adds themselves (`claude mcp add --transport http suno https://api.suno.com/mcp`, then `/mcp` to sign in) — the plugin does not ship it. When it is connected, `/bitwize-music:generate`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:listen`, `/bitwize-music:check-take` and `/bitwize-music:import-audio --from-suno` use it; when it is not, they fall back to the clipboard flow. With `artwork.generator: suno` in config, `/bitwize-music:album-art-director` has its image tool make the cover. `/bitwize-music:lyric-video` has it render a lyric video, `/bitwize-music:promo-director` can have it generate a clip for a passage of a track, and `/bitwize-music:music-video` takes a track to a music video through its Sequences; none of them needs a setting. Rules that hold in every session:
 
 - **Never spend Suno credits of any kind without a go-ahead.** Generating, splitting stems, a download that answers `requires_credit`, and any image or video (Visuals credits are a balance of their own) each need the user's yes first, with the cost stated. Reading the library and the account is free.
 - **Never pick a take or an image, mark a keeper, set a track `Final`, or change a song's visibility on your own.** The user listens, or looks, first.
@@ -169,6 +169,7 @@ Concept → Research → Write (+Suno Prompt) → [Refine] → QC/Verify → Gen
 - **Carrying on a take that stopped early** → `/bitwize-music:extend-take` (keeps the take up to a point and generates what follows from the Lyrics Box; 10 Suno credits for two continuations, joined into whole songs for free)
 - **A sound effect, an ambience or a loop** → `/bitwize-music:sound-effects` (2 Suno credits for two sounds, after a go-ahead)
 - **A generated video clip for a passage of a track** → `/bitwize-music:promo-director` (step 6: Suno's `video-create` makes 5 to 15 seconds with that passage as the soundtrack; paid by the second in Visuals credits, so it is priced with a dry run and made only after a go-ahead, and the user picks the take)
+- **A music video, a storyboard or an animatic for a track** → `/bitwize-music:music-video` (Suno's Sequences: shots on the song's sections, a keyframe each, an animatic, then clips for the shots the user picks. Laying out and exporting are free; keyframes and clips spend Visuals credits, each step priced with a dry run and made only after a go-ahead. A whole song as clips costs thousands of credits: say so first)
 - **A lyric video for a track** → `/bitwize-music:lyric-video` (Suno holds the album cover under the track's keeper and burns the words in as they are sung; free when measured, and the mastered audio goes under it when there is one)
 - **Singing a track or an album in one of the user's saved Voices, or making a new Voice** → `/bitwize-music:suno-voice` (checks the Voice is on their Suno account, then writes it into the track files; free. A new Voice is made on suno.com through the link Suno returns, and only when the user asks)
 - **Checking a take against the track file** → `/bitwize-music:check-take` (asks Suno's listening agent which lines are sung, the tempo, the voice, and reads back the settings Suno made the take with; free and advisory, and `/bitwize-music:generate` runs it on new takes)
@@ -285,7 +286,7 @@ Research staging: `{content_root}/research/` (move to album directory once album
 
 Track files: zero-padded (`01-`, `02-`). Import with `/bitwize-music:import-track`, `/bitwize-music:import-audio`.
 
-`promo_videos/` in `{audio_root}` holds video files (unchanged), and `lyric_videos/` holds the lyric videos `/bitwize-music:lyric-video` saves. `promo/` in album directory holds social media copy (text).
+`promo_videos/` in `{audio_root}` holds video files (unchanged), `lyric_videos/` holds the lyric videos `/bitwize-music:lyric-video` saves, and `music_videos/` the animatics and videos from `/bitwize-music:music-video`. `promo/` in album directory holds social media copy (text).
 
 Currently supports **Suno** (default). Service-specific template sections marked with `<!-- SERVICE: suno -->`.
 

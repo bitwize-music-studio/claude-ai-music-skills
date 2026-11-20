@@ -46,7 +46,7 @@ Claude: Imports stems from Suno, polishes per-stem
 Concept to released album, from the terminal. Connect Suno's own MCP server and generation happens there too — and you still listen to every take before it's approved.
 
 > [!WARNING]
-> [Suno's MCP server](https://suno.com/mcp) is an invite-only beta: you can connect it only once Suno has invited you. Without it, the rest of the plugin works the same, and you paste the lyrics and style prompt into suno.com as before. Suno is also updating the server constantly, so the skills that use it (`generate`, `listen`, `check-take`, `edit-take`, `extend-take`, `sound-effects`, `suno-voice`, `lyric-video` and `import-audio --from-suno`) may break without warning until Suno officially releases it.
+> [Suno's MCP server](https://suno.com/mcp) is an invite-only beta: you can connect it only once Suno has invited you. Without it, the rest of the plugin works the same, and you paste the lyrics and style prompt into suno.com as before. Suno is also updating the server constantly, so the skills that use it (`generate`, `listen`, `check-take`, `edit-take`, `extend-take`, `sound-effects`, `suno-voice`, `lyric-video`, `music-video` and `import-audio --from-suno`) may break without warning until Suno officially releases it.
 
 ---
 
@@ -70,7 +70,7 @@ codex plugin marketplace add bitwize-music-studio/claude-ai-music-skills
 codex plugin add bitwize-music@bitwize-music
 ```
 
-All 62 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
+All 63 skills load, and the MCP server runs from the same `~/.bitwize-music/venv` that Claude Code uses, on macOS, Linux and Windows. The `setup` skill still assumes Claude Code, so if you haven't set the plugin up there, create the venv by hand (Python 3.11+):
 
 ```bash
 python3 -m venv ~/.bitwize-music/venv
@@ -87,7 +87,7 @@ So far Codex support covers discovery and the MCP tools, and many skills still a
 
 This is where the engineering lives. The plugin is a case study in how far you can push Claude Code's plugin system.
 
-### Skill System (62 Skills)
+### Skill System (63 Skills)
 
 Each skill is a self-contained markdown file with a YAML frontmatter that declares its model, description, and when it should activate. Skills range from simple clipboard operations to multi-step creative workflows. Claude routes to skills automatically based on context, or you invoke them directly with `/bitwize-music:<name>`.
 
@@ -166,7 +166,7 @@ config/              Example config and setup docs
 
 | Topic | Location |
 |-------|----------|
-| All 62 skills | [docs/skills.md](docs/skills.md) |
+| All 63 skills | [docs/skills.md](docs/skills.md) |
 | Configuration | [docs/configuration.md](docs/configuration.md) |
 | Troubleshooting | [docs/troubleshooting.md](docs/troubleshooting.md) |
 | Changelog | [CHANGELOG.md](CHANGELOG.md) |

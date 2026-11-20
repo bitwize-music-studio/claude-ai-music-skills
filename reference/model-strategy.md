@@ -39,7 +39,7 @@ Per-skill effort assignments:
 |--------|--------|
 | `max` | `lyric-writer`, `lyric-refiner`, `lyric-reviewer`, `album-conceptualizer`, `suno-engineer` |
 | `high` | `researchers-legal`, `researchers-verifier`, `researcher`, `researchers-biographical`, `researchers-financial`, `researchers-gov`, `researchers-historical`, `researchers-journalism`, `researchers-primary-source`, `researchers-security`, `researchers-tech`, `promo-writer`, `voice-checker`, `plagiarism-checker` |
-| `medium` | `album-art-director`, `album-ideas`, `edit-take`, `explicit-checker`, `extend-take`, `generate`, `genre-creator`, `import-audio`, `listen`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
+| `medium` | `album-art-director`, `album-ideas`, `edit-take`, `explicit-checker`, `extend-take`, `generate`, `genre-creator`, `import-audio`, `listen`, `music-video`, `promo-reviewer`, `pronunciation-specialist`, `release-director` |
 | `low` | `check-take`, `cloud-uploader`, `mastering-engineer`, `mix-engineer`, `promo-director`, `release-kit`, `sheet-music-publisher`, `sound-effects`, `suno-voice`, `lyric-video`, `document-hunter`, `configure`, `session-start`, `resume`, `verify-sources`, `tutorial` |
 | *(none)* | All 15 Haiku skills — effort unsupported |
 
@@ -116,7 +116,7 @@ If the verifier misses something, errors reach the human reviewer or the public.
 
 ---
 
-## Sonnet Skills (`model: sonnet`, 40 skills)
+## Sonnet Skills (`model: sonnet`, 41 skills)
 
 These skills require reasoning and moderate creativity but follow established patterns.
 
@@ -218,6 +218,9 @@ These skills require reasoning and moderate creativity but follow established pa
 
 ### lyric-video
 **Why Sonnet**: Has Suno render a lyric video and saves it through three tools. The calls are simple; the model is there to stop on a missing keeper or cover, to leave Suno's upload notice to the user, to ask before a download credit is spent, and to compare the balances before and after.
+
+### music-video
+**Why Sonnet**: Storyboards a video on the song's sections and takes it through Suno's Sequences. The shot notes and prompts are structured visual direction, like album art; the rest is pricing every paid step with a dry run, waiting for a go-ahead, and reading each shot's status. Medium effort for the storyboard and for the money.
 
 ### suno-voice
 **Why Sonnet**: Looks a Voice up on the user's Suno account and writes it into track files through one tool. Simple calls; the model is there to ask when several Voices match, to refuse an instrumental track, and to call `voices-start` only when the user asks for a new Voice.
@@ -326,8 +329,8 @@ Is it a script-runner / coordinator with little LLM reasoning?
 
 | Tier | Count | Percentage | Purpose |
 |------|-------|------------|---------|
-| Opus (`opus`) | 7 | 11.3% | Music-defining output, high error cost |
-| Sonnet (`sonnet`) | 40 | 64.5% | Reasoning, coordination, moderate creativity |
-| Haiku (`haiku`) | 15 | 24.2% | Rule-based operations, no judgment |
+| Opus (`opus`) | 7 | 11.1% | Music-defining output, high error cost |
+| Sonnet (`sonnet`) | 41 | 65.1% | Reasoning, coordination, moderate creativity |
+| Haiku (`haiku`) | 15 | 23.8% | Rule-based operations, no judgment |
 
 The plugin reserves Opus for skills where quality directly impacts the music or where errors have significant consequences. Most work happens at Sonnet tier. Haiku handles mechanical operations where speed matters more than nuance.

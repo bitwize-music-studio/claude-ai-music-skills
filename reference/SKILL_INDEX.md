@@ -59,6 +59,7 @@ Quick-reference guide for finding the right skill for any task.
 | ...have Suno play a melody I wrote | `/generate <album> <track> --midi <file>` (the takes are the track when it is instrumental, a sketch to cover when it has lyrics) |
 | ...make a sound effect, an ambience or a loop | `/sound-effects` (2 Suno credits for two sounds) |
 | ...make a lyric video for a track | `/lyric-video <album> <track>` (Suno renders it with the words burned in; free when measured) |
+| ...make a music video, a storyboard or an animatic for a track | `/music-video <album> <track>` (Suno's Sequences; laying out and the animatic are free, keyframes and clips spend Visuals credits after a go-ahead) |
 | ...regenerate a track I'm not happy with | See Regeneration Workflow below |
 | ...approve a generated track | Mark ✓ in Generation Log, set Status: `Final` |
 
@@ -150,6 +151,7 @@ Quick-reference guide for finding the right skill for any task.
 | [`lyric-writer`](/skills/lyric-writer/SKILL.md) | Write or review lyrics with prosody and rhyme craft | Writing new lyrics or fixing existing ones |
 | [`mastering-engineer`](/skills/mastering-engineer/SKILL.md) | Audio mastering guidance, loudness optimization | Mastering tracks to -14 LUFS for streaming |
 | [`mix-engineer`](/skills/mix-engineer/SKILL.md) | Per-stem audio polish (noise, EQ, compression, remix) | Polishing raw Suno output before mastering |
+| [`music-video`](/skills/music-video/SKILL.md) | Make a music video for a track through Suno's Sequences: shots, keyframes, an animatic, clips | "Make a music video for the single" |
 | [`new-album`](/skills/new-album/SKILL.md) | Create album directory structure with templates | Starting a brand new album project |
 | [`next-step`](/skills/next-step/SKILL.md) | Analyze state and recommend optimal next action (also available via `/resume`) | Workflow guidance when unsure what to do |
 | [`plagiarism-checker`](/skills/plagiarism-checker/SKILL.md) | Scan lyrics for phrases matching existing songs via web search + LLM | Pre-release plagiarism check |
@@ -209,6 +211,7 @@ What to have ready before using each skill:
 | `/extend-take` | A take generated through the Suno MCP server, the time to carry on from, and the section of the Lyrics Box that follows; Suno MCP server connected; song credits |
 | `/sound-effects` | An album; Suno MCP server connected; song credits (Suno's Pro plan or higher) |
 | `/lyric-video` | A track with an approved take made through the Suno MCP server; an album cover, or an image already on Suno; Suno MCP server connected on a sign-in that includes Visuals |
+| `/music-video` | A track with an approved take made through the Suno MCP server; Suno MCP server connected on a sign-in that includes Visuals; Visuals credits for keyframes and clips |
 | `/suno-voice` | Suno MCP server connected; Voices on the plan (Pro or Premier). Taking a Voice off needs neither |
 | `/mix-engineer` | WAV files (stems preferred) imported from Suno |
 | `/mastering-engineer` | WAV files downloaded from Suno (or polished output) |
@@ -392,7 +395,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/researchers-legal` - Complex legal synthesis
 - `/researchers-verifier` - High-stakes verification
 
-### `sonnet` (Reasoning & Coordination — 40 skills)
+### `sonnet` (Reasoning & Coordination — 41 skills)
 - `/album-art-director` - Visual direction
 - `/album-ideas` - Idea brainstorming and organization
 - `/cloud-uploader` - Cloud storage coordination
@@ -423,6 +426,7 @@ Skills are assigned to models based on task complexity. See [model-strategy.md](
 - `/sheet-music-publisher` - Transcription workflow
 - `/sound-effects` - Cost and go-ahead for a sound, without choosing between the two
 - `/lyric-video` - Plans and saves a lyric video; never picks a take, and never accepts Suno's upload notice for the user
+- `/music-video` - Storyboards a video and takes it through keyframes, an animatic and clips, pricing every paid step first
 - `/suno-voice` - Checks a Voice exists before writing it; never picks one for the user
 - `/tutorial` - Interactive guided creation
 - `/verify-sources` - Human verification gate

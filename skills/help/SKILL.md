@@ -40,6 +40,7 @@ Display this help information to the user in a clear, organized format.
 - `/bitwize-music:extend-take` - Carry a take on from a point in its audio and join the result (10 Suno credits)
 - `/bitwize-music:sound-effects` - Make a sound effect, a one-shot or a loop for an album (2 Suno credits)
 - `/bitwize-music:lyric-video` - Make a lyric video for a track through Suno, with the words burned in (free when measured)
+- `/bitwize-music:music-video` - Make a music video for a track through Suno: storyboard, keyframes, a free animatic, then paid clips
 - `/bitwize-music:suno-voice` - Put one of your saved Suno Voices on a track or an album, list them, or get the link to make one (free)
 - `/bitwize-music:genre-creator` - Add new genre documentation to the library
 

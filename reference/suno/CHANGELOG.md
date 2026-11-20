@@ -4,6 +4,24 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-19 - Music Video
+
+`/bitwize-music:music-video` takes a track's keeper to a music video through Suno's Sequences: shots on the song's sections, a keyframe each, an animatic, then clips for the shots the user picks.
+
+### Features
+- New skill and three tools (`get_music_video_plan`, `plan_music_video_shots`, `save_music_video`). [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `sequence-create`, `sequence-update` (putting existing images into shots), `sequence-export`, `visuals-wait` and `visuals-download` spent no credit of any kind.
+- An export with stills in two shots of six was a 1920x1080 MP4 as long as the song: the stills held for their shots, the empty shots black.
+- `audio-analysis` answered `processing` first and was complete a minute later, with sections, beats, the key and a tempo twice the one asked for.
+- Dry runs of `sequence-generate`: keyframes on `image-1` are 1 credit a shot; clips are charged by the whole second, rounded up (9.44 seconds as 10, 6.8 as 7), and the answer's `notes` say what a trim would save.
+
+### Not Measured
+- A real keyframe or clip, characters and sets, and the recovery of a `failed` shot.
+
+---
+
 ## 2026-11-19 - Promo Clips
 
 `/bitwize-music:promo-director` gains an optional, paid route: a clip Suno's `video-create` generates for a passage of a track's keeper.
