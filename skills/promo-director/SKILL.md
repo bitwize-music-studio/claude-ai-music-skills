@@ -1,6 +1,6 @@
 ---
 name: promo-director
-description: Generates 15-second vertical promo videos for social media from mastered audio. Use after mastering is complete and before release, when the user wants social media content.
+description: Generates 15-second vertical promo videos for social media from mastered audio, and on request has Suno generate a video clip for a passage of a track (paid, in Visuals credits). Use after mastering is complete and before release, when the user wants social media content.
 model: sonnet
 effort: low
 prerequisites:
@@ -11,8 +11,14 @@ allowed-tools:
   - Bash
   - Glob
   - bitwize-music-mcp
+  - mcp__suno__account-usage
+  - mcp__suno__audio-download
   - mcp__suno__audio-listen
   - mcp__suno__audio-listen-wait
+  - mcp__suno__audio-retrieve
+  - mcp__suno__video-create
+  - mcp__suno__visuals-download
+  - mcp__suno__visuals-wait
 requirements:
   external:
     - name: ffmpeg
@@ -41,6 +47,7 @@ After mastering audio, generate promotional videos that combine:
 ## When to Use
 
 - After mastering complete, before release
+- User asks for a generated clip of a track from Suno (step 6: paid, and only on request)
 - User says "generate promo videos" or "create promo videos for [album]"
 - When album has mastered audio + artwork ready
 
@@ -241,6 +248,46 @@ Common issues:
 4. [Optional] Upload to cloud: /bitwize-music:cloud-uploader {album}
 5. Ready for release workflow: /bitwize-music:release-director {album}
 ```
+
+
+### 6. A Generated Clip through Suno (optional, paid)
+
+Only when the user asks for it: "a generated clip", "an AI video for track 3", "a Suno clip". Never make one as part of the ordinary run. The videos above are made on this machine and cost nothing; this one is made by Suno's `video-create` and spends **Visuals credits by the second**, a balance of its own beside song and download credits. One clip, for one track, is 5 to 15 seconds long, and its soundtrack is that passage of the track's keeper. Background and prices: `${CLAUDE_PLUGIN_ROOT}/reference/suno/mcp-api-mapping.md` § Visuals.
+
+**One rule runs through every step: a clip is paid for once.** From the moment `video-create` is sent for real, never send it again in this run, whatever happens afterwards. A new clip is a new price and a new go-ahead.
+
+1. **Plan.** `get_promo_clip_plan(album_slug, track_slug)`. A blocking problem → show its `detail` and stop (`no_keeper`: the user approves a take first). `no_master`: say the clip will carry Suno's own audio. `clip_exists`: the track already has a generated clip, and there is one file a track; ask whether to replace it, and on a no, stop.
+2. **Find Suno's tools.** Look for `video-create`, `visuals-wait`, `visuals-download`, `audio-retrieve`, `audio-download` and `account-usage` on a connected MCP server and load their definitions. Not there → say so and stop: either Suno's server is not connected, or this session started before Suno added the tools and needs a restart. Then `account-usage`: keep the three balances.
+3. **The song.** `audio-retrieve(id: <song.clip_id>)` gives `metadata.duration`. Then find out whether the song is locked, because Suno will not hand over a video whose song is locked: `audio-download(id: <song.clip_id>, format: "mp3")` **without** `confirm`. `status: "ok"` → unlocked. `status: "requires_credit"` → locked: unlocking costs one download credit. Keep that for step 8 and spend nothing now. `processing` → call again, three times at most. `rate_limited` → wait the seconds it names and call again. Any other refusal → report it and stop.
+4. **The passage.** Where it starts and how long it is, 5 to 15 whole seconds. Take the time the user names, or ask Suno's listening agent where the hook is (step 4 above). The price grows with every second.
+5. **The prompt.** Draft one to three sentences: what is on screen, what happens, how the camera moves. Draw on the album's art direction and the track's concept. Three things are the user's to choose, so ask: the look, who or what is on screen, and whether anyone sings on screen. Show the prompt and change it until they approve it. When no one should sing or mouth the words, pass `singing: false`.
+6. **Build the request.** `get_promo_clip_plan(album_slug, track_slug, prompt, start_s, duration_s, aspect, model, song_duration_s: <metadata.duration>)`. `model` is `video-1` (Fast, 480p) unless the user asks for `video-2` (Standard, 720p). A blocking `request_invalid` → show its `detail` and stop. Keep `request`. If `request` is null, stop and say what is missing. **Never put the arguments for `video-create` together yourself**: `request` always names its model, and a call without one is Suno's dearer model.
+7. **Price it. This spends nothing.** Call `video-create` with exactly the keys of `request` and `dry_run: true`, and nothing else. The answer carries `dry_run: true`, the price as `credits`, and in `items[0]` the `model`, `duration_s`, `resolution` and `takes` it priced. Check that `model` and `duration_s` are the request's. If they are not, or the tool no longer lists `dry_run`, refuses it, or answers without `dry_run: true`, stop and tell the user. Never drop `dry_run` to get the call through.
+8. **State the cost and wait.** Everything the clip will cost, in one line: "Two takes of a 15-second 480p clip of [Title] from 0:47: 225 Visuals credits (you have 600), and one download credit to unlock the song (you have 5)." Leave the download credit out when the song is unlocked. If the price is more than the balance, say so and stop. Do not generate until the user says go. A changed prompt, passage, length, model or anything else is a new request: back to step 6, a new price and a new go-ahead.
+9. **Generate, once.**
+   - If the song is locked, unlock it first: `audio-download(id: <song.clip_id>, format: "mp3", confirm: true)`. If that fails, stop before generating.
+   - Fix the idempotency key now, before the first attempt, and write it down: `"{album_slug}/{track_slug}/promo-clip/{UTC timestamp}"` with the time filled in. Every attempt in this run sends that same string.
+   - Call `video-create` with exactly the keys of `request` and that `idempotency_key`. Add nothing else: no `resolution`, no other model, nothing the price did not cover.
+   - Keep the `id` it answers with.
+10. **Wait.** `visuals-wait(ids: <that id>, view: "summary")`, again while `status` is `processing`, twenty times at most; then give the user the `id` and stop: the clip is still being made, and they can ask for it later. A job that answers `unread` was skipped by a rate limit: wait its `retry_after_seconds` and ask again.
+11. **Let the user choose.** Give them each ready take's `suno_url` to watch. Never pick for them, and never save a take they have not chosen. If neither fits, say that another clip is a new price and a new go-ahead, and stop.
+12. **Save the chosen take.** `visuals-download(id: <its asset_id>)` answers with a `url`; call it again while it answers `processing`, six times at most. Then `save_promo_clip(album_slug, track_slug, link: <that url>, start_s: <request.song_start_s>, song_duration_s: <metadata.duration>)`, with `replace: true` only when the user said in step 1 to replace the earlier clip. It saves `<track>_suno.mp4` in `promo_videos/`. When the track has a mastered file as long as the take, the same passage of the master goes under the picture.
+13. **Report.** The path and the size. The audio: the master from `audio_start_s`, or Suno's own with `audio_note`. And from `account-usage`, the Visuals credits spent and left: if what was spent is not what was quoted, say so. `/bitwize-music:cloud-uploader` uploads the clip with the album's other promo videos.
+
+| What happened | Do |
+|---------------|-----|
+| No response or a timeout from the real `video-create` | Send it **once** more with the **same** key, so it cannot be charged twice. If that fails too, read `account-usage`, tell the user what was spent, and stop |
+| The real call refuses a request the dry run priced | Stop. Do not adjust and resend: tell the user, and a changed request goes back to step 6 |
+| `400` with `reason: prompt_refused` | Show Suno's message and generate nothing more. If the prompt named a real artist, character or person, offer one revised prompt and take it back through steps 5 to 8. Never reword a prompt to get past moderation, and never send a prompt the user has not approved |
+| `429 moderation_limited` | Stop and tell the user. Do not retry |
+| `404` with `reason: song_unavailable`, or `409 song_not_ready` | Say so and stop |
+| `404` from a Visuals tool | The Suno sign-in does not include Visuals. Say so and stop |
+| One take ends `failed` | Offer the other and say which failed |
+| Both takes end `failed` | Read `account-usage`, tell the user what was spent, and stop. Do not generate again |
+| `visuals-download` answers `403` with reason `clip_not_unlocked` | The clip is made and paid for: never call `video-create` again. Unlock the song as step 9 says, asking first if that was not agreed, then call `visuals-download` once more. If it still refuses, give the user the take's `suno_url` and stop |
+| `save_promo_clip` answers `saved: false` | The clip is made and paid for: never call `video-create` again. If the error says the download stopped early, ask `visuals-download` for the link again and save once more. Otherwise report the error with the take's `suno_url` |
+
+Suno's price list when this was written: `video-1` 15 credits a second, `video-2` 30. So 5 seconds is 75 or 150, and 15 seconds is 225 or 450. Dry runs priced a 5-second `video-1` clip at 75 and a 15-second `video-2` clip at 450, two takes each. The dry run is the price that counts.
 
 
 ## Technical Reference

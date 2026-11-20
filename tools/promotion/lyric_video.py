@@ -329,18 +329,32 @@ def probe(path: Path, *, count: bool = False, run: Runner = subprocess.run) -> d
     return info
 
 
-def swap_audio(video: Path, audio: Path, dest: Path, *, run: Runner = subprocess.run) -> None:
+def swap_audio(
+    video: Path,
+    audio: Path,
+    dest: Path,
+    *,
+    audio_start_s: float = 0.0,
+    seconds: float | None = None,
+    run: Runner = subprocess.run,
+) -> None:
     """Write *video*'s picture with *audio* under it to *dest*.
 
     The picture is copied, not re-encoded, so the burned-in words stay as Suno
-    rendered them. Nothing is left at *dest* when it fails.
+    rendered them. With *audio_start_s* and *seconds*, only that passage of
+    *audio* is used. Nothing is left at *dest* when it fails.
 
     Raises:
         ToolMissing: ffmpeg is not installed.
         ValueError: ffmpeg failed.
     """
+    passage: list[str] = []
+    if audio_start_s > 0:
+        passage += ["-ss", f"{audio_start_s:.3f}"]
+    if seconds is not None:
+        passage += ["-t", f"{seconds:.3f}"]
     cmd = [
-        "ffmpeg", "-v", "error", "-y", "-i", str(video), "-i", str(audio),
+        "ffmpeg", "-v", "error", "-y", "-i", str(video), *passage, "-i", str(audio),
         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k",
         "-shortest", "-movflags", "+faststart", "-f", "mp4", str(dest),
     ]

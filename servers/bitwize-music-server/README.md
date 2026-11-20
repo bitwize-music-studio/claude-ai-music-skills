@@ -122,6 +122,12 @@ After installing, **restart Claude Code** to reload the plugin.
 | `prepare_lyric_video_still(album_slug, shape?)` | Write the picture Suno holds under the words, from the album's cover |
 | `save_lyric_video(album_slug, track_slug, link, shape?, master_audio?, replace?)` | Save the video Suno made (the link from its `visuals-download`) under `lyric_videos/`, with the mastered audio under it. Free |
 
+### Promo Clip
+| Tool | Description |
+|------|-------------|
+| `get_promo_clip_plan(album_slug, track_slug, prompt?, start_s?, duration_s?, aspect?, model?, first_frame_asset_id?, song_duration_s?, singing?)` | The keeper, the master and where the clip goes; with the prompt and the passage, the request for Suno's `video-create`, which always names its model. Free |
+| `save_promo_clip(album_slug, track_slug, link, start_s, song_duration_s?, master_audio?, replace?)` | Save the take the user chose (the link from Suno's `visuals-download`) as `promo_videos/<track>_suno.mp4`, with the master's passage under it. Free |
+
 ### Session & Config
 | Tool | Description |
 |------|-------------|

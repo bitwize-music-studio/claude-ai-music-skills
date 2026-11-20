@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`, `/bitwize-music:promo-director`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -194,7 +194,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: the Visuals tools for generated clips, Sequences and characters (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: the Visuals tools for Sequences and characters (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -294,7 +294,7 @@ The agent is not infallible: asked twice about one take, it agreed with itself o
 
 ## Visuals
 
-Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for two things, **album art** and a **lyric video**. `/bitwize-music:album-art-director` and `/bitwize-music:lyric-video` pre-approve the tools those take, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
+Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for three things: **album art**, a **lyric video** and, on request, a **promo clip**. `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video` and `/bitwize-music:promo-director` pre-approve the tools those take, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
 
 **Album art** (`artwork.generator: suno`)
 
@@ -328,6 +328,21 @@ The words are Suno's own reading of the take. A third take, whose `audio-lyrics-
 
 *Not measured:* the upload. `visuals-upload-create` answered `403` with reason `upload_consent_required`: Suno asks each account, once, to accept a notice about the rights to what it uploads. That notice is the user's to accept, on suno.com.
 
+**Promo clip** (`/bitwize-music:promo-director`, only on request)
+
+`video-create` makes a clip of 5 to 15 seconds from a prompt. Given `song_id` and `song_start_s`, the video model hears that passage of the song, and it becomes the clip's soundtrack.
+
+1. **Plan.** `get_promo_clip_plan` names the keeper, the master and where the clip goes. Given the prompt and the passage, it returns the request. The request always names its model: left out, Suno uses `video-2`, at twice the price a second.
+2. **The song.** Its length and its lock, as for a lyric video.
+3. **Price.** The request with `dry_run: true`. Then the cost is stated and the user gives a go-ahead.
+4. **Generate.** The same request without `dry_run`, with an idempotency key, then `visuals-wait`.
+5. **Choose.** The user watches the takes at their `suno_url` and picks one. The plugin never picks.
+6. **Save.** `save_promo_clip` saves the chosen take as `promo_videos/<track>_suno.mp4`. When the track has a mastered file as long as the take, to within a quarter of a second, the same passage of the master goes under the picture.
+
+*Priced with `dry_run`, which spends nothing:* five seconds on `video-1` answered `{"dry_run": true, "credits": 75, "items": [{"task": "text_to_video", "model": "video-1", "takes": 2, "duration_s": 5, "resolution": "480p", "credits": 75}], "visuals_credits_remaining": ...}`. With a first frame the task was `image_to_video`, at the same price. With no model named, fifteen seconds was priced on `video-2` at 720p: 450.
+
+*Not measured:* a real clip. What `video-create` answers, how long a clip takes, the file, and how the picture sits against the song are still to be found out.
+
 **What spends Visuals credits**
 
 | Tool | Makes | Price |
@@ -354,7 +369,7 @@ The words are Suno's own reading of the take. A third take, whose `audio-lyrics-
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
 - Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` and `sequence-generate`.
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, and a real `video-create` or `sequence-generate` call (`video-create` was priced with `dry_run`).
 
 ---
 
