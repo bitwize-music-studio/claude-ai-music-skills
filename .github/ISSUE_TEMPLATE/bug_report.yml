@@ -20,7 +20,7 @@ body:
         - Workflow (checkpoints, phases, status)
         - Configuration (paths, config.yaml)
         - Reference Documentation
-        - CLAUDE.md Instructions
+        - Plugin rules (reference/plugin-rules.md)
     validations:
       required: true
 
@@ -87,7 +87,7 @@ body:
       label: Issue type
       description: What kind of problem is this?
       options:
-        - Claude ignored instructions in CLAUDE.md
+        - Claude ignored the plugin's rules
         - Skill instructions are unclear/wrong
         - Template is missing fields or structured incorrectly
         - Tool script crashes or produces wrong output

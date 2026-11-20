@@ -241,7 +241,7 @@ Edit an existing album idea interactively.
 
 ### Session Start
 
-CLAUDE.md already mentions checking IDEAS.md at session start. When Claude checks ideas:
+`/bitwize-music:session-start` already checks ideas at session start. When Claude checks ideas:
 
 1. Read IDEAS.md
 2. Count ideas by status

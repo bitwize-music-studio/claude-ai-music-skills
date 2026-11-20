@@ -1,5 +1,5 @@
 {
-  "description": "bitwize-music plugin hooks for quality enforcement",
+  "description": "bitwize-music plugin hooks: session rules and quality enforcement",
   "hooks": {
     "PostToolUse": [
       {
@@ -13,6 +13,18 @@
           {
             "type": "command",
             "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/check_version_sync.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/session_rules.py",
             "timeout": 5
           }
         ]

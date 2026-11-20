@@ -52,7 +52,7 @@ Work through the 7 Planning Phases with Claude. Answer one question at a time.
 | 6. Practical | Titles, explicit content, distributor genres |
 | 7. Confirmation | Review plan, confirm "ready to write" |
 
-**Reference**: See [CLAUDE.md > Building a New Album](../../CLAUDE.md#building-a-new-album)
+**Reference**: See [Album Planning Phases](../workflows/album-planning-phases.md)
 
 ### CHECKPOINT: Do Not Skip Planning
 

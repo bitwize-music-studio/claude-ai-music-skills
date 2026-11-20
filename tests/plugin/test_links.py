@@ -12,6 +12,8 @@ def _collect_markdown_files(project_root):
     """Collect markdown files to check for broken links."""
     files = [
         project_root / "CLAUDE.md",
+        project_root / "AGENTS.md",
+        project_root / "reference" / "plugin-rules.md",
         project_root / "README.md",
     ]
 

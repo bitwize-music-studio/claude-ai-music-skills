@@ -24,7 +24,7 @@ Runs 11 validation checks before allowing commits:
 
 1. **Ruff linter** - Code style and quality
 2. **JSON/YAML validation** - Config file syntax
-3. **CLAUDE.md size** - Keep under 40K characters
+3. **Instruction file sizes** - `AGENTS.md` under 40K characters, `reference/plugin-rules.md` under 9,000
 4. **Version sync** - Claude plugin, marketplace, and Codex plugin versions match
 5. **Skill frontmatter** - All skills have valid YAML frontmatter
 6. **CHANGELOG format** - Has [Unreleased] section
@@ -58,3 +58,13 @@ When updating hooks in this directory, remember to:
 1. Test the hook locally by copying to `.git/hooks/`
 2. Update this README if adding new checks
 3. Keep the hook fast (< 30 seconds for most commits)
+
+## Plugin Hooks
+
+`hooks.json` registers hooks that run inside users' Claude Code sessions, on the system `python3` (standard library only, Python 3.9+):
+
+| Event | Script | Does |
+|---|---|---|
+| `SessionStart` (startup, resume, clear, compact) | `session_rules.py` | Adds `reference/plugin-rules.md` to the session's context when the working directory is inside the music workspace from `~/.bitwize-music/config.yaml`, a one-line pointer to it anywhere else, and a one-line "not set up yet, run `/bitwize-music:configure`" note when there is no config. This is how users get the plugin's rules: Claude Code never loads a plugin's `CLAUDE.md`. Output must stay under 10,000 characters to arrive whole |
+| `PostToolUse` (Write, Edit) | `validate_track.py` | Checks a track file's frontmatter after it is written |
+| `PostToolUse` (Write, Edit) | `check_version_sync.py` | Warns when the three plugin version files disagree |

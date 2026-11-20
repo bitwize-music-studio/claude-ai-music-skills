@@ -70,18 +70,21 @@ print('      ✓ Config files valid')
 "
 echo ""
 
-# 3. CLAUDE.md size check (characters, not bytes - better approximates tokens)
-echo "[3/11] Checking CLAUDE.md size..."
-MAX_CHARS=40000  # 40K characters
-CLAUDE_CHARS=$(wc -m < CLAUDE.md 2>/dev/null || echo 0)
-if [ "$CLAUDE_CHARS" -gt "$MAX_CHARS" ]; then
-    SIZE_K=$(echo "scale=1; $CLAUDE_CHARS / 1000" | bc)
-    echo "      ✗ CLAUDE.md is ${SIZE_K}K chars (max 40.0K)"
-    exit 1
-else
-    SIZE_K=$(echo "scale=1; $CLAUDE_CHARS / 1000" | bc)
-    echo "      ✓ CLAUDE.md is ${SIZE_K}K chars (max 40.0K)"
-fi
+# 3. Instruction file sizes (characters, not bytes - better approximates tokens)
+#    AGENTS.md: contributor instructions (CLAUDE.md imports it), max 40K.
+#    reference/plugin-rules.md: the rules the SessionStart hook gives plugin
+#    users, max 9,000 - Claude Code keeps hook output whole only below 10,000.
+echo "[3/11] Checking instruction file sizes..."
+for spec in "AGENTS.md:40000" "reference/plugin-rules.md:9000"; do
+    FILE="${spec%%:*}"
+    MAX_CHARS="${spec##*:}"
+    CHARS=$(wc -m < "$FILE" 2>/dev/null || echo 0)
+    if [ "$CHARS" -gt "$MAX_CHARS" ]; then
+        echo "      ✗ $FILE is $CHARS chars (max $MAX_CHARS)"
+        exit 1
+    fi
+    echo "      ✓ $FILE is $CHARS chars (max $MAX_CHARS)"
+done
 echo ""
 
 # 4. Version sync check

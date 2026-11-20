@@ -89,14 +89,17 @@ Read `paths.overrides` from config (default: `{content_root}/overrides`):
 - Check for `{overrides}/pronunciation-guide.md` — note if found
 - Skip silently if missing (overrides are optional)
 
-## Step 4: Load State Cache
+## Step 4: Load State
 
-Read `~/.bitwize-music/cache/state.json`:
+Query state through the MCP tools rather than reading files:
 
-- If missing, corrupted, schema mismatch, or config changed: rebuild via MCP
-  ```
-  rebuild_state()
-  ```
+- `get_config` — confirm the config loaded
+- `list_albums` — album statuses
+- `get_ideas` — idea counts
+- `get_pending_verifications(summary_only=True)` — pending source verifications (count only)
+- `get_session` — the last session's context
+
+If a tool reports a missing or stale cache (or the cache is corrupted, has a schema mismatch, or the config changed), rebuild it with `rebuild_state()` and query again. Only when the MCP server is unavailable, read `~/.bitwize-music/cache/state.json` directly.
 
 ## Step 4.5: Check for Plugin Upgrades
 
@@ -131,25 +134,25 @@ Skill model checking is no longer part of session start. Skills use tier aliases
 
 ## Step 6: Report From State Cache
 
-Using data from `state.json`, report:
+Using the results of Step 4, report:
 
 ### Album Ideas
-From `state.ideas.counts` — show count by status (Pending, In Progress, etc.)
+From `get_ideas` — show count by status (Pending, In Progress, etc.)
 
 ### In-Progress Albums
-Filter `state.albums` for status: "In Progress", "Research Complete", "Complete"
+From `list_albums`, the albums with status "In Progress", "Research Complete" or "Complete"
 
 For each, show:
 - Album name, genre, status
 - Track progress (completed/total)
 
 ### Pending Source Verifications
-From `state.albums` — find tracks where `sources_verified` is "Pending"
+From `get_pending_verifications(summary_only=True)`
 
 If any found, warn: "These tracks have unverified sources — generation is blocked until verified."
 
 ### Last Session Context
-From `state.session`:
+From `get_session`:
 - Last album worked on
 - Last phase
 - Pending actions
@@ -165,7 +168,7 @@ Based on state, show ONE relevant tip:
 | In-progress albums exist | "Resume where you left off: `/bitwize-music:resume <album-name>`" |
 | Overrides loaded | "Custom overrides loaded from {overrides}/" |
 | Overrides missing | "Customize your workflow with override files — see `/reference/overrides/`" |
-| Pending verifications | "Source verification needed before generation can proceed" |
+| Pending verifications | "Source verification needed before generation can proceed — run `/bitwize-music:verify-sources`" |
 
 Also show one random general tip (rotate through these):
 - "Ask 'what should I do next?' for workflow guidance"
