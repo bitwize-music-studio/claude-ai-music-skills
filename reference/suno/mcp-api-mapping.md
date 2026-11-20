@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`, `/bitwize-music:promo-director`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`, `/bitwize-music:music-video`, `/bitwize-music:promo-director`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -194,7 +194,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: the Visuals tools for Sequences and characters (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: saving a character (`characters-save`) and looking through the Visuals library (`visuals-library`), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -294,7 +294,7 @@ The agent is not infallible: asked twice about one take, it agreed with itself o
 
 ## Visuals
 
-Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for three things: **album art**, a **lyric video** and, on request, a **promo clip**. `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video` and `/bitwize-music:promo-director` pre-approve the tools those take, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
+Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for four things: **album art**, a **lyric video**, a **music video** and, on request, a **promo clip**. `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`, `/bitwize-music:music-video` and `/bitwize-music:promo-director` pre-approve the tools those take, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
 
 **Album art** (`artwork.generator: suno`)
 
@@ -347,6 +347,34 @@ Each take was an MP4 of 5.167 seconds: H.264 at 24 frames a second, 480x840, wit
 
 *Not measured:* `video-2` and 720p, a clip longer than five seconds, a clip that opens on a first frame, a take that fails, and a prompt that moderation refuses.
 
+**Music video** (`/bitwize-music:music-video`)
+
+A Sequence is a timeline of shots over a song. Each shot holds a still, its keyframe, until a generated clip replaces it, and the cut can be exported at any point.
+
+1. **The song.** `audio-analysis` gives the sections, the tempo and every beat. `plan_music_video_shots` turns the sections into shots: a new section starts a new shot, a long one is cut on bar lines, and none is longer than a clip can be.
+2. **The cost, said first.** The plan counts the seconds clips would be charged for. The user chooses between an animatic, clips for a few shots, or clips throughout.
+3. **Lay it out.** `get_music_video_plan` builds the request and `sequence-create` makes the Sequence. Free.
+4. **Keyframes.** `sequence-generate` with `step: keyframes`, up to 8 shots a call, priced with `dry_run`, then approved. The request names `image-1`: Suno's own default is `image-4`, at 50 credits a shot.
+5. **The animatic.** `sequence-export`, `visuals-wait`, `visuals-download`, then `save_music_video` with `kind: animatic`. Free. The user judges the pacing, and the cut is changed with `sequence-update` or in Suno's editor.
+6. **Clips.** `sequence-generate` with `step: clips` for the shots the user picked, priced and approved the same way.
+7. **Export and save.** As for the animatic, with `kind: video`: the master goes under the picture when it is as long as the video.
+
+The Sequence stays on Suno with everything made for it. Run again, the skill looks for it first with `sequence-list` and `sequence-get`, and makes nothing a shot already holds or is making.
+
+*Measured, all free:* `sequence-create` answered with the `sequence_id`, an `editor_url`, and each shot's `shot_id`, `start_s`, `duration_s`, `song_start_s` and `status: "gap"`, with a `progress` count. `sequence-update` put two existing images into shots (`status: "ready"`, `media_type: "image"`, and the takes on offer labelled "1-1", "1-2"). `sequence-export` answered like `video-assemble`, and its video was ready within one `visuals-wait`: 1920x1080, as long as the song, the stills held for their shots and the empty shots black. `audio-analysis` answered `processing` at first and was complete a minute later; the tempo it gave was twice the one the track asked for, so what it counts as a bar is half of one.
+
+*Priced with `dry_run`:* keyframes on `image-1` are 1 credit a shot, two takes each. A clip is charged by the whole second, rounded up: shots of 9.44 and 6.8 seconds on `video-1` were priced as 10 and 7 seconds, 150 and 105 credits, and the answer's `notes` said what trimming each to a whole second would save. The skill does not trim: a trim shortens the video, so every later shot moves off the music and the master no longer fits under the picture. A 55-second song laid out as six shots would be 57 charged seconds: 855 credits at 480p.
+
+*Measured with six keyframes and one clip* (81 Visuals credits, on a six-shot Sequence with one set): `sequence-generate` answered `{"sequence_id", "shots": [{"shot_id", "status": "started", "generation_id", "labels": ["1-1", "1-2"]}], "visuals_credits_remaining"}`, and the price the dry run gave was gone from the balance in that answer, as with `video-create`.
+
+- **Keyframes.** Six on `image-1` cost 6 credits and were all ready within one `visuals-wait`, two takes each at 1360x768. The first take sat in its shot (`status: "ready"`, `media_type: "image"`, label "1-1"), and `sequence-update` put the other take in for nothing. A shot citing a set was priced as `image_edit`, a shot citing nothing as `text_to_image`, at the same credit.
+- **A set holds.** The three shots that cited the set showed the same kettle, the same boats and the same sill as its one reference image. It also outweighs the prompt: a shot that asked for one boat alone showed the several in the reference.
+- **The animatic** of six keyframes was a 1920x1080 MP4 as long as the song, about 12 MB, ready within one wait.
+- **A clip.** A shot of exactly 5 seconds on `video-1` was priced and charged as 5 seconds, 75 credits, with the task `image_to_video`: it opened on the shot's keyframe. Both takes were ready within one wait, 5.167 seconds each, and the first sat in its shot (`media_type: "video"`). The export with it in was again 1920x1080, the 480p clip filling the frame.
+- `save_music_video` saved the animatic and the finished cut, and put a stand-in master of the song's length under the finished one.
+
+*Not measured:* characters, a `failed` shot and its recovery, the `rate_limited`, `refused` and `unknown` answers, `video-2`, a batch of more than six shots, and what a shot shorter than five seconds is charged. Those parts of the skill follow Suno's tool descriptions.
+
 **What spends Visuals credits**
 
 | Tool | Makes | Price |
@@ -361,7 +389,7 @@ Each take was an MP4 of 5.167 seconds: H.264 at 24 frames a second, 480x840, wit
 
 **What does not**
 
-- `video-assemble` with stills is free *(measured)*. `sequence-create`, `sequence-update` and `sequence-export` are free by their own descriptions. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
+- `video-assemble` with stills, `sequence-create`, `sequence-update` and `sequence-export` are free *(measured)*. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
 - `visuals-models`, `visuals-library`, `visuals-wait`, `visuals-show` and `visuals-download` are free *(measured)*.
 - The descriptions of `sequence-get`, `sequence-list`, `characters-list`, `characters-save`, `visuals-upload-create` and `visuals-upload-complete` name no charge.
 
@@ -373,7 +401,7 @@ Each take was an MP4 of 5.167 seconds: H.264 at 24 frames a second, 480x840, wit
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
 - Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` beyond one five-second `video-1` clip, and a real `sequence-generate` call.
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` and `sequence-generate` beyond one five-second `video-1` clip each, and keyframes on any model but `image-1`.
 
 ---
 

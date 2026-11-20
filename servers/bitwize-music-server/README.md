@@ -122,6 +122,13 @@ After installing, **restart Claude Code** to reload the plugin.
 | `prepare_lyric_video_still(album_slug, shape?)` | Write the picture Suno holds under the words, from the album's cover |
 | `save_lyric_video(album_slug, track_slug, link, shape?, master_audio?, replace?)` | Save the video Suno made (the link from its `visuals-download`) under `lyric_videos/`, with the mastered audio under it. Free |
 
+### Music Video
+| Tool | Description |
+|------|-------------|
+| `get_music_video_plan(album_slug, track_slug, shape?, shots?, style?, lyrics?, characters?, sets?)` | The keeper, the master and where the files go; with the shots, the request for Suno's `sequence-create`. Free |
+| `plan_music_video_shots(duration_s, sections, max_shot_s?, bpm?, time_signature?, first_downbeat_s?, whole_seconds?, credits_per_second?)` | Shots on the song's sections, each short enough for one clip, and the seconds clips would be charged for |
+| `save_music_video(album_slug, track_slug, link, shape?, kind?, master_audio?, replace?)` | Save an export (the link from Suno's `visuals-download`) under `music_videos/`: the animatic, or the finished video with the mastered audio under it. Free |
+
 ### Promo Clip
 | Tool | Description |
 |------|-------------|

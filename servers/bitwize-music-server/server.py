@@ -486,6 +486,7 @@ from handlers import (
     lyric_video,
     lyrics_analysis,
     maintenance,
+    music_video,
     playback,
     processing,
     promo,
@@ -526,6 +527,7 @@ take_extend.register(mcp)
 suno_sounds.register(mcp)
 lyric_video.register(mcp)
 promo_clip.register(mcp)
+music_video.register(mcp)
 suno_voices.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
@@ -698,6 +700,13 @@ from handlers.maintenance import (  # noqa: F401
     cleanup_legacy_venvs,
     migrate_audio_layout,
     reset_mastering,
+)
+
+# Take-check tools
+from handlers.music_video import (  # noqa: F401
+    get_music_video_plan,
+    plan_music_video_shots,
+    save_music_video,
 )
 
 # Auditioning tools
