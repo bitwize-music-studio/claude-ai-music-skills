@@ -2,7 +2,7 @@
 
 Suno runs an official MCP server (beta since October 2026). When it is connected, the plugin can generate a track, play the takes and import the keeper without a trip to suno.com. When it is not, everything falls back to the clipboard flow and nothing breaks.
 
-> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`
+> **Related skills**: `/bitwize-music:generate`, `/bitwize-music:listen`, `/bitwize-music:check-take`, `/bitwize-music:edit-take`, `/bitwize-music:extend-take`, `/bitwize-music:sound-effects`, `/bitwize-music:suno-voice`, `/bitwize-music:import-audio`, `/bitwize-music:album-art-director`, `/bitwize-music:lyric-video`
 > **Related docs**: [models.md](models.md), [creative-sliders.md](creative-sliders.md), [tips-and-tricks.md](tips-and-tricks.md)
 
 Everything marked *measured* was tested on a Premier account. The server is in beta and its tools change — treat the live tool definitions as the authority over this page.
@@ -194,7 +194,7 @@ A score is sent in Suno's simple mode, which takes a description and nothing els
 
 **Promo passage** — the promo generator starts its passage on the nearest beat on its own; `generate_promo_videos(..., start_s)` takes a chosen start, and Suno's listening agent can name the hook's first downbeat for free (see `/bitwize-music:promo-director`).
 
-**Not used by the plugin yet**: the Visuals tools for video, Sequences, characters and uploads (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
+**Not used by the plugin yet**: the Visuals tools for generated clips, Sequences and characters (§ Visuals), mashups, uploading audio to cover a file that is not on Suno (`audio-upload-create`), changing a song's title, lyrics or caption on suno.com (`audio-edit`), the library lists (`library-list`, `library-search`, `library-liked`), `audio-lyrics-alignment`, `audio-analysis`, and the other uses of `reference_audio_ids` (sampling, remastering).
 
 **Not offered by the server**: deleting a song; Custom Models.
 
@@ -294,7 +294,7 @@ The agent is not infallible: asked twice about one take, it agreed with itself o
 
 ## Visuals
 
-Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for one thing, **album art**. `/bitwize-music:album-art-director` pre-approves the tools that takes, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
+Suno's Visuals makes images and video for a song: cover art, clips of up to 15 seconds, and longer videos cut from clips and stills. The server has 18 tools for it. The plugin uses them for two things, **album art** and a **lyric video**. `/bitwize-music:album-art-director` and `/bitwize-music:lyric-video` pre-approve the tools those take, and Claude Code asks before any other Visuals call. The rest of this section records what the tools are and what they cost, so that nobody spends credits by surprise.
 
 **Album art** (`artwork.generator: suno`)
 
@@ -307,6 +307,26 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 5. **File.** The user chooses, and `import_album_art` files that one, enlarged to 3000x3000.
 
 *Measured with `image-1` (Fast):* one call made two 1024x1024 JPEGs for 1 Visuals credit, ready within seconds. `visuals-wait`, `visuals-show` and `visuals-download` spent nothing, and downloading an image spent no download credit. The link was a plain https address on `cdn1.suno.ai`, and the file behind it is made by the `visuals-download` call: the second take's address, built by hand before that call, answered `403`. One of the two test images carried a small mark like a signature in a corner, so look before filing.
+
+**Lyric video** (`/bitwize-music:lyric-video`)
+
+`video-assemble` holds a picture under a song and, with `lyrics: true`, burns the words in as they are sung. The skill has it do that with the album's cover and the track's keeper.
+
+1. **Plan.** `get_lyric_video_plan` names the keeper, the cover, the master and where the video goes.
+2. **The song.** `audio-retrieve` gives the keeper's exact length. `audio-download` without `confirm` shows whether the song is unlocked: Suno will not hand over a video whose song is still locked, and unlocking one can cost a download credit. The skill asks about that credit only once the picture is ready, just before it renders.
+3. **The picture.** `prepare_lyric_video_still` writes a JPEG of the video's shape with the whole cover in the middle, over a blurred and darkened copy of itself. It goes to Suno with `visuals-upload-create`, a multipart POST to the `upload_url`, and `visuals-upload-complete`. An image already on Suno can be named instead.
+4. **Assemble.** The plan, given the picture's asset id and the length, returns the request: the still repeated as few times as fit under a minute each, for exactly the song's length. `video-assemble` answers `{"id": "ast_...", "status": "processing", "sequence_id": "cmp_...", "assets": [], "editor_url": "https://suno.com/visual/cmp_..."}`.
+5. **Wait and save.** `visuals-wait` answers with the video's `asset_id`, `duration_s`, `width`, `height` and `suno_url`. `visuals-download` answers `{"status": "ok", "format": "mp4", "url"}`, and `save_lyric_video` saves the file under the album's `lyric_videos/`. It counts the bytes against the length the reply states and the picture's frames against its index, because a file cut off on the way still claims its full length.
+
+The video's sound is the Suno take. When the track has a mastered file as long as the video, to within a quarter of a second, `save_lyric_video` puts the master under the picture and copies the picture untouched. A master of another length is left out, because the words are timed to the take.
+
+*Measured on a 55-second song:* assembling, waiting and downloading spent no credit of any kind, and the video was ready in under a minute. The MP4 was H.264 at 30 frames a second with 48 kHz AAC: 1080x1080 for 1:1 and 1920x1080 for 16:9, about 11 MB. All seven sung lines were shown, in order, lit word by word. Handed a square picture for a 16:9 video, Suno put black bars beside it, which is why the still is made to the video's shape. A still held for 60 seconds under a 55-second song left 5 seconds of silence at the end. The download link was a signed address on `suno-data-uploads.s3.amazonaws.com`, good for an hour. Each call leaves a Sequence in the user's Suno library.
+
+A 97-second song took two stills of 48.58 seconds and came out 97.17 seconds long, again in under a minute. That song was locked: `audio-download` without `confirm` answered `requires_credit`, Suno rendered the video all the same, and `visuals-download` then answered `403` with reason `clip_not_unlocked`. The skill checks the lock before it renders, so that a video is not made that cannot be fetched.
+
+The words are Suno's own reading of the take. A third take, whose `audio-lyrics-alignment` transcript had left out its first two sung lines (§ Take Check), showed all seven lines in its video.
+
+*Not measured:* the upload. `visuals-upload-create` answered `403` with reason `upload_consent_required`: Suno asks each account, once, to accept a notice about the rights to what it uploads. That notice is the user's to accept, on suno.com.
 
 **What spends Visuals credits**
 
@@ -322,7 +342,7 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 
 **What does not**
 
-- `sequence-create`, `sequence-update`, `sequence-export` and `video-assemble` are free by their own descriptions. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
+- `video-assemble` with stills is free *(measured)*. `sequence-create`, `sequence-update` and `sequence-export` are free by their own descriptions. They lay a video out as shots over a song, edit the cut and render it. With stills only, the render is an animatic. `video-assemble` and a Sequence can burn the song's lyrics in as they are sung.
 - `visuals-models`, `visuals-library`, `visuals-wait`, `visuals-show` and `visuals-download` are free *(measured)*.
 - The descriptions of `sequence-get`, `sequence-list`, `characters-list`, `characters-save`, `visuals-upload-create` and `visuals-upload-complete` name no charge.
 
@@ -334,7 +354,7 @@ Suno's Visuals makes images and video for a song: cover art, clips of up to 15 s
 - Uploading an image or a video needs Suno's upload notice accepted once (`403 upload_consent_required` until then).
 - Give the user each image's or video's `suno_url`. Claude.ai and ChatGPT show the takes on a board of their own. In Claude Code, `visuals-show` hands each picture to the model as an image *(measured)*; the user needs the link, or the saved file, to see one.
 
-*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, `video-create` and `sequence-generate`.
+*Not measured:* `image-create` with any model but `image-1`, lettering on a cover, uploading an image or a video, `video-create` and `sequence-generate`.
 
 ---
 

@@ -2082,6 +2082,55 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "asset_id": {
+          "default": "",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "duration_s": {
+          "default": 0.0,
+          "title": "Duration S",
+          "type": "number"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug"
+      ],
+      "title": "get_lyric_video_planArguments",
+      "type": "object"
+    },
+    "name": "get_lyric_video_plan",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "get_lyric_video_planOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "track_slug": {
           "default": "",
           "title": "Track Slug",
@@ -3535,6 +3584,40 @@
           "title": "Album Slug",
           "type": "string"
         },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug"
+      ],
+      "title": "prepare_lyric_video_stillArguments",
+      "type": "object"
+    },
+    "name": "prepare_lyric_video_still",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "prepare_lyric_video_stillOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
         "dry_run": {
           "default": false,
           "title": "Dry Run",
@@ -4083,6 +4166,60 @@
         "result"
       ],
       "title": "save_album_art_candidatesOutput",
+      "type": "object"
+    }
+  },
+  {
+    "inputSchema": {
+      "properties": {
+        "album_slug": {
+          "title": "Album Slug",
+          "type": "string"
+        },
+        "link": {
+          "title": "Link",
+          "type": "string"
+        },
+        "master_audio": {
+          "default": true,
+          "title": "Master Audio",
+          "type": "boolean"
+        },
+        "replace": {
+          "default": false,
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "shape": {
+          "default": "16:9",
+          "title": "Shape",
+          "type": "string"
+        },
+        "track_slug": {
+          "title": "Track Slug",
+          "type": "string"
+        }
+      },
+      "required": [
+        "album_slug",
+        "track_slug",
+        "link"
+      ],
+      "title": "save_lyric_videoArguments",
+      "type": "object"
+    },
+    "name": "save_lyric_video",
+    "outputSchema": {
+      "properties": {
+        "result": {
+          "title": "Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "title": "save_lyric_videoOutput",
       "type": "object"
     }
   },

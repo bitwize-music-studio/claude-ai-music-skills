@@ -20,14 +20,13 @@ import io
 import os
 import re
 import time
-import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from tools.artwork.cover import _pillow
+from tools.shared import suno_links
 
 # A cover is square.
 ASPECT = "1:1"
@@ -43,9 +42,6 @@ TIMEOUT_S = 60
 TOTAL_TIMEOUT_S = 120
 CHUNK_BYTES = 64 * 1024
 
-# Suno serves pages from suno.com and files from suno.ai, on the https port.
-_DOMAINS = ("suno.ai", "suno.com")
-_PORTS = (None, 443)
 _USER_AGENT = "bitwize-music-mcp/1.0 (album art)"
 
 # A model id such as "image-1". It goes into a request, so it is checked first.
@@ -98,47 +94,26 @@ def build_request(prompt: str, avoid: str = "", model: str = "") -> dict[str, st
 
 def link_host(url: str) -> str:
     """The host a link points at, lower-cased; ``""`` when it has none."""
-    try:
-        return (urlparse(url).hostname or "").lower()
-    except ValueError:
-        return ""
+    return suno_links.link_host(url)
 
 
 def is_suno_link(url: str) -> bool:
-    """Whether *url* is an https address on one of Suno's hosts, on the https port.
+    """Whether *url* is an https address on one of Suno's own hosts, on the https port.
 
-    Decided by the parsed scheme and host, never by where "suno" appears in the
-    text, so ``suno.ai.example.org`` and ``cdn1.suno.ai@example.org`` are not
-    Suno's.
+    The rule lives in ``tools/shared/suno_links.py``. An image's link is on
+    Suno's own domains, so the download bucket video links use is not accepted
+    here.
     """
-    try:
-        parsed = urlparse(url)
-        port = parsed.port  # raises for a port that is not a number
-    except ValueError:
-        return False
-    host = link_host(url)
-    return (
-        parsed.scheme == "https" and port in _PORTS
-        and any(host == domain or host.endswith(f".{domain}") for domain in _DOMAINS)
-    )
+    return suno_links.is_suno_link(url)
 
 
-class SunoOnlyRedirects(urllib.request.HTTPRedirectHandler):
-    """Follow a redirect only while it stays on Suno's hosts, over https."""
-
-    def redirect_request(
-        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str,
-    ) -> urllib.request.Request | None:
-        if not is_suno_link(newurl):
-            raise urllib.error.HTTPError(
-                newurl, code, "the download was redirected away from Suno's hosts", headers, fp,
-            )
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+# Follow a redirect only while it stays on Suno's hosts, over https.
+SunoOnlyRedirects = suno_links.SunoRedirects
 
 
 def default_opener() -> urllib.request.OpenerDirector:
     """An opener whose redirects stay on Suno's hosts."""
-    return urllib.request.build_opener(SunoOnlyRedirects)
+    return suno_links.opener()
 
 
 def read_link(url: str, *, opener: Any = None) -> bytes:

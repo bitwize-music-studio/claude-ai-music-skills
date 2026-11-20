@@ -4,6 +4,29 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-19 - Lyric Video
+
+`/bitwize-music:lyric-video` has Suno render a lyric video for a track: the album's cover under the keeper, with the words burned in as they are sung. Measured on a Premier account with three takes of a test song, 52, 55 and 97 seconds long.
+
+### Features
+- New skill and three tools (`get_lyric_video_plan`, `prepare_lyric_video_still`, `save_lyric_video`). [mcp-api-mapping.md](mcp-api-mapping.md) § Visuals has the steps and the answers.
+
+### Measured
+- `video-assemble` with a still and `lyrics: true`, then `visuals-wait` and `visuals-download`: no credit of any kind was spent, and the video was ready in under a minute.
+- The MP4 was H.264 at 30 frames a second with 48 kHz AAC: 1080x1080 for 1:1, 1920x1080 for 16:9, about 11 MB.
+- All seven sung lines were shown, in order, lit word by word, on both takes watched. One of them is the take whose `audio-lyrics-alignment` transcript had left out two sung lines.
+- The 97-second song took two stills and came out 97.17 seconds long.
+- A locked song: `audio-download` without `confirm` answered `requires_credit`, the video was rendered all the same, and `visuals-download` answered `403 clip_not_unlocked`. Two `audio-download` calls at once: the second answered `rate_limited` with `retry_after_seconds: 1`.
+- A square picture in a 16:9 video sat between black bars. A still held longer than the song left silence at the end.
+- The download link was a signed address on `suno-data-uploads.s3.amazonaws.com`, the bucket audio downloads come from too. An image's link is on `cdn1.suno.ai`.
+- Each `video-assemble` call leaves a Sequence in the user's Suno library, with an `editor_url`.
+
+### Not Measured
+- Uploading the picture. `visuals-upload-create` answered `403 upload_consent_required` until the account accepts Suno's upload notice, which is the user's to accept.
+- Watching the 97-second video: its song is locked, and unlocking it costs a download credit.
+
+---
+
 ## 2026-11-19 - Album Art Through Suno
 
 `artwork.generator: suno` has Suno's image tool make an album's cover. Measured on a Premier account with the Fast model.

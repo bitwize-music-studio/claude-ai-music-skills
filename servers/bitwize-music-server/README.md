@@ -115,6 +115,13 @@ After installing, **restart Claude Code** to reload the plugin.
 | `save_album_art_candidates(album_slug, links, open_viewer?)` | Save the images Suno made (the links from its `visuals-download`) as cover candidates and open them; never picks one. Free |
 | `import_album_art(album_slug, source_path, replace?)` | File the chosen image as `album.png` (3000x3000) and `album-art.png` |
 
+### Lyric Video
+| Tool | Description |
+|------|-------------|
+| `get_lyric_video_plan(album_slug, track_slug, shape?, asset_id?, duration_s?)` | The keeper, the cover, the master and where the video goes; with the image's id and the song's length, the request for Suno's `video-assemble`. Free |
+| `prepare_lyric_video_still(album_slug, shape?)` | Write the picture Suno holds under the words, from the album's cover |
+| `save_lyric_video(album_slug, track_slug, link, shape?, master_audio?, replace?)` | Save the video Suno made (the link from its `visuals-download`) under `lyric_videos/`, with the mastered audio under it. Free |
+
 ### Session & Config
 | Tool | Description |
 |------|-------------|

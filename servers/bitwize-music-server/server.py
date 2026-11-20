@@ -483,6 +483,7 @@ from handlers import (
     generation,
     health,
     ideas,
+    lyric_video,
     lyrics_analysis,
     maintenance,
     playback,
@@ -522,6 +523,7 @@ take_check.register(mcp)
 take_edit.register(mcp)
 take_extend.register(mcp)
 suno_sounds.register(mcp)
+lyric_video.register(mcp)
 suno_voices.register(mcp)
 album_generation.register(mcp)
 suno_release.register(mcp)
@@ -672,6 +674,11 @@ from handlers.ideas import (  # noqa: F401
     create_idea,
     promote_idea,
     update_idea,
+)
+from handlers.lyric_video import (  # noqa: F401
+    get_lyric_video_plan,
+    prepare_lyric_video_still,
+    save_lyric_video,
 )
 
 # Lyrics analysis tools
