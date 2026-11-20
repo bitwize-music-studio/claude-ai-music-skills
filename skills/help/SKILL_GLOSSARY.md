@@ -145,5 +145,5 @@ Variables used in documentation that resolve from config:
 ## See Also
 
 - [SKILL.md](SKILL.md) - Help skill documentation
-- [/CLAUDE.md](/CLAUDE.md) - Main workflow instructions
+- [/reference/plugin-rules.md](/reference/plugin-rules.md) - The workflow rules every session gets
 - [/README.md](/README.md) - Project overview

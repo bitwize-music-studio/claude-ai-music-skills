@@ -98,7 +98,7 @@ Research outputs go to your album directory:
 - `RESEARCH.md` - Findings with verification status
 - `SOURCES.md` - Full academic citations
 
-**Reference**: See [CLAUDE.md > Sources & Verification](../../CLAUDE.md#sources--verification)
+**Reference**: See [Source Verification Handoff](../workflows/source-verification-handoff.md) and [Status Tracking](../workflows/status-tracking.md)
 
 ### Source Hierarchy
 

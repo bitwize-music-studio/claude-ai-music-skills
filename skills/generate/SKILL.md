@@ -207,7 +207,7 @@ Approval is the user's call and is not part of generating. When they name the ke
 4. If the listen plan's `like_keeper` is true and the take has a `clip_id`, call `audio-like(id: <clip_id>)` so the keeper shows as liked on suno.com. If a different take of this track carried the ✓ before, clear its like with `audio-unlike`. Never dislike a rejected take: a dislike is a rating only the user gives, it feeds Suno's taste profile, and it deletes nothing.
 5. Offer `/bitwize-music:import-audio --from-suno <album> <track>`. It is free for a take that was played in the terminal.
 
-When they reject both takes, add the reason to the Notes of those rows, then follow the Regeneration Workflow in CLAUDE.md: a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, and plain bad luck is another `/generate`.
+When they reject both takes, add the reason to the Notes of those rows, then follow the Regeneration Workflow in `${CLAUDE_PLUGIN_ROOT}/reference/workflows/status-tracking.md`: a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, and plain bad luck is another `/generate`.
 
 ## Album Mode
 
@@ -277,6 +277,6 @@ Or generate it on suno.com now:
 1. **Gates, then cost, then a go-ahead** — in that order, every time.
 2. **One call makes two takes and spends credits.** One go-ahead covers one call — or, in Album Mode, exactly the calls its summary listed.
 3. **Send only what `get_generation_request` returned.** The mapping lives in that tool, not in your head.
-4. **The live tool definition wins.** Suno's server is in beta and its arguments change.
+4. **The live tool definition wins.** Suno still changes its server's arguments.
 5. **You never pick a take, mark a keeper, set `Final` or publish.** A human listens first.
 6. **Each album's takes are filed in its own workspace**, made at the first generation and recorded in the album README. Creating and filing are free; nothing is deleted or published.

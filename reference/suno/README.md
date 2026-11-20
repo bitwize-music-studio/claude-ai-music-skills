@@ -56,7 +56,7 @@ Structure tags are mandatory in every section; the other three are optional acce
 
 ## API Parameters
 
-Suno's official MCP server (beta since October 2026) takes the parameters below. [mcp-api-mapping.md](mcp-api-mapping.md) has the full mapping from a track file, what each action costs, and setup.
+Suno's official MCP server (a beta from October 2026, now available on every Suno plan) takes the parameters below. [mcp-api-mapping.md](mcp-api-mapping.md) has the full mapping from a track file, what each action costs, and setup.
 
 | Parameter | Description | Range |
 |-----------|-------------|-------|

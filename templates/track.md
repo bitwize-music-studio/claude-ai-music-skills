@@ -55,7 +55,7 @@ SOURCE VERIFICATION: Required for tracks with source material (quotes, real even
 - ✅ Verified (DATE) = Human has checked all URLs, quotes, dates, names
 - N/A = Track has no external source material
 
-Human must verify BEFORE track moves to production. See CLAUDE.md for verification workflow.
+Human must verify BEFORE track moves to production. Verify with `/bitwize-music:verify-sources`.
 -->
 
 <!-- SOURCE-BASED TRACKS: Include these sections if track is based on external source material (quotes, articles, etc.). Delete if not applicable. -->

@@ -29,7 +29,7 @@
 
 ### Documentation
 
-- [ ] I have updated CLAUDE.md if workflow changed
+- [ ] I have updated `reference/plugin-rules.md` if a workflow rule changed (the rules plugin users get; under 9,000 characters)
 - [ ] I have updated README.md if user-facing changes
 - [ ] I have added/updated skill documentation if applicable
 

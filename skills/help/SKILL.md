@@ -141,7 +141,7 @@ Display this help information to the user in a clear, organized format.
 
 ### Key Documentation
 
-- **CLAUDE.md** - Main workflow instructions
+- `${CLAUDE_PLUGIN_ROOT}/reference/plugin-rules.md` - The workflow rules every session gets
 - **README.md** - Project overview
 - `${CLAUDE_PLUGIN_ROOT}/reference/suno/` - Suno guides (best practices, model catalog), pronunciation, tips
 - `${CLAUDE_PLUGIN_ROOT}/reference/workflows/` - Detailed workflow procedures

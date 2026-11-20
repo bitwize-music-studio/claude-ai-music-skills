@@ -101,7 +101,7 @@ Practical gate: a track isn't ready for `import-audio` until its arrangement is 
 
 ## Integration with the Regeneration Workflow
 
-CLAUDE.md's [Regeneration Workflow](../../CLAUDE.md#regeneration-workflow) is the spine for handling a rejected `Generated` track. Song Editor slots into it as a lower-risk fourth path — usually the right first move when the problem is *localized.*
+The [Regeneration Workflow](status-tracking.md#regeneration-workflow) is the spine for handling a rejected `Generated` track. Song Editor slots into it as a lower-risk fourth path — usually the right first move when the problem is *localized.*
 
 The four steps are unchanged; Song Editor mainly expands **Step 2 (decide the fix path):**
 
@@ -146,7 +146,7 @@ After a Song Editor pass:
 
 - [best-practices.md#song-editor](../suno/best-practices.md#song-editor) — capability table (Remake / Rewrite / Extend / Reorder / Delete)
 - [tips-and-tricks.md#song-editor](../suno/tips-and-tricks.md#song-editor) — quick-reference tips
-- [CLAUDE.md#regeneration-workflow](../../CLAUDE.md#regeneration-workflow) — rejected-track decision spine
+- [status-tracking.md#regeneration-workflow](status-tracking.md#regeneration-workflow) — rejected-track decision spine
 - [mix-engineer skill](../../skills/mix-engineer/SKILL.md) — stem polish (the audio-quality path)
 - [mastering-workflow.md](../mastering/mastering-workflow.md) — loudness normalization and limiting
 - [importing-audio.md](importing-audio.md) — moving the downloaded WAV into place

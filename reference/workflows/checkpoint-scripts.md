@@ -1,6 +1,6 @@
 # Checkpoint Scripts
 
-This document contains the detailed example messages for workflow checkpoints. CLAUDE.md references these scripts but keeps only triggers and action lists for brevity.
+This document contains the detailed example messages for workflow checkpoints. The plugin's rules (`reference/plugin-rules.md`) and the skills reference these scripts but keep only triggers and action lists for brevity.
 
 > **Related docs**: [release-procedures.md](release-procedures.md), [error-recovery.md](error-recovery.md)
 > **Related skills**: `/bitwize-music:release-director` (release coordination), `/bitwize-music:validate-album` (structure validation)
@@ -99,7 +99,7 @@ I'll set up mastering workflow once files are ready.
 **Trigger**: After mastering complete and album art generated
 
 **Required Actions (before presenting to user):**
-1. Review full Album Completion Checklist (see CLAUDE.md) — verify all items checked
+1. Review the full Verify Completion Checklist (see `release-procedures.md`) — verify all items checked
 2. Confirm mastered audio meets targets (-14 LUFS, -1.0 dBTP)
 3. Confirm album art is generated and saved
 4. Verify streaming lyrics are filled in each track (if using distributor)

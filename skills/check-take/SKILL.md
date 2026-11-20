@@ -92,7 +92,7 @@ These are the agent's observations — listen at the flagged spots before decidi
 
 ## After the Report
 
-- The user rejects a take over a flagged problem → the Regeneration Workflow in CLAUDE.md: a lyric or pronunciation problem goes to `/bitwize-music:lyric-writer` and `/bitwize-music:pronunciation-specialist`, a style problem to `/bitwize-music:suno-engineer`.
+- The user rejects a take over a flagged problem → the Regeneration Workflow in `${CLAUDE_PLUGIN_ROOT}/reference/workflows/status-tracking.md`: a lyric or pronunciation problem goes to `/bitwize-music:lyric-writer` and `/bitwize-music:pronunciation-specialist`, a style problem to `/bitwize-music:suno-engineer`.
 - A flag looks wrong to the user → the agent can mishear, and its answers vary a little from run to run. Offer to ask again: `/bitwize-music:check-take <album> <track> take N`.
 - Nothing is written to the track file. The Generation Log stays the user's record.
 

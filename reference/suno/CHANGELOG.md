@@ -4,6 +4,15 @@ This file tracks all updates to the Suno reference documentation, including new 
 
 ---
 
+## 2026-11-20 - MCP Server Out of Beta
+
+Suno's MCP server is no longer a beta. Its [help article](https://help.suno.com/en/articles/14551361) (now "What is Suno MCP ?") says "Suno MCP is available on all Suno plans, and creations use your available credits. Some features may require a paid subscription plan." [suno.com/mcp](https://suno.com/mcp) marks Visuals "Available on paid plans" and says "some apps only let you add connectors on certain paid plans." Speech is still listed as "(beta)".
+
+### Changed
+- [mcp-api-mapping.md](mcp-api-mapping.md), [README.md](README.md) and the plugin's README, FAQ, CLAUDE.md and generate skill drop the beta and invite-only wording. The live tool definitions still win: Suno keeps adding tools and changing arguments.
+
+---
+
 ## 2026-11-19 - Music Video
 
 `/bitwize-music:music-video` takes a track's keeper to a music video through Suno's Sequences: shots on the song's sections, a keyframe each, an animatic, then clips for the shots the user picks.

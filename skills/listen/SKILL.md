@@ -181,7 +181,7 @@ When the user has heard the takes, ask which one to keep, or whether to regenera
 6. `prune_takes_cache(dry_run: false)` — the audition copies of a track that now has a keeper are no longer needed. Skip it when nothing was played in the terminal.
 7. Offer `/bitwize-music:import-audio --from-suno <album> <track>`. It is free for a take that was played in the terminal.
 
-**They reject them all:** `close_song_panes` if the takes were opened in iTerm2 panes. Add the reason to the Notes of those rows, then follow the Regeneration Workflow in CLAUDE.md — a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, bad luck is another `/bitwize-music:generate`.
+**They reject them all:** `close_song_panes` if the takes were opened in iTerm2 panes. Add the reason to the Notes of those rows, then follow the Regeneration Workflow in `${CLAUDE_PLUGIN_ROOT}/reference/workflows/status-tracking.md` — a style problem goes to `/bitwize-music:suno-engineer`, a lyrics problem to `/bitwize-music:lyric-writer`, bad luck is another `/bitwize-music:generate`.
 
 **They have not decided:** leave everything as it is, open panes included.
 

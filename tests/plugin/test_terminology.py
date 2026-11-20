@@ -58,11 +58,11 @@ class TestDeprecatedTerms:
 
 
 class TestPathVariables:
-    """Expected path variables should be documented in CLAUDE.md."""
+    """Expected path variables should be documented in the plugin rules."""
 
     @pytest.mark.parametrize("var", EXPECTED_PATH_VARS)
     def test_path_variable_documented(self, claude_md_content, var):
-        assert var in claude_md_content, f"Path variable {var} not found in CLAUDE.md"
+        assert var in claude_md_content, f"Path variable {var} not found in reference/plugin-rules.md or AGENTS.md"
 
 
 class TestHardcodedPaths:

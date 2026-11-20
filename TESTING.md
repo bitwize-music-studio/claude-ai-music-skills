@@ -32,7 +32,7 @@ claude
 
 **Verify:**
 - [ ] Claude loads without errors
-- [ ] CLAUDE.md is recognized (check session start behavior)
+- [ ] The plugin's rules load at session start in the music workspace (ask Claude whether it has "bitwize-music: rules for every session"); elsewhere it has only a one-line pointer
 - [ ] Skills are available (type `/` and check menu)
 
 ### 1.2 Plugin Install (Marketplace Method)
