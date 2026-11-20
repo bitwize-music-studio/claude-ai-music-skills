@@ -277,6 +277,6 @@ Or generate it on suno.com now:
 1. **Gates, then cost, then a go-ahead** — in that order, every time.
 2. **One call makes two takes and spends credits.** One go-ahead covers one call — or, in Album Mode, exactly the calls its summary listed.
 3. **Send only what `get_generation_request` returned.** The mapping lives in that tool, not in your head.
-4. **The live tool definition wins.** Suno's server is in beta and its arguments change.
+4. **The live tool definition wins.** Suno still changes its server's arguments.
 5. **You never pick a take, mark a keeper, set `Final` or publish.** A human listens first.
 6. **Each album's takes are filed in its own workspace**, made at the first generation and recorded in the album README. Creating and filing are free; nothing is deleted or published.

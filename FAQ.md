@@ -90,7 +90,7 @@ without a human signing off.
 
 ### Does it integrate with Suno's API or MCP server?
 
-Yes — with Suno's official MCP server, which arrived in beta in October 2026.
+Yes — with Suno's official MCP server, which launched as a beta in October 2026 and is now available on every Suno plan.
 Connect it once (`claude mcp add --transport http suno https://api.suno.com/mcp`,
 then `/mcp` to sign in) and `/bitwize-music:generate` runs the pre-generation
 gates, shows what it will cost, generates on your own Suno account and logs

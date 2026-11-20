@@ -46,7 +46,7 @@ Claude: Imports stems from Suno, polishes per-stem
 Concept to released album, from the terminal. Connect Suno's own MCP server and generation happens there too — and you still listen to every take before it's approved.
 
 > [!WARNING]
-> [Suno's MCP server](https://suno.com/mcp) is an invite-only beta: you can connect it only once Suno has invited you. Without it, the rest of the plugin works the same, and you paste the lyrics and style prompt into suno.com as before. Suno is also updating the server constantly, so the skills that use it (`generate`, `listen`, `check-take`, `edit-take`, `extend-take`, `sound-effects`, `suno-voice`, `lyric-video`, `music-video` and `import-audio --from-suno`) may break without warning until Suno officially releases it.
+> [Suno's MCP server](https://suno.com/mcp) is available on every Suno plan, and songs made through it use your plan's credits. Visuals (album art, lyric videos, promo clips and music videos) need a paid Suno plan, and some AI apps only let you add a connector on one of their own paid plans. Without the server, the rest of the plugin works the same, and you paste the lyrics and style prompt into suno.com as before. Suno still adds tools and changes their arguments, so if one of the skills that use it (`generate`, `listen`, `check-take`, `edit-take`, `extend-take`, `sound-effects`, `suno-voice`, `lyric-video`, `music-video` and `import-audio --from-suno`) misbehaves after a Suno update, [open an issue](https://github.com/bitwize-music-studio/claude-ai-music-skills/issues).
 
 ---
 
